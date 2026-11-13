@@ -1,0 +1,31 @@
+{
+  "tag": "violet-icon",
+  "summary": "Renders an SVG glyph from the icon registry by name; use inside buttons, badges and labels.",
+  "usage": [
+    {
+      "id": "icon.registry",
+      "text": "The icon attribute is a registry name such as system/close (default system/search). An unregistered name renders an X-shaped fallback. The registry is read when icon is set, so register first.",
+      "members": [
+        "icon"
+      ]
+    },
+    {
+      "id": "icon.register",
+      "text": "violet-icon registers no icons. Add one with registerVioletIcon({ name, svg, sourceId, originalFile }); the generated registerSystem*Icon() helpers are in dist/icon/generated/index.js, not the root."
+    },
+    {
+      "id": "icon.size",
+      "text": "It is a 1em square that inherits currentColor; size it with font-size or the --violet-icon-size custom property."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "icon.name",
+      "text": "Unless decorative, the glyph has role img named by the label attribute. With no label the registry name itself (e.g. \"system/search\") is announced, so set label or decorative.",
+      "members": [
+        "label",
+        "decorative"
+      ]
+    }
+  ]
+}

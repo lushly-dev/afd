@@ -7,12 +7,33 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [0.6.1] - 2026-11-07
+## [0.7.0] - 2026-11-13
 
-Skill fixes for repositories that seed Botcore's skills. No code change.
+The bloat sweep, shared with Lushly: a skill and the `[sweep]` section it reads. A `[sweep]` section in `botcore.toml` needs this release, since earlier ones refuse unknown keys.
+
+### Added
+
+- **`bloat-sweeper` skill.** A periodic pass that ranks files over `file_size_warn` by size and churn, finds code copied between files, judges each candidate's seam, and fixes the worst few in one PR, so a commit gate only needs to guard runaway growth. Its `scripts/sweep.mjs` needs only Node and git (and `gh` for open pull requests and the trend issue), ships in the wheel, and reads a new `[sweep]` section (`SweepConfig`): `trend_issue`, `cohesive`, `exclude`, `churn_days`, `extensions` and `measures`. Adapted from Lushly's `do-sweep` bloat mode, with areas taken from the nearest package manifest and stories left out of the ranking. A repository adopting it with its own trend issue and cohesive file sets `trend_issue` and `cohesive`, and carries measures such as bundle sizes or test-only exports through `measures`; a `[sweep]` section needs this release, since older ones refuse unknown keys.
+
+## [0.6.1] - 2026-11-12
+
+Fixes for repositories that seed Botcore's skills, and docs checks that cover a whole
+monorepo. Prepared on 2026-11-07 and released with the docs-check fix that landed since.
 
 ### Fixed
 
+- **Docs checks cover the whole repository**
+  ([#779](https://github.com/lushly-dev/afd/issues/779)). `docs_check_changelog` reads staged
+  code under any `src/` directory, in any of the common languages, against the CHANGELOG.md
+  nearest it, so each package of a monorepo answers to its own; before, only `.py` under a
+  top-level `src/` counted. `docs_check_agents` also sees new packages (`package.json`,
+  `pyproject.toml`, `Cargo.toml`), skills and workflows, and command modules in any language.
+  `docs_lint` lints a single file it is given, where it checked nothing, and skips
+  `node_modules`, virtual environments and build output. In an npm repository the checks
+  suggest its Changesets command rather than `changeset_create`, which refuses one.
+  `docs_check_agents` now reports packages, skills and workflows only when they are added, and
+  labels an edited command module "Changed command"; in a monorepo these advisory checks can
+  flag more than before. `docs-manager` 2.1.1 describes the checks as they now are.
 - **Seeded skills** read correctly outside AFD. `security-auditor` defers to a repository lane
   that defines blockers by impact; `docs-manager` allows a root `CLAUDE.md` whose only line is
   `@AGENTS.md`; `plugin-builder`, `mcp-builder`, `security-auditor` and `botcore-config` link

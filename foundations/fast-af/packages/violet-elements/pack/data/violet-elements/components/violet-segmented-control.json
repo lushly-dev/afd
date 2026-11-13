@@ -1,0 +1,196 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "segmented-control.keyboard",
+				"text": "The group is one Tab stop: the checked segment, or the first enabled one. Arrow keys (mirrored right to left), Home and End move focus and select together, like native radios, and fire change."
+			},
+			{
+				"basis": "authored",
+				"id": "segmented-control.segment-names",
+				"text": "Each segment is a radio named by its slotted text. An aria-label on a violet-segment is not forwarded, so an icon-only segment still needs readable text in its slot."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the selected value changes.",
+				"name": "change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"violet-segment"
+				],
+				"basis": "observed",
+				"description": "`violet-segment` options rendered inside the group.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-segmented-control--disabled",
+			"html": "<violet-segmented-control disabled error-text label=\"Propagation view\" name supporting-text value=\"overview\"><violet-segment aria-disabled=\"true\" checked value=\"overview\">Overview</violet-segment><violet-segment aria-disabled=\"true\" value=\"planting\">Planting</violet-segment></violet-segmented-control>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-segmented-control--disabled-segment-tab-stop",
+			"html": "<div style=\"max-inline-size: 32rem;\"><form><violet-segmented-control error-text label=\"Propagation view\" name=\"propagation-view\" supporting-text=\"Choose the working perspective for this crop plan.\" value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment><violet-segment value=\"irrigation\">Irrigation</violet-segment></violet-segmented-control></form></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-segmented-control--invalid",
+			"html": "<violet-segmented-control error-text=\"Choose a view before continuing.\" invalid label=\"Propagation view\" name required supporting-text value><violet-segment value=\"overview\">Overview</violet-segment><violet-segment value=\"planting\">Planting</violet-segment></violet-segmented-control>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"field.aria-label",
+		"field.label",
+		"field.supporting-text",
+		"form.participation",
+		"form.required-error",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Single-choice group of violet-segment buttons for switching between a few short, mutually exclusive options such as views or modes.",
+	"tag": "violet-segmented-control",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "segmented-control.children",
+			"text": "Children are violet-segment elements, each with a unique non-empty value and its visible text in the default slot. The control checks the segment whose value equals its value; do not set checked on segments."
+		},
+		{
+			"basis": "authored",
+			"id": "segmented-control.initial",
+			"text": "value defaults to empty, which leaves every segment unchecked. Set value to one segment's value so a choice shows on first render."
+		},
+		{
+			"basis": "authored",
+			"id": "segmented-control.change",
+			"text": "change fires on click and arrow-key selection only, as a plain event with no detail; read the value property. No input event fires, and setting value in script fires nothing."
+		},
+		{
+			"basis": "authored",
+			"id": "segmented-control.disabled",
+			"text": "Disabling the control disables every segment. A disabled segment is skipped by the arrow keys and never becomes the Tab stop."
+		}
+	]
+}

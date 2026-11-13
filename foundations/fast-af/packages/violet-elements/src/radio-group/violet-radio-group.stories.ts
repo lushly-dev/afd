@@ -71,6 +71,7 @@ function renderRadioGroup(args: VioletRadioGroupStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Radio Group",
+    component: "violet-radio-group",
     tags: ["autodocs"],
     parameters: {
         docs: {

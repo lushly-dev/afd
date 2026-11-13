@@ -266,13 +266,13 @@ describe("violet-tree-item", () => {
             const selects = track<{ value: string }>(parent, "select-request");
             const toggles = track<{ expanded: boolean }>(parent, "toggle-request");
 
-            (parent.shadowRoot?.querySelector(".toggle") as HTMLElement).click();
+            (parent.shadowRoot!.querySelector(".toggle") as HTMLElement).click();
 
             expect(toggles).toEqual([{ expanded: true }]);
             expect(selects).toEqual([]);
 
             parent.expanded = true;
-            (parent.shadowRoot?.querySelector(".toggle") as HTMLElement).click();
+            (parent.shadowRoot!.querySelector(".toggle") as HTMLElement).click();
 
             expect(toggles).toEqual([{ expanded: true }, { expanded: false }]);
         });
@@ -282,7 +282,7 @@ describe("violet-tree-item", () => {
             const selects = track<{ value: string }>(parent, "select-request");
             const toggles = track<{ expanded: boolean }>(parent, "toggle-request");
 
-            (parent.shadowRoot?.querySelector(".label") as HTMLElement).click();
+            (parent.shadowRoot!.querySelector(".label") as HTMLElement).click();
 
             expect(selects).toEqual([{ value: "Parent" }]);
             expect(toggles).toEqual([]);
@@ -293,7 +293,7 @@ describe("violet-tree-item", () => {
             const selects = track<{ value: string }>(item, "select-request");
             const toggles = track<{ expanded: boolean }>(item, "toggle-request");
 
-            (item.shadowRoot?.querySelector(".toggle") as HTMLElement).click();
+            (item.shadowRoot!.querySelector(".toggle") as HTMLElement).click();
 
             expect(toggles).toEqual([]);
             expect(selects).toEqual([{ value: "Leaf" }]);

@@ -640,16 +640,51 @@ impl Browser {
         attempt.enter("capturing the result");
         let capture_started = std::time::Instant::now();
         // The DOM is normalized in the page, by the same `normalizeDom` the API exports.
-        let captured = page
+        let mut captured = page
             .evaluate("(async () => { const captured = window.__specimen.capture(); captured.normalized = await window.__specimen.normalize(captured.dom); return captured; })()")
             .await?;
         let root = page.root_backend_id().await?;
         let tree = page.send("Accessibility.getFullAXTree", json!({})).await?;
+        let dom = page.subtree(root).await?;
         let snapshot = match aria::snapshot(&tree, root) {
             Some(snapshot) => snapshot,
             // A modal dialog has left the mount root out of the tree (#662).
-            None => aria::exposed_within(&tree, &page.subtree_backend_ids(root).await?),
+            None => aria::exposed_within(&tree, &crate::page::backend_ids(&dom)),
         };
+        // Each accessible element's computed role and name, by the reference the page gave it.
+        // The tree is read after the page's capture: if the page changed in between, references
+        // no longer name the same elements, and no role is recorded rather than a wrong one.
+        let roles = aria::roles(&tree, &dom);
+        let page_references: std::collections::HashSet<String> = captured
+            .get("elements")
+            .and_then(Value::as_array)
+            .into_iter()
+            .flatten()
+            .filter_map(|element| element.get("ref").and_then(Value::as_str))
+            .filter(|reference| *reference != "root")
+            .map(String::from)
+            .collect();
+        if page_references == roles.references {
+            if let Some(elements) = captured.get_mut("elements").and_then(Value::as_array_mut) {
+                for element in elements {
+                    let accessible = element
+                        .get("ref")
+                        .and_then(Value::as_str)
+                        .and_then(|reference| roles.accessible.get(reference));
+                    if let (Some(accessible), Some(element)) = (accessible, element.as_object_mut())
+                    {
+                        element.insert("accessibility".into(), json!(accessible));
+                    }
+                }
+            }
+        } else if let Some(limitations) = captured
+            .get_mut("limitations")
+            .and_then(Value::as_array_mut)
+        {
+            limitations.push(json!(
+                "The page changed between its capture and the accessibility tree's, so no element's role is recorded."
+            ));
+        }
         let viewport: Viewport =
             serde_json::from_value(context.get("viewport").cloned().unwrap_or(Value::Null))
                 .unwrap_or(viewport);

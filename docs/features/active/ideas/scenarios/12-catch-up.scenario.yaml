@@ -1,0 +1,176 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Fixture the runner cannot yet set up (P14): a workspace whose collection `journal` is
+# configured by the deployer as the person's own writing, holding `seed-saving.md` with two
+# lines:
+#   Save seed from the best plant, not the last one.
+#   Beans are the easiest seed to start with.
+
+name: Catch up, and mine again with a better model
+description: >-
+  When weeks have passed or a better model has arrived, I want a briefing of what changed since
+  I last looked and to review only what is new or better put, so that keeping up is cheap.
+job: catch-up
+tags: [change, slice]
+
+steps:
+  - description: A source mined before
+    command: ideas-source-add
+    input:
+      document: journal/seed-saving.md
+    expect:
+      success: true
+
+  - description: An idea from it
+    command: ideas-capture
+    input:
+      type: principle
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [1]
+    expect:
+      success: true
+
+  - description: Put the idea in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
+    expect:
+      success: true
+
+  - description: I read the digest
+    command: ideas-digest
+    expect:
+      success: true
+      data:
+        cursor: { exists: true }
+
+  - description: And say that I have seen it; the store remembers that, not the chat
+    command: ideas-digest-ack
+    input:
+      cursor: "${{ steps[4].data.cursor }}"
+    expect:
+      success: true
+
+  - description: A better extractor arrives, and one source has not been mined by it
+    command: ideas-source-list
+    input:
+      notMinedBy: better-fixture-model, prompt 2
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: It reads the stored source back; nobody has to supply the file again
+    command: ideas-source-open
+    input:
+      source: "${{ steps[0].data.source }}"
+    expect:
+      success: true
+      data:
+        sentences: { length: 2 }
+        more: false
+
+  - description: A run with the better extractor
+    command: ideas-run-open
+    input:
+      sources: ["${{ steps[0].data.source }}"]
+      extractor: better-fixture-model, prompt 2
+    expect:
+      success: true
+
+  - description: It finds the idea I already hold, in other words, and is refused
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Choose your strongest plant as the seed parent instead of whichever is left at the end.
+      run: "${{ steps[8].data.run }}"
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+
+  - description: It thinks its wording is the better one, so it offers it; my wording stands meanwhile
+    command: ideas-reframe
+    input:
+      id: "${{ steps[1].data.id }}"
+      statement: Choose your strongest plant as the seed parent instead of whichever is left at the end.
+      reason: Says which plant, and why the last one is the wrong choice.
+      run: "${{ steps[8].data.run }}"
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: It finds one the first run missed
+    command: ideas-capture
+    input:
+      type: example
+      run: "${{ steps[8].data.run }}"
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [2]
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: Close the run
+    command: ideas-run-close
+    input:
+      run: "${{ steps[8].data.run }}"
+      done: ["${{ steps[0].data.source }}"]
+    expect:
+      success: true
+
+  - description: The run says what was new, what it proposed and what was refused
+    command: ideas-run-show
+    input:
+      run: "${{ steps[8].data.run }}"
+    expect:
+      success: true
+      data:
+        captured: 1
+        reworded: 1
+        refused: 1
+
+  - description: In a new chat, the digest starts from what I last acknowledged
+    command: ideas-digest
+    expect:
+      success: true
+      data:
+        new:
+          total: 1
+        rewordings: { length: 1 }
+
+  - description: What I affirmed was not touched; the better wording waits for me
+    command: ideas-open
+    input:
+      id: "${{ steps[1].data.id }}"
+    expect:
+      success: true
+      data:
+        standing: affirmed
+        statement: { contains: not the last one }
+        pending: { exists: true }
+
+  - description: Nothing is left for the better extractor
+    command: ideas-source-list
+    input:
+      notMinedBy: better-fixture-model, prompt 2
+    expect:
+      success: true
+      data:
+        total: 0

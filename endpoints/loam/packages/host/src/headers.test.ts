@@ -1,5 +1,4 @@
 import { readFileSync } from 'node:fs';
-import { join } from 'node:path';
 import { withBasePath, withFrameSrc } from '@lushly-dev/loam-cli/deployment';
 import { Window } from 'happy-dom';
 import { describe, expect, it } from 'vitest';
@@ -12,7 +11,7 @@ import {
 	shellPagePolicy,
 	siteCacheControl,
 } from './headers.js';
-import { WEB_DIST } from './test-support.js';
+import { WEB_PAGE } from './test-support.js';
 
 /**
  * The `<meta>` policy's content as a browser reads it, through happy-dom's own HTML parser, which decodes
@@ -32,10 +31,11 @@ function metaContent(html: string): string {
 
 /**
  * Every `index.html` the fixtures write: `deployment write` changes only `frame-src` (a sandbox origin or
- * `'none'`) and, under a `base_path`, the assets' URLs, so these are each page it can write from the build.
+ * `'none'`) and, under a `base_path`, the assets' URLs, so these are each page it can write from the web host's
+ * page; this reads its source, whose policy `<meta>` `vite build` keeps as it is.
  */
 function writtenPages(): Array<[string, string]> {
-	const built = readFileSync(join(WEB_DIST, 'index.html'), 'utf8');
+	const built = readFileSync(WEB_PAGE, 'utf8');
 	const pages: Array<[string, string]> = [];
 	for (const frameSrc of ["'none'", 'https://loam-sandbox.example.net', 'https://127.0.0.1:8444'])
 		for (const base of ['/', '/loam/']) {
@@ -79,8 +79,8 @@ describe('P6-E2: the headers (3.5)', () => {
 		}
 	);
 
-	it("P6-E2: phase 0's directives are the build's, so no source widens", () => {
-		const built = metaContent(readFileSync(join(WEB_DIST, 'index.html'), 'utf8'));
+	it("P6-E2: phase 0's directives are those of the web host's source index.html, so no source widens", () => {
+		const built = metaContent(readFileSync(WEB_PAGE, 'utf8'));
 		for (const [, page] of writtenPages()) {
 			const directives = metaContent(page)
 				.split(';')

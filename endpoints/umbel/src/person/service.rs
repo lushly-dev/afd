@@ -13,6 +13,14 @@
 //!   plugin gate checks against the decision read back and spends again, as `person-run:<id>`.
 //! - **Journal**: each decision, when the person makes it, as a host `person-decide` entry under
 //!   the trace of the call that began it, keeping `id`, `level` and `decision` alone.
+//!
+//! **The local page** (the Ideas host-review specification, section 6). In mode `none` with
+//! `[person.local]` enabled, the service is built with no identity provider and no login: its
+//! decisions are the local person's ([`super::for_of_local`]), begun by the plugin gate's local
+//! arm ([`super::LocalGate`], implemented here) for a stdio caller, decided on the loopback page
+//! that `umbel person page-serve` serves, and spent by the same call sent again. They share
+//! `state/shared/person.sqlite3` with every process of the workspace, so the stdio server that
+//! began a decision and the process serving the page need not be one.
 
 use std::collections::{BTreeMap, HashSet};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -43,6 +51,120 @@ const MAX_PROPERTY_CHARS: usize = 512;
 const MAX_PROPERTY_ITEMS: usize = 100;
 /// The longest text a `journal.show` property may hold (a rejection's reason, step 6).
 const MAX_SHOWN_CHARS: usize = 2000;
+/// The most pages a paged preview may answer (the Ideas host-review specification, section 2).
+pub(crate) const MAX_PREVIEW_PAGES: u32 = 200;
+/// The most items one page of a preview may answer.
+pub(crate) const MAX_PREVIEW_ITEMS: usize = 100;
+/// The most characters a page shows, its heading and every item's text together (D97's cap):
+/// a page that needs more cannot be shown, and is never cut.
+pub(crate) const MAX_PAGE_CHARS: usize = 6000;
+/// What a page shows when the preview cannot be shown.
+const UNAVAILABLE: &str = "The preview could not be shown, so this request can only be declined.";
+
+/// One page of a decision's preview as the page shows it (the Ideas host-review specification,
+/// section 2): its heading and items, sanitised, never cut. Nothing of it is stored but its hash
+/// and its items' ids.
+#[derive(Clone, Debug)]
+pub(crate) struct PreviewPage {
+    pub(crate) page: u32,
+    pub(crate) pages: u32,
+    pub(crate) heading: String,
+    /// Each item's id and text.
+    pub(crate) items: Vec<(String, String)>,
+    /// Whether the page could be shown: only a shown page counts toward Approve.
+    pub(crate) ok: bool,
+    /// `sha256:<hex>` of what it shows.
+    pub(crate) hash: String,
+}
+
+impl PreviewPage {
+    pub(crate) fn unavailable(page: u32) -> Self {
+        Self::shown(page, page, UNAVAILABLE.to_owned(), Vec::new(), false)
+    }
+
+    fn shown(
+        page: u32,
+        pages: u32,
+        heading: String,
+        items: Vec<(String, String)>,
+        ok: bool,
+    ) -> Self {
+        let hash = format!(
+            "sha256:{}",
+            sha256_hex(
+                &json!({ "page": page, "pages": pages, "heading": heading, "items": items })
+                    .to_string()
+            )
+        );
+        Self {
+            page,
+            pages,
+            heading,
+            items,
+            ok,
+            hash,
+        }
+    }
+}
+
+/// Whether `id` is an item id: 1 to 64 letters, digits, `.`, `_` and `-`.
+fn is_item_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// Page `asked` of a preview's answer `data` (section 2), sanitised: `None` when it is not
+/// exactly `{ preview }` or a paged answer for that page by the section's rules, or when it would
+/// not fit on the page uncut.
+pub(crate) fn preview_page_of(data: &Value, asked: u32) -> Option<PreviewPage> {
+    let data = data.as_object()?;
+    if data
+        .keys()
+        .any(|key| !matches!(key.as_str(), "preview" | "page" | "pages" | "items"))
+    {
+        return None;
+    }
+    let heading = clean(data.get("preview")?.as_str()?);
+    let number = |name: &str| -> Option<Option<u32>> {
+        match data.get(name) {
+            None => Some(None),
+            Some(value) => u32::try_from(value.as_u64()?).ok().map(Some),
+        }
+    };
+    let (page, pages) = match (number("page")?, number("pages")?) {
+        (Some(page), Some(pages)) => (page, pages),
+        (None, None) => (1, 1),
+        _ => return None,
+    };
+    if page < 1 || page > pages || pages > MAX_PREVIEW_PAGES || page != asked {
+        return None;
+    }
+    let mut items = Vec::new();
+    if let Some(listed) = data.get("items") {
+        let listed = listed.as_array()?;
+        if listed.len() > MAX_PREVIEW_ITEMS {
+            return None;
+        }
+        for item in listed {
+            let item = item.as_object()?;
+            if item.len() != 2 {
+                return None;
+            }
+            let id = item.get("id")?.as_str()?;
+            let text = item.get("text")?.as_str()?;
+            if !is_item_id(id) || items.iter().any(|(seen, _): &(String, String)| seen == id) {
+                return None;
+            }
+            items.push((id.to_owned(), clean(text)));
+        }
+    }
+    // The page is cut nowhere: what would not fit cannot be shown.
+    let shown = |text: &str| text.chars().filter(|c| *c != '\n').count();
+    let total = shown(&heading) + items.iter().map(|(_, text)| shown(text)).sum::<usize>();
+    (total <= MAX_PAGE_CHARS).then(|| PreviewPage::shown(page, pages, heading, items, true))
+}
 
 /// A command whose `person` names `verified` on some surface: what its decisions need.
 #[derive(Debug, Clone)]
@@ -97,8 +219,11 @@ pub(crate) struct PersonService {
     pub(crate) person_key: Vec<u8>,
     relay_key: Vec<u8>,
     /// The base of the page's URLs: `http.public_url` in mode `oauth`, `http.person.public_url`
-    /// (an origin) in mode `gateway`.
+    /// (an origin) in mode `gateway`, `http://<person.local.bind>` on the local page.
     page_url: String,
+    /// Whether this is the local page's service: no provider, no login, decisions for the local
+    /// person only.
+    local: bool,
 }
 
 impl std::fmt::Debug for PersonService {
@@ -194,13 +319,15 @@ impl PersonService {
         environment: &AuthEnvironment,
     ) -> Result<Option<Arc<Self>>, crate::host::HostError> {
         let config = workspace.config();
-        if !crate::plugins::loader::person_page_served(config) {
+        let local = crate::plugins::loader::local_page_served(config);
+        if !crate::plugins::loader::person_page_served(config) && !local {
             return Ok(None);
         }
         // Where the page is served: beside the MCP path in mode `oauth`; on its own origin in mode
         // `gateway` (step 5b), so every link and the redirect URI name a host the gateway never
-        // serves.
+        // serves; on the loopback bind of `[person.local]`, over plain HTTP.
         let page_url = match (config.auth.mode, &config.http.person) {
+            _ if local => format!("http://{}", config.person.local.bind),
             (crate::workspace::AuthMode::Gateway, Some(person)) => person.public_url.clone(),
             (crate::workspace::AuthMode::Oauth, _) => match config.http.public_url.clone() {
                 Some(url) => url,
@@ -210,7 +337,8 @@ impl PersonService {
         };
         let platform = Fetcher::new(environment);
         let mut providers = BTreeMap::new();
-        for namespace in &config.auth.namespaces {
+        // The local page has no login, so no provider.
+        for namespace in config.auth.namespaces.iter().filter(|_| !local) {
             let Some(login) = &namespace.person else {
                 continue;
             };
@@ -287,7 +415,18 @@ impl PersonService {
             person_key: workspace.person_key()?,
             relay_key: workspace.relay_key()?,
             page_url,
+            local,
         })))
+    }
+
+    /// Whether this is the local page's service (the Ideas host-review specification, section 6).
+    pub(crate) fn is_local(&self) -> bool {
+        self.local
+    }
+
+    /// The workspace's configuration.
+    pub(crate) fn workspace_config(&self) -> &crate::workspace::Config {
+        self.workspace.config()
     }
 
     pub(crate) fn now(&self) -> i64 {
@@ -363,17 +502,31 @@ impl PersonService {
         else {
             return Err(unavailable(command, "this command is not decided there"));
         };
-        let Some(provider) = self.providers.get(&request.who.namespace) else {
-            return Err(unavailable(
-                command,
-                "the caller's namespace has no usable person login",
-            ));
-        };
-        if provider.ensure().await.is_err() {
-            return Err(unavailable(
-                command,
-                "the caller's namespace's person login cannot be used now",
-            ));
+        if self.local {
+            // The local page decides for the local person over MCP alone, with no login.
+            if request.surface != Surface::Mcp
+                || request.who.namespace != super::LOCAL_NAMESPACE
+                || request.who.issuer.is_some()
+                || request.who.client_id.is_some()
+            {
+                return Err(unavailable(
+                    command,
+                    "the local person page decides only for the workspace's stdio caller",
+                ));
+            }
+        } else {
+            let Some(provider) = self.providers.get(&request.who.namespace) else {
+                return Err(unavailable(
+                    command,
+                    "the caller's namespace has no usable person login",
+                ));
+            };
+            if provider.ensure().await.is_err() {
+                return Err(unavailable(
+                    command,
+                    "the caller's namespace's person login cannot be used now",
+                ));
+            }
         }
         // Readability before anyone is asked (5.4): a call the registry would refuse is never
         // put to a person, and the refusal is the one answer.
@@ -500,9 +653,7 @@ impl PersonService {
                 .unwrap_or_default(),
             trace_id: request.context.trace_id.clone(),
             created_ms: now,
-            expires_ms: now.saturating_add(
-                i64::try_from(crate::auth::PERSON_DECISION_TTL_S * 1000).unwrap_or(0),
-            ),
+            expires_ms: now.saturating_add(self.ttl_ms()),
         };
         let store = Arc::clone(&self.store);
         let created = new.clone();
@@ -526,7 +677,28 @@ impl PersonService {
             auth_time_ms: None,
             acr: None,
             preview_hash: None,
+            pages_total: None,
+            pages: Vec::new(),
+            excluded: Vec::new(),
         })
+    }
+
+    /// `person.decision_ttl_s`, in milliseconds: a decision's lifetime, from its beginning and
+    /// from each page rendered (the Ideas host-review specification, section 4).
+    pub(crate) fn ttl_ms(&self) -> i64 {
+        i64::try_from(
+            self.workspace
+                .config()
+                .person
+                .decision_ttl_s
+                .saturating_mul(1000),
+        )
+        .unwrap_or(i64::MAX)
+    }
+
+    /// The namespaces whose person login the page serves, in order.
+    pub(crate) fn namespaces(&self) -> Vec<String> {
+        self.providers.keys().cloned().collect()
     }
 
     /// Run `spec`'s preview as the caller of `request`, under the call's own trace id, with
@@ -659,6 +831,7 @@ impl PersonService {
             auth_time: auth_time.clone(),
             acr: acr.clone(),
             at: at.clone(),
+            excluded: decision.excluded.clone(),
         };
         let mut principal = principal?;
         principal.human_present = Some(HumanPresent {
@@ -686,7 +859,7 @@ impl PersonService {
             crate::shared::person::Status::Declined => "declined",
             crate::shared::person::Status::Pending => return,
         };
-        let input = json!({ "id": decision.id, "level": "verified", "decision": verdict });
+        let input = json!({ "id": decision.id, "level": decision.level(), "decision": verdict });
         let record = afd::JournalRecord {
             timestamp: super::iso(decision.decided_ms.unwrap_or_else(|| self.clock.now())),
             trace_id: decision.trace_id.clone(),
@@ -710,21 +883,32 @@ impl PersonService {
         }
     }
 
-    /// The preview of `decision`, rendered now under the logged-in person's reader filter (7.2,
-    /// step 4; D97's sanitising and caps): its text, and whether it could be shown. Nothing of it
-    /// is stored.
-    pub(crate) async fn preview(&self, decision: &Decision) -> (String, bool) {
-        const UNAVAILABLE: &str =
-            "The preview could not be shown, so this request can only be declined.";
+    /// Page `page` of the preview of `decision`, rendered now under the logged-in person's reader
+    /// filter (7.2, step 4; D97's sanitising), with [`super::PREVIEW_PAGE_KEY`] asking for that
+    /// page (the Ideas host-review specification, section 2). Nothing of it is stored here.
+    pub(crate) async fn preview_page(&self, decision: &Decision, page: u32) -> PreviewPage {
         let Some(spec) = self.commands.get(&decision.command) else {
-            return (UNAVAILABLE.to_owned(), false);
+            return PreviewPage::unavailable(page);
         };
-        let person = format!("{}/{}", decision.for_.namespace, decision.for_.subject);
         let mut context = CommandContext::new();
         // The person alone, as the host vouches for them after the login: no token narrows them,
-        // so they read what their own `readers` (and equivalents) admit.
+        // so they read what their own `readers` (and equivalents) admit. On the local page, which
+        // has no login, the stdio caller the decision is for, as it would read.
+        let actor = if decision.is_local() {
+            let mut actor = afd::Actor::new(decision.for_.actor.kind);
+            if let Some(id) = &decision.for_.actor.id {
+                actor = actor.with_id(id);
+            }
+            if let Some(person) = &decision.for_.actor.on_behalf_of {
+                actor = actor.with_on_behalf_of(person);
+            }
+            actor
+        } else {
+            let person = format!("{}/{}", decision.for_.namespace, decision.for_.subject);
+            afd::Actor::new(afd::ActorKind::Human).with_id(&person)
+        };
         Principal::new(
-            afd::Actor::new(afd::ActorKind::Human).with_id(&person),
+            actor,
             crate::principal::Transport::Library,
             crate::principal::Authentication::Embedder,
         )
@@ -733,24 +917,22 @@ impl PersonService {
         context
             .extra
             .insert(crate::principal::CLAIM_GROUPS_KEY.to_owned(), json!([]));
+        context.extra.insert(
+            super::PREVIEW_PAGE_KEY.to_owned(),
+            json!({ "preview": spec.preview, "page": page }),
+        );
         context.trace_id = Some(crate::host::new_trace_id());
         let input = Value::Object(decision.properties.clone());
         let result = self
             .registry
             .execute(&spec.preview, input, Some(context))
             .await;
-        let text = result
+        result
             .data
             .as_ref()
             .filter(|_| result.success)
-            .and_then(Value::as_object)
-            .filter(|data| data.len() == 1)
-            .and_then(|data| data.get("preview"))
-            .and_then(Value::as_str);
-        match text {
-            Some(text) => (render(text), true),
-            None => (UNAVAILABLE.to_owned(), false),
-        }
+            .and_then(|data| preview_page_of(data, page))
+            .unwrap_or_else(|| PreviewPage::unavailable(page))
     }
 
     /// Seal the relay's `requestState` for decision `id` and `call` (7.3): XChaCha20-Poly1305
@@ -833,6 +1015,121 @@ impl PersonService {
     }
 }
 
+impl PersonService {
+    /// The plugin gate's local arm (the Ideas host-review specification, section 6.2); see
+    /// [`super::LocalGate::decide`]. A declined decision is answered once, and an expired one
+    /// once, each spent as it is answered, so the call sent again begins a new decision.
+    async fn decide_local(
+        &self,
+        command: &str,
+        input: &Value,
+        context: &CommandContext,
+    ) -> Result<PersonMark, CommandError> {
+        if !self.local {
+            return Err(super::not_decided(command));
+        }
+        let who = super::for_of_local(self.workspace.config(), context)
+            .map_err(|why| unavailable(command, why))?;
+        let digest = afd::input_digest(input).map_err(|_| super::not_decided(command))?;
+        let found = {
+            let store = Arc::clone(&self.store);
+            let (command, digest) = (command.to_owned(), digest.clone());
+            tokio::task::spawn_blocking(move || store.for_call(&command, &digest))
+                .await
+                .map_err(|_| crate::shared::read_limit::store_failed())?
+                .map_err(|error| store_failure(&error))?
+        };
+        let now = self.clock.now();
+        use crate::shared::person::Status;
+        for decision in found
+            .into_iter()
+            .filter(|decision| decision.is_local() && decision.for_ == who)
+        {
+            let live = decision.live(now);
+            match decision.status {
+                Status::Pending if live => {
+                    return Err(super::local_required(command, &decision.id, &self.page_url));
+                }
+                Status::Approved if live => {
+                    if !self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        continue;
+                    }
+                    let run = self
+                        .consume(format!("person-run:{}", decision.id))
+                        .await
+                        .map_err(|error| store_failure(&error))?;
+                    if !run {
+                        return Err(super::not_decided(command));
+                    }
+                    let at = super::iso(
+                        decision
+                            .decided_ms
+                            .ok_or_else(|| super::not_decided(command))?,
+                    );
+                    return Ok(PersonMark {
+                        id: decision.id,
+                        command: command.to_owned(),
+                        input_digest: digest,
+                        surface: Surface::Mcp,
+                        level: super::LOCAL_LEVEL.to_owned(),
+                        method: super::LOCAL_METHOD.to_owned(),
+                        namespace: super::LOCAL_NAMESPACE.to_owned(),
+                        auth_time: String::new(),
+                        acr: String::new(),
+                        at,
+                        excluded: decision.excluded,
+                    });
+                }
+                Status::Declined => {
+                    if self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        return Err(super::local_declined(command));
+                    }
+                }
+                Status::Pending => {
+                    if self
+                        .spend(&decision.id)
+                        .await
+                        .map_err(|error| store_failure(&error))?
+                    {
+                        return Err(super::local_expired(command));
+                    }
+                }
+                Status::Approved => {}
+            }
+        }
+        let begun = self
+            .begin(BeginRequest {
+                who,
+                command,
+                input,
+                input_digest: &digest,
+                context,
+                surface: Surface::Mcp,
+            })
+            .await?;
+        Err(super::local_required(command, &begun.id, &self.page_url))
+    }
+}
+
+impl super::LocalGate for PersonService {
+    fn decide<'a>(
+        &'a self,
+        command: &'a str,
+        input: &'a Value,
+        context: &'a CommandContext,
+    ) -> afd::BoxFuture<'a, Result<PersonMark, CommandError>> {
+        Box::pin(self.decide_local(command, input, context))
+    }
+}
+
 /// The relay state's associated data: a version label, the command, the input digest and the
 /// principal binding, each length-prefixed.
 fn relay_aad(command: &str, digest: &str, binding: &str) -> Vec<u8> {
@@ -844,13 +1141,10 @@ fn relay_aad(command: &str, digest: &str, binding: &str) -> Vec<u8> {
     aad
 }
 
-/// The preview as the page shows it (D97): control characters (but line ends and tabs), the line
-/// and paragraph separators and the bidirectional controls removed, at most 6000 characters, then
-/// how many lines were not shown.
-pub(crate) fn render(text: &str) -> String {
-    const MAX: usize = 6000;
-    let clean: String = text
-        .chars()
+/// `text` with control characters (but line ends and tabs), the line and paragraph separators
+/// and the bidirectional controls removed (D97).
+pub(crate) fn clean(text: &str) -> String {
+    text.chars()
         .filter(|c| {
             (*c == '\n' || *c == '\t' || !c.is_control())
                 && !matches!(
@@ -864,32 +1158,7 @@ pub(crate) fn render(text: &str) -> String {
                         | '\u{2066}'..='\u{2069}'
                 )
         })
-        .collect();
-    let lines: Vec<&str> = clean.lines().collect();
-    let mut out = String::new();
-    let mut used = 0usize;
-    let mut shown = 0usize;
-    for line in &lines {
-        let length = line.chars().count();
-        if used + length > MAX {
-            if shown == 0 {
-                out.extend(line.chars().take(MAX));
-                out.push('\n');
-                shown = 1;
-            }
-            break;
-        }
-        out.push_str(line);
-        out.push('\n');
-        used += length;
-        shown += 1;
-    }
-    match lines.len() - shown {
-        0 => {}
-        1 => out.push_str("(1 line not shown)\n"),
-        hidden => out.push_str(&format!("({hidden} lines not shown)\n")),
-    }
-    out
+        .collect()
 }
 
 /// The plugin gate's ledger over the shared stores (`super::DecisionLedger`).
@@ -931,7 +1200,10 @@ impl super::DecisionLedger for Ledger {
             .decision(&mark.id)
             .map_err(|error| store_failure(&error))?
             .ok_or_else(refuse)?;
+        // A decision of the local page is never admitted as `verified` (the Ideas host-review
+        // specification, section 6.5): only the local arm spends it, as `local`.
         let covers = decision.status == crate::shared::person::Status::Approved
+            && !decision.is_local()
             && decision.live(self.clock.now())
             && decision.preview_hash.is_some()
             && decision.for_ == *who
@@ -1024,6 +1296,7 @@ mod tests {
             auth_time: String::new(),
             acr: String::new(),
             at: String::new(),
+            excluded: Vec::new(),
         };
         // Pending: not admitted.
         assert!(
@@ -1053,7 +1326,31 @@ mod tests {
                 preview_ok: true,
             }),
         ));
-        ok(store.decide(&id, &"l".repeat(26), &"ab".repeat(32), true, now));
+        ok(store.render(
+            &crate::shared::person::Render {
+                decision: id.clone(),
+                login: "l".repeat(26),
+                page: 1,
+                pages: 1,
+                hash: format!("sha256:{}", "0".repeat(64)),
+                items: Vec::new(),
+                ttl_ms: 600_000,
+            },
+            now,
+        ));
+        ok(store.decide(
+            &id,
+            &"l".repeat(26),
+            &"ab".repeat(32),
+            &crate::shared::person::Choice {
+                page: 1,
+                action: crate::shared::person::Action::Approve,
+                checked: Vec::new(),
+                hash: format!("sha256:{}", "0".repeat(64)),
+                max_age_ms: i64::MAX,
+            },
+            now,
+        ));
         // Another person, command or input: not admitted, and nothing spent.
         let mut bo = who.clone();
         bo.subject = "bo".into();
@@ -1106,9 +1403,47 @@ mod tests {
     }
 
     #[test]
-    fn the_rendered_preview_drops_controls_and_counts_what_it_cut() {
-        assert_eq!(render("a\u{1b}[31mb\u{202e}c\nd\u{2028}e"), "a[31mbc\nde\n");
-        let long: String = (0..200).map(|i| format!("{i:049}\n")).collect();
-        assert!(render(&long).ends_with("(78 lines not shown)\n"));
+    fn the_shown_preview_drops_controls() {
+        assert_eq!(clean("a\u{1b}[31mb\u{202e}c\nd\u{2028}e"), "a[31mbc\nde");
+    }
+
+    #[test]
+    fn a_preview_answers_one_page_by_section_2s_rules() {
+        // Exactly `{ preview }`: one page of one, with no items.
+        let one = preview_page_of(&json!({ "preview": "Mulch the beds" }), 1).unwrap();
+        assert_eq!((one.page, one.pages, one.items.len()), (1, 1, 0));
+        assert!(one.ok);
+        assert!(preview_page_of(&json!({ "preview": "Mulch the beds" }), 2).is_none());
+        let paged = json!({ "preview": "Review · page 2 of 3", "page": 2, "pages": 3, "items": [
+            { "id": "prp-1", "text": "AFFIRM · Mulch beds before the first frost." },
+            { "id": "prp-2", "text": "RETIRE · Water at noon." },
+        ] });
+        let two = preview_page_of(&paged, 2).unwrap();
+        assert_eq!(two.items[1].0, "prp-2");
+        assert_eq!(two.hash.len(), "sha256:".len() + 64);
+        // Another page than asked, or any rule broken: not shown.
+        assert!(preview_page_of(&paged, 1).is_none());
+        for bad in [
+            json!({ "preview": "x", "page": 1 }),
+            json!({ "preview": "x", "page": 0, "pages": 1 }),
+            json!({ "preview": "x", "page": 2, "pages": 1 }),
+            json!({ "preview": "x", "page": 1, "pages": 201 }),
+            json!({ "preview": "x", "extra": 1 }),
+            json!({ "preview": 3 }),
+            json!({ "preview": "x", "items": [{ "id": "a b", "text": "t" }] }),
+            json!({ "preview": "x", "items": [{ "id": "", "text": "t" }] }),
+            json!({ "preview": "x", "items": [{ "id": "a", "text": "t", "more": 1 }] }),
+            json!({ "preview": "x", "items": [{ "id": "a", "text": "t" }, { "id": "a", "text": "u" }] }),
+            json!({ "preview": "x", "items": [{ "id": "x".repeat(65), "text": "t" }] }),
+            json!({ "preview": "x", "items": (0..101).map(|i| json!({ "id": format!("i{i}"), "text": "t" })).collect::<Vec<_>>() }),
+        ] {
+            assert!(preview_page_of(&bad, 1).is_none(), "{bad}");
+        }
+        // The page is cut nowhere: 6000 characters fit, one more does not.
+        let full = json!({ "preview": "h", "items": [{ "id": "a", "text": "x".repeat(5999) }] });
+        assert!(preview_page_of(&full, 1).is_some());
+        let over = json!({ "preview": "hh", "items": [{ "id": "a", "text": "x".repeat(5999) }] });
+        assert!(preview_page_of(&over, 1).is_none());
+        assert!(preview_page_of(&json!({ "preview": "y".repeat(6001) }), 1).is_none());
     }
 }

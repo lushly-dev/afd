@@ -1,0 +1,42 @@
+{
+  "tag": "violet-radio-group",
+  "summary": "Form field that holds violet-radio children and submits the one selected value; use for a single choice among a few visible options.",
+  "usage": [
+    {
+      "id": "radio-group.value",
+      "text": "Set the group's value to a radio's value to select it; with no group value, a radio marked checked is used. The group overwrites each radio's checked state, tabindex and, when it has a name, its name.",
+      "members": [
+        "value",
+        "name"
+      ]
+    },
+    {
+      "id": "radio-group.change",
+      "text": "A click delivers two change events to a group listener: the group's own (detail.value) and the clicked radio's bubbling one (detail.checked). Keyboard selection delivers only the group's. Check event.target.",
+      "members": [
+        "change"
+      ]
+    },
+    {
+      "id": "radio-group.keyboard",
+      "text": "The group is one tab stop. Arrow keys, Home and End move focus and select in the same step, skipping disabled radios and wrapping at the ends."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "radio-group.name",
+      "text": "An aria-label on the host takes precedence over the label attribute as the group's name; the label stays visible.",
+      "members": [
+        "label"
+      ]
+    },
+    {
+      "id": "radio-group.error",
+      "text": "The rendered error message is linked to the group as its error message, and the supporting text as its description.",
+      "members": [
+        "error-text",
+        "supporting-text"
+      ]
+    }
+  ]
+}

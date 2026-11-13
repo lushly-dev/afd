@@ -206,7 +206,7 @@ async def test_selected_python_build_uses_selected_package(tmp_path):
           patch('botcore.utils.runner.run_command', return_value={'success': True}) as run):
         result = await host.execute('dev_build', {'target': 'python-lib'})
     assert result.success and result.metadata.quality['status'] == 'passed'
-    assert run.call_args.args[0] == ['uv', 'build', '--out-dir', str(area / 'dist')]
+    assert run.call_args.args[0] == ['/tools/uv', 'build', '--out-dir', str(area / 'dist')]
     assert run.call_args.kwargs['cwd'] == area
 
 

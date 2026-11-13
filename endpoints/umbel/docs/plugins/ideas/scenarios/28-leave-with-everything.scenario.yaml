@@ -1,0 +1,77 @@
+# Ideas plugin, version 1 (specification section 10). The statements are invented fixtures about
+# gardening and assert nothing about the world.
+#
+# Both commands are an operator's, at the command line. Restoring into an empty instance needs
+# two stores, which one run does not have: tests/archive.rs shows it. This file shows the half
+# one store can: a page read back into the store it came from adds nothing and matches.
+
+name: Leave with everything
+description: >-
+  When I want a copy of everything, to keep or to move to another instance, I want one archive
+  with every idea, its wordings, what I affirmed and every decision about it, so that the store
+  never holds my thinking hostage and a lost disk does not lose it.
+job: leave-with-everything
+tags: [trust, loop, v1]
+
+steps:
+  - description: An idea
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Oil wooden handles every winter.
+    expect:
+      success: true
+
+  - description: A better wording proposed
+    command: ideas-review-stage
+    input:
+      proposals:
+        - decide: reword
+          idea: "${{ steps[0].data.ideas[0].id }}"
+          version: 1
+          statement: Oil wooden handles every winter, with raw linseed.
+          reason: Says which oil.
+    expect:
+      success: true
+
+  - description: Confirmed, so there is history and an affirmation to keep
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[1].data.review }}"
+      part: "*"
+      digest: "${{ steps[1].data.digest }}"
+    expect:
+      success: true
+
+  - description: Export everything; a small store is one page, and the last page carries the manifest
+    command: ideas-export
+    expect:
+      success: true
+      data:
+        items: { exists: true }
+        next: { notExists: true }
+        manifest:
+          format: ideas-archive/1
+          counts:
+            idea: 1
+            wording: 2
+            review: 1
+            proposal: 1
+            affirmed: 1
+          digest: { matches: '^sha256:' }
+
+  - description: Read back into the same store, the page adds nothing and matches
+    command: ideas-import
+    input:
+      items: "${{ steps[3].data.items }}"
+      manifest: "${{ steps[3].data.manifest }}"
+    expect:
+      success: true
+      data:
+        matches: true
+        added:
+          idea: 0
+          wording: 0
+          review: 0
+          proposal: 0

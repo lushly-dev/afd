@@ -1,0 +1,266 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "switch.semantics",
+				"text": "The inner input has role switch and is labelled by the slotted text. Content in the supporting slot is linked as its description."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "checked",
+				"property": "checked",
+				"rules": [
+					"taxonomy.checked"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "inline",
+				"property": "inline",
+				"rules": [
+					"taxonomy.inline"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "on",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_border-strong"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-round, 9999px)",
+				"name": "--_radius-full"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-background, #ddeadf)",
+				"name": "--_selection-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"name": "--_selection-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_selection-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-md, 14px)",
+				"name": "--_size-font-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-switch-inline-gap, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-card, #faf9f5)",
+				"name": "--_surface-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-switch-inline-target-size, var(--_target-size-compact))",
+				"name": "--_target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc( var(--_track-inline-size) - var(--_thumb-size) - (var(--_track-padding) * 2) - (var(--_track-border-width) * 2) )",
+				"name": "--_thumb-offset"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-muted, #616775)",
+				"name": "--_thumb-resting"
+			},
+			{
+				"basis": "declared",
+				"default": "clamp(16px, calc(var(--_track-block-size) - 4px), 20px)",
+				"name": "--_thumb-size"
+			},
+			{
+				"basis": "declared",
+				"default": "clamp(20px, calc(var(--_target-size) - 10px), 24px)",
+				"name": "--_track-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1px",
+				"name": "--_track-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_track-block-size) * 2)",
+				"name": "--_track-inline-size"
+			},
+			{
+				"basis": "declared",
+				"default": "2px",
+				"name": "--_track-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-body-md-line, 20px)",
+				"name": "--_type-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-caption-xs-line, 14px)",
+				"name": "--_type-caption-line"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the checked state changes.",
+				"name": "change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Switch label content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional supporting copy rendered under the label.",
+				"name": "supporting"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-switch--checked",
+			"html": "<violet-switch checked name=\"trayRestocks\" value=\"enabled\">Auto-approve tray restocks<span slot=\"supporting\">Keeps replenishment requests moving without manual review.</span></violet-switch>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-switch--disabled",
+			"html": "<violet-switch disabled name=\"harvestSync\" value=\"enabled\">Enable harvest sync<span slot=\"supporting\">Unavailable while the field audit is in progress.</span></violet-switch>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-switch--inline",
+			"html": "<violet-switch aria-label=\"Compact irrigation alerts switch\" checked inline name=\"compactIrrigationAlerts\" value=\"enabled\"></violet-switch>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.checked",
+		"taxonomy.disabled",
+		"taxonomy.inline",
+		"taxonomy.invalid",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.value",
+		"theme.install",
+		"toggle.form-value",
+		"toggle.label"
+	],
+	"status": "stable",
+	"summary": "On/off form toggle with a slotted label and optional supporting text; use for settings that take effect immediately.",
+	"tag": "violet-switch",
+	"usage": [
+		{
+			"basis": "verified",
+			"id": "switch.required",
+			"text": "The required attribute is satisfied only while the switch is on."
+		},
+		{
+			"basis": "authored",
+			"id": "switch.no-mixed",
+			"text": "There is no indeterminate state; use violet-checkbox when a mixed state is needed."
+		}
+	]
+}

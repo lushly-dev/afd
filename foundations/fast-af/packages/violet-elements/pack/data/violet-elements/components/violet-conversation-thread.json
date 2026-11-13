@@ -1,0 +1,95 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "busy",
+				"property": "busy",
+				"rules": [
+					"taxonomy.busy"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "empty",
+				"property": "empty",
+				"rules": [
+					"taxonomy.empty"
+				],
+				"type": "boolean"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-message"
+				],
+				"basis": "observed",
+				"description": "Message children (violet-message elements).",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Content shown when the empty attribute is set.",
+				"name": "empty"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-thread--busy",
+			"html": "<violet-conversation-thread busy style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\"><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">Generate a weekly meal plan for two people.</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">I'll create a balanced meal plan for you...</violet-message-text></violet-message></violet-conversation-thread>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-thread--empty",
+			"html": "<violet-conversation-thread empty style=\"block-size: 300px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\"><div slot=\"empty\" style=\"font-size: 14px;\"><p style=\"margin: 0px 0px 8px; font-weight: 600;\">Start a conversation</p><p style=\"margin: 0px; font-size: 13px;\">Ask a question or describe what you need help with.</p></div></violet-conversation-thread>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-thread--long-conversation",
+			"html": "<violet-conversation-thread style=\"block-size: 400px; border: 1px solid rgba(28, 26, 13, 0.1); border-radius: 8px;\"><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">Tell me about composting.</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Composting is the natural process of recycling organic matter into a valuable fertilizer. You can compost fruit scraps, vegetable peels, coffee grounds, eggshells, yard trimmings, and more.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">How do I get started?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Start with a bin or designated area. Layer green materials (food scraps, fresh grass) with brown materials (dried leaves, cardboard). Keep it moist and turn it regularly.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">How long does it take?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Hot composting can produce usable compost in 4-8 weeks with regular turning. Cold composting takes 6-12 months but requires less effort.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">What should I avoid adding?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Avoid meat, dairy, oils, diseased plants, pet waste, and treated wood. These can attract pests, create odors, or introduce harmful substances.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">Can I compost in an apartment?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Yes! Vermicomposting (worm composting) works great indoors. A small worm bin under the sink can process kitchen scraps quietly and without odor when maintained properly.</violet-message-text></violet-message></violet-conversation-thread>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.busy",
+		"taxonomy.empty",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-conversation-thread",
+	"usage": []
+}

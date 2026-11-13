@@ -109,6 +109,12 @@
 			"exportName": "ScopedRegistry"
 		},
 		{
+			"id": "roles",
+			"title": "Feasibility/Roles",
+			"module": "./probe.stories.ts",
+			"exportName": "Roles"
+		},
+		{
 			"id": "modal-open",
 			"title": "Feasibility/ModalOpen",
 			"module": "./probe.stories.ts",

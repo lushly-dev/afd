@@ -1,0 +1,255 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "checkbox.name",
+				"text": "The slotted label text is copied to the input as a plain-text aria-label; an aria-label on the host overrides it. Text in the supporting slot is visible but is not linked as a description."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Checked state for the checkbox.",
+				"name": "checked",
+				"property": "checked",
+				"rules": [
+					"taxonomy.checked"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the checkbox.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Mixed selection state for aggregate checkboxes.",
+				"name": "indeterminate",
+				"property": "indeterminate",
+				"rules": [
+					"taxonomy.indeterminate"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Presents a compact inline layout that can collapse to the control only.",
+				"name": "inline",
+				"property": "inline",
+				"rules": [
+					"taxonomy.inline"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the checkbox as invalid.",
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Native form name used during submission.",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the checkbox as required.",
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "on",
+				"description": "Native submitted value when checked.",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_border-strong"
+			},
+			{
+				"basis": "declared",
+				"default": "max(var(--_size-font-md), calc(var(--_target-size) * 0.5))",
+				"name": "--_control-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-sm, 2px)",
+				"name": "--_radius-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-background, #ddeadf)",
+				"name": "--_selection-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-border, rgba(36, 70, 53, 0.22))",
+				"name": "--_selection-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground, #244635)",
+				"name": "--_selection-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-md, 14px)",
+				"name": "--_size-font-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-checkbox-inline-gap, 4px)",
+				"name": "--_space-inline-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-card, #faf9f5)",
+				"name": "--_surface-card"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-checkbox-inline-target-size, var(--_target-size-compact))",
+				"name": "--_target-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-body-md-line, 20px)",
+				"name": "--_type-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-caption-xs-line, 14px)",
+				"name": "--_type-caption-line"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the checked state changes.",
+				"name": "change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Checkbox label content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional supporting copy rendered under the label.",
+				"name": "supporting"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-checkbox--checked",
+			"html": "<violet-checkbox checked name=\"trackSeedLot\" value=\"yes\">Track seed lot<span slot=\"supporting\">Selection persists when the lot is already assigned.</span></violet-checkbox>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-checkbox--disabled",
+			"html": "<violet-checkbox disabled name=\"trackSeedLot\" value=\"yes\">Track seed lot<span slot=\"supporting\">Disabled while this batch is locked for review.</span></violet-checkbox>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-checkbox--indeterminate-inline",
+			"html": "<violet-checkbox aria-label=\"Select all plants\" indeterminate inline name=\"selectAllPlants\" value=\"yes\"></violet-checkbox>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.checked",
+		"taxonomy.disabled",
+		"taxonomy.indeterminate",
+		"taxonomy.inline",
+		"taxonomy.invalid",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.value",
+		"theme.install",
+		"toggle.form-value",
+		"toggle.label"
+	],
+	"status": "stable",
+	"summary": "Form checkbox with a slotted label, optional supporting text and an indeterminate state; use for independent on/off choices.",
+	"tag": "violet-checkbox",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "checkbox.indeterminate",
+			"text": "The indeterminate attribute is a display and ARIA state only. A user toggle clears it, it does not change what the form receives, and form reset restores it."
+		},
+		{
+			"basis": "verified",
+			"id": "checkbox.required",
+			"text": "The required attribute is satisfied only while checked."
+		}
+	]
+}

@@ -1,0 +1,62 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. A set labelled `main` holds three job specimens' captures.
+# On the branch, a token change raised the notice's block padding from 8 to 12 pixels, at five
+# captures across the three jobs. One of those five also lost a heading's margin by mistake.
+# `specimen-capture` runs job specimens through the runner (section 5.6). Grouping by cause is
+# Design Decisions' `specimen-review`: the capture with both changes appears in both items.
+
+name: Sort a bulk change into groups
+description: >-
+  When one change alters many screens across jobs, I want the differences grouped by cause, and
+  a group accepted at once without accepting anything else a screen in it changed, so that I
+  judge each kind of change once and a mistake stands apart.
+job: sort-a-bulk-change
+tags: []
+
+steps:
+  - description: The three jobs are captured on the branch in one call
+    command: specimen-capture
+    input:
+      ids: [example-keep-a-draft, example-due-dates, example-export-a-note]
+      label: branch
+    expect:
+      success: true
+      data:
+        counts.unavailable: 0
+
+  - description: The differences come back as two causes, largest first
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+    expect:
+      success: true
+      data:
+        open: { length: 2 }
+        open.0.cause.property: padding-block
+        open.0.captures: { length: 5 }
+        open.1.cause.property: margin-block-start
+        open.1.captures: { length: 1 }
+
+  - description: The intended cause is accepted at once
+    command: decision-record
+    input:
+      question: Should notices take the larger block padding?
+      slug: notice-padding-everywhere
+      items: ['${{ steps[1].data.open[0].item }}']
+      chosen: accept
+      reason: The new padding token is intended for every notice.
+    expect:
+      success: true
+
+  - description: The mistake is still open, including on the screen that had both changes
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+    expect:
+      success: true
+      data:
+        open: { length: 1 }
+        open.0.cause.property: margin-block-start
+        settled.answered: 1

@@ -391,6 +391,18 @@
 			"exportName": "ConsoleCompact"
 		},
 		{
+			"id": "app-console-loading",
+			"title": "Loam/Apps/ConsoleLoading",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleLoading"
+		},
+		{
+			"id": "app-console-loading-compact",
+			"title": "Loam/Apps/ConsoleLoadingCompact",
+			"module": "./apps.specimens.ts",
+			"exportName": "ConsoleLoadingCompact"
+		},
+		{
 			"id": "app-console-invalid",
 			"title": "Loam/Apps/ConsoleInvalid",
 			"module": "./apps.specimens.ts",

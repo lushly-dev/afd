@@ -1,0 +1,58 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Turn a finding into work the factory does on itself, within a budget
+description: >-
+  When a finding needs a code change rather than a dial, I want it filed as an issue that triage and the
+  lane handle like any other, never retrying a change that already failed, and with a set number of cells
+  working on the factory, so that it improves itself through its own gates without crowding out the
+  backlog.
+job: improve-the-factory-with-the-factory
+tags: [improvement]
+fixture:
+  file: fixtures/improvement-budget.json
+  base: fresh.json
+steps:
+  - description: The change that failed for idle seats four days ago is not tried again
+    command: improvement-propose
+    input:
+      review: review-31
+      metric: idleSeatHours
+      hypothesis: Start cells sooner so seats are not empty.
+      change: { kind: dial, key: lane.queueTarget, step: up }
+    expect:
+      success: false
+      error:
+        code: ALREADY_TRIED
+        suggestion: { contains: exp-4 }
+  - description: The tooling finding becomes an issue for triage, carrying its experiment
+    command: improvement-propose
+    input:
+      review: review-31
+      metric: toolingEjectionsPerMerge
+      hypothesis: Ejections for a missing build cache began when the cache key stopped including the lockfile.
+      change:
+        kind: issue
+        title: 'factory: include the lockfile in the validation cache key'
+        body_file: findings/review-31-tooling-ejections.md
+    expect:
+      success: true
+      data:
+        experiment: { id: { matches: '^exp-' }, state: proposed }
+        issue:
+          number: { gte: 1 }
+          labels: { includes: 'area:factory' }
+        review: { state: open, unanswered: [idleSeatHours] }
+  - description: A second improvement cell is refused while one is working
+    command: cell-register
+    input: { issues: [171], branch: fix/ci-cache-key, route: sol/high }
+    expect:
+      success: false
+      error:
+        code: IMPROVEMENT_BUDGET
+        suggestion: { contains: review.cellsMax }
+  - description: Ordinary work still starts, and dispatch skips the factory issue while the budget is full
+    command: lane-status
+    expect:
+      success: true
+      data:
+        canStartCell: true
+        nextIssue: 172

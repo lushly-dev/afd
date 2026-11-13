@@ -3,6 +3,7 @@ import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import { type Browser, type BrowserContext, chromium, type Page, request } from 'playwright';
 import {
+	type CleanupStep,
 	hasRestartLifetimeMargin,
 	type Receipt,
 	type RunConfig,
@@ -359,6 +360,7 @@ export async function runHarness(input: {
 		receipt.checks[phase] = 'failed';
 	} finally {
 		input.signal.removeEventListener('abort', stopBrowser);
+		let step: CleanupStep = 'cleanup-request';
 		try {
 			if (config) {
 				const cleanup = await request.newContext({
@@ -369,17 +371,33 @@ export async function runHarness(input: {
 					const response = await cleanup.post(`${config.appURL}/harness/cleanup`, {
 						headers: { authorization: `Bearer ${config.controlKey}` },
 					});
-					check(response.ok() && (await response.json()).removed === true);
+					step = 'cleanup-response';
+					if (!response.ok()) receipt.cleanupStatus = response.status();
+					check(response.ok());
+					step = 'cleanup-removed';
+					check((await response.json()).removed === true);
 				} finally {
+					// A throw here replaces any earlier one, so it is this step's; otherwise the step stands.
+					const before = step;
+					step = 'cleanup-dispose';
 					await cleanup.dispose();
+					step = before;
 				}
 			}
+			step = 'context-close';
 			await context?.close();
+			step = 'browser-close';
 			await browser?.close();
+			step = 'provider-close';
 			await local?.close();
 			receipt.cleanup = config ? 'passed' : 'not-started';
 			if (local) receipt.resourceCleanup = 'passed';
-		} catch {
+		} catch (error) {
+			// The receipt names the step; stderr says why, one line, with the control key never in it.
+			receipt.cleanupFailure = step;
+			process.stderr.write(
+				`cleanup failed at ${step}: ${cleanupReason(error, config?.controlKey)}\n`
+			);
 			receipt.cleanup = 'failed';
 			receipt.result = 'failed';
 			await browser?.close().catch(() => {});
@@ -389,4 +407,12 @@ export async function runHarness(input: {
 	process.stdout.write(`${receiptJSON(receipt)}\n`);
 	if (receipt.result === 'failed') process.exitCode = 1;
 	return receipt;
+}
+
+/** An error's first line, at most 300 characters, with the control key removed. */
+function cleanupReason(error: unknown, controlKey = ''): string {
+	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+	// Redacted before it is cut, so a key the cut would split is never half printed.
+	const line = text.split('\n')[0] ?? '';
+	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
 }

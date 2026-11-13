@@ -5,7 +5,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { matchesRecord, PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
+import {
+	hasStaleShape,
+	matchesRecord,
+	PROVENANCE_FAMILIES,
+	provenancePaths,
+} from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const directory = PROVENANCE_FAMILIES.specimen.directory;
@@ -49,9 +54,11 @@ test('every imported Specimen file is present, recorded and unchanged since revi
 	for (const file of adaptations.files) {
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
+		const bytes = readFileSync(join(root, file.path));
+		assert(matchesRecord(file, bytes), `${file.path} changed; record the adaptation`);
 		assert(
-			matchesRecord(file, readFileSync(join(root, file.path))),
-			`${file.path} changed; record the adaptation`
+			!hasStaleShape(file, bytes),
+			`${file.path}: its record's manifest_shape_sha256 is stale; run scripts/release/provenance.mjs`
 		);
 		if (file.import_classification === 'unchanged-staged')
 			assert.equal(file.current_import_sha256, file.staged_sha256, file.path);

@@ -1,10 +1,17 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkHost, hostKindOf } from './check.js';
+import { checkHost, HOST_ROUTE_SEGMENTS, hostKindOf, hostRouteSegments } from './check.js';
 import { loadServerConfig } from './config.js';
 import { resolveSecrets } from './secrets.js';
-import { deploymentFile, fixtureDist, serverConfig, temporaryDirectory } from './test-support.js';
+import {
+	deploymentFile,
+	expectLooseSuggestion,
+	fixtureDist,
+	loosen,
+	serverConfig,
+	temporaryDirectory,
+} from './test-support.js';
 
 const SECRET = 'a'.repeat(32);
 
@@ -29,6 +36,8 @@ async function secretFile(
 	const path = join(root, name);
 	await writeFile(path, value, { mode });
 	await chmod(path, mode);
+	// Windows keeps no mode bits: a group or other bit becomes a grant to BUILTIN\Users.
+	if (process.platform === 'win32' && (mode & 0o077) !== 0) loosen(path);
 	return path;
 }
 
@@ -48,9 +57,7 @@ describe('P6-E1: the server configuration against the machine and the deployment
 				purpose: 'serve',
 			});
 			expect(checked.analysis?.deployment?.deployment_version).toBe(version);
-			expect(hostKindOf(checked.analysis?.deployment as never), `version ${version}`).toBe(
-				'static'
-			);
+			expect(hostKindOf(checked.analysis as never), `version ${version}`).toBe('static');
 			expect(codes(checked.refusals)).toEqual([`HOST_DEPLOYMENT_KIND ${deployment}`]);
 		}
 	});
@@ -119,6 +126,99 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			serveStatic: true,
 		});
 		expect(codes(checked.refusals)).toEqual(['HOST_SANDBOX_INVALID sandbox']);
+	});
+
+	it('P6-E1: the test-only option serves a version 3 local deployment, and never a provider one', async () => {
+		const { root, data, dist } = await setup();
+		const local = join(root, 'local.toml');
+		await writeFile(local, 'deployment_version = 3\n\n[identity]\nmode = "local"\n\n[apps]\n');
+		expect(
+			(
+				await checkHost({
+					server: serverConfig(data),
+					deployment: local,
+					dist,
+					purpose: 'serve',
+					serveStatic: true,
+				})
+			).refusals
+		).toEqual([]);
+		const provider = join(root, 'provider.toml');
+		await writeFile(
+			provider,
+			'deployment_version = 3\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps]\n'
+		);
+		const served = await checkHost({
+			server: serverConfig(data),
+			deployment: provider,
+			dist,
+			purpose: 'start',
+			serveStatic: true,
+		});
+		expect(codes(served.refusals)).toEqual([`HOST_DEPLOYMENT_KIND ${provider}`]);
+	});
+
+	it("P6-E1: holds [oidc] tables to a version 3 deployment's oidc methods", async () => {
+		const { root, data, dist } = await setup();
+		const secret = await secretFile(root, 'oidc-corp', 'client-secret');
+		const deployment = join(root, 'provider.toml');
+		await writeFile(
+			deployment,
+			'deployment_version = 3\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\nmethods = ["passkey", "oidc:corp", "oidc:partner"]\n\n[apps]\n'
+		);
+		const checked = await checkHost({
+			server: serverConfig(data, {
+				oidc: {
+					corp: {
+						issuer: 'https://login.example.com',
+						client_id: 'loam',
+						client_secret_file: secret,
+					},
+					extra: {
+						issuer: 'https://other.example.com',
+						client_id: 'loam',
+						client_secret_file: secret,
+					},
+				},
+			}),
+			deployment,
+			dist,
+			purpose: 'start',
+		});
+		expect(codes(checked.refusals)).toEqual([
+			`HOST_DEPLOYMENT_KIND ${deployment}`,
+			'HOST_OIDC_INVALID oidc.partner',
+			'HOST_OIDC_INVALID oidc.extra',
+		]);
+	});
+
+	it("P6-E1: adds a provider's own identity.path first segment to the host's route segments", () => {
+		const provider = (path: string) =>
+			({
+				identity: { mode: 'provider', organization: 'acme', path, methods: ['passkey'] },
+			}) as never;
+		expect(hostRouteSegments({ identity: { mode: 'local' } } as never)).toEqual(
+			HOST_ROUTE_SEGMENTS
+		);
+		expect(hostRouteSegments(provider('api/auth'))).toEqual(HOST_ROUTE_SEGMENTS);
+		expect(hostRouteSegments(provider('login/x'))).toEqual([...HOST_ROUTE_SEGMENTS, 'login']);
+	});
+
+	it('P6-E1: a version 3 identity.path whose first segment is the workspace id is refused', async () => {
+		const { root, data, dist } = await setup();
+		const deployment = join(root, 'path.toml');
+		await writeFile(
+			deployment,
+			'deployment_version = 3\n\n[workspace]\nid = "auth"\n\n[identity]\nmode = "provider"\norganization = "acme"\npath = "auth/x"\n\n[apps]\n'
+		);
+		const checked = await checkHost({
+			server: serverConfig(data),
+			deployment,
+			dist,
+			purpose: 'serve',
+			serveStatic: true,
+		});
+		expect(checked.refusals.map(({ code }) => code)).toContain('DEPLOYMENT_IDENTITY_INVALID');
 	});
 
 	it('P6-E1: refuses an [oidc] table no sign-in method names as HOST_OIDC_INVALID', async () => {
@@ -294,15 +394,16 @@ describe('P6-E1: secrets and modes (3.2, section 13)', () => {
 		});
 		const { refusals } = resolveSecrets(server);
 		expect(codes(refusals)).toEqual([`HOST_SECRET_PERMISSIONS ${key}`]);
-		expect(refusals[0]?.suggestion).toBe(`Run \`chmod 600 ${loose}\`.`);
+		expectLooseSuggestion(refusals[0]?.suggestion, loose, 'file');
 	});
 
 	it('P6-E1: refuses a data directory readable by its group or others, naming chmod 700', async () => {
 		const { data } = await setup();
 		await chmod(data, 0o750);
+		if (process.platform === 'win32') loosen(data);
 		const { refusals } = resolveSecrets(serverConfig(data));
 		expect(codes(refusals)).toEqual(['HOST_SECRET_PERMISSIONS data']);
-		expect(refusals[0]?.suggestion).toBe(`Run \`chmod 700 ${data}\`.`);
+		expectLooseSuggestion(refusals[0]?.suggestion, data, 'directory');
 	});
 
 	it('P6-E1: refuses an unreadable TLS certificate', async () => {

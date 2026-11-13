@@ -19,7 +19,7 @@ import type { ViewStateHandler, ViewStateRegistry } from '@lushly-dev/afd-view-s
 import type { NewItemV1 } from '@lushly-dev/loam-sdk';
 import type { AppsRuntime } from '../apps-runtime.js';
 import { callScope, EMPTY_INPUT_JSON, emptyInput } from '../boot-commands.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { DocumentCheck } from './document-types.js';
 import { canOpen } from './main-state.js';
@@ -58,7 +58,7 @@ export function createNewParts(deps: NewDeps): NewParts {
 	/** By actor, its recents and the read of its record, which anything that writes it awaits first. */
 	const held = new Map<string, { items: Recent[]; read: Promise<void> }>();
 	const recentsOf = async (context: CommandContext): Promise<{ items: Recent[] }> => {
-		const actor = actorKey(context);
+		const actor = personOf(context);
 		let record = held.get(actor);
 		if (!record) {
 			const id = newRecentId(actor);
@@ -166,7 +166,7 @@ export function createNewParts(deps: NewDeps): NewParts {
 				const id = template ?? check.types().types.get(type)?.templates[0]?.id;
 				if (result.success && keep && id !== undefined) {
 					const recent = (await recentsOf(context)).items;
-					viewState.set(newRecentId(actorKey(context)), {
+					viewState.set(newRecentId(personOf(context)), {
 						items: [
 							{ type, template: id },
 							...recent.filter((_, index) => index !== at(recent, type, id)),

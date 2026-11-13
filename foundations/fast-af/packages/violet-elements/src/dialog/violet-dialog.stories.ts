@@ -75,6 +75,7 @@ function renderDialog(args: VioletDialogStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Dialog",
+    component: "violet-dialog",
     tags: ["autodocs"],
     parameters: {
         docs: {

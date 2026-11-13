@@ -3,12 +3,15 @@
 
 pub mod gateway;
 pub mod hosted;
+pub mod local;
 pub mod mcp;
 pub mod memory;
 pub mod oauth;
 pub mod person;
 pub mod plugins;
 pub mod process;
+pub mod records;
+pub mod standing;
 pub mod store;
 
 use afd::{

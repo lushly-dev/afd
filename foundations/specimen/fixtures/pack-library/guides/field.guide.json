@@ -1,0 +1,24 @@
+{
+	"tag": "example-field",
+	"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
+	"status": "stable",
+	"usage": [
+		{
+			"id": "field.when",
+			"text": "Use for one line of free text. For a choice from a known list, use example-select."
+		}
+	],
+	"a11y": [
+		{
+			"id": "field.label-required",
+			"text": "Set label; a placeholder is not a name.",
+			"members": ["label"]
+		},
+		{
+			"id": "field.hint-describes",
+			"text": "Text in the hint slot is read as the field's description, after its name.",
+			"members": ["hint"]
+		}
+	],
+	"detail": "A single-line text field that takes part in forms.\n\nIts value is submitted under its name attribute. Setting invalid marks the field for assistive technology; the reason belongs in the hint slot, where it is read as the description."
+}

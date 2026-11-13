@@ -1,0 +1,14 @@
+{
+	"rules": [
+		{
+			"id": "actions.disabled-state",
+			"text": "A disabled control is skipped by the keyboard, so nothing important may depend on reaching it.",
+			"appliesTo": { "attributes": ["disabled"] }
+		},
+		{
+			"id": "actions.one-primary",
+			"text": "Keep to one main action in a view.",
+			"appliesTo": { "tags": ["example-button", "example-link"] }
+		}
+	]
+}

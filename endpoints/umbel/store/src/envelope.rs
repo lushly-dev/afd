@@ -1,9 +1,13 @@
-//! Provenance envelope, versions 1 to 3 (phase 2 specification section 2.1, phase 3
-//! specification section 2.1, phase 5 section 2.4), as the store sees it.
+//! Provenance envelope, versions 1 to 4 (phase 2 specification section 2.1, phase 3
+//! specification section 2.1, phase 5 section 2.4, the Ideas host-review specification section
+//! 6.4), as the store sees it.
 //!
 //! Version 2 closes `authority`, gives `redactions` its meaning and adds `constraints` and
 //! `confirmation`. Version 3 gives `delegationChain` its meaning (the writing principal's chain)
-//! and adds `assurance` to `confirmation` (how the confirming person was proven). A row written in
+//! and adds `assurance` to `confirmation` (how the confirming person was proven). Version 4 is
+//! version 3 with a third assurance, `local` (the local person page), and is written only for an
+//! envelope that carries one, so a reader of version 3 refuses it instead of misreading it. A row
+//! written in
 //! an earlier version is read, and written back out, in its own version. Memory writes use version
 //! 3 ([`MEMORY_ENVELOPE_VERSION`]); documents keep version 2 ([`ENVELOPE_VERSION`]), since an
 //! applied document's decision trace is its proposal.
@@ -18,8 +22,10 @@ use crate::error::{Result, StoreError};
 pub const ENVELOPE_VERSION: u32 = 2;
 /// The envelope version memory writes use (phase 5 section 2.4): memory record version 2.
 pub const MEMORY_ENVELOPE_VERSION: u32 = 3;
-/// The newest envelope version this crate reads.
-pub const LATEST_ENVELOPE_VERSION: u32 = 3;
+/// The newest envelope version this crate reads: version 4 holds a `local` assurance.
+pub const LATEST_ENVELOPE_VERSION: u32 = 4;
+/// The envelope version a `local` assurance needs (the Ideas host-review specification, 6.4).
+pub const LOCAL_ASSURANCE_ENVELOPE_VERSION: u32 = 4;
 /// The longest `delegationChain` (phase 5 section 2.1).
 pub const MAX_DELEGATION_CHAIN: usize = 8;
 
@@ -132,14 +138,15 @@ pub struct Confirmation {
 /// How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6):
 /// `terminal` (the CLI's check, `cli-terminal`) records its level and method alone; `verified`
 /// (the person page, `person-page`) also the namespace, the login's `authTime` and its `acr`;
-/// `embedder` (`library`, step 10) is the embedding application's own word for its person,
-/// which Umbel did not check, recorded as such and never as `terminal`.
+/// `embedder` (`library`, step 10) is the embedding application's own word for its person;
+/// from envelope version 4, `local` (the local person page, `local-page`, the Ideas host-review
+/// specification section 6.4) its level and method alone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Assurance {
-    /// `terminal`, `verified` or `embedder`.
+    /// `terminal`, `verified`, `embedder` or `local`.
     pub level: String,
-    /// `cli-terminal`, `person-page` or `library`.
+    /// `cli-terminal`, `person-page`, `library` or `local-page`.
     pub method: String,
     /// The identity namespace, for `verified`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -190,9 +197,25 @@ impl Assurance {
         }
     }
 
-    /// Whether it is one of the three shapes, each field well formed.
+    /// A decision on the local person page, served on a loopback address with no login (the
+    /// Ideas host-review specification, section 6.4). It shows that something on the machine
+    /// posted the page's form, not that a person clicked; an envelope holds it only in version 4.
     #[must_use]
-    pub fn is_valid(&self) -> bool {
+    pub fn local() -> Self {
+        Self {
+            level: "local".to_owned(),
+            method: "local-page".to_owned(),
+            namespace: None,
+            auth_time: None,
+            acr: None,
+        }
+    }
+
+    /// Whether it is one of the shapes envelope version `version` admits, each field well
+    /// formed: `terminal` and `verified` from version 3, and `local` from version 4. A decision
+    /// held outside an envelope passes the version its holder admits.
+    #[must_use]
+    pub fn is_valid(&self, version: u32) -> bool {
         let text = |value: &Option<String>| {
             value.as_deref().is_some_and(|text| {
                 (1..=255).contains(&text.chars().count())
@@ -205,6 +228,12 @@ impl Assurance {
             }
             ("verified", "person-page") => {
                 text(&self.namespace) && text(&self.auth_time) && text(&self.acr)
+            }
+            ("local", "local-page") => {
+                version >= LOCAL_ASSURANCE_ENVELOPE_VERSION
+                    && self.namespace.is_none()
+                    && self.auth_time.is_none()
+                    && self.acr.is_none()
             }
             _ => false,
         }
@@ -325,13 +354,13 @@ pub struct DerivedFrom {
     pub content_hash: String,
 }
 
-/// The provenance envelope, version 1 or 2. The reserved fields `delegationChain` and `tenant`
+/// The provenance envelope, version 1 to 4. The reserved fields `delegationChain` and `tenant`
 /// are refused when parsing. A version 1 envelope has no `redactions`, `constraints` or
 /// `confirmation`, and is serialised without them.
 #[derive(Debug, Clone, PartialEq, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Envelope {
-    /// 1 or 2; this crate writes [`ENVELOPE_VERSION`].
+    /// 1 to 4; this crate writes [`ENVELOPE_VERSION`].
     pub version: u32,
     /// How the record came to be.
     pub origin: Origin,
@@ -456,7 +485,7 @@ impl Envelope {
     pub fn check(&self, space: &str) -> Result<AccessSet> {
         let refuse = |rule: &str| Err(StoreError::invalid(format!("provenance envelope: {rule}")));
         if !(1..=LATEST_ENVELOPE_VERSION).contains(&self.version) {
-            return refuse("version must be 1, 2 or 3");
+            return refuse("version must be 1, 2, 3 or 4");
         }
         self.check_version_2_fields()?;
         self.check_version_3_fields()?;
@@ -509,7 +538,8 @@ impl Envelope {
 
     /// The fields version 3 adds: absent before it; in version 3 a `delegationChain` (possibly
     /// empty) of at most 8 `agent` or `service` entries with namespaced ids, and an `assurance` on
-    /// every `confirmation`.
+    /// every `confirmation`. Version 4 holds a confirmation whose assurance is `local`, and only
+    /// that: every other envelope is version 3.
     fn check_version_3_fields(&self) -> Result<()> {
         let refuse = |rule: &str| Err(StoreError::invalid(format!("provenance envelope: {rule}")));
         let assured = self
@@ -546,9 +576,21 @@ impl Envelope {
             && !confirmation
                 .assurance
                 .as_ref()
-                .is_some_and(Assurance::is_valid)
+                .is_some_and(|assurance| assurance.is_valid(self.version))
         {
-            return refuse("a version 3 confirmation needs a valid assurance");
+            return refuse(
+                "a confirmation needs a valid assurance: terminal or verified, or local in version 4",
+            );
+        }
+        let local = self
+            .confirmation
+            .as_ref()
+            .and_then(|confirmation| confirmation.assurance.as_ref())
+            .is_some_and(|assurance| assurance.level == "local");
+        if self.version >= LOCAL_ASSURANCE_ENVELOPE_VERSION && !local {
+            return refuse(
+                "version 4 holds a local assurance; write any other envelope as version 3",
+            );
         }
         Ok(())
     }
@@ -650,6 +692,57 @@ mod tests {
         assert!(Envelope::from_value(value).is_err());
     }
 
+    fn confirmed(version: u32, assurance: Assurance) -> Envelope {
+        let mut e = version_2();
+        e.version = version;
+        e.delegation_chain = Some(Vec::new());
+        if let Some(confirmation) = e.confirmation.as_mut() {
+            confirmation.assurance = Some(assurance);
+        }
+        e
+    }
+
+    #[test]
+    fn a_local_assurance_needs_version_4() {
+        let local = Assurance::local();
+        assert_eq!(
+            (local.level.as_str(), local.method.as_str()),
+            ("local", "local-page")
+        );
+        assert!(!local.is_valid(3));
+        assert!(local.is_valid(4));
+        assert!(Assurance::terminal().is_valid(3) && Assurance::terminal().is_valid(4));
+        let verified = Assurance::verified("corp", "2026-11-12T08:00:00.000Z", "uv");
+        assert!(verified.is_valid(3) && verified.is_valid(4));
+        // A local assurance with a login's fields is no shape at all.
+        let mut padded = Assurance::local();
+        padded.acr = Some("uv".to_owned());
+        assert!(!padded.is_valid(4));
+
+        // Version 3 refuses it; version 4 holds it, and only it.
+        assert!(confirmed(3, Assurance::local()).check("main").is_err());
+        assert!(confirmed(4, Assurance::local()).check("main").is_ok());
+        assert!(confirmed(3, Assurance::terminal()).check("main").is_ok());
+        assert!(confirmed(4, Assurance::terminal()).check("main").is_err());
+        let mut bare = confirmed(4, Assurance::local());
+        bare.confirmation = None;
+        assert!(bare.check("main").is_err());
+        assert!(confirmed(5, Assurance::local()).check("main").is_err());
+
+        // Written in version 3's shape, and read back the same.
+        let written = serde_json::to_value(confirmed(4, Assurance::local())).unwrap();
+        assert_eq!(written["version"], 4);
+        assert_eq!(
+            written["confirmation"]["assurance"],
+            json!({ "level": "local", "method": "local-page" })
+        );
+        assert_eq!(written["delegationChain"], json!([]));
+        assert_eq!(
+            Envelope::from_value(written).unwrap(),
+            confirmed(4, Assurance::local())
+        );
+    }
+
     fn version_2() -> Envelope {
         let mut value = serde_json::to_value(envelope()).unwrap();
         value["version"] = json!(2);
@@ -722,7 +815,8 @@ mod tests {
             edit(&mut e);
             assert!(e.check("main").is_err(), "{e:?}");
         }
-        // Version 1 keeps its open authority and never holds version 2's fields.
+        // Version 1 keeps its open authority and never holds version 2's fields (version 4 is
+        // tested in `a_local_assurance_needs_version_4`).
         let mut v1 = envelope();
         v1.authority = Some("anything".to_owned());
         assert!(v1.check("main").is_ok());

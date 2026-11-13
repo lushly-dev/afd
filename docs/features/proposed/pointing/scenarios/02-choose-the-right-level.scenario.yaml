@@ -1,0 +1,99 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented, as in scenario 01. The person modifier-clicked "Share", which selects the
+# deepest element: the icon inside the inner `<button>`. The pointer says so (`depth=deepest`), so
+# `specimen-point` does not climb. In the review page, Escape goes one level up; that is page
+# behaviour. This scenario shows the same moves made by
+# an agent when the person says "no, the whole button".
+
+name: Move a reference to the level that was meant
+description: >-
+  When my click lands on a part of what I meant, I want to move the reference to its parent, a
+  child, a sibling or the component that contains it, so that the reference names what I meant.
+job: choose-the-right-level
+tags: [slice]
+
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The click landed on the icon; the point lists the levels above it
+    command: specimen-point
+    input:
+      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:1/shadow/button:1/svg:1&depth=deepest"
+    expect:
+      success: true
+      data:
+        point:
+          element:
+            tag: svg
+          ancestors.0.tag: button
+          ancestors.0.role: button
+          ancestors.0.name: Share
+          ancestors.1.tag: example-button
+          ancestors.2.tag: example-toolbar
+          ancestors.2.role: toolbar
+
+  - description: Moving to the component gives the Share button
+    command: specimen-point-move
+    input:
+      id: "${{ steps[0].data.point.id }}"
+      to: component
+    expect:
+      success: true
+      data:
+        point:
+          id: { matches: '^pt-[0-9a-z]{12}$' }
+          element:
+            tag: example-button
+          accessible:
+            name: Share
+
+  - description: The next sibling is the Export button
+    command: specimen-point-move
+    input:
+      id: "${{ steps[1].data.point.id }}"
+      to: next
+    expect:
+      success: true
+      data:
+        point:
+          element:
+            tag: example-button
+          accessible:
+            name: Export
+
+  - description: The agent points at the toolbar itself, the root of the specimen
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: toolbar }
+    expect:
+      success: true
+      data:
+        point:
+          element:
+            tag: example-toolbar
+
+  - description: Moving up from the specimen's root is refused
+    command: specimen-point-move
+    input:
+      id: "${{ steps[3].data.point.id }}"
+      to: parent
+    expect:
+      success: false
+      error:
+        code: NO_SUCH_LEVEL
+        suggestion: { contains: child }
+
+  - description: A role alone that matches two buttons is refused as ambiguous, not guessed
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button }
+    expect:
+      success: false
+      error:
+        code: TARGET_AMBIGUOUS
+        suggestion: { contains: name }

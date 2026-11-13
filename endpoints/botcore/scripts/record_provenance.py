@@ -51,8 +51,13 @@ STAGE_REASONS = {
 }
 IMPORT_REASONS = {
     "AGENTS.md": ("Provide current AFD endpoint gates and authority instructions"),
+    "docs/operations/model-routing.md": (
+        "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
+    ),
     "CHANGELOG.md": (
-        "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
+        "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; "
+        "Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record "
+        "the 0.7.0 release: the bloat-sweeper skill"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -64,7 +69,8 @@ IMPORT_REASONS = {
         "Normalize imports under package Ruff rules"
     ),
     "scripts/package_smoke.py": (
-        "Build/audit all six artifacts and an isolated installed- wheel app"
+        "Build/audit all six artifacts and an isolated installed- wheel app; check the "
+        "bloat-sweeper skill's script ships, among ten skills"
     ),
     "scripts/record_provenance.py": (
         "Derive immutable Git-object evidence and explicit adaptation chain; "
@@ -73,7 +79,7 @@ IMPORT_REASONS = {
     "scripts/verify_provenance.py": (
         "Pin immutable digests and verify classifications/current hashes and publication state"
     ),
-    "src/botcore/__init__.py": ("Set additive host API version to 0.6.0"),
+    "src/botcore/__init__.py": ("Set additive host API version to 0.7.0"),
     "src/botcore/_mcp.py": ("Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"),
     "src/botcore/commands/dev/core.py": ("Preserve unavailable/error/failed native-tool outcomes"),
     "src/botcore/host.py": ("Map broken-link failures and typed infrastructure verdicts correctly"),
@@ -129,7 +135,8 @@ IMPORT_REASONS = {
         "Rewrite for current models and merge the review skill into it"
     ),
     "src/botcore/skills/docs-manager/SKILL.md": (
-        "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer"
+        "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; "
+        "Describe the docs checks as they now are (lushly-dev/afd#779)"
     ),
     "src/botcore/skills/plugin-builder/SKILL.md": (
         "Rebase on the managed host and the real error() and discovery APIs"
@@ -144,7 +151,8 @@ IMPORT_REASONS = {
         "Rewrite to the cdp commands' verified behaviour, including traces"
     ),
     "src/botcore/skills/botcore-config/SKILL.md": (
-        "State only wired settings; add the [skills] section and retired skills"
+        "State only wired settings; add the [skills] section and retired skills; add the "
+        "[sweep] section"
     ),
     "src/botcore/skills/agent-config/SKILL.md": (
         "Rewrite to the agents plugin's verified fields; add the state block"
@@ -153,11 +161,18 @@ IMPORT_REASONS = {
         "Assert the browser-automation skill names every exported cdp command"
     ),
     "tests/test_frontmatter.py": ("Expect the nine bundled skills that remain"),
-    "README.md": ("List the bundled skills that remain; record ownership under metadata"),
-    "src/botcore/config.py": (
-        "Accept the legacy version stamp, reject unknowns, add listing_budget"
+    "README.md": (
+        "List the bundled skills that remain; record ownership under metadata; "
+        "point the release badge and the repository note at AFD"
     ),
-    "tests/test_config.py": ("Test the legacy stamp, unknown-field rejection and listing_budget"),
+    "src/botcore/config.py": (
+        "Accept the legacy version stamp, reject unknowns, add listing_budget; add the "
+        "[sweep] section (SweepConfig)"
+    ),
+    "tests/test_config.py": (
+        "Test the legacy stamp, unknown-field rejection and listing_budget; test the "
+        "[sweep] section"
+    ),
     "src/botcore/cli.py": ("Describe skill-lint as the shared skill rule set"),
     "src/botcore/commands/skill/__init__.py": ("Export the shared skill rules"),
     "src/botcore/commands/skill/adopt.py": ("Record adopted ownership under metadata"),
@@ -175,7 +190,9 @@ IMPORT_REASONS = {
     "tests/test_skill_lint_sk008.py": ("Check references on skills without a references directory"),
     "tests/test_skill_list.py": ("Cover ownership read from metadata"),
     "pyproject.toml": (
-        "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
+        "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project "
+        "URLs; pytest-asyncio's fixture loop scope set to function, its next default, so "
+        "the tests do not warn that it is unset; ship skill scripts in the wheel"
     ),
     "docs/host-composition.md": (
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
@@ -185,6 +202,20 @@ IMPORT_REASONS = {
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),
     "botcore-connectors/uv.lock": ("Refresh dependencies within declared constraints"),
+    "src/botcore/commands/docs.py": (
+        "Docs checks cover the whole repository: nearest changelog per package, structural "
+        "changes in any language, single-file and skip-aware lint, Changesets-aware "
+        "suggestions (lushly-dev/afd#779)"
+    ),
+    "tests/test_cli.py": (
+        "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's "
+        "isolated_filesystem, which Click deprecates for removal; otherwise imported exact "
+        "frozen staged-input bytes"
+    ),
+    "tests/test_docs.py": (
+        "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779)"
+    ),
+    "tests/test_docs_extended.py": ("Cover whole-repository docs checks (lushly-dev/afd#779)"),
 }
 
 

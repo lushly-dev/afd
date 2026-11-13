@@ -1,0 +1,359 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "text-field.describedby",
+				"text": "An aria-describedby on the host is resolved against ids in the host's own root and applied to the inner input together with the supporting text, in browsers with ARIA element reflection."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"description": "Native `autocomplete` hint forwarded to the input.",
+				"name": "autocomplete",
+				"property": "autocomplete",
+				"rules": [
+					"taxonomy.autocomplete"
+				],
+				"type": "string | null | undefined"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the field.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `inputmode` virtual-keyboard hint forwarded to the input (`none`, `text`, `decimal`, `numeric`, `tel`, `search`, `email` or `url`).",
+				"name": "inputmode",
+				"property": "inputMode",
+				"rules": [
+					"taxonomy.inputmode"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field invalid.",
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional field label.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `max` constraint (numbers, dates) forwarded to the input.",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string | null | undefined"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `maxlength` constraint forwarded to the input.",
+				"name": "maxlength",
+				"property": "maxLength",
+				"rules": [
+					"taxonomy.maxlength"
+				],
+				"type": "number | null | undefined"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `min` constraint (numbers, dates) forwarded to the input.",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string | null | undefined"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `minlength` constraint forwarded to the input.",
+				"name": "minlength",
+				"property": "minLength",
+				"rules": [
+					"taxonomy.minlength"
+				],
+				"type": "number | null | undefined"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Native form name used during submission.",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `pattern` constraint forwarded to the input.",
+				"name": "pattern",
+				"property": "pattern",
+				"rules": [
+					"taxonomy.pattern"
+				],
+				"type": "string | null | undefined"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional placeholder text.",
+				"name": "placeholder",
+				"property": "placeholder",
+				"rules": [
+					"taxonomy.placeholder"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field readonly.",
+				"name": "readonly",
+				"property": "readonly",
+				"rules": [
+					"taxonomy.readonly"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field as required.",
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"description": "Native `step` constraint forwarded to the input.",
+				"name": "step",
+				"property": "step",
+				"rules": [
+					"taxonomy.step"
+				],
+				"type": "string | null | undefined"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional supporting text shown below the field.",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "text",
+				"description": "Native input type.",
+				"name": "type",
+				"property": "type",
+				"rules": [
+					"taxonomy.type"
+				],
+				"type": "VioletTextFieldType"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Current input value.",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the value changes while typing.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Leading inline content such as a search or password icon.",
+				"name": "before"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-text-field--disabled",
+			"html": "<violet-text-field disabled label=\"Plant name\" name=\"plantName\" placeholder=\"Unavailable while sync is running\" supporting-text=\"Disabled fields should stay visibly unavailable without losing structure.\" type=\"search\"></violet-text-field>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text-field--invalid",
+			"html": "<violet-text-field invalid label=\"Quantity\" name=\"quantity\" placeholder=\"Enter quantity\" required supporting-text=\"Required before checkout can continue.\" type=\"text\"></violet-text-field>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text-field--overview",
+			"html": "<violet-text-field label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "autocomplete",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "inputmode",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "max",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "maxlength",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "min",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "minlength",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "pattern",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "step",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.aria-label",
+		"field.input-change",
+		"field.label",
+		"field.placeholder",
+		"field.supporting-text",
+		"field.value-attribute",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.autocomplete",
+		"taxonomy.disabled",
+		"taxonomy.inputmode",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.max",
+		"taxonomy.maxlength",
+		"taxonomy.min",
+		"taxonomy.minlength",
+		"taxonomy.name",
+		"taxonomy.pattern",
+		"taxonomy.placeholder",
+		"taxonomy.readonly",
+		"taxonomy.required",
+		"taxonomy.step",
+		"taxonomy.supporting-text",
+		"taxonomy.type",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Single-line text input with a built-in label and supporting text, for text, search, email, url, password, tel, number or date entry.",
+	"tag": "violet-text-field",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "text-field.validation",
+			"text": "The required, type, pattern, min, max, step, minlength and maxlength attributes feed validity. Whitespace-only text counts as missing when required. A readonly field is never reported invalid, even with invalid set."
+		},
+		{
+			"basis": "authored",
+			"id": "text-field.commit",
+			"text": "The change event fires when the native input commits: on blur after an edit, or on Enter."
+		},
+		{
+			"basis": "authored",
+			"id": "text-field.error",
+			"text": "There is no error-text attribute and no error message is rendered: invalid only turns the border red and sets aria-invalid. Put the error wording in supporting-text while invalid."
+		},
+		{
+			"basis": "authored",
+			"id": "text-field.before",
+			"text": "The before slot holds leading inline content such as a search icon; mark an icon there decorative so it is not read."
+		}
+	]
+}

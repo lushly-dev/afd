@@ -1,0 +1,6 @@
+pack_version = 1
+id = "vocabulary"
+plugin = "ideas"
+version = "0.1.0"
+title = "Ideas vocabulary"
+description = "The types an idea may have, the provisional bands a match's score is read against, and the limits of each call. A space replaces it whole with its own."

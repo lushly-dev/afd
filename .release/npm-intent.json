@@ -2,55 +2,55 @@
 	"schemaVersion": 1,
 	"selectedUnits": ["specimen", "specimen-afd", "specimen-cli", "specimen-fast-af"],
 	"inventoryHash": "544fd3b9a3f7af873636a4490e68ca21a85de874e7feb528c3a5fc071050dcf2",
-	"sourceDigest": "ad5480b1179b46217c9a938c1acd1bdc6e648eed5274b0117d6c644c8155a4a8",
+	"sourceDigest": "62afd9c3ce71f26448b3f3f8e8f05459163dfec0a124860ebd8fc09e4611a49a",
 	"distributions": [
 		{
 			"name": "@lushly-dev/specimen",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.4",
 			"manifest": "foundations/specimen/package.json",
-			"manifestHash": "c48261b7f17f48b55eb8cd654b7b7bf304040197bd2c3fd491fae5333d60959e"
+			"manifestHash": "5d0f716c9ab5b7c15ce632174453053dbc5e1953047d0e052dd489b37022c818"
 		},
 		{
 			"name": "@lushly-dev/specimen-host-darwin-arm64",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.4",
 			"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
-			"manifestHash": "8d4a6991e42c4e5092324cd4b1fbd365c51cb45b9446e3859c26eea1fd2ba2b1"
+			"manifestHash": "8c4d668db2ecd44438dd8ece338b1b52681b025ab72dfe47606909f5ebb3890b"
 		},
 		{
 			"name": "@lushly-dev/specimen-host-darwin-x64",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.4",
 			"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
-			"manifestHash": "dd40873000acb85bca2e5570e39823199d6f90e04580c1861454426d0aed8cdc"
+			"manifestHash": "cc4f56b733b7b8114e2ed7348905fd3c2a04c1d9893b6919d0419a793e80bfc0"
 		},
 		{
 			"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.4",
 			"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
-			"manifestHash": "207a4a205e3947de5041614eae73dedbc1bb6239e55afb6389a3857c43a12d5e"
+			"manifestHash": "2255b3d98b2e0e9bf57b53fb9294a3a43de523ac73bf5bdc00af5139aa95d90b"
 		},
 		{
 			"name": "@lushly-dev/specimen-host-linux-x64-gnu",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.4",
 			"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
-			"manifestHash": "ba5ad9ffb5cb0d70d7e4f45d59e2a2dee457c92ad5535481e00f1c5e431cdb04"
+			"manifestHash": "8ba97cf809efa5fbc46b4e6d58367b1e5b9f49343ee02048b91b0e3d9fbc134e"
 		},
 		{
 			"name": "@lushly-dev/specimen-afd",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.3",
 			"manifest": "integrations/specimen-afd/package.json",
-			"manifestHash": "6d221346cf2bbd11d04d2e1f23605e87a7bebba1ac062a2173df0c1d773af19e"
+			"manifestHash": "2c731cc29e68bec1919ceb800e2cfcaee1fb1fa9b547303dbcf7e6391e4ed2d7"
 		},
 		{
 			"name": "@lushly-dev/specimen-cli",
-			"version": "2.2.0-preview.2",
+			"version": "2.2.0-preview.3",
 			"manifest": "endpoints/specimen-cli/package.json",
-			"manifestHash": "c8fd2d929c39ab5330794166e7ef88abef28c3f3ea49d6b173919522b8f66c0e"
+			"manifestHash": "b28003def4b1c59fe2d2e1e027a97bad9c6646cea2479cc0faf2f07e482891dd"
 		},
 		{
 			"name": "@lushly-dev/specimen-fast-af",
-			"version": "0.1.0-preview.2",
+			"version": "0.1.0-preview.3",
 			"manifest": "integrations/specimen-fast-af/package.json",
-			"manifestHash": "31f3c6a718ccd8743d01f651b438bd2db6c437eb3b1eacd7c239f3976020424a"
+			"manifestHash": "70a77faf1eb396a5e1417051da4968abaf811d2f8185544d8e08ba3caae02976"
 		}
 	]
 }

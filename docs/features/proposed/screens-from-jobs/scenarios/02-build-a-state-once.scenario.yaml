@@ -1,0 +1,90 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. The scenario is the one in 01. `scenario-evaluate` runs on
+# the example app's own afd-testing server, whose command handler is the app's in-process
+# handler; without a handler it fails with HANDLER_NOT_CONFIGURED.
+# The limit: the person's typing before step 4 lives in the Specimen entry, not the scenario, so
+# the headless run reaches every command's state but not the conflict notice itself.
+# `example/scenarios/untitled-steps.scenario.yaml` has a step 2 with no description.
+# `example-keep-a-draft-stale` points at a copy of the scenario in which step 3 was renamed.
+
+name: Build a state once
+description: >-
+  When a screen specimen and a job test need the same commands to reach a state, I want one
+  scenario that both run, the job entry written from it, and a capture point that no longer
+  matches it refused, so that the commands cannot drift apart.
+job: build-a-state-once
+tags: [slice, refuse]
+
+steps:
+  - description: The job entry is written from the scenario, with each step's description copied
+    command: specimen-job-create
+    input:
+      id: example-keep-a-draft
+      scenario: example/scenarios/keep-a-draft.scenario.yaml
+      module: ./app.specimens.ts
+      exportName: NotesApp
+      target: app
+      captures: [3, 4]
+    expect:
+      success: true
+      data:
+        written: { matches: 'specimen\.config\.json$' }
+        entry.job.captures.0.after: The note opens beside itself
+        entry.job.captures.1.after: Another writer saves the note
+
+  - description: A step with no description cannot be marked, and the fix is named
+    command: specimen-job-create
+    input:
+      id: example-untitled
+      scenario: example/scenarios/untitled-steps.scenario.yaml
+      module: ./app.specimens.ts
+      exportName: NotesApp
+      target: app
+      captures: [2]
+    expect:
+      success: false
+      error:
+        code: STEP_HAS_NO_DESCRIPTION
+        suggestion: { contains: description }
+
+  - description: It is listed as a job specimen
+    command: specimen-list
+    input:
+      kind: job
+    expect:
+      success: true
+      data:
+        specimens.0.id: example-keep-a-draft
+        specimens.0.job.scenario: example/scenarios/keep-a-draft.scenario.yaml
+
+  - description: The job test runs the same scenario file, headless
+    command: scenario-evaluate
+    input:
+      scenarios: [example/scenarios/keep-a-draft.scenario.yaml]
+    expect:
+      success: true
+      data:
+        exitCode: 0
+        report.summary.passedScenarios: 1
+
+  - description: A capture point whose step was renamed is found, with no browser
+    command: specimen-validate
+    input:
+      id: example-keep-a-draft-stale
+    expect:
+      success: true
+      data:
+        valid: false
+        issues.0.severity: error
+        issues.0.code: CAPTURE_STEP_UNKNOWN
+        issues.0.suggestion: { contains: specimen-job-create }
+
+  - description: Running it is refused, so a capture never lands on another step
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft-stale
+    expect:
+      success: false
+      error:
+        code: CAPTURE_STEP_UNKNOWN
+        suggestion: { contains: specimen-validate }

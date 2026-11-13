@@ -1,0 +1,169 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the label attribute",
+				"role": "menu",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "menu.label",
+				"text": "Set label: it is the menu's only accessible name. Despite the property's doc comment, there is no fallback to the trigger's text."
+			},
+			{
+				"basis": "authored",
+				"id": "menu.trigger-aria",
+				"text": "It sets aria-haspopup, aria-expanded and aria-controls on the trigger. violet-button forwards them to its inner button; violet-icon-button does not, so use violet-button or a native button."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Accessible label for the menu panel. Falls back to the trigger's text content when not set.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-background, var(--_surface-card))",
+				"name": "--_panel-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-border-color, var(--_border-subtle))",
+				"name": "--_panel-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-gap, var(--_space-sm))",
+				"name": "--_panel-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-max-height, 360px)",
+				"name": "--_panel-max-block"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-max-inline-size, 320px)",
+				"name": "--_panel-max-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-min-inline-size, 180px)",
+				"name": "--_panel-min-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-padding, var(--_space-sm))",
+				"name": "--_panel-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-radius, calc(var(--_radius-md) * 2))",
+				"name": "--_panel-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-menu-shadow, var(--_shadow-floating))",
+				"name": "--_panel-shadow"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the menu opens or closes. Detail: `{ open: boolean }`.",
+				"name": "open-change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-menu-item"
+				],
+				"basis": "observed",
+				"description": "Menu content: `<violet-menu-item>` elements and optional `<hr>` separators.",
+				"name": ""
+			},
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "The button element that toggles the menu. Must be a focusable element.",
+				"name": "trigger"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-menu--disabled-items",
+			"html": "<violet-menu label=\"Mixed availability\"><violet-button appearance=\"secondary\" aria-controls=\"violet-menu-panel-0\" aria-expanded=\"false\" aria-haspopup=\"menu\" slot=\"trigger\" type=\"button\">Options</violet-button><violet-menu-item><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon>Search</violet-menu-item><violet-menu-item disabled><violet-icon decorative icon=\"system/settings\" label slot=\"before\"></violet-icon>Settings</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/sort-ascending\" label slot=\"before\"></violet-icon>Sort</violet-menu-item><violet-menu-item disabled><violet-icon decorative icon=\"system/close\" label slot=\"before\"></violet-icon>Close</violet-menu-item></violet-menu>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-menu--keyboard-navigation",
+			"html": "<violet-menu label=\"Navigation test\"><violet-button appearance=\"secondary\" aria-controls=\"violet-menu-panel-0\" aria-expanded=\"false\" aria-haspopup=\"menu\" slot=\"trigger\" type=\"button\">Open menu</violet-button><violet-menu-item><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon>Alpha</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/settings\" label slot=\"before\"></violet-icon>Bravo</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/sort-ascending\" label slot=\"before\"></violet-icon>Charlie</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/close\" label slot=\"before\"></violet-icon>Delta</violet-menu-item></violet-menu>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-menu--overview",
+			"html": "<violet-menu label=\"Table actions\"><violet-button appearance=\"secondary\" aria-controls=\"violet-menu-panel-0\" aria-expanded=\"false\" aria-haspopup=\"menu\" slot=\"trigger\" type=\"button\">Actions</violet-button><violet-menu-item><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon>Search records</violet-menu-item><violet-menu-item><violet-icon decorative icon=\"system/sort-ascending\" label slot=\"before\"></violet-icon>Sort ascending</violet-menu-item><violet-menu-item disabled><violet-icon decorative icon=\"system/sort-descending\" label slot=\"before\"></violet-icon>Sort descending</violet-menu-item><hr><violet-menu-item><violet-icon decorative icon=\"system/close\" label slot=\"before\"></violet-icon>Remove column</violet-menu-item></violet-menu>"
+		}
+	],
+	"format": 1,
+	"gaps": [],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"overlay.open-change",
+		"taxonomy.label",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Action menu: a slotted trigger opens a floating list of violet-menu-item actions. For choosing a value, use a select instead.",
+	"tag": "violet-menu",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "menu.structure",
+			"text": "Children: one focusable element in the trigger slot, then violet-menu-item elements with optional <hr> separators. Every violet-menu-item descendant counts as an item, so do not nest menus."
+		},
+		{
+			"basis": "authored",
+			"id": "menu.open",
+			"text": "The trigger toggles it on click; ArrowDown or ArrowUp opens it on the first or last item. open is a property with no attribute: set it or call show(), hide() and toggle()."
+		},
+		{
+			"basis": "authored",
+			"id": "menu.invoke",
+			"text": "Listen for invoke on each item, or on the menu and read event.target. The menu then closes and returns focus to the trigger if focus was still inside it."
+		},
+		{
+			"basis": "authored",
+			"id": "menu.keyboard",
+			"text": "In the open menu arrows wrap, Home and End jump, typed letters move to a matching item, Enter or Space invokes, Escape closes and refocuses the trigger, and Tab closes it and moves on."
+		}
+	]
+}

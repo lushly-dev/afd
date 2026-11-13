@@ -45,6 +45,7 @@ function renderUpload(args: VioletFileUploadStoryArgs, presetFiles: File[] = [])
 
 const meta = {
     title: "Components/File Upload",
+    component: "violet-file-upload",
     tags: ["autodocs"],
     parameters: {
         docs: {

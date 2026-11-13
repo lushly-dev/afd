@@ -1,7 +1,8 @@
 //! Umbel's embedded reference store backend (phase 2 specification, section 3.2): SQLite in WAL
 //! mode, bundled, for documents, plugin records, the change log and the structural graph. Several
 //! processes may open one space's store at once; writers take turns under `BEGIN IMMEDIATE` and
-//! wait at most `store.lock_timeout_ms`. The lexical lane is [`TantivyIndex`], tantivy under
+//! wait at most `store.lock_timeout_ms`. From schema version 2 the same database holds the record
+//! lane (the records host specification, section 5): a declared kind's terms, keys and lane rows. The lexical lane is [`TantivyIndex`], tantivy under
 //! `index/v2/` with LZ4 and English stems; the readable graph's petgraph form is cached per
 //! process. Memory (phase 3) is [`SqliteMemoryStore`], its own database beside the store's.
 
@@ -11,6 +12,7 @@ mod error;
 mod graph;
 mod index;
 mod inspect;
+mod lane;
 mod memory;
 mod readable_graph;
 mod schema;
@@ -28,6 +30,7 @@ pub use memory::{
     MemoryMaintenance, SqliteMemoryStore, is_excluded_from_machine_backup,
 };
 pub use readable_graph::{EdgeData, GRAPH_CACHE_ENTRIES, ReadableGraph};
+pub use schema::SCHEMA_VERSION;
 
 /// The file and directory names under a space's state directory (section 3.2).
 const STORE_DIR: &str = "store";
@@ -74,7 +77,26 @@ pub struct SqliteStore {
     space: String,
     pool: connection::Pool,
     graph_cache: readable_graph::GraphCache,
+    lane_limits: umbel_store::lane::LaneLimits,
+    #[cfg(feature = "testkit")]
+    rebuild_hook: Option<RebuildHook>,
 }
+
+/// A point of a record lane's rebuild at which a test acts ([`SqliteStore::with_rebuild_hook`]).
+/// Compiled in only with the `testkit` feature.
+#[cfg(feature = "testkit")]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RebuildPoint {
+    /// Inside the transaction of the chunk with this index, before it reads a record: the
+    /// store's write lock is held.
+    InChunk(usize),
+    /// After the commit of the chunk with this index, when another follows: no lock is held.
+    AfterChunk(usize),
+}
+
+/// What a test runs at each [`RebuildPoint`], on the rebuild's own thread.
+#[cfg(feature = "testkit")]
+pub type RebuildHook = std::sync::Arc<dyn Fn(RebuildPoint) + Send + Sync>;
 
 impl SqliteStore {
     /// Open (creating when new) the store of `space` under `space_dir`
@@ -97,7 +119,41 @@ impl SqliteStore {
             space: space.to_owned(),
             pool,
             graph_cache: readable_graph::GraphCache::default(),
+            lane_limits: umbel_store::lane::LaneLimits::default(),
+            #[cfg(feature = "testkit")]
+            rebuild_hook: None,
         })
+    }
+
+    /// This store with `hook` run at each [`RebuildPoint`] of its rebuilds, so a test can act
+    /// between two chunks, or while one holds the write lock, without a sleep in shipped code.
+    /// Compiled in only with the `testkit` feature.
+    #[cfg(feature = "testkit")]
+    #[must_use]
+    pub fn with_rebuild_hook(mut self, hook: RebuildHook) -> Self {
+        self.rebuild_hook = Some(hook);
+        self
+    }
+
+    #[cfg(feature = "testkit")]
+    pub(crate) fn at_rebuild_point(&self, point: RebuildPoint) {
+        if let Some(hook) = &self.rebuild_hook {
+            hook(point);
+        }
+    }
+
+    /// This store with its record lane's bounds set to `limits` (records host specification,
+    /// section 15.1). A served store keeps the default, which is that specification's
+    /// constants; the conformance suite lowers them for the cases that must pass a bound with a
+    /// handful of records.
+    #[must_use]
+    pub fn with_lane_limits(mut self, limits: umbel_store::lane::LaneLimits) -> Self {
+        self.lane_limits = limits;
+        self
+    }
+
+    pub(crate) fn lane_limits(&self) -> umbel_store::lane::LaneLimits {
+        self.lane_limits
     }
 
     /// The space this store serves.

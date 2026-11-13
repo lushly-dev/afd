@@ -230,7 +230,29 @@ fn each_mode_of_the_version_1_principal_keeps_its_shape() {
     assert_accepts(
         &validator,
         "a verified decision at the CLI",
-        &with(&cli, "/humanPresent", page),
+        &with(&cli, "/humanPresent", page.clone()),
+    );
+    // A decision on the local page (the Ideas host-review specification, section 6.2): over
+    // stdio only, with no login's time or class, and never at the CLI or over HTTP.
+    let local =
+        json!({ "level": "local", "method": "local-page", "at": "2026-11-13T09:00:00.000Z" });
+    assert_accepts(
+        &validator,
+        "a decision on the local page over stdio",
+        &with(&stdio, "/humanPresent", local.clone()),
+    );
+    let mut with_login = local.clone();
+    with_login["authTime"] = json!("2026-11-13T09:00:00.000Z");
+    assert_refuses(
+        &validator,
+        "a local decision",
+        &[
+            with(&cli, "/humanPresent", local.clone()),
+            with(&loopback, "/humanPresent", local.clone()),
+            with(&gateway, "/humanPresent", local.clone()),
+            with(&stdio, "/humanPresent", with_login),
+            with(&stdio, "/humanPresent", page),
+        ],
     );
     // Embedder: the library, with no presence the host proved.
     let library = example("principal.v1", "library");

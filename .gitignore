@@ -52,6 +52,8 @@ Cargo.lock
 !endpoints/umbel/Cargo.lock
 # So is Specimen's native host
 !foundations/specimen/host/Cargo.lock
+# And Mail's engine
+!endpoints/loam/plugins/mail/engine/Cargo.lock
 
 # C++ (CMake build trees; see packages/cpp)
 /packages/cpp/build/
@@ -74,3 +76,6 @@ api-alignment-report.md
 # Untracked Specimen files would fail its provenance test. Vitest's browser-mode failure
 # artifacts land under .vitest/ (ignored above).
 foundations/specimen/packages/*/bin/
+
+# The local Umbel workspace scripts/umbel-components.mjs writes (Component Briefs, step C5).
+.umbel/

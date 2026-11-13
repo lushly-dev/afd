@@ -9,7 +9,9 @@ import { dirname, join, resolve } from 'node:path';
 import {
 	type DeploymentV1,
 	type DeploymentV2,
+	type DeploymentV3,
 	type DeploymentWorkspaceV2,
+	type IdentityV1,
 	type ManifestV2,
 	NOTICES_V1,
 	SHELL_DOMAINS_V1,
@@ -28,7 +30,8 @@ export interface DeploymentFinding {
 
 export interface DeploymentNotice {
 	code: string;
-	instance: string;
+	/** Absent for a notice of the whole deployment, such as `LOCAL_IDENTITY`. */
+	instance?: string;
 	message: string;
 }
 
@@ -67,14 +70,20 @@ export interface DeploymentAnalysis {
 	/** Warnings of the packages, which fail nothing. */
 	warnings: DeploymentFinding[];
 	notices: DeploymentNotice[];
-	deployment?: DeploymentV1 | DeploymentV2;
+	deployment?: DeploymentV1 | DeploymentV2 | DeploymentV3;
 	/** The deployment's workspace, `personal` unless it names one (phase 2 specification, 4.2). */
 	workspace?: DeploymentWorkspaceV2;
+	/** The deployment's identity: `[identity]`, or `local` (phase 3 specification, 2.2). */
+	identity?: IdentityV1;
 	/** `site.base_path`, or `/`. */
 	basePath?: string;
 	instances: InstanceEffect[];
 	mounts: MountAccess[];
 }
+
+/** What `deployment check` says of a `local` deployment (phase 3 specification, 2.1). */
+export const LOCAL_IDENTITY_NOTICE =
+	'`local` identity: anyone with this browser profile is its owner.';
 
 export const appKey = (id: string, key = ''): string => keyOf(`/apps/${id}${key}`);
 
@@ -346,7 +355,7 @@ async function readCredential(
 /** The deployment file and each credential file: what must never be served or replaced. */
 export async function secretPaths(
 	config: string,
-	deployment: DeploymentV1 | DeploymentV2
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3
 ): Promise<string[]> {
 	const base = dirname(resolve(config));
 	const bearers = Object.values(deployment.apps).flatMap(({ bearer_file }) =>
@@ -358,7 +367,7 @@ export async function secretPaths(
 /** A package is served whole, so nothing secret may sit inside one. */
 async function secretsServed(
 	config: string,
-	deployment: DeploymentV1 | DeploymentV2,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const secrets = await secretPaths(config, deployment);
@@ -377,8 +386,20 @@ async function secretsServed(
 	return found;
 }
 
+export interface AnalyzeDeploymentOptions {
+	/**
+	 * Read the file as if its `[sandbox] origin` were this one: the hosted development profile binds its
+	 * sandbox's port first and writes the site with that origin (phase 6 specification, 5.1). It passes the
+	 * reader's checks as the file's own would.
+	 */
+	sandboxOrigin?: string;
+}
+
 /** Reads the file and every package it lists, as `deployment check` and a write both must. */
-export async function analyzeDeployment(config: string): Promise<DeploymentAnalysis> {
+export async function analyzeDeployment(
+	config: string,
+	options: AnalyzeDeploymentOptions = {}
+): Promise<DeploymentAnalysis> {
 	const empty = { instanceRefusals: [], warnings: [], notices: [], instances: [], mounts: [] };
 	const unreadable = (message: string, suggestion: string): DeploymentAnalysis => ({
 		...empty,
@@ -401,6 +422,8 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 			'Fix the TOML at that line.'
 		);
 	}
+	if (options.sandboxOrigin !== undefined && typeof parsed === 'object' && parsed !== null)
+		(parsed as Record<string, unknown>).sandbox = { origin: options.sandboxOrigin };
 	const read = readDeployment(parsed);
 	if (!read.ok) return { ...empty, refusals: read.refusals };
 	const { deployment } = read;
@@ -496,9 +519,15 @@ export async function analyzeDeployment(config: string): Promise<DeploymentAnaly
 		refusals,
 		instanceRefusals,
 		warnings,
-		notices: instances.flatMap(noticesFor),
+		notices: [
+			...(read.identity.mode === 'local'
+				? [{ code: 'LOCAL_IDENTITY', message: LOCAL_IDENTITY_NOTICE }]
+				: []),
+			...instances.flatMap(noticesFor),
+		],
 		deployment,
 		workspace: read.workspace,
+		identity: read.identity,
 		basePath: read.basePath,
 		instances,
 		mounts,

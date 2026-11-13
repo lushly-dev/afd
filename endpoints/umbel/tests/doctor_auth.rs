@@ -984,6 +984,20 @@ async fn the_person_login_must_be_user_verified_at_its_provider() {
     assert!(message.contains("cannot be confirmed"), "{message}");
 }
 
+#[tokio::test]
+async fn a_passkey_login_passes_only_with_phishing_resistant_classes() {
+    // D181: uv_amr may name mfa where every class is phr or phrh.
+    let kit = kit().await;
+    let text = config(&kit, &Config::default()).replace(
+        "acr_values = [\"phr\"], uv_amr = [\"pin\"]",
+        "acr_values = [\"phr\", \"phrh\"], uv_amr = [\"mfa\"]",
+    );
+    assert!(text.contains("uv_amr = [\"mfa\"]"));
+    let dir = workspace(&text);
+    let message = doctor(dir.path(), &kit).await.expect("auth.person", "pass");
+    assert!(message.contains("corp"), "{message}");
+}
+
 // ─── auth.secrets ────────────────────────────────────────────────────────────────────────────
 
 #[tokio::test]

@@ -14,6 +14,7 @@ import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 export const testFiles = [
+	'scripts/bloat-sweeper.test.mjs',
 	'scripts/check-file-size.test.mjs',
 	'scripts/check-versions.test.mjs',
 	'scripts/repository-contract.test.mjs',
@@ -41,6 +42,12 @@ export const testFiles = [
 	'scripts/run-tooling-tests.test.mjs',
 	'scripts/affected.test.mjs',
 	'scripts/rust-sweep.test.mjs',
+	'scripts/umbel-components.test.mjs',
+	'scripts/ci-verdict.test.mjs',
+	'scripts/verify-record.test.mjs',
+	'scripts/components-brief-hook.test.mjs',
+	'scripts/issue-labels.test.mjs',
+	'scripts/release/exec-tool.test.mjs',
 ];
 
 /** Suites that test the release tooling with fixture repositories. */

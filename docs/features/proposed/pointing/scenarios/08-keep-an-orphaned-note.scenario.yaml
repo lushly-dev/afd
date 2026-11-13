@@ -1,0 +1,82 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented, as in scenario 01. Open notes:
+# - `note-7k2m9q4x1r8t` on an "Archive" button in `example-toolbar`. The button has been removed
+#   and Archive is now an item in the toolbar's overflow menu (checkpoint `menu-open`).
+# - `note-3hd8w2c5n0vp` on the Share button, since renamed "Share link". Its component and position
+#   still match.
+# - `note-q4z1m6t9b2xe` and `note-w8c3r5y0k7aj` on a filter bar that was removed for good.
+# - `note-f5n2p8v1d6gs` on the specimen `example-legacy`, whose file was deleted.
+
+name: Keep a note whose element is gone, and settle it
+description: >-
+  When the element a note was pinned to no longer exists, I want the note kept and marked
+  orphaned, not dropped or moved by guesswork, so that I can see what it was about and either
+  re-pin it or close it.
+job: keep-an-orphaned-note
+tags: [notes, refuse]
+
+fixture:
+  file: fixtures/orphaned-notes.json
+
+steps:
+  - description: The check orphans only notes whose element is gone, and says what it could not check
+    command: specimen-note-check
+    input: {}
+    expect:
+      success: true
+      data:
+        checked: 4
+        orphaned: [note-7k2m9q4x1r8t, note-q4z1m6t9b2xe, note-w8c3r5y0k7aj]
+        weakened: [note-3hd8w2c5n0vp]
+        unchecked: { length: 1 }
+        unchecked.0.specimen: example-legacy
+        unchecked.0.reason: specimen-missing
+        unchecked.0.notes: [note-f5n2p8v1d6gs]
+
+  - description: The orphaned note is still open and still names what it was about
+    command: specimen-note-list
+    input:
+      orphaned: true
+    expect:
+      success: true
+      data:
+        notes: { length: 3 }
+
+  - description: The person points at the Archive menu item
+    command: specimen-point
+    input:
+      id: example-toolbar
+      checkpoint: menu-open
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: menuitem, name: Archive }
+    expect:
+      success: true
+
+  - description: The note is re-pinned there, keeping its history
+    command: specimen-note-move
+    input:
+      id: note-7k2m9q4x1r8t
+      point: "${{ steps[2].data.point.id }}"
+      reason: Archive moved into the overflow menu
+    expect:
+      success: true
+      data:
+        note:
+          orphaned: false
+          subject:
+            accessible:
+              role: menuitem
+          history.0.change: moved
+          history.0.reason: { contains: overflow menu }
+
+  - description: The two notes on the removed filter bar are closed together, with one reason
+    command: specimen-note-resolve
+    input:
+      ids: [note-q4z1m6t9b2xe, note-w8c3r5y0k7aj]
+      outcome: obsolete
+      reason: The filter bar was removed; filtering now lives in search
+    expect:
+      success: true
+      data:
+        resolved: { length: 2 }
+        skipped: { length: 0 }

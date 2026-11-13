@@ -55,6 +55,7 @@ function renderScopedTheme(args: ScopedThemeArgs): HTMLElement {
 
 const meta: Meta<ScopedThemeArgs> = {
     title: "Foundations/Theme",
+    component: "violet-theme",
     tags: ["autodocs"],
     parameters: {
         docs: {

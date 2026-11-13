@@ -8,6 +8,7 @@ import type {
 	SpecimenEntry,
 	StoriesSpecifier,
 	StoryIdentity,
+	ThemeSupport,
 	ValidationIssue,
 	ValidationReport,
 	ValidationTarget,
@@ -49,6 +50,24 @@ export function normalizeSpecifier(
 	return { directory: dirname(entry), files: basename(entry), titlePrefix: '' };
 }
 
+/** The tags that declare a story's themes, each naming the one theme it supports. */
+export const THEME_TAGS = {
+	'light-only': 'light',
+	'dark-only': 'dark',
+	'high-contrast-only': 'high-contrast',
+} as const;
+
+/**
+ * What a story's tags declare of its themes: each `<theme>-only` tag adds its theme, so
+ * `light-only` and `high-contrast-only` together support both. No such tag: it follows the theme.
+ */
+export function declaredThemes(tags: readonly string[]): ThemeSupport | undefined {
+	const supported = (['light', 'dark', 'high-contrast'] as const).filter((theme) =>
+		Object.entries(THEME_TAGS).some(([tag, named]) => named === theme && tags.includes(tag))
+	);
+	return supported.length ? { supported, basis: 'declared' } : undefined;
+}
+
 export interface DiscoveryProblem {
 	importPath?: string;
 	exportName?: string;
@@ -84,6 +103,8 @@ interface HostIndex {
 }
 
 const INDEX_TIMEOUT = 60_000;
+
+const withThemes = (themes: ThemeSupport | undefined) => (themes ? { themes } : {});
 
 /** Index the configuration's stories in a short-lived host process. */
 export async function discoverStories(
@@ -126,6 +147,7 @@ export async function discoverStories(
 				module: importPath,
 				exportName,
 				...(component === undefined ? {} : { component }),
+				...withThemes(declaredThemes(story.tags)),
 				story: {
 					name: story.name,
 					tags: story.tags,
@@ -181,7 +203,7 @@ function matches(entry: SpecimenEntry, target: ValidationTarget | undefined, roo
 	if (target.file !== undefined && !sameFile(entry.module, target.file, root)) return false;
 	return true;
 }
-function sameFile(importPath: string, file: string, root: string): boolean {
+export function sameFile(importPath: string, file: string, root: string): boolean {
 	return resolve(root, importPath) === resolve(root, file);
 }
 

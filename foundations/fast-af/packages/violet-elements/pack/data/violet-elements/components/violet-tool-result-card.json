@@ -1,0 +1,133 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "expanded",
+				"property": "expanded",
+				"rules": [
+					"taxonomy.expanded"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "pending",
+				"name": "state",
+				"property": "state",
+				"rules": [
+					"taxonomy.state"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-result-font-size, var(--_caption-size, 12px))",
+				"name": "--_result-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-result-line-height, var(--_caption-line, 16px))",
+				"name": "--_result-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-text, #166534)",
+				"name": "--_success-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_surface-card)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "none",
+				"name": "--violet-card-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_result-line-height)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Result body content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional metadata.",
+				"name": "footer"
+			},
+			{
+				"basis": "observed",
+				"description": "Compact result summary line.",
+				"name": "summary"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-tool-result-card--error-result",
+			"html": "<violet-tool-result-card expanded state=\"output-error\"><span slot=\"summary\">Failed to retrieve weather data</span><div>Error: Connection timeout after 30s. The weather service did not respond.</div></violet-tool-result-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-tool-result-card--expanded",
+			"html": "<violet-tool-result-card expanded state=\"output-available\"><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-tool-result-card--overview",
+			"html": "<violet-tool-result-card expanded state=\"output-available\"><span slot=\"summary\">Weather data retrieved successfully</span><div>Temperature: 72°F\nConditions: Partly cloudy\nHumidity: 45%\nWind: 8 mph NW</div></violet-tool-result-card>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.expanded",
+		"taxonomy.state",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-tool-result-card",
+	"usage": []
+}

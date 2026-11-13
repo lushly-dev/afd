@@ -64,6 +64,26 @@ pub enum StoreError {
         /// The most readable matches a recall ranks.
         limit: u64,
     },
+    /// A declared kind's lane is not the declaration's (`RECORD_LANE_STALE`, records host
+    /// specification sections 2 and 13): the declaration changed, records predate it, a record
+    /// was written while the kind was undeclared, or a rebuild is under way. Nothing was read or
+    /// written.
+    LaneStale,
+    /// A put would change the wording of a standing record (`RECORD_WORDING_FIXED`, section
+    /// 4.3); nothing was written.
+    WordingFixed,
+    /// A match, or a ranked find, of a kind that holds more postings than a match reads
+    /// (`RECORD_QUERY_TOO_BROAD`, section 8.2): the kind as a whole is past its matching size,
+    /// whoever calls and whatever it asks. Nothing was returned.
+    LaneTooBroad {
+        /// The most postings a kind may hold for a match to read it.
+        limit: u64,
+    },
+    /// A put's evidence is not acceptable (`RECORD_EVIDENCE_INVALID`, sections 4.2 and 13): its
+    /// shape breaks a rule, or the document it cites is absent, not readable by the writer or
+    /// stored with another content hash, without saying which of those three. The reason names
+    /// the rule and never a value. Nothing was written.
+    EvidenceInvalid(String),
 }
 
 impl StoreError {
@@ -107,6 +127,18 @@ impl fmt::Display for StoreError {
                 f,
                 "the query matches more than {limit} readable records; narrow it"
             ),
+            Self::LaneStale => write!(f, "the lane is being rebuilt or must be rebuilt"),
+            Self::WordingFixed => write!(
+                f,
+                "the wording of a standing record never changes; write a new record"
+            ),
+            Self::LaneTooBroad { limit } => {
+                write!(
+                    f,
+                    "the kind holds more than {limit} postings, past what a match reads"
+                )
+            }
+            Self::EvidenceInvalid(rule) => write!(f, "the evidence is not acceptable: {rule}"),
         }
     }
 }

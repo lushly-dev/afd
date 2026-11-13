@@ -7,8 +7,9 @@ import { type CommandResult, defineCommand, failure, success } from '@lushly-dev
 import { z } from 'zod';
 import { checkHost } from './check.js';
 import { loadServerConfig } from './config.js';
+import { type DevProfile, runDev } from './dev.js';
 import { doctorReport } from './doctor.js';
-import type { HostFinding } from './errors.js';
+import { HostError, type HostFinding } from './errors.js';
 
 /** A CLI command is on no shell surface. */
 const EXPOSE = { cli: true, palette: false, agent: false, mcp: false };
@@ -72,5 +73,57 @@ export const hostDoctorCommand = defineCommand({
 				? `Process ${report.lock.pid} on ${report.lock.host} holds the data directory, as \`.lock\` reports.`
 				: 'No process holds the data directory, as far as `.lock` reports.',
 		});
+	},
+});
+
+/** The profile `dev` started, which the bin closes on `SIGINT` or `SIGTERM`. */
+let started: DevProfile | undefined;
+
+/** Takes the profile the last `dev` started, so whoever runs the bin can stop it. */
+export function takeStartedDev(): DevProfile | undefined {
+	const profile = started;
+	started = undefined;
+	return profile;
+}
+
+export const hostDevCommand = defineCommand({
+	name: 'host-dev',
+	title: 'Start the development profile',
+	description:
+		'Serve a hosted deployment on https://localhost with a generated certificate, secret and mail sink, keeping its ports in dev.json.',
+	input: z.object({
+		deployment: z.string(),
+		data: z.string().optional(),
+		port: z
+			.string()
+			.regex(/^\d{1,5}$/, 'a port from 0 to 65535')
+			.transform(Number)
+			.refine((port) => port <= 65_535, 'a port from 0 to 65535')
+			.optional(),
+		dist: z.string().optional(),
+	}),
+	mutation: true,
+	expose: EXPOSE,
+	async handler({ deployment, data, port, dist }) {
+		try {
+			started = await runDev({
+				deployment,
+				...(data !== undefined ? { data } : {}),
+				...(port !== undefined ? { port } : {}),
+				...(dist !== undefined ? { dist } : {}),
+			});
+		} catch (cause) {
+			if (cause instanceof HostError) return refused(cause.refusals, {});
+			throw cause;
+		}
+		return success(
+			{
+				origin: started.origin,
+				sandboxOrigin: started.sandboxOrigin,
+				spki: started.spki,
+				mail: started.mail,
+			},
+			{ reasoning: `Serving ${started.origin} until it is stopped.` }
+		);
 	},
 });

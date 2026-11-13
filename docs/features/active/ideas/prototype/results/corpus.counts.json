@@ -1,0 +1,24 @@
+{
+	"tool": "corpus.py",
+	"tool_version": 1,
+	"extensions": [".md", ".txt"],
+	"files": 107,
+	"words": 314118,
+	"distinct_by_bytes": 97,
+	"distinct_after_normalising": 66,
+	"files_that_repeat_another_byte_for_byte": 10,
+	"files_that_differ_only_in_line_endings_or_trailing_space": 31,
+	"words_in_distinct_sources": 186968,
+	"source_words": {
+		"median": 1887,
+		"p90": 7378,
+		"max": 13078,
+		"min": 118
+	},
+	"files_with_front_matter": 1,
+	"files_with_crlf": 31,
+	"likely_version_pairs": 0,
+	"sources_in_a_likely_version_pair": 0,
+	"shingle_words": 8,
+	"likely_version_containment": 0.5
+}

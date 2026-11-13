@@ -435,12 +435,15 @@ describe('P2-D8: the documents section', () => {
 		expect(
 			await tree(page)
 				.locator(':scope violet-tree > violet-tree-item')
+				// An open branch has no label: it is named by its content, which is its title.
 				.evaluateAll((items) =>
-					items.map(
-						(item) => `${item.getAttribute('aria-label')} ${item.getAttribute('aria-expanded')}`
-					)
+					items.map((item) => {
+						const title = item.querySelector(':scope > .label')?.textContent;
+						const name = item.getAttribute('aria-label') ?? `${title}, by content`;
+						return `${name} ${item.getAttribute('aria-expanded')}`;
+					})
 				)
-		).toEqual(['Recent true', 'Notes false', 'Trash false']);
+		).toEqual(['Recent, by content true', 'Notes false', 'Trash false']);
 		expect(await tree(page).locator('violet-tree').getAttribute('aria-label')).toBe('Documents');
 		expect(await row(page, `recent:${two}`).getAttribute('aria-label')).toBe('Two, Note');
 		// With no tab, main is the list.
@@ -463,6 +466,9 @@ describe('P2-D8: the documents section', () => {
 		// Opening Notes reads its documents; Enter on one keeps it.
 		await row(page, 'type:notes').locator(':scope > .label').click();
 		await row(page, `notes:${two}`).waitFor();
+		// Open, the branch gives up its label: the rows beneath it would be text its name lacks.
+		expect(await row(page, 'type:notes').getAttribute('aria-label')).toBeNull();
+		expect(await row(page, 'trash').getAttribute('aria-label')).toBe('Trash');
 		await row(page, `notes:${two}`).focus();
 		await page.keyboard.press('Enter');
 		await editorIdle(page);
@@ -771,11 +777,20 @@ describe('P2-D8: the reviews of step 11', () => {
 		await kernelCall(page, 'document-trash', { document: second });
 		const section = page.locator('loam-main loam-documents-section');
 		await section.locator('select[data-ref="status"]').selectOption('trashed');
-		await expect.poll(() => section.locator('tbody tr').count()).toBe(2);
-		const [top] = await section.locator('tbody tr td:first-child').allTextContents();
-		const other = top === 'First' ? 'Second' : 'First';
-		await section.getByRole('button', { name: `Restore ${top}` }).click();
-		await expect.poll(async () => (await deepFocus(page)).label).toBe(`Restore ${other}`);
+		// One read of the Trash view's own buttons: the rows of the Active table can still be showing,
+		// and can paint empty, between a count of them and a read of them.
+		let restores: Array<string | null> = [];
+		await expect
+			.poll(async () => {
+				restores = await section
+					.locator('tbody button')
+					.evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label')));
+				return restores.length;
+			})
+			.toBe(2);
+		const [top, other] = restores as [string, string];
+		await section.getByRole('button', { name: top }).click();
+		await expect.poll(async () => (await deepFocus(page)).label).toBe(other);
 		await page.keyboard.press('Enter');
 		await expect.poll(async () => (await deepFocus(page)).tag).toBe('h1');
 		expect(opened.errors).toEqual([]);

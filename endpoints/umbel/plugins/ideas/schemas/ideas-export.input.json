@@ -1,0 +1,21 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"after": {
+			"type": "string",
+			"description": "The next of the page before",
+			"maxLength": 2048
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 1000,
+			"description": "Items a page; default 500"
+		}
+	}
+}

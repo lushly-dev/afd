@@ -1,0 +1,221 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "busy",
+				"property": "busy",
+				"rules": [
+					"taxonomy.busy"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "current-folder-id",
+				"property": "currentFolderId",
+				"rules": [
+					"taxonomy.current-folder-id"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"name": "load-error",
+				"property": "loadError",
+				"rules": [
+					"taxonomy.load-error"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "Files",
+				"name": "root-label",
+				"property": "rootLabel",
+				"rules": [
+					"taxonomy.root-label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "single",
+				"name": "selection-mode",
+				"property": "selectionMode",
+				"rules": [
+					"taxonomy.selection-mode"
+				],
+				"type": "VioletFileExplorerSelectionMode"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-foreground, #b42318)",
+				"name": "--_danger-text"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-nav-inline-size, 14rem)",
+				"name": "--_explorer-nav-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-padding, var(--_space-stack-sm))",
+				"name": "--_explorer-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-radius, var(--_radius-lg))",
+				"name": "--_explorer-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-row-background-hover, var(--_surface-subtle))",
+				"name": "--_row-background-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-row-background-selected, var(--_surface-hover))",
+				"name": "--_row-background-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-row-border-selected, var(--_border-subtle))",
+				"name": "--_row-border-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-file-explorer-row-radius, var(--_radius-md))",
+				"name": "--_row-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "1.125rem",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_row-background-hover)",
+				"name": "--violet-tree-row-background-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_row-background-selected)",
+				"name": "--violet-tree-row-background-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_row-border-selected)",
+				"name": "--violet-tree-row-border-selected"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the user navigates to another folder; detail is `{ folderId, path }`.",
+				"name": "folder-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the host should supply (or re-supply) a folder's contents; detail is `{ folderId, reason }` where reason is `expand`, `navigate` or `retry`.",
+				"name": "folder-request"
+			},
+			{
+				"basis": "declared",
+				"description": "Cancelable. Emitted when the user activates an item (Enter, double-click, or a single click when `selection-mode=\"none\"`); detail is `{ id, kind, item }`. Activating a folder navigates into it unless prevented.",
+				"name": "item-activate"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the user changes the selection; detail is `{ selectedIds, items }`.",
+				"name": "selection-change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Host actions rendered at the end of the toolbar.",
+				"name": "actions"
+			},
+			{
+				"basis": "observed",
+				"description": "Replaces the default empty-folder message.",
+				"name": "empty"
+			},
+			{
+				"accepts": [
+					"violet-file-upload"
+				],
+				"basis": "observed",
+				"description": "Optional host content under the explorer, such as an upload control.",
+				"name": "footer"
+			}
+		]
+	},
+	"examples": [],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "example"
+		},
+		{
+			"kind": "unobserved",
+			"name": "load-error",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.busy",
+		"taxonomy.current-folder-id",
+		"taxonomy.label",
+		"taxonomy.load-error",
+		"taxonomy.root-label",
+		"taxonomy.selection-mode",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-file-explorer",
+	"usage": []
+}

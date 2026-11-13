@@ -106,6 +106,15 @@ const styles = css`
         block-size: 100%;
     }
 
+    /*
+     * The initials repeat the label, which the root already carries, so they are generated
+     * content and no text of the page: a control that holds a persona is then not judged to
+     * show text its name lacks (WCAG 2.5.3).
+     */
+    .fallback::before {
+        content: attr(data-initials);
+    }
+
     @media (forced-colors: active) {
         .root {
             forced-color-adjust: none;
@@ -139,12 +148,24 @@ const template = html<VioletPersona>`
                 />
             `
         )}
-        <span class="fallback" part="fallback" aria-hidden="true" ?hidden="${x => Boolean(x.src) && !x.imageFailed}">
-            ${x => x.displayInitials}
-        </span>
+        <span
+            class="fallback"
+            part="fallback"
+            aria-hidden="true"
+            data-initials="${x => x.displayInitials}"
+            ?hidden="${x => Boolean(x.src) && !x.imageFailed}"
+        ></span>
     </div>
 `;
 
+/**
+ * Violet reusable persona primitive.
+ *
+ * @summary Avatar for a person: their image, or initials on a colour drawn from their name when there is no image or it fails to load.
+ * @csspart root - The avatar frame.
+ * @csspart image - The rendered image element.
+ * @csspart fallback - The initials shown without an image.
+ */
 export class VioletPersona extends FASTElement {
     @observable
     declare public imageFailed: boolean;

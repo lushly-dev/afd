@@ -240,7 +240,17 @@ fn the_preview_returns_a_closed_preview_string() {
         ))
     };
     parse(&with_returns(RETURNS)).unwrap();
+    // A paged answer's members beside `preview` (the Ideas host-review specification, section 2).
     for returns in [
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, page = { type = \"integer\" }, pages = { type = \"integer\" }, items = { type = \"array\", items = { type = \"object\" } } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"array\" } }, required = [\"preview\"], additionalProperties = false }",
+    ] {
+        parse(&with_returns(returns)).unwrap_or_else(|error| panic!("{returns}: {error}"));
+    }
+    for returns in [
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, page = { type = \"string\" } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"object\" } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"array\" } }, required = [\"preview\", \"items\"], additionalProperties = false }",
         "",
         "returns = { type = \"object\" }",
         "returns = { type = \"object\", properties = { preview = { type = \"integer\" } }, required = [\"preview\"], additionalProperties = false }",
@@ -527,14 +537,14 @@ fn versions_1_to_3_refuse_what_version_4_adds() {
 }
 
 #[test]
-fn a_host_reads_manifest_versions_1_to_4_and_version_5_beside_them() {
-    assert_eq!(umbel::MANIFEST_VERSION, 5);
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5]);
-    for other in [0, 6] {
+fn a_host_reads_manifest_versions_1_to_4_and_versions_5_and_6_beside_them() {
+    assert_eq!(umbel::MANIFEST_VERSION, 6);
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6]);
+    for other in [0, 7] {
         let error = parse(&head(other, "compiled")).unwrap_err();
         assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{other}");
         assert!(
-            error.suggestion().contains("manifest versions 1 to 5"),
+            error.suggestion().contains("manifest versions 1 to 6"),
             "{error}"
         );
     }

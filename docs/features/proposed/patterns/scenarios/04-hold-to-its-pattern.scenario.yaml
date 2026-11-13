@@ -1,0 +1,61 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented, on the pack format's `example` library. `example-select` passes its
+# pattern's gates. `example-dropdown` has been changed so that Escape closes its popup and
+# leaves focus on the page.
+
+name: Hold a component to its pattern
+description: >-
+  When I change a component, I want its patterns' gates run against it, so that a broken
+  requirement fails before anyone reviews it.
+job: hold-to-its-pattern
+tags: [slice, verify]
+
+steps:
+  - description: A gate runs as an ordinary case, named by its setup's case and the gate
+    command: specimen-run
+    input:
+      id: select-three-options::escape-closes
+    expect:
+      success: true
+      data:
+        id: select-three-options::escape-closes
+        outcome:
+          status: passed
+
+  - description: Coverage reports the pattern's statements for this implementation, in their own set
+    command: specimen-coverage
+    input:
+      component: example-select
+    expect:
+      success: true
+      data:
+        obligations: schema-partitions@1
+        patterns:
+          obligations: patterns@1
+          complete: true
+          implementations:
+            - pattern: select
+              tag: example-select
+              keep:
+                - id: select.keep.named
+                  level: verified
+                - id: select.keep.escape-closes
+                  level: verified
+
+  - description: The same gate on the changed component fails its case
+    command: specimen-run
+    input:
+      id: dropdown-three-options::escape-closes
+    expect:
+      success: true
+      data:
+        outcome:
+          status: failed
+
+  - description: The committed pack no longer matches, so the change cannot land unnoticed
+    command: specimen-pack-check
+    input: {}
+    expect:
+      success: true
+      data:
+        valid: false

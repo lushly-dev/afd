@@ -1,0 +1,52 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented. The specimen `example-inbox` renders a list of 40 messages; the person
+# points at the twelfth. The caps are drafts: 8 siblings, 12 children, text cut at 200
+# characters.
+
+name: Give the agent enough about the element and nothing about the rest of the page
+description: >-
+  When I hand the agent a reference, I want it to get the element's role, name, component,
+  source and a capped neighbourhood, and none of the rest of the page, so that it can act without
+  loading the page and its context holds what I pointed at.
+job: enough-not-everything
+tags: [slice, quiet]
+
+fixture:
+  file: fixtures/inbox.json
+
+steps:
+  - description: The point carries the element and a capped neighbourhood marked as page data
+    command: specimen-point
+    input:
+      id: example-inbox
+      context: { theme: light, viewport: 1280x800 }
+      target: { role: listitem, name: "Invoice 1042 is overdue" }
+    expect:
+      success: true
+      data:
+        point:
+          element:
+            text: { matches: '^[\s\S]{0,200}$' }
+          accessible:
+            role: listitem
+          neighbourhood:
+            pageData: true
+            parent:
+              role: list
+            siblings: { length: 8 }
+            omitted:
+              siblings: 31
+
+  - description: Nothing page-wide comes with it, no tree, no findings, no styles of other elements
+    command: specimen-point
+    input:
+      id: example-inbox
+      context: { theme: light, viewport: 1280x800 }
+      target: { role: listitem, name: "Invoice 1042 is overdue" }
+    expect:
+      success: true
+      data:
+        point:
+          dom: { notExists: true }
+          a11y: { notExists: true }
+          findings: { notExists: true }

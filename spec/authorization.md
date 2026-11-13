@@ -593,6 +593,35 @@ decision before dispatch, each answer compared byte for byte with the bearer lay
 `tests/auth_canary.rs` the token canary over every log line. Rust serves the layer and the service
 together through `McpServer::authorized_http_service`.
 
+TypeScript verifies (Loam phase 3 step 0a) on every HTTP route of `createMcpHandler({ auth })`
+and `createMcpServer({ auth })`: `/mcp`, the deprecated `/sse` and `/message` lane, `/rpc`,
+`/batch`, `/stream` and AFD's own `/health`, so only the metadata and CORS preflights are public.
+`JwtVerifier` applies every rule of M3 in its own code, with `jose` 6 checking the signature only,
+through WebCrypto; keys come from a `KeySource` (`jwksKeySource` over a host's JWKS loader), and
+`createIntrospectionVerifier` checks opaque tokens through a host's RFC 7662 call. The verified
+`credentials` are frozen and branded for `isVerifiedCredentials` until the request ends;
+`createContext(req, { credentials })` maps them to the actor. An HTTP session (`Mcp-Session-Id`)
+belongs to the credentials' issuer, subject and client that created it (`credentialsBinding`), so
+another caller's use of it is answered as an unknown session's. `packages/server/src/authorization-cases.test.ts`
+loads the `bearer`, `challenges`, `metadataUrls`, `metadataDocuments`, `audience`, `scopeClaims`,
+`jwtHeaders`, `keys` and `claims` cases; `mcp-auth-verifier.test.ts` holds one test per rule of M3
+with keys generated in the test (RSA, EC P-256 and P-384, Ed25519) by a test authorization server
+serving the JWKS and introspection over loopback HTTP; `mcp-auth.test.ts` the layer end to end,
+the token never on a context, in `createContext`'s request or in the journal, and the brand.
+TypeScript enforces scopes (Loam phase 3 step 0c): a command's `scopes`, `requiredScopes`, a
+`ScopeResolver` and `filterToolsByScope`. The bearer layer decides a `POST` body before dispatch on
+`/mcp`, `/message` (whose answer is the body of its own response in TypeScript), `/rpc`, `/batch` and
+`/stream`; the routes and the router decide again after routing, before the confirmation gate; and
+with a resolver the remote engine decides every command again on its validated input, as its first
+middleware. Each admitted request gets a scope view, decided once as it arrives, which the routes,
+the router, the engine and the listings read from the command context. A host's own layer admits
+the callers it vouches for with `handler.admit` and runs the bearer layer's own decision with
+`handler.preDispatchCheck`. `mcp-auth-scopes.test.ts` loads the `staticScopes` and `batches` cases
+and covers every route, the resolver's two phases, listing, and hidden commands, each answer
+compared with a twin server's for a name it does not have; `mcp-auth-host.test.ts` the host's own
+layer, each answer compared with the bearer layer's and with the `challenges` 403. TypeScript
+serves no tasks, and a resource provider is not given the caller's credentials.
+
 The principal binding (M8) is implemented in all three languages with a confirmation gate (Umbel
 phase 5 step 0c, [#532](https://github.com/lushly-dev/afd/issues/532)), and each loads the
 `principalBindings` cases: Rust in `tests/authorization_cases.rs`, TypeScript in
@@ -609,7 +638,7 @@ Each binds it to confirmation state as integrity-protected input, never as reada
   (`credentials_binding`) beside the actor.
 - **TypeScript:** the HMAC bind tag of the round's `requestState` (confirmation and approval-relay
   answers alike), with the actor the commands run with and the `credentials` that `createContext`
-  sets. TypeScript does not verify tokens yet; its MCP authorization step fills `credentials`.
+  sets, which on a server with `auth` are the verified credentials (Loam phase 3 step 0a).
 - **Python:** the SDK's sealed `requestState`, through `RequestStateSecurity(bind_principal=...)`,
   with the server's `actor` (Python has no per-request hook,
   [#800](https://github.com/lushly-dev/afd/issues/800)) and the access token the SDK verified. The
@@ -626,11 +655,11 @@ Rust ask again, Python answers `-32602`.
 
 | Rule | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Bearer token, verification, audience, credentials (M1 to M4) | Planned | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
-| 401 and 403, rule codes (M5) | Planned | Planned | Yes (step 0b) | N/A |
-| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Planned | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
-| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Planned | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
-| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Planned | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
-| Protected-resource metadata (M7) | Planned | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
+| Bearer token, verification, audience, credentials (M1 to M4) | Yes (Loam phase 3 step 0a; `createMcpHandler({ auth })`, `JwtVerifier` on `jose`, `KeySource`, `jwksKeySource`, `createIntrospectionVerifier`, `TokenVerifier`, `context.credentials`) | Planned | Yes (Umbel phase 5 step 0b; `server-auth`: `BearerLayer`, `JwtVerifier`, `KeySource`, `TokenVerifier`, `CommandContext::credentials`) | N/A: no HTTP server |
+| 401 and 403, rule codes (M5) | Yes (step 0a; the 403's challenge and body are built, and sent once M6 lands; rule codes to `auth.onRefusal`) | Planned | Yes (step 0b) | N/A |
+| Static scopes, the resolver, the 403 before dispatch, `INSUFFICIENT_SCOPE`, listing (M6) | Yes (Loam phase 3 step 0c; `scopes`, `requiredScopes`, `ScopeResolver`, `filterToolsByScope`, `staticDecision`, `requestDecision`) | Planned | Yes (step 0b; `ScopeResolver`, `Authorization::with_filter_tools_by_scope`) | N/A |
+| [A host's own layer](#before-dispatch-the-403) running the decision before dispatch (M6) | Yes (step 0c; `handler.admit`, `handler.preDispatchCheck`, `ScopeChallenge`; `mcp-auth-host.test.ts`) | Planned | Yes (`McpServer::pre_dispatch_check`, `PreDispatchCheck`, `ScopeChallenge`; `tests/server_auth_pre_dispatch.rs`) | N/A |
+| [Hidden commands](#hidden-commands) (M6): unknown on every route before validation, `resolve` never asked about them, decided once per request, `requires` filtered, `tasks/*` | Yes (step 0c; `ScopeResolver.known`, but no `tasks/*`: TypeScript serves no tasks; `mcp-auth-scopes.test.ts`) | Planned | Yes (`ScopeResolver::known`; `tests/server_auth_hidden.rs`) | N/A |
+| Protected-resource metadata (M7) | Yes (step 0a; `createProtectedResource`) | Planned | Yes (step 0b; `ProtectedResource`) | N/A |
 | The principal binding in confirmation state ([#532](https://github.com/lushly-dev/afd/issues/532), M8) | Yes (step 0c; `principalBinding`, with `createContext`'s `actor` and `credentials`; loads `principalBindings`) | Yes (step 0c; `afd.server.principal_binding`, with the SDK-verified token; loads `principalBindings`) | Yes (step 0c; `afd::principal_binding` in the gate's associated data; step 0d: the approval-relay state, `RelayCall::principal_binding` and relay evidence too) | N/A: no confirmation gate |
 | `tasks/*` and task owners ([M6, other methods](#other-methods); M8; [tasks](./command-metadata.md#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e): `tasks/get`, `tasks/update` and `tasks/cancel` fail closed, need the required scopes and run the context hook; the owner is the principal binding, checked by the `TaskStore` and again by the server; the owner must still hold the task's command's `scopes` (or its resolver `visible` and `known`), and a task whose command no longer exists for the owner answers as an unknown task; a task stops at `credentials.expiresAt` | N/A: no MCP server |

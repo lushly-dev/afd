@@ -1,0 +1,50 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. The first step runs in a checkout of `main` and the
+# second in the branch, where the notice's block padding grew from 8 to 12 pixels. Comparing
+# them is Design Decisions' `specimen-review`
+# (../../design-decisions/design-decisions.proposal.md, section 5.5).
+
+name: See what changed at a step since it was accepted
+description: >-
+  When I change the app, I want each job step's screen compared with the one on main, before and
+  after, so that I see what my change did to every state a job passes through.
+job: see-what-changed-since-accepted
+tags: [slice]
+
+steps:
+  - description: The job runs on main, labelled main
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft
+      label: main
+    expect:
+      success: true
+      data:
+        label: main
+
+  - description: The job runs on the branch, labelled branch
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft
+      label: branch
+    expect:
+      success: true
+      data:
+        label: branch
+
+  - description: One step's screen changed and is put to me, before and after; the other is settled
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [example-keep-a-draft]
+    expect:
+      success: true
+      data:
+        open: { length: 1 }
+        open.0.kind: changed
+        open.0.captures.0.key: keep-a-draft/4
+        open.0.captures.0.before: { exists: true }
+        open.0.captures.0.after: { exists: true }
+        open.0.cause.property: padding-block
+        settled.unchanged: 1

@@ -34,6 +34,7 @@ function renderPicker(args: VioletColorPickerStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Color Picker",
+    component: "violet-color-picker",
     tags: ["autodocs"],
     parameters: {
         docs: {

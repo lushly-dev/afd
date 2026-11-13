@@ -25,6 +25,7 @@ function renderRating(args: RatingStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Data Grid/Rating",
+    component: "violet-data-grid-rating",
     tags: ["autodocs"],
     parameters: {
         docs: {

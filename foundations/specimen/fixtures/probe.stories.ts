@@ -224,6 +224,38 @@ export const ScopedRegistry = {
 		return host;
 	},
 } satisfies SpecimenDefinition;
+class ProbeSwitch extends HTMLElement {
+	constructor() {
+		super();
+		// Its role and name come only through ElementInternals: no attribute shows them.
+		const internals = this.attachInternals();
+		internals.role = 'switch';
+		internals.ariaLabel = 'Wi-Fi';
+		internals.ariaChecked = 'true';
+	}
+}
+customElements.define('specimen-probe-switch', ProbeSwitch);
+class ProbeSecret extends HTMLElement {
+	constructor() {
+		super();
+		this.attachShadow({ mode: 'closed' }).innerHTML = '<button type="button">Hidden</button>';
+	}
+}
+customElements.define('specimen-probe-secret', ProbeSecret);
+/** Elements whose computed roles and names a capture records, each by its reference. */
+export const Roles = {
+	render: (): HTMLElement => {
+		const element = document.createElement('div');
+		element.innerHTML = `
+			<specimen-probe-switch></specimen-probe-switch>
+			<specimen-probe></specimen-probe>
+			<label><input type="checkbox"> Accept terms</label>
+			<div aria-hidden="true"><button type="button">Unseen</button></div>
+			<specimen-probe-secret></specimen-probe-secret>
+			<div><span>plain</span></div>`;
+		return element;
+	},
+} satisfies SpecimenDefinition;
 /** A modal dialog, open in a shadow root, which leaves the rest of the page inert (#662). */
 export const ModalOpen = {
 	render: (): MountHandle => {

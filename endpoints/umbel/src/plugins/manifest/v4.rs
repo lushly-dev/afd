@@ -194,25 +194,35 @@ impl Manifest {
     }
 }
 
-const RETURNS_RULE: &str = "must declare returns = { type = \"object\", properties = { preview = { type = \"string\" } }, required = [\"preview\"], additionalProperties = false }: the CLI prints the preview string";
+const RETURNS_RULE: &str = "must declare returns = { type = \"object\", properties = { preview = { type = \"string\" } }, required = [\"preview\"], additionalProperties = false }, optionally with the paged members page = { type = \"integer\" }, pages = { type = \"integer\" } and items = { type = \"array\" } beside preview: the CLI prints the preview string, and the person page may ask for one page with items";
 
-/// `{ "preview": <string> }`, closed, with `preview` required and nothing else declared.
+/// `{ "preview": <string> }`, closed, with `preview` required, and beside it at most the members a
+/// paged answer adds (the Ideas host-review specification, section 2): `page` and `pages`, integers,
+/// and `items`, an array. A preview answers them only when the person page asks for a page; at
+/// the CLI and in the host's own check it answers exactly `{ preview }`, which this schema admits.
 fn is_preview_returns(schema: &Value) -> bool {
-    let only_preview = schema
+    let typed =
+        |property: &Value, kind: &str| property.get("type").and_then(Value::as_str) == Some(kind);
+    let members = schema
         .get("properties")
         .and_then(Value::as_object)
         .is_some_and(|properties| {
-            properties.len() == 1
+            properties
+                .get("preview")
+                .is_some_and(|preview| typed(preview, "string"))
                 && properties
-                    .get("preview")
-                    .and_then(|preview| preview.get("type"))
-                    .and_then(Value::as_str)
-                    == Some("string")
+                    .iter()
+                    .all(|(name, property)| match name.as_str() {
+                        "preview" => true,
+                        "page" | "pages" => typed(property, "integer"),
+                        "items" => typed(property, "array"),
+                        _ => false,
+                    })
         });
     schema.get("type").and_then(Value::as_str) == Some("object")
         && schema.get("additionalProperties") == Some(&Value::Bool(false))
         && schema.get("required") == Some(&Value::Array(vec![Value::from("preview")]))
-        && only_preview
+        && members
 }
 
 /// The property names a schema declares at its root.

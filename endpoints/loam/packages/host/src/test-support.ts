@@ -1,14 +1,16 @@
 /** Fixtures for the suites: temporary directories, a built shell, configurations and raw requests. */
 
+import { execFileSync } from 'node:child_process';
+import { statSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
 import { request as httpsRequest } from 'node:https';
-import { createRequire } from 'node:module';
 import { connect } from 'node:net';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
-import { afterEach } from 'vitest';
+import { afterEach, expect } from 'vitest';
 
 const made: string[] = [];
 
@@ -18,15 +20,56 @@ export async function temporaryDirectory(): Promise<string> {
 	return directory;
 }
 
+/** BUILTIN\Users, which `loosen` grants read on Windows. */
+export const USERS_SID = 'S-1-5-32-545';
+
+/** On Windows, grants BUILTIN\Users read on `path`, as a group or other mode bit opens it on POSIX. */
+export function loosen(path: string): void {
+	execFileSync('icacls', [path, '/grant', `*${USERS_SID}:(R)`], { stdio: 'ignore' });
+}
+
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Asserts the suggestion a loose `path` gets: exactly `chmod` on POSIX, and on Windows an `icacls` command
+ * that removes inheritance, grants the current user (whose SID the pattern leaves open) and removes
+ * BUILTIN\Users.
+ */
+export function expectLooseSuggestion(
+	suggestion: string | undefined,
+	path: string,
+	kind: 'file' | 'directory'
+): void {
+	if (process.platform !== 'win32') {
+		expect(suggestion).toBe(`Run \`chmod ${kind === 'directory' ? 700 : 600} ${path}\`.`);
+		return;
+	}
+	const grant = literal(kind === 'directory' ? '(OI)(CI)(F)' : '(F)');
+	expect(suggestion).toMatch(
+		new RegExp(
+			`^Run \`icacls "${literal(path)}" /inheritance:r /grant:r "\\*S-[\\d-]+:${grant}" /remove:g \\*${USERS_SID}\`\\.$`
+		)
+	);
+}
+
+/**
+ * Asserts a file's POSIX permission bits. Windows keeps none (`stat` reports 0666 whatever `chmod` set),
+ * so there it asserts nothing; the secrets check covers who can read a file on Windows.
+ */
+export function expectMode(path: string, mode: number, label?: string): void {
+	if (process.platform === 'win32') return;
+	expect(statSync(path).mode & 0o777, label).toBe(mode);
+}
+
 afterEach(async () => {
 	await Promise.all(made.splice(0).map((path) => rm(path, { recursive: true, force: true })));
 });
 
-/** The web host's `vite build` output, which `pnpm check` and `loam.yml` build before the units. */
-export const WEB_DIST = join(
-	dirname(createRequire(import.meta.url).resolve('@lushly-dev/loam-web/package.json')),
-	'dist'
-);
+/**
+ * The web host's page as written in its source: `vite build` keeps its policy `<meta>` as it is, and
+ * reading the source needs no build. `scripts/affected/scope.mjs` declares it among this package's inputs.
+ */
+export const WEB_PAGE = fileURLToPath(new URL('../../web/index.html', import.meta.url));
 
 export const SHELL_POLICY =
 	"default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' data:; connect-src 'self'; frame-src 'none'; object-src 'none'; base-uri 'none'";

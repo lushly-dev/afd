@@ -8,11 +8,16 @@ use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 use umbel_store::conformance::Stores;
+use umbel_store::lane::{
+    Decided, DeclaredPut, FindPage, LaneRecord, LaneStatus, LaneWrite, Marked, MatchPage,
+    MatchVectors, OwnInfo, OwnMark, RecordDecision, RecordDecl, RecordFind, RecordMatch,
+    ReindexReport, StandingView,
+};
 use umbel_store::{
     AccessSet, Change, ChangeKind, ContentHash, Direction, DocGraph, DocMeta, Document,
-    DocumentStore, DocumentWrite, Edge, EdgeKey, Envelope, Expect, GraphBatch, GraphStore,
-    ListQuery, Node, Page, ReaderFilter, Record, RecordMeta, Rev, StoreError, Subgraph,
-    canonical_json, check_identifier, check_record, record_target,
+    DocumentStore, DocumentWrite, Edge, EdgeKey, Embedder, Envelope, Expect, GraphBatch,
+    GraphStore, ListQuery, MemoryFlag, Node, Page, ReaderFilter, Record, RecordMeta, Rev,
+    StoreError, Subgraph, canonical_json, check_identifier, check_record, record_target,
 };
 
 /// What is broken.
@@ -100,6 +105,10 @@ impl Fake {
     }
 }
 
+fn no_lane() -> StoreError {
+    StoreError::invalid("this fake has no record lane")
+}
+
 /// A factory whose stores survive reopening: one `Fake` per directory.
 pub(crate) fn factory(fault: Fault) -> impl Fn(&Path, &str) -> Result<Stores, StoreError> {
     let registry: Mutex<BTreeMap<PathBuf, Arc<Fake>>> = Mutex::new(BTreeMap::new());
@@ -122,6 +131,7 @@ pub(crate) fn factory(fault: Fault) -> impl Fn(&Path, &str) -> Result<Stores, St
             index: None,
             memory: None,
             memory_restore: None,
+            lane: None,
         })
     }
 }
@@ -297,6 +307,124 @@ impl DocumentStore for Fake {
 
     fn head(&self) -> Result<Rev, StoreError> {
         Ok(self.lock().changes.last().map_or(0, |(c, _)| c.rev))
+    }
+
+    // The fake has no record lane: its stores say so (`lane: None`), and the suite skips the
+    // `lane` group. The embedded backend's own tests run it.
+    fn put_declared_record(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _id: &str,
+        _body: Value,
+        _envelope: Envelope,
+        _expect: Expect,
+        _lane: LaneWrite,
+        _writer: &ReaderFilter,
+    ) -> Result<DeclaredPut, StoreError> {
+        Err(no_lane())
+    }
+
+    fn read_record(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _id: &str,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<Option<LaneRecord>, StoreError> {
+        Err(no_lane())
+    }
+
+    fn find_records(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _query: &RecordFind,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<FindPage, StoreError> {
+        Err(no_lane())
+    }
+
+    fn match_records(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _query: &RecordMatch,
+        _vectors: Option<&MatchVectors>,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<MatchPage, StoreError> {
+        Err(no_lane())
+    }
+
+    // The fake keeps no record of which documents the host held to their files: nothing reads
+    // the fact but the record lane, which it does not have.
+    fn put_document_held(&self, doc: DocumentWrite, expect: Expect) -> Result<DocMeta, StoreError> {
+        self.put_document(doc, expect)
+    }
+
+    fn hold_document(&self, _doc: &str, _hash: &ContentHash) -> Result<bool, StoreError> {
+        Err(no_lane())
+    }
+
+    fn unheld_documents(&self, _collection: &str) -> Result<u64, StoreError> {
+        Err(no_lane())
+    }
+
+    fn decide_record(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _id: &str,
+        _decision: RecordDecision,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<Decided, StoreError> {
+        Err(no_lane())
+    }
+
+    fn mark_document_own(
+        &self,
+        _mark: OwnMark,
+        _reader: &ReaderFilter,
+    ) -> Result<Marked, StoreError> {
+        Err(no_lane())
+    }
+
+    fn unmark_document_own(
+        &self,
+        _doc: &str,
+        _at: &str,
+        _trace_id: Option<&str>,
+        _reader: &ReaderFilter,
+    ) -> Result<Rev, StoreError> {
+        Err(no_lane())
+    }
+
+    fn document_own(
+        &self,
+        _doc: &str,
+        _view: &StandingView,
+        _reader: &ReaderFilter,
+    ) -> Result<Option<OwnInfo>, StoreError> {
+        Err(no_lane())
+    }
+
+    fn reindex_records(
+        &self,
+        _ns: &str,
+        _decl: &RecordDecl,
+        _scan: &dyn Fn(&str) -> Vec<MemoryFlag>,
+        _embedder: Option<&dyn Embedder>,
+        _vectors_only: bool,
+    ) -> Result<ReindexReport, StoreError> {
+        Err(no_lane())
+    }
+
+    fn lane_status(&self, _ns: &str, _decl: &RecordDecl) -> Result<LaneStatus, StoreError> {
+        Err(no_lane())
     }
 
     fn forget_record_history(&self, ns: &str, kind: &str, id: &str) -> Result<u64, StoreError> {

@@ -1,0 +1,50 @@
+{
+	"a11y": {
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"name": "value",
+				"property": "value",
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": []
+	},
+	"examples": [],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "example"
+		},
+		{
+			"kind": "unobserved",
+			"name": "value",
+			"section": "attributes"
+		}
+	],
+	"import": "example-components/dropdown.js",
+	"replacedBy": "example-select",
+	"rules": [],
+	"status": "deprecated",
+	"tag": "example-dropdown",
+	"usage": []
+}

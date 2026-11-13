@@ -1,0 +1,23 @@
+{
+  "tag": "violet-tab",
+  "summary": "One tab inside violet-tabs; its text is the tab's label.",
+  "usage": [
+    {
+      "id": "tab.usage",
+      "text": "Use it only as a direct child of violet-tabs. Give it an id when the page sets or reads activeid; violet-tabs sets its slot, role, aria-selected, aria-controls and tabindex."
+    },
+    {
+      "id": "tab.disabled",
+      "text": "A disabled tab cannot be activated by click or keyboard, and the arrow keys skip it.",
+      "members": [
+        "disabled"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tab.name",
+      "text": "The violet-tab element itself gets role tab, so its text is its name; give an icon-only tab an aria-label on violet-tab."
+    }
+  ]
+}

@@ -24,7 +24,7 @@ import {
 	type JournalMiddlewareOptions,
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import { type BootProjectionV2, readBoot } from '@lushly-dev/loam-manifest';
+import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
 import {
 	type AppsRuntime,
 	bootApps,
@@ -43,20 +43,22 @@ import {
 	needsInput,
 	SHELL_KEYBINDINGS_V0,
 } from './keybindings.js';
+import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
+import { type AccessActorV1, type MembershipV1, personKey } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
-import { CALL_MARK, createScopeRuntime } from './scope/runtime.js';
+import { personalStore } from './scope/personal.js';
+import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
 	AppSummaryV2,
-	AppsLoadV2,
-	CallOptionsV2,
+	CallOptionsV3,
 	CommandSummaryV1,
-	KernelEventV2,
+	KernelEventV3,
 	KernelMcpOptions,
-	KernelOptionsV2,
-	LoamKernelV2,
+	KernelOptionsV3,
+	LoamKernelV3,
 } from './types.js';
 
 /** The kernel's two interfaces, one registry each. */
@@ -170,7 +172,7 @@ function reportKernelError(error: unknown): void {
 
 /** What {@link createKernelParts} builds; `createKernel` and `replayKernel` share it. */
 export interface KernelParts {
-	kernel: LoamKernelV2;
+	kernel: LoamKernelV3;
 	/**
 	 * The current registries; {@link KernelParts.setAppCommands} replaces them. `boot` holds `BOOT_ONLY`'s
 	 * commands alone, which only `BOOT_FIELDS` and a replay reach (phase 2 specification, 2.2).
@@ -216,21 +218,51 @@ export interface KernelPartsInternals {
 	replaying?: boolean;
 	/** The journal's actor for a trace ID, undefined for one it does not hold (10). */
 	actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
+	/** The replay's Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */
+	drive?(person: string | null): void;
+	/** At a reload, the replay's Mock set to the person the page's first settle names (4.4). */
+	startPage?(): void;
 }
+
+/**
+ * On a queued call's context, set by `run` when it queues the call: its ticket (phase 3 specification, 4.4),
+ * which `late/` reads, given it by `createLateParts`, to refuse a call that would run as another person than it
+ * was made as. Here, not in `scope/`, so first paint's shared chunk exports nothing new for it (13); exported for
+ * tests.
+ */
+export const QUEUED = Symbol();
 
 /** Build a kernel and expose its registries, for replay. Not part of the kernel interface. */
 export async function createKernelParts(
-	options: KernelOptionsV2,
+	options: KernelOptionsV3,
 	internals: KernelPartsInternals = {}
 ): Promise<KernelParts> {
 	const { environment, boot } = options;
-	const viewState = new ViewStateRegistry({ adapter: options.store });
+	// The deployment's identity (phase 3 specification, 2.1): `local` unless it says `provider`.
+	const identity: IdentityV1 = options.identity ??
+		(boot ?? (options.deployment as { identity?: IdentityV1 } | undefined))?.identity ?? {
+			mode: 'local',
+		};
+	const provider = identity.mode === 'provider';
+	// A `provider` kernel decides with the probe's members, or none: never `local`'s, where all are owners.
+	const membership: MembershipV1 =
+		options.membership?.mode === identity.mode
+			? options.membership
+			: { mode: identity.mode, members: new Map(), digest: '' };
+	// The kernel's clock: the registries', the auth middleware's and the Mock's, which the host gives it (4.4).
+	const clock = options.clock ? { now: options.clock } : undefined;
+	const random = options.random ? { next: options.random } : undefined;
+	/** The person the adapter reports now, on the kernel's clock (phase 3 specification, 4.4). */
+	const person = () => personKey(sessionActor(options.auth, clock));
+	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
+	const personal = provider ? personalStore(options.store, person) : undefined;
+	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
 	const state = registerShellState(viewState);
 	const workspace = boot?.workspace ??
 		options.deployment?.workspace ??
 		options.workspace ?? { id: 'personal', name: 'Personal' };
 	const generation = boot?.generation ?? options.deployment?.generation ?? 'empty';
-	const scope = createScopeRuntime(workspace);
+	const scope = createScopeRuntime(workspace, membership);
 	let lateScope: LateScope | undefined;
 	// Only late commands and apps use the store, so it loads with the former.
 	let overlays: OverlayStore | undefined;
@@ -302,15 +334,15 @@ export async function createKernelParts(
 
 	const shellExposed = (commands: readonly ZodCommandDefinition[]): ZodCommandDefinition[] =>
 		commands.map((command) => ({ ...command, expose: { ...SHELL_EXPOSE } }));
-	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...extra];
+	// A host's own commands join with `late/` in `provider` mode, so its auth gate and line 0 decide them:
+	// stage A's chain lets through what it holds (phase 3 specification, 2.1; the step 1 review's I8).
+	let fixed: ZodCommandDefinition[] = [...shellExposed(bootCommands), ...(provider ? [] : extra)];
 	const seqs = new Map<string, number>();
 	// One journal middleware, shared by every registry, so they share one journal sequence.
 	const journal = createJournalMiddleware(seqTrackingSink(options.journal, seqs), {
 		...kernelJournalOptions(),
 		redact: (record) => apps.redact(redactJournalRecord(record)),
 	});
-	const clock = options.clock ? { now: options.clock } : undefined;
-	const random = options.random ? { next: options.random } : undefined;
 
 	let registries: Record<KernelInterfaceV0 | 'boot', DirectCommandRegistry>;
 	let mutations: Map<string, boolean>;
@@ -320,10 +352,13 @@ export async function createKernelParts(
 	const scopeMiddleware = createScopeMiddleware({ scope, late: () => lateScope });
 	/**
 	 * The kernel's chain over `held`. The auth middleware closes over its `exclude` list, so it is a new
-	 * instance each time. Scope is last, so every refusal it makes is journaled, with the effective scope.
+	 * instance each time: once `late/` has loaded, its auth gate, which in `provider` mode excludes only the
+	 * signed-out and internal commands (phase 3 specification, 2.1); before, stage A's boot commands, all
+	 * signed-out ones. Scope is last, so every refusal it makes is journaled, with the effective scope.
 	 */
 	const chain = (held: readonly ZodCommandDefinition[]): CommandMiddleware[] => [
-		createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name) }),
+		lateParts?.authGate(held) ??
+			createAuthMiddleware(options.auth, { exclude: held.map((command) => command.name), clock }),
 		journal,
 		scopeMiddleware,
 	];
@@ -372,25 +407,29 @@ export async function createKernelParts(
 			const { createOverlayStore, createLateParts } = late;
 			addBootActions = late.withBootActions;
 			overlays = createOverlayStore();
+			// The kernel's options, with what it built: `late/` reads the adapter, the store, the host, the ports
+			// and stage B's loader from them.
 			const parts = await createLateParts(bootCommands, {
+				...options,
 				viewState,
 				state,
-				environment,
-				auth: options.auth,
-				host: options.host,
-				storeKind: options.storeKind,
 				overlays,
 				apps: () => apps,
 				paletteRows: () => summarize(registries.palette),
 				commandSet: () => commandSet,
 				scope,
-				store: options.store,
 				generation: () => generation,
 				isMutation: (name) => mutations.get(name) === true,
 				internals,
 				summaries,
 				run,
+				runBoot,
+				queued: QUEUED,
+				stageA: chosen,
 				clock,
+				identity,
+				personal,
+				pending,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -407,7 +446,7 @@ export async function createKernelParts(
 	}
 
 	/** What `late/` gives the kernel's parts, once it has loaded. */
-	let lateParts: import('./late/index.js').LateParts | undefined;
+	let lateParts: LateParts | undefined;
 	/** The projection stage B keeps in the workspace store, once it is read (4.1). */
 	let applying: import('./late/index.js').AppliedProjection | undefined = options.deployment;
 
@@ -419,6 +458,10 @@ export async function createKernelParts(
 	 * would not: the journal appends after hashing the context with WebCrypto, which finishes in any order.
 	 */
 	let queue: Promise<unknown> | undefined;
+	/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4). */
+	let chosen: [AccessActorV1] | undefined;
+	/** By interface, the `auth-*` call queued last, until `late/` sees it end (phase 3 specification, 4.4). */
+	const pending: Partial<Record<KernelInterfaceV0, QueuedTicket>> = {};
 	/**
 	 * The fields of boot's own journaled work, an object no caller can name (phase 2 specification, 2.2).
 	 * Step 4 runs `workspace-deployment-apply` with them from inside stage B, so they never join the queue,
@@ -434,17 +477,6 @@ export async function createKernelParts(
 	let hydrated = false;
 	/** Why stage B ended early, so `createKernel` can reject on a refused name when it ran inside it. */
 	let stageBError: unknown;
-
-	/** What stage B reads of the apps: the host's loader with `boot`, else the options themselves. */
-	async function readApps(): Promise<AppsLoadV2 | undefined> {
-		if (boot) return options.appsLoader?.();
-		const listed = options.deployment;
-		if (listed === undefined || listed.apps.length === 0) return undefined;
-		return {
-			deployment: listed,
-			...(options.ports !== undefined ? { ports: options.ports } : {}),
-		} as AppsLoadV2;
-	}
 
 	/** The apps, once the late commands are in. One app's failure, or the runtime's, never stops the shell. */
 	async function loadAppsStage(): Promise<void> {
@@ -471,20 +503,14 @@ export async function createKernelParts(
 			fallBack(runtimeUnavailable(lateFailure.message));
 			return;
 		}
-		let loaded: AppsLoadV2 | undefined;
-		try {
-			loaded = await readApps();
-		} catch (cause) {
-			reportKernelError(cause);
-			fallBack(runtimeUnavailable(String((cause as Error)?.message ?? cause)));
-			return;
-		}
-		if (loaded === undefined) {
-			fallBack(runtimeUnavailable('no apps loader'));
-			return;
-		}
-		if ('refused' in loaded) {
-			fallBack(deploymentRefused(loaded.refused));
+		// `late/` has loaded: it reads them, and says why it could not (13).
+		const loaded = await (lateParts as LateParts).readApps();
+		if (!('deployment' in loaded)) {
+			fallBack(
+				'refused' in loaded
+					? deploymentRefused(loaded.refused)
+					: runtimeUnavailable(loaded.unavailable)
+			);
 			return;
 		}
 		const { deployment } = loaded;
@@ -542,6 +568,8 @@ export async function createKernelParts(
 				await lateParts?.apply(applying, runBoot, hydrated);
 			}
 			setAppCommands(apps.commands);
+			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).
+			await lateParts?.begin();
 		})()
 			.catch((cause: unknown) => {
 				stageBError = cause;
@@ -555,7 +583,7 @@ export async function createKernelParts(
 		return stageB;
 	}
 
-	const listeners = new Set<(event: KernelEventV2) => void>();
+	const listeners = new Set<(event: KernelEventV3) => void>();
 	const traceBase = `loam-${Math.floor(options.clock?.() ?? Date.now()).toString(36)}`;
 	let calls = 0;
 	let disposed = false;
@@ -567,13 +595,15 @@ export async function createKernelParts(
 	 * too. A nested call (an app's, through `runAs`) runs inside its parent, which may hold the queue, so
 	 * it never joins it, and nor does boot's own work (`BOOT_FIELDS`), which stage B runs from inside
 	 * `startApps`. The trade-off: while the queue drains, one slow call holds every call behind it. Once
-	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2.
+	 * stage B has ended and the queue is empty, calls run concurrently again, as before phase 2. A queued
+	 * call carries its ticket, so `late/` refuses it `SESSION_CHANGED` if the person changed while it waited
+	 * (phase 3 specification, 4.4).
 	 */
 	function run<T>(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV2 = {},
+		callOptions: CallOptionsV3 = {},
 		fields: KernelCallFields = {}
 	): Promise<CommandResult<T>> {
 		const go = () => execute<T>(iface, name, input, callOptions, fields);
@@ -582,9 +612,14 @@ export async function createKernelParts(
 			// Not truthiness: a frame's call may name its parent with an empty trace ID.
 			fields.parent !== undefined ||
 			fields === BOOT_FIELDS ||
-			!(queue || (!stageBEnded && !mutations.has(name)))
+			// The agent interface waits for stage B, whose `late/` names its actor (phase 3 specification, 3.1).
+			!(queue || (!stageBEnded && (iface === 'agent' || !mutations.has(name))))
 		)
 			return go();
+		const ticket: QueuedTicket = { person: person(), behind: pending[iface] };
+		if (name.startsWith('auth-')) pending[iface] = ticket;
+		// `go` reads `fields` when the queue reaches it: the caller's, with the ticket.
+		fields = { ...fields, [QUEUED]: ticket } as KernelCallFields;
 		const mine = (queue ?? startApps()).then(go);
 		const drained = () => {
 			if (queue === tail) queue = undefined;
@@ -598,7 +633,7 @@ export async function createKernelParts(
 		iface: KernelInterfaceV0,
 		name: string,
 		input: unknown,
-		callOptions: CallOptionsV2,
+		callOptions: CallOptionsV3,
 		fields: KernelCallFields
 	): Promise<CommandResult<T>> {
 		if (disposed) {
@@ -614,6 +649,16 @@ export async function createKernelParts(
 			const answered = internals.answerNested?.(fields.parent, name, input);
 			if (answered) return answered as CommandResult<T>;
 		}
+		// The agent interface runs as an agent, the session's person in its `onBehalfOf` (phase 3
+		// specification, 3.1), named by `late/`, which has loaded since its calls wait for stage B; a port's or
+		// nested call as its outer call's actor, copied.
+		let { actor } = fields;
+		if (iface === 'agent' && !actor) {
+			const named =
+				lateParts?.agentActor(callOptions.agent) ?? failure(lateFailure ?? lateUnavailable());
+			if ('success' in named) return named;
+			actor = named;
+		}
 		const traceId = `${traceBase}-${++calls}`;
 		const owned = apps.contextOf(name, input);
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
@@ -626,6 +671,7 @@ export async function createKernelParts(
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
+			actor,
 			scope:
 				fields.scope ??
 				(asked === 'workspace' ? { workspace: workspace.id } : asked) ??
@@ -643,7 +689,7 @@ export async function createKernelParts(
 		if (fields.parent !== undefined && seq !== undefined) {
 			internals.nestedUnrecorded?.(fields.parent, name);
 		}
-		const event: KernelEventV2 = {
+		const event: KernelEventV3 = {
 			command: name,
 			interface: iface,
 			success: result.success,
@@ -675,7 +721,9 @@ export async function createKernelParts(
 	 * a change is journaled in stage B, by `scope-set`.
 	 */
 	function chooseScope(slug?: string | null): void {
-		const actor = sessionActor(options.auth);
+		const actor = sessionActor(options.auth, clock);
+		// Stage A's person, whose records it read: `late/` settles from them (phase 3 specification, 4.4).
+		chosen = [actor];
 		// `null`: the URL names the workspace itself, so the persisted project is not entered (6.3).
 		const project = (
 			slug === null ? [] : [slug && scope.project(slug)?.id, state.scopeProject()]
@@ -716,8 +764,8 @@ export async function createKernelParts(
 		takesProject(() => apps)
 	);
 
-	const kernel: LoamKernelV2 = {
-		version: 2,
+	const kernel: LoamKernelV3 = {
+		version: 3,
 		call: (name, input, callOptions) => run('palette', name, input, callOptions),
 		listCommands: () => summarize(registries.palette),
 		subscribe(listener) {
@@ -738,11 +786,7 @@ export async function createKernelParts(
 		appPort: (instance) => apps.port(instance),
 		listKeybindings: () => keybindings.list(state.activeApp()),
 		async startInstances() {
-			await Promise.all(
-				apps
-					.mountedInstances()
-					.map((instance) => run('palette', 'app-instance-refresh', { instance }))
-			);
+			await lateParts?.startInstances();
 		},
 		async flush() {
 			if (!disposed) await viewState.flush();
@@ -766,9 +810,8 @@ export async function createKernelParts(
 		setAppCommands,
 		applyCatalog: (instance, catalog) => apps.applyCatalog(instance, catalog),
 		async resetSession() {
-			overlays?.reset();
-			apps.resetSession();
-			// A reload signs the Mock out (`host.ts`), so the boot's `auth-session-get` reads the same.
+			// A reload forgets the overlays and the apps' session state, and signs the Mock out (`host.ts`), so
+			// the boot's `auth-session-get` reads the same: `late/`'s.
 			await lateParts?.reload();
 			chooseScope();
 		},
@@ -789,6 +832,6 @@ export async function createKernelParts(
  * @throws LoamKernelError `COMMAND_NAME_INVALID` for a name that is not domain-action kebab-case,
  *   `COMMAND_NAME_DUPLICATE` for a name given twice
  */
-export async function createKernel(options: KernelOptionsV2): Promise<LoamKernelV2> {
+export async function createKernel(options: KernelOptionsV3): Promise<LoamKernelV3> {
 	return (await createKernelParts(options)).kernel;
 }

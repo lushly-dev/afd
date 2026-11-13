@@ -138,7 +138,7 @@ describe('readDeployment', () => {
 		],
 		[
 			'a version it does not read',
-			{ ...FILE, deployment_version: 3 },
+			{ ...FILE, deployment_version: 4 },
 			'DEPLOYMENT_VERSION_UNSUPPORTED',
 			'deployment_version',
 		],
@@ -374,7 +374,7 @@ describe('readProjection', () => {
 	it('refuses the rest as the same code, naming the key', () => {
 		const { sandbox_origin: _origin, ...noOrigin } = EMPTY;
 		for (const [json, key] of [
-			[{ ...EMPTY, deployment_version: 3 }, 'deployment_version'],
+			[{ ...EMPTY, deployment_version: 4 }, 'deployment_version'],
 			[noOrigin, 'sandbox_origin'],
 			[{ ...EMPTY, sandbox_origin: 'nope' }, 'sandbox_origin'],
 			[{ ...EMPTY, apps: [{ instance: 'a', app: 'a', package: '/etc/' }] }, 'apps[0].package'],

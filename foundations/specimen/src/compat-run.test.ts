@@ -21,24 +21,39 @@ interface IncumbentTest {
 	status: 'passed' | 'failed' | 'skipped';
 	accessibility: boolean;
 	message: string;
+	/** The accessibility rules its failure names, as `toHaveNoViolations` lists them. */
+	rules: string[];
+}
+
+/** Spawned tools must not inherit a hook's Git environment. */
+function incumbentEnvironment(): NodeJS.ProcessEnv {
+	return {
+		...Object.fromEntries(Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))),
+		STORYBOOK_DISABLE_TELEMETRY: '1',
+	};
+}
+
+/** How Storybook's Vitest run of a project ends, for what fails the run and no one test. */
+async function incumbentExit(project: string): Promise<{ code: number; output: string }> {
+	const options = { cwd: join(compat, project), env: incumbentEnvironment() };
+	try {
+		const { stdout, stderr } = await run(vitest, ['run', '--config', 'vitest.config.ts'], options);
+		return { code: 0, output: `${stdout}${stderr}` };
+	} catch (error) {
+		const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
+		return { code, output: `${stdout}${stderr}` };
+	}
 }
 
 /** Storybook's Vitest run of one fixture project, test by test. */
 async function incumbent(project: string): Promise<IncumbentTest[]> {
 	const output = join(scratch, `${project.replaceAll('/', '-') || 'compat'}.json`);
 	const cwd = join(compat, project);
-	// Spawned tools must not inherit a hook's Git environment.
-	const env = Object.fromEntries(
-		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
-	);
 	try {
 		await run(
 			vitest,
 			['run', '--config', 'vitest.config.ts', '--reporter=json', `--outputFile=${output}`],
-			{
-				cwd,
-				env: { ...env, STORYBOOK_DISABLE_TELEMETRY: '1' },
-			}
+			{ cwd, env: incumbentEnvironment() }
 		);
 	} catch {
 		// Failing fixtures fail the run; the report says which.
@@ -56,6 +71,14 @@ async function incumbent(project: string): Promise<IncumbentTest[]> {
 			status: test.status as IncumbentTest['status'],
 			accessibility: test.failureMessages.some((message) => message.includes('toHaveNoViolations')),
 			message: test.failureMessages[0]?.split('\n')[0] ?? '',
+			rules: [
+				...new Set(
+					// Each listed violation is `"<help> (<rule>)"`; the reporter's colors sit outside the quotes.
+					test.failureMessages.flatMap((message) =>
+						[...message.matchAll(/"[^"\n]*\(([a-z0-9-]+)\)"/g)].map((match) => match[1] ?? '')
+					)
+				),
+			],
 		}))
 	);
 }
@@ -80,12 +103,19 @@ async function candidate(
 }
 
 /**
- * Both runners agree on every story, and Specimen's outcomes are the expected ones. A story in
- * `racing` changes its accessibility on its next frame, and Storybook's check, under Vitest 5's
- * browser mode on a loaded host, sometimes runs after that frame: Storybook may then fail it, but
- * only on accessibility.
+ * Both runners agree on every story, and Specimen's outcomes are the expected ones. `racing` names
+ * the stories that change on their next frame, each with the one rule its changed state breaks.
+ * Storybook's check starts as soon as the story renders but holds no frame back (it awaits axe's
+ * import, and axe settles each rule on a timer), so on a slow or busy host the frame can land
+ * before axe reads the page (#923). Storybook may then fail such a story, but only for that rule,
+ * the settled state the settled check finds, and only while Specimen's check at the same moment
+ * passes it.
  */
-async function agree(project: string, expected: Record<string, string>, racing: string[] = []) {
+async function agree(
+	project: string,
+	expected: Record<string, string>,
+	racing: Record<string, string> = {}
+) {
 	// One runner at a time, to keep the shared host's load bounded.
 	const tests = await incumbent(project);
 	const stories = await candidate(project);
@@ -100,8 +130,16 @@ async function agree(project: string, expected: Record<string, string>, racing: 
 			continue;
 		}
 		expect(test, `${story.name} has an incumbent test`).toBeDefined();
-		if (racing.includes(story.name) && test?.status === 'failed') {
-			expect(test.accessibility, `${story.name}: ${test.message}`).toBe(true);
+		const rule = racing[story.name];
+		if (rule && test?.status === 'failed') {
+			// Storybook read the page after the story's next frame: it found the settled state.
+			expect(outcome.status, `${story.name}: Specimen reads it before its next frame`).toBe(
+				'passed'
+			);
+			expect(
+				{ accessibility: test.accessibility, rules: test.rules },
+				`${story.name}: ${test.message}`
+			).toEqual({ accessibility: true, rules: [rule] });
 			continue;
 		}
 		expect(outcome.status, `${story.name}: ${test?.message}`).toBe(test?.status);
@@ -189,7 +227,7 @@ describe('retained stories end the same way in both runners', () => {
 			status: 'warning',
 			policy: 'todo',
 			violations: [{ id: 'image-alt' }],
-			engine: '4.13.0',
+			engine: '4.14.0',
 		});
 		expect(outcome('Accessibility Off')?.outcome.a11y.status).toBe('not-run');
 		// Storybook renders an unknown viewport or theme silently; Specimen labels the mismatch.
@@ -207,7 +245,7 @@ describe('the settled accessibility check', () => {
 		const stories = await agree(
 			'settled',
 			{ Steady: 'passed', 'Late Contrast': 'passed', 'Late Disabled': 'passed' },
-			['Late Contrast']
+			{ 'Late Contrast': 'color-contrast' }
 		);
 		for (const story of stories) expect(story.run.outcome.settled).toBeUndefined();
 		const bench = await createSpecimenBench({
@@ -244,6 +282,84 @@ describe('the settled accessibility check', () => {
 		} finally {
 			await bench.close();
 		}
+	}, 300_000);
+});
+
+describe('uncaught errors and unhandled rejections', () => {
+	it('fail the story that raised them, where Storybook fails the run', async () => {
+		const { code, output } = await incumbentExit('page-errors/raised');
+		expect(code, output).toBe(1);
+		// The run's exit alone would be `Fails And Throws` failing its play.
+		expect(output).toMatch(/unhandled error/i);
+		for (const planted of [
+			'planted uncaught error',
+			'planted unhandled rejection',
+			'planted next frame rejection',
+			'planted after the listener left',
+			'planted object rejection',
+			'planted module rejection',
+		])
+			expect(output).toContain(planted);
+		const outcomes = Object.fromEntries(
+			(await candidate('page-errors/raised')).map(({ name, run }) => [name, run.outcome])
+		);
+		const errorOnly = (message: string) => ({
+			status: 'failed',
+			failures: [{ category: 'error', message }],
+		});
+		expect(outcomes.Clean).toMatchObject({ status: 'passed', failures: [] });
+		expect(outcomes['Throws Later']).toMatchObject(
+			errorOnly('Uncaught error: planted uncaught error')
+		);
+		// Rejected as the play ends, with no check to wait through: the run still sees it.
+		expect(outcomes['Rejects Unawaited']).toMatchObject({
+			...errorOnly('Unhandled rejection: planted unhandled rejection'),
+			a11y: { status: 'not-run' },
+		});
+		expect(outcomes['Rejects On Next Frame']).toMatchObject(
+			errorOnly('Unhandled rejection: planted next frame rejection')
+		);
+		expect(outcomes['Throws After Its Listener Left']).toMatchObject(
+			errorOnly('Uncaught error: planted after the listener left')
+		);
+		expect(outcomes['Rejects An Object']).toMatchObject(
+			errorOnly('Unhandled rejection: planted object rejection')
+		);
+		expect(outcomes['Rejects As It Loads']).toMatchObject(
+			errorOnly('Unhandled rejection: planted module rejection')
+		);
+		expect(outcomes['Fails And Throws']?.failures.map((failure) => failure.category)).toEqual([
+			'play',
+			'error',
+		]);
+	}, 300_000);
+
+	it('fail a whole suite, and a settled run too', async () => {
+		const bench = await createSpecimenBench({
+			root: join(compat, 'page-errors/raised'),
+			configFile: join(compat, 'page-errors/raised/settled.config.json'),
+		});
+		try {
+			const suite = await bench.runSuite({ filter: { match: 'Rejects On Next Frame' } });
+			expect(suite.outcome).toBe('failed');
+			expect(suite.stories[0]?.attempts[0]).toMatchObject({
+				settled: { status: 'not-run' },
+				failures: [{ category: 'error' }],
+			});
+		} finally {
+			await bench.close();
+		}
+	}, 300_000);
+
+	it('leave a story alone in the cases Vitest leaves out', async () => {
+		const { code, output } = await incumbentExit('page-errors/expected');
+		expect(code, output).toBe(0);
+		await agree('page-errors/expected', {
+			'Own Listener': 'passed',
+			'Own Rejection Listener': 'passed',
+			'No Error Value': 'passed',
+			'Null Rejection': 'passed',
+		});
 	}, 300_000);
 });
 

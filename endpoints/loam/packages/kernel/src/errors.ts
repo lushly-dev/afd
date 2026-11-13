@@ -8,7 +8,8 @@ import { type CommandError, type CommandResult, failure } from '@lushly-dev/afd-
 /**
  * Codes a {@link LoamKernelError} or a kernel failure carries: every code of the phase 1
  * specification's section 10 that is not a refusal of a manifest, and those phase 2 adds as its steps
- * land (phase 2 specification, section 12).
+ * land (phase 2 specification, section 12), and phase 3's as its steps land (phase 3 specification,
+ * section 15).
  */
 export type LoamKernelErrorCode =
 	| 'COMMAND_NAME_INVALID'
@@ -104,7 +105,12 @@ export type LoamKernelErrorCode =
 	| 'VIEW_READY_TIMEOUT'
 	| 'VIEW_RESOURCE_UNAVAILABLE'
 	| 'VIEW_SANDBOX_ORIGIN_INVALID'
-	| 'VIEW_STATE_READ_ONLY';
+	| 'VIEW_STATE_READ_ONLY'
+	| 'WORKSPACE_NOT_MEMBER'
+	| 'AGENT_CANNOT_SIGN_IN'
+	| 'SESSION_CHANGED'
+	| 'MEMBERSHIP_UNAVAILABLE'
+	| 'AGENT_NAME_RESERVED';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

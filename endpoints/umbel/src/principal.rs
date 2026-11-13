@@ -69,13 +69,14 @@ pub enum Authentication {
 }
 
 /// `humanPresent`: a person proven for this call. Only the host sets it (the CLI's terminal
-/// check, a completed person decision); no token claim and no gateway does.
+/// check, a completed person decision, a decision on the local page); no token claim and no
+/// gateway does.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct HumanPresent {
-    /// `terminal` or `verified`.
+    /// `terminal`, `verified` or `local`.
     pub level: String,
-    /// `cli-terminal` or `person-page`.
+    /// `cli-terminal`, `person-page` or `local-page`.
     pub method: String,
     /// When, ISO 8601 UTC with milliseconds.
     pub at: String,
@@ -494,6 +495,11 @@ pub(crate) fn hook(
         context
             .extra
             .insert(crate::person::PERSON_CHECK_KEY.to_owned(), Value::Null);
+        // Nor the page of a preview the person page asks for (the Ideas host-review
+        // specification, section 2).
+        context
+            .extra
+            .insert(crate::person::PREVIEW_PAGE_KEY.to_owned(), Value::Null);
         // Which request's usage record this call belongs to (section 12.1): the host's own slot,
         // never anything a request brought.
         #[cfg(feature = "auth")]

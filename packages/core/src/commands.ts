@@ -321,6 +321,14 @@ export interface CommandDefinition<TInput = unknown, TOutput = unknown> {
 	contexts?: string[];
 
 	/**
+	 * OAuth scopes a caller's token needs to run this command over HTTP on a server configured
+	 * with MCP authorization (`spec/authorization.md`, M6), after the server's `requiredScopes`,
+	 * compared exactly. A host `ScopeResolver` may decide each call instead. stdio, the CLI,
+	 * `DirectClient` and in-process registries ignore it. Reported as `_meta.scopes`.
+	 */
+	scopes?: string[];
+
+	/**
 	 * Extra `_meta` entries emitted on this command's tool, its grouped action entry and
 	 * afd-detail (`spec/mcp-resources.md`, T1): reverse-DNS prefixed keys with two or more labels,
 	 * outside `dev.afd/`, or the MCP Apps key `ui` (`{ resourceUri: 'ui://...' }`). A server refuses

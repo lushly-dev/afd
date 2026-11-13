@@ -1,0 +1,64 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# tally's tally-reset declares a confirm_prompt; the seed's count is 3. The 10-minute expiry is
+# P4-E8's, since the clock cannot move in a scenario.
+name: Decline a confirmation
+description: >-
+  When an agent or an app asks to run something I didn't intend, I want to decline it, have
+  nothing run, and not be asked again at once, so that I can't be worn down into agreeing.
+job: decline-confirmation
+tags: [slice, loam-runner]
+steps:
+  - description: The count before
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }
+  - description: "[agent] The agent asks to reset; the call returns at once, pending"
+    command: tally-reset
+    input: {}
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_PENDING
+        suggestion: { contains: confirmation-get }
+  - description: The confirmation waits in my inbox, naming who asked
+    command: notification-list
+    input: { kind: confirmation, limit: 1 }
+    expect:
+      success: true
+      data:
+        notifications:
+          '0':
+            confirmation: { command: tally-reset, caller: 'agent:shell-agent', state: pending }
+          '1': { notExists: true }
+  - description: I decline it
+    command: notification-act
+    input: { notification: "${{ steps[2].data.notifications[0].id }}", answer: decline }
+    expect:
+      success: true
+      data: { state: declined }
+  - description: "[agent] The same call at once is refused without asking me again"
+    command: tally-reset
+    input: {}
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_DECLINED
+        suggestion: { contains: Ask }
+  - description: "[agent] The agent reads the outcome of its request"
+    command: confirmation-get
+    input: { notification: "${{ steps[2].data.notifications[0].id }}" }
+    expect:
+      success: true
+      data: { state: declined }
+  - description: Nothing ran
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }

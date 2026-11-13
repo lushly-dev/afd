@@ -12,8 +12,8 @@
 
 import { FASTElement, html, observable, Updates, when } from '@lushly-dev/fast-element';
 import type {
-	KernelEventV2,
-	LoamKernelV2,
+	KernelEventV3,
+	LoamKernelV3,
 	ProjectSummaryResultV1,
 	ProjectSummaryRowV1,
 	ProjectV1,
@@ -233,7 +233,7 @@ const template = html<LoamProjectsSection>`
 type Status = 'project-archive' | 'project-restore';
 
 export class LoamProjectsSection extends FASTElement {
-	kernel: LoamKernelV2 | null = null;
+	kernel: LoamKernelV3 | null = null;
 	/** The deployment's root, absolute, for the URLs the scheme formats (6.2). */
 	base = '';
 	declare workspace: string;
@@ -454,7 +454,7 @@ export class LoamProjectsSection extends FASTElement {
 	 * `document-list` at the project (documents specification, 8.3); none when no type is registered.
 	 */
 	async #readDocuments(
-		kernel: LoamKernelV2,
+		kernel: LoamKernelV3,
 		project: ProjectV1
 	): Promise<DocumentsCardView | null> {
 		const scope = { workspace: this.workspace, project: project.id };
@@ -616,16 +616,18 @@ export class LoamProjectsSection extends FASTElement {
 		};
 	}
 
-	#heard(event: KernelEventV2): void {
+	#heard(event: KernelEventV3): void {
 		// From anyone: a project changed, an app was enabled or disabled, or the actor changed.
 		if (!event.success || !event.mutation) return;
-		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3).
-		if (event.command.startsWith('auth-')) {
+		// What an action said goes with the actor that made it: a signed-out person sees no restricted name (T3),
+		// nor does the next person after a change no command made (phase 3 specification, 4.4; #864).
+		if (event.actorChanged || event.command.startsWith('auth-')) {
 			this.status = '';
 			this.#carried = '';
 		}
 		// A home's documents card follows every document's change too (documents specification, 8.3).
 		if (
+			event.actorChanged ||
 			/^(project-|workspace-app-set$|auth-)/.test(event.command) ||
 			(this.view === 'home' && event.command.startsWith('document-'))
 		)

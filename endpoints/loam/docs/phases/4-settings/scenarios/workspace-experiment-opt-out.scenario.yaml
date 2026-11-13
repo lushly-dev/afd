@@ -1,0 +1,41 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# The person here is an owner, as every actor is in a local deployment. P4-E5 shows the same
+# with two people, Bea an owner and Olu a member.
+name: Turn an experiment on for everyone, and let a person step out
+description: >-
+  When an experiment is ready for the whole team, I want an owner to turn it on for everyone and
+  each person to be able to turn it off for themselves, so that nobody is held in it.
+job: workspace-experiment-opt-out
+tags: [slice, loam-runner]
+steps:
+  - description: An owner turns it on for the workspace
+    command: experiment-enable
+    input: { experiment: hello.inspector-v2, audience: workspace }
+    expect:
+      success: true
+      data: { on: true, by: workspace }
+  - description: The person turns it off for themselves
+    command: experiment-disable
+    input: { experiment: hello.inspector-v2, audience: person }
+    expect:
+      success: true
+      data: { on: false }
+  - description: Hello's code sees it off for this person
+    command: experiment-check
+    input: { experiment: hello.inspector-v2 }
+    expect:
+      success: true
+      data: { on: false }
+  - description: It is still on for the workspace
+    command: experiment-list
+    input: { experiment: hello.inspector-v2 }
+    expect:
+      success: true
+      data:
+        experiments:
+          '0': { fullId: hello.inspector-v2, workspace: true, on: false }
+          '1': { notExists: true }

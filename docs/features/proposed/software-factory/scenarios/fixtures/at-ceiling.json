@@ -1,0 +1,24 @@
+{
+	"laneHost": "workstation",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-3"
+	},
+	"plans": [
+		{
+			"id": "plan-a",
+			"provider": "openai",
+			"used": 90,
+			"elapsed": 70,
+			"resetsAt": "2030-01-08T00:00:00Z"
+		},
+		{
+			"id": "plan-b",
+			"provider": "anthropic",
+			"used": 88,
+			"elapsed": 50,
+			"resetsAt": "2030-01-10T00:00:00Z"
+		}
+	]
+}

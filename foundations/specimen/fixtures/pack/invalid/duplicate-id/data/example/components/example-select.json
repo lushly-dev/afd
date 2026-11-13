@@ -1,0 +1,128 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"name": "from the label attribute",
+				"role": "combobox",
+				"state": "default"
+			},
+			{
+				"basis": "authored",
+				"role": "listbox",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "select.label-required",
+				"text": "Set label; the selected option's text is not a name."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"description": "The control's visible label and accessible name.",
+				"name": "label",
+				"property": "label",
+				"type": "string"
+			},
+			{
+				"basis": "verified",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"description": "The selected option's value.",
+				"name": "value",
+				"property": "value",
+				"type": "string"
+			}
+		],
+		"commands": [
+			{
+				"basis": "declared",
+				"description": "Opens or closes the list.",
+				"name": "--toggle"
+			}
+		],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "verified",
+				"description": "Another option was chosen.",
+				"detail": "string: the new value",
+				"name": "change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"example-option"
+				],
+				"basis": "observed",
+				"description": "The options to choose from.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "example-select--default",
+			"html": "<example-select label=\"Size\" value=\"m\">\n\t<example-option value=\"s\">Small</example-option>\n\t<example-option selected value=\"m\">Medium</example-option>\n</example-select>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "required",
+			"section": "attributes"
+		}
+	],
+	"import": "example-components/select.js",
+	"rules": [
+		"field.labelling",
+		"popup.focus-return"
+	],
+	"status": "preview",
+	"summary": "Pick one value from a short, fixed list that opens as a popup.",
+	"tag": "example-select",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "field.when",
+			"text": "Use for a choice from a short, fixed list. For free text, use example-field."
+		}
+	]
+}

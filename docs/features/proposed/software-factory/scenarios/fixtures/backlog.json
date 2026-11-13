@@ -1,0 +1,105 @@
+{
+	"laneHost": "workstation",
+	"now": "2030-01-03T00:00:00Z",
+	"lane": {
+		"running": true,
+		"paused": true,
+		"pauseReason": "gh sign-in expired",
+		"runId": "run-4"
+	},
+	"issues": [
+		{
+			"number": 201,
+			"labels": ["status:planned", "execution:bounded", "area:core"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T09:00:00Z"
+		},
+		{
+			"number": 202,
+			"labels": ["status:triage"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T10:00:00Z"
+		},
+		{
+			"number": 203,
+			"labels": ["status:planned", "execution:bounded", "execution:deep"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T11:00:00Z"
+		},
+		{
+			"number": 204,
+			"labels": ["status:deferred", "needs:decision"],
+			"assignees": ["owner"],
+			"openPrs": [],
+			"createdAt": "2030-01-01T12:00:00Z",
+			"question": "Name plugins by domain or by package?",
+			"ownerReply": "By domain."
+		},
+		{
+			"number": 205,
+			"labels": ["status:in-progress", "execution:integrative", "area:client"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T13:00:00Z"
+		},
+		{
+			"number": 206,
+			"labels": ["status:planned", "execution:bounded", "priority:1", "area:server"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-02T09:00:00Z"
+		},
+		{
+			"number": 207,
+			"labels": ["status:planned", "execution:expert-escalation"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T08:00:00Z"
+		},
+		{
+			"number": 208,
+			"labels": ["status:in-progress", "execution:bounded", "area:cli"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T07:00:00Z"
+		}
+	],
+	"claims": [
+		{
+			"number": 205,
+			"branch": "fix/client-timeout",
+			"machine": "workstation",
+			"leaseUntil": "2030-01-03T10:00:00Z"
+		},
+		{
+			"number": 208,
+			"branch": "fix/cli-help",
+			"machine": "laptop",
+			"leaseUntil": "2030-01-02T07:00:00Z"
+		}
+	],
+	"cells": [
+		{
+			"branch": "fix/client-timeout",
+			"issues": [205],
+			"thread": "thread-7",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0
+		}
+	],
+	"events": [
+		{
+			"id": "ev-41",
+			"type": "lane-error",
+			"detail": "gh sign-in expired",
+			"needsOwner": "sign-in",
+			"deliveredTo": ["foreman"],
+			"open": true
+		}
+	]
+}

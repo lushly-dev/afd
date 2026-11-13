@@ -1,0 +1,334 @@
+{
+	"schemaVersion": "1.0.0",
+	"modules": [
+		{
+			"kind": "javascript-module",
+			"path": "dropdown.js",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "ExampleDropdown",
+					"customElement": true,
+					"tagName": "example-dropdown",
+					"members": [
+						{
+							"kind": "field",
+							"name": "value",
+							"type": {
+								"text": "string"
+							}
+						}
+					],
+					"attributes": [
+						{
+							"name": "value",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "value"
+						}
+					],
+					"slots": [],
+					"events": [],
+					"cssProperties": []
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "field.js",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "ExampleField",
+					"customElement": true,
+					"tagName": "example-field",
+					"members": [
+						{
+							"kind": "field",
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "invalid",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "label",
+							"type": {
+								"text": "string"
+							},
+							"description": "The field's visible label and accessible name."
+						},
+						{
+							"kind": "field",
+							"name": "size",
+							"type": {
+								"text": "'small' | 'medium' | 'large'"
+							},
+							"default": "'medium'"
+						},
+						{
+							"kind": "field",
+							"name": "value",
+							"type": {
+								"text": "string"
+							}
+						}
+					],
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "disabled",
+							"default": "false"
+						},
+						{
+							"name": "invalid",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "invalid",
+							"default": "false"
+						},
+						{
+							"name": "label",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "label",
+							"description": "The field's visible label and accessible name."
+						},
+						{
+							"name": "size",
+							"type": {
+								"text": "'small' | 'medium' | 'large'"
+							},
+							"fieldName": "size",
+							"default": "'medium'"
+						},
+						{
+							"name": "value",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "value"
+						}
+					],
+					"slots": [
+						{
+							"name": "hint",
+							"description": "Help text below the field; it becomes the field's accessible description."
+						}
+					],
+					"events": [
+						{
+							"name": "change",
+							"type": {
+								"text": "string: the new value"
+							},
+							"description": "The committed value changed."
+						},
+						{
+							"name": "input",
+							"description": "Each edit to the value."
+						}
+					],
+					"cssProperties": [
+						{
+							"name": "--example-field-width",
+							"default": "20ch",
+							"description": "The input's inline size."
+						}
+					]
+				}
+			]
+		},
+		{
+			"kind": "javascript-module",
+			"path": "select.js",
+			"declarations": [
+				{
+					"kind": "class",
+					"name": "ExampleOption",
+					"customElement": true,
+					"tagName": "example-option",
+					"members": [
+						{
+							"kind": "field",
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "selected",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "value",
+							"type": {
+								"text": "string"
+							}
+						}
+					],
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "disabled",
+							"default": "false"
+						},
+						{
+							"name": "selected",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "selected",
+							"default": "false"
+						},
+						{
+							"name": "value",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "value"
+						}
+					],
+					"slots": [
+						{
+							"name": "",
+							"description": "The option's label text."
+						}
+					],
+					"events": [],
+					"cssProperties": []
+				},
+				{
+					"kind": "class",
+					"name": "ExampleSelect",
+					"customElement": true,
+					"tagName": "example-select",
+					"members": [
+						{
+							"kind": "field",
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "label",
+							"type": {
+								"text": "string"
+							},
+							"description": "The control's visible label and accessible name."
+						},
+						{
+							"kind": "field",
+							"name": "open",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "required",
+							"type": {
+								"text": "boolean"
+							},
+							"default": "false"
+						},
+						{
+							"kind": "field",
+							"name": "value",
+							"type": {
+								"text": "string"
+							},
+							"description": "The selected option's value."
+						}
+					],
+					"attributes": [
+						{
+							"name": "disabled",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "disabled",
+							"default": "false"
+						},
+						{
+							"name": "label",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "label",
+							"description": "The control's visible label and accessible name."
+						},
+						{
+							"name": "open",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "open",
+							"default": "false"
+						},
+						{
+							"name": "required",
+							"type": {
+								"text": "boolean"
+							},
+							"fieldName": "required",
+							"default": "false"
+						},
+						{
+							"name": "value",
+							"type": {
+								"text": "string"
+							},
+							"fieldName": "value",
+							"description": "The selected option's value."
+						}
+					],
+					"slots": [
+						{
+							"name": "",
+							"description": "The options to choose from."
+						}
+					],
+					"events": [
+						{
+							"name": "change",
+							"type": {
+								"text": "string: the new value"
+							},
+							"description": "Another option was chosen."
+						}
+					],
+					"cssProperties": []
+				}
+			]
+		}
+	]
+}

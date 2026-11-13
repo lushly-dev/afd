@@ -1,0 +1,92 @@
+{
+	"config_version": 6,
+	"name": "garden-notes",
+	"default_space": "garden",
+	"spaces": {
+		"garden": {
+			"title": "Garden",
+			"person": "human:local",
+			"verified_admits": "affirmed",
+			"collections": {
+				"journal": {
+					"root": "content/journal",
+					"own": true
+				},
+				"talks": {
+					"root": "content/talks",
+					"own": true,
+					"speaker": "Gardener"
+				},
+				"handbook": {
+					"root": "content/handbook"
+				}
+			},
+			"meaning": {
+				"model": "potion",
+				"weight": 0.5,
+				"k": 5
+			}
+		},
+		"orchard": {
+			"title": "Orchard",
+			"person": "human:local",
+			"verified_admits": "affirmed+attested",
+			"meaning": {
+				"model": "served"
+			}
+		}
+	},
+	"models": {
+		"potion": {
+			"provider": "static",
+			"name": "potion-base-8m",
+			"dir": "models/potion-base-8m",
+			"files": {
+				"model.safetensors": "sha256:1111111111111111111111111111111111111111111111111111111111111111",
+				"tokenizer.json": "sha256:2222222222222222222222222222222222222222222222222222222222222222",
+				"config.json": "sha256:3333333333333333333333333333333333333333333333333333333333333333"
+			}
+		},
+		"minilm": {
+			"provider": "onnx",
+			"name": "all-minilm-l6-v2",
+			"dir": "models/all-minilm-l6-v2",
+			"files": {
+				"model.onnx": "sha256:4444444444444444444444444444444444444444444444444444444444444444",
+				"tokenizer.json": "sha256:5555555555555555555555555555555555555555555555555555555555555555",
+				"config.json": "sha256:6666666666666666666666666666666666666666666666666666666666666666",
+				"special_tokens_map.json": "sha256:7777777777777777777777777777777777777777777777777777777777777777",
+				"tokenizer_config.json": "sha256:8888888888888888888888888888888888888888888888888888888888888888"
+			},
+			"pooling": "mean",
+			"max_length": 256
+		},
+		"served": {
+			"provider": "http",
+			"name": "garden-embeddings",
+			"url": "http://127.0.0.1:8090/v1/embeddings",
+			"dimensions": 384,
+			"version": "2026-11",
+			"bearer_env": "EMBEDDINGS_TOKEN",
+			"timeout_ms": 5000
+		}
+	},
+	"plugins": {
+		"enabled": ["notes"],
+		"notes": {
+			"source": "plugins/notes",
+			"grants": {
+				"records_write": {
+					"allow": ["garden"],
+					"default_access": "private"
+				},
+				"content_write": {
+					"allow": ["garden/handbook"]
+				}
+			}
+		}
+	},
+	"principal": {
+		"on_behalf_of": "local"
+	}
+}

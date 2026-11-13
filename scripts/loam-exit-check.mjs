@@ -37,7 +37,14 @@ export const WORKFLOWS = {
 	loam: {
 		name: 'Loam',
 		file: 'loam.yml',
-		jobs: ['Affected units', 'Build, unit and Chromium', 'Editor walk', 'Mounted against Umbel'],
+		jobs: [
+			'Affected units',
+			'Build, unit and Chromium',
+			'Editor walk',
+			'Mounted against Umbel',
+			// Phase 6's step 2: the hosted criterion against the development profile.
+			'Hosted development profile',
+		],
 	},
 	// A manual run's matrix (ci.yml): Node 22, 24 and 26.
 	ci: {

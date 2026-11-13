@@ -10,7 +10,10 @@
  *   - the packages listed in EXTRA_INPUTS for shared inputs read from outside a package, except
  *     the prose beside them (spec/authorization.md affects none), which no package test reads;
  *   - via pnpm-lock.yaml, the importers whose resolved dependency closure changed.
- * Dependents of affected packages are affected too; builds also include their dependencies.
+ * A family's provenance records (foundations/specimen/provenance/adaptations.json) affect none.
+ * Dependents of affected packages are affected too, unless only the package's own test files
+ * changed (packages/server/src/a.test.ts affects afd-server alone); builds also include the
+ * dependencies of the affected packages.
  * GLOBAL_FILES, an unresolvable base or an unreadable lockfile select the whole workspace.
  */
 import { execFileSync } from 'node:child_process';
@@ -51,6 +54,17 @@ export const EXTRA_INPUTS = [
 	// Loam's profile is checked against the plugin manifest core, and records the contract version.
 	{ prefix: 'spec/plugin-manifest', except: PROSE, packages: ['@lushly-dev/loam-manifest'] },
 	{ prefix: 'spec/VERSION', packages: ['@lushly-dev/loam-manifest'] },
+	// The hosted server's header unit reads the web host's page source, whose policy `<meta>` it carries.
+	{ prefix: 'endpoints/loam/packages/web/index.html', packages: ['@lushly-dev/loam-host'] },
+	// Loam's identity scans what a browser loads for an import of it (phase 3 specification, E13). The
+	// kernel is its dependency, but the kernel's test files, which the scan reads too, reach no dependent.
+	{ prefix: 'endpoints/loam/packages/web/src/', packages: ['@lushly-dev/loam-identity'] },
+	{ prefix: 'endpoints/loam/packages/chrome/src/', packages: ['@lushly-dev/loam-identity'] },
+	{ prefix: 'endpoints/loam/packages/kernel/src/', packages: ['@lushly-dev/loam-identity'] },
+	// The web host's units scan every file of the kernel and the chrome, tests included, for the name
+	// of an app or a document type (phase 2 specification, section 1 and D2).
+	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },
+	{ prefix: 'endpoints/loam/packages/chrome/', packages: ['@lushly-dev/loam-web'] },
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
@@ -87,10 +101,34 @@ function readLockfile(git, root, base) {
 	return [baseText, existsSync(file) ? readFileSync(file, 'utf8') : null];
 }
 
-/** The unit root of a path: its first two segments (packages/core, foundations/violet, ...). */
-const unitRoot = (path) => path.split('/').slice(0, 2).join('/');
+/** Folders whose children are units of their own: a Loam plugin is not part of Loam (its D109). */
+const PLUGIN_ROOTS = ['endpoints/loam/plugins'];
+/**
+ * The unit root of a path: its first two segments (packages/core, foundations/violet, ...), or a
+ * plugin's own folder (endpoints/loam/plugins/mail).
+ */
+const unitRoot = (path) => {
+	const segments = path.split('/');
+	const plugins = PLUGIN_ROOTS.find((root) => path.startsWith(`${root}/`));
+	return segments.slice(0, plugins ? plugins.split('/').length + 1 : 2).join('/');
+};
 /** A unit's own documentation (endpoints/loam/docs/...): prose no package build or test reads. */
-const unitDocs = (path) => path.split('/')[2] === 'docs';
+const unitDocs = (path, unit) => path.slice(unit.length + 1).split('/')[0] === 'docs';
+
+/**
+ * A family's provenance records. Only scripts/{specimen,fast-af,violet}-provenance.test.mjs read
+ * them, and the tooling tests run those for every change, so the records select no package.
+ */
+const provenanceRecord = (path) => /^foundations\/[^/]+\/provenance\//.test(path);
+/**
+ * A package's own test file (a.test.ts, a.spec.ts, a.pw.spec.ts). The package's suites run it and
+ * nothing imports one, so it reaches its package and not the dependents. A helper or fixture that
+ * tests share (a.test-support.ts, fixtures/) is not one, and keeps reaching dependents. A suite
+ * that reads another package's files, tests included, declares them in EXTRA_INPUTS, and a
+ * workflow step that does names them as a `--path` of its gate (loam.yml's `theme:check`).
+ */
+const TEST_FILE = /\.(test|spec)\.[cm]?[jt]sx?$/;
+export const OWN_TESTS = 'its own test file, so no dependent is selected';
 
 const inside = (path, dir) => path === dir || path.startsWith(`${dir}/`);
 
@@ -135,8 +173,16 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 	changedFiles = [...new Set(changedFiles.map((file) => file.replaceAll('\\', '/')))].sort();
 
 	const reasons = new Map();
-	const mark = (name, why) => {
-		if (!reasons.has(name)) reasons.set(name, why);
+	// Packages a change reaches beyond their own test files: these select their dependents too.
+	const spreading = new Set();
+	const mark = (name, why, ownTests = false) => {
+		if (ownTests) {
+			if (!reasons.has(name)) reasons.set(name, `${why} (${OWN_TESTS})`);
+			return;
+		}
+		// The reason shown is the first that selects the dependents, over an earlier test file.
+		if (!spreading.has(name)) reasons.set(name, why);
+		spreading.add(name);
 	};
 	for (const file of changedFiles) {
 		if (
@@ -152,13 +198,15 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 					mark(pkg.name, 'pnpm-lock.yaml (resolved dependencies changed)');
 			continue;
 		}
+		if (provenanceRecord(file)) continue;
 		let owners = packages.filter((pkg) => inside(file, pkg.dir));
+		const ownTests = owners.length > 0 && TEST_FILE.test(file);
 		if (owners.length === 0) {
 			const unit = unitRoot(file);
-			if (unit !== file && !unitDocs(file))
+			if (unit !== file && !unitDocs(file, unit))
 				owners = packages.filter((pkg) => inside(pkg.dir, unit));
 		}
-		for (const pkg of owners) mark(pkg.name, file);
+		for (const pkg of owners) mark(pkg.name, file, ownTests);
 		for (const input of EXTRA_INPUTS.filter(
 			(extra) => file.startsWith(extra.prefix) && !extra.except?.test(file)
 		))
@@ -166,7 +214,15 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 	}
 
 	const changed = [...reasons.keys()].filter((name) => everything.includes(name)).sort();
-	const affected = [...withDependents(packages, changed)].sort();
+	const affected = [
+		...new Set([
+			...changed,
+			...withDependents(
+				packages,
+				changed.filter((name) => spreading.has(name))
+			),
+		]),
+	].sort();
 	return {
 		mode: 'affected',
 		reason: `${changedFiles.length} changed file(s) since ${base === 'HEAD' ? 'HEAD' : base.slice(0, 12)}`,

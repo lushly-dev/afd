@@ -6,6 +6,7 @@ import type {
 	BatchRequest,
 	BatchResult,
 	CommandContext,
+	CommandError,
 	CommandResult,
 	StreamChunk,
 } from '@lushly-dev/afd-core';
@@ -26,6 +27,7 @@ import {
 	HttpRequestError,
 	type HttpSecurityOptions,
 	readJsonBody,
+	setPrereadBody,
 	validateHttpRequest,
 } from './http-security.js';
 import type { SessionStore } from './http-sessions.js';
@@ -39,9 +41,12 @@ import {
 	methodNotFound,
 	parseJsonRpcMessage,
 } from './json-rpc.js';
+import type { AuthLayer } from './mcp-auth.js';
 import type { ModernHttpLane } from './mcp-modern.js';
 import { liftMetaArgument, metaArgumentKeys } from './meta-argument.js';
+import { credentialsBinding } from './principal-binding.js';
 import { requestContextValues } from './request-context.js';
+import { bindScopeView } from './scope-view.js';
 import type { CreateRequestContext } from './server-types.js';
 import { resultContent, type ToolCallResult } from './tool-router.js';
 
@@ -88,6 +93,11 @@ export interface HttpHandlerDeps extends HttpSecurityOptions {
 	modern?: ModernHttpLane;
 	/** Confirmation enforcement for `/rpc`, `/batch` and `/stream` (acknowledged by `Afd-Confirm`). */
 	confirmations?: ConfirmationGate;
+	/**
+	 * MCP authorization (`spec/authorization.md`): every route but the metadata needs a verified
+	 * token, and every command context carries the request's credentials.
+	 */
+	auth?: AuthLayer;
 }
 
 function json(res: ServerResponse, status: number, body: unknown): void {
@@ -121,6 +131,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		onError,
 		modern,
 		confirmations,
+		auth,
 	} = deps;
 	const unconfirmed = createHttpConfirmationCheck(confirmations);
 	const metaKeys = metaArgumentKeys(contextFields);
@@ -151,12 +162,41 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		if (!sessions) return undefined;
 		const id = req.headers['mcp-session-id'];
 		if (id === undefined) return null;
-		const state = sessions.get(String(id));
+		const state = sessions.get(String(id), sessionOwner(req));
 		if (state) return state;
 		throw new HttpRequestError(404, 'Unknown or expired MCP session', {
 			rpcCode: JsonRpcErrorCode.SESSION_NOT_FOUND,
 			suggestion: 'Send a new initialize request without Mcp-Session-Id to start a new session',
 		});
+	}
+
+	/**
+	 * Who owns the sessions `req` creates and may use: with MCP authorization, its verified
+	 * credentials' issuer, subject and client, so one caller's session is unknown to another.
+	 */
+	function sessionOwner(req: IncomingMessage): string | undefined {
+		return auth ? credentialsBinding(auth.credentialsFor(req)) : undefined;
+	}
+
+	/**
+	 * `INSUFFICIENT_SCOPE` when the request's credentials lack a scope these calls need, decided
+	 * after routing and before the confirmation gate (M6); none without MCP authorization.
+	 */
+	function scopeRefusal(
+		req: IncomingMessage,
+		calls: readonly { command: string; input: unknown }[]
+	): CommandError | undefined {
+		const view = auth?.viewFor(req);
+		const decision = view?.decideCommands(calls);
+		return view && decision && decision !== 'proceed'
+			? view.insufficientScope(decision.forbidden)
+			: undefined;
+	}
+
+	/** The steps naming commands that exist for the caller: a confirmation never names another. */
+	function existing<T extends { command: string }>(req: IncomingMessage, steps: T[]): T[] {
+		const view = auth?.viewFor(req);
+		return view ? steps.filter((step) => view.known(step.command)) : steps;
 	}
 
 	function scoped(context: CommandContext, state: ContextState | null | undefined): CommandContext {
@@ -178,10 +218,13 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		res.once('close', () => {
 			if (!res.writableFinished) controller.abort(new Error('Client disconnected'));
 		});
-		const custom = await requestContextValues(createContext, req);
+		const custom = await requestContextValues(createContext, req, auth?.credentialsFor(req));
 		// Declared fields from `_meta` first, so a value `createContext` sets wins.
 		const declared = contextFieldValues(contextFields, meta);
-		return scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state);
+		return bindScopeView(
+			scoped({ ...declared, ...custom, signal: controller.signal, interface: 'mcp' }, state),
+			auth?.viewFor(req)
+		);
 	}
 
 	/** An input object without its `_meta` member, which carries request values, not input. */
@@ -219,8 +262,20 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			case 'ping':
 			case 'notifications/initialized':
 				return {};
-			case 'tools/list':
-				return { tools: getToolsList(scoped({}, state)) };
+			case 'tools/list': {
+				const view = auth?.viewFor(req);
+				// M6, "Other methods": a listing needs the required scopes.
+				const decision = view?.decideRequest();
+				if (view && decision && decision !== 'proceed') {
+					const error = view.insufficientScope(decision.forbidden);
+					throw new JsonRpcError(
+						JsonRpcErrorCode.INVALID_REQUEST,
+						error.message,
+						error.suggestion as string
+					);
+				}
+				return { tools: getToolsList(bindScopeView(scoped({}, state), view)) };
+			}
 			case 'tools/call': {
 				const params = message.params;
 				if (!isRecord(params) || typeof params.name !== 'string') {
@@ -254,7 +309,7 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 	async function handleMessage(req: IncomingMessage, res: ServerResponse): Promise<void> {
 		const message = parseJsonRpcMessage(await readJsonBody(req, maxBodyBytes));
 		if (message.method === 'initialize' && !message.notification) {
-			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create());
+			if (sessions) res.setHeader('Mcp-Session-Id', sessions.create(sessionOwner(req)));
 			json(
 				res,
 				200,
@@ -282,7 +337,8 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		const state = sessionState(req);
 		const body = await answer(message, async () => {
 			const { input, meta } = splitMeta(message.params ?? {});
-			const refused = await unconfirmed(req, [{ command: message.method, input }]);
+			const steps = [{ command: message.method, input }];
+			const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
 			if (refused) return { success: false, error: refused };
 			return executeCommand(message.method, input, {
 				...(await commandContext(req, res, state, undefined, meta)),
@@ -306,7 +362,10 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 			throw new HttpRequestError(400, 'Invalid stream command name');
 		}
 		// GET is a safe method: link prefetchers and crawlers must not be able to trigger writes.
-		if (req.method === 'GET' && isMutation?.(commandName)) {
+		// A command hidden from this caller is not one here (M6), so it falls through to the
+		// engine's `COMMAND_NOT_FOUND`, the answer a server without it gives.
+		const shown = auth?.viewFor(req)?.known(commandName) ?? true;
+		if (req.method === 'GET' && shown && isMutation?.(commandName)) {
 			res.setHeader('Allow', 'POST');
 			json(
 				res,
@@ -338,7 +397,8 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		}
 		const split = splitMeta(input);
 		input = split.input;
-		const refused = await unconfirmed(req, [{ command: commandName, input }]);
+		const steps = [{ command: commandName, input }];
+		const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
 		if (refused) {
 			res.writeHead(200, { 'Content-Type': 'text/event-stream', 'Cache-Control': 'no-cache' });
 			res.end(`event: chunk\ndata: ${JSON.stringify(createErrorChunk(refused, 0, false))}\n\n`);
@@ -396,13 +456,19 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				'Access-Control-Allow-Headers',
 				'Content-Type, Accept, Authorization, Mcp-Session-Id, MCP-Protocol-Version, Mcp-Method, Mcp-Name, Afd-Confirm'
 			);
-			res.setHeader('Access-Control-Expose-Headers', 'Mcp-Session-Id');
+			res.setHeader(
+				'Access-Control-Expose-Headers',
+				auth ? 'Mcp-Session-Id, WWW-Authenticate' : 'Mcp-Session-Id'
+			);
 		}
+		// A CORS preflight carries no token and reaches nothing.
 		if (req.method === 'OPTIONS') {
 			res.writeHead(204);
 			res.end();
 			return;
 		}
+		// M1, M2 and M7: the metadata is public; every other route needs a verified token.
+		if (auth && !(await auth.admit(req, res, url))) return;
 		if (url.pathname === '/mcp' && modern) {
 			await modern.handle(req, res);
 			return;
@@ -450,10 +516,12 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 				json(res, 400, failedBatchRequest());
 				return;
 			}
-			const refused = await unconfirmed(
-				req,
-				request.commands.map((item) => ({ command: item.command, input: item.input ?? {} }))
-			);
+			const steps = request.commands.map((item) => ({
+				command: item.command,
+				input: item.input ?? {},
+			}));
+			// A batch fails as a whole before its first step (M6), as a confirmation does.
+			const refused = scopeRefusal(req, steps) ?? (await unconfirmed(req, existing(req, steps)));
 			if (refused) {
 				json(res, 200, createFailedBatchResult(refused, {}));
 				return;
@@ -470,7 +538,15 @@ export function createHttpHandler(deps: HttpHandlerDeps) {
 		json(res, 404, { error: 'Not found' });
 	}
 
-	const handler = async (req: IncomingMessage, res: ServerResponse): Promise<void> => {
+	const handler = async (
+		req: IncomingMessage,
+		res: ServerResponse,
+		body?: Uint8Array | string
+	): Promise<void> => {
+		// A host's own layer read the body to decide it (M6): the routes read that instead.
+		if (body !== undefined) {
+			setPrereadBody(req, typeof body === 'string' ? Buffer.from(body, 'utf8') : Buffer.from(body));
+		}
 		// Rejected/unconsumed uploads can emit a late socket error after the response.
 		const observeRequestError = () => {};
 		req.on('error', observeRequestError);

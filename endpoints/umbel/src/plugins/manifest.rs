@@ -1,5 +1,6 @@
-//! `umbel-plugin.toml`, manifest versions 1 to 5 (specification section 2, D37; phase 2 section
-//! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]; phase 5 section 2.3, in [`v5`]).
+//! `umbel-plugin.toml`, manifest versions 1 to 6 (specification section 2, D37; phase 2 section
+//! 3.4, D54; phase 3 section 2.3; phase 4 section 2.2, in [`v4`]; phase 5 section 2.3, in [`v5`];
+//! the records host specification section 2, in [`v6`]).
 //!
 //! [`Manifest::parse`] reads and validates the text; [`Manifest::validate_files`] checks what it
 //! names on disk; [`Manifest::load`] does both for a plugin directory. Every failure is a
@@ -14,6 +15,7 @@ use afd::{CommandContext, CommandDefinition, CommandHandler, CommandRegistry, Co
 use async_trait::async_trait;
 use serde_json::Value;
 use toml::{Table, Value as Toml};
+use umbel_store::lane::RecordDecl;
 
 use super::error::PluginError;
 use super::files::{DirFiles, PluginFiles, lexical_problem};
@@ -24,6 +26,7 @@ use super::{
 
 mod v4;
 mod v5;
+mod v6;
 
 pub use v4::PipelineResult;
 pub use v5::{Assurance, PersonDecl, TaskMode};
@@ -634,7 +637,7 @@ pub struct MountDecl {
 pub struct Manifest {
     /// Where the text came from, for messages.
     pub file: String,
-    /// The `manifest_version` the file declared: 1 to 5.
+    /// The `manifest_version` the file declared: 1 to 6.
     pub manifest_version: u32,
     /// `[plugin]`.
     pub plugin: PluginInfo,
@@ -656,6 +659,9 @@ pub struct Manifest {
     pub skills: Vec<SkillDecl>,
     /// `[config]`.
     pub config: Option<ConfigDecl>,
+    /// `[[records]]` (manifest version 6): the record kinds of the plugin's namespace that the
+    /// host indexes (records host specification, section 2); none before version 6.
+    pub records: Vec<RecordDecl>,
 }
 
 impl Manifest {
@@ -716,11 +722,12 @@ impl Manifest {
             Tbl::root(&table, file, 1).version("manifest_version", MANIFEST_VERSIONS)?;
         let root = Tbl::root(&table, file, manifest_version);
         root.version("protocol", &[PLUGIN_PROTOCOL_VERSION])?;
-        root.check_keys(TOP_KEYS, TOP_RESERVED)?;
+        root.check_versioned_keys(TOP_KEYS, TOP_RESERVED, &[(6, v6::TOP_KEYS_V6)])?;
 
         let plugin = plugin_info(&root)?;
         let grants = grants(&root, plugin.kind)?;
         let manifest = Self {
+            records: v6::records(&root, &plugin, &grants)?,
             file: file.to_owned(),
             manifest_version,
             component: component(&root, plugin.kind)?,
@@ -736,6 +743,7 @@ impl Manifest {
         };
         manifest.check_names()?;
         manifest.check_memory_rules()?;
+        manifest.check_record_rules()?;
         manifest.check_previews(None)?;
         manifest.check_person_previews(None)?;
         Ok(manifest)

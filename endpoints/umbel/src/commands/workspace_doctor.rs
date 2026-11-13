@@ -13,7 +13,8 @@ use super::{Builtin, empty_input, expose_everywhere_but_the_palette, returns_obj
 use crate::doctor::{self, AuthInputs, Check, CheckStatus};
 use crate::host::RESERVED_VERBS;
 use crate::plugins::{
-    CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pipelines_check,
+    CompiledCatalog, LoadedPlugins, first_class_check, loaded_check, pack_checks_check,
+    pipelines_check,
 };
 use crate::store::Hub;
 use crate::surfaces::{self, FirstClassPlan};
@@ -146,9 +147,13 @@ impl CommandHandler for Handler {
             let stores = Arc::clone(&self.stores);
             let workspace = Arc::clone(&self.workspace);
             let now = context.clock().now();
+            let loaded = self.loaded.get().cloned();
             let found = tokio::task::spawn_blocking(move || {
                 let mut found: Vec<Check> = super::store_doctor_checks(&workspace, &stores).into();
                 found.extend(super::store_memory_checks(&workspace, &stores, now));
+                if let Some(loaded) = &loaded {
+                    found.extend(super::store_record_checks(&workspace, &stores, loaded));
+                }
                 found
             })
             .await;
@@ -160,7 +165,18 @@ impl CommandHandler for Handler {
                 }
             }
         }
+        // The plugins' own pack checks read files, so they run on a blocking thread (D172).
+        let pack_checks = match self.loaded.get() {
+            Some(loaded) if registry.is_some() => {
+                let loaded = Arc::clone(loaded);
+                tokio::task::spawn_blocking(move || pack_checks_check(&loaded))
+                    .await
+                    .ok()
+            }
+            _ => None,
+        };
         if let Some(registry) = registry {
+            let mut pack_checks = pack_checks;
             for check in &mut report.checks {
                 if check.status != CheckStatus::Skip {
                     continue;
@@ -181,6 +197,11 @@ impl CommandHandler for Handler {
                     "plugins.pipelines" => {
                         if let Some(loaded) = self.loaded.get() {
                             *check = pipelines_check(loaded);
+                        }
+                    }
+                    "plugins.pack_checks" => {
+                        if let Some(found) = pack_checks.take() {
+                            *check = found;
                         }
                     }
                     _ => {}

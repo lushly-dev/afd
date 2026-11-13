@@ -328,6 +328,13 @@ impl HostBuilder {
         let stores: Hub = Arc::new(Stores::new(Arc::clone(&workspace)));
         let ledger = Arc::new(plugins::Ledger::default());
         let attestations = Arc::new(plugins::PipelineAttestations::default());
+        // The local page's arm and the marks it hands a handler (the Ideas host-review
+        // specification, section 6.2); the arm is set once the person service is built.
+        let local_marks = Arc::new(crate::person::LocalMarks::default());
+        let local_gate: crate::person::LocalGateSlot = Arc::new(OnceLock::new());
+        #[cfg(feature = "auth")]
+        let local_page_cell: Arc<OnceLock<Arc<crate::person::service::PersonService>>> =
+            Arc::new(OnceLock::new());
         let prompts: Arc<OnceLock<crate::authority::Prompts>> = Arc::new(OnceLock::new());
         let catalog = Catalog::new(&self.compiled)?;
         let compiled_catalog = Arc::new(catalog.manifests().clone());
@@ -366,6 +373,11 @@ impl HostBuilder {
                 self.auth_environment.clone(),
             ),
             commands::event_rebuild(Arc::clone(&workspace), Arc::clone(&projector)),
+            commands::person_page_serve(
+                Arc::clone(&workspace),
+                #[cfg(feature = "auth")]
+                Arc::clone(&local_page_cell),
+            ),
         ];
         #[cfg(feature = "store-embedded")]
         let builtins = {
@@ -379,6 +391,15 @@ impl HostBuilder {
                 Arc::clone(&stores),
             ));
             builtins.push(commands::store_backup(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+            ));
+            builtins.push(commands::store_records_reindex(
+                Arc::clone(&workspace),
+                Arc::clone(&stores),
+                Arc::clone(&loaded_cell),
+            ));
+            builtins.push(commands::store_documents_hold(
                 Arc::clone(&workspace),
                 Arc::clone(&stores),
             ));
@@ -421,6 +442,7 @@ impl HostBuilder {
             catalog: &catalog,
             mount_roots: &self.mount_roots,
             prompts: &prompts,
+            local_marks: &local_marks,
         })?);
         let _ = loaded_cell.set(Arc::clone(&loaded));
         let _ = prompts.set(terminal_prompts(&loaded));
@@ -457,6 +479,7 @@ impl HostBuilder {
             &builtin_names,
             self.approval_observer,
             (&stores, &stash),
+            (&local_gate, &local_marks),
             #[cfg(feature = "auth")]
             Arc::clone(&self.auth_environment.clock),
         )?;
@@ -481,6 +504,17 @@ impl HostBuilder {
             person_commands(&registry, &loaded),
             &self.auth_environment,
         )?;
+        // The local page's service is no relay's: the plugin gate's local arm decides for it, and
+        // `person-page-serve` serves its page (the Ideas host-review specification, section 6.2).
+        #[cfg(feature = "auth")]
+        let (person, local_person) = match person {
+            Some(service) if service.is_local() => {
+                let _ = local_gate.set(Arc::clone(&service) as Arc<dyn crate::person::LocalGate>);
+                let _ = local_page_cell.set(Arc::clone(&service));
+                (None, Some(service))
+            }
+            other => (other, None),
+        };
         #[cfg(feature = "auth")]
         let server = match &person {
             Some(service) => {
@@ -514,6 +548,8 @@ impl HostBuilder {
             auth_environment: self.auth_environment,
             #[cfg(feature = "auth")]
             person,
+            #[cfg(feature = "auth")]
+            local_person,
             #[cfg(feature = "auth")]
             usage: self.usage,
         })
@@ -622,6 +658,10 @@ fn install_middleware(
     builtins: &HashSet<String>,
     observer: Option<ApprovalObserver>,
     (stores, stash): (&Hub, &Arc<crate::positions::Stash>),
+    (local_gate, local_marks): (
+        &crate::person::LocalGateSlot,
+        &Arc<crate::person::LocalMarks>,
+    ),
     #[cfg(feature = "auth")] auth_clock: Arc<dyn Clock>,
 ) -> Result<Arc<crate::auth::scopes::ScopePolicy>, HostError> {
     let commands = registry.list();
@@ -779,7 +819,9 @@ fn install_middleware(
             stores: Arc::clone(stores),
             stash: Arc::clone(stash),
             #[cfg(feature = "auth")]
-            decisions: workspace.config().auth.mode.is_hosted().then(|| {
+            decisions: (workspace.config().auth.mode.is_hosted()
+                || crate::plugins::loader::local_page_served(workspace.config()))
+            .then(|| {
                 Arc::new(crate::person::service::Ledger::new(
                     workspace,
                     Arc::clone(&auth_clock),
@@ -787,6 +829,12 @@ fn install_middleware(
             }),
             #[cfg(not(feature = "auth"))]
             decisions: None,
+            local: crate::plugins::loader::local_page_served(workspace.config()).then(|| {
+                middleware::LocalArm {
+                    gate: Arc::clone(local_gate),
+                    marks: Arc::clone(local_marks),
+                }
+            }),
         },
     ));
 
@@ -855,13 +903,34 @@ fn terminal_prompts(loaded: &LoadedPlugins) -> crate::authority::Prompts {
     prompts
 }
 
-/// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1).
+/// The digest commands and their kept keys, fixed at seal (phase 3 section 7.1): the plugin
+/// commands declared `journal.mode = "digest"`, and the one built-in journaled so, the rebuild of
+/// a record lane (the records host specification, section 12), whose inputs are all kept since
+/// none is content.
 fn digest_commands(loaded: &LoadedPlugins) -> digest::DigestCommands {
-    loaded
+    #[cfg_attr(not(feature = "store-embedded"), allow(unused_mut))]
+    let mut commands: digest::DigestCommands = loaded
         .gate
         .iter()
         .filter_map(|(name, entry)| entry.digest.clone().map(|keep| (name.clone(), keep)))
-        .collect()
+        .collect();
+    #[cfg(feature = "store-embedded")]
+    for (name, kept) in [
+        (
+            commands::STORE_RECORDS_REINDEX,
+            commands::STORE_RECORDS_REINDEX_KEPT,
+        ),
+        (
+            commands::STORE_DOCUMENTS_HOLD,
+            commands::STORE_DOCUMENTS_HOLD_KEPT,
+        ),
+    ] {
+        commands.insert(
+            name.to_owned(),
+            kept.iter().map(|key| (*key).to_owned()).collect(),
+        );
+    }
+    commands
 }
 
 /// The journal recorder: the outermost layer, so the stamps are in the journaled result and the
@@ -932,6 +1001,10 @@ pub struct Host {
     /// The person page's decisions, in a hosted mode (phase 5 step 5).
     #[cfg(feature = "auth")]
     person: Option<Arc<crate::person::service::PersonService>>,
+    /// The local page's decisions, in mode `none` with `[person.local]` (the Ideas host-review
+    /// specification, section 6).
+    #[cfg(feature = "auth")]
+    local_person: Option<Arc<crate::person::service::PersonService>>,
     /// How usage is recorded (phase 5 section 12.1).
     #[cfg(feature = "auth")]
     usage: crate::usage::Setup,
@@ -1089,6 +1162,25 @@ impl Host {
     pub fn person_server(&self) -> Result<Option<crate::HttpServer>, HostError> {
         #[cfg(feature = "auth")]
         return surfaces::http::person_server(&self.workspace, self.person.as_ref());
+        #[cfg(not(feature = "auth"))]
+        Ok(None)
+    }
+
+    /// The local person page (the Ideas host-review specification, section 6.3), ready to serve
+    /// on a listener bound at `person.local.bind`, as `umbel person page-serve` serves it: the
+    /// page's routes alone, over plain HTTP, its `Host` and `Origin` held to that bind.
+    /// `Ok(None)` where the local page is not served (mode `none` with `[person.local]` enabled,
+    /// in a build with the `auth` feature).
+    ///
+    /// # Errors
+    /// `WORKSPACE_STATE_UNWRITABLE` when `state/shared/limits.sqlite3` cannot be opened.
+    pub fn local_person_server(&self) -> Result<Option<crate::HttpServer>, HostError> {
+        #[cfg(feature = "auth")]
+        return self
+            .local_person
+            .as_ref()
+            .map(|service| surfaces::http::local_person_server(&self.workspace, service))
+            .transpose();
         #[cfg(not(feature = "auth"))]
         Ok(None)
     }

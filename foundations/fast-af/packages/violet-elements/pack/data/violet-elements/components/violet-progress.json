@@ -1,0 +1,137 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "progress.name",
+				"text": "The label attribute is shown and names the bar; without it the name is \"Progress\". The value-text attribute sets aria-valuetext."
+			},
+			{
+				"basis": "authored",
+				"id": "progress.announce",
+				"text": "The bar is not a live region: changes in value are not announced, so announce completion or failure separately."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "100",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "0",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value-text",
+				"property": "valueText",
+				"rules": [
+					"taxonomy.value-text"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-control-selected-foreground)",
+				"name": "--_progress-fill"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_radius-md)",
+				"name": "--_progress-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_surface-subtle) 84%, transparent)",
+				"name": "--_progress-track"
+			},
+			{
+				"basis": "declared",
+				"default": "8px",
+				"name": "--_progress-track-size"
+			}
+		],
+		"events": [],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-progress--custom-value-text",
+			"html": "<violet-progress label=\"Irrigation capacity\" max=\"4\" value=\"2\" value-text=\"Half capacity\"></violet-progress>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-progress--indeterminate",
+			"html": "<violet-progress label=\"Loading crop summary\" max=\"100\" value value-text></violet-progress>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-progress--overview",
+			"html": "<violet-progress label=\"Uploading field imagery\" max=\"100\" value=\"48\" value-text></violet-progress>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.label",
+		"taxonomy.max",
+		"taxonomy.value",
+		"taxonomy.value-text"
+	],
+	"status": "stable",
+	"summary": "Linear progress bar on the native progress element, determinate or indeterminate.",
+	"tag": "violet-progress",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "progress.indeterminate",
+			"text": "Set value=\"\" for indeterminate, which also hides the percentage. With no value attribute it shows 0, and a value that is not a number is treated as 0."
+		},
+		{
+			"basis": "authored",
+			"id": "progress.value",
+			"text": "The value is clamped to 0 through max, and a max that is not a positive number falls back to 100. While determinate, a rounded percentage is shown beside the label."
+		}
+	]
+}

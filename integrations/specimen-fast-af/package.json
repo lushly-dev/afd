@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-fast-af",
-	"version": "0.1.0-preview.2",
+	"version": "0.1.0-preview.3",
 	"type": "module",
 	"description": "FAST-AF plugin for Specimen: Definition Schema, @command runner and theme presets",
 	"files": [
@@ -11,6 +11,10 @@
 		".": {
 			"types": "./dist/index.d.ts",
 			"import": "./dist/index.js"
+		},
+		"./guides": {
+			"types": "./dist/guides.d.ts",
+			"import": "./dist/guides.js"
 		},
 		"./package.json": "./package.json"
 	},
@@ -26,8 +30,8 @@
 	},
 	"sideEffects": false,
 	"peerDependencies": {
-		"@lushly-dev/fast-element": "^3.0.1-preview",
-		"@lushly-dev/specimen": "^2.2.0-preview"
+		"@lushly-dev/fast-element": "workspace:^",
+		"@lushly-dev/specimen": "workspace:^"
 	},
 	"devDependencies": {
 		"@lushly-dev/fast-element": "workspace:^",

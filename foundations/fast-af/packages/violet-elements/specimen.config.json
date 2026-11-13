@@ -1,6 +1,17 @@
 {
   "stories": ["src/**/*.stories.ts"],
   "preview": "specimen/preview.ts",
+  "plugins": ["specimen/plugins.ts"],
   "manifest": "custom-elements.json",
-  "test": { "settledAccessibility": true }
+  "guides": ["src/**/*.guide.json"],
+  "guideSources": ["specimen/guides.mjs"],
+  "test": { "settledAccessibility": true },
+  "pack": {
+    "library": "violet-elements",
+    "title": "Violet elements",
+    "prefix": "violet-",
+    "directory": "pack",
+    "package": "package.json",
+    "import": "@lushly-dev/violet-elements"
+  }
 }

@@ -1,0 +1,112 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# Between main and branch the toolbar gap token went from 4px to 8px, which undoes the
+# toolbar density decision (dec-q7k2m4xab3na). A scenario cannot show the agent choosing to ask, and every step
+# runs as one test actor, so the person's confirmation of step 6 is not shown (proposal 6.6).
+# Step references are resolved in `input` only.
+
+name: Be told before undoing a decision
+description: >-
+  When an agent is about to change something a decision covers, I want it shown the decision and
+  its reason first, and the change put to me in review if it goes ahead, where accepting it
+  replaces the old decision, so that a decision is never undone silently or left stale.
+job: be-told-before-undoing
+tags: [slice]
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+
+steps:
+  - description: Before editing a toolbar file, the agent finds the decision and its reason
+    command: decision-check
+    input:
+      files: [src/toolbar/toolbar.css]
+    expect:
+      success: true
+      data:
+        decisions: { length: 1 }
+        decisions.0.decision: dec-q7k2m4xab3na
+        decisions.0.reason: { contains: wrap at 1280 px }
+        decisions.0.matched.files: [src/toolbar/toolbar.css]
+
+  - description: A file no decision covers returns nothing
+    command: decision-check
+    input:
+      files: [src/list/list.css]
+    expect:
+      success: true
+      data:
+        decisions: { length: 0 }
+
+  - description: The change went ahead; review shows it once for its cause, naming the decision
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [toolbar--dense, editor--shell]
+    expect:
+      success: true
+      data:
+        open: { length: 1 }
+        open.0.kind: changed
+        open.0.item: { matches: '^changed:' }
+        open.0.ids: [editor--shell, toolbar--dense]
+        open.0.cause: { contains: gap }
+        open.0.decision.decision: dec-q7k2m4xab3na
+        open.0.decision.reason: { contains: wrap at 1280 px }
+        open.0.options: [accept, reject]
+
+  - description: Accepting a change that undoes a decision without replacing it is refused
+    command: decision-record
+    input:
+      items: ['${{ steps[2].data.open[0].item }}']
+      chosen: accept
+      reason: The command count fell to eight, so the wider gap no longer wraps.
+    expect:
+      success: false
+      error:
+        code: SUPERSEDE_REQUIRED
+        message: dec-q7k2m4xab3na
+        suggestion: { contains: supersedes }
+
+  - description: Accepted with a choice that supersedes the old one, keeping its variants
+    command: decision-record
+    input:
+      items: ['${{ steps[2].data.open[0].item }}']
+      chosen: accept
+      supersedes: dec-q7k2m4xab3na
+      reason: The command count fell to eight, so the wider gap no longer wraps.
+    expect:
+      success: true
+      data:
+        decision: { matches: '^dec-[a-z2-7]{12}$' }
+        kind: choice
+        supersedes: dec-q7k2m4xab3na
+        chosen: toolbar--dense
+        evidence.set: set-7e2a90c4d311
+        answers.0.item: { matches: '^changed:' }
+
+  - description: The agent now finds the new reason, not the old one
+    command: decision-check
+    input:
+      tokens: [space.toolbar.gap]
+    expect:
+      success: true
+      data:
+        decisions: { length: 1 }
+        decisions.0.decision: { matches: '^dec-[a-z2-7]{12}$' }
+        decisions.0.supersedes: dec-q7k2m4xab3na
+        decisions.0.reason: { contains: fell to eight }
+
+  - description: Reviewed again, the answered change is settled
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [toolbar--dense, editor--shell]
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        settled.answered: 2

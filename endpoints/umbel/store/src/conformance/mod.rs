@@ -22,9 +22,12 @@ mod envelope;
 mod fixture;
 mod graph;
 mod index;
+mod lane;
+mod matching;
 mod memory;
 mod records;
 pub mod samples;
+mod standing;
 
 use std::fmt::{self, Debug};
 use std::panic::{AssertUnwindSafe, catch_unwind};
@@ -39,6 +42,7 @@ pub use child::{
     ENV_COUNT, ENV_ID, ENV_KIND, ENV_WRITER, WROTE_PREFIX, run_child, wait_for_start,
     write_documents,
 };
+pub use lane::LaneOpen;
 pub use memory::{
     MEMORY_GROUPS, MemoryFactory, MemoryRestore, run_memory, run_memory_child, run_memory_groups,
     write_memories,
@@ -54,8 +58,8 @@ pub type Factory<'a> = &'a dyn Fn(&Path, &str) -> Result<Stores, StoreError>;
 /// Builds the command that runs one writer child against the directory.
 pub type SpawnWriter = fn(&Path) -> Command;
 
-/// One space's stores. `index` is `None` for a backend without a search index, and `memory` for
-/// one without a memory store; their cases are then skipped. `memory_restore` puts a memory
+/// One space's stores. `index` is `None` for a backend without a search index, `memory` for one
+/// without a memory store and `lane` for one without a record lane; their cases are then skipped. `memory_restore` puts a memory
 /// `backup` copy in place (section 5.5); without it only the erasure group's copy case is skipped.
 #[derive(Clone)]
 pub struct Stores {
@@ -69,6 +73,10 @@ pub struct Stores {
     pub memory: Option<Arc<dyn MemoryStore>>,
     /// The backend's restore of a memory `backup` copy, when it has one.
     pub memory_restore: Option<MemoryRestore>,
+    /// The backend's record lane (the records host specification), as a way to open the
+    /// document store of a directory with the lane's bounds lowered; `None` for a backend
+    /// without a record lane, whose `lane` cases are then skipped.
+    pub lane: Option<LaneOpen>,
 }
 
 /// What happened to one case.
@@ -297,6 +305,9 @@ type Group = (&'static str, &'static [(&'static str, CaseFn)]);
 const GROUPS: &[Group] = &[
     ("documents", documents::CASES),
     ("records", records::CASES),
+    ("lane", lane::CASES),
+    ("standing", standing::CASES),
+    ("matching", matching::CASES),
     ("changes", changes::CASES),
     ("envelope", envelope::CASES),
     ("access", access::CASES),

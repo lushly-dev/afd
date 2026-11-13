@@ -6,12 +6,13 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import type { ManifestV2, ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ManifestV2, ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type AppCallContextV1, defineApp, failure, success } from '@lushly-dev/loam-sdk';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { createKernelParts, type KernelParts, type KernelPartsInternals } from '../kernel.js';
 import { createFixedEnvironment, createSeededRandom, createSteppingClock } from '../session.js';
 import { createFixturePorts } from '../testing-probe.js';
+import type { MembershipV1 } from './access.js';
 import type { ProjectV1, ScopeV1 } from './records.js';
 
 const EMPTY = { type: 'object', properties: {}, additionalProperties: false };
@@ -217,7 +218,7 @@ export const SCOPED_PROJECTS: readonly ProjectV1[] = [
 	}),
 ];
 
-export const scopedDeployment = (): ProjectionV2 => ({
+export const scopedDeployment = (): ProjectionV3 => ({
 	deployment_version: 2,
 	generation: 'scoped',
 	workspace: { id: 'personal', name: 'Personal' },
@@ -269,13 +270,17 @@ export interface ScopedWorkspaceOptions {
 	/** Create no project. */
 	empty?: boolean;
 	internals?: KernelPartsInternals;
-	deployment?: ProjectionV2;
+	deployment?: ProjectionV3;
 	/** Default: a stepping clock from 2026-01-01. A reload's starts later, so its trace IDs differ. */
 	clock?: () => number;
 	/** The URL's project, by slug, as the web host passes it (6.3). */
 	initialScope?: { project: string | null };
 	/** The packages `deployment` names. Default: the three apps'. */
 	ports?: ReturnType<typeof scopedPorts>;
+	/** The deployment's identity (phase 3 specification, 2.1). Default `local`. */
+	identity?: IdentityV1;
+	/** Stage A's membership, as the probe gives it (4.2). */
+	membership?: MembershipV1;
 }
 
 /**
@@ -288,7 +293,9 @@ export async function createScopedWorkspace(
 ): Promise<ScopedWorkspace> {
 	const store = options.store ?? new MemoryAdapter();
 	const journal = options.journal ?? new MemoryJournalSink();
-	const auth = options.auth ?? new MockAuthAdapter();
+	const clock = options.clock ?? createSteppingClock();
+	// On the kernel's clock, as the auth middleware is (phase 3 specification, 4.4).
+	const auth = options.auth ?? new MockAuthAdapter({ clock: { now: clock } });
 	const parts = await createKernelParts(
 		{
 			store,
@@ -297,11 +304,13 @@ export async function createScopedWorkspace(
 			auth,
 			environment: createFixedEnvironment(),
 			host: 'test',
-			clock: options.clock ?? createSteppingClock(),
+			clock,
 			random: createSeededRandom('scoped'),
 			deployment: options.deployment ?? scopedDeployment(),
 			ports: options.ports ?? scopedPorts(),
 			...(options.initialScope ? { initialScope: options.initialScope } : {}),
+			...(options.identity ? { identity: options.identity } : {}),
+			...(options.membership ? { membership: options.membership } : {}),
 		},
 		options.internals
 	);

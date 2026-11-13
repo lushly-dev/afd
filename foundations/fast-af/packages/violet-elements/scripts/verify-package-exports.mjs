@@ -105,7 +105,8 @@ try {
     check(resolveRuntime(`${packageName}/${blocked}`) === null, `${packageName}/${blocked} must not be exported`);
   }
 
-  const { default: ts } = await import("typescript");
+  // TypeScript 7 exports no compiler API; its TypeScript 6 API package resolves the same way.
+  const { default: ts } = await import("@typescript/typescript6");
   const options = { moduleResolution: ts.ModuleResolutionKind.Bundler, module: ts.ModuleKind.ESNext };
   for (const element of ["button/violet-button", "segment/violet-segment", "data-grid/violet-data-grid"]) {
     const { resolvedModule } = ts.resolveModuleName(

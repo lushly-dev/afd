@@ -15,7 +15,7 @@ use umbel_sdk::{CallContext, Cx};
 
 use super::PluginError;
 use super::files::{AssetFiles, PluginFiles};
-use super::grants::Services;
+use super::grants::{CallServices, Services};
 use super::manifest::Manifest;
 
 pub use umbel_sdk::Asset;
@@ -35,6 +35,16 @@ pub trait CompiledPlugin: Send + Sync + 'static {
     /// # Errors
     /// A [`PluginError`], which fails the instance's load.
     fn commands(&self, services: Services) -> Result<Vec<PluginCommand>, PluginError>;
+
+    /// The plugin's own check of its pack `pack`, run by the doctor against a space override
+    /// (D172, `plugins.pack_checks`). `services` are the instance's granted services for a call in
+    /// the override's space, so the plugin reads the override as its commands would. `None`, the
+    /// default, offers no check; otherwise an AFD `CommandResult` as JSON. See
+    /// [`umbel_sdk::Plugin::check_pack`].
+    fn check_pack(&self, pack: &str, services: CallServices) -> Option<Value> {
+        let _ = (pack, services);
+        None
+    }
 }
 
 impl<T: CompiledPlugin + ?Sized> CompiledPlugin for Arc<T> {
@@ -48,6 +58,10 @@ impl<T: CompiledPlugin + ?Sized> CompiledPlugin for Arc<T> {
 
     fn commands(&self, services: Services) -> Result<Vec<PluginCommand>, PluginError> {
         (**self).commands(services)
+    }
+
+    fn check_pack(&self, pack: &str, services: CallServices) -> Option<Value> {
+        (**self).check_pack(pack, services)
     }
 }
 
@@ -149,6 +163,21 @@ impl<P: umbel_sdk::Plugin> CompiledPlugin for SdkPlugin<P> {
             })
             .collect()
     }
+
+    fn check_pack(&self, pack: &str, services: CallServices) -> Option<Value> {
+        let space = services.space().as_str().to_owned();
+        let call = CallContext {
+            command: String::new(),
+            space: Some(space.clone()),
+            spaces: vec![space],
+            interface: "cli".to_owned(),
+            ..CallContext::default()
+        };
+        let mut cx = Cx::new(call, services);
+        self.plugin
+            .check_pack(pack, &mut cx)
+            .map(umbel_sdk::Outcome::into_value)
+    }
 }
 
 /// Whether an input schema has a `space` property.
@@ -169,9 +198,10 @@ struct SdkHandler<P: umbel_sdk::Plugin> {
 /// The call context a plugin receives (WIT `call-context`): the command, the trace id, the
 /// resolved space for a command with a `space` input, a summary of the actor, the host's
 /// pipeline attestation for a step (phase 4 section 10.1), whether the host counts the caller
-/// as a person (phase 3 section 3.3), the caller's delegation chain, and a person's decision on
-/// the person page for this very call with the validated `input` (phase 5 step 6). Never a
-/// credential or a token.
+/// as a person (phase 3 section 3.3), the caller's delegation chain, a person's decision on
+/// the person page for this very call with the validated `input` (phase 5 step 6), and the page
+/// of its preview the person page asks for (the Ideas host-review specification, section 2).
+/// Never a credential or a token.
 pub(super) fn call_context(
     name: &str,
     has_space: bool,
@@ -212,6 +242,7 @@ pub(super) fn call_context(
         delegation_chain: crate::principal::Principal::chain_of(context),
         person_decision: services.person_decision(input),
         person_check: services.person_check(),
+        preview_page: services.preview_page(),
     }
 }
 

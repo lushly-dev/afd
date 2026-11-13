@@ -1,0 +1,57 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["ideas"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"ideas": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 64,
+			"description": "The ideas, each a few sentences on one line",
+			"items": {
+				"type": "object",
+				"additionalProperties": false,
+				"required": ["statement", "type"],
+				"properties": {
+					"statement": {
+						"type": "string",
+						"minLength": 1,
+						"description": "The idea in a few sentences, on one line"
+					},
+					"type": {
+						"type": "string",
+						"description": "One of the pack's types; ideas-guide lists them"
+					},
+					"tags": {
+						"type": "array",
+						"maxItems": 8,
+						"items": {
+							"type": "string"
+						},
+						"description": "0 to 8 tags, each lowercase letters, digits and hyphens"
+					},
+					"said": {
+						"type": "string",
+						"enum": ["person", "agent", "unknown"],
+						"description": "Who spoke these words, as the caller says; default: unknown"
+					}
+				}
+			}
+		},
+		"idempotencyKey": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256,
+			"description": "Send the same key again to repeat a call safely: what the first call wrote is returned, and completed if it stopped part way"
+		},
+		"k": {
+			"type": "integer",
+			"minimum": 1,
+			"description": "How many nearest held ideas to return for each; default: the pack's candidates"
+		}
+	}
+}

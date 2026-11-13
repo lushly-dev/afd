@@ -1,0 +1,133 @@
+{
+	"description": "The record lane's fixture (records host specification, sections 8.1, 8.2 and 15.1). Every text is invented and about gardening. `records` are records of the kind `declaration` declares, each with its access set. `identical` lists texts that share one match digest, as lower-case hex. `matches` lists texts to match against the records: `exclude`, where a text has one, the ids the match leaves out of both lists and out of the statistics, `records` and `tokens` N and L of section 8.2 for a reader of every record (the records that are not excluded and the text itself), `identical` the ids among them whose match field has the text's digest, and `scores` each of those records' two directed scores and its words score at four places, ordered by words descending and then by id. A record that shares no term with a text scores 0 and is no candidate, so a match's `nearest` holds the others. The first rows are the worked examples of sections 8.1 and 8.2. `store/tests/lane_fixture.rs` recomputes every digest and score from `umbel_store::lane` and the tokenizer, so this file cannot drift from the formulas.",
+	"declaration": {
+		"kind": "note",
+		"standing": true,
+		"text": ["/statement"],
+		"keys": ["/bed", "/tags", "/source"],
+		"match": "/statement"
+	},
+	"records": [
+		{
+			"id": "n1",
+			"access": ["space"],
+			"body": {
+				"statement": "Prune roses in late winter, before the buds swell.",
+				"bed": "north",
+				"tags": ["roses", "pruning"]
+			}
+		},
+		{
+			"id": "n2",
+			"access": ["space"],
+			"body": {
+				"statement": "Roses are pruned in late winter before their buds swell.",
+				"bed": "north",
+				"tags": ["roses", "pruning"]
+			}
+		},
+		{
+			"id": "n3",
+			"access": ["space"],
+			"body": {
+				"statement": "Tomatoes need six hours of sun and steady watering.",
+				"bed": "south",
+				"tags": ["tomatoes", "watering"]
+			}
+		},
+		{
+			"id": "n4",
+			"access": ["space"],
+			"body": {
+				"statement": "Mulch keeps the soil cool and holds water through summer.",
+				"bed": "south",
+				"tags": ["soil", "watering"]
+			}
+		},
+		{
+			"id": "n5",
+			"access": ["space"],
+			"body": {
+				"statement": "Water tomatoes at the base, never on the leaves.",
+				"bed": "south",
+				"tags": ["tomatoes", "watering"]
+			}
+		}
+	],
+	"identical": [
+		{
+			"digest": "c714bd413a290f5b1724d67dd0b26ea3e76a93b1904daaa487f16cea4e1aec8b",
+			"texts": [
+				"Prune roses in late winter, before the buds swell.",
+				"  PRUNE roses in late\twinter,\u00a0before the buds swell. ",
+				"\uff30rune roses in late winter, before the buds swell."
+			]
+		}
+	],
+	"matches": [
+		{
+			"text": "Prune your roses in late winter before the buds swell.",
+			"records": 6,
+			"tokens": 57,
+			"identical": [],
+			"scores": [
+				{ "id": "n1", "queryToRecord": 0.8304, "recordToQuery": 0.9578, "words": 0.8304 },
+				{ "id": "n2", "queryToRecord": 0.7367, "recordToQuery": 0.6428, "words": 0.6428 },
+				{ "id": "n5", "queryToRecord": 0.0837, "recordToQuery": 0.0422, "words": 0.0422 },
+				{ "id": "n4", "queryToRecord": 0.0587, "recordToQuery": 0.0341, "words": 0.0341 },
+				{ "id": "n3", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 }
+			]
+		},
+		{
+			"text": "PRUNE ROSES  in late winter, before the buds swell.",
+			"records": 6,
+			"tokens": 56,
+			"identical": ["n1"],
+			"scores": [
+				{ "id": "n1", "queryToRecord": 1.0, "recordToQuery": 1.0, "words": 1.0 },
+				{ "id": "n2", "queryToRecord": 0.8868, "recordToQuery": 0.6714, "words": 0.6714 },
+				{ "id": "n5", "queryToRecord": 0.101, "recordToQuery": 0.0441, "words": 0.0441 },
+				{ "id": "n4", "queryToRecord": 0.0707, "recordToQuery": 0.0356, "words": 0.0356 },
+				{ "id": "n3", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 }
+			]
+		},
+		{
+			"text": "Roses are pruned in late winter before their buds swell.",
+			"exclude": ["n2"],
+			"records": 5,
+			"tokens": 47,
+			"identical": [],
+			"scores": [
+				{ "id": "n1", "queryToRecord": 0.7481, "recordToQuery": 0.8892, "words": 0.7481 },
+				{ "id": "n3", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 },
+				{ "id": "n4", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 },
+				{ "id": "n5", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 }
+			]
+		},
+		{
+			"text": "Water the tomatoes, then water the soil: never the leaves.",
+			"records": 6,
+			"tokens": 57,
+			"identical": [],
+			"scores": [
+				{ "id": "n5", "queryToRecord": 0.5975, "recordToQuery": 0.4625, "words": 0.4625 },
+				{ "id": "n4", "queryToRecord": 0.2883, "recordToQuery": 0.1922, "words": 0.1922 },
+				{ "id": "n3", "queryToRecord": 0.1786, "recordToQuery": 0.1096, "words": 0.1096 },
+				{ "id": "n1", "queryToRecord": 0.0695, "recordToQuery": 0.0774, "words": 0.0695 },
+				{ "id": "n2", "queryToRecord": 0.0, "recordToQuery": 0.0, "words": 0.0 }
+			]
+		},
+		{
+			"text": "Prune roses in late winter, before the buds swell.",
+			"exclude": ["n1", "n3"],
+			"records": 4,
+			"tokens": 38,
+			"identical": [],
+			"scores": [
+				{ "id": "n2", "queryToRecord": 0.9, "recordToQuery": 0.7279, "words": 0.7279 },
+				{ "id": "n5", "queryToRecord": 0.0825, "recordToQuery": 0.0424, "words": 0.0424 },
+				{ "id": "n4", "queryToRecord": 0.0579, "recordToQuery": 0.0349, "words": 0.0349 }
+			]
+		}
+	]
+}

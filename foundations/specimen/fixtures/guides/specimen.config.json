@@ -1,0 +1,13 @@
+{
+	"specimens": [
+		{
+			"id": "example-button",
+			"title": "Example button",
+			"module": "./example.specimen.js",
+			"exportName": "default",
+			"component": "example-button"
+		}
+	],
+	"manifest": "custom-elements.json",
+	"guides": ["src/**/*.guide.json"]
+}

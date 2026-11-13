@@ -4,7 +4,7 @@
  * what the documents section shows (phase 2 specification, 7.7 and 13; documents specification, 8).
  */
 
-import type { KernelEventV2 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV3 } from '@lushly-dev/loam-kernel';
 
 /** A date as text, or none: a time `Date` cannot hold makes `format` throw, and no row may fail the read (T1). */
 export const dateOf = (at: number): string => {
@@ -49,8 +49,9 @@ export function el(
  * record, an instance command's save, which stamps `updatedAt`, a project's name, an app enabled or
  * disabled, or the actor. A query's event changes nothing, and opening a tab neither.
  */
-export const changesDocuments = (event: KernelEventV2): boolean =>
+export const changesDocuments = (event: KernelEventV3): boolean =>
 	event.success &&
 	event.mutation &&
 	(event.document !== undefined ||
+		event.actorChanged === true ||
 		/^(document-(?!open$)|project-update$|workspace-app-set$|auth-)/.test(event.command));

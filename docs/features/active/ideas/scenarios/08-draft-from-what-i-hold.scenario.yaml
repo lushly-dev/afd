@@ -1,0 +1,120 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# Fixture the runner cannot yet set up (P14): a workspace whose collection `journal` is
+# configured by the deployer as the person's own writing, holding `salad.md` with one line:
+#   Cut-and-come-again salad pays for its bed in a month.
+# Whether the draft a model writes from the bundle is a good one is measured in phase 0.
+
+name: Draft from what I hold
+description: >-
+  When I write an article, a script or a thread, I want the draft built only from views I hold,
+  so that it is mine and safe to publish.
+job: draft-from-what-i-hold
+tags: [use, loop]
+
+steps:
+  - description: A view
+    command: ideas-capture
+    input:
+      type: position
+      statement: A small garden should grow what is expensive to buy, not what is cheap.
+    expect:
+      success: true
+
+  - description: My own notes, which the instance holds on its disk
+    command: ideas-source-add
+    input:
+      document: journal/salad.md
+    expect:
+      success: true
+      data:
+        attests: true
+
+  - description: My own words from them, cited by number
+    command: ideas-capture
+    input:
+      type: example
+      sources:
+        - source: "${{ steps[1].data.source }}"
+          sentences: [1]
+    expect:
+      success: true
+      data:
+        standing: attested
+
+  - description: Something an agent suggested that I have not looked at
+    command: ideas-capture
+    input:
+      type: position
+      statement: Potatoes are never worth the space in a small garden.
+      saidBy: agent
+    expect:
+      success: true
+      data:
+        standing: seed
+
+  - description: Put the view in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[4].data.review }}"
+      digest: "${{ steps[4].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 1
+
+  - description: A bundle for the newsletter; with nothing said, it holds affirmed and attested ideas only
+    command: ideas-bundle
+    input:
+      ids: ["${{ steps[0].data.id }}", "${{ steps[2].data.id }}", "${{ steps[3].data.id }}"]
+      format: article
+      channel: newsletter
+    expect:
+      success: true
+      data:
+        at: { exists: true }
+        ideas: { length: 2 }
+        guidance: { exists: true }
+        leftOut:
+          standing: 1
+
+  - description: Record the article, by where the store stood when it was written and the ideas it used
+    command: ideas-output-record
+    input:
+      at: "${{ steps[6].data.at }}"
+      ideas: ["${{ steps[0].data.id }}", "${{ steps[2].data.id }}"]
+      title: What to grow in six square metres
+      format: article
+      channel: newsletter
+    expect:
+      success: true
+      data:
+        pinned: 2
+        state: draft
+        attention:
+          seeds: { length: 0 }
+
+  - description: An output that used the seed is recorded, and says so
+    command: ideas-output-record
+    input:
+      title: A thread on potatoes
+      format: thread
+      channel: social
+      ideas: ["${{ steps[3].data.id }}"]
+    expect:
+      success: true
+      data:
+        attention:
+          seeds: { length: 1 }

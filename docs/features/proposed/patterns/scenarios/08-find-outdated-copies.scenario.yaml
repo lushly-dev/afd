@@ -1,0 +1,70 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. The page's source holds three copied regions. One carries the revision
+# the pack holds for `collection-empty`, one carries an earlier revision of it, and one names a
+# copy the pack does not have. The digests below stand in for real ones.
+#
+# What this cannot show: the answer also carries a warning with the count of copies that
+# differ, and `expect` cannot reach `warnings`.
+
+name: Find copies whose source has changed
+description: >-
+  When a page holds regions copied from references, I want each copy's source named and
+  whether it still matches, so that a fixed defect can be repaired where it was copied.
+job: find-outdated-copies
+tags: [maintain]
+
+steps:
+  - description: Each provenance marker in the source is reported against the pack
+    command: components-brief
+    input:
+      source: >-
+        <section data-pattern-copy="example/empty-collection/collection-empty
+        sha256:1111111111111111111111111111111111111111111111111111111111111111">…</section>
+        <section data-pattern-copy="example/empty-collection/collection-empty
+        sha256:2222222222222222222222222222222222222222222222222222222222222222">…</section>
+        <section data-pattern-copy="example/saved-search/search-saved
+        sha256:3333333333333333333333333333333333333333333333333333333333333333">…</section>
+    expect:
+      success: true
+      data:
+        copies:
+          - library: example
+            pattern: empty-collection
+            implementation: collection-empty
+            state: current
+          - library: example
+            pattern: empty-collection
+            implementation: collection-empty
+            state: differs
+          - library: example
+            pattern: saved-search
+            implementation: search-saved
+            state: unknown
+
+  - description: The current copy's source is read, to repair the one that differs
+    command: components-pattern-open
+    input:
+      pattern: empty-collection
+      implementation: collection-empty
+      sections: [keep, source]
+    expect:
+      success: true
+      data:
+        content:
+          pattern:
+            pattern: empty-collection
+            implementations:
+              - kind: copy
+                name: collection-empty
+                revision: sha256:1111111111111111111111111111111111111111111111111111111111111111
+                html: { exists: true }
+
+  - description: A pattern the pack does not hold is refused, with the way to find one
+    command: components-pattern-open
+    input:
+      pattern: saved-search
+    expect:
+      success: false
+      error:
+        code: PATTERN_NOT_FOUND
+        suggestion: { contains: components-pattern-list }

@@ -128,6 +128,14 @@ impl MemoryFlag {
             Self::InstructionLike => "instruction-like",
         }
     }
+
+    /// The finding spelled `text`, or `None`: how a record lane's row is read back.
+    #[must_use]
+    pub fn parse(text: &str) -> Option<Self> {
+        [Self::HiddenText, Self::InstructionLike]
+            .into_iter()
+            .find(|flag| flag.as_str() == text)
+    }
 }
 
 /// Why a version was closed.

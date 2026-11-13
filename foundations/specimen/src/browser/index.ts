@@ -18,6 +18,7 @@ import { captureDocument, colorSchemeOf, contextMismatches, customElementsIn } f
 import { type EventRecorder, recordEvents } from './events.js';
 import { installInstrumentation } from './instrumentation.js';
 import { locate } from './locate.js';
+import { installPageErrors, takePageErrors, watchPageErrors } from './page-errors.js';
 import { describe, enrichSchema, type InstalledPlugins, installPlugins } from './plugins.js';
 import type { MountedStory, PreparedStory, StoryModule } from './story-runtime.js';
 import { needsScenarioSupport, validateSpecimen } from './validate.js';
@@ -69,6 +70,9 @@ function isElement(value: unknown): value is HTMLElement {
 	return value instanceof HTMLElement;
 }
 
+/** A mount with no declared targets, scenario or events of its own. */
+const unscripted = () => ({ targets: {}, scenario: [], events: [] });
+
 function toHandle(value: unknown): MountHandle {
 	if (isElement(value)) return { element: value };
 	if (isRecord(value) && isElement(value.element)) {
@@ -119,6 +123,7 @@ async function validated(module: SpecimenModule, exportName: string) {
 export function installRuntime(loaders: Record<string, () => Promise<SpecimenModule>>): void {
 	if (window.__specimen) throw new Error('The Specimens runtime is already installed.');
 	seedRandom(RANDOM_SEED);
+	installPageErrors();
 	const instrumentation = installInstrumentation();
 	const root = document.querySelector<HTMLElement>('#specimen-root');
 	if (!root) throw new Error('The bench page must contain #specimen-root.');
@@ -231,13 +236,24 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 	const commandsRun: string[] = [];
 	/** A specimen's declared claims, and those a play made as it ran. */
 	let declaredClaims: CoverageClaim[] = [];
-	const playClaims: { element: Element; obligation: string; expectation: string }[] = [];
+	const playClaims: {
+		element: Element;
+		obligation: string;
+		expectation: string;
+		checked?: boolean;
+	}[] = [];
 	(globalThis as { __specimenClaim?: unknown }).__specimenClaim = (
 		element: Element,
 		obligation: string,
-		expectation: string
+		expectation: string,
+		checked?: boolean
 	) => {
-		playClaims.push({ element, obligation, expectation });
+		playClaims.push({
+			element,
+			obligation,
+			expectation,
+			...(checked === undefined ? {} : { checked }),
+		});
 		expectations.push({ id: expectation, kind: 'play', target: element.localName });
 	};
 	/** The properties a coverage run asked to read live, by tag, and attributes set on those tags. */
@@ -311,12 +327,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 		const { mountStory } = await storyRuntime();
 		story.mounted = mountStory(story.prepared, mountRoot, abort.signal);
 		if (options.settle !== false) await settle();
-		return { targets: {}, scenario: [], events: [] };
+		return unscripted();
 	}
 
 	window.__specimen = {
 		async resolve(entry, requestedContext, defaults, options = {}) {
 			if (!entry.story) return null;
+			// A run counts what the story's module raises as it loads, as Vitest does.
+			if (options.check) watchPageErrors();
 			const prepared = await prepareRetained(entry, requestedContext);
 			const { prepareAccessibility, storyRenderContext } = await storyRuntime();
 			// Only a run has a check to prepare for; a profile at mount should not count axe's bytes.
@@ -462,17 +480,20 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 			if (active)
 				throw new Error('A specimen is already mounted; dispose it before mounting another.');
 			active = true;
+			watchPageErrors();
 			await observeEntry(entry);
-			const { runStory, checkSettledStory } = await storyRuntime();
+			const { runStory, checkSettledStory, failOnPageErrors } = await storyRuntime();
 			await mountRetained(entry, context, { settle: false });
 			if (!story?.mounted) throw new Error('A retained story did not mount.');
 			await afterMicrotasks();
-			const outcome = await runStory(story.mounted);
+			let outcome = await runStory(story.mounted);
 			await settle();
-			if (!options.settled) return outcome;
-			// `settle` draws one frame; a component that defers a write to its next frame draws then.
-			await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
-			return checkSettledStory(story.mounted, outcome);
+			if (options.settled) {
+				// `settle` draws one frame; a component that defers a write to its next frame draws then.
+				await new Promise<void>((resolve) => requestAnimationFrame(() => resolve()));
+				outcome = await checkSettledStory(story.mounted, outcome);
+			}
+			return failOnPageErrors(outcome, await takePageErrors());
 		},
 		async mount(entry, context) {
 			if (active)
@@ -496,6 +517,16 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 				if (theme) {
 					const undo = theme.preset({ document, root: mountRoot });
 					if (typeof undo === 'function') disposers.push(undo as Disposer);
+				}
+				if (entry.remount) {
+					// Markup taken from a case, mounted again: its module registers the components, and
+					// the markup alone has to reproduce what the case showed. Settling waits for them.
+					await load();
+					declaredClaims = [];
+					story = undefined;
+					mountRoot.innerHTML = entry.remount;
+					await settle();
+					return unscripted();
 				}
 				const module = await load();
 				const { meta, specimen } = await validated(module, entry.exportName);
@@ -586,13 +617,14 @@ export function installRuntime(loaders: Record<string, () => Promise<SpecimenMod
 							ref: named[index] ? (refs.shift() ?? null) : null,
 							source: 'declared' as const,
 						})),
-						...playClaims.map(({ element, obligation, expectation }) => ({
+						...playClaims.map(({ element, obligation, expectation, checked }) => ({
 							target: element.localName,
 							ref: refs.shift() ?? null,
 							obligation,
 							checkpoint: 'after-run',
 							expectations: [expectation],
 							source: 'play' as const,
+							...(checked === undefined ? {} : { checked }),
 						})),
 					],
 					commands: [...commandsRun],

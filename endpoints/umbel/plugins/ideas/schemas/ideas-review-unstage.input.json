@@ -1,0 +1,30 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"review": {
+			"type": "string",
+			"description": "The review; absent, your newest open one",
+			"maxLength": 28
+		},
+		"proposals": {
+			"type": "array",
+			"items": {
+				"type": "string"
+			}
+		},
+		"all": {
+			"type": "boolean"
+		},
+		"idempotencyKey": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 256,
+			"description": "Send the same key again to repeat a call safely: what the first call wrote is returned, and completed if it stopped part way"
+		}
+	}
+}

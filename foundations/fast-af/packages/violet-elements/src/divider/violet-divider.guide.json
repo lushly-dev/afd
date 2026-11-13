@@ -1,0 +1,33 @@
+{
+  "tag": "violet-divider",
+  "summary": "Horizontal or vertical rule between regions; set decorative when the line only adds visual separation.",
+  "usage": [
+    {
+      "id": "divider.vertical",
+      "text": "orientation=\"vertical\" makes the host inline-flex with align-self: stretch, so place it in a flex row: it fills the row's height, at least 1.5rem.",
+      "members": [
+        "orientation"
+      ]
+    },
+    {
+      "id": "divider.content",
+      "text": "It draws only a line and has no slot, so it cannot carry a label such as \"or\"; put any text in sibling elements."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "divider.semantics",
+      "text": "Horizontal renders a native hr; vertical renders an element with role=\"separator\" and aria-orientation=\"vertical\". Both live in its shadow root, not on the host.",
+      "members": [
+        "orientation"
+      ]
+    },
+    {
+      "id": "divider.decorative",
+      "text": "The decorative attribute hides the rule from assistive technology (aria-hidden, and role=presentation when vertical). Use it where a separator would only add noise.",
+      "members": [
+        "decorative"
+      ]
+    }
+  ]
+}

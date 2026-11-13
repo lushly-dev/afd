@@ -48,6 +48,7 @@ describe('readBoot (phase 2 specification, 2.2)', () => {
 					refusal: null,
 				},
 			],
+			identity: { mode: 'local' },
 		});
 	});
 

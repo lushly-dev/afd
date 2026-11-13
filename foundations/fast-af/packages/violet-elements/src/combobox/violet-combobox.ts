@@ -259,6 +259,25 @@ const template = html<VioletCombobox>`
     </div>
 `;
 
+/**
+ * Violet reusable combobox primitive.
+ *
+ * @summary Editable field that filters a popup list of options as the user types; the form receives the chosen option's value.
+ * @slot - The options: violet-option and violet-option-group elements.
+ * @fires input - Emitted while the text changes, with the text and the chosen option's value.
+ * @fires change - Emitted when an option is chosen or the text is committed.
+ * @csspart field - Field wrapper.
+ * @csspart label - Label text element.
+ * @csspart control-shell - Wrapper around the input frame and the popup panel.
+ * @csspart control-frame - Framed wrapper around the input and the caret.
+ * @csspart input - Native text input.
+ * @csspart caret - Decorative open indicator.
+ * @csspart panel - Popup panel.
+ * @csspart listbox - The popup list that holds the slotted options.
+ * @csspart empty-state - Shown when no option matches the text.
+ * @csspart supporting-text - Supporting text element.
+ * @csspart error-message - Error text element.
+ */
 export class VioletCombobox extends FASTElement {
     public static readonly formAssociated = true;
 

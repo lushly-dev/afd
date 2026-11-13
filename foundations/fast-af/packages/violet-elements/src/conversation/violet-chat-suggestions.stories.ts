@@ -18,6 +18,7 @@ function createChips(texts: string[]): HTMLElement[] {
 
 const meta = {
     title: "Conversation/Suggestions",
+    component: "violet-chat-suggestions",
     tags: ["autodocs"],
     parameters: {
         docs: {

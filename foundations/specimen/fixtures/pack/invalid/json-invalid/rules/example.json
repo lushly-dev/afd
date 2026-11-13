@@ -1,0 +1,10 @@
+{
+	"format": 1,
+	"library": "example",
+	"rules": [
+		{
+			"appliesTo": {
+				"attributes": [
+					"invalid"
+				]
+			},

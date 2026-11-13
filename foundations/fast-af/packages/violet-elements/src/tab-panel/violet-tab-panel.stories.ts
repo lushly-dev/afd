@@ -24,6 +24,7 @@ function renderPanel(args: VioletTabPanelStoryArgs): VioletTabPanel {
 
 const meta = {
     title: "Components/Tab Panel",
+    component: "violet-tab-panel",
     tags: ["autodocs"],
     parameters: {
         docs: {

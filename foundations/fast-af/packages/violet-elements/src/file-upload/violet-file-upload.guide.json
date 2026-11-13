@@ -1,0 +1,71 @@
+{
+  "tag": "violet-file-upload",
+  "summary": "File chooser with a browse button or a drag-and-drop zone that lists the chosen files with remove buttons and submits them with a form.",
+  "usage": [
+    {
+      "id": "file-upload.form",
+      "text": "The form receives one entry per file under name, and nothing without a name; submit it as multipart/form-data. The value property is always empty; read files, an array of File.",
+      "members": [
+        "name",
+        "value",
+        "files"
+      ]
+    },
+    {
+      "id": "file-upload.events",
+      "text": "input and change carry detail.files, a copy of the File array. Removing a file also fires remove with detail { file, index, files }.",
+      "members": [
+        "input",
+        "change",
+        "remove"
+      ]
+    },
+    {
+      "id": "file-upload.multiple",
+      "text": "Without multiple, a new choice replaces the file. With it, each choice or drop adds to the list, skipping duplicates; take files out with removeFileAt(index) or clearFiles().",
+      "members": [
+        "multiple"
+      ]
+    },
+    {
+      "id": "file-upload.limits",
+      "text": "accept, max-files and max-file-size (bytes) are checked on every choice and drop. A failing selection is rejected whole, the current files stay, and the reason is shown as the error.",
+      "members": [
+        "accept",
+        "max-files",
+        "max-file-size"
+      ]
+    },
+    {
+      "id": "file-upload.dropzone",
+      "text": "Drag and drop works only with appearance=\"dropzone\", where a click anywhere on the zone also opens the picker. The default appearance=\"button\" is a browse button only.",
+      "members": [
+        "appearance"
+      ]
+    },
+    {
+      "id": "file-upload.script",
+      "text": "setFiles(files) applies the same checks and returns false when it rejects them. openPicker() opens the system file dialog and needs a user gesture."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "file-upload.name",
+      "text": "The browse button is named \"<label>: Browse file\" (\"Browse files\" with multiple, \"Replace file\" once a single file is chosen). The native file input is hidden from assistive technology.",
+      "members": [
+        "label",
+        "multiple"
+      ]
+    },
+    {
+      "id": "file-upload.status",
+      "text": "The selection summary is a polite status region, so each new choice is announced. Every listed file has its own remove button named \"Remove <file name>\"."
+    }
+  ],
+  "roles": [
+    {
+      "state": "selected",
+      "role": "list"
+    }
+  ]
+}

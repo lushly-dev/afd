@@ -1,0 +1,97 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+
+name: Find something worth sharing today
+description: >-
+  When I need something to post today, I want the ideas worth sharing that I have not used on
+  that channel, so that I do not repeat myself.
+job: find-what-to-share
+tags: [use, slice]
+
+steps:
+  - description: One idea
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Plant garlic on the shortest day and harvest it on the longest.
+    expect:
+      success: true
+
+  - description: Another
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Never leave soil bare over winter.
+    expect:
+      success: true
+
+  - description: Put both in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          affirm: 2
+
+  - description: The first was posted, and the record says so
+    command: ideas-output-record
+    input:
+      title: Garlic by the calendar
+      format: thread
+      channel: social
+      state: published
+      location: https://example.org/posts/garlic
+      ideas: ["${{ steps[0].data.id }}"]
+    expect:
+      success: true
+      data:
+        state: published
+
+  - description: A draft of the second, never posted, does not count as used
+    command: ideas-output-record
+    input:
+      title: Bare soil
+      format: thread
+      channel: social
+      ideas: ["${{ steps[1].data.id }}"]
+    expect:
+      success: true
+      data:
+        state: draft
+
+  - description: What I hold and have not published on that channel
+    command: ideas-find
+    input:
+      standing: [affirmed]
+      unusedIn:
+        channel: social
+    expect:
+      success: true
+      data:
+        total: 1
+
+  - description: What I have published there
+    command: ideas-find
+    input:
+      usedIn:
+        channel: social
+    expect:
+      success: true
+      data:
+        total: 1

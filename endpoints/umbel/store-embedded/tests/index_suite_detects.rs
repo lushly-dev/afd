@@ -109,6 +109,7 @@ fn factory(fault: Fault) -> impl Fn(&Path, &str) -> Result<Stores, StoreError> {
             index: Some(Arc::new(Faulty { inner, fault })),
             memory: None,
             memory_restore: None,
+            lane: None,
         })
     }
 }

@@ -11,6 +11,7 @@ type TextStoryArgs = {
 
 const meta = {
     title: "Conversation/Message Text",
+    component: "violet-message-text",
     tags: ["autodocs"],
     parameters: {
         docs: {

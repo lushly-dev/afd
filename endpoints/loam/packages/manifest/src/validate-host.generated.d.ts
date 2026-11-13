@@ -4,3 +4,4 @@ import type { GeneratedValidator } from './validator-errors.js';
 export const validateCoreManifest: GeneratedValidator;
 export const validateDeployment: GeneratedValidator;
 export const validateDeploymentV2: GeneratedValidator;
+export const validateDeploymentV3: GeneratedValidator;

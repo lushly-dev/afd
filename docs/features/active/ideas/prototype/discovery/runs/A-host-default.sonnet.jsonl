@@ -1,0 +1,24 @@
+{"n":1,"tool":"ideas-capture","command":null,"why":"A view worth keeping; ideas-capture is for exactly this"}
+{"n":2,"tool":"ideas-capture","command":null,"why":"A stated position the person wants saved"}
+{"n":3,"tool":"ideas-capture","command":null,"why":"A principle to keep for later; idea capture"}
+{"n":4,"tool":"ideas-capture","command":null,"why":"Explicitly an idea to hold onto"}
+{"n":5,"tool":"ideas-capture","command":null,"why":"Permanent claim; ideas are kept for good"}
+{"n":6,"tool":"ideas-capture","command":null,"why":"Evidence with source; capture records provenance"}
+{"n":7,"tool":"ideas-capture","command":null,"why":"Open question is a supported idea type"}
+{"n":8,"tool":"ideas-capture","command":null,"why":"Explicit 'remember this idea'; a position to keep"}
+{"n":9,"tool":"afd-discover","command":"search ideas","why":"Need an ideas search command; none listed, so discover"}
+{"n":10,"tool":"afd-discover","command":"search ideas","why":"Need to find stance on raised beds; discover ideas commands"}
+{"n":11,"tool":"afd-discover","command":"search ideas evidence","why":"Retrieving saved evidence needs an ideas lookup command"}
+{"n":12,"tool":"afd-discover","command":"search ideas contradiction","why":"Contradiction analysis likely a dedicated ideas command"}
+{"n":13,"tool":"afd-discover","command":"search ideas","why":"Summary of beliefs needs an ideas read command"}
+{"n":14,"tool":"afd-discover","command":"search ideas similar","why":"Check for duplicates without saving; find a lookup command"}
+{"n":15,"tool":"afd-discover","command":"search ideas draft","why":"Drafting from ideas likely has dedicated commands"}
+{"n":16,"tool":"context-bundle","command":null,"why":"Assembles budgeted context for a task from knowledge"}
+{"n":17,"tool":"afd-discover","command":"search ideas","why":"Need command to retrieve ideas about pests"}
+{"n":18,"tool":"afd-discover","command":"search ideas outline","why":"Outline from ideas; look for ideas commands"}
+{"n":19,"tool":"memory-remember","command":null,"why":"Preference about working with the person"}
+{"n":20,"tool":"memory-remember","command":null,"why":"Durable fact about the person's garden"}
+{"n":21,"tool":"memory-remember","command":null,"why":"Working preference for future sessions"}
+{"n":22,"tool":"memory-remember","command":null,"why":"Fact about the person to remember"}
+{"n":23,"tool":"knowledge-search","command":null,"why":"Search documents for leek germination times"}
+{"n":24,"tool":"knowledge-search","command":null,"why":"Locate the planting calendar before opening March section"}

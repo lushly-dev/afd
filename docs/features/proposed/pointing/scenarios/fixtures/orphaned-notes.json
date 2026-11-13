@@ -1,0 +1,65 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "c9d2e85", "dirty": false },
+	"specimens": {
+		"example-toolbar": {
+			"module": "src/toolbar/toolbar.specimens.ts",
+			"exportName": "Toolbar",
+			"checkpoints": ["mount", "menu-open"],
+			"renders": [
+				"example-button:1 'Share link'",
+				"example-button:2 'Export'",
+				"at menu-open: menu with menuitem 'Archive'"
+			]
+		}
+	},
+	"points": {},
+	"notes": {
+		"note-7k2m9q4x1r8t": {
+			"state": "open",
+			"subject": {
+				"specimen": "example-toolbar",
+				"accessible": { "role": "button", "name": "Archive" },
+				"component": "example-button",
+				"position": 3
+			}
+		},
+		"note-3hd8w2c5n0vp": {
+			"state": "open",
+			"subject": {
+				"specimen": "example-toolbar",
+				"accessible": { "role": "button", "name": "Share" },
+				"component": "example-button",
+				"position": 1
+			}
+		},
+		"note-q4z1m6t9b2xe": {
+			"state": "open",
+			"subject": {
+				"specimen": "example-toolbar",
+				"accessible": { "role": "group", "name": "Filters" },
+				"component": "example-filter-bar",
+				"position": 1
+			}
+		},
+		"note-w8c3r5y0k7aj": {
+			"state": "open",
+			"subject": {
+				"specimen": "example-toolbar",
+				"accessible": { "role": "button", "name": "Clear filters" },
+				"component": "example-filter-bar",
+				"position": 1
+			}
+		},
+		"note-f5n2p8v1d6gs": {
+			"state": "open",
+			"subject": {
+				"specimen": "example-legacy",
+				"accessible": { "role": "button", "name": "Print" },
+				"component": "example-button",
+				"position": 1
+			}
+		}
+	},
+	"deleted": ["src/legacy/legacy.specimens.ts"]
+}

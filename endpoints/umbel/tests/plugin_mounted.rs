@@ -91,18 +91,6 @@ fn hello_workspace(instance: &str) -> TempDir {
 /// How long a test waits for something that will happen, however loaded the machine is (#644).
 const PATIENCE: Duration = Duration::from_secs(30);
 
-/// Poll until `done` or `PATIENCE` passes.
-fn eventually(mut done: impl FnMut() -> bool) -> bool {
-    let started = Instant::now();
-    while started.elapsed() < PATIENCE {
-        if done() {
-            return true;
-        }
-        std::thread::sleep(Duration::from_millis(50));
-    }
-    done()
-}
-
 /// Retry `attempt` until it gives a value or `PATIENCE` passes. It sleeps on the runtime, not the
 /// thread: a test's runtime also runs the task that notices a dead child.
 async fn retry<T>(mut attempt: impl AsyncFnMut() -> Option<T>) -> Option<T> {
@@ -116,12 +104,17 @@ async fn retry<T>(mut attempt: impl AsyncFnMut() -> Option<T>) -> Option<T> {
     attempt().await
 }
 
+/// Whether `pid` is a running process. A zombie is not: `kill -0` succeeds on one, and a killed child
+/// stays a zombie until a runtime's process driver reaps it, which may be another test's or none.
 fn process_alive(pid: u64) -> bool {
-    std::process::Command::new("kill")
-        .args(["-0", &pid.to_string()])
-        .stderr(std::process::Stdio::null())
-        .status()
-        .is_ok_and(|status| status.success())
+    std::process::Command::new("ps")
+        .args(["-o", "stat=", "-p", &pid.to_string()])
+        .output()
+        .is_ok_and(|output| {
+            let state = String::from_utf8_lossy(&output.stdout);
+            let state = state.trim();
+            !state.is_empty() && !state.starts_with('Z')
+        })
 }
 
 // ── hello, three transports ───────────────────────────────────────────────────────────────────
@@ -805,10 +798,8 @@ async fn the_child_dies_with_the_host() {
         .unwrap();
     assert!(process_alive(pid));
     drop(host);
-    assert!(
-        eventually(|| !process_alive(pid)),
-        "the child {pid} outlived the host"
-    );
+    let gone = retry(async || (!process_alive(pid)).then_some(())).await;
+    assert!(gone.is_some(), "the child {pid} outlived the host");
 }
 
 #[tokio::test]
@@ -947,16 +938,10 @@ async fn a_server_that_never_answers_fails_the_load_at_connect_timeout_ms() {
         json!({"mute": true})
     );
     let dir = fx_stdio("", "", &body);
-    let started = Instant::now();
     let error = error_of(open(dir.path()));
     assert_eq!(error.code(), "PLUGIN_LOAD_FAILED");
+    // Named only when the deployer's timeout fires first: the probe fails with its own error.
     assert!(error.message().contains("connect_timeout_ms"), "{error}");
-    // Under the probe's ten seconds, so it still tells the two apart on a loaded machine.
-    assert!(
-        started.elapsed() < Duration::from_secs(9),
-        "{:?}",
-        started.elapsed()
-    );
 }
 
 #[tokio::test]

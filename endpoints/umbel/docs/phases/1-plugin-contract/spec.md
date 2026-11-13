@@ -1458,6 +1458,7 @@ the file-only checks even when `seal` fails; a doctor run with no catalog
 | `plugins.loaded` | Every instance loaded; reports kinds and counts, and "trusted, not sandboxed" beside each compiled instance's grants | An optional instance failed (names the code); a mounted tool skipped (`PLUGIN_TOOL_UNNAMEABLE`, `PLUGIN_TOOL_SCHEMA_UNSUPPORTED`); a mounted description matched by the `description-injection` rule | Never: a required failure stops the host from opening | `skip` |
 | `plugins.first_class` | Suggestions fit the cap | Suggestions dropped | | `skip` |
 | `plugins.pipelines` | Every pipeline registered | A pipeline not registered (names the missing step) | | `skip` |
+| `plugins.pack_checks` (added 2026-11-11, D172) | Every space override of a compiled instance's pack passes the plugin's own check (`umbel_sdk::Plugin::check_pack`), or the plugin offers none (counted, layout only) | An optional instance's override fails it, or the failure is retryable | A required instance's override fails it (names the instance, pack, space, the plugin's code, message and first problems) | `skip` |
 
 ### 9.3 Error codes
 

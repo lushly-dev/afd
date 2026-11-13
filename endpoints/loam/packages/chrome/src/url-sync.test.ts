@@ -4,7 +4,7 @@
  * commands only where the state differs; the URL holds only what the state names, and never a project the
  * actor may not see.
  */
-import type { AppSummaryV2, KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { AppSummaryV2, KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { RouterV1, RouteV1 } from './router.js';
 import { createUrlSync, type MainStateV1, routeOf, type UrlHostV1 } from './url-sync.js';
@@ -117,7 +117,7 @@ async function fixture(
 		},
 	};
 	const host: UrlHostV1 = {
-		kernel: kernel as unknown as LoamKernelV2,
+		kernel: kernel as unknown as LoamKernelV3,
 		base: BASE,
 		ownerDocument: {
 			defaultView: {
@@ -156,14 +156,14 @@ async function fixture(
 	return { calls, commands, moves, host, kernel, sync, timers };
 }
 
-const event = (extra: Partial<KernelEventV2>): KernelEventV2 =>
+const event = (extra: Partial<KernelEventV3>): KernelEventV3 =>
 	({
 		command: 'scope-set',
 		interface: 'agent',
 		success: true,
 		mutation: true,
 		...extra,
-	}) as KernelEventV2;
+	}) as KernelEventV3;
 
 describe('P2-E8: a route runs journaled commands, only where the state differs', () => {
 	it('P2-E8: an app in a project: scope-set, then app-open, then app-route-set, and one replace', async () => {

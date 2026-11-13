@@ -81,6 +81,21 @@ describe('dart transformer', () => {
 		);
 	});
 
+	it('expands four-digit CSS hex and moves its alpha to the front', () => {
+		const dart = dartTransformer.transform([
+			token('color.tint', '#F008'),
+			token('border.veil', '#0a3c'),
+		]);
+
+		expect(declarationOf(dart, 'colorTint')).toBe(
+			'static const Color colorTint = Color(0x88FF0000);',
+		);
+		// A four-digit hex value outside the color category is still a color.
+		expect(declarationOf(dart, 'borderVeil')).toBe(
+			'static const Color borderVeil = Color(0xCC00AA33);',
+		);
+	});
+
 	it('converts dimensions to doubles with a 16px base for rem and em', () => {
 		const dart = dartTransformer.transform([
 			token('spacing.px', '12px'),

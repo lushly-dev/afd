@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/afd-server",
-	"version": "2.3.0",
+	"version": "2.4.0",
 	"description": "Server-side utilities for building AFD-compliant MCP servers with Zod validation",
 	"type": "module",
 	"main": "./dist/index.js",
@@ -39,6 +39,7 @@
 		"@lushly-dev/afd-core": "workspace:*",
 		"@modelcontextprotocol/node": "^2.1.2",
 		"@modelcontextprotocol/server": "^2.4.0",
+		"jose": "^6.2.14",
 		"yaml": "^2.9.1",
 		"zod": "^4.6.6"
 	},
@@ -47,7 +48,7 @@
 		"@modelcontextprotocol/client": "^2.4.0",
 		"@vitest/coverage-v8": "^5.1.0",
 		"esbuild": "0.28.2",
-		"playwright": "1.64.0",
+		"playwright": "1.64.1",
 		"typescript": "^7.0.2",
 		"vitest": "^5.1.0"
 	},

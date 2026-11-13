@@ -1,0 +1,56 @@
+{
+  "tag": "violet-date-picker",
+  "summary": "Date field: a native date input plus a button that opens a calendar popup. Use for one calendar date; the value is an ISO date string.",
+  "usage": [
+    {
+      "id": "date-picker.value",
+      "text": "value is an ISO date, YYYY-MM-DD, or empty, and the form receives it under name. min and max use the same format; a date outside them is invalid with a built-in message.",
+      "members": [
+        "value",
+        "min",
+        "max",
+        "name"
+      ]
+    },
+    {
+      "id": "date-picker.events",
+      "text": "input and change carry detail.value. Picking a day fires both, closes the calendar and returns focus to the input. The native input's own input event also reaches host listeners, without detail.",
+      "members": [
+        "input",
+        "change"
+      ]
+    },
+    {
+      "id": "date-picker.open",
+      "text": "Open the calendar with show(), toggleOpen() or the open attribute; close it with hide(). open-change fires with detail.open on each change, and once with false when the element connects.",
+      "members": [
+        "open",
+        "open-change"
+      ]
+    },
+    {
+      "id": "date-picker.locale",
+      "text": "locale (a BCP 47 tag; default the page lang) sets the calendar's month and weekday names only. The native input shows the date in the browser's own format.",
+      "members": [
+        "locale"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "date-picker.keyboard",
+      "text": "ArrowDown in the input opens the calendar and focuses a day. Escape closes it and returns focus to the input, and is stopped so an enclosing dialog stays open. An outside click also closes it."
+    },
+    {
+      "id": "date-picker.toggle",
+      "text": "The calendar button is named \"Choose date\", or \"Change date\" once a value is set, and exposes aria-expanded. The popup panel itself has no dialog role."
+    }
+  ],
+  "roles": [
+    {
+      "state": "open",
+      "role": "grid",
+      "name": "from the displayed month and year"
+    }
+  ]
+}

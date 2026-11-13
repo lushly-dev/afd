@@ -4,7 +4,12 @@ import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { matchesRecord, PROVENANCE_FAMILIES, provenancePaths } from './release/provenance.mjs';
+import {
+	hasStaleShape,
+	matchesRecord,
+	PROVENANCE_FAMILIES,
+	provenancePaths,
+} from './release/provenance.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const directory = PROVENANCE_FAMILIES['fast-af'].directory;
@@ -76,9 +81,11 @@ test('every imported FAST-AF file is present, recorded and unchanged since revie
 	for (const file of adaptations.files) {
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
+		const bytes = readFileSync(join(root, file.path));
+		assert(matchesRecord(file, bytes), `${file.path} changed; record the adaptation`);
 		assert(
-			matchesRecord(file, readFileSync(join(root, file.path))),
-			`${file.path} changed; record the adaptation`
+			!hasStaleShape(file, bytes),
+			`${file.path}: its record's manifest_shape_sha256 is stale; run scripts/release/provenance.mjs`
 		);
 		if (file.import_classification === 'unchanged-staged')
 			assert.equal(file.current_import_sha256, file.staged_sha256, file.path);
@@ -104,6 +111,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		assert.equal(blob(bytes), byPath.get(file.upstream_path).git_blob, file.path);
 		checked++;
 	}
-	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers.
-	assert(checked > 650, `only ${checked} unchanged upstream files`);
+	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers,
+	// and the label-in-name change (#971) reached six more files, five of them specs.
+	assert(checked > 640, `only ${checked} unchanged upstream files`);
 });

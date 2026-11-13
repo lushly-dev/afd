@@ -1,0 +1,37 @@
+{
+	"tool": "sentences.py",
+	"rule_version": 3,
+	"files": 66,
+	"units": 10057,
+	"units_by_kind": {
+		"code": 6,
+		"heading": 930,
+		"list": 3122,
+		"prose": 4763,
+		"quote": 60,
+		"table": 1176
+	},
+	"share_of_words_by_kind": {
+		"code": 0.0013,
+		"heading": 0.025,
+		"list": 0.3019,
+		"prose": 0.5022,
+		"quote": 0.0098,
+		"table": 0.1598
+	},
+	"sentence_words": {
+		"median": 15,
+		"p90": 31,
+		"p99": 60,
+		"max": 196
+	},
+	"sentences_over_60_words": 77,
+	"units_without_a_terminal_mark": {
+		"list": 1539,
+		"prose": 307
+	},
+	"share_of_sentences_without_a_terminal_mark": 0.2323,
+	"units_with_a_speaker": 0,
+	"transcripts": 0,
+	"transcripts_listed": 0
+}

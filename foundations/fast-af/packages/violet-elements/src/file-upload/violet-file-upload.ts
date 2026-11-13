@@ -1038,7 +1038,7 @@ export class VioletFileUpload extends FASTElement {
         const validationMessage = this.customValidationMessage || (this.invalid ? this.errorText || "Invalid file selection." : "") || (valueMissing ? "Select a file to continue." : "");
         const control = this.shadowRoot?.querySelector("input") as HTMLInputElement | null;
 
-        this.#internals.ariaInvalid = this.invalid || Boolean(this.customValidationMessage) ? "true" : "false";
+        this.#internals.ariaInvalid = this.invalid || this.customValidationMessage ? "true" : "false";
 
         this.#internals.setValidity(
             {

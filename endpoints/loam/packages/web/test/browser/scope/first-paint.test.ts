@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import type { ProjectionV2 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
 import { type Browser, type BrowserContext, chromium, type Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -281,7 +281,7 @@ describe('P2-E1: one first paint', () => {
 		const title = '<img src="/pwned" onerror="document.title=\'pwned\'">Hi';
 		const site = await serveDeployment({
 			config: deploymentFile(deploymentEntry('hello', await packApp('hello'))),
-			rewrite(projection: ProjectionV2) {
+			rewrite(projection: ProjectionV3) {
 				const [hello] = projection.apps;
 				if (!hello?.boot) throw new Error('expected a boot record');
 				hello.boot.title = title;
@@ -336,7 +336,7 @@ describe('P2-E1: one first paint', () => {
 				deploymentEntry('hello', await packApp('hello')),
 				deploymentEntry('tally', await packApp('tally'))
 			),
-			rewrite(projection: ProjectionV2) {
+			rewrite(projection: ProjectionV3) {
 				const [hello] = projection.apps;
 				if (!hello?.boot) throw new Error('expected a boot record');
 				// Hello's manifest says order 10 and tally's 20: the lie puts hello after tally.
@@ -396,7 +396,7 @@ describe('P2-E1: one first paint', () => {
 	it('P2-E1: a projection the reader refuses still paints, with each app unavailable in the rail', async () => {
 		const site: DeploymentSite = await serveDeployment({
 			config: deploymentFile(deploymentEntry('hello', await packApp('hello'))),
-			rewrite(projection: ProjectionV2) {
+			rewrite(projection: ProjectionV3) {
 				const [hello] = projection.apps;
 				return { ...projection, apps: [{ ...hello, url: 'http://127.0.0.1:1/secret' }] };
 			},

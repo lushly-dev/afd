@@ -1,0 +1,2609 @@
+{
+	"tool": "match.py",
+	"pairs": 1717,
+	"labels": {
+		"distinct": 753,
+		"related": 865,
+		"same": 99
+	},
+	"by_stratum": {
+		"cross-extractor": {
+			"related": 185,
+			"same": 57,
+			"distinct": 131
+		},
+		"cross-source": {
+			"distinct": 622,
+			"related": 680,
+			"same": 42
+		}
+	},
+	"lanes": {
+		"words": {
+			"auc_same_against_the_rest": 0.9486,
+			"auc_related_or_same_against_distinct": 0.6838,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.8857,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 49,
+					"share_of_duplicates_missed": 0.5444,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.4141
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.7536,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 42,
+					"share_of_duplicates_missed": 0.4667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.96,
+					"pair_recall": 0.4848
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.4393,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 21,
+					"share_of_duplicates_missed": 0.2333,
+					"refusals_that_also_name_a_different_idea": 9,
+					"pair_precision": 0.7778,
+					"pair_recall": 0.7071
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.0869,
+				"precision": 0.6205,
+				"recall": 0.8786,
+				"f1": 0.7274
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"BAAI/bge-base-en-v1.5": {
+			"auc_same_against_the_rest": 0.9554,
+			"auc_related_or_same_against_distinct": 0.7105,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9095,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 44,
+					"share_of_duplicates_missed": 0.4889,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9583,
+					"pair_recall": 0.4646
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.8365,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 28,
+					"share_of_duplicates_missed": 0.3111,
+					"refusals_that_also_name_a_different_idea": 8,
+					"pair_precision": 0.7875,
+					"pair_recall": 0.6364
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.6058,
+				"precision": 0.6207,
+				"recall": 0.9098,
+				"f1": 0.7379
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"BAAI/bge-small-en-v1.5": {
+			"auc_same_against_the_rest": 0.9298,
+			"auc_related_or_same_against_distinct": 0.6764,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9349,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 48,
+					"share_of_duplicates_missed": 0.5333,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9545,
+					"pair_recall": 0.4242
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.8876,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 36,
+					"share_of_duplicates_missed": 0.4,
+					"refusals_that_also_name_a_different_idea": 3,
+					"pair_precision": 0.8438,
+					"pair_recall": 0.5455
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.5763,
+				"precision": 0.5852,
+				"recall": 0.973,
+				"f1": 0.7308
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"ibm-granite/granite-embedding-small-english-r2": {
+			"auc_same_against_the_rest": 0.9325,
+			"auc_related_or_same_against_distinct": 0.7355,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9725,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 1,
+					"pair_precision": 0.9286,
+					"pair_recall": 0.3939
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.952,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 37,
+					"share_of_duplicates_missed": 0.4111,
+					"refusals_that_also_name_a_different_idea": 3,
+					"pair_precision": 0.8281,
+					"pair_recall": 0.5354
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.8322,
+				"precision": 0.6498,
+				"recall": 0.8776,
+				"f1": 0.7467
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"minishlab/potion-base-8M": {
+			"auc_same_against_the_rest": 0.9381,
+			"auc_related_or_same_against_distinct": 0.6748,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9692,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 49,
+					"share_of_duplicates_missed": 0.5444,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.4141
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8816,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 39,
+					"share_of_duplicates_missed": 0.4333,
+					"refusals_that_also_name_a_different_idea": 3,
+					"pair_precision": 0.9107,
+					"pair_recall": 0.5152
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.8185,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 36,
+					"share_of_duplicates_missed": 0.4,
+					"refusals_that_also_name_a_different_idea": 4,
+					"pair_precision": 0.7941,
+					"pair_recall": 0.5455
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.3594,
+				"precision": 0.5873,
+				"recall": 0.9627,
+				"f1": 0.7296
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"minishlab/potion-retrieval-32M": {
+			"auc_same_against_the_rest": 0.9342,
+			"auc_related_or_same_against_distinct": 0.6857,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9443,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 48,
+					"share_of_duplicates_missed": 0.5333,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.4242
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8314,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 39,
+					"share_of_duplicates_missed": 0.4333,
+					"refusals_that_also_name_a_different_idea": 5,
+					"pair_precision": 0.8525,
+					"pair_recall": 0.5253
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.7605,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 31,
+					"share_of_duplicates_missed": 0.3444,
+					"refusals_that_also_name_a_different_idea": 6,
+					"pair_precision": 0.7531,
+					"pair_recall": 0.6162
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.2414,
+				"precision": 0.6011,
+				"recall": 0.944,
+				"f1": 0.7345
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"nomic-ai/nomic-embed-text-v1.5-Q": {
+			"auc_same_against_the_rest": 0.9457,
+			"auc_related_or_same_against_distinct": 0.7238,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9402,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 49,
+					"share_of_duplicates_missed": 0.5444,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.4141
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9205,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 46,
+					"share_of_duplicates_missed": 0.5111,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9565,
+					"pair_recall": 0.4444
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.8789,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 35,
+					"share_of_duplicates_missed": 0.3889,
+					"refusals_that_also_name_a_different_idea": 4,
+					"pair_precision": 0.8333,
+					"pair_recall": 0.5556
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.6183,
+				"precision": 0.6282,
+				"recall": 0.9046,
+				"f1": 0.7415
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"sentence-transformers/all-MiniLM-L6-v2": {
+			"auc_same_against_the_rest": 0.9236,
+			"auc_related_or_same_against_distinct": 0.7066,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9543,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 50,
+					"share_of_duplicates_missed": 0.5556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.404
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9096,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 47,
+					"share_of_duplicates_missed": 0.5222,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9556,
+					"pair_recall": 0.4343
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.8201,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 38,
+					"share_of_duplicates_missed": 0.4222,
+					"refusals_that_also_name_a_different_idea": 3,
+					"pair_precision": 0.8525,
+					"pair_recall": 0.5253
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.3651,
+				"precision": 0.6256,
+				"recall": 0.917,
+				"f1": 0.7438
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"snowflake/snowflake-arctic-embed-s": {
+			"auc_same_against_the_rest": 0.9457,
+			"auc_related_or_same_against_distinct": 0.707,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.9591,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 48,
+					"share_of_duplicates_missed": 0.5333,
+					"refusals_that_also_name_a_different_idea": 2,
+					"pair_precision": 0.913,
+					"pair_recall": 0.4242
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.9415,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 40,
+					"share_of_duplicates_missed": 0.4444,
+					"refusals_that_also_name_a_different_idea": 2,
+					"pair_precision": 0.8475,
+					"pair_recall": 0.5051
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.7774,
+				"precision": 0.6402,
+				"recall": 0.888,
+				"f1": 0.744
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		}
+	},
+	"both": {
+		"BAAI/bge-base-en-v1.5": {
+			"weight_on_meaning": 0.7,
+			"auc_same_against_the_rest": 0.966,
+			"auc_related_or_same_against_distinct": 0.7365,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8411,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 41,
+					"share_of_duplicates_missed": 0.4556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9608,
+					"pair_recall": 0.4949
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.7142,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 22,
+					"share_of_duplicates_missed": 0.2444,
+					"refusals_that_also_name_a_different_idea": 7,
+					"pair_precision": 0.8,
+					"pair_recall": 0.6869
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.4694,
+				"precision": 0.6416,
+				"recall": 0.8952,
+				"f1": 0.7475
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"BAAI/bge-small-en-v1.5": {
+			"weight_on_meaning": 0.5,
+			"auc_same_against_the_rest": 0.9602,
+			"auc_related_or_same_against_distinct": 0.7213,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8267,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 41,
+					"share_of_duplicates_missed": 0.4556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9608,
+					"pair_recall": 0.4949
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.6656,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 25,
+					"share_of_duplicates_missed": 0.2778,
+					"refusals_that_also_name_a_different_idea": 7,
+					"pair_precision": 0.8025,
+					"pair_recall": 0.6566
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.3512,
+				"precision": 0.5935,
+				"recall": 0.9678,
+				"f1": 0.7358
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"ibm-granite/granite-embedding-small-english-r2": {
+			"weight_on_meaning": 0.7,
+			"auc_same_against_the_rest": 0.9596,
+			"auc_related_or_same_against_distinct": 0.7541,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8903,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 42,
+					"share_of_duplicates_missed": 0.4667,
+					"refusals_that_also_name_a_different_idea": 1,
+					"pair_precision": 0.9412,
+					"pair_recall": 0.4848
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.7942,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 26,
+					"share_of_duplicates_missed": 0.2889,
+					"refusals_that_also_name_a_different_idea": 6,
+					"pair_precision": 0.8101,
+					"pair_recall": 0.6465
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.6163,
+				"precision": 0.6414,
+				"recall": 0.9035,
+				"f1": 0.7502
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"minishlab/potion-base-8M": {
+			"weight_on_meaning": 0.4,
+			"auc_same_against_the_rest": 0.96,
+			"auc_related_or_same_against_distinct": 0.7074,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.938,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 50,
+					"share_of_duplicates_missed": 0.5556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.404
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.7805,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 40,
+					"share_of_duplicates_missed": 0.4444,
+					"refusals_that_also_name_a_different_idea": 1,
+					"pair_precision": 0.9434,
+					"pair_recall": 0.5051
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.5746,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 22,
+					"share_of_duplicates_missed": 0.2444,
+					"refusals_that_also_name_a_different_idea": 7,
+					"pair_precision": 0.7907,
+					"pair_recall": 0.6869
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.25,
+				"precision": 0.6322,
+				"recall": 0.8631,
+				"f1": 0.7298
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"minishlab/potion-retrieval-32M": {
+			"weight_on_meaning": 0.3,
+			"auc_same_against_the_rest": 0.9554,
+			"auc_related_or_same_against_distinct": 0.7043,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9278,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 50,
+					"share_of_duplicates_missed": 0.5556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.404
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.7707,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 40,
+					"share_of_duplicates_missed": 0.4444,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9615,
+					"pair_recall": 0.5051
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.5138,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 22,
+					"share_of_duplicates_missed": 0.2444,
+					"refusals_that_also_name_a_different_idea": 9,
+					"pair_precision": 0.7667,
+					"pair_recall": 0.697
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.1262,
+				"precision": 0.5904,
+				"recall": 0.945,
+				"f1": 0.7268
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"nomic-ai/nomic-embed-text-v1.5-Q": {
+			"weight_on_meaning": 0.6,
+			"auc_same_against_the_rest": 0.9639,
+			"auc_related_or_same_against_distinct": 0.7475,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9916,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8471,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 43,
+					"share_of_duplicates_missed": 0.4778,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 0.9592,
+					"pair_recall": 0.4747
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.7018,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 25,
+					"share_of_duplicates_missed": 0.2778,
+					"refusals_that_also_name_a_different_idea": 6,
+					"pair_precision": 0.8228,
+					"pair_recall": 0.6566
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.4305,
+				"precision": 0.6457,
+				"recall": 0.8828,
+				"f1": 0.7458
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"sentence-transformers/all-MiniLM-L6-v2": {
+			"weight_on_meaning": 0.3,
+			"auc_same_against_the_rest": 0.9596,
+			"auc_related_or_same_against_distinct": 0.7384,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 0.9144,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 50,
+					"share_of_duplicates_missed": 0.5556,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.404
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.7484,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 40,
+					"share_of_duplicates_missed": 0.4444,
+					"refusals_that_also_name_a_different_idea": 1,
+					"pair_precision": 0.9434,
+					"pair_recall": 0.5051
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.5579,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 25,
+					"share_of_duplicates_missed": 0.2778,
+					"refusals_that_also_name_a_different_idea": 8,
+					"pair_precision": 0.7927,
+					"pair_recall": 0.6566
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.1872,
+				"precision": 0.6195,
+				"recall": 0.9222,
+				"f1": 0.7411
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		},
+		"snowflake/snowflake-arctic-embed-s": {
+			"weight_on_meaning": 0.7,
+			"auc_same_against_the_rest": 0.9669,
+			"auc_related_or_same_against_distinct": 0.7494,
+			"same_band": {
+				"at_most_0%_wrongly_refused": {
+					"threshold": 1.0,
+					"probes_wrongly_refused": 0,
+					"share_wrongly_refused": 0.0,
+					"duplicates_missed": 51,
+					"share_of_duplicates_missed": 0.5667,
+					"refusals_that_also_name_a_different_idea": 0,
+					"pair_precision": 1.0,
+					"pair_recall": 0.3939
+				},
+				"at_most_2%_wrongly_refused": {
+					"threshold": 0.8813,
+					"probes_wrongly_refused": 2,
+					"share_wrongly_refused": 0.0167,
+					"duplicates_missed": 41,
+					"share_of_duplicates_missed": 0.4556,
+					"refusals_that_also_name_a_different_idea": 1,
+					"pair_precision": 0.9423,
+					"pair_recall": 0.4949
+				},
+				"at_most_5%_wrongly_refused": {
+					"threshold": 0.7791,
+					"probes_wrongly_refused": 6,
+					"share_wrongly_refused": 0.05,
+					"duplicates_missed": 22,
+					"share_of_duplicates_missed": 0.2444,
+					"refusals_that_also_name_a_different_idea": 7,
+					"pair_precision": 0.8118,
+					"pair_recall": 0.697
+				}
+			},
+			"related_band_best_f1": {
+				"threshold": 0.5875,
+				"precision": 0.6534,
+				"recall": 0.888,
+				"f1": 0.7529
+			},
+			"probes_with_a_duplicate": 90,
+			"probes_without": 120
+		}
+	},
+	"by_stratum_lanes": {
+		"cross-extractor": {
+			"words": {
+				"auc_same_against_the_rest": 0.991,
+				"auc_related_or_same_against_distinct": 0.7512,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8857,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8857,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.8857,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.0234,
+					"precision": 0.6818,
+					"recall": 0.9917,
+					"f1": 0.8081
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"BAAI/bge-base-en-v1.5": {
+				"auc_same_against_the_rest": 0.99,
+				"auc_related_or_same_against_distinct": 0.7804,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5456,
+					"precision": 0.6985,
+					"recall": 0.9669,
+					"f1": 0.8111
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"BAAI/bge-small-en-v1.5": {
+				"auc_same_against_the_rest": 0.9886,
+				"auc_related_or_same_against_distinct": 0.7403,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5768,
+					"precision": 0.6914,
+					"recall": 0.9628,
+					"f1": 0.8048
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"ibm-granite/granite-embedding-small-english-r2": {
+				"auc_same_against_the_rest": 0.9862,
+				"auc_related_or_same_against_distinct": 0.8258,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.8318,
+					"precision": 0.8171,
+					"recall": 0.8306,
+					"f1": 0.8238
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"minishlab/potion-base-8M": {
+				"auc_same_against_the_rest": 0.9909,
+				"auc_related_or_same_against_distinct": 0.7812,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9692,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9692,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9692,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3718,
+					"precision": 0.7015,
+					"recall": 0.9421,
+					"f1": 0.8042
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"minishlab/potion-retrieval-32M": {
+				"auc_same_against_the_rest": 0.9916,
+				"auc_related_or_same_against_distinct": 0.8026,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9443,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 13,
+						"share_of_duplicates_missed": 0.2364,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7368
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9443,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 13,
+						"share_of_duplicates_missed": 0.2364,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7368
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9443,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 13,
+						"share_of_duplicates_missed": 0.2364,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7368
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.2559,
+					"precision": 0.7544,
+					"recall": 0.8884,
+					"f1": 0.8159
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"nomic-ai/nomic-embed-text-v1.5-Q": {
+				"auc_same_against_the_rest": 0.9896,
+				"auc_related_or_same_against_distinct": 0.8064,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9402,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9402,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9402,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 14,
+						"share_of_duplicates_missed": 0.2545,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7193
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5827,
+					"precision": 0.732,
+					"recall": 0.9256,
+					"f1": 0.8175
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"sentence-transformers/all-MiniLM-L6-v2": {
+				"auc_same_against_the_rest": 0.9902,
+				"auc_related_or_same_against_distinct": 0.793,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9543,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9543,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9543,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3529,
+					"precision": 0.7561,
+					"recall": 0.8967,
+					"f1": 0.8204
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"snowflake/snowflake-arctic-embed-s": {
+				"auc_same_against_the_rest": 0.9832,
+				"auc_related_or_same_against_distinct": 0.7568,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.7547,
+					"precision": 0.6875,
+					"recall": 0.9545,
+					"f1": 0.7993
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:BAAI/bge-base-en-v1.5": {
+				"auc_same_against_the_rest": 0.9926,
+				"auc_related_or_same_against_distinct": 0.7996,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.4239,
+					"precision": 0.7147,
+					"recall": 0.9628,
+					"f1": 0.8204
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:BAAI/bge-small-en-v1.5": {
+				"auc_same_against_the_rest": 0.9929,
+				"auc_related_or_same_against_distinct": 0.7787,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3352,
+					"precision": 0.6982,
+					"recall": 0.9752,
+					"f1": 0.8138
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:ibm-granite/granite-embedding-small-english-r2": {
+				"auc_same_against_the_rest": 0.9919,
+				"auc_related_or_same_against_distinct": 0.8291,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5948,
+					"precision": 0.7508,
+					"recall": 0.9215,
+					"f1": 0.8275
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:minishlab/potion-base-8M": {
+				"auc_same_against_the_rest": 0.9925,
+				"auc_related_or_same_against_distinct": 0.7942,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.938,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.938,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.938,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.2002,
+					"precision": 0.7094,
+					"recall": 0.938,
+					"f1": 0.8078
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:minishlab/potion-retrieval-32M": {
+				"auc_same_against_the_rest": 0.9929,
+				"auc_related_or_same_against_distinct": 0.7847,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9278,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9278,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9278,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.1074,
+					"precision": 0.7099,
+					"recall": 0.9504,
+					"f1": 0.8127
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:nomic-ai/nomic-embed-text-v1.5-Q": {
+				"auc_same_against_the_rest": 0.9931,
+				"auc_related_or_same_against_distinct": 0.8213,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9916,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9916,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9916,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3945,
+					"precision": 0.7475,
+					"recall": 0.9298,
+					"f1": 0.8287
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:sentence-transformers/all-MiniLM-L6-v2": {
+				"auc_same_against_the_rest": 0.9932,
+				"auc_related_or_same_against_distinct": 0.8132,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9144,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9144,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9144,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 15,
+						"share_of_duplicates_missed": 0.2727,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.7018
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.1602,
+					"precision": 0.741,
+					"recall": 0.9339,
+					"f1": 0.8263
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			},
+			"both:snowflake/snowflake-arctic-embed-s": {
+				"auc_same_against_the_rest": 0.9909,
+				"auc_related_or_same_against_distinct": 0.7984,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 1.0,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.2909,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.6842
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5825,
+					"precision": 0.7647,
+					"recall": 0.8595,
+					"f1": 0.8093
+				},
+				"probes_with_a_duplicate": 55,
+				"probes_without": 5
+			}
+		},
+		"cross-source": {
+			"words": {
+				"auc_same_against_the_rest": 0.8859,
+				"auc_related_or_same_against_distinct": 0.6675,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.681,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.4393,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 19,
+						"share_of_duplicates_missed": 0.5429,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.6538,
+						"pair_recall": 0.4048
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.4056,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 18,
+						"share_of_duplicates_missed": 0.5143,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.5588,
+						"pair_recall": 0.4524
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.0916,
+					"precision": 0.5992,
+					"recall": 0.8823,
+					"f1": 0.7137
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"BAAI/bge-base-en-v1.5": {
+				"auc_same_against_the_rest": 0.8994,
+				"auc_related_or_same_against_distinct": 0.7,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8696,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 29,
+						"share_of_duplicates_missed": 0.8286,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.8571,
+						"pair_recall": 0.1429
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8373,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 23,
+						"share_of_duplicates_missed": 0.6571,
+						"refusals_that_also_name_a_different_idea": 3,
+						"pair_precision": 0.7222,
+						"pair_recall": 0.3095
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.8243,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 19,
+						"share_of_duplicates_missed": 0.5429,
+						"refusals_that_also_name_a_different_idea": 3,
+						"pair_precision": 0.68,
+						"pair_recall": 0.4048
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.6391,
+					"precision": 0.6292,
+					"recall": 0.8601,
+					"f1": 0.7267
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"BAAI/bge-small-en-v1.5": {
+				"auc_same_against_the_rest": 0.84,
+				"auc_related_or_same_against_distinct": 0.6637,
+				"same_band": {
+					"at_most_0%_wrongly_refused": null,
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8894,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 29,
+						"share_of_duplicates_missed": 0.8286,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.1429
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.8805,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 29,
+						"share_of_duplicates_missed": 0.8286,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.4,
+						"pair_recall": 0.1429
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.6311,
+					"precision": 0.5791,
+					"recall": 0.928,
+					"f1": 0.7131
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"ibm-granite/granite-embedding-small-english-r2": {
+				"auc_same_against_the_rest": 0.8508,
+				"auc_related_or_same_against_distinct": 0.7204,
+				"same_band": {
+					"at_most_0%_wrongly_refused": null,
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.952,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 31,
+						"share_of_duplicates_missed": 0.8857,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.0952
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9408,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 27,
+						"share_of_duplicates_missed": 0.7714,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.5333,
+						"pair_recall": 0.1905
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.8239,
+					"precision": 0.5961,
+					"recall": 0.9363,
+					"f1": 0.7284
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"minishlab/potion-base-8M": {
+				"auc_same_against_the_rest": 0.8583,
+				"auc_related_or_same_against_distinct": 0.6498,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8617,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 33,
+						"share_of_duplicates_missed": 0.9429,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0476
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8185,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 32,
+						"share_of_duplicates_missed": 0.9143,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.375,
+						"pair_recall": 0.0714
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.7786,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 26,
+						"share_of_duplicates_missed": 0.7429,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.4545,
+						"pair_recall": 0.2381
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3557,
+					"precision": 0.5581,
+					"recall": 0.9709,
+					"f1": 0.7088
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"minishlab/potion-retrieval-32M": {
+				"auc_same_against_the_rest": 0.8457,
+				"auc_related_or_same_against_distinct": 0.6609,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8363,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.0476
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.7746,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 30,
+						"share_of_duplicates_missed": 0.8571,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.4286,
+						"pair_recall": 0.1429
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.7327,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 27,
+						"share_of_duplicates_missed": 0.7714,
+						"refusals_that_also_name_a_different_idea": 4,
+						"pair_precision": 0.375,
+						"pair_recall": 0.2143
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.2444,
+					"precision": 0.5697,
+					"recall": 0.9571,
+					"f1": 0.7142
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"nomic-ai/nomic-embed-text-v1.5-Q": {
+				"auc_same_against_the_rest": 0.874,
+				"auc_related_or_same_against_distinct": 0.7101,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9098,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 32,
+						"share_of_duplicates_missed": 0.9143,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.75,
+						"pair_recall": 0.0714
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8789,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 28,
+						"share_of_duplicates_missed": 0.8,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.7,
+						"pair_recall": 0.1667
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.8652,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 26,
+						"share_of_duplicates_missed": 0.7429,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.6,
+						"pair_recall": 0.2143
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.6081,
+					"precision": 0.5861,
+					"recall": 0.9474,
+					"f1": 0.7242
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"sentence-transformers/all-MiniLM-L6-v2": {
+				"auc_same_against_the_rest": 0.8184,
+				"auc_related_or_same_against_distinct": 0.6892,
+				"same_band": {
+					"at_most_0%_wrongly_refused": null,
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.8201,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 29,
+						"share_of_duplicates_missed": 0.8286,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.1429
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.8034,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 27,
+						"share_of_duplicates_missed": 0.7714,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.5,
+						"pair_recall": 0.1905
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3697,
+					"precision": 0.5941,
+					"recall": 0.9266,
+					"f1": 0.724
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"snowflake/snowflake-arctic-embed-s": {
+				"auc_same_against_the_rest": 0.8897,
+				"auc_related_or_same_against_distinct": 0.6932,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.9591,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.5,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.9495,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 29,
+						"share_of_duplicates_missed": 0.8286,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.1429
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.9257,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 27,
+						"share_of_duplicates_missed": 0.7714,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.625,
+						"pair_recall": 0.2381
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.7774,
+					"precision": 0.6198,
+					"recall": 0.892,
+					"f1": 0.7314
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:BAAI/bge-base-en-v1.5": {
+				"auc_same_against_the_rest": 0.9235,
+				"auc_related_or_same_against_distinct": 0.7323,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.7533,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 28,
+						"share_of_duplicates_missed": 0.8,
+						"refusals_that_also_name_a_different_idea": 1,
+						"pair_precision": 0.875,
+						"pair_recall": 0.1667
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.716,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 20,
+						"share_of_duplicates_missed": 0.5714,
+						"refusals_that_also_name_a_different_idea": 3,
+						"pair_precision": 0.75,
+						"pair_recall": 0.3571
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.6774,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.4571,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.6176,
+						"pair_recall": 0.5
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.4821,
+					"precision": 0.6297,
+					"recall": 0.9044,
+					"f1": 0.7425
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:BAAI/bge-small-en-v1.5": {
+				"auc_same_against_the_rest": 0.9091,
+				"auc_related_or_same_against_distinct": 0.7163,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.7714,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.6656,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 23,
+						"share_of_duplicates_missed": 0.6571,
+						"refusals_that_also_name_a_different_idea": 3,
+						"pair_precision": 0.7059,
+						"pair_recall": 0.2857
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.6114,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 16,
+						"share_of_duplicates_missed": 0.4571,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.6,
+						"pair_recall": 0.5
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.3901,
+					"precision": 0.6014,
+					"recall": 0.9197,
+					"f1": 0.7273
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:ibm-granite/granite-embedding-small-english-r2": {
+				"auc_same_against_the_rest": 0.9113,
+				"auc_related_or_same_against_distinct": 0.7471,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8509,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.7942,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 24,
+						"share_of_duplicates_missed": 0.6857,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.7333,
+						"pair_recall": 0.2619
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.7678,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 19,
+						"share_of_duplicates_missed": 0.5429,
+						"refusals_that_also_name_a_different_idea": 6,
+						"pair_precision": 0.5625,
+						"pair_recall": 0.4286
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.6244,
+					"precision": 0.6287,
+					"recall": 0.8934,
+					"f1": 0.738
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:minishlab/potion-base-8M": {
+				"auc_same_against_the_rest": 0.909,
+				"auc_related_or_same_against_distinct": 0.6939,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.762,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.5746,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 20,
+						"share_of_duplicates_missed": 0.5714,
+						"refusals_that_also_name_a_different_idea": 3,
+						"pair_precision": 0.6818,
+						"pair_recall": 0.3571
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.5323,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 17,
+						"share_of_duplicates_missed": 0.4857,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.6061,
+						"pair_recall": 0.4762
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.2504,
+					"precision": 0.5952,
+					"recall": 0.8878,
+					"f1": 0.7126
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:minishlab/potion-retrieval-32M": {
+				"auc_same_against_the_rest": 0.8969,
+				"auc_related_or_same_against_distinct": 0.6917,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.7102,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 34,
+						"share_of_duplicates_missed": 0.9714,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0238
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.5138,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 20,
+						"share_of_duplicates_missed": 0.5714,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.64,
+						"pair_recall": 0.381
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.4795,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 18,
+						"share_of_duplicates_missed": 0.5143,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.5938,
+						"pair_recall": 0.4524
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.1721,
+					"precision": 0.5979,
+					"recall": 0.8837,
+					"f1": 0.7132
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:nomic-ai/nomic-embed-text-v1.5-Q": {
+				"auc_same_against_the_rest": 0.919,
+				"auc_related_or_same_against_distinct": 0.7414,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.7603,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 31,
+						"share_of_duplicates_missed": 0.8857,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0952
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.7018,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 23,
+						"share_of_duplicates_missed": 0.6571,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.75,
+						"pair_recall": 0.2857
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.6624,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 19,
+						"share_of_duplicates_missed": 0.5429,
+						"refusals_that_also_name_a_different_idea": 4,
+						"pair_precision": 0.6,
+						"pair_recall": 0.4286
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.4317,
+					"precision": 0.6111,
+					"recall": 0.9183,
+					"f1": 0.7338
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:sentence-transformers/all-MiniLM-L6-v2": {
+				"auc_same_against_the_rest": 0.9072,
+				"auc_related_or_same_against_distinct": 0.7307,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.6534,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 32,
+						"share_of_duplicates_missed": 0.9143,
+						"refusals_that_also_name_a_different_idea": 0,
+						"pair_precision": 1.0,
+						"pair_recall": 0.0714
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.5579,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 23,
+						"share_of_duplicates_missed": 0.6571,
+						"refusals_that_also_name_a_different_idea": 4,
+						"pair_precision": 0.6667,
+						"pair_recall": 0.2857
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.4932,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 18,
+						"share_of_duplicates_missed": 0.5143,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.5758,
+						"pair_recall": 0.4524
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.215,
+					"precision": 0.6159,
+					"recall": 0.8906,
+					"f1": 0.7282
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			},
+			"both:snowflake/snowflake-arctic-embed-s": {
+				"auc_same_against_the_rest": 0.9326,
+				"auc_related_or_same_against_distinct": 0.7417,
+				"same_band": {
+					"at_most_0%_wrongly_refused": {
+						"threshold": 0.8071,
+						"probes_wrongly_refused": 0,
+						"share_wrongly_refused": 0.0,
+						"duplicates_missed": 28,
+						"share_of_duplicates_missed": 0.8,
+						"refusals_that_also_name_a_different_idea": 2,
+						"pair_precision": 0.7778,
+						"pair_recall": 0.1667
+					},
+					"at_most_2%_wrongly_refused": {
+						"threshold": 0.7791,
+						"probes_wrongly_refused": 2,
+						"share_wrongly_refused": 0.0174,
+						"duplicates_missed": 20,
+						"share_of_duplicates_missed": 0.5714,
+						"refusals_that_also_name_a_different_idea": 4,
+						"pair_precision": 0.7273,
+						"pair_recall": 0.381
+					},
+					"at_most_5%_wrongly_refused": {
+						"threshold": 0.7625,
+						"probes_wrongly_refused": 5,
+						"share_wrongly_refused": 0.0435,
+						"duplicates_missed": 18,
+						"share_of_duplicates_missed": 0.5143,
+						"refusals_that_also_name_a_different_idea": 5,
+						"pair_precision": 0.6129,
+						"pair_recall": 0.4524
+					}
+				},
+				"related_band_best_f1": {
+					"threshold": 0.5875,
+					"precision": 0.6232,
+					"recall": 0.9072,
+					"f1": 0.7389
+				},
+				"probes_with_a_duplicate": 35,
+				"probes_without": 115
+			}
+		}
+	},
+	"recall_at_k": {
+		"cross-extractor": {
+			"words": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"BAAI/bge-base-en-v1.5": {
+				"top_1": 0.9636,
+				"top_3": 0.9818,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:BAAI/bge-base-en-v1.5": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"BAAI/bge-small-en-v1.5": {
+				"top_1": 0.9636,
+				"top_3": 0.9636,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:BAAI/bge-small-en-v1.5": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"ibm-granite/granite-embedding-small-english-r2": {
+				"top_1": 0.9636,
+				"top_3": 0.9818,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:ibm-granite/granite-embedding-small-english-r2": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"minishlab/potion-base-8M": {
+				"top_1": 0.9455,
+				"top_3": 0.9636,
+				"top_5": 0.9818,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:minishlab/potion-base-8M": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"minishlab/potion-retrieval-32M": {
+				"top_1": 0.9455,
+				"top_3": 0.9818,
+				"top_5": 0.9818,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:minishlab/potion-retrieval-32M": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"nomic-ai/nomic-embed-text-v1.5-Q": {
+				"top_1": 0.9818,
+				"top_3": 0.9818,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:nomic-ai/nomic-embed-text-v1.5-Q": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"sentence-transformers/all-MiniLM-L6-v2": {
+				"top_1": 0.9818,
+				"top_3": 0.9818,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:sentence-transformers/all-MiniLM-L6-v2": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"snowflake/snowflake-arctic-embed-s": {
+				"top_1": 0.9273,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			},
+			"both:snowflake/snowflake-arctic-embed-s": {
+				"top_1": 0.9636,
+				"top_3": 1.0,
+				"top_5": 1.0,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 55
+			}
+		},
+		"cross-source": {
+			"words": {
+				"top_1": 0.5714,
+				"top_3": 0.8286,
+				"top_5": 0.8857,
+				"top_10": 0.9143,
+				"top_20": 0.9429,
+				"probes": 35
+			},
+			"BAAI/bge-base-en-v1.5": {
+				"top_1": 0.6857,
+				"top_3": 0.8286,
+				"top_5": 0.8286,
+				"top_10": 0.8857,
+				"top_20": 0.9429,
+				"probes": 35
+			},
+			"both:BAAI/bge-base-en-v1.5": {
+				"top_1": 0.8,
+				"top_3": 0.9429,
+				"top_5": 0.9429,
+				"top_10": 0.9714,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"BAAI/bge-small-en-v1.5": {
+				"top_1": 0.6286,
+				"top_3": 0.7714,
+				"top_5": 0.8,
+				"top_10": 0.8286,
+				"top_20": 0.8571,
+				"probes": 35
+			},
+			"both:BAAI/bge-small-en-v1.5": {
+				"top_1": 0.7143,
+				"top_3": 0.8571,
+				"top_5": 0.9143,
+				"top_10": 0.9714,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"ibm-granite/granite-embedding-small-english-r2": {
+				"top_1": 0.6,
+				"top_3": 0.8,
+				"top_5": 0.8857,
+				"top_10": 0.9143,
+				"top_20": 0.9143,
+				"probes": 35
+			},
+			"both:ibm-granite/granite-embedding-small-english-r2": {
+				"top_1": 0.7143,
+				"top_3": 0.9143,
+				"top_5": 0.9429,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"minishlab/potion-base-8M": {
+				"top_1": 0.6286,
+				"top_3": 0.8571,
+				"top_5": 0.8571,
+				"top_10": 0.9143,
+				"top_20": 0.9429,
+				"probes": 35
+			},
+			"both:minishlab/potion-base-8M": {
+				"top_1": 0.6857,
+				"top_3": 0.8571,
+				"top_5": 0.9143,
+				"top_10": 0.9429,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"minishlab/potion-retrieval-32M": {
+				"top_1": 0.6286,
+				"top_3": 0.8,
+				"top_5": 0.8571,
+				"top_10": 0.9143,
+				"top_20": 0.9429,
+				"probes": 35
+			},
+			"both:minishlab/potion-retrieval-32M": {
+				"top_1": 0.6286,
+				"top_3": 0.8571,
+				"top_5": 0.9143,
+				"top_10": 0.9714,
+				"top_20": 0.9714,
+				"probes": 35
+			},
+			"nomic-ai/nomic-embed-text-v1.5-Q": {
+				"top_1": 0.7429,
+				"top_3": 0.8571,
+				"top_5": 0.9143,
+				"top_10": 0.9429,
+				"top_20": 0.9714,
+				"probes": 35
+			},
+			"both:nomic-ai/nomic-embed-text-v1.5-Q": {
+				"top_1": 0.7429,
+				"top_3": 0.9143,
+				"top_5": 0.9714,
+				"top_10": 1.0,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"sentence-transformers/all-MiniLM-L6-v2": {
+				"top_1": 0.6,
+				"top_3": 0.7429,
+				"top_5": 0.7429,
+				"top_10": 0.7714,
+				"top_20": 0.8286,
+				"probes": 35
+			},
+			"both:sentence-transformers/all-MiniLM-L6-v2": {
+				"top_1": 0.6571,
+				"top_3": 0.8857,
+				"top_5": 0.9143,
+				"top_10": 0.9429,
+				"top_20": 1.0,
+				"probes": 35
+			},
+			"snowflake/snowflake-arctic-embed-s": {
+				"top_1": 0.6,
+				"top_3": 0.7714,
+				"top_5": 0.8286,
+				"top_10": 0.8857,
+				"top_20": 0.9143,
+				"probes": 35
+			},
+			"both:snowflake/snowflake-arctic-embed-s": {
+				"top_1": 0.6857,
+				"top_3": 0.8857,
+				"top_5": 0.9143,
+				"top_10": 0.9429,
+				"top_20": 0.9714,
+				"probes": 35
+			}
+		}
+	},
+	"duplicates_pooled_by": {
+		"BAAI/bge-small-en-v1.5+minishlab/potion-base-8M+sentence-transformers/all-MiniLM-L6-v2+words": 74,
+		"minishlab/potion-base-8M+words": 4,
+		"minishlab/potion-base-8M": 3,
+		"BAAI/bge-small-en-v1.5+minishlab/potion-base-8M+words": 3,
+		"BAAI/bge-small-en-v1.5+sentence-transformers/all-MiniLM-L6-v2+words": 3,
+		"minishlab/potion-base-8M+sentence-transformers/all-MiniLM-L6-v2+words": 3,
+		"BAAI/bge-small-en-v1.5+sentence-transformers/all-MiniLM-L6-v2": 2,
+		"BAAI/bge-small-en-v1.5+minishlab/potion-base-8M+sentence-transformers/all-MiniLM-L6-v2": 2,
+		"BAAI/bge-small-en-v1.5+words": 1,
+		"sentence-transformers/all-MiniLM-L6-v2+words": 1,
+		"words": 1,
+		"sentence-transformers/all-MiniLM-L6-v2": 1,
+		"BAAI/bge-small-en-v1.5": 1
+	},
+	"duplicates_only_meaning_found": 9,
+	"duplicates_only_words_found": 1,
+	"models": {
+		"BAAI/bge-base-en-v1.5": {
+			"model": "BAAI/bge-base-en-v1.5",
+			"dimensions": 768,
+			"statements": 3701,
+			"load_seconds": 3.65,
+			"statements_per_second": 8.6
+		},
+		"BAAI/bge-small-en-v1.5": {
+			"model": "BAAI/bge-small-en-v1.5",
+			"dimensions": 384,
+			"statements": 3701,
+			"load_seconds": 3.39,
+			"statements_per_second": 21.4
+		},
+		"ibm-granite/granite-embedding-small-english-r2": {
+			"model": "ibm-granite/granite-embedding-small-english-r2",
+			"dimensions": 384,
+			"statements": 3701,
+			"load_seconds": 3.29,
+			"statements_per_second": 43.9
+		},
+		"minishlab/potion-base-8M": {
+			"model": "minishlab/potion-base-8M",
+			"dimensions": 256,
+			"statements": 3701,
+			"load_seconds": 1.9,
+			"statements_per_second": 17702.6
+		},
+		"minishlab/potion-retrieval-32M": {
+			"model": "minishlab/potion-retrieval-32M",
+			"dimensions": 512,
+			"statements": 3701,
+			"load_seconds": 2.66,
+			"statements_per_second": 29434.7
+		},
+		"nomic-ai/nomic-embed-text-v1.5-Q": {
+			"model": "nomic-ai/nomic-embed-text-v1.5-Q",
+			"dimensions": 768,
+			"statements": 3701,
+			"load_seconds": 4.05,
+			"statements_per_second": 21.9
+		},
+		"sentence-transformers/all-MiniLM-L6-v2": {
+			"model": "sentence-transformers/all-MiniLM-L6-v2",
+			"dimensions": 384,
+			"statements": 3701,
+			"load_seconds": 3.78,
+			"statements_per_second": 32.8
+		},
+		"snowflake/snowflake-arctic-embed-s": {
+			"model": "snowflake/snowflake-arctic-embed-s",
+			"dimensions": 384,
+			"statements": 3701,
+			"load_seconds": 3.5,
+			"statements_per_second": 77.9
+		}
+	}
+}

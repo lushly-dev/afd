@@ -11,6 +11,10 @@ use umbel_store::{
 
 use crate::memory::{LeftOutQuery, MemoryWriteRequest};
 use crate::store::{CollectionInfo, CollectionMeta, ContentEntry, Reader};
+use umbel_store::lane::{
+    Decision, Evidence, FindPage, LaneRecord, MatchPage, OwnInfo, RecordFind, RecordMatch,
+    Standing, StandingLabel,
+};
 use umbel_store::memory::{
     Confirm, ForgetReceipt, Invalidate, KeyFileState, LeftOut, MemoryChange, MemoryCounts,
     MemoryList, MemoryPage, MemoryReceipt, MemoryUsage, MemoryVersionMeta, RecallPage, RecallQuery,
@@ -107,6 +111,15 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
     /// a mounted server always see none.
     pub person_check: Option<PersonCheck>,
+    /// The page of its preview the person page asks a `confirm_preview` command for (the Ideas
+    /// host-review specification, section 2): `Some(n)`, from 1, on every render of a decision's
+    /// page; `None` everywhere else, the CLI and the host's own check included, where the preview
+    /// answers exactly `{ preview }`. The page number is never part of the command's input, so it
+    /// is never part of the digest the decision binds. Host-owned, as [`Self::person_check`] is.
+    ///
+    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// a mounted server always see none.
+    pub preview_page: Option<u32>,
 }
 
 /// The call the host is about to ask a person to decide (phase 5 step 6), as
@@ -122,7 +135,11 @@ pub struct PersonCheck {
 
 /// A person's decision on the person page that a call carries, as the host attests it (phase 5
 /// sections 7.2 and 7.3): who decided and how they were proven, never the decision's content.
-#[derive(Debug, Clone, PartialEq, Eq)]
+///
+/// `Default` lets a test build one with `..PersonDecision::default()`, so a field the host adds
+/// later does not break every plugin's tests (the Ideas host-review specification, step H0). Only
+/// the host attests a decision; a plugin that builds one gains nothing.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
 pub struct PersonDecision {
     /// Where the call came from: `mcp` (through the approval relay) or `cli` (the command line's
     /// URL flow).
@@ -135,6 +152,16 @@ pub struct PersonDecision {
     pub auth_time: String,
     /// The login's `acr`.
     pub acr: String,
+    /// How the person was proven: `verified` (the person page, after a login with user
+    /// verification) or `local` (the local person page, with no login; the Ideas host-review
+    /// specification, section 6.5). A `local` decision has an empty `namespace`, `auth_time` and
+    /// `acr`.
+    pub level: String,
+    /// The ids of the preview's items the person pulled out on the page before confirming (the
+    /// Ideas host-review specification, section 3); empty when the preview had none. The command's
+    /// input and its digest are unchanged: this is how the run learns what was pulled out, and a
+    /// plugin whose preview answers items must leave those out of what it applies.
+    pub excluded: Vec<String>,
 }
 
 /// Who ran a pipeline step, as the host attests it (phase 4 specification, section 10.1): the
@@ -503,8 +530,19 @@ pub trait HostServices: Send + Sync {
     }
     /// Grant `records_write`: write a record of the instance's own namespace.
     ///
+    /// For a kind the instance's manifest declares under `[[records]]`, the host writes the
+    /// record's lane rows in the same transaction (records host specification, section 4.2), so
+    /// it is found by key and by text when the put returns. The host then owns the access set: a
+    /// new record is private to the caller's principal, or readable by the space when the
+    /// instance's `default_access` says so, and a record that exists keeps the set it has. Its
+    /// text values are scanned and flagged, never blocked, and a standing kind's wording is
+    /// fixed by its first put. An undeclared kind is written as the plugin sent it.
+    ///
     /// # Errors
-    /// As [`HostServices::doc_put`].
+    /// As [`HostServices::doc_put`]; for a declared kind also [`HostError::Invalid`] with a
+    /// message starting `RECORD_PRINCIPAL_REQUIRED`, `RECORD_FIELD_INVALID`,
+    /// `RECORD_WORDING_FIXED` or `RECORD_LANE_STALE`, and [`HostError::Conflict`] with no
+    /// current hash for an id that a record the caller may not read holds.
     fn record_put(
         &self,
         _space: &str,
@@ -515,6 +553,117 @@ pub trait HostServices: Send + Sync {
         _expect: Expect,
     ) -> Result<RecordMeta, HostError> {
         not_granted("records_write")
+    }
+    /// Grant `records_write`: write a record of a standing kind the instance's manifest declares,
+    /// and replace its evidence (records host specification, section 4.1). Compiled plugins
+    /// only, as every record lane service is: a component and a mounted server answer
+    /// `NotGranted`.
+    ///
+    /// # Errors
+    /// As [`HostServices::record_put`]; [`HostError::Invalid`] with a message starting
+    /// `RECORD_KIND_NOT_DECLARED`, `RECORD_KIND_NOT_STANDING`, `RECORD_PRINCIPAL_REQUIRED`,
+    /// `RECORD_FIELD_INVALID`, `RECORD_WORDING_FIXED`, `RECORD_EVIDENCE_INVALID` or
+    /// `RECORD_LANE_STALE` (section 13).
+    #[allow(clippy::too_many_arguments)]
+    fn record_put_cited(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _body: Value,
+        _envelope: Envelope,
+        _expect: Expect,
+        _evidence: Evidence,
+    ) -> Result<RecordMeta, HostError> {
+        not_granted("records_write")
+    }
+    /// Grant `records`: one record of a declared kind, with its label; `None` for a record that
+    /// is absent, not readable or not admitted, without saying which (section 7).
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`]; [`HostError::Invalid`] with a message starting
+    /// `RECORD_KIND_NOT_DECLARED`, `RECORD_QUERY_INVALID` or `RECORD_LANE_STALE`;
+    /// [`HostError::Busy`], [`HostError::Corrupt`], [`HostError::Io`].
+    fn record_read(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _standings: &[Standing],
+        _verified_only: bool,
+    ) -> Result<Option<LaneRecord>, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records`: the readable records of a declared kind by key and by text, in pages
+    /// (section 7).
+    ///
+    /// # Errors
+    /// As [`HostServices::record_read`], and [`HostError::Invalid`] with a message starting
+    /// `RECORD_QUERY_TOO_BROAD` for a find under order `rank` when the kind as a whole holds more
+    /// postings than a ranked read reads: the same for every call and every reader of the kind
+    /// (section 8.2). A find by id or by recency is never refused for its kind's size.
+    fn record_find(&self, _space: &str, _query: &RecordFind) -> Result<FindPage, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records`: for each text, the readable records whose match field is identical and
+    /// the nearest ones with their scores (section 8). Scores only: what to do with them is the
+    /// plugin's.
+    ///
+    /// # Errors
+    /// As [`HostServices::record_find`] under order `rank`: `RECORD_QUERY_TOO_BROAD` when the
+    /// kind as a whole holds more postings than a match reads, the same for every call and every
+    /// reader of the kind (section 8.2).
+    fn record_match(&self, _space: &str, _query: &RecordMatch) -> Result<MatchPage, HostError> {
+        not_granted("records")
+    }
+    /// Grant `records_write`: affirm a standing record's wording, or withdraw that, inside a
+    /// call the space's person decided (section 6.1). Answers the record's label.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], also with a message starting `RECORD_DECISION_NOT_GATED` or
+    /// `RECORD_DECISION_NOT_THE_PERSON`; [`HostError::NotFound`] for a record that is absent or
+    /// not readable; [`HostError::Invalid`] with a message starting `RECORD_KIND_NOT_STANDING`
+    /// or `RECORD_LANE_STALE`; [`HostError::Busy`].
+    fn record_decide(
+        &self,
+        _space: &str,
+        _kind: &str,
+        _id: &str,
+        _decision: Decision,
+    ) -> Result<StandingLabel, HostError> {
+        not_granted("records_write")
+    }
+    /// Grants `records_write` and `documents`: mark a document, at the content hash the person
+    /// was shown, as the person's own (section 6.2). Answers the revision the mark took.
+    ///
+    /// # Errors
+    /// [`HostError::NotGranted`], also with a message starting `RECORD_DECISION_NOT_GATED`,
+    /// `RECORD_DECISION_NOT_THE_PERSON` or `STORE_OWN_MARK_REFUSED`; [`HostError::NotFound`];
+    /// [`HostError::Conflict`] when the document's content is not `content_hash`;
+    /// [`HostError::Busy`].
+    fn doc_own_mark(
+        &self,
+        _space: &str,
+        _doc: &str,
+        _content_hash: &ContentHash,
+        _speaker: Option<&str>,
+    ) -> Result<Rev, HostError> {
+        not_granted("records_write")
+    }
+    /// Grants `records_write` and `documents`: take a mark back (section 6.2).
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_own_mark`]; [`HostError::NotFound`] also with no mark.
+    fn doc_own_unmark(&self, _space: &str, _doc: &str) -> Result<Rev, HostError> {
+        not_granted("records_write")
+    }
+    /// Grant `documents`: how a readable document is the person's own now, by collection or by
+    /// mark, or `None` when it is not (section 6.2).
+    ///
+    /// # Errors
+    /// As [`HostServices::doc_get`].
+    fn doc_own(&self, _space: &str, _doc: &str) -> Result<Option<OwnInfo>, HostError> {
+        not_granted("documents")
     }
     /// Grant `index`: search the space's index under the caller's reader filter.
     ///

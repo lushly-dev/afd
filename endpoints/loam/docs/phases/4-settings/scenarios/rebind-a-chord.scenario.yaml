@@ -1,0 +1,43 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# Pressing keys is the chrome's; P4-E9 presses them on German and Cyrillic layouts.
+name: Open the project switcher from the keyboard, and make it mine
+description: >-
+  When I switch projects many times a day, I want a chord for the switcher that works on my
+  keyboard layout, and to change it if it clashes, so that I never reach for the mouse.
+job: rebind-a-chord
+tags: [loam-runner]
+steps:
+  - description: The switcher has a chord, from the shell
+    command: keybinding-list
+    input: { command: section-open, target: switcher }
+    expect:
+      success: true
+      data:
+        bindings:
+          '0': { keys: Mod+Alt+P, source: shell }
+          '1': { notExists: true }
+  - description: I move it to a chord of my own
+    command: setting-set
+    input:
+      section: loam.keybindings
+      key: overrides
+      value: [{ command: section-open, target: switcher, keys: Mod+Shift+O }]
+      level: person
+    expect:
+      success: true
+  - description: Mine is the one in force, and the shell's is shadowed
+    command: keybinding-list
+    input: { command: section-open, target: switcher }
+    expect:
+      success: true
+      data:
+        bindings:
+          '0':
+            keys: Mod+Shift+O
+            source: you
+            shadowed: { '0': { source: shell } }
+          '1': { notExists: true }

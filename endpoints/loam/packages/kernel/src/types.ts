@@ -1,7 +1,7 @@
 /**
- * @fileoverview Kernel interface version 2 (phase 2 specification, 11.1), and versions 1 (phase 1
- * specification, 9.1) and 0 (phase 0 specification, 6.2), which it extends: the only surface the chrome
- * binds to.
+ * @fileoverview Kernel interface version 3 (phase 3 specification, 12), and versions 2 (phase 2
+ * specification, 11.1), 1 (phase 1 specification, 9.1) and 0 (phase 0 specification, 6.2), which it
+ * extends: the only surface the chrome binds to.
  */
 
 import type { AuthAdapter } from '@lushly-dev/afd-auth';
@@ -15,12 +15,13 @@ import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { DirectRegistryOptions } from '@lushly-dev/afd-server/direct';
 import type {
 	BootProjectionV2,
+	IdentityV1,
 	ManifestRefusal,
 	ManifestV1,
 	ManifestV2,
 	ProjectionMountedV1,
 	ProjectionV1,
-	ProjectionV2,
+	ProjectionV3,
 } from '@lushly-dev/loam-manifest';
 import type {
 	AppDefinitionV1,
@@ -34,18 +35,22 @@ import type {
 } from '@lushly-dev/loam-sdk';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { ShellKeybindingV0 } from './keybindings.js';
+import type { MembershipV1 } from './scope/access.js';
 import type { ProjectV1, ScopeChangeV2 } from './scope/records.js';
 
+export type { MemberRoleV1, MembershipV1 } from './scope/access.js';
 export type {
+	AgentMemberV1,
+	PersonaV1,
 	ProjectAccessV1,
 	ProjectV1,
 	ScopeChangeV2,
 	WorkspaceAppV1,
 	WorkspaceV1,
 } from './scope/records.js';
-export type { ScopeV1 };
+export type { IdentityV1, ScopeV1 };
 
-export const KERNEL_INTERFACE_VERSION = 2;
+export const KERNEL_INTERFACE_VERSION = 3;
 
 export interface LoamKernelV0 {
 	readonly version: 0;
@@ -191,6 +196,18 @@ export interface KernelPortsV1 {
 	openHandlerFrame(instance: string, html: string): Promise<HandlerFrameV1>;
 	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
 	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
+	/**
+	 * Interface 3's: run `fn` at `at` on the kernel's clock, for the session's expiry timer and the
+	 * membership read's timeout (phase 3 specification, 4.4 and 7.6); tests with a fake. Returns a cancel.
+	 * Absent, `late/` uses `setTimeout` on the kernel's clock; a replay never arms the timer.
+	 */
+	schedule?(at: number, fn: () => void): () => void;
+	/**
+	 * Interface 3's: the signed-in person's membership of the bound organization now, null for none, which the
+	 * kernel reads again before an owner's command and on a change of person (phase 3 specification, 4.4 and
+	 * 7.6); the web host from `whoami` (step 3). Absent, the kernel decides with the membership it holds.
+	 */
+	readMembership?(): Promise<{ role: 'owner' | 'admin' | 'member'; digest: string } | null>;
 }
 
 export interface HandlerFrameV1 {
@@ -450,7 +467,7 @@ export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool'> {
 
 /** What stage B reads: the validated projection and the ports, or why the reader refused it (2.2). */
 export type AppsLoadV2 =
-	| { deployment: ProjectionV2; ports: KernelPortsV1 }
+	| { deployment: ProjectionV3; ports: KernelPortsV1 }
 	| {
 			/** The reader's message: each entry is listed `failed` with `DEPLOYMENT_INVALID`. */
 			refused: string;
@@ -458,7 +475,7 @@ export type AppsLoadV2 =
 
 export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'appsUnavailable'> {
 	/** With no `boot`: the validated projection, and `createKernel` runs stage B before it resolves. */
-	deployment?: ProjectionV2;
+	deployment?: ProjectionV3;
 	/** What `readBoot` read. With it, `createKernel` resolves after stage A (2.2). */
 	boot?: BootProjectionV2;
 	/** What stage B reads. Required with `boot` when it lists an app. */
@@ -519,4 +536,59 @@ export interface ShellInfoV2
 	manifestVersion: 2;
 	/** The workspace, project and scoped app stores (phase 2 specification, section 4). */
 	storeInterface: 1;
+}
+
+// ─── Version 3 ──────────────────────────────────────────────────────────────────
+
+/**
+ * Kernel interface version 3 (phase 3 specification, 12): identity. A call through the agent interface
+ * runs as an agent (`options.agent`), every port and nested call carries its outer call's actor, and
+ * `shell-info-get` reports the deployment's identity.
+ */
+export interface LoamKernelV3
+	extends Omit<LoamKernelV2, 'version' | 'agent' | 'call' | 'subscribe'> {
+	readonly version: 3;
+	call<T = unknown>(
+		name: string,
+		input?: unknown,
+		options?: CallOptionsV3
+	): Promise<CommandResult<T>>;
+	subscribe(listener: (event: KernelEventV3) => void): () => void;
+	readonly agent: Pick<LoamKernelV3, 'call' | 'listCommands'>;
+}
+
+export interface CallOptionsV3 extends CallOptionsV2 {
+	/**
+	 * The agent interface's agent: 1 to 64 characters of `^[a-z0-9][a-z0-9-]*$`, default `shell-agent`, so it
+	 * can never spell an `agt_` id; `local`, `signed-out` and `shell-agent` are the kernel's
+	 * (`AGENT_NAME_RESERVED`). Read by `agent.call` alone: the palette's calls are the person's (3.1).
+	 */
+	agent?: string;
+}
+
+export interface KernelEventV3 extends KernelEventV2 {
+	/** The person the kernel decides for changed, by `session-settle` (4.4). */
+	actorChanged?: true;
+	/** The active persona changed (6.3). */
+	personaChanged?: true;
+}
+
+export interface KernelOptionsV3 extends KernelOptionsV2 {
+	/**
+	 * The deployment's identity (phase 3 specification, 2.1 and 2.2). Default: the projection's, or `local`,
+	 * where every actor is a member and an owner.
+	 */
+	identity?: IdentityV1;
+	/**
+	 * Stage A's membership, from the probe (4.2). Read only when its `mode` is the identity's; a `provider`
+	 * kernel given none decides with no members, so line 0 refuses every gated call until it has one.
+	 */
+	membership?: MembershipV1;
+}
+
+/** What `shell-info-get` returns from version 3. */
+export interface ShellInfoV3 extends Omit<ShellInfoV2, 'kernelInterface'> {
+	kernelInterface: 3;
+	/** The deployment's identity mode, and its bound organization's slug in `provider` mode (12). */
+	identity: { mode: IdentityV1['mode']; organization: string | null };
 }

@@ -1,10 +1,10 @@
 ---
 name: afd
 description: >
-  Core Agent-First Development (AFD) rules: the honesty check, the command-first
-  workflow, CommandResult and errors, naming, meta-tools and the afd CLI. Use when
-  designing commands or asking how AFD works; for code in one language, use
-  afd-typescript, afd-python, afd-rust or afd-cpp.
+  Agent-First Development (AFD) rules: the honesty check, jobs (JTBD scenarios)
+  before commands, CommandResult and errors, naming, meta-tools and the CLI. Use
+  when planning a feature, designing commands or asking how AFD works; for code,
+  use afd-typescript, afd-python, afd-rust or afd-cpp.
 ---
 
 # Agent-First Development
@@ -23,12 +23,15 @@ derived UI state (hover, focus, local sorting) is not a command; see
 
 ## Workflow
 
-1. **Define** the command: input schema, description, the error codes it returns, and the
+1. **Start from the jobs.** Before specifying a feature's commands, write each job it serves as
+   a `*.scenario.yaml` against the drafted commands, and change the plan where a job cannot be
+   written. The steps and the checks are in [jobs-first.md](references/jobs-first.md).
+2. **Define** the command: input schema, description, the error codes it returns, and the
    metadata agents plan with (`output`, `examples`, `requires`, `contexts`, `mutation`,
    `destructive`, `approval`).
-2. **Validate** it with `afd call` and `afd validate --surface`. Don't start the UI until the CLI
+3. **Validate** it with `afd call` and `afd validate --surface`. Don't start the UI until the CLI
    call works.
-3. **Surface** it: the UI calls the command and shows its `reasoning`, `confidence` and `warnings`.
+4. **Surface** it: the UI calls the command and shows its `reasoning`, `confidence` and `warnings`.
 
 To fix a bug, reproduce it with `afd call`, fix it in the handler, and confirm it at the CLI before
 looking at the UI.
@@ -91,6 +94,7 @@ layers (UI packages, adapters, examples), outside the core parity target.
 
 | Read | When |
 |------|------|
+| [jobs-first.md](references/jobs-first.md) | Proposing or specifying a feature that adds or changes commands: jobs as scenario files, checking them before anything is built, what a scenario cannot express |
 | [command-schema.md](references/command-schema.md) | `CommandResult` fields, error shape, confidence, batch results, tags, `requires`, what is not a command |
 | [mcp-integration.md](references/mcp-integration.md) | Tool strategies, grouped tools, `_meta`, bootstrap and context tools, HTTP endpoints |
 | [command-trust-config.md](references/command-trust-config.md) | `destructive`, `confirmPrompt`, `approval`, `expose`, `undoable` |

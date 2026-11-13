@@ -15,9 +15,14 @@ Alfred is a Python package that validates AFD codebases follow architectural con
 ## Development Commands
 
 ```bash
-# Install with all extras (as CI does; afd comes from ../python, editable)
+# Install with all extras (as CI does; local uv sources select afd and Botcore from this
+# repository, editable, without publishing them)
 cd alfred
-uv sync --all-extras --dev
+uv sync --frozen --all-extras --dev
+
+# From the repository root: list the managed catalog, then select a target and profile
+# explicitly for an operation
+uv run --project alfred alfred --workspace . catalog
 
 # Run tests
 uv run --locked pytest tests/ -v

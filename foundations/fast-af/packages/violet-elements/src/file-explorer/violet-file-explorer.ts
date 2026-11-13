@@ -122,8 +122,10 @@ class Row {
         this.active = false;
     }
 
+    // The visible name and meta stay adjacent, so the row's name contains its visible text
+    // (WCAG 2.5.3); the kind follows them.
     public get accessibleName(): string {
-        return [this.name, this.kind === "folder" ? "folder" : "", this.meta].filter(Boolean).join(", ");
+        return [this.name, this.meta, this.kind === "folder" ? "folder" : ""].filter(Boolean).join(", ");
     }
 }
 
@@ -628,7 +630,7 @@ export class VioletFileExplorer extends FASTElement {
     public itemsChanged(): void {
         for (const id of [...this.#requested]) {
             const item = this.#findItem(id);
-            if (!item || item.loaded !== false) {
+            if (item?.loaded !== false) {
                 this.#requested.delete(id);
             }
         }

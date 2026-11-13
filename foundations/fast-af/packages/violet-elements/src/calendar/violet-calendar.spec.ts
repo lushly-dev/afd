@@ -233,7 +233,7 @@ describe("violet-calendar", () => {
 
             expect(heading(calendar)).toBe("mars 2026");
             expect(handler).toHaveBeenCalledTimes(1);
-            expect((handler.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ locale: "fr-FR" });
+            expect((handler.mock.calls[0]![0] as CustomEvent).detail).toEqual({ locale: "fr-FR" });
         });
     });
 
@@ -325,8 +325,8 @@ describe("violet-calendar", () => {
 
             expect(calendar.value).toBe("2026-03-10");
             expect(calendar.focusedDate).toBe("2026-03-10");
-            expect((input.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ value: "2026-03-10" });
-            expect((change.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ value: "2026-03-10" });
+            expect((input.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: "2026-03-10" });
+            expect((change.mock.calls[0]![0] as CustomEvent).detail).toEqual({ value: "2026-03-10" });
             expect(requireDayButton(calendar, "2026-03-10").closest('[role="gridcell"]')?.getAttribute("aria-selected")).toBe("true");
             expect(requireDayButton(calendar, "2026-03-23").closest('[role="gridcell"]')?.getAttribute("aria-selected")).toBe("false");
         });
@@ -370,8 +370,8 @@ describe("violet-calendar", () => {
             requireDayButton(calendar, "2026-03-14").click();
 
             expect(change).toHaveBeenCalledTimes(2);
-            expect((change.mock.calls[0]?.[0] as CustomEvent).detail).toEqual({ start: "2026-03-10", end: null });
-            expect((change.mock.calls[1]?.[0] as CustomEvent).detail).toEqual({ start: "2026-03-10", end: "2026-03-14" });
+            expect((change.mock.calls[0]![0] as CustomEvent).detail).toEqual({ start: "2026-03-10", end: null });
+            expect((change.mock.calls[1]![0] as CustomEvent).detail).toEqual({ start: "2026-03-10", end: "2026-03-14" });
         });
 
         it("emits input alongside change for each pick", async () => {
@@ -683,7 +683,7 @@ describe("violet-calendar", () => {
             press(calendar, " ");
             expect(calendar.value).toBe("2026-03-31");
             expect(change).toHaveBeenCalledTimes(2);
-            expect((change.mock.calls[1]?.[0] as CustomEvent).detail).toEqual({ value: "2026-03-31" });
+            expect((change.mock.calls[1]![0] as CustomEvent).detail).toEqual({ value: "2026-03-31" });
         });
 
         it("extends a range from the keyboard", async () => {

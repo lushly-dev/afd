@@ -1,0 +1,38 @@
+{
+  "tag": "violet-theme",
+  "summary": "Scope element that applies a Violet theme preset (light, dark, high-contrast) to its subtree, such as a dark panel in a light page.",
+  "usage": [
+    {
+      "id": "theme.preset",
+      "text": "preset is light, dark or high-contrast; any other or missing value falls back to light. Changing the attribute restyles the subtree at once.",
+      "members": [
+        "preset"
+      ]
+    },
+    {
+      "id": "theme.scope-install",
+      "text": "Connecting it installs the theme stylesheet into its document, or into the shadow root it sits in, so a scoped preset needs no separate installVioletTheme() call."
+    },
+    {
+      "id": "theme.box",
+      "text": "The host is display: contents and paints nothing: give a child background var(--color-surface-page) and color var(--color-text-primary), or a dark subtree shows the light page behind it."
+    },
+    {
+      "id": "theme.override",
+      "text": "Token custom properties set on it, such as --color-action-primary-background, override that token for its subtree only."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "theme.tree",
+      "text": "It adds no role, landmark or box; put landmarks and headings inside it as usual."
+    },
+    {
+      "id": "theme.contrast",
+      "text": "high-contrast is a black-on-white preset you choose; nothing follows the OS contrast or color-scheme setting, and it sets no color-scheme, so native controls stay light under dark.",
+      "members": [
+        "preset"
+      ]
+    }
+  ]
+}

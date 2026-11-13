@@ -1,0 +1,37 @@
+{
+	"components": [
+		{
+			"digest": "sha256:1696d3d9df5200596ce28cde28434c8c0ce02471def7993c21e5a1aa8c60508f",
+			"status": "deprecated",
+			"tag": "example-dropdown"
+		},
+		{
+			"digest": "sha256:2cbc3079187a9b6603cb998df6c6d3b6c19e9d65e528a46860e2fb6373c6b2d7",
+			"status": "stable",
+			"summary": "One line of text that takes part in a form, with a visible label and optional hint.",
+			"tag": "example-field"
+		},
+		{
+			"digest": "sha256:f8feb6870449cd843d457902567e532090e2b96f8f9d3547742a02177bc4adbf",
+			"status": "stable",
+			"summary": "One choice in an example-select list.",
+			"tag": "example-option"
+		},
+		{
+			"digest": "sha256:3d0ffe0aecb1eaee35defa1b59fe30eb8ced6acdc9860bc374189c8db34dfc3a",
+			"status": "preview",
+			"summary": "Pick one value from a short, fixed list that opens as a popup.",
+			"tag": "example-select"
+		}
+	],
+	"digest": "sha256:2ac2824bf6dd458c7da605fe734a668028e730bfceb03fcbdfc6e59d046c3f27",
+	"format": 1,
+	"library": "example",
+	"package": {
+		"name": "example-components",
+		"version": "1.0.0"
+	},
+	"prefix": "example-",
+	"rules": "sha256:4d08605523d4f013042af4f2a01dee4826c54b46101d29d4ada75e7243463d13",
+	"title": "Example components"
+}

@@ -1,0 +1,129 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "span",
+				"name": "as",
+				"property": "as",
+				"rules": [
+					"taxonomy.as"
+				],
+				"type": "VioletTextAs"
+			},
+			{
+				"basis": "observed",
+				"default": "default",
+				"name": "tone",
+				"property": "tone",
+				"rules": [
+					"taxonomy.tone"
+				],
+				"type": "VioletTextTone"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "truncate",
+				"property": "truncate",
+				"rules": [
+					"taxonomy.truncate"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "body",
+				"name": "variant",
+				"property": "variant",
+				"rules": [
+					"taxonomy.variant"
+				],
+				"type": "VioletTextVariant"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_text-primary)",
+				"name": "--_text-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_body-size)",
+				"name": "--_text-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--type-body-md-weight, 400)",
+				"name": "--_text-font-weight"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_body-line)",
+				"name": "--_text-line-height"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Text content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-text--overview",
+			"html": "<violet-text as=\"span\" tone=\"default\" variant=\"body\">Planting plans stay clearer when text hierarchy is calm and consistent.</violet-text>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text--tones",
+			"html": "<div style=\"display:grid;gap:8px;\">\n            <violet-text as=\"span\" tone=\"default\" variant=\"body\">Default emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"secondary\" variant=\"body\">Secondary emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"muted\" variant=\"body\">Muted emphasis</violet-text>\n            <violet-text as=\"span\" tone=\"success\" variant=\"body\">Healthy irrigation sync</violet-text>\n            <violet-text as=\"span\" tone=\"warning\" variant=\"body\">Needs review before launch</violet-text>\n            <violet-text as=\"span\" tone=\"danger\" variant=\"body\">Timing conflict detected</violet-text>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text--truncated",
+			"html": "<div style=\"inline-size: 14rem;\">\n            <violet-text as=\"span\" tone=\"default\" truncate variant=\"body\">\n                Planting plans with extra long descriptive labels should gracefully truncate inside tighter layouts.\n            </violet-text>\n        </div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.as",
+		"taxonomy.tone",
+		"taxonomy.truncate",
+		"taxonomy.variant"
+	],
+	"status": "stable",
+	"tag": "violet-text",
+	"usage": []
+}

@@ -1,0 +1,53 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. `example-keep-a-draft-broken` runs the scenario of 01
+# against a build in which `document-open` refuses the new note, so step 2 fails.
+# `example-keep-a-draft-continue` runs a copy in which step 2 sets `continueOnFailure`, so step 3
+# still runs after step 2 fails.
+
+name: Refuse a capture from the wrong state
+description: >-
+  When a step fails, or any step before it failed, I want no capture taken or checked as if the
+  state were sound, and the reason given, so that a broken state is never reviewed as a screen.
+job: refuse-a-capture-from-the-wrong-state
+tags: [slice, refuse]
+
+steps:
+  - description: The job fails at step 2, and the later capture points are not taken
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft-broken
+    expect:
+      success: true
+      data:
+        status: failed
+        steps.1.step: 2
+        steps.1.status: failed
+        steps.2.status: skipped
+        steps.2.capture.status: not-taken
+        steps.2.capture.reason: { contains: Step 2 failed }
+        steps.3.capture.status: not-taken
+
+  - description: No check runs on a capture that was not taken, and each says why
+    command: specimen-a11y
+    input:
+      set: ${{ steps[0].data.set }}
+    expect:
+      success: true
+      data:
+        counts.total: 2
+        counts.notRun: 2
+        reports.0.status: not-run
+        reports.0.reason: { contains: not taken }
+
+  - description: A step that runs after an earlier failure is not captured either
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft-continue
+    expect:
+      success: true
+      data:
+        status: failed
+        steps.1.status: failed
+        steps.2.status: passed
+        steps.2.capture.status: not-taken
+        steps.2.capture.reason: { contains: Step 2 failed earlier }

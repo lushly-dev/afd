@@ -1,0 +1,63 @@
+# Ideas plugin, version 1 (specification sections 7.6 and 11). The statements are invented
+# fixtures about gardening and assert nothing about the world.
+#
+# This job is the calling agent's. Whether a model with no skill picks ideas-capture and
+# ideas-ask out of a tool list is measured by hand (specification 14.2). A refusal lists the
+# valid values in its details, which the runner cannot assert.
+
+name: Find your way with no skill installed
+description: >-
+  When I am an agent that has never seen this store and no skill came with the connection, I
+  want one call to tell me its vocabulary and how to work with it, and every refusal to say
+  what is valid, so that I do the right thing without guessing.
+job: find-your-way
+tags: [trust, loop, v1]
+
+steps:
+  - description: One call says what the store holds, how to work with it, and what waits for the person
+    command: ideas-guide
+    expect:
+      success: true
+      data:
+        start: { exists: true }
+        standings: { includes: affirmed }
+        bands:
+          provisional: true
+        confirmAt: { exists: true }
+        totals:
+          ideas: 0
+        pending:
+          staged: 0
+          unreviewed: 0
+
+  - description: A capture with a type the store does not have is refused, and the refusal names the guide
+    command: ideas-capture
+    input:
+      ideas:
+        - type: note
+          statement: Stake dahlias before they need it.
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: ideas-guide }
+
+  - description: With a valid type it goes in
+    command: ideas-capture
+    input:
+      ideas:
+        - type: principle
+          statement: Stake dahlias before they need it.
+    expect:
+      success: true
+
+  - description: The guide counts it as a seed waiting for the person
+    command: ideas-guide
+    expect:
+      success: true
+      data:
+        totals:
+          ideas: 1
+          seeds: 1
+        pending:
+          unreviewed: 1

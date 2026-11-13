@@ -17,7 +17,7 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 2,
+				"kernelInterface": 3,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,
@@ -27,7 +27,11 @@
 				"compositionLibrary": 1,
 				"sdk": 1,
 				"host": "test",
-				"store": "memory"
+				"store": "memory",
+				"identity": {
+					"mode": "local",
+					"organization": null
+				}
 			},
 			"metadata": {
 				"executionTimeMs": 1,
@@ -178,8 +182,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794201424348",
-					"expiresAt": "2026-11-09T06:17:04.348Z"
+					"id": "mock-session-1794281584109",
+					"expiresAt": "2026-11-10T04:33:04.109Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -1082,12 +1086,12 @@
 		"command": "layout-get",
 		"input": {},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:6a77a3fafdc909541a3b40c4b61447919e752f6289f67bb5e05be5128ea04ee7",
+			"hash": "sha256:94c572e4550f8b416e54629243e6fff9b45403947d2a8ef16d3dbdf8d28e9f6d",
 			"interface": "agent"
 		},
 		"context": {
@@ -1120,7 +1124,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-23",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1138,12 +1142,12 @@
 			"id": "loam.layout"
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:ccf5c3d5c3c157d66305910a44f2a7bbbb3d653a3592e96eb9ce847d704a506f",
+			"hash": "sha256:e1861fe12670d626b76434487a1107d42ad8036dedc24b335bd342de05120719",
 			"interface": "agent"
 		},
 		"context": {
@@ -1181,7 +1185,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-24",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1204,12 +1208,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:963383156e2cec26287323e3b498c561117d9189934c864b1cdc2e2856dc6c2f",
+			"hash": "sha256:daf62aa74f183b9bcaae5531e9247c7caf5df67835be8d5ed8f56f251df49443",
 			"interface": "agent"
 		},
 		"context": {
@@ -1292,7 +1296,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-25",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1315,12 +1319,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:598b5b5595f3586eb3db4f5131118da3267b13131f2065d8177820f3f2698f09",
+			"hash": "sha256:148ce05b2a5b6cb6910567b2106cddc0a9e5e6e03573093f629d062ded5a2a4a",
 			"interface": "agent"
 		},
 		"context": {
@@ -1345,7 +1349,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-26",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1368,12 +1372,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:986566ff75eb41365859d24f1b1d1d03fc9833745a08dece83316f1ecea4eb6f",
+			"hash": "sha256:3f7d4de7b75ab4a987bb440451a6e55d01ba8380310fd708d448d81db9dabd28",
 			"interface": "agent"
 		},
 		"context": {
@@ -1456,7 +1460,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-27",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1472,12 +1476,12 @@
 		"command": "view-state-list",
 		"input": {},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:3c8ff11a0500412f92cf87e8d47a4c185e9661e3452561aa11c9c51b3ec47b12",
+			"hash": "sha256:32abcd6c5f9c1e4865f80233ab6517d59242d6f43c510a75eccb384ea3e6921f",
 			"interface": "agent"
 		},
 		"context": {
@@ -1603,7 +1607,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-28",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1623,12 +1627,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:f20ff3adf73937cf7f93c39e1b525b1d8b2a4f3b42305a3771d839e863ff5a0b",
+			"hash": "sha256:53238dc9f5a995dea075fa9e822879b694d96f5f0f317c65a36e5c66e0b5ff63",
 			"interface": "agent"
 		},
 		"context": {
@@ -1667,7 +1671,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-29",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1687,12 +1691,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:8616dafcc196b69eb69d58e074148c085f40a85570f3084acb6655c1e2ed4d24",
+			"hash": "sha256:75d388e024a0c2c9c01436484bc3e49db36408c71805770764cddbf6d8f3cc50",
 			"interface": "agent"
 		},
 		"context": {
@@ -1731,7 +1735,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-30",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1751,12 +1755,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:7fb7ef9c71e6e89f0ae33cf3b61e313ab493b911f740cf12deaf7f9c11746951",
+			"hash": "sha256:bcaf51ce6b9cc4d2e9d5ca188d428ff584b550254f65abb4e1f4dc3375d07130",
 			"interface": "agent"
 		},
 		"context": {
@@ -1795,7 +1799,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-31",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1816,12 +1820,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:a03c2d6769ea1a2df6415097009d751c69ff047522d3f8dcebffa4a24cdfa2a1",
+			"hash": "sha256:175b2c545d917d11c47d0a63f8dbc94def9d3634ef9384be70421dd48895198d",
 			"interface": "agent"
 		},
 		"context": {
@@ -1861,7 +1865,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-32",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1879,12 +1883,12 @@
 			"theme": "high-contrast"
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:dd6c49c8aca1a1be33e2e916d40049dfe5abaa75319365d1f68bfec436fabf49",
+			"hash": "sha256:d20f3806473794e5e8fa8dc02c694a280e52d05bd40051a5ff747854acc5b915",
 			"interface": "agent"
 		},
 		"context": {
@@ -1906,7 +1910,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-33",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1927,12 +1931,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:8180f3de2295a7adc9a7cf673b8f69c00d7779599f8ccf973f478f65f2742404",
+			"hash": "sha256:f213f9f51736f6aac9d18983daab6d19f9b9f2535636988ff7dea6e5cfb9711b",
 			"interface": "agent"
 		},
 		"context": {
@@ -1954,7 +1958,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-34",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -1975,12 +1979,12 @@
 			}
 		},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:405deb15dacb93f6d64286e39db0bf1bee00b82b9b8401192997d80a34b7f1c1",
+			"hash": "sha256:2def2da2bc8c2c4170ff3ac08e38a3778196e8100dd6b4cfbd804ff6f719f4b7",
 			"interface": "agent"
 		},
 		"context": {
@@ -2015,7 +2019,7 @@
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-35",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -2031,12 +2035,12 @@
 		"command": "shell-info-get",
 		"input": {},
 		"actor": {
-			"kind": "human",
-			"id": "mock-user-person@example.com",
-			"label": "person"
+			"kind": "agent",
+			"id": "shell-agent",
+			"onBehalfOf": "mock-user-person@example.com"
 		},
 		"contextDigest": {
-			"hash": "sha256:6eddac7cf9ffae7cafaabd3dbd8a0c57944c74479a936244b8645cb24e365db2",
+			"hash": "sha256:94e72cf268bffe41ed88cf0f49a4ada8b26f66f4dc42c95953ee4ae9b65da144",
 			"interface": "agent"
 		},
 		"context": {
@@ -2047,7 +2051,7 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 2,
+				"kernelInterface": 3,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,
@@ -2057,12 +2061,16 @@
 				"compositionLibrary": 1,
 				"sdk": 1,
 				"host": "test",
-				"store": "memory"
+				"store": "memory",
+				"identity": {
+					"mode": "local",
+					"organization": null
+				}
 			},
 			"metadata": {
 				"executionTimeMs": 1,
 				"traceId": "loam-mjuohs00-36",
-				"actorKind": "human"
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -2581,8 +2589,8 @@
 			"data": {
 				"status": "authenticated",
 				"session": {
-					"id": "mock-session-1794201424348",
-					"expiresAt": "2026-11-09T06:17:04.348Z"
+					"id": "mock-session-1794281584109",
+					"expiresAt": "2026-11-10T04:33:04.109Z"
 				},
 				"user": {
 					"id": "mock-user-person@example.com",
@@ -2702,8 +2710,12 @@
 			},
 			"replace": true
 		},
+		"actor": {
+			"kind": "agent",
+			"id": "shell-agent"
+		},
 		"contextDigest": {
-			"hash": "sha256:6de04875312081017043e5e10a1d17578d8be752a63bb4c057925ccd6862effc",
+			"hash": "sha256:e13bf8091fac5453c9fed5f22335624ec08322dc32c2e6c2059922dc383be847",
 			"interface": "agent"
 		},
 		"context": {
@@ -2785,7 +2797,8 @@
 			},
 			"metadata": {
 				"executionTimeMs": 1,
-				"traceId": "loam-mjuohs00-48"
+				"traceId": "loam-mjuohs00-48",
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,
@@ -2800,8 +2813,12 @@
 		"traceId": "loam-mjuohs00-49",
 		"command": "layout-get",
 		"input": {},
+		"actor": {
+			"kind": "agent",
+			"id": "shell-agent"
+		},
 		"contextDigest": {
-			"hash": "sha256:c2ce3d5cbf5dc6e51e4c5c75a24209ad1966402c17b9d7efc187713436d09443",
+			"hash": "sha256:398c2a4cc367637bae7ee37a842d1d3a0708060b1b4796cba79868e455d42e42",
 			"interface": "agent"
 		},
 		"context": {
@@ -2833,7 +2850,8 @@
 			},
 			"metadata": {
 				"executionTimeMs": 1,
-				"traceId": "loam-mjuohs00-49"
+				"traceId": "loam-mjuohs00-49",
+				"actorKind": "agent"
 			}
 		},
 		"durationMs": 3,

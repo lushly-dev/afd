@@ -12,10 +12,12 @@ import { basename, dirname, join, resolve } from 'node:path';
 import type {
 	DeploymentV1,
 	DeploymentV2,
+	DeploymentV3,
 	DeploymentWorkspaceV2,
+	IdentityV1,
 	ProjectionAppV2,
 	ProjectionBootV2,
-	ProjectionV2,
+	ProjectionV3,
 } from '@lushly-dev/loam-manifest';
 import { DEFAULT_WORKSPACE_V2, readProjection } from '@lushly-dev/loam-manifest/validate';
 import {
@@ -30,6 +32,7 @@ import {
 import { copyListed, isWithin, listCopy, OUTPUT_MARKER, realish, replaceable } from './tree.js';
 
 export {
+	type AnalyzeDeploymentOptions,
 	analyzeDeployment,
 	type DeploymentAnalysis,
 	type DeploymentFinding,
@@ -45,13 +48,15 @@ export interface WriteDeploymentOptions {
 	out: string;
 	/** Where the CLI writes the `mounts` list, mode 0600 and outside everything served. */
 	mountsOut?: string;
+	/** Write the site as if the file's `[sandbox] origin` were this one (`AnalyzeDeploymentOptions`). */
+	sandboxOrigin?: string;
 }
 
 export type WriteDeploymentResult =
 	| {
 			ok: true;
 			out: string;
-			projection: ProjectionV2;
+			projection: ProjectionV3;
 			/** In memory: what the caller's relay needs. */
 			mounts: MountAccess[];
 			/** Each instance the kernel will refuse, and the packages' warnings. */
@@ -133,13 +138,18 @@ export function generationOf(
 	return `sha256-${digest.digest('hex')}`;
 }
 
-/** The whitelist of what reaches a browser. A key not named here cannot arrive there. */
+/**
+ * The whitelist of what reaches a browser. A key not named here cannot arrive there. A version 3 file
+ * writes a version 3 projection, with its identity's mode, slug, path and methods and nothing else of
+ * it (phase 3 specification, 2.2); an earlier file, version 2, so phase 2's projections are unchanged.
+ */
 export function projectionOf(
-	deployment: DeploymentV1 | DeploymentV2,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
 	instances: readonly InstanceEffect[],
 	workspace: DeploymentWorkspaceV2 = DEFAULT_WORKSPACE_V2,
-	findings: readonly DeploymentFinding[] = []
-): ProjectionV2 {
+	findings: readonly DeploymentFinding[] = [],
+	identity: IdentityV1 = { mode: 'local' }
+): ProjectionV3 {
 	const apps: ProjectionAppV2[] = instances.map((effect) => {
 		const { id, entry, mounted, prefix, transport } = effect;
 		return {
@@ -160,11 +170,26 @@ export function projectionOf(
 			boot: bootRecordOf(effect, findings),
 		};
 	});
+	const version = deployment.deployment_version === 3 ? 3 : 2;
 	return {
-		deployment_version: 2,
+		deployment_version: version,
 		generation: generationOf(workspace, apps),
 		workspace: { id: workspace.id, name: workspace.name },
 		sandbox_origin: deployment.sandbox?.origin ?? null,
+		...(version === 3 && deployment.deployment_version === 3 && deployment.identity !== undefined
+			? {
+					identity:
+						identity.mode === 'provider'
+							? {
+									mode: 'provider',
+									organization: identity.organization,
+									path: identity.path,
+									// `readDeployment` refused an empty list.
+									methods: identity.methods as [string, ...string[]],
+								}
+							: { mode: 'local' },
+				}
+			: {}),
 		apps,
 	};
 }
@@ -172,7 +197,7 @@ export function projectionOf(
 /** A projection the schema refuses stops the write: nothing with an unknown key is ever served. */
 export function checkedProjection(
 	candidate: unknown
-): { ok: true; projection: ProjectionV2 } | { ok: false; refusals: DeploymentFinding[] } {
+): { ok: true; projection: ProjectionV3 } | { ok: false; refusals: DeploymentFinding[] } {
 	const read = readProjection(candidate);
 	return read.ok
 		? { ok: true, projection: read.projection }
@@ -240,7 +265,7 @@ async function pathRefusals(
 	options: WriteDeploymentOptions,
 	dist: string,
 	out: string,
-	deployment: DeploymentV1 | DeploymentV2,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const found: DeploymentFinding[] = [];
@@ -327,7 +352,10 @@ async function planCopy(
 export async function writeDeployment(
 	options: WriteDeploymentOptions
 ): Promise<WriteDeploymentResult> {
-	const analysis = await analyzeDeployment(options.config);
+	const analysis = await analyzeDeployment(
+		options.config,
+		options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }
+	);
 	const warnings = [...analysis.instanceRefusals, ...analysis.warnings];
 	const stop = (refusals: DeploymentFinding[]): WriteDeploymentResult => ({
 		ok: false,
@@ -344,7 +372,8 @@ export async function writeDeployment(
 			analysis.deployment,
 			analysis.instances,
 			analysis.workspace,
-			analysis.instanceRefusals
+			analysis.instanceRefusals,
+			analysis.identity
 		)
 	);
 	if (!checked.ok) return stop(checked.refusals);

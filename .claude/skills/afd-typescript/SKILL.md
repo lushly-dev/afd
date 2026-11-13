@@ -18,7 +18,7 @@ description: >
 | `@lushly-dev/afd-server` | Node servers: `createMcpServer`, `createMcpHandler`, and everything below | Loads the MCP SDK, `node:http` and `node:tls`, so it cannot go in a browser bundle |
 | `@lushly-dev/afd-server/define` | Code that only defines commands: `defineCommand`, `defineCommandWithSchema`, `success`/`failure`/`error`, `zodToJsonSchema`, `defaultExpose` | No MCP SDK, no Node built-in |
 | `@lushly-dev/afd-server/direct` | In-process hosts (browser, worker, webview, or Node without the SDK): `/define` plus `createDirectRegistry`, `createDirectToolSurface`, `createApprovalMiddleware`, `createJournalMiddleware`, `replayJournal`, `MemoryJournalSink` and the Node-free middleware | Same guarantee; an esbuild test enforces it |
-| `@lushly-dev/afd-server/credentials` | `isVerifiedCredentials`: whether `credentials` are the object afd-server branded after verifying a token; pass it to afd-auth's `createAuthMiddleware` on a token-authorized MCP server | Browser-safe; nothing is branded until the server verifies tokens |
+| `@lushly-dev/afd-server/credentials` | `isVerifiedCredentials`: whether `credentials` are the object afd-server branded after verifying a token; pass it to afd-auth's `createAuthMiddleware` on a token-authorized MCP server | Browser-safe; the server brands the credentials of a request its `auth` option verified, until the request ends |
 | `@lushly-dev/afd-core` | Types, result helpers, `ErrorCodes`, `systemClock`/`fixedClock`, `systemRandom`/`seededRandom`, `MemoryJournalSink` | Platform helpers are not in the barrel: import `/platform` or `/connectors` (Node only) |
 | `@lushly-dev/afd-core/journal-file`, `/journal-indexeddb` | `FileJournalSink` (Node), `IndexedDbJournalSink` (browser) | |
 | `@lushly-dev/afd-client/streamable-http` | A browser calling a remote MCP server: the transport alone | The root entry also loads `McpClient` and `eventsource` |
@@ -106,6 +106,19 @@ export const panelOpen = defineCommandWithSchema({
 - **Transport.** The default `transport: 'auto'` picks stdio whenever stdin is not a TTY. Under Docker without `-t`, systemd, pm2 or CI the HTTP port never opens: set `transport: 'http'` for anything that must listen.
 - **Middleware.** Start from `...defaultMiddleware()` (trace IDs, logging, slow-command warnings). Order matters: auth middleware first, then `createApprovalMiddleware`, and `createJournalMiddleware` last.
 - **Names.** Creation throws on duplicate names and on names the server owns: `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail` always; `afd-help`, `afd-docs`, `afd-schema` with `bootstrap: true`; `afd-context-list`, `-enter`, `-exit` with `contexts`. So don't add `getBootstrapCommands()` to `commands` as well as setting `bootstrap: true`.
+
+### MCP authorization
+
+`auth` on `createMcpHandler` or `createMcpServer` makes the server an OAuth protected resource (`spec/authorization.md`, M1 to M5 and M7): `{ resource, authorizationServers, verifier, scopesSupported?, resourceName? }`, with `verifier: new JwtVerifier({ rules: { resource }, issuers: [{ issuer, algorithms, keys: jwksKeySource(load) }] })`.
+
+- Every HTTP route then needs exactly one `Authorization: Bearer` token, `/health` included; only the RFC 9728 metadata and CORS preflights are public. stdio and `server.execute()` are unaffected.
+- AFD opens no socket: `jwksKeySource(load)` calls your `load()` for the issuer's JWKS, and `createIntrospectionVerifier({ introspect })` your RFC 7662 call for opaque tokens.
+- Commands get frozen `context.credentials`, never the token. `createContext(req, { credentials })` maps them to an `actor` (default `{ kind: 'agent', id: clientId, onBehalfOf: subject }`) and cannot replace them.
+- With afd-auth's middleware on the same server, pass `isVerifiedCredentials` to `createAuthMiddleware`, or every token's call is gated on the adapter's session.
+- A host verifier may wrap `JwtVerifier` to refuse more with its own rule code (logged, the same 401), never to accept more.
+- Scopes (M6): a command's `scopes` plus `auth.requiredScopes`, compared exactly; a missing scope is a 403 before dispatch, or `INSUFFICIENT_SCOPE` after routing. A `resolver` decides instead, twice: on the arguments as sent and again on the validated input, so decide on values, not on whether they were sent.
+- `filterToolsByScope: true` filters every listing; with a resolver, a command its `known` (default `visible`) rejects answers as a missing name on every route. `visible` and `known` must be pure.
+- `handler.admit(req, credentials)` is a gateway vouching for a caller it authenticated itself, never anything the caller sent; then `handler.preDispatchCheck({ challenge, scopeSource }).decide(req, body)` and `handler(req, res, body)`.
 
 ### Tool strategies
 

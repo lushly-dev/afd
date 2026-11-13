@@ -9,15 +9,25 @@ import type { SpecimenEntry } from './types.js';
 const ENTRY = '/__specimen_entry__.js';
 /** Every story's identity and loader: sized by the consumer, so never in the entry's chunk. */
 const CATALOG = '\0specimen-catalog';
-const SHELL_BUDGET = 50_000;
+/**
+ * The proposal's shell ceiling was 50,000. The shell is Specimen's own code before a consumer adds
+ * any: 49,504 bytes on the fixtures before the declared-themes tag and notice (#1001), which take it
+ * to 49,793. A consumer's shell is larger than the fixtures', so 50,000 no longer fit one with
+ * typical additions; 2,000 more keeps such a build passing and leaves room for a small page change.
+ */
+const SHELL_BUDGET = 52_000;
 /** The index and preview pages' own stylesheet, in minified UTF-8 bytes; a story's CSS is its own. */
 const STYLE_BUDGET = 8_000;
-/** The proposal's category ceilings, in minified UTF-8 JavaScript bytes. */
+/**
+ * The proposal's category ceilings, in minified UTF-8 JavaScript bytes. Accessibility was 650,000,
+ * which no build of axe-core 4.14.0 fits: its own minified file is 652,140 bytes, and 659,293 here
+ * (4.13.0 was 586,666). Its ceiling moved; the total did not.
+ */
 const TOTAL_BUDGET = 1_300_000;
 const CATEGORY_BUDGETS = {
 	shell: SHELL_BUDGET,
 	interaction: 600_000,
-	accessibility: 650_000,
+	accessibility: 680_000,
 } as const;
 /**
  * The helpers a play imports, with what they bring: the proposal's interaction support (Vitest

@@ -61,10 +61,13 @@ pub(crate) struct CommandPolicy {
     pub(crate) store_write: bool,
     /// The command is exposed to the CLI alone: it may use `as_reader`.
     pub(crate) cli_only: bool,
-    /// Its `person` (manifest version 5), for a `require-human` command: a person decision on a
-    /// call counts for the services only on a surface this names `verified`, where the plugin gate
-    /// admitted it against the shared ledger, never on a surface the terminal mark decides.
-    pub(crate) person: Option<crate::plugins::PersonDecl>,
+    /// `confirm = "require-human"`: the plugin gate ran its person gate before the handler, so
+    /// a call of this command can carry that gate's proof (the records host specification,
+    /// section 6.1).
+    pub(crate) require_human: bool,
+    /// The least person assurance per surface the command's manifest names; the default, the
+    /// terminal at the CLI and nothing over MCP, for a command that names none.
+    pub(crate) person: super::PersonDecl,
 }
 
 pub(crate) struct Shared {
@@ -94,6 +97,15 @@ pub(crate) struct Shared {
     /// (phase 3 section 3.3).
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     pub(crate) prompts: Arc<std::sync::OnceLock<crate::authority::Prompts>>,
+    /// The record kinds the instance's manifest declares, by kind (the records host
+    /// specification, section 2): a put of one writes its lane rows, and only these are read
+    /// through the lane's services.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) records: BTreeMap<String, umbel_store::lane::RecordDecl>,
+    /// `[plugins.<id>.grants.records_write] default_access`: the access set the host gives a
+    /// new record of a declared kind (section 4.2).
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) records_default_access: crate::workspace::DefaultAccess,
 }
 
 /// The host services granted to one plugin instance. Cheap to clone.
@@ -138,8 +150,10 @@ impl Services {
     /// space, which is what the host resolved before the handler ran; its spaces are the
     /// input's `spaces` when it has them.
     ///
-    /// The command is not known here, so derivation reads and `as_reader` are refused; a
-    /// handler that needs them calls [`Services::call_command`].
+    /// The command is not known here, so derivation reads and `as_reader` are refused, and the
+    /// call carries no proof that a person decided it: a decision on standing and a mark are
+    /// refused (the records host specification, section 6.1). A handler that needs them calls
+    /// [`Services::call_command`].
     pub fn call(&self, input: &Value, context: &CommandContext) -> CallServices {
         self.build(None, input, context)
     }
@@ -168,8 +182,12 @@ impl Services {
         let spaces = workspace
             .resolve_spaces(input, context)
             .unwrap_or_else(|_| vec![space.clone()]);
-        let verified = command.and_then(|command| {
-            let person = self.shared.commands.get(command)?.person?;
+        let person_decision = command.and_then(|command| {
+            let person = self.shared.commands.get(command)?;
+            if !person.require_human {
+                return None;
+            }
+            let person = person.person;
             crate::person::attested(workspace.config(), command, input, context).filter(|decided| {
                 match decided.surface.as_str() {
                     "mcp" => person.mcp == Some(crate::plugins::Assurance::Verified),
@@ -178,6 +196,18 @@ impl Services {
                 }
             })
         });
+        // Whether this call passed the person gate (the records host specification, section
+        // 6.1, check 2), decided once, here, where the command, its validated input and the
+        // context are all at hand: only for one of this instance's commands declared
+        // `confirm = "require-human"`, and only on the proof the plugin gate accepted for it. A
+        // call that names no command has none.
+        let person_gate = command.and_then(|name| {
+            let policy = self.shared.commands.get(name)?;
+            if !policy.require_human {
+                return None;
+            }
+            crate::person::gate_proof(workspace.config(), name, policy.person, input, context)
+        });
         CallServices {
             shared: Arc::clone(&self.shared),
             context: context.clone(),
@@ -185,7 +215,8 @@ impl Services {
             space,
             spaces,
             command: command.map(str::to_owned),
-            verified,
+            person_decision,
+            person_gate,
             as_principal: None,
             read_only: false,
             pack_bytes: AtomicU64::new(0),
@@ -282,9 +313,17 @@ pub struct CallServices {
     space: SpaceId,
     spaces: Vec<SpaceId>,
     pub(super) command: Option<String>,
-    /// The person decision this call carries for its own command and validated input, as the
-    /// host attests it ([`crate::person::attested`]); `None` for every other call.
-    pub(super) verified: Option<umbel_sdk::PersonDecision>,
+    /// The person-page decision this call carries for its command and validated input,
+    /// including the local page's level. Memory accepts only the verified level.
+    pub(super) person_decision: Option<umbel_sdk::PersonDecision>,
+    /// The proof that a person decided this very call, as the assurance a standing fact records
+    /// (the records host specification, section 6.1, check 2): `Some` only for one of the
+    /// instance's `require-human` commands, called with the proof the plugin gate's person gate
+    /// accepted for that command, surface and input. Set once, when the call's services are
+    /// built, from the host's own context fields; nothing a plugin or a caller passes reaches
+    /// it. A call that names no command, and the read-only view of `as_reader`, have none.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(super) person_gate: Option<umbel_store::Assurance>,
     /// Set by `as_reader`: reads use this principal's filter, and nothing writes.
     pub(super) as_principal: Option<String>,
     pub(super) read_only: bool,
@@ -308,7 +347,9 @@ impl CallServices {
             space: self.space.clone(),
             spaces: self.spaces.clone(),
             command: self.command.clone(),
-            verified: None,
+            person_decision: None,
+            // A view that reads as another principal carries no person's decision.
+            person_gate: None,
             as_principal: Some(principal.to_owned()),
             read_only: true,
             pack_bytes: AtomicU64::new(0),
@@ -358,10 +399,10 @@ impl CallServices {
     /// has none.
     ///
     /// Since step 10 it counts only on a surface the command's `person` names `verified`, where
-    /// the plugin gate admitted the decision against the shared ledger (the call's own `input` was
-    /// read when the services were built).
+    /// the plugin gate admitted the decision (the call's own `input` was read when the services
+    /// were built). A local-page decision retains its `local` level.
     pub fn person_decision(&self, _input: &Value) -> Option<umbel_sdk::PersonDecision> {
-        self.verified.clone()
+        self.person_decision.clone()
     }
 
     /// The command whose person decision is about to be begun, when this call is its preview run
@@ -369,6 +410,13 @@ impl CallServices {
     /// `CallContext.person_check` carries.
     pub fn person_check(&self) -> Option<umbel_sdk::PersonCheck> {
         crate::person::check_of(self.command.as_deref()?, &self.context)
+    }
+
+    /// The page of its preview the person page asks for, when this call is that page's rendering
+    /// (the Ideas host-review specification, section 2; [`crate::person::page_of`]), which
+    /// `CallContext.preview_page` carries.
+    pub fn preview_page(&self) -> Option<u32> {
+        crate::person::page_of(self.command.as_deref()?, &self.context)
     }
 
     /// Whether the call's caller sees positions sealed (phase 5 section 9.3), which
@@ -711,6 +759,86 @@ impl HostServices for CallServices {
         expect: Expect,
     ) -> Result<RecordMeta, ServiceError> {
         self.svc_record_put(space, kind, id, body, envelope, expect)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_put_cited(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        body: Value,
+        envelope: Envelope,
+        expect: Expect,
+        evidence: umbel_store::lane::Evidence,
+    ) -> Result<RecordMeta, ServiceError> {
+        self.svc_record_put_cited(space, kind, id, body, envelope, expect, evidence)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_decide(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        decision: umbel_store::lane::Decision,
+    ) -> Result<umbel_store::lane::StandingLabel, ServiceError> {
+        self.svc_record_decide(space, kind, id, decision)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn doc_own_mark(
+        &self,
+        space: &str,
+        doc: &str,
+        content_hash: &ContentHash,
+        speaker: Option<&str>,
+    ) -> Result<Rev, ServiceError> {
+        self.svc_doc_own_mark(space, doc, content_hash, speaker)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn doc_own_unmark(&self, space: &str, doc: &str) -> Result<Rev, ServiceError> {
+        self.svc_doc_own_unmark(space, doc)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn doc_own(
+        &self,
+        space: &str,
+        doc: &str,
+    ) -> Result<Option<umbel_store::lane::OwnInfo>, ServiceError> {
+        self.svc_doc_own(space, doc)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_read(
+        &self,
+        space: &str,
+        kind: &str,
+        id: &str,
+        standings: &[umbel_store::lane::Standing],
+        verified_only: bool,
+    ) -> Result<Option<umbel_store::lane::LaneRecord>, ServiceError> {
+        self.svc_record_read(space, kind, id, standings, verified_only)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_find(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordFind,
+    ) -> Result<umbel_store::lane::FindPage, ServiceError> {
+        self.svc_record_find(space, query)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn record_match(
+        &self,
+        space: &str,
+        query: &umbel_store::lane::RecordMatch,
+    ) -> Result<umbel_store::lane::MatchPage, ServiceError> {
+        self.svc_record_match(space, query)
     }
 
     fn index_search(&self, space: &str, query: &IndexQuery) -> Result<Vec<ChunkHit>, ServiceError> {

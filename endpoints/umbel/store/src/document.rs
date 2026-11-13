@@ -248,6 +248,11 @@ pub enum ChangeKind {
     Delete,
     /// A record was written.
     Record,
+    /// A standing fact was written (records host specification, section 5.1): a person's
+    /// decision on a record, with the record's target, or a person's mark on a document or its
+    /// withdrawal, with the document's id. It carries no content hash, and it is not a change
+    /// to a document: a sealed position does not move for it.
+    Standing,
 }
 
 /// One revision's change.

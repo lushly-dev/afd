@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-host-darwin-x64",
-	"version": "2.2.0-preview.2",
+	"version": "2.2.0-preview.4",
 	"description": "Specimen's prebuilt native host for darwin-x64",
 	"os": [
 		"darwin"

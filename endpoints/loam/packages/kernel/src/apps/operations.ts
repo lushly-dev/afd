@@ -350,9 +350,14 @@ export function createOperations(
 			);
 		},
 		// Nested in the call that enabled it, so a replay answers it from that call's entries (4.1).
-		refreshEnabled: (instance, parent) =>
+		refreshEnabled: (instance, parent, actor) =>
 			records.get(instance)?.mounted
-				? host.runAs('app-instance-refresh', { instance }, undefined, { parent })
+				? host.runAs(
+						'app-instance-refresh',
+						{ instance },
+						undefined,
+						actor ? { parent, actor } : { parent }
+					)
 				: undefined,
 		selection(instance, project) {
 			const record = records.get(instance);
@@ -428,7 +433,7 @@ export function createRefusalCommands(): ZodCommandDefinition[] {
 		}),
 		defineCommand<typeof refuseInput, never>({
 			name: 'app-modal-refuse',
-			description: 'Refuses a modal from a view a person just closed one of, and journals it',
+			description: "Refuses a view's modal during its cooldown",
 			category: 'app',
 			mutation: false,
 			executionTime: 'instant',

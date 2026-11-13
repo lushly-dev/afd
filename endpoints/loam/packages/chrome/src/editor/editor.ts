@@ -12,7 +12,7 @@
  */
 
 import { type FASTElement, Updates } from '@lushly-dev/fast-element';
-import type { KernelEventV2, LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { KernelEventV3, LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { hearModals, keyFrame, saveAll, saveOnce, settleFocus } from './editor-actions.js';
@@ -79,7 +79,7 @@ export function editorOf(shell: LoamShell): EditorController | undefined {
 
 export class EditorController implements FrameListener {
 	readonly #shell: LoamShell;
-	readonly #kernel: LoamKernelV2;
+	readonly #kernel: LoamKernelV3;
 	readonly #area: LoamEditorArea;
 	readonly #groups = new Map<string, LoamEditorGroup>();
 	/** Each tab's frame, by tab id, in the scope that is rendered. */
@@ -132,7 +132,7 @@ export class EditorController implements FrameListener {
 
 	constructor(shell: LoamShell) {
 		this.#shell = shell;
-		this.#kernel = shell.kernel as LoamKernelV2;
+		this.#kernel = shell.kernel as LoamKernelV3;
 		this.#area = shell.ownerDocument.createElement(editorAreaDefinition.name) as LoamEditorArea;
 		const view = shell.ownerDocument.defaultView ?? window;
 		this.#kernel.subscribe((event) => this.#onEvent(event));
@@ -540,7 +540,7 @@ export class EditorController implements FrameListener {
 
 	// ─── What the kernel says ──────────────────────────────────────────────────────
 
-	#onEvent(event: KernelEventV2): void {
+	#onEvent(event: KernelEventV3): void {
 		// The person's own move, from the tab's menu or an undo, may save a view editor before it (`editor-move.ts`).
 		if (event.command === 'editor-move' && event.success) {
 			this.#moved = event.interface === 'palette';
@@ -563,7 +563,7 @@ export class EditorController implements FrameListener {
 		// A record's title, status or scope may have changed: each is read again.
 		if (event.command.startsWith('document-')) this.#records.clear();
 		if (
-			/^(editor-|document-|auth-)/.test(event.command) ||
+			/^(editor-|document-|auth-|session-settle$)/.test(event.command) ||
 			event.scopeChanged ||
 			event.mainChanged
 		) {

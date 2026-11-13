@@ -206,7 +206,7 @@ const template = html<VioletDateRangePicker>`
                 aria-haspopup="dialog"
                 aria-expanded="${x => String(x.open)}"
                 aria-controls="${x => x.panelId}"
-                aria-labelledby="${x => (x.label ? x.labelId : x.triggerId)}"
+                aria-labelledby="${x => x.labelledBy}"
                 aria-describedby="${x => x.describedBy || null}"
                 aria-invalid="${x => x.invalid ? "true" : "false"}"
                 @click="${x => x.toggleOpen()}"
@@ -342,6 +342,11 @@ export class VioletDateRangePicker extends FASTElement {
             start: this.start || null,
             end: this.end || null,
         };
+    }
+
+    /** The label, then the trigger's own visible dates, so the name contains them (WCAG 2.5.3). */
+    public get labelledBy(): string {
+        return this.label ? `${this.labelId} ${this.triggerId}` : this.triggerId;
     }
 
     public get describedBy(): string {

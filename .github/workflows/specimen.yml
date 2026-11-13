@@ -86,7 +86,7 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
       - name: Format
@@ -124,18 +124,20 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." build
+      # Under a minute as a rule; apt held this step for 50 when a runner could not resolve Ubuntu's mirrors.
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
       - name: Native host release build
@@ -162,27 +164,29 @@ jobs:
     needs: scope
     if: needs.scope.outputs.stories == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # The pack check runs every story twice more after the contract's run.
+    timeout-minutes: 45
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/violet-elements..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
       - name: Native host release build
         run: pnpm -F @lushly-dev/specimen build:host
-      - name: Story typecheck, every story, the story contract and the review page's budgets
+      - name: Story typecheck, every story, the story contract, the review page's budgets and the component pack
         run: pnpm -F @lushly-dev/violet-elements test:stories
 
   browser-and-consumers:
@@ -194,18 +198,19 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
       - run: pnpm install --frozen-lockfile
       - run: pnpm -F "@lushly-dev/specimen-cli..." -F "@lushly-dev/specimen-fast-af..." build
       - run: pnpm -F @lushly-dev/specimen exec playwright install --with-deps chromium
+        timeout-minutes: 10
       - name: Install Rust toolchain
         working-directory: foundations/specimen/host
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: foundations/specimen/host
       - name: Native host release build

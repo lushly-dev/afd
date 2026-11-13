@@ -1,0 +1,383 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"role": "list",
+				"state": "selected"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "file-upload.name",
+				"text": "The browse button is named \"<label>: Browse file\" (\"Browse files\" with multiple, \"Replace file\" once a single file is chosen). The native file input is hidden from assistive technology."
+			},
+			{
+				"basis": "authored",
+				"id": "file-upload.status",
+				"text": "The selection summary is a polite status region, so each new choice is announced. Every listed file has its own remove button named \"Remove <file name>\"."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "accept",
+				"property": "accept",
+				"rules": [
+					"taxonomy.accept"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "button",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletFileUploadAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max-file-size",
+				"property": "maxFileSize",
+				"rules": [
+					"taxonomy.max-file-size"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "max-files",
+				"property": "maxFiles",
+				"rules": [
+					"taxonomy.max-files"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "multiple",
+				"property": "multiple",
+				"rules": [
+					"taxonomy.multiple"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletFileUploadSize"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--_upload-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-stack-sm)",
+				"name": "--_upload-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "max(1rem, calc(var(--_target-size) * 0.4))",
+				"name": "--_upload-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "clamp(var(--_upload-space-md), 2vw, var(--_upload-space-lg))",
+				"name": "--_upload-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_radius-md) * 1.5)",
+				"name": "--_upload-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-stack-2xs)",
+				"name": "--_upload-space-2xs"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_space-inline-md) * 2.5)",
+				"name": "--_upload-space-lg"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_space-inline-md) * 1.5)",
+				"name": "--_upload-space-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-inline-sm)",
+				"name": "--_upload-space-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_space-stack-sm) * 2)",
+				"name": "--_upload-stack-lg"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_space-stack-sm) * 1.5)",
+				"name": "--_upload-stack-md"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_control-caption-size)",
+				"name": "--_upload-summary-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_surface-page)",
+				"name": "--_upload-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_focus-ring) 10%, var(--_surface-page))",
+				"name": "--_upload-surface-active"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_surface-page) 76%, var(--_surface-subtle))",
+				"name": "--_upload-surface-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_control-body-size)",
+				"name": "--_upload-title-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-body-size)",
+				"name": "--violet-control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-caption-size)",
+				"name": "--violet-control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-label-size)",
+				"name": "--violet-control-label-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_upload-icon-size)",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-natural)",
+				"name": "--violet-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the selected files are committed. Detail: `{ files }`.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the selected files change. Detail: `{ files }`.",
+				"name": "input"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when a selected file is removed. Detail: `{ file, index, files }`.",
+				"name": "remove"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-file-upload--disabled",
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" disabled error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-file-upload--dropzone",
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"dropzone\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files multiple name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-file-upload--overview",
+			"html": "<div style=\"max-inline-size: 38rem;\"><form><violet-file-upload accept=\".pdf,.jpg,.jpeg,.png\" appearance=\"button\" error-text=\"Add a valid file before continuing.\" label=\"Upload field maps\" max-file-size max-files name=\"field-maps\" size=\"natural\" supporting-text=\"Accepted formats: PDF, JPG, or PNG.\"></violet-file-upload></form></div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "invalid",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "required",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "size",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"field.label-required",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.accept",
+		"taxonomy.appearance",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.max-file-size",
+		"taxonomy.max-files",
+		"taxonomy.multiple",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.size",
+		"taxonomy.supporting-text",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "File chooser with a browse button or a drag-and-drop zone that lists the chosen files with remove buttons and submits them with a form.",
+	"tag": "violet-file-upload",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "file-upload.form",
+			"text": "The form receives one entry per file under name, and nothing without a name; submit it as multipart/form-data. The value property is always empty; read files, an array of File."
+		},
+		{
+			"basis": "authored",
+			"id": "file-upload.events",
+			"text": "input and change carry detail.files, a copy of the File array. Removing a file also fires remove with detail { file, index, files }."
+		},
+		{
+			"basis": "authored",
+			"id": "file-upload.multiple",
+			"text": "Without multiple, a new choice replaces the file. With it, each choice or drop adds to the list, skipping duplicates; take files out with removeFileAt(index) or clearFiles()."
+		},
+		{
+			"basis": "authored",
+			"id": "file-upload.limits",
+			"text": "accept, max-files and max-file-size (bytes) are checked on every choice and drop. A failing selection is rejected whole, the current files stay, and the reason is shown as the error."
+		},
+		{
+			"basis": "authored",
+			"id": "file-upload.dropzone",
+			"text": "Drag and drop works only with appearance=\"dropzone\", where a click anywhere on the zone also opens the picker. The default appearance=\"button\" is a browse button only."
+		},
+		{
+			"basis": "authored",
+			"id": "file-upload.script",
+			"text": "setFiles(files) applies the same checks and returns false when it rejects them. openPicker() opens the system file dialog and needs a user gesture."
+		}
+	]
+}

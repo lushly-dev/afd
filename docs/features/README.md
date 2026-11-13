@@ -17,7 +17,12 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | Feature | Description |
 |---------|-------------|
 | [Platform Monorepo](./active/platform-monorepo/) | Consolidate independent foundations and composable developer endpoints with guarded publishing; Lushly remains separate and Creator is excluded. |
-| [Specimens](./active/specimens/STATUS.md) | Native component observation and CPU/memory pilots; workstream 0 acceptance, retained-CSF compatibility and consumer cutover remain open. |
+| [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins. Phases 0 to 4 are done (the host skeleton, the plugin contract, knowledge, memory and context, the curator); phase 5, auth and hosted, is in progress, and phase 6's specification is approved. Unpublished. Documented in `endpoints/umbel/`; exact state in its [STATUS.md](../../endpoints/umbel/docs/STATUS.md) |
+| [Loam](../../endpoints/loam/README.md) | AFD Loam, an application shell for AFD apps: a TypeScript kernel for the browser, Tauri desktop and hosted server, and a FAST-AF chrome on a Violet design foundation, with shell-level projects, documents, identity, settings, overlays, a copilot and an in-shell app builder. Phases 0 to 2 have exited (the kernel and chrome, the app contract, scope, projects and documents); phases 3, identity, and 6, hosts, are in progress. Unpublished. Documented in `endpoints/loam/`; exact state in its [STATUS.md](../../endpoints/loam/docs/STATUS.md) |
+| [Specimens](./active/specimens/STATUS.md) | [Specimen](../../foundations/specimen/README.md), a native component observation bench. It works end to end on AFD's FAST-AF stories, which run only on Specimen, and has been on npm as a preview since 2026-11-08 with its CLI, AFD commands and FAST-AF plugin. Open: Lushly's move to it, the optional Violet and application-command tasks (T09 to T11), and component packs (T12, with Component Briefs) |
+| [Component Briefs](./active/component-briefs/STATUS.md) | One call that tells an agent how to use every component on a page: Specimen builds an evidence-labelled pack per component library and an Umbel `components` plugin serves it in batches. Phases 0 to C are done: the pack format, Specimen's `specimen-pack`, FAST-AF's committed pack, the Umbel plugin and its first consumer here, with all ten exit criteria met as the owner decided them on 2026-11-13. Phase D is deferred. Exact state in the status file |
+| [Mail](./active/mail/mail.proposal.md) | Loam Mail: a mail core as a Loam plugin with an engine of its own, a Rust AFD server on the person's machine that Loam mounts, with a native app over it and Umbel optional. Mail kept as an append-only log, typed records with their source passages, relationships before content, stories over clusters of mail, and agents limited to what can be undone; it calls no model. Phase 0 measured the owner's two accounts and he decided to go on 2026-11-11; he approved the [engine's specification](../../endpoints/loam/plugins/mail/docs/engine.spec.md) the same day, and phase B has built the engine's skeleton, its store and iCloud sync over IMAP; status in [STATUS.md](./active/mail/STATUS.md) |
+| [Ideas](./active/ideas/STATUS.md) | A store of ideas instead of documents: typed, linked, traceable to sources, matched by meaning so duplicates are refused, grouped into derived themes, and served from a hosted Umbel `ideas` plugin. Held to twenty-nine jobs written as AFD scenarios, whose paths independent readers walked twice on 2026-11-11. A daily loop first, hosted from its first step, then the rest of one flat set, then framings on a hierarchy engine shared with Violet; a person's decisions are staged in conversation and confirmed afterwards; private material is returned only to a call that asks for it; proposes host changes for standing, indexed records, matching, a multi-writer graph, a review on the person page, erasure and uploads. The owner merged the [plan](./active/ideas/ideas.proposal.md) and directed on 2026-11-11 that the work carry on through its phases; phase 0 under way, nothing implemented |
 | [Python Parity Closure](./active/python-parity/) | Close the export-surface gap between TypeScript and Python. 97 names are missing; 60 of them are implemented but not exported. |
 | [Language Parity Closure](./active/parity-closure/parity-closure.plan.md) | Close the unintended cross-language gaps in [Language Parity](../language-parity.md): spec first, in waves 0–4, with every undeclared gap decided |
 | [MCP 2026-07-28 upgrade](./active/mcp-2026-07-28/proposal.md) | Move every AFD MCP surface to the stateless 2026-07-28 spec, served dual-era, with legacy lanes removed in 3.0 |
@@ -60,18 +65,21 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 
 | Feature | Description |
 |---------|-------------|
-| [Umbel](../../endpoints/umbel/README.md) | AFD Umbel, an empty Rust host for capability plugins over MCP and CLI, with knowledge, memory and context as first-party plugins; owner-approved direction, documented in `endpoints/umbel/` |
-| [Loam](../../endpoints/loam/README.md) | AFD Loam, an application shell for AFD apps: a TypeScript kernel for the browser, Tauri desktop and hosted server, a FAST-AF chrome on a Violet design foundation and a TanStack AI copilot; shell-level projects, documents, multiplayer, identity, agent members, settings, experiments, overlays, a provider-agnostic copilot and an in-shell app builder that apps subscribe to; drafted 2026-10-30, direction approved by the owner 2026-11-01, phases 0 and 1 implemented and exited by 2026-11-02 (exit tests pass on `main`), phases 2 and 3 next; documented in `endpoints/loam/` |
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
-| [Component Briefs](./proposed/component-briefs/component-briefs.proposal.md) | One call that tells an agent how to use every component on a page: Specimen builds an evidence-labelled pack per component library and an Umbel `components` plugin serves it in batches. Plan revised after independent review; prototype run 2026-11-09 and the owner decided to go; specification not started |
+| [Design Decisions](./proposed/design-decisions/design-decisions.proposal.md) | Variants of a screen kept side by side, a choice recorded with its reason and evidence, and a review that shows a person only what no gate settled. Draft 2026-11-13: ten jobs as scenarios and ten commands, walked once by a fresh reader; not ranked by the owner or reviewed; status in [STATUS.md](./proposed/design-decisions/STATUS.md) |
 | [Design to Code](./proposed/design-to-code/) | Figma-to-code generation pipeline |
 | [MCP Progress](./proposed/mcp-progress/mcp-progress.proposal.md) | A progress hook on the command context, delivered as MCP progress notifications, `/stream` chunks and DirectClient callbacks (MCP follow-on, rank 3) |
 | [Multi-Tool Registration](./proposed/multi-tool-registration/) | Batch MCP tool registration |
+| [Patterns](./proposed/patterns/patterns.proposal.md) | Patterns above components: what a recurring piece of interface is for, what every implementation must keep and what may change, with gates written against roles, names and geometry that Specimen runs on any implementation; a working region saved as a copy with its revision and provenance; the component pack and Umbel's `components` plugin extended to hold and serve them. First draft 2026-11-12 with nine jobs as scenarios; nothing implemented or measured, and phase 0 tests its claims before any format; status in [STATUS.md](./proposed/patterns/STATUS.md) |
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
+| [Pointing](./proposed/pointing/pointing.proposal.md) | A person clicks a rendered element and hands the agent a stable reference tied to its source, refused when stale; notes pinned to elements; a correction previewed on the rendered screen. Draft 2026-11-13: nine jobs as scenarios and ten commands, walked once by a fresh reader; not ranked by the owner or reviewed; status in [STATUS.md](./proposed/pointing/STATUS.md) |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
+| [Scales](./proposed/scales/scales.proposal.md) | Sizes limited by a rule, named by purpose and derived from one another, in place of names by position, with Violet's reference transforms to be built. Scaffold 2026-11-13: problem, what exists and six draft jobs, waiting on the owner's answer to the direction; status in [STATUS.md](./proposed/scales/STATUS.md) |
+| [Screens from Jobs](./proposed/screens-from-jobs/screens-from-jobs.proposal.md) | A job's scenario drives the application through its states and the screen is captured and checked at each step, so a state is built once and component coverage comes from jobs; relates to Specimen's T11. Draft 2026-11-13: eleven jobs as scenarios and eight new or extended commands, walked once by a fresh reader; not ranked by the owner or reviewed; status in [STATUS.md](./proposed/screens-from-jobs/STATUS.md) |
+| [Software Factory](./proposed/software-factory/software-factory.proposal.md) | The merge lane from Lushly's fleet v2 as a shared botcore plugin: cells hand reviewed branches to one lane that validates, merges and ejects; a stateless foreman starts cells on the plan with the most room. Lane host chosen from the connected machines, validation concurrency sized per host. Proposed 2026-11-12 with 17 jobs as scenarios, walked twice by independent readers; triage intake and experience review included. Revised 2026-11-13: Phase 0 done, and an improvement loop (the factory judges its own health and keeps a change only if it helped) added with 7 more jobs; the plugin is not yet built |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
 | [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 
@@ -100,7 +108,8 @@ Each feature folder contains:
 
 ```
 feature-name/
-├── proposal.md      # The what/why (required)
+├── <feature>.proposal.md  # The what/why (required; older folders name it proposal.md)
+├── scenarios/       # The jobs the feature serves, one *.scenario.yaml each (required when it adds or changes commands)
 ├── spec.md          # The how (after approval)
 ├── STATUS.md        # Exactly what is done and not done, how it was verified, and follow-ups not yet issues; kept current by every session once work starts
 └── assets/          # Diagrams, screenshots (optional)
@@ -110,8 +119,22 @@ feature-name/
 
 A status file exists so that an agent never has to scan the codebase to learn what is current: it names what is done with evidence, what is not, and what future sessions must know. The [Umbel status](../../endpoints/umbel/docs/STATUS.md) is the reference shape.
 
+## Jobs first
+
+A feature that adds or changes commands starts from the jobs it serves. Each job is written as an AFD scenario file in the feature's `scenarios/` folder before the commands are specified, and the proposal is held to them:
+
+- A job that cannot be written with the drafted commands is a gap in the design.
+- A drafted command no job uses is cut, or the proposal says why it stays.
+- The exit criteria start from "every scenario passes".
+- Readers who did not write the jobs walk the paths before the owner is asked to decide.
+- The owner cuts, adds and ranks the jobs.
+
+Once the feature is built, the same files move beside the code and run as its acceptance tests. The steps, the checks that work before anything is built, and what a scenario cannot express are in [jobs first](../../.claude/skills/afd/references/jobs-first.md). Features with no commands (tooling, CI, releases, documentation) skip this.
+
 ## Workflow
 
 ```
 Proposed → Review → Active → Implementation → Complete
 ```
+
+A proposal that adds or changes commands is ready for review when its jobs are written as scenarios, they pass the checks, and readers who did not write them have walked the paths. A revision needs the walk again only when it adds jobs or commands.

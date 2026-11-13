@@ -1,0 +1,93 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "horizontal",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-suggestion-font-size, var(--_caption-size, 12px))",
+				"name": "--_suggestion-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-suggestion-line-height, var(--_caption-line, 16px))",
+				"name": "--_suggestion-line-height"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "When a suggestion is clicked. Detail: { text }.",
+				"name": "select"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Suggestion chip elements (buttons or custom elements).",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-suggestions--click-interaction",
+			"html": "<violet-chat-suggestions orientation=\"horizontal\"><span role=\"button\" tabindex=\"0\">What plants grow in shade?</span><span role=\"button\" tabindex=\"0\">Help me plan a garden</span><span role=\"button\" tabindex=\"0\">Composting basics</span><span role=\"button\" tabindex=\"0\">Watering schedule tips</span></violet-chat-suggestions>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-suggestions--few-suggestions",
+			"html": "<violet-chat-suggestions orientation=\"horizontal\"><span role=\"button\" tabindex=\"0\">Get started</span><span role=\"button\" tabindex=\"0\">Show examples</span></violet-chat-suggestions>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-suggestions--many-suggestions",
+			"html": "<div style=\"max-inline-size: 400px;\"><violet-chat-suggestions orientation=\"horizontal\"><span role=\"button\" tabindex=\"0\">Shade plants</span><span role=\"button\" tabindex=\"0\">Sun plants</span><span role=\"button\" tabindex=\"0\">Indoor herbs</span><span role=\"button\" tabindex=\"0\">Raised beds</span><span role=\"button\" tabindex=\"0\">Container gardening</span><span role=\"button\" tabindex=\"0\">Soil testing</span><span role=\"button\" tabindex=\"0\">Pest control</span><span role=\"button\" tabindex=\"0\">Composting</span></violet-chat-suggestions></div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.orientation",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-chat-suggestions",
+	"usage": []
+}

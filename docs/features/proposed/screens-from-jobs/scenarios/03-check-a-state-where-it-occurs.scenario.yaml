@@ -1,0 +1,40 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. In `example-keep-a-draft` (01), the conflict notice's
+# dismiss button has an icon and no accessible name, so axe reports `button-name`. Axe runs when
+# each capture is taken, as in a Design Decisions capture set; the check reads the set and does
+# not replay the job.
+
+name: Check a state where it occurs
+description: >-
+  When a capture at a job step fails a check, I want the failure reported against that job step,
+  on the screen that was captured, so that I know which job is affected.
+job: check-a-state-where-it-occurs
+tags: [slice]
+
+steps:
+  - description: The job runs once
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft
+    expect:
+      success: true
+      data:
+        status: passed
+
+  - description: The set's captures are checked, and each report names its job step
+    command: specimen-a11y
+    input:
+      set: ${{ steps[0].data.set }}
+    expect:
+      success: true
+      data:
+        counts.total: 2
+        counts.passed: 1
+        counts.failed: 1
+        reports.0.checkpoint: two-editors
+        reports.0.status: passed
+        reports.1.checkpoint: conflict-notice
+        reports.1.status: failed
+        reports.1.job.name: keep-a-draft
+        reports.1.job.step: 4
+        reports.1.violations.0.id: button-name

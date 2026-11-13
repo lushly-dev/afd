@@ -1,0 +1,30 @@
+{
+  "tag": "violet-accordion",
+  "summary": "Stack of collapsible sections made of violet-accordion-item children.",
+  "usage": [
+    {
+      "id": "accordion.mode",
+      "text": "The expand-mode attribute is multi (default) or single. In single mode, opening an item collapses the others, and only the first item marked expanded stays open when items are added.",
+      "members": [
+        "expand-mode"
+      ]
+    },
+    {
+      "id": "accordion.change",
+      "text": "A change event fires on user toggles with detail { item, expanded }, where item is the violet-accordion-item element. Setting expanded on an item from script fires nothing and collapses no siblings.",
+      "members": [
+        "change"
+      ]
+    },
+    {
+      "id": "accordion.keys",
+      "text": "Arrow keys, Home and End are captured for any keydown inside an item, panel content included, and move focus between headers. Text inputs and other arrow-key controls placed in a panel lose those keys."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "accordion.focus",
+      "text": "Arrow keys wrap from the last header to the first and back, and disabled items are skipped by arrows, Home and End."
+    }
+  ]
+}

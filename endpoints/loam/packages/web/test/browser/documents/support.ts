@@ -95,7 +95,18 @@ export function editorView(page: Page): Promise<GroupView[] | null> {
  *     the controller saved before a move with no `moveBefore` (5.6; step 12's review G-B1 and re-check N-B1).
  * Empty when they hold, or before the editor area has loaded.
  */
-export function frameViolations(page: Page): Promise<string[]> {
+export async function frameViolations(page: Page): Promise<string[]> {
+	// A check that ran while the queue moved read a frame and its mark mid-change: an autosave can land at any
+	// time, its frame clean before its mark's clear has run. Check again once that work is done.
+	for (let round = 0; round < 20; round++) {
+		const { broken, moved } = await checkFrames(page);
+		if (!moved) return broken;
+	}
+	throw new Error("The editor area's queue kept moving through 20 checks of its frames");
+}
+
+/** The invariants as of a moment the queue is empty, and whether it moved while they were read. */
+function checkFrames(page: Page): Promise<{ broken: string[]; moved: boolean }> {
 	return page.evaluate(async () => {
 		type Frame = HTMLElement & {
 			tab: string;
@@ -139,10 +150,13 @@ export function frameViolations(page: Page): Promise<string[]> {
 					Map<string, [{ workspace: string; project?: string }, string]>,
 					Set<string>,
 				];
+				idle: Promise<void>;
 			};
 		};
+		const queue = shell.editor?.idle;
+		await queue;
 		const lifecycle = shell.editor?.lifecycle;
-		if (!lifecycle) return [];
+		if (!lifecycle) return { broken: [], moved: false };
 		const [visit, frames, parking, leaving, lives, closing, rendered, asking, owed, stalled] =
 			lifecycle;
 		const broken: string[] = [];
@@ -348,7 +362,7 @@ export function frameViolations(page: Page): Promise<string[]> {
 				broken.push(`15: ${frame.tab}'s view editor has a new window, its unsaved work gone`);
 			windows.set(frame, { window: iframe.contentWindow, dirty: frame.dirty, reloads });
 		}
-		return broken;
+		return { broken, moved: shell.editor?.idle !== queue };
 	});
 }
 
@@ -537,14 +551,47 @@ async function replayPorts() {
 	return createFixturePorts(packages as never);
 }
 
-/** Replay the page's journal, and the entries that did not replay the same. A deployment may leave out checklist. */
+/**
+ * Replay the page's journal, and the entries that did not replay the same. A deployment may leave out
+ * checklist. `replayKernel` throws `REPLAY_DIVERGED` on any difference; its report is read from the error,
+ * so a failing test names each entry, its input and what differed, and lists every other entry about the
+ * same document, in `seq` order, rather than one line (#1045).
+ */
 export async function replayDifferences(site: DeploymentSite, entries: JournalEntry[]) {
-	const { report } = await replayKernel(entries, {
-		environment: createFixedEnvironment(),
-		deployment: site.projection,
-		ports: await replayPorts(),
-	});
-	return report.entries.filter(({ status }) => status !== 'same');
+	let reported: Array<{ seq: number; command: string; status: string }>;
+	try {
+		const { report } = await replayKernel(entries, {
+			environment: createFixedEnvironment(),
+			deployment: site.projection,
+			ports: await replayPorts(),
+		});
+		reported = report.entries;
+	} catch (error) {
+		const report = (error as { code?: string; details?: { report?: { entries?: unknown } } })
+			.details?.report;
+		if ((error as { code?: string }).code !== 'REPLAY_DIVERGED' || !report) throw error;
+		reported = report.entries as typeof reported;
+	}
+	const bySeq = new Map(entries.map((entry) => [entry.seq, entry]));
+	const documentOf = (entry: JournalEntry | undefined) =>
+		(entry?.input as { document?: unknown } | undefined)?.document;
+	return reported
+		.filter(({ status }) => status !== 'same')
+		.map((difference) => {
+			const entry = bySeq.get(difference.seq);
+			const document = documentOf(entry);
+			return {
+				...difference,
+				input: entry?.input,
+				...(document === undefined
+					? {}
+					: {
+							sameDocument: entries
+								.filter((other) => documentOf(other) === document)
+								.map((other) => `${other.seq} ${other.command} ${other.timestamp}`),
+						}),
+			};
+		});
 }
 
 /**

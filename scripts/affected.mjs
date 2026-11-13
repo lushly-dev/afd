@@ -27,9 +27,11 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
 import { defaultTargets, sweep } from './rust-sweep.mjs';
+import { buildRecord, currentIdentity, recordPath, writeRecord } from './verify-record.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
+const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
 
 export function parseArgs(argv, env = process.env) {
 	const options = {
@@ -154,19 +156,27 @@ export function planSuites(scope, { root, suites = SUITES, read = readSuiteTrigg
 	return plan;
 }
 
+// The tools verify checks for before it runs anything. `chromium` is not one: no `which` finds
+// Playwright's browser, so a missing one fails its step.
 const TOOLS = { cargo: 'cargo', cmake: 'cmake', openssl: 'openssl', uv: 'uv' };
 
-function missingTools(plan) {
+/** The tools a plan's steps need, each with the workflows that need it: a step's own, or its suite's. */
+export function plannedTools(plan) {
 	const needed = new Map();
-	for (const { suite } of plan)
-		for (const tool of suite.tools)
-			if (TOOLS[tool]) needed.set(tool, [...(needed.get(tool) ?? []), suite.workflow]);
+	for (const { suite, step } of plan)
+		for (const tool of step.tools ?? suite.tools)
+			needed.set(tool, [...new Set([...(needed.get(tool) ?? []), suite.workflow])]);
+	return needed;
+}
+
+function missingTools(plan) {
+	const needed = new Map([...plannedTools(plan)].filter(([tool]) => TOOLS[tool]));
 	const missing = [];
 	for (const [tool, workflows] of needed) {
 		try {
 			execFileSync(windows ? 'where' : 'which', [TOOLS[tool]], { stdio: 'ignore' });
 		} catch {
-			missing.push(`${tool} (for ${[...new Set(workflows)].join(', ')})`);
+			missing.push(`${tool} (for ${workflows.join(', ')})`);
 		}
 	}
 	return missing;
@@ -207,7 +217,7 @@ function verify(scope, options) {
 	if (missing.length > 0) throw new Error(`missing tools: ${missing.join('; ')}`);
 	// Before building Rust, evict what no build has read for days, so a shared CARGO_TARGET_DIR
 	// does not grow without bound (scripts/rust-sweep.mjs). A sweep never fails verify.
-	if (plan.some(({ suite }) => suite.tools.includes('cargo')))
+	if (plannedTools(plan).has('cargo'))
 		try {
 			for (const line of sweep(defaultTargets(root), { days: 3, maxGb: 60 }))
 				console.error(`[verify] rust-sweep: ${line}`);
@@ -215,6 +225,7 @@ function verify(scope, options) {
 			console.error(`[verify] rust-sweep: ${error.message}`);
 		}
 
+	const before = currentIdentity(git);
 	const results = [];
 	const record = (name, action) => {
 		const started = Date.now();
@@ -242,6 +253,18 @@ function verify(scope, options) {
 	}
 	if (results.some((result) => !result.ok))
 		throw Object.assign(new Error('verify failed'), { status: 1 });
+	// The record lets pre-push accept this exact commit without running its checks again.
+	const { record: passed, reason } = buildRecord({
+		before,
+		after: currentIdentity(git),
+		results,
+		scope: scope.mode,
+		defaultBase: options.bases === DEFAULT_BASES,
+	});
+	if (passed) {
+		writeRecord(recordPath(git, root), passed);
+		console.error(`[verify] recorded the pass for ${passed.head}; pre-push will accept it`);
+	} else console.error(`[verify] no record for pre-push: ${reason}`);
 }
 
 function main(argv) {

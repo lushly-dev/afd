@@ -22,7 +22,12 @@ const VIOLET = [
 ];
 const filters = (names) => names.map((name) => `-F ${name}`).join(' ');
 
-/** @typedef {{ run: string, cwd?: string, gate?: string }} Step */
+/**
+ * A step's `tools`, when it has them, are what that step needs, narrower than its suite's: verify
+ * checks only the tools of the steps it plans, so a suite whose gated legs are not planned does not
+ * ask for theirs (#781). A step without `tools` needs its suite's.
+ * @typedef {{ run: string, cwd?: string, gate?: string, tools?: string[] }} Step
+ */
 /** @type {{ workflow: string, tools: string[], steps: Step[], remote?: string }[]} */
 export const SUITES = [
 	{
@@ -88,7 +93,7 @@ export const SUITES = [
 	},
 	{
 		workflow: 'loam.yml',
-		// `openssl` makes the certificate the hosted server's TLS unit serves (phase 6, step 1).
+		// `openssl` makes the certificates of the hosted server's TLS unit and its development profile.
 		tools: ['chromium', 'cargo', 'openssl'],
 		steps: [
 			{ gate: 'mounted', run: 'pnpm -F "@lushly-dev/loam-web..." build' },
@@ -107,6 +112,17 @@ export const SUITES = [
 				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/entry-points.test.ts --reporter=verbose',
 			},
 			{ gate: 'run', run: 'node --test --test-reporter=spec scripts/plugin-manifest.test.mjs' },
+			// AFD's identity path, phase 3's E9.
+			{
+				gate: 'run',
+				run: 'pnpm -F @lushly-dev/afd-server exec vitest run src/authorization-cases.test.ts src/mcp-auth.test.ts src/mcp-auth-verifier.test.ts src/verified-credentials.test.ts --reporter=verbose',
+			},
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/afd-auth exec vitest run --reporter=verbose' },
+			// AFD's host path, phase 6's P6-E7.
+			{
+				gate: 'run',
+				run: 'pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose',
+			},
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-theme theme:check' },
 			{
 				gate: 'run',
@@ -116,6 +132,8 @@ export const SUITES = [
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:walk' },
 			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web budget' },
 			{ gate: 'mounted', run: 'pnpm -F @lushly-dev/loam-web test:mounted' },
+			// Phase 6's hosted criterion against the development profile; `openssl` makes its certificate.
+			{ gate: 'run', run: 'pnpm -F @lushly-dev/loam-web test:hosted' },
 		],
 	},
 	{
@@ -213,6 +231,20 @@ export const SUITES = [
 		],
 	},
 	{
+		workflow: 'loam-plugins.yml',
+		tools: ['cargo'],
+		remote: 'Linux',
+		steps: [
+			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo fmt --check' },
+			{
+				gate: 'mail',
+				cwd: 'endpoints/loam/plugins/mail/engine',
+				run: 'cargo clippy --locked --all-targets -- -D warnings',
+			},
+			{ gate: 'mail', cwd: 'endpoints/loam/plugins/mail/engine', run: 'cargo test --locked' },
+		],
+	},
+	{
 		workflow: 'umbel.yml',
 		tools: ['cargo'],
 		remote:
@@ -223,6 +255,11 @@ export const SUITES = [
 				gate: 'host',
 				cwd: 'endpoints/umbel',
 				run: 'cargo clippy --locked --workspace --exclude umbel-store-embedded --all-targets -- -D warnings',
+			},
+			{
+				gate: 'host',
+				cwd: 'endpoints/umbel',
+				run: 'cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings',
 			},
 			{
 				gate: 'host',
@@ -280,18 +317,38 @@ export const SUITES = [
 		tools: ['uv', 'cargo', 'cmake'],
 		remote: 'the Rust backend clippy and the C++ backend unit tests',
 		steps: [
-			{ gate: 'todo', run: 'pnpm build' },
-			{ gate: 'todo', cwd: 'packages/examples/todo/backends/python', run: 'uv sync --locked' },
+			{ gate: 'todo', tools: [], run: 'pnpm build' },
 			{
 				gate: 'todo',
+				tools: ['uv'],
+				cwd: 'packages/examples/todo/backends/python',
+				run: 'uv sync --locked',
+			},
+			{
+				gate: 'todo',
+				tools: ['uv'],
 				cwd: 'packages/examples/todo/backends/python',
 				run: 'uv run --locked pytest -q',
 			},
-			{ gate: 'rust', cwd: 'packages/examples/todo/backends/rust', run: 'cargo test --locked' },
-			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
-			{ gate: 'todo', run: 'pnpm --dir packages/examples/todo test:conformance:py' },
-			{ gate: 'rust', run: 'pnpm --dir packages/examples/todo test:conformance:rs' },
-			{ gate: 'cpp', run: 'pnpm --dir packages/examples/todo test:conformance:cpp' },
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				cwd: 'packages/examples/todo/backends/rust',
+				run: 'cargo test --locked',
+			},
+			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
+			// The Python backend runs under `uv run`.
+			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs',
+			},
+			{
+				gate: 'cpp',
+				tools: ['cmake'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:cpp',
+			},
 		],
 	},
 ];

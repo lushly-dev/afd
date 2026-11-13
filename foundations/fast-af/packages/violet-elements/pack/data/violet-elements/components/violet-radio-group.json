@@ -1,0 +1,212 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "radio-group.name",
+				"text": "An aria-label on the host takes precedence over the label attribute as the group's name; the label stays visible."
+			},
+			{
+				"basis": "authored",
+				"id": "radio-group.error",
+				"text": "The rendered error message is linked to the group as its error message, and the supporting text as its description."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the radio group and child radios.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "",
+				"description": "Optional visible error copy used when the group is invalid.",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the group invalid.",
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional field label.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Native group name forwarded to child radios and form submission.",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "vertical",
+				"description": "Layout orientation for the group.",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletRadioGroupOrientation"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"description": "Marks the group required.",
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional supporting text shown below the group.",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Selected radio value.",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the selected value changes.",
+				"name": "change"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"violet-radio"
+				],
+				"basis": "observed",
+				"description": "Radio options rendered inside the group.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-radio-group--invalid",
+			"html": "<violet-radio-group error-text invalid label=\"Sowing method\" name=\"sowingMethod\" orientation=\"vertical\" supporting-text=\"Use invalid state when a server-side rule rejects the selection.\" value><violet-radio aria-checked=\"false\" name=\"sowingMethod\" role=\"radio\" tabindex=\"0\" value=\"broadcast\">Broadcast sowing<span slot=\"supporting\">Dense sowing for baby leaf or nursery staging.</span></violet-radio><violet-radio aria-checked=\"false\" name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"direct\">Direct seed<span slot=\"supporting\">Seed directly into the finished bed.</span></violet-radio><violet-radio aria-checked=\"false\" name=\"sowingMethod\" role=\"radio\" tabindex=\"-1\" value=\"transplant\">Tray transplant<span slot=\"supporting\">Raise in trays first, then move into the block.</span></violet-radio></violet-radio-group>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "error-text",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "required",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"field.aria-label",
+		"field.label",
+		"field.supporting-text",
+		"form.invalid",
+		"form.participation",
+		"form.required-error",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.name",
+		"taxonomy.orientation",
+		"taxonomy.required",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Form field that holds violet-radio children and submits the one selected value; use for a single choice among a few visible options.",
+	"tag": "violet-radio-group",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "radio-group.value",
+			"text": "Set the group's value to a radio's value to select it; with no group value, a radio marked checked is used. The group overwrites each radio's checked state, tabindex and, when it has a name, its name."
+		},
+		{
+			"basis": "authored",
+			"id": "radio-group.change",
+			"text": "A click delivers two change events to a group listener: the group's own (detail.value) and the clicked radio's bubbling one (detail.checked). Keyboard selection delivers only the group's. Check event.target."
+		},
+		{
+			"basis": "authored",
+			"id": "radio-group.keyboard",
+			"text": "The group is one tab stop. Arrow keys, Home and End move focus and select in the same step, skipping disabled radios and wrapping at the ends."
+		}
+	]
+}

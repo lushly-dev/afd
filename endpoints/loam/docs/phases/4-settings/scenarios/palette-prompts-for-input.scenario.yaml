@@ -1,0 +1,43 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+name: Run a command that needs input from the palette
+description: >-
+  When a command needs input, I want the palette to ask me for it, so that I can run any command
+  without opening its app.
+job: palette-prompts-for-input
+tags: [loam-runner]
+steps:
+  - description: A command that needs input is listed by its name, with its app
+    command: palette-search
+    input: { query: checklist-item-add, kind: command }
+    expect:
+      success: true
+      data:
+        items:
+          '0': { name: checklist-item-add, app: Checklist }
+  - description: Choosing it opens a prompt for its input
+    command: palette-run
+    input: { command: checklist-item-add }
+    expect:
+      success: true
+      data: { prompt: { kind: prompt, owner: shell } }
+  - description: Input the schema refuses keeps the prompt open, with the reason
+    command: palette-run
+    input:
+      command: checklist-item-add
+      prompt: "${{ steps[1].data.prompt.overlayId }}"
+      input: { document: doc_checklist0000001 }
+    expect:
+      success: false
+      error: { code: VALIDATION_ERROR }
+  - description: Run with the input the prompt collected
+    command: palette-run
+    input:
+      command: checklist-item-add
+      prompt: "${{ steps[1].data.prompt.overlayId }}"
+      input: { document: doc_checklist0000001, text: Water the beds }
+    expect:
+      success: true

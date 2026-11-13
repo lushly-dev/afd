@@ -109,8 +109,8 @@ async fn store_show_reports_the_stores_revisions_and_counts() {
     let data = shown.data.unwrap();
     assert_eq!(data["space"], "main");
     assert_eq!(data["backend"], "embedded");
-    assert_eq!(data["storeVersion"], 2);
-    assert_eq!(data["schemaVersion"], 1);
+    assert_eq!(data["storeVersion"], 3);
+    assert_eq!(data["schemaVersion"], 4);
     assert_eq!(data["head"], 2);
     assert_eq!(data["counts"]["documents"], 2);
     assert_eq!(data["counts"]["chunks"], 2);

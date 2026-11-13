@@ -1,0 +1,71 @@
+{
+	"title": "Specimen component pack: shared rules",
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"type": "object",
+	"properties": {
+		"format": {
+			"type": "number",
+			"const": 1
+		},
+		"library": {
+			"type": "string",
+			"maxLength": 64,
+			"pattern": "^[a-z][a-z0-9-]{0,63}$"
+		},
+		"rules": {
+			"maxItems": 512,
+			"type": "array",
+			"items": {
+				"type": "object",
+				"properties": {
+					"id": {
+						"type": "string",
+						"maxLength": 128,
+						"pattern": "^[a-z][a-z0-9-]*(?:\\.[a-z0-9][a-z0-9-]*)+$"
+					},
+					"text": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 240,
+						"pattern": "^[^\\u0000-\\u001F\\u007F-\\u009F\\u202A-\\u202E\\u2066-\\u2069]*$"
+					},
+					"appliesTo": {
+						"type": "object",
+						"properties": {
+							"tags": {
+								"minItems": 1,
+								"maxItems": 256,
+								"type": "array",
+								"items": {
+									"type": "string",
+									"maxLength": 100,
+									"pattern": "^[a-z][a-z0-9._]*-[a-z0-9._-]*$"
+								}
+							},
+							"attributes": {
+								"minItems": 1,
+								"maxItems": 64,
+								"type": "array",
+								"items": {
+									"type": "string",
+									"maxLength": 100,
+									"pattern": "^[a-z][a-z0-9_.:-]*$"
+								}
+							}
+						},
+						"additionalProperties": false,
+						"minProperties": 1
+					},
+					"basis": {
+						"type": "string",
+						"enum": ["verified", "authored"]
+					}
+				},
+				"required": ["id", "text", "appliesTo", "basis"],
+				"additionalProperties": false
+			}
+		}
+	},
+	"required": ["format", "library", "rules"],
+	"additionalProperties": false
+}

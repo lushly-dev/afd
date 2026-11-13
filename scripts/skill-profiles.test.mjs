@@ -17,6 +17,7 @@ import {
 	declaresOwner,
 	listingCharacters,
 	listingFields,
+	listingRaiseAdvice,
 	projectText,
 	syncProfiles,
 } from './skill-profiles.mjs';
@@ -87,7 +88,10 @@ test('complete-tree projections are deterministic and preserve aliases, override
 		await readFile(path.join(root, '.claude/skills/do-commit/SKILL.md'), 'utf8'),
 		'---\nname: do-commit\nsource: afd\n---\nPreserved workflow.\n'
 	);
-	assert.equal(await readlink(path.join(root, '.codex/skills')), '../.claude/skills');
+	assert.equal(
+		(await readlink(path.join(root, '.codex/skills'))).replaceAll(path.sep, '/'),
+		'../.claude/skills'
+	);
 });
 
 test('canonical edits and added resources produce check drift without writing', async (t) => {
@@ -281,7 +285,7 @@ test('profiles must declare a listing budget, and an over-budget listing fails b
 	await save();
 	await assert.rejects(
 		syncProfiles(root, { write: true }),
-		/over budget for afd: 48 description characters exceed listingBudget 20.*\(largest: do-commit \(19\), afd \(18\), review-code \(11\)\)/
+		/over budget for afd: 48 description characters exceed listingBudget 20.*\(largest: do-commit \(19\), afd \(18\), review-code \(11\)\).*raise listingBudget and botcore\.toml's listing_budget to 100 \(/
 	);
 	await assert.rejects(readFile(path.join(root, '.claude/skills/review-code/SKILL.md')), {
 		code: 'ENOENT',
@@ -398,4 +402,23 @@ test('CLI JSON reports freshness and actionable drift with nonzero status, bound
 	assert.equal(unsafe.status, 1);
 	assert.equal(unsafe.stdout, '');
 	assert.match(unsafe.stderr, /Usage:/);
+});
+
+test("the standing rule raises the listing budget up to the hosts' 8,000 fallback, then asks", () => {
+	for (const [characters, raise] of [
+		[100, 100],
+		[101, 200],
+		[7900, 7900],
+		[7901, 8000],
+		[8000, 8000],
+	])
+		assert.match(listingRaiseAdvice(characters), new RegExp(`listing_budget to ${raise} \\(`));
+	for (const [characters, raise] of [
+		[8001, 8100],
+		[9048, 9100],
+	])
+		assert.equal(
+			listingRaiseAdvice(characters),
+			`Raising listingBudget to ${raise} would go past the hosts' 8000-character fallback listing, so ask the owner first.`
+		);
 });

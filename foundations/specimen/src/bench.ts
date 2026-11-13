@@ -1,6 +1,15 @@
 import { dirname, resolve } from 'node:path';
 import { BenchWorkerClient } from './bench-worker-client.js';
 import { type LoadedConfig, loadConfig, resolveContext } from './config.js';
+import { withGuides } from './guides.js';
+import {
+	checkCommitted,
+	exportPack,
+	packConfig,
+	readPackIndex,
+	writePack,
+	writePackIndex,
+} from './pack-files.js';
 import { migrateStories, validateDiscovery } from './stories.js';
 import type {
 	A11yRequest,
@@ -19,6 +28,13 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	PackBuildRequest,
+	PackBuildRun,
+	PackCheckRun,
+	PackExportRequest,
+	PackExportRun,
+	PackRequest,
+	PackRun,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -28,6 +44,8 @@ import type {
 	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
+	ThemesRequest,
+	ThemesRun,
 	ValidationReport,
 	ValidationTarget,
 } from './types.js';
@@ -38,9 +56,12 @@ import {
 	parseContractRequest,
 	parseCoverageRequest,
 	parseMatrixRequest,
+	parsePackExportRequest,
+	parsePackRequest,
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
+	parseThemesRequest,
 } from './validate.js';
 
 /** Discovery found stories it cannot index; `validate()` reports each problem. */
@@ -78,6 +99,12 @@ export interface SpecimenBench {
 	 * what axe could not decide, and the exceptions that applied. A story keeps its effective policy.
 	 */
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	/**
+	 * Render each entry, or those a filter selects, in every theme and compare the frames: which
+	 * follow the theme, which stay the same and declare it, and which stay the same with nothing
+	 * declaring it (`undeclared`, which makes the run invalid). Not part of a run; ask for it.
+	 */
+	themes(request?: ThemesRequest): Promise<ThemesRun>;
 	/**
 	 * Run the cases a filter selects and report each component's required partitions at the level
 	 * those runs earn: represented, asserted, verified, missing or unknown. A schema alone proves
@@ -120,10 +147,79 @@ export interface SpecimenBench {
 	 * `apply: true`, and never removes metadata.
 	 */
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
+	/**
+	 * Build the configured library's component pack from two passes over every case, and write its
+	 * committed form: one record per component and the library's rules. Nothing is written from a
+	 * run with failed cases unless `allowFailed` names each of them.
+	 */
+	pack(request?: PackRequest): Promise<PackRun>;
+	/** Build the pack as `pack()` does, write nothing, and report the committed files that differ. */
+	packCheck(request?: PackRequest): Promise<PackCheckRun>;
+	/**
+	 * Write the exported form from the committed records, with no browser: the records, the rules
+	 * and a catalog stamped with the package. Refuses, naming the records, when the manifest or a
+	 * guide file says something they do not.
+	 */
+	packExport(request: PackExportRequest): Promise<PackExportRun>;
 	build(
 		outDir: string
 	): Promise<{ directory: string; shellBytes: number; budget: number; files: string[] }>;
 	close(): Promise<void>;
+}
+
+/** What runs a bench's browser work, in this process or a worker: the bench without its file work. */
+export type BenchRuntime = Omit<
+	SpecimenBench,
+	'validate' | 'migrate' | 'pack' | 'packCheck' | 'packExport'
+> & {
+	/** Build the configured pack from two passes over every case, and write nothing. */
+	packBuild(request?: PackBuildRequest): Promise<PackBuildRun>;
+};
+
+/** What static validation says of the configured specimens and stories. */
+function validateEntries(snapshot: LoadedConfig, target?: ValidationTarget): ValidationReport {
+	const discovery = snapshot.stories?.discovery;
+	if (!discovery) {
+		const known = !target?.id || snapshot.entries.some((entry) => entry.id === target.id);
+		return {
+			valid: known,
+			scope: 'static',
+			checked: 0,
+			issues: known
+				? []
+				: [
+						{
+							severity: 'error',
+							code: 'SPECIMEN_NOT_FOUND',
+							message: `Specimen not found: ${target?.id}`,
+							suggestion: 'Use specimen-list to check the id.',
+						},
+					],
+		};
+	}
+	const tags = Object.keys(snapshot.schemas);
+	const report = validateDiscovery(
+		discovery,
+		snapshot.root,
+		target,
+		tags.length ? new Set(tags) : undefined
+	);
+	if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
+		return {
+			...report,
+			valid: false,
+			issues: [
+				{
+					severity: 'error',
+					code: 'SPECIMEN_NOT_FOUND',
+					message: `Specimen not found: ${target.id}`,
+					suggestion:
+						'Use specimen-list to check the id, or validate the file to see why it was not indexed.',
+				},
+				...report.issues,
+			],
+		};
+	return report;
 }
 
 export async function createSpecimenBench(options: BenchOptions): Promise<SpecimenBench> {
@@ -138,11 +234,13 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 	const executablePath = options.executablePath;
 	const runtimeIsolation = options.runtimeIsolation ?? 'in-process';
 	type Backend = Pick<
-		SpecimenBench,
+		BenchRuntime,
+		| 'packBuild'
 		| 'render'
 		| 'run'
 		| 'runSuite'
 		| 'a11y'
+		| 'themes'
 		| 'coverage'
 		| 'contract'
 		| 'suggest'
@@ -186,54 +284,24 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 		pending = result.catch(() => {});
 		return result;
 	};
+	/** Build with the last full build's index for one component, and keep a full build's index. */
+	const packBuild = async (snapshot: LoadedConfig, rawRequest: PackRequest) => {
+		packConfig(snapshot);
+		const { allowFailed, ...request } = parsePackRequest(rawRequest);
+		const index = request.component ? await readPackIndex(snapshot) : undefined;
+		const build = await enqueue((client) =>
+			client.packBuild({ ...request, ...(index ? { index } : {}) })
+		);
+		await writePackIndex(snapshot, build);
+		return { build, allowFailed };
+	};
 	return {
 		list() {
 			return ensureDiscovered().entries.map((entry) => ({ ...entry }));
 		},
 		validate(target) {
 			const snapshot = ensureOpen();
-			const discovery = snapshot.stories?.discovery;
-			if (!discovery) {
-				const known = !target?.id || snapshot.entries.some((entry) => entry.id === target.id);
-				return {
-					valid: known,
-					scope: 'static',
-					checked: 0,
-					issues: known
-						? []
-						: [
-								{
-									severity: 'error',
-									code: 'SPECIMEN_NOT_FOUND',
-									message: `Specimen not found: ${target?.id}`,
-									suggestion: 'Use specimen-list to check the id.',
-								},
-							],
-				};
-			}
-			const tags = Object.keys(snapshot.schemas);
-			const report = validateDiscovery(
-				discovery,
-				snapshot.root,
-				target,
-				tags.length ? new Set(tags) : undefined
-			);
-			if (target?.id && !snapshot.entries.some((entry) => entry.id === target.id))
-				return {
-					...report,
-					valid: false,
-					issues: [
-						{
-							severity: 'error',
-							code: 'SPECIMEN_NOT_FOUND',
-							message: `Specimen not found: ${target.id}`,
-							suggestion:
-								'Use specimen-list to check the id, or validate the file to see why it was not indexed.',
-						},
-						...report.issues,
-					],
-				};
-			return report;
+			return withGuides(validateEntries(snapshot, target), snapshot.guides, snapshot.root, target);
 		},
 		async render(rawRequest) {
 			const snapshot = ensureDiscovered();
@@ -284,10 +352,29 @@ export async function createSpecimenBench(options: BenchOptions): Promise<Specim
 			const request = parseCoverageRequest(rawRequest);
 			return enqueue((client) => client.coverage(request));
 		},
+		async pack(rawRequest = {}) {
+			const snapshot = ensureDiscovered();
+			const { build, allowFailed } = await packBuild(snapshot, rawRequest);
+			return writePack(snapshot, build, allowFailed);
+		},
+		async packCheck(rawRequest = {}) {
+			const snapshot = ensureDiscovered();
+			const { build, allowFailed } = await packBuild(snapshot, rawRequest);
+			return checkCommitted(snapshot, build, allowFailed);
+		},
+		async packExport(rawRequest) {
+			const snapshot = ensureOpen();
+			return exportPack(snapshot, parsePackExportRequest(rawRequest));
+		},
 		async a11y(rawRequest = {}) {
 			ensureDiscovered();
 			const request = parseA11yRequest(rawRequest);
 			return enqueue((client) => client.a11y(request));
+		},
+		async themes(rawRequest = {}) {
+			ensureDiscovered();
+			const request = parseThemesRequest(rawRequest);
+			return enqueue((client) => client.themes(request));
 		},
 		async runSuite(rawRequest = {}) {
 			ensureDiscovered();

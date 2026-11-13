@@ -1,0 +1,46 @@
+{
+  "tag": "violet-popover",
+  "summary": "Anchored, non-modal floating surface with light dismiss, opened from a slotted trigger or an anchor element; for rich content that is not a menu.",
+  "usage": [
+    {
+      "id": "popover.trigger",
+      "text": "Put the trigger in the trigger slot, or set anchor to the id of an outside element; a click on it calls toggle(). From script use show(), hide(), toggle() or the open attribute.",
+      "members": [
+        "trigger",
+        "anchor",
+        "open"
+      ]
+    },
+    {
+      "id": "popover.dismiss",
+      "text": "The surface is a native popover=\"auto\": an outside press, Escape or opening another auto popover closes it, and the open attribute follows.",
+      "members": [
+        "open"
+      ]
+    },
+    {
+      "id": "popover.anchor-id",
+      "text": "anchor is looked up with document.getElementById when the popover connects or anchor changes, so the element must already exist in the document, not inside a shadow root.",
+      "members": [
+        "anchor"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "popover.semantics",
+      "text": "It gives the surface no role or name and sets no aria-expanded on the trigger: label the slotted content yourself and set the trigger's aria-expanded from open-change.",
+      "members": [
+        "open-change",
+        "trigger"
+      ]
+    },
+    {
+      "id": "popover.focus",
+      "text": "Opening does not move focus into the surface; when its content is interactive, focus the first control yourself from open-change.",
+      "members": [
+        "open-change"
+      ]
+    }
+  ]
+}

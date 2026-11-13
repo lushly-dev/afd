@@ -12,6 +12,7 @@ import {
 	profileRequestSchema,
 	suggestRequestSchema,
 	suiteRequestSchema,
+	themesRequestSchema,
 } from './schema.js';
 import {
 	parseA11yRequest,
@@ -25,6 +26,7 @@ import {
 	parseProfileRequest,
 	parseSuggestRequest,
 	parseSuiteRequest,
+	parseThemesRequest,
 } from './validate.js';
 
 // The configuration rules as Zod expresses them; validation itself does not load Zod.
@@ -40,6 +42,22 @@ const configSchema = z
 					component: z
 						.string()
 						.regex(/^[a-z][a-z0-9]*-[a-z0-9-]+$/)
+						.optional(),
+					themes: z
+						.strictObject({
+							supported: z
+								.array(z.enum(['light', 'dark', 'high-contrast']))
+								.min(1)
+								.refine((themes) => new Set(themes).size === themes.length),
+							reason: z.string().min(1).optional(),
+						})
+						.transform(({ supported, reason }) => ({
+							supported: (['light', 'dark', 'high-contrast'] as const).filter((theme) =>
+								supported.includes(theme)
+							),
+							basis: 'declared' as const,
+							...(reason === undefined ? {} : { reason }),
+						}))
 						.optional(),
 				})
 			)
@@ -96,10 +114,12 @@ const configSchema = z
 		plugins: z.array(z.string().min(1)).optional(),
 		manifest: z.string().min(1).optional(),
 		profile: z.strictObject({ baselines: z.string().min(1).optional() }).optional(),
+		guides: z.array(z.string().min(1)).optional(),
 	})
 	.refine((config) => config.specimens !== undefined || config.stories !== undefined)
 	.refine((config) => config.preview === undefined || config.stories !== undefined)
-	.refine((config) => config.test === undefined || config.stories !== undefined);
+	.refine((config) => config.test === undefined || config.stories !== undefined)
+	.refine((config) => config.guides === undefined || config.manifest !== undefined);
 
 const verdict = (parse: () => unknown) => {
 	try {
@@ -197,6 +217,14 @@ describe('bench validation matches the Zod schemas', () => {
 			{ ...entry, module: '' },
 			{ ...entry, exportName: 1 },
 			{ ...entry, extra: true },
+			{ ...entry, themes: { supported: ['light'] } },
+			{ ...entry, themes: { supported: ['dark', 'light'], reason: 'brand' } },
+			{ ...entry, themes: { supported: [] } },
+			{ ...entry, themes: { supported: ['light', 'light'] } },
+			{ ...entry, themes: { supported: ['sepia'] } },
+			{ ...entry, themes: { supported: ['light'], reason: '' } },
+			{ ...entry, themes: { supported: ['light'], basis: 'declared' } },
+			{ ...entry, themes: 'light' },
 			null,
 		];
 		const configs: unknown[] = [
@@ -260,6 +288,11 @@ describe('bench validation matches the Zod schemas', () => {
 			{ specimens: [entry], profile: {} },
 			{ specimens: [entry], profile: { baselines: '' } },
 			{ specimens: [entry], profile: { other: 'x' } },
+			{ specimens: [entry], manifest: 'm.json', guides: ['src/**/*.guide.json'] },
+			{ specimens: [entry], manifest: 'm.json', guides: [] },
+			{ specimens: [entry], manifest: 'm.json', guides: [''] },
+			{ specimens: [entry], manifest: 'm.json', guides: 'src/*.json' },
+			{ specimens: [entry], guides: ['src/**/*.guide.json'] },
 		];
 		for (const value of configs) agrees(configSchema, parseConfig, value);
 	});
@@ -338,6 +371,34 @@ describe('request parsing agrees with the public schemas', () => {
 		];
 		for (const value of values) agrees(a11yRequestSchema, parseA11yRequest, value);
 		expect(() => parseA11yRequest({ id: 'a', filter: {} })).toThrow('not both');
+	});
+
+	it('agrees on themes requests', () => {
+		const values = [
+			{},
+			{ id: 'a' },
+			{ id: '' },
+			...filters.map((filter) => ({ filter })),
+			...[
+				['light', 'dark'],
+				['light', 'dark', 'high-contrast'],
+				['light'],
+				['light', 'light'],
+				['light', 'sepia'],
+				[],
+				'light',
+			].map((themes) => ({ themes })),
+			{ checkpoint: 'mount' },
+			{ checkpoint: '' },
+			...contexts.map((context) => ({ context })),
+			...[0, 0.02, 1, -0.1, 1.1, Number.NaN, '0.02'].map((threshold) => ({ threshold })),
+			...timeouts.map((timeoutMs) => ({ timeoutMs })),
+			...[1, 32, 33, 0].map((workers) => ({ workers })),
+			{ other: 1 },
+			null,
+		];
+		for (const value of values) agrees(themesRequestSchema, parseThemesRequest, value);
+		expect(() => parseThemesRequest({ id: 'a', filter: {} })).toThrow('not both');
 	});
 
 	it('agrees on profile and baseline requests', () => {

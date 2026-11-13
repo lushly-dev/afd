@@ -1,0 +1,362 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "range-slider.thumb-names",
+				"text": "Each thumb is a native slider named only by label-start or label-end (default \"Minimum\", \"Maximum\"); the label attribute is in neither name. Name the quantity, e.g. label-start=\"Minimum price\"."
+			},
+			{
+				"basis": "authored",
+				"id": "range-slider.bounds",
+				"text": "The thumbs cannot cross: the start thumb's announced maximum is valueEnd and the end thumb's minimum is valueStart. Arrow keys move the focused thumb by step."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "Maximum",
+				"name": "label-end",
+				"property": "labelEnd",
+				"rules": [
+					"taxonomy.label-end"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "Minimum",
+				"name": "label-start",
+				"property": "labelStart",
+				"rules": [
+					"taxonomy.label-start"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "100",
+				"name": "max",
+				"property": "max",
+				"rules": [
+					"taxonomy.max"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": "0",
+				"name": "min",
+				"property": "min",
+				"rules": [
+					"taxonomy.min"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "horizontal",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletRangeSliderOrientation"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "show-ticks",
+				"property": "showTicks",
+				"rules": [
+					"taxonomy.show-ticks"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "1",
+				"name": "step",
+				"property": "step",
+				"rules": [
+					"taxonomy.step"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "75",
+				"name": "value-end",
+				"property": "valueEnd",
+				"rules": [
+					"taxonomy.value-end"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "25",
+				"name": "value-start",
+				"property": "valueStart",
+				"rules": [
+					"taxonomy.value-start"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_target-size)",
+				"name": "--_control-block-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-danger-border, rgba(220, 38, 38, 0.34))",
+				"name": "--_danger-border"
+			},
+			{
+				"basis": "declared",
+				"default": "75%",
+				"name": "--_end-percent"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-round, 9999px)",
+				"name": "--_radius-full"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-border-strong, rgba(28, 26, 13, 0.48))",
+				"name": "--_rail-background"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--color-control-selected-foreground, #244635) 50%, var(--color-control-selected-background, #ddeadf))",
+				"name": "--_selection-fill"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--shadow-floating, 0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08))",
+				"name": "--_shadow-floating"
+			},
+			{
+				"basis": "declared",
+				"default": "25%",
+				"name": "--_start-percent"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 0.625)",
+				"name": "--_thumb-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_rail-background)",
+				"name": "--_tick-color"
+			},
+			{
+				"basis": "declared",
+				"default": "6px",
+				"name": "--_tick-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 0.125)",
+				"name": "--_track-size"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_target-size) * 4)",
+				"name": "--_vertical-track-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when either thumb value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when either thumb value changes while dragging or using the keyboard.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-range-slider--disabled",
+			"html": "<form style=\"display: contents;\"><violet-range-slider disabled error-text label=\"Nutrient concentration\" label-end=\"Maximum\" label-start=\"Minimum\" max=\"100\" min=\"0\" name=\"nutrient-concentration\" orientation=\"horizontal\" step=\"1\" supporting-text=\"This slider is locked while the fertigation program is inherited from the greenhouse template.\" value-end=\"75\" value-start=\"25\"></violet-range-slider></form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-range-slider--invalid",
+			"html": "<form style=\"display: contents;\"><violet-range-slider error-text=\"Choose a range within the approved limits.\" invalid label=\"pH range\" label-end=\"High\" label-start=\"Low\" max=\"100\" min=\"0\" name=\"ph-range\" orientation=\"horizontal\" step=\"1\" supporting-text=\"The selected range is outside the approved operating limits.\" value-end=\"90\" value-start=\"10\"></violet-range-slider></form>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-range-slider--overview",
+			"html": "<form style=\"display: contents;\"><violet-range-slider error-text label=\"Temperature range\" label-end=\"Maximum\" label-start=\"Minimum\" max=\"100\" min=\"0\" name=\"temperature\" orientation=\"horizontal\" step=\"1\" supporting-text=\"Set the minimum and maximum temperature thresholds for this zone.\" value-end=\"70\" value-start=\"31\"></violet-range-slider></form>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "max",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "min",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "required",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"field.supporting-text",
+		"form.invalid",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.label-end",
+		"taxonomy.label-start",
+		"taxonomy.max",
+		"taxonomy.min",
+		"taxonomy.name",
+		"taxonomy.orientation",
+		"taxonomy.required",
+		"taxonomy.show-ticks",
+		"taxonomy.step",
+		"taxonomy.supporting-text",
+		"taxonomy.value-end",
+		"taxonomy.value-start",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Two-thumb range input for choosing a low and a high bound, such as a price range, with a built-in label and supporting text.",
+	"tag": "violet-range-slider",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "range-slider.values",
+			"text": "Set the bounds with value-start and value-end (strings, defaults 25 and 75). Both are clamped to min and max, snapped to step, and start is kept at or below end. The value property returns only valueStart."
+		},
+		{
+			"basis": "authored",
+			"id": "range-slider.form",
+			"text": "The form receives two entries, <name>-start and <name>-end (range-start and range-end when name is unset), not one value under name."
+		},
+		{
+			"basis": "authored",
+			"id": "range-slider.events",
+			"text": "input and change are CustomEvents with detail { valueStart, valueEnd }, not detail.value. The inner range's native input event also reaches host listeners, without detail; skip events that have none."
+		},
+		{
+			"basis": "authored",
+			"id": "range-slider.validation",
+			"text": "The required attribute has no effect on validity. Only the invalid attribute makes it invalid, showing error-text or the built-in \"Please choose a valid range.\""
+		},
+		{
+			"basis": "authored",
+			"id": "range-slider.ticks",
+			"text": "show-ticks draws marks only when (max - min) / step is from 2 to 50. With orientation=\"vertical\" the minimum is at the bottom."
+		}
+	]
+}

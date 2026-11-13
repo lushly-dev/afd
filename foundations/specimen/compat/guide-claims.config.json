@@ -1,0 +1,6 @@
+{
+	"stories": ["stories/claims.stories.ts", "guides/guide-claims.stories.ts"],
+	"preview": ".storybook/preview.ts",
+	"manifest": "./claims.manifest.json",
+	"guides": ["guides/*.guide.json"]
+}

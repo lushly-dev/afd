@@ -24,6 +24,11 @@ import {
 	migrateRequestSchema,
 	migrationReportSchema,
 	observationSchema,
+	packCheckRunSchema,
+	packExportRequestSchema,
+	packExportRunSchema,
+	packRequestSchema,
+	packRunSchema,
 	profileRequestSchema,
 	profileRunSchema,
 	runRequestSchema,
@@ -32,6 +37,9 @@ import {
 	suggestRunSchema,
 	suiteRequestSchema,
 	suiteRunSchema,
+	themeSupportSchema,
+	themesRequestSchema,
+	themesRunSchema,
 } from '@lushly-dev/specimen/schema';
 import { z } from 'zod';
 
@@ -59,6 +67,11 @@ import type {
 	MigrateRequest,
 	MigrationReport,
 	Observation,
+	PackCheckRun,
+	PackExportRequest,
+	PackExportRun,
+	PackRequest,
+	PackRun,
 	ProfileRequest,
 	ProfileRun,
 	RunRequest,
@@ -68,6 +81,8 @@ import type {
 	SuggestRun,
 	SuiteRequest,
 	SuiteRun,
+	ThemesRequest,
+	ThemesRun,
 	ValidationReport,
 	ValidationTarget,
 } from '@lushly-dev/specimen/types';
@@ -91,6 +106,7 @@ const entrySchema = z
 		exportName: z.string(),
 		component: z.string().optional(),
 		story: storySchema.optional(),
+		themes: themeSupportSchema.optional(),
 	})
 	.strict();
 const validateInput = z
@@ -152,6 +168,7 @@ export interface SpecimenCommandBench {
 	run(request: RunRequest): Promise<StoryRun>;
 	runSuite(request?: SuiteRequest): Promise<SuiteRun>;
 	a11y(request?: A11yRequest): Promise<A11yRun>;
+	themes(request?: ThemesRequest): Promise<ThemesRun>;
 	profile(request?: ProfileRequest): Promise<ProfileRun>;
 	contract(request: ContractRequest): Promise<ContractRun>;
 	suggest(request: SuggestRequest): Promise<SuggestRun>;
@@ -161,6 +178,9 @@ export interface SpecimenCommandBench {
 	inspect(request: InspectRequest): Promise<InspectResult>;
 	migrate(request?: MigrateRequest): Promise<MigrationReport>;
 	build(outDir: string): Promise<z.infer<typeof buildOutputSchema>>;
+	pack(request?: PackRequest): Promise<PackRun>;
+	packCheck(request?: PackRequest): Promise<PackCheckRun>;
+	packExport(request: PackExportRequest): Promise<PackExportRun>;
 }
 
 /** One story by id, or a suite by filter; the handler tells them apart. */
@@ -303,6 +323,22 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				a11yRunSchema,
 				'SPECIMEN_A11Y_FAILED',
 				'Use specimen-list to check the id or filter, specimen-inspect to check the checkpoint, then check the browser installation.'
+			),
+	});
+	const themes = defineCommand({
+		...common,
+		name: 'specimen-themes',
+		description:
+			'Render one entry by id, or those a filter selects, in each theme and compare the frames, to find what does not follow the theme. Each report is follows, declared (the frame stays the same and a light-only, dark-only or high-contrast-only tag says so), pinned (the story sets its own theme global), undeclared (it stays the same and nothing says so), contradicted (it declares a limit but changes) or unavailable. data.valid is false when any entry is undeclared: gate on it.',
+		mutation: false,
+		input: themesRequestSchema,
+		output: themesRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.themes(input),
+				themesRunSchema,
+				'SPECIMEN_THEMES_FAILED',
+				'Use specimen-list to check the id or filter, then check the browser installation.'
 			),
 	});
 	const profile = defineCommand({
@@ -449,6 +485,54 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 				'Choose an empty output directory and inspect the build or budget failure before retrying.'
 			),
 	});
+	const pack = defineCommand({
+		...common,
+		name: 'specimen-pack',
+		description:
+			"Build the configured library's component pack from two passes over every case and write its committed form: one record per component and the library's rules. A case that fails after one retry, or shows something different in each pass, contributes nothing, and nothing is written from a run with a failed case unless allowFailed names it. With component, rebuild that record alone from the cases the last full build indexed.",
+		mutation: true,
+		input: packRequestSchema,
+		output: packRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.pack(input),
+				packRunSchema,
+				'SPECIMEN_PACK_FAILED',
+				'Add a pack key to the configuration, fix or name the failed cases in allowFailed, and run specimen-validate on the guide files.'
+			),
+	});
+	const packCheck = defineCommand({
+		...common,
+		name: 'specimen-pack-check',
+		description:
+			'Build the pack as specimen-pack does, write nothing, and report the committed records that differ: changed, added and removed. valid is true only when none does and no case failed; this is the drift check CI runs.',
+		mutation: false,
+		input: packRequestSchema,
+		output: packCheckRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.packCheck(input),
+				packCheckRunSchema,
+				'SPECIMEN_PACK_CHECK_FAILED',
+				'Add a pack key to the configuration; when records differ, run specimen-pack and commit what it writes.'
+			),
+	});
+	const packExport = defineCommand({
+		...common,
+		name: 'specimen-pack-export',
+		description:
+			"Write the pack's exported form into directory from the committed records, with no browser: the records, the rules and a catalog stamped with the package and an optional Git revision. Refuses, naming the record, when the manifest or a guide file says something the committed records do not. Other libraries in directory and its pack.toml are kept.",
+		mutation: true,
+		input: packExportRequestSchema,
+		output: packExportRunSchema,
+		handler: async (input) =>
+			result(
+				() => bench.packExport(input),
+				packExportRunSchema,
+				'SPECIMEN_PACK_EXPORT_FAILED',
+				'Run specimen-pack to rebuild the records it names, and export into a directory holding only data/, rules/ and pack.toml.'
+			),
+	});
 	return [
 		list,
 		render,
@@ -465,6 +549,10 @@ export function createSpecimenCommands(bench: SpecimenCommandBench) {
 		matrix,
 		inspect,
 		migrate,
+		pack,
+		packCheck,
+		packExport,
+		themes,
 	] as const;
 }
 
@@ -504,6 +592,10 @@ export async function executeSpecimenCommand(
 		matrix,
 		inspect,
 		migrate,
+		pack,
+		packCheck,
+		packExport,
+		themes,
 	] = createSpecimenCommands(bench);
 	switch (name) {
 		case 'specimen-list':
@@ -536,11 +628,20 @@ export async function executeSpecimenCommand(
 			return execute(inspect, input);
 		case 'specimen-migrate':
 			return execute(migrate, input);
+		case 'specimen-pack':
+			return execute(pack, input);
+		case 'specimen-pack-check':
+			return execute(packCheck, input);
+		case 'specimen-pack-export':
+			return execute(packExport, input);
+		case 'specimen-themes':
+			return execute(themes, input);
 		default:
 			return failure({
 				code: 'COMMAND_NOT_FOUND',
 				message: `Unknown command: ${name}`,
-				suggestion: 'Use specimen list, validate, inspect, render, run, migrate, diff, or build.',
+				suggestion:
+					'Use specimen list, validate, inspect, render, run, themes, migrate, diff, or build.',
 			});
 	}
 }

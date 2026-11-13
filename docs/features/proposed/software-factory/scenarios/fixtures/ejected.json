@@ -1,0 +1,106 @@
+{
+	"laneHost": "workstation",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-2"
+	},
+	"cells": [
+		{
+			"branch": "fix/parser-empty-input",
+			"issues": [101],
+			"thread": "thread-1",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "ejected",
+			"ejections": 1
+		},
+		{
+			"branch": "feat/export-csv",
+			"issues": [102],
+			"thread": "thread-2",
+			"plan": "plan-b",
+			"route": "opus/medium",
+			"state": "queued",
+			"ejections": 0
+		},
+		{
+			"branch": "fix/loosened-check",
+			"issues": [103],
+			"thread": "thread-3",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "ejected",
+			"ejections": 1
+		},
+		{
+			"branch": "fix/type-slip",
+			"issues": [104],
+			"thread": "thread-4",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0
+		}
+	],
+	"queue": [
+		{
+			"branch": "feat/export-csv",
+			"head": "b2c3d4e"
+		}
+	],
+	"events": [
+		{
+			"id": "ev-7",
+			"type": "ejected",
+			"branch": "fix/parser-empty-input",
+			"reason": "final-failed",
+			"detail": "FAIL packages/parser src/parse.test.ts > parses empty input",
+			"logPath": "attempts/fix-parser-empty-input-1.log",
+			"deliveredTo": [],
+			"open": true
+		}
+	],
+	"worktrees": {
+		"wt/parser": {
+			"branch": "fix/parser-empty-input",
+			"clean": true,
+			"head": "a1b2c4f",
+			"review": {
+				"head": "a1b2c4f"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": []
+		},
+		"wt/loosened": {
+			"branch": "fix/loosened-check",
+			"clean": true,
+			"head": "d4e5f6a",
+			"review": {
+				"head": "d4e5f6a"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": ["scripts/check-file-size.mjs"],
+			"ejectedFor": "final-failed"
+		},
+		"wt/type-slip": {
+			"branch": "fix/type-slip",
+			"clean": true,
+			"head": "e5f6a7b",
+			"review": {
+				"head": "e5f6a7b"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "fail: src/index.ts(12,3): Type 'string' is not assignable to type 'number'"
+			},
+			"gatePathsChanged": []
+		}
+	}
+}

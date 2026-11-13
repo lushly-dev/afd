@@ -38,7 +38,7 @@ Under items 2 and 3, from phase 2's step 10:
 | 1 | `pnpm -F @lushly-dev/loam-chrome lint:tokens` output |
 | 2 | The states table of `design.md`, filled for the component, in the pull request body |
 | 3 | The keys it handles and its role, name and state, with the Chromium test that checks them |
-| 4 | Specimen captures in the three themes and two densities; the Chromium suite's forced-colors run |
+| 4 | Specimen captures in the three themes and two densities; `specimen themes <id>`, run in `endpoints/loam/packages/chrome/specimens/`, reporting the fixture `follows` (a chrome part never declares `light-only`); the Chromium suite's forced-colors run |
 | 5 | The fixture's path |
 | 6 | The axe run per theme in the Chromium suite |
 | 7 | `design.md`'s diff |

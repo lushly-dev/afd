@@ -103,7 +103,10 @@ async def test_docs_preflight_combines_pipeline_results() -> None:
 
     client.pipe = _pipe
 
-    with patch("botcore.commands.docs.get_client", return_value=client):
+    with (
+        patch("botcore.commands.docs.get_client", return_value=client),
+        patch("botcore.commands.docs.find_workspace", return_value=None),
+    ):
         result = await docs_preflight()
 
     data = assert_success(result)
@@ -111,7 +114,10 @@ async def test_docs_preflight_combines_pipeline_results() -> None:
     assert data["checks"]["changelog"]["needs_update"] is True
     assert data["checks"]["agents"]["needs_update"] is False
     assert data["step_count"] == 2
-    assert result.suggestions == ["Run changeset_create to record the staged source changes"]
+    assert result.suggestions == [
+        "Run changeset_create to record this change, or update the CHANGELOG.md named:"
+        " CHANGELOG.md"
+    ]
 
 
 async def test_docs_preflight_propagates_pipeline_error() -> None:

@@ -1,0 +1,51 @@
+{
+	"version": 4,
+	"origin": "agent-inferred",
+	"space": "main",
+	"plugin": "memory",
+	"agent": {
+		"kind": "agent",
+		"id": "agent:garden-helper",
+		"onBehalfOf": "human:local"
+	},
+	"principal": "human:local",
+	"session": "s-81",
+	"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"observedAt": "2026-11-01T10:00:00.000Z",
+	"validFrom": "2026-10-30T09:00:00.000Z",
+	"validUntil": "2026-11-01T10:00:00.000Z",
+	"confidence": 0.8,
+	"authority": "person",
+	"sources": [
+		{
+			"resource": "harness:local/s-12#w1",
+			"title": "Mulch the beds before the first frost"
+		}
+	],
+	"generated": null,
+	"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+	"derivedFrom": null,
+	"access": ["principal:human:local"],
+	"sensitivity": "internal",
+	"redactions": [
+		{
+			"kind": "aws-access-key",
+			"count": 1
+		},
+		{
+			"kind": "private-key",
+			"count": 1
+		}
+	],
+	"constraints": ["staging only"],
+	"delegationChain": [],
+	"confirmation": {
+		"by": "human:local",
+		"at": "2026-11-12T09:04:00.000Z",
+		"priorAuthority": "agent",
+		"assurance": {
+			"level": "local",
+			"method": "local-page"
+		}
+	}
+}

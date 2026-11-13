@@ -1,0 +1,74 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. The project under test is a second library whose `touch-select` claims
+# the `example` library's `select` pattern. It has a case for the `three-options` setup and
+# none yet for `one-chosen`.
+#
+# A scenario runs commands. Writing the implementation and its cases happens between them and
+# is not shown.
+
+name: Build a new implementation and hold it to the same tests
+description: >-
+  When no implementation suits my framework or device, I want the pattern's requirements, its
+  gates and a reference to port, so that what I build is held to the same tests as the original.
+job: derive-an-implementation
+tags: [slice, build]
+
+steps:
+  - description: The pattern gives its requirements, its gates and the implementation to port from
+    command: components-pattern-open
+    input:
+      pattern: select
+      sections: [keep, customize, gates, implementations]
+    expect:
+      success: true
+      data:
+        content:
+          trust: content
+          pattern:
+            library: example
+            pattern: select
+            keep:
+              - id: select.keep.named
+                gate: named
+              - id: select.keep.shows-choice
+                gate: shows-choice
+            implementations:
+              - kind: component
+                tag: example-select
+                keep:
+                  - id: select.keep.named
+                    basis: verified
+
+  - description: The new implementation is measured by the same statements, and one has no case yet
+    command: specimen-coverage
+    input:
+      component: touch-select
+    expect:
+      success: true
+      data:
+        patterns:
+          obligations: patterns@1
+          complete: false
+          implementations:
+            - pattern: select
+              tag: touch-select
+              keep:
+                - id: select.keep.named
+                  level: verified
+                - id: select.keep.shows-choice
+                  level: missing
+
+  - description: The missing setup is proposed as a case that fails until someone completes it
+    command: specimen-suggest
+    input:
+      component: touch-select
+      gaps: ['pattern:select.keep.shows-choice']
+    expect:
+      success: true
+      data:
+        component: touch-select
+        status: unverified
+        entries: { length: 1 }
+        suggestions:
+          - obligation: 'pattern:select.keep.shows-choice'
+            placeholder: true

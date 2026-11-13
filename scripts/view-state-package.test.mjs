@@ -16,6 +16,7 @@ import { tmpdir } from 'node:os';
 import { dirname, isAbsolute, join, relative, resolve, sep } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { execTool, tarCommand } from './release/exec-tool.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -28,12 +29,12 @@ function isWithin(directory, path) {
 }
 
 function packPackage(directory, artifacts) {
-	execFileSync('pnpm', ['--dir', directory, 'build'], { cwd: repoRoot, stdio: 'pipe' });
+	execTool('pnpm', ['--dir', directory, 'build'], { cwd: repoRoot, stdio: 'pipe' });
 	const source = join(repoRoot, directory);
 	const manifest = JSON.parse(readFileSync(join(source, 'package.json'), 'utf8'));
 	const destination = join(artifacts, manifest.name.replace('/', '-'));
 	mkdirSync(destination);
-	execFileSync('pnpm', ['pack', '--pack-destination', destination], {
+	execTool('pnpm', ['pack', '--pack-destination', destination], {
 		cwd: source,
 		stdio: 'pipe',
 	});
@@ -45,7 +46,7 @@ function packPackage(directory, artifacts) {
 function unpackPackage({ name, archive }, consumer) {
 	const destination = join(consumer, 'node_modules', ...name.split('/'));
 	mkdirSync(destination, { recursive: true });
-	execFileSync('tar', ['-xzf', archive, '--strip-components=1', '-C', destination]);
+	execFileSync(tarCommand(), ['-xzf', archive, '--strip-components=1', '-C', destination]);
 	assert.equal(existsSync(join(destination, 'src')), false, 'consume packed dist, not sources');
 }
 

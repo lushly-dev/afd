@@ -1,0 +1,91 @@
+{
+	"specimens": [
+		{
+			"id": "example-field--default",
+			"title": "Example/FieldDefault",
+			"module": "./specimens.js",
+			"exportName": "FieldDefault",
+			"component": "example-field"
+		},
+		{
+			"id": "example-field--invalid",
+			"title": "Example/FieldInvalid",
+			"module": "./specimens.js",
+			"exportName": "FieldInvalid",
+			"component": "example-field"
+		},
+		{
+			"id": "example-select--default",
+			"title": "Example/SelectDefault",
+			"module": "./specimens.js",
+			"exportName": "SelectDefault",
+			"component": "example-select"
+		},
+		{
+			"id": "checks--field-states",
+			"title": "Example/FieldStates",
+			"module": "./specimens.js",
+			"exportName": "FieldStates"
+		},
+		{
+			"id": "checks--field-disabled",
+			"title": "Example/FieldDisabled",
+			"module": "./specimens.js",
+			"exportName": "FieldDisabled"
+		},
+		{
+			"id": "checks--field-invalid",
+			"title": "Example/FieldInvalidState",
+			"module": "./specimens.js",
+			"exportName": "FieldInvalidState"
+		},
+		{
+			"id": "checks--field-change",
+			"title": "Example/FieldChange",
+			"module": "./specimens.js",
+			"exportName": "FieldChange"
+		},
+		{
+			"id": "checks--select-open",
+			"title": "Example/SelectOpen",
+			"module": "./specimens.js",
+			"exportName": "SelectOpen"
+		},
+		{
+			"id": "checks--select-disabled",
+			"title": "Example/SelectDisabled",
+			"module": "./specimens.js",
+			"exportName": "SelectDisabled"
+		},
+		{
+			"id": "variants--unstable",
+			"title": "Variants/Unstable",
+			"module": "./variants.js",
+			"exportName": "Unstable"
+		},
+		{
+			"id": "variants--broken",
+			"title": "Variants/Broken",
+			"module": "./variants.js",
+			"exportName": "Broken"
+		},
+		{
+			"id": "example-field--property-named",
+			"title": "Variants/PropertyNamed",
+			"module": "./variants.js",
+			"exportName": "PropertyNamed",
+			"component": "example-field"
+		}
+	],
+	"manifest": "./custom-elements.json",
+	"plugins": ["./plugin.js"],
+	"guides": ["./guides/*.guide.json"],
+	"pack": {
+		"library": "example",
+		"title": "Example components",
+		"prefix": "example-",
+		"directory": "../pack/committed",
+		"package": "./library.json",
+		"import": "example-components/{module}"
+	}
+}

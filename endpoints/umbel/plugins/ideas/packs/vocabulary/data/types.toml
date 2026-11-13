@@ -1,0 +1,17 @@
+# The types an idea may have (specification, section 5). Each name is lowercase letters, digits
+# and hyphens; `means` is shown by ideas-guide.
+
+[types.position]
+means = "A view the person holds or argues."
+[types.principle]
+means = "A rule of practice: do this, avoid that."
+[types.model]
+means = "A distinction or a named structure."
+[types.evidence]
+means = "An observation, a result or a source's finding that bears on a view."
+[types.example]
+means = "A case that shows an idea at work."
+[types.question]
+means = "Something the person wants answered, or that the store could not answer."
+[types.synthesis]
+means = "What the person thinks about a group of ideas, as one statement."

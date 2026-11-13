@@ -1,0 +1,63 @@
+# Draft JTBD scenario for the Patterns proposal. The commands and their shapes are proposals.
+# The data is invented. The `select` pattern's gate `fits-narrow` runs at a viewport 390 wide.
+# `example-select` is for every viewport. `desk-select`, in a second library, declares that it
+# is for viewports 1024 wide and up, with the reason "Used only in the desktop console."
+#
+# What this cannot show: the declared reason is content, served beside the level, and this
+# scenario asserts only that it is present.
+
+name: Report a test an implementation is not for as out of context
+description: >-
+  When an implementation is for some devices only, I want its gates elsewhere reported as out
+  of context with the reason, so that a skipped test is never read as a pass.
+job: stay-out-of-context
+tags: [verify]
+
+steps:
+  - description: An implementation for every viewport has the narrow gate verified
+    command: specimen-coverage
+    input:
+      component: example-select
+    expect:
+      success: true
+      data:
+        patterns:
+          complete: true
+          implementations:
+            - tag: example-select
+              keep:
+                - id: select.keep.fits-narrow
+                  level: verified
+
+  - description: One that declares a limit has the gate reported out of context, with its reason
+    command: specimen-coverage
+    input:
+      component: desk-select
+    expect:
+      success: true
+      data:
+        patterns:
+          implementations:
+            - tag: desk-select
+              keep:
+                - id: select.keep.fits-narrow
+                  level: out-of-context
+                  reason: { exists: true }
+          counts:
+            verified: { gte: 1 }
+            out-of-context: 1
+
+  - description: A pattern's listing says what each implementation is for, so the limit is known before choosing
+    command: components-pattern-open
+    input:
+      pattern: select
+      sections: [implementations]
+    expect:
+      success: true
+      data:
+        content:
+          pattern:
+            implementations:
+              - tag: example-select
+              - tag: desk-select
+                contexts: { exists: true }

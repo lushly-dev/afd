@@ -51,7 +51,7 @@ function trackEvents(picker: VioletColorPicker): Array<{ type: string; value: st
 /** Opens the editor from the keyboard; the picker focuses and selects its hex field. */
 async function openEditor(picker: VioletColorPicker): Promise<HTMLInputElement> {
     const input = picker.shadowRoot?.querySelector(".hex-input") as HTMLInputElement;
-    (picker.shadowRoot?.querySelector(".trigger") as HTMLButtonElement).focus();
+    (picker.shadowRoot!.querySelector(".trigger") as HTMLButtonElement).focus();
     await userEvent.keyboard("{Enter}");
     await nextFrame();
     await nextFrame();
@@ -62,6 +62,16 @@ async function openEditor(picker: VioletColorPicker): Promise<HTMLInputElement> 
 describe("violet-color-picker", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+    });
+
+    it("names the trigger by its label and every text it shows", async () => {
+        const picker = await renderPicker();
+        const trigger = picker.shadowRoot?.querySelector(".trigger");
+        const shown = [picker.valueId, picker.metaId].map(id => picker.shadowRoot?.getElementById(id)?.textContent?.trim());
+
+        // The value and the hint beside it are both visible, so both are part of the name (WCAG 2.5.3).
+        expect(trigger?.getAttribute("aria-labelledby")?.split(" ").slice(-2)).toEqual([picker.valueId, picker.metaId]);
+        expect(shown.every(Boolean)).toBe(true);
     });
 
     it("submits its selected color through form-associated state", async () => {

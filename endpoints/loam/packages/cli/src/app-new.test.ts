@@ -1,8 +1,12 @@
+import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
-import { writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { appNew } from './app-new.js';
+import { scaffold } from './templates.js';
 import { temporaryDirectory } from './test-support.js';
 
 describe('loam app new', () => {
@@ -27,6 +31,64 @@ describe('loam app new', () => {
 		});
 		const readme = readFileSync(join(dir, 'README.md'), 'utf8');
 		expect(readme).toContain(report.trust?.line);
+	});
+
+	it.each(['native', 'view'] as const)(
+		"type-checks a %s app's browser code without Node's types (#926)",
+		async (kind) => {
+			const files = scaffold('demo', kind, 'workspace:*');
+			expect(JSON.parse(files['package.json'] as string).scripts.typecheck).toBe(
+				'tsc && tsc -p tsconfig.browser.json'
+			);
+			expect(JSON.parse(files['tsconfig.browser.json'] as string)).toEqual({
+				extends: './tsconfig.json',
+				compilerOptions: { types: [] },
+				include: ['src'],
+				exclude: ['**/*.test.ts'],
+			});
+		}
+	);
+
+	it('refuses Node globals in src under the browser project and allows them in test', async () => {
+		// Inside this package, so the scaffold's `types: ['node']` resolves @types/node.
+		const base = join(fileURLToPath(new URL('..', import.meta.url)), 'node_modules', '.cache');
+		await mkdir(base, { recursive: true });
+		const dir = await mkdtemp(join(base, 'scaffold-types-'));
+		try {
+			const files = scaffold('demo', 'native', 'workspace:*');
+			await writeFile(join(dir, 'tsconfig.json'), files['tsconfig.json'] as string);
+			await writeFile(join(dir, 'tsconfig.browser.json'), files['tsconfig.browser.json'] as string);
+			await mkdir(join(dir, 'src'));
+			await mkdir(join(dir, 'test'));
+			await writeFile(join(dir, 'src/probe.ts'), 'export const mode = process.env.MODE;\n');
+			await writeFile(join(dir, 'test/probe.ts'), 'export const mode = process.env.MODE;\n');
+			// Start tsc's script with Node: Windows installs `.bin/tsc` as a `.cmd` shim that needs a shell.
+			const tsc = join(
+				dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+				'bin/tsc'
+			);
+			const run = (...args: string[]) => {
+				try {
+					execFileSync(process.execPath, [tsc, ...args], {
+						cwd: dir,
+						encoding: 'utf8',
+						stdio: 'pipe',
+					});
+					return '';
+				} catch (error) {
+					// tsc writes its diagnostics to stdout; a failure to start it has none.
+					const { stdout } = error as { stdout?: string };
+					if (typeof stdout !== 'string') throw error;
+					return stdout;
+				}
+			};
+			expect(run('-p', 'tsconfig.json')).toBe('');
+			const browser = run('-p', 'tsconfig.browser.json');
+			expect(browser).toMatch(/src\/probe\.ts.*process/);
+			expect(browser).not.toContain('test/probe.ts');
+		} finally {
+			await rm(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('gives a view its pages and the single-file plugin', async () => {

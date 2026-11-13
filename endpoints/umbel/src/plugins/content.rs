@@ -48,6 +48,44 @@ fn path_problem(path: &str) -> Option<&'static str> {
     }
 }
 
+/// The SHA-256 of the file `<root>/<path>` of `collection` in `space`, read through the confined
+/// reader `content_read` uses: `None` when the collection or its root is missing, the path
+/// cannot name a file inside the root or passes through a symbolic link, or the file is absent,
+/// not a regular file or not `size` bytes long.
+///
+/// This is the host's own check that a stored document is its file on disk (the records host
+/// specification, section 3's rule 2 and section 6.2's check 4), so it asks no grant of a
+/// plugin and counts toward no budget of a call. A file is read only when its length is `size`,
+/// which the caller has held to a document's size: at most `MAX_DOCUMENT_BYTES`.
+pub(crate) fn file_hash(
+    workspace: &crate::workspace::Workspace,
+    space: &str,
+    collection: &str,
+    path: &str,
+    size: u64,
+) -> Option<ContentHash> {
+    let declared = workspace
+        .config()
+        .spaces
+        .iter()
+        .find(|declared| declared.id.as_str() == space)
+        .and_then(|declared| declared.collections.iter().find(|c| c.id == collection))?;
+    let root = resolve_root(workspace.root(), &declared.root).ok()?;
+    if path_problem(path).is_some() || size > umbel_store::MAX_DOCUMENT_BYTES as u64 {
+        return None;
+    }
+    let file = confined(&root, path, true).ok()?;
+    let meta = fs::symlink_metadata(&file).ok()?;
+    if !meta.is_file() || meta.len() != size {
+        return None;
+    }
+    let mut bytes = Vec::with_capacity(usize::try_from(size).unwrap_or(0));
+    File::open(&file)
+        .and_then(|file| file.take(size.saturating_add(1)).read_to_end(&mut bytes))
+        .ok()?;
+    Some(ContentHash::of(&bytes))
+}
+
 impl CallServices {
     /// The collection `collection` of `space`, and its canonical root.
     fn collection(&self, space: &str, collection: &str) -> Result<(&CollectionConfig, PathBuf)> {
@@ -69,6 +107,17 @@ impl CallServices {
             ))
         })?;
         Ok((declared, root))
+    }
+
+    /// [`file_hash`] for this call's workspace.
+    pub(super) fn own_file_hash(
+        &self,
+        space: &str,
+        collection: &str,
+        path: &str,
+        size: u64,
+    ) -> Option<ContentHash> {
+        file_hash(&self.shared.workspace, space, collection, path, size)
     }
 
     pub(super) fn svc_content_list(

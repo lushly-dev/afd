@@ -6,6 +6,7 @@ import "./violet-tree-item";
 
 const meta = {
     title: "Components/Tree Item",
+    component: "violet-tree-item",
     tags: ["autodocs"],
     parameters: {
         docs: {

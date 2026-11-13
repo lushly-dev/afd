@@ -1,0 +1,176 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# A scenario can show that the commands stop returning the text. That the bytes are gone from
+# the stores, the index and the vectors is tested at the host, and what a backup taken earlier
+# still holds is the deployer's retention.
+
+name: Erase something for good
+description: >-
+  When something was captured that should never have been, a secret or someone else's
+  confidential text, I want it gone and not merely retired, to be shown what else holds it, and
+  to have it kept out if it comes in again, so that a mistake at capture is not permanent.
+job: erase-for-good
+tags: [trust, slice]
+
+steps:
+  - description: Notes that hold a code among the gardening
+    command: ideas-source-add
+    input:
+      title: Allotment notes
+      kind: notes
+      content: "The fixture gate code is 4417.\nPrune the plum in midsummer."
+    expect:
+      success: true
+
+  - description: A copy of the same notes under another name, with different line endings
+    command: ideas-source-add
+    input:
+      title: Allotment notes (phone)
+      kind: notes
+      content: "The fixture gate code is 4417.\r\nPrune the plum in midsummer."
+    expect:
+      success: true
+      data:
+        nearCopyOf: { matches: '^src-' }
+
+  - description: A run captures the code as an idea
+    command: ideas-capture
+    input:
+      type: example
+      statement: The fixture gate code is 4417.
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [1]
+    expect:
+      success: true
+
+  - description: And the pruning
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Prune the plum in midsummer.
+      sources:
+        - source: "${{ steps[0].data.source }}"
+          sentences: [2]
+    expect:
+      success: true
+
+  - description: Put the erasure of the source in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: erase
+          source: "${{ steps[0].data.source }}"
+          reason: Captured by mistake.
+    expect:
+      success: true
+      data:
+        counts:
+          erase: 1
+
+  - description: The review says what else holds the same text, so that I can add it
+    command: ideas-review-show
+    expect:
+      success: true
+      data:
+        total: 1
+        affected:
+          copies: 1
+          ideasQuoted: 2
+
+  - description: I add the copy and the idea that holds the code, and leave the pruning
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: erase
+          source: "${{ steps[1].data.source }}"
+          reason: Captured by mistake.
+        - decide: erase
+          id: "${{ steps[2].data.id }}"
+          reason: Captured by mistake.
+    expect:
+      success: true
+      data:
+        staged: 3
+
+  - description: I confirm it
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[6].data.review }}"
+      digest: "${{ steps[6].data.digest }}"
+    expect:
+      success: true
+      data:
+        applied:
+          erase: 3
+
+  - description: The idea is a marker with no text
+    command: ideas-open
+    input:
+      id: "${{ steps[2].data.id }}"
+    expect:
+      success: true
+      data:
+        erased: true
+        statement: { notExists: true }
+
+  - description: Nothing finds it
+    command: ideas-find
+    input:
+      text: gate code
+    expect:
+      success: true
+      data:
+        total: 0
+
+  - description: The source cannot be read
+    command: ideas-source-open
+    input:
+      source: "${{ steps[0].data.source }}"
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+
+  - description: The other idea keeps its wording and says that its source was erased
+    command: ideas-open
+    input:
+      id: "${{ steps[3].data.id }}"
+    expect:
+      success: true
+      data:
+        statement: { contains: plum }
+        sourcesErased: 1
+
+  - description: The same file sent again is refused
+    command: ideas-source-add
+    input:
+      title: Allotment notes
+      kind: notes
+      content: "The fixture gate code is 4417.\nPrune the plum in midsummer."
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+
+  - description: So is a copy that differs only in trailing space
+    command: ideas-source-add
+    input:
+      title: Allotment notes (tablet)
+      kind: notes
+      content: "The fixture gate code is 4417.  \nPrune the plum in midsummer.  "
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+
+  - description: And so is the same statement, from wherever it comes
+    command: ideas-capture
+    input:
+      type: example
+      statement: The fixture gate code is 4417.
+    expect:
+      success: false
+      error:
+        code: CONFLICT

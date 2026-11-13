@@ -1,0 +1,99 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "observed",
+				"role": "listitem",
+				"state": "default"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "breadcrumb-item.current",
+				"text": "The current item gets aria-current=\"page\" and separators are aria-hidden, so screen readers read only the item text."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "current",
+				"property": "current",
+				"rules": [
+					"taxonomy.current"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "href",
+				"property": "href",
+				"rules": [
+					"taxonomy.href"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Item label content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional custom separator glyph.",
+				"name": "separator"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-breadcrumb-item--current",
+			"html": "<div role=\"list\"><violet-breadcrumb-item aria-current=\"page\" current href role=\"listitem\">Plans</violet-breadcrumb-item></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-breadcrumb-item--overview",
+			"html": "<div role=\"list\"><violet-breadcrumb-item href=\"/plans\" role=\"listitem\">Plans</violet-breadcrumb-item></div>"
+		}
+	],
+	"format": 1,
+	"gaps": [],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.current",
+		"taxonomy.href",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "One step of a violet-breadcrumb: a link, or plain text for the current page.",
+	"tag": "violet-breadcrumb-item",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "breadcrumb-item.href",
+			"text": "It renders a link only when it is not current and href is relative, http(s) or mailto. Any other scheme, or no href, renders plain text. The current item is never a link."
+		},
+		{
+			"basis": "authored",
+			"id": "breadcrumb-item.separator",
+			"text": "A \"/\" separator follows each item except the current one. The separator slot replaces the glyph on that item only, so set it on every item."
+		}
+	]
+}

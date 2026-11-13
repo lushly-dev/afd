@@ -1,0 +1,244 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [
+			{
+				"basis": "authored",
+				"name": "from the label attribute followed by \"color picker\"",
+				"role": "dialog",
+				"state": "open"
+			}
+		],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "color-picker.trigger-name",
+				"text": "The trigger button is named by the label attribute followed by its visible text, e.g. \"Accent #c84f3b Adjust color\"; without label the name is only that text."
+			},
+			{
+				"basis": "authored",
+				"id": "color-picker.focus",
+				"text": "Opening moves focus into the hex field and selects its text. Preset swatches are toggle buttons named \"Use #rrggbb\", pressed when they match the current color."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "error-text",
+				"property": "errorText",
+				"rules": [
+					"taxonomy.error-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": false,
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "natural",
+				"name": "size",
+				"property": "size",
+				"rules": [
+					"taxonomy.size"
+				],
+				"type": "VioletColorPickerSize"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_type-body-size-compact)",
+				"name": "--violet-control-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-caption-size-compact)",
+				"name": "--violet-control-caption-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_type-label-size-compact)",
+				"name": "--violet-control-label-size"
+			},
+			{
+				"basis": "declared",
+				"default": "1rem",
+				"name": "--violet-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_target-size-compact)",
+				"name": "--violet-target-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when a committed color differs, ignoring case, from the last committed or author-set value.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the selected color changes.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Optional additional preset content rendered under the built-in swatches.",
+				"name": "presets"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-color-picker--disabled",
+			"html": "<div style=\"max-inline-size: 22rem; padding-block-end: 16rem;\"><form><violet-color-picker disabled error-text=\"Select a color before continuing.\" label=\"Accent color\" name=\"accent-color\" size=\"natural\" supporting-text=\"Choose a color for farm map highlights.\" value=\"#c84f3b\"></violet-color-picker></form></div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "unobserved",
+			"name": "invalid",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "size",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.input-change",
+		"field.label",
+		"field.label-required",
+		"field.supporting-text",
+		"form.invalid",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.error-text",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.name",
+		"taxonomy.required",
+		"taxonomy.size",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Swatch button that opens a color editor popover with a hex field, HSL sliders and preset swatches; use to choose one color as a hex value.",
+	"tag": "violet-color-picker",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "color-picker.value",
+			"text": "value is a hex color; 3- or 6-digit input is accepted and every user edit writes lowercase #rrggbb. The form receives value under name. Empty shows \"Choose color\"."
+		},
+		{
+			"basis": "authored",
+			"id": "color-picker.events",
+			"text": "input fires as the color changes and change on commit (slider release, hex Enter or blur, preset click), both with detail.value. change fires only when the color differs, ignoring case, from the last commit."
+		},
+		{
+			"basis": "authored",
+			"id": "color-picker.native-input",
+			"text": "The hex field's and sliders' native input events also reach host listeners, without detail; skip events that have none. Typing previews only full 6-digit hex; an invalid entry reverts on blur."
+		},
+		{
+			"basis": "authored",
+			"id": "color-picker.open",
+			"text": "There is no open attribute: toggleOpen() opens or closes the popover and close() closes it. Escape or an outside click also closes it, and no open-change event fires."
+		},
+		{
+			"basis": "authored",
+			"id": "color-picker.reset",
+			"text": "Form reset clears value to empty instead of restoring the initial value. The built-in swatches are fixed; content in the presets slot renders below them but is not wired to pick a color."
+		}
+	]
+}

@@ -1,0 +1,71 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is the lane's state as the review opens; loading it runs the lane's review-open step, which
+# computes the review, judges the experiments that are due and restores the dials it reverts.
+name: Spot a real regression in the factory's own overhead
+description: >-
+  When a review is due, I want to be told which of the factory's own costs has stayed beyond its normal
+  range, with the evidence to diagnose it, kept apart from numbers that only reflect how hard the work
+  was, so that I change the factory for its problems and not for one odd window.
+job: spot-a-real-regression
+tags: [improvement]
+fixture:
+  file: fixtures/review-due.json
+  base: fresh.json
+steps:
+  - description: The lane wakes the foreman because the review has something to answer
+    command: lane-wait
+    input: { consumer: foreman, timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { type: health-review, review: review-14 }
+  - description: >-
+      The queue's wait persisted into a second review and is a finding, with its evidence; throughput the
+      work mix does not account for is an indicator to explain
+    command: factory-health
+    expect:
+      success: true
+      data:
+        review: { id: review-14, state: open, unanswered: [queueWaitMinutes, adjustedThroughput] }
+        anomalies:
+          - metric: queueWaitMinutes
+            kind: finding
+            state: high
+            persisted: 2
+            evidence: { suggestedSlots: 4, busyShare: 0.97 }
+          - { metric: adjustedThroughput, kind: indicator, state: low }
+        metrics:
+          queueWaitMinutes: { value: 24, baseline: { median: 9, spread: 3 } }
+          validationMinutesPerMerge: { state: normal }
+  - description: One experiment answers the finding; the lane steps a delegated dial and freezes the before
+    command: improvement-propose
+    input:
+      review: review-14
+      metric: queueWaitMinutes
+      hypothesis: Branches wait behind one busy validation slot; the host measured room for four.
+      change: { kind: dial, key: lane.slots, step: up }
+    expect:
+      success: true
+      data:
+        experiment:
+          id: { matches: '^exp-' }
+          state: running
+          before: { exists: true }
+          paired: { includes: mainMovedRerunsPerMerge }
+        applied: { key: lane.slots, value: 2, previous: 1 }
+        review: { state: open, unanswered: [adjustedThroughput] }
+  - description: The low throughput follows from the queue's wait; the review closes and reports the experiment
+    command: health-explain
+    input:
+      review: review-14
+      metric: adjustedThroughput
+      cause: follows
+      refs: [queueWaitMinutes]
+      note: Branches waited behind one slot, so fewer merged per lane-hour.
+    expect:
+      success: true
+      data:
+        review:
+          state: closed
+          trendComment: { matches: 'issues/140#issuecomment-' }

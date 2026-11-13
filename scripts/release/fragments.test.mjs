@@ -60,8 +60,13 @@ test('scoped npm adapter creates official Changesets-compatible intent, status a
 		execute: true,
 	});
 	const official = spawnSync(
-		resolve('node_modules/.bin/changeset'),
-		['status', '--output', join(f.root, 'status.json')],
+		process.execPath,
+		[
+			resolve('node_modules/@changesets/cli/bin.js'),
+			'status',
+			'--output',
+			join(f.root, 'status.json'),
+		],
 		{ cwd: f.root, encoding: 'utf8' }
 	);
 	assert.equal(official.status, 0, official.stderr || official.stdout);

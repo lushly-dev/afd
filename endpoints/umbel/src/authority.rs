@@ -61,7 +61,7 @@ impl Prompts {
 
 /// The command a CLI call's human-present mark names, when the call is a human's at the host's
 /// own command line (sealed, [`is_cli`]; interface, transport and authentication all the CLI's).
-fn cli_mark(context: &CommandContext) -> Option<&str> {
+pub(crate) fn cli_mark(context: &CommandContext) -> Option<&str> {
     if !is_cli(context) {
         return None;
     }
@@ -213,6 +213,24 @@ fn answered_authority_prompt(
     confirmed == Some(marked)
         && prompts.prompts.contains_key(marked)
         && prompts.covers(marked, command)
+}
+
+/// The authority the host fills into a put of a standing record (the records host
+/// specification, section 4.2, step 3), whatever the plugin sent: `person` for a call that
+/// carries the person gate's proof (`gated`, which only the host derives:
+/// `crate::person::gate_proof`) and for a human through the library, `tool` for any other human
+/// actor and `agent` for any other actor.
+pub(crate) fn record_authority(context: &CommandContext, gated: bool) -> Authority {
+    if gated || embedder_human(context) {
+        return Authority::Person;
+    }
+    let human = Principal::from_context(context)
+        .is_some_and(|principal| principal.actor.kind == ActorKind::Human);
+    if human {
+        Authority::Tool
+    } else {
+        Authority::Agent
+    }
 }
 
 /// The authority the host fills into a memory write on `path` (section 3.3's table), whatever

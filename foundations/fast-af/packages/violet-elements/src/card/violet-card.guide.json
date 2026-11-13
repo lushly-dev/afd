@@ -1,0 +1,38 @@
+{
+  "tag": "violet-card",
+  "summary": "Surface that frames related content, with optional header and footer slots.",
+  "usage": [
+    {
+      "id": "card.padding",
+      "text": "Padding defaults to none, so content touches the edge: set small, medium or large, or the --violet-card-padding custom property, which overrides every preset. Header and footer show only when filled.",
+      "members": [
+        "padding",
+        "header",
+        "footer"
+      ]
+    },
+    {
+      "id": "card.interactive",
+      "text": "The interactive attribute only adds tabindex=\"0\", role=\"group\" (unless a role is set) and hover and focus styling. It handles no keys and fires no event: add click and Enter/Space handling, or put a real button or link inside.",
+      "members": [
+        "interactive"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "card.name",
+      "text": "An interactive card is a group with no name of its own; give the host aria-label or aria-labelledby.",
+      "members": [
+        "interactive"
+      ]
+    },
+    {
+      "id": "card.structure",
+      "text": "A non-interactive card adds no role; put a real heading element in the header slot when the card has a title.",
+      "members": [
+        "header"
+      ]
+    }
+  ]
+}

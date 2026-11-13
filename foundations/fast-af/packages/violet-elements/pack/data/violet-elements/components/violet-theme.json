@@ -1,0 +1,94 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "theme.tree",
+				"text": "It adds no role, landmark or box; put landmarks and headings inside it as usual."
+			},
+			{
+				"basis": "authored",
+				"id": "theme.contrast",
+				"text": "high-contrast is a black-on-white preset you choose; nothing follows the OS contrast or color-scheme setting, and it sets no color-scheme, so native controls stay light under dark."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"description": "Selects which Violet runtime theme preset this scoped host should expose.",
+				"name": "preset",
+				"property": "preset",
+				"rules": [
+					"taxonomy.preset"
+				],
+				"type": "VioletThemePreset"
+			}
+		],
+		"commands": [],
+		"cssProperties": [],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Descendant content that should inherit Violet token values from this scope.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "foundations-theme--dark-scoped-preset",
+			"html": "<violet-theme data-violet-theme=\"dark\" data-violet-theme-root preset=\"dark\" style=\"--color-action-primary-background: #0c5a4d; --color-action-primary-hover: #0c5a4d; --color-action-primary-pressed: #0c5a4d; --color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-text-primary);\"><strong>Dark scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
+		},
+		{
+			"basis": "observed",
+			"from": "foundations-theme--overview",
+			"html": "<violet-theme data-violet-theme=\"light\" data-violet-theme-root preset=\"light\" style=\"--color-action-primary-background: #0c5a4d; --color-action-primary-hover: #0c5a4d; --color-action-primary-pressed: #0c5a4d; --color-action-primary-text: #ffffff;\"><div style=\"display: grid; gap: 0.75rem; padding: 1rem; border: 1px solid var(--color-border-subtle); border-radius: var(--radius-md); background: var(--color-surface-card); color: var(--color-text-primary);\"><strong>Light scoped theme</strong><violet-button appearance=\"primary\" type=\"button\">Scoped action</violet-button><violet-button appearance=\"secondary\" type=\"button\">Secondary action</violet-button></div></violet-theme>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.preset"
+	],
+	"status": "stable",
+	"summary": "Scope element that applies a Violet theme preset (light, dark, high-contrast) to its subtree, such as a dark panel in a light page.",
+	"tag": "violet-theme",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "theme.preset",
+			"text": "preset is light, dark or high-contrast; any other or missing value falls back to light. Changing the attribute restyles the subtree at once."
+		},
+		{
+			"basis": "authored",
+			"id": "theme.scope-install",
+			"text": "Connecting it installs the theme stylesheet into its document, or into the shadow root it sits in, so a scoped preset needs no separate installVioletTheme() call."
+		},
+		{
+			"basis": "authored",
+			"id": "theme.box",
+			"text": "The host is display: contents and paints nothing: give a child background var(--color-surface-page) and color var(--color-text-primary), or a dark subtree shows the light page behind it."
+		},
+		{
+			"basis": "authored",
+			"id": "theme.override",
+			"text": "Token custom properties set on it, such as --color-action-primary-background, override that token for its subtree only."
+		}
+	]
+}

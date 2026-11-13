@@ -1,0 +1,365 @@
+{
+	"base": "../exported",
+	"cases": [
+		{
+			"description": "A statement id fails its pattern.",
+			"name": "identifier-pattern",
+			"problems": [
+				{
+					"at": "/usage/0/id",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "The catalog's pack digest is not a SHA-256 digest.",
+			"name": "digest-pattern",
+			"problems": [
+				{
+					"at": "/digest",
+					"code": "IDENTIFIER_INVALID",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "A usage statement is longer than 240 characters.",
+			"name": "text-too-long",
+			"problems": [
+				{
+					"at": "/usage/0/text",
+					"code": "TEXT_TOO_LONG",
+					"path": "data/example/components/example-select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A statement carries a terminal escape sequence.",
+			"name": "text-control-character",
+			"problems": [
+				{
+					"at": "/usage/0/text",
+					"code": "TEXT_INVALID",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A statement holds an unpaired surrogate escape, which the format refuses as text and a strict JSON parser refuses outright.",
+			"name": "text-lone-surrogate",
+			"problems": [
+				{
+					"at": "/usage/0/text",
+					"code": "TEXT_INVALID",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record has a key the format does not define.",
+			"name": "unknown-key",
+			"problems": [
+				{
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "An authored statement claims to be observed, a basis statements cannot have.",
+			"name": "basis-not-allowed",
+			"problems": [
+				{
+					"at": "/a11y/statements/1/basis",
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "An attribute has no basis.",
+			"name": "missing-field",
+			"problems": [
+				{
+					"at": "/api/attributes/2/basis",
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A stable component names a replacement.",
+			"name": "replaced-without-deprecated",
+			"problems": [
+				{
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record says it is format 0, the version before this one, which no reader keeps.",
+			"name": "format-version",
+			"problems": [
+				{
+					"at": "/format",
+					"code": "FORMAT_UNSUPPORTED",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "The rules file is cut off.",
+			"name": "json-invalid",
+			"problems": [
+				{
+					"code": "JSON_INVALID",
+					"path": "rules/example.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record is indented with spaces.",
+			"name": "not-canonical",
+			"problems": [
+				{
+					"code": "NOT_CANONICAL",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record's attributes are not in name order.",
+			"name": "members-unsorted",
+			"problems": [
+				{
+					"at": "/api/attributes/1",
+					"code": "NOT_CANONICAL",
+					"path": "data/example/components/example-field.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A statement reuses another component's statement id.",
+			"name": "duplicate-id",
+			"problems": [
+				{
+					"at": "/usage/0/id",
+					"code": "DUPLICATE_ID",
+					"path": "data/example/components/example-select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record names a shared rule the rules file does not state.",
+			"name": "rule-unknown",
+			"problems": [
+				{
+					"at": "/rules/1",
+					"code": "RULE_UNKNOWN",
+					"path": "data/example/components/example-select.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A shared rule applies to a tag with no record.",
+			"name": "tag-unknown",
+			"problems": [
+				{
+					"at": "/rules/2/appliesTo/tags/0",
+					"code": "TAG_UNKNOWN",
+					"path": "rules/example.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A record's tag is not its file name.",
+			"name": "tag-mismatch",
+			"problems": [
+				{
+					"at": "/tag",
+					"code": "TAG_MISMATCH",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "The rules file names another library.",
+			"name": "library-mismatch",
+			"problems": [
+				{
+					"at": "/library",
+					"code": "LIBRARY_MISMATCH",
+					"path": "rules/example.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "The catalog's tag prefix fits none of its tags.",
+			"name": "prefix-mismatch",
+			"problems": [
+				{
+					"at": "/components/0/tag",
+					"code": "PREFIX_MISMATCH",
+					"path": "data/example/library.json"
+				},
+				{
+					"at": "/components/1/tag",
+					"code": "PREFIX_MISMATCH",
+					"path": "data/example/library.json"
+				},
+				{
+					"at": "/components/2/tag",
+					"code": "PREFIX_MISMATCH",
+					"path": "data/example/library.json"
+				},
+				{
+					"at": "/components/3/tag",
+					"code": "PREFIX_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "The catalog's summary for a tag differs from its record.",
+			"name": "catalog-summary",
+			"problems": [
+				{
+					"at": "/components/2",
+					"code": "CATALOG_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "A record is not in the catalog.",
+			"name": "record-not-listed",
+			"problems": [
+				{
+					"at": "/components",
+					"code": "CATALOG_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "The catalog lists a tag whose record is missing.",
+			"name": "record-missing",
+			"problems": [
+				{
+					"at": "/components/2/tag",
+					"code": "CATALOG_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false,
+			"remove": [
+				"data/example/components/example-option.json"
+			]
+		},
+		{
+			"description": "A record changed after the catalog was written. A real hand edit also changes the pack digest; this case keeps that one right so the record's digest is the only defect.",
+			"name": "record-digest",
+			"problems": [
+				{
+					"at": "/components/1/digest",
+					"code": "DIGEST_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "The catalog's pack digest does not match its files.",
+			"name": "pack-digest",
+			"problems": [
+				{
+					"at": "/digest",
+					"code": "DIGEST_MISMATCH",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "An exported pack has no catalog.",
+			"name": "catalog-missing",
+			"problems": [
+				{
+					"code": "LAYOUT_INVALID",
+					"path": "data/example/library.json"
+				}
+			],
+			"regenerated": false,
+			"remove": [
+				"data/example/library.json"
+			]
+		},
+		{
+			"description": "A file the format does not define.",
+			"name": "unexpected-file",
+			"problems": [
+				{
+					"code": "LAYOUT_INVALID",
+					"path": "data/example/notes.json"
+				}
+			],
+			"regenerated": false
+		},
+		{
+			"description": "A record's supported themes are not in name order.",
+			"name": "themes-unsorted",
+			"problems": [
+				{
+					"at": "/themes/supported/1",
+					"code": "NOT_CANONICAL",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		},
+		{
+			"description": "A theme fact claims to be verified, a basis themes cannot have.",
+			"name": "themes-basis",
+			"problems": [
+				{
+					"at": "/themes/basis",
+					"code": "SCHEMA_INVALID",
+					"path": "data/example/components/example-option.json"
+				}
+			],
+			"regenerated": true
+		}
+	],
+	"format": 1,
+	"stamp": {
+		"package": {
+			"name": "example-components",
+			"version": "1.0.0"
+		},
+		"prefix": "example-",
+		"title": "Example components"
+	}
+}

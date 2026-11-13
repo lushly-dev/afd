@@ -26,6 +26,8 @@ mod memory_services;
 mod mounted;
 mod packs;
 mod pipelines;
+#[cfg(feature = "store-embedded")]
+mod record_services;
 mod skills;
 mod source;
 mod store_services;
@@ -35,8 +37,10 @@ pub(crate) use check::run as check_plugin;
 #[cfg(feature = "testkit")]
 pub(crate) use check::single_plugin_config;
 pub use compiled::{Asset, CompiledPlugin, PluginCommand, sdk};
+#[cfg(feature = "store-embedded")]
+pub(crate) use content::file_hash as own_file_hash;
 pub(crate) use doctor::{
-    checks as doctor_checks, first_class_check, loaded_check, pipelines_check,
+    checks as doctor_checks, first_class_check, loaded_check, pack_checks_check, pipelines_check,
 };
 pub use error::{PluginError, codes};
 pub use files::{AssetFiles, DirFiles, PluginFiles};
@@ -61,16 +65,19 @@ pub use manifest::{
 pub use mounted::{InjectionHit, mount_command_name, scan_description, scan_schema_descriptions};
 pub use packs::{MAX_PACK_BYTES, MAX_PACK_FILES, PackManifest, PackReport, check_pack};
 pub(crate) use pipelines::PipelineState;
+#[cfg(feature = "store-embedded")]
+pub(crate) use record_services::scan_text as scan_record_text;
 pub(crate) use skills::{LoadedSkill, ORIGIN_FILE, origin_file};
 pub use skills::{MAX_SKILL_BYTES, MAX_SKILL_FILES, SkillReport, check_skill};
 pub use source::{CompiledCatalog, ResolvedSource, SourceSpec, resolve_source};
 pub use umbel_sdk::{HostError as ServiceError, HostServices, Level, PipelineAttestation};
 
 /// The newest manifest version this host reads (`manifest_version`).
-pub const MANIFEST_VERSION: u32 = 5;
-/// Every manifest version this host reads: versions 2 to 5 are additions within protocol 1
-/// (D54, phase 3 section 2.3, phase 4 section 2.2, phase 5 section 2.3).
-pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5];
+pub const MANIFEST_VERSION: u32 = 6;
+/// Every manifest version this host reads: versions 2 to 6 are additions within protocol 1
+/// (D54, phase 3 section 2.3, phase 4 section 2.2, phase 5 section 2.3, the records host
+/// specification section 2).
+pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.

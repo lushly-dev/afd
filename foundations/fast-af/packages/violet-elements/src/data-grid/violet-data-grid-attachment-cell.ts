@@ -360,20 +360,23 @@ const styles = css`
     }
 `;
 
+// The trigger's thumbnail falls back to an icon, not to the image's fallback words, so the trigger
+// shows no text that its name lacks (WCAG 2.5.3).
 const template = html<VioletDataGridAttachmentCell>`
     <div class="root" part="base">
+        <span id="trigger-label" hidden>${(x) => x.triggerLabel}</span>
         <button
             class="trigger"
             type="button"
             part="trigger"
             ?disabled="${(x) => x.disabled}"
-            aria-label="${(x) => x.getAttribute("aria-label") || x.placeholder || "Edit attachments"}"
+            aria-labelledby="${(x) => x.triggerLabelledBy}"
             aria-haspopup="dialog"
             aria-controls="${(x) => x.panelId}"
             aria-expanded="${(x) => String(x.open)}"
             @click="${(x) => (x.handleTriggerClick(), true)}"
         >
-            <span class="selection" part="selection" data-empty="${(x) => String(x.attachments.length === 0)}">
+            <span class="selection" id="trigger-value" part="selection" data-empty="${(x) => String(x.attachments.length === 0)}">
                 <span class="preview-stack">
                     ${when(
                       (x) => x.attachments.length === 0,
@@ -395,7 +398,9 @@ const template = html<VioletDataGridAttachmentCell>`
                                         fit="cover"
                                         src="${(x) => x.previewSrc ?? ""}"
                                         alt="${(x) => x.label}"
-                                    ></violet-image>
+                                    >
+                                        <violet-icon slot="fallback" class="preview-icon" icon="system/document" decorative></violet-icon>
+                                    </violet-image>
                                 `,
                             )}
                             ${when(
@@ -640,6 +645,20 @@ export class VioletDataGridAttachmentCell extends FASTElement {
     }
 
     this.setAttachments(nextAttachments);
+  }
+
+  /** What the trigger is for: the host's `aria-label`, else the placeholder. */
+  public get triggerLabel(): string {
+    return this.getAttribute("aria-label") || this.placeholder || "Edit attachments";
+  }
+
+  /**
+   * The trigger is named by its label and then by what it shows, so its visible text is part
+   * of its name (WCAG 2.5.3). An empty trigger that shows its label is named once.
+   */
+  public get triggerLabelledBy(): string {
+    const showsLabel = this.attachments.length === 0 && this.triggerLabel === (this.placeholder || "Add attachments");
+    return showsLabel ? "trigger-value" : "trigger-label trigger-value";
   }
 
   public get panelId(): string {

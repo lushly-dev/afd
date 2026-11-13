@@ -1,0 +1,58 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# Capturing the screens happens in the lane's loop; the run's pairs are fixture state.
+name: Judge a changed experience from side-by-side screens
+description: >-
+  When a run merged changes to what people see, I want the before and after screens of each in one
+  place and a way to run both versions locally, so that I judge experiences without reading code.
+job: judge-an-experience
+tags: [slice]
+fixture:
+  file: fixtures/finished.json
+  base: fresh.json
+steps:
+  - description: The run lists each changed experience with its screen files and one digest page
+    command: lane-report
+    input: { run: run-2 }
+    expect:
+      success: true
+      data:
+        digest: { contains: .html }
+        experiences:
+          - pr: 520
+            state: merged
+            pairs:
+              - { width: desktop, before: { contains: before.png }, after: { contains: after.png } }
+              - { width: phone }
+          - pr: 521
+            state: held
+  - description: Both versions of the held PR are served locally, and stop by themselves
+    command: pr-preview
+    input: { pr: 521 }
+    expect:
+      success: true
+      data:
+        before: { url: { contains: localhost } }
+        after: { url: { contains: localhost } }
+        stopAfter: { exists: true }
+  - description: Accepting the held PR lets it merge
+    command: experience-accept
+    input: { pr: 521 }
+    expect:
+      success: true
+      data: { accepted: true }
+  - description: Rejecting a merged experience reverts it with the owner's note
+    command: experience-reject
+    input: { pr: 520, note: The empty state hides the add button on phones }
+    expect:
+      success: true
+      data:
+        rejected: true
+        revertPr: { exists: true }
+  - description: A PR the factory did not handle has no preview
+    command: pr-preview
+    input: { pr: 999 }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-report }

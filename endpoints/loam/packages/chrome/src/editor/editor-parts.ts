@@ -5,7 +5,7 @@
  */
 
 import { css, type FASTElement } from '@lushly-dev/fast-element';
-import type { LoamKernelV2 } from '@lushly-dev/loam-kernel';
+import type { LoamKernelV3 } from '@lushly-dev/loam-kernel';
 import type { DocumentRecordV1, DocumentRefV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import type { LoamShell } from '../elements/shell.js';
 import { editorAreaDefinition, LoamEditorArea } from './editor-area.js';
@@ -182,7 +182,7 @@ export async function openFrame(
 	frame: LoamEditorFrame,
 	record: RecordRead | undefined,
 	types: Map<string, DocumentTypeV1>,
-	kernel: LoamKernelV2,
+	kernel: LoamKernelV3,
 	hostOf: () => Promise<SurfaceHostV1 | undefined>,
 	theme: () => 'light' | 'dark'
 ): Promise<void> {
@@ -267,7 +267,7 @@ export async function hostOf(shell: LoamShell): Promise<SurfaceHostV1 | undefine
 
 /** Each modal of `modals` the kernel's list no longer holds, closed with no answer, answered `cancel`; a failed read answers none. */
 export async function lostModals(
-	kernel: LoamKernelV2,
+	kernel: LoamKernelV3,
 	modals: Map<string, (result: 'confirm' | 'cancel') => void>
 ): Promise<void> {
 	const open = (await kernel.call<{ overlays: Array<{ overlayId: string }> }>('overlay-list')).data
@@ -282,7 +282,7 @@ export async function lostModals(
 }
 
 /** The registry's types, for each tab's editor: what the frame mounts, and its `autosave_ms`. */
-export async function readTypes(kernel: LoamKernelV2): Promise<Map<string, DocumentTypeV1>> {
+export async function readTypes(kernel: LoamKernelV3): Promise<Map<string, DocumentTypeV1>> {
 	const result = await kernel.call<{ types: DocumentTypeV1[] }>('document-type-list', {
 		all: true,
 	});
@@ -291,7 +291,7 @@ export async function readTypes(kernel: LoamKernelV2): Promise<Map<string, Docum
 
 /** A tab's record, read once while `records` holds it, or why `document-get` gave none. */
 export async function readRecord(
-	kernel: LoamKernelV2,
+	kernel: LoamKernelV3,
 	records: Map<string, RecordRead>,
 	document: string
 ): Promise<RecordRead> {
@@ -313,7 +313,7 @@ export async function readRecord(
 
 /** The phase 1 modal: `Close without saving?`, Discard as `danger`, or Keep editing (5.5); its answer by `modals`. */
 export async function confirmDiscard(
-	kernel: LoamKernelV2,
+	kernel: LoamKernelV3,
 	modals: Map<string, (result: 'confirm' | 'cancel') => void>,
 	title: string
 ): Promise<boolean> {

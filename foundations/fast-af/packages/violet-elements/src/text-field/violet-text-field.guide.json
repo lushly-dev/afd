@@ -1,0 +1,49 @@
+{
+  "tag": "violet-text-field",
+  "summary": "Single-line text input with a built-in label and supporting text, for text, search, email, url, password, tel, number or date entry.",
+  "usage": [
+    {
+      "id": "text-field.validation",
+      "text": "The required, type, pattern, min, max, step, minlength and maxlength attributes feed validity. Whitespace-only text counts as missing when required. A readonly field is never reported invalid, even with invalid set.",
+      "members": [
+        "required",
+        "type",
+        "pattern",
+        "min",
+        "max",
+        "step",
+        "minlength",
+        "maxlength",
+        "readonly"
+      ]
+    },
+    {
+      "id": "text-field.commit",
+      "text": "The change event fires when the native input commits: on blur after an edit, or on Enter.",
+      "members": [
+        "change"
+      ]
+    },
+    {
+      "id": "text-field.error",
+      "text": "There is no error-text attribute and no error message is rendered: invalid only turns the border red and sets aria-invalid. Put the error wording in supporting-text while invalid.",
+      "members": [
+        "invalid",
+        "supporting-text"
+      ]
+    },
+    {
+      "id": "text-field.before",
+      "text": "The before slot holds leading inline content such as a search icon; mark an icon there decorative so it is not read.",
+      "members": [
+        "before"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "text-field.describedby",
+      "text": "An aria-describedby on the host is resolved against ids in the host's own root and applied to the inner input together with the supporting text, in browsers with ARIA element reflection."
+    }
+  ]
+}

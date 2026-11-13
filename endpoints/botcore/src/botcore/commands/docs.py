@@ -228,6 +228,23 @@ def _check_link(
                        f"Link target '{url_path}' does not exist", link_text)
 
 
+# Directories of installed or generated files, never a repository's own docs.
+_SKIPPED_DIRS = frozenset({
+    ".git", ".hg", ".venv", "venv", ".tox", ".nox", "node_modules", "__pycache__",
+    "dist", "build", "target", ".next", ".turbo", "coverage",
+})
+
+
+def _markdown_files(path: Path) -> list[Path]:
+    """The Markdown files to lint: ``path`` itself, or those under it outside skipped dirs."""
+    if path.is_file():
+        return [path] if path.suffix.lower() == ".md" else []
+    return sorted(
+        md for md in path.rglob("*.md")
+        if not _SKIPPED_DIRS.intersection(md.relative_to(path).parts[:-1])
+    )
+
+
 async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     """Lint markdown files for broken links and missing frontmatter.
 
@@ -253,7 +270,7 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     link_pattern = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
     anchor_cache: dict[Path, dict[str, int]] = {}
 
-    for md_file in check_path.rglob("*.md"):
+    for md_file in _markdown_files(check_path):
         files_checked += 1
         content = md_file.read_text(encoding="utf-8", errors="replace")
         lines = content.splitlines()
@@ -288,12 +305,54 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     )
 
 
-async def docs_check_changelog() -> CommandResult[dict]:
-    """Check if CHANGELOG.md needs updating based on staged changes.
+# Source files whose change a changelog records: these extensions, under a ``src/`` directory.
+_SOURCE_SUFFIXES = frozenset({
+    ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go",
+    ".c", ".cc", ".cpp", ".h", ".hpp",
+})
 
-    Changeset-aware: if source files are staged without a CHANGELOG.md update,
-    checks for pending changeset files in .changeset/. If changesets exist,
-    the changelog will be updated at release time — no manual edit needed.
+
+def _is_source(path: str) -> bool:
+    parts = Path(path).parts
+    return "src" in parts[:-1] and Path(path).suffix in _SOURCE_SUFFIXES
+
+
+def _nearest_changelog(ws: Path, path: str) -> str | None:
+    """The CHANGELOG.md nearest a file, from its directory up to the workspace root."""
+    directory = Path(path).parent
+    while True:
+        candidate = directory / "CHANGELOG.md"
+        if (ws / candidate).is_file():
+            return candidate.as_posix()
+        if directory == Path("."):
+            return None
+        directory = directory.parent
+
+
+def _uses_npm_changesets(ws: Path) -> bool:
+    """Whether the workspace is an npm project, which ``changeset_create`` refuses."""
+    return any(
+        (ws / name).exists()
+        for name in ("package.json", "pnpm-workspace.yaml", ".changeset/config.json")
+    )
+
+
+def _changelog_suggestion(ws: Path | None) -> str:
+    if ws is not None and _uses_npm_changesets(ws):
+        return (
+            "Add a changeset with the repository's Changesets command (such as `pnpm changeset`),"
+            " or update the CHANGELOG.md named"
+        )
+    return "Run changeset_create to record this change, or update the CHANGELOG.md named"
+
+
+async def docs_check_changelog() -> CommandResult[dict]:
+    """Check whether staged source changes need a CHANGELOG.md update.
+
+    A staged source file (a code file under any ``src/`` directory) is covered by the
+    CHANGELOG.md nearest it, from its directory up to the workspace root, so each package
+    of a monorepo answers to its own changelog. A staged changelog, or a pending changeset
+    in ``.changeset/``, covers it; a file with no changelog above it needs none.
     """
     ws = find_workspace()
     if not ws:
@@ -303,24 +362,15 @@ async def docs_check_changelog() -> CommandResult[dict]:
             suggestion="Run from within a Git repository",
         )
 
-    changelog = ws / "CHANGELOG.md"
-    if not changelog.exists():
-        return success(
-            data={"has_changelog": False, "needs_update": False, "changeset_count": 0},
-            reasoning="No CHANGELOG.md found - skipping check",
-        )
-
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only"],
         cwd=ws,
         capture_output=True,
         text=True,
     )
 
     staged_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
-
-    src_staged = any(f.startswith("src/") and f.endswith(".py") for f in staged_files)
-    changelog_staged = "CHANGELOG.md" in staged_files
+    staged = set(staged_files)
 
     # Count pending changeset files
     changeset_dir = ws / ".changeset"
@@ -331,29 +381,44 @@ async def docs_check_changelog() -> CommandResult[dict]:
             if f.name.lower() != "readme.md"
         ])
 
-    if src_staged and not changelog_staged:
-        if changeset_count > 0:
-            return success(
-                data={
-                    "has_changelog": True,
-                    "needs_update": False,
-                    "changeset_count": changeset_count,
-                    "staged_src_files": [f for f in staged_files if f.startswith("src/")],
-                },
-                reasoning=f"{changeset_count} changeset(s) pending — changelog "
-                "will be updated at release time",
-            )
+    covered: dict[str, str] = {}
+    for f in staged_files:
+        if _is_source(f):
+            changelog = _nearest_changelog(ws, f)
+            if changelog is not None:
+                covered[f] = changelog
+    has_changelog = bool(covered) or (ws / "CHANGELOG.md").is_file()
+    if not has_changelog:
+        return success(
+            data={"has_changelog": False, "needs_update": False, "changeset_count": 0},
+            reasoning="No CHANGELOG.md covers the staged files - skipping check",
+        )
+
+    uncovered = {f: c for f, c in covered.items() if c not in staged}
+    if uncovered and changeset_count > 0:
+        return success(
+            data={
+                "has_changelog": True,
+                "needs_update": False,
+                "changeset_count": changeset_count,
+                "staged_src_files": sorted(uncovered),
+            },
+            reasoning=f"{changeset_count} changeset(s) pending — changelog "
+            "will be updated at release time",
+        )
+    if uncovered:
+        changelogs = sorted(set(uncovered.values()))
         return success(
             data={
                 "has_changelog": True,
                 "needs_update": True,
                 "changeset_count": 0,
-                "staged_src_files": [f for f in staged_files if f.startswith("src/")],
+                "staged_src_files": sorted(uncovered),
+                "changelogs": changelogs,
             },
-            reasoning="Source files staged but no CHANGELOG.md update "
-            "and no changeset files found. Create a changeset with "
-            "changeset_create() or update CHANGELOG.md manually.",
-            suggestions=["Run changeset_create to record this change"],
+            reasoning="Source files staged but no update to "
+            f"{', '.join(changelogs)} and no changeset files found",
+            suggestions=[f"{_changelog_suggestion(ws)}: {', '.join(changelogs)}"],
         )
 
     return success(
@@ -364,6 +429,41 @@ async def docs_check_changelog() -> CommandResult[dict]:
         },
         reasoning="CHANGELOG.md is up to date or no source changes",
     )
+
+
+_PACKAGE_MANIFESTS = frozenset({"package.json", "pyproject.toml", "Cargo.toml"})
+_TEST_NAME = re.compile(r"^test_|_test\.|\.(test|spec)\.")
+
+
+def _is_test(path: str) -> bool:
+    parts = Path(path).parts
+    return bool(_TEST_NAME.search(parts[-1])) or bool({"tests", "__tests__"} & set(parts[:-1]))
+
+
+def _structural_change(path: str, added: bool) -> str | None:
+    """What a staged file changes in a repository's structure, which AGENTS.md maps, if anything.
+
+    A command module counts whenever it is staged; a package, skill or workflow only when it
+    is new, since editing one does not move it.
+    """
+    parts = Path(path).parts
+    name = parts[-1]
+    if (
+        "commands" in parts[:-1]
+        and Path(path).suffix in _SOURCE_SUFFIXES
+        and name != "__init__.py"
+        and not _is_test(path)
+    ):
+        return f"{'New' if added else 'Changed'} command: {path}"
+    if not added:
+        return None
+    if name in _PACKAGE_MANIFESTS or (name == "__init__.py" and "src" in parts[:-1]):
+        return f"New package: {path}"
+    if name == "SKILL.md" and "skills" in parts[:-1]:
+        return f"New skill: {path}"
+    if parts[:2] == (".github", "workflows") and Path(path).suffix in (".yml", ".yaml"):
+        return f"New workflow: {path}"
+    return None
 
 
 async def docs_check_agents() -> CommandResult[dict]:
@@ -384,7 +484,7 @@ async def docs_check_agents() -> CommandResult[dict]:
         )
 
     result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
+        ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only"],
         cwd=ws,
         capture_output=True,
         text=True,
@@ -392,12 +492,22 @@ async def docs_check_agents() -> CommandResult[dict]:
 
     staged_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
 
-    structural_changes = []
-    for f in staged_files:
-        if "/commands/" in f and f.endswith(".py"):
-            structural_changes.append(f"New command: {f}")
-        if f.endswith("__init__.py") and f.startswith("src/"):
-            structural_changes.append(f"New package: {f}")
+    added_result = subprocess.run(
+        [
+            "git", "-c", "core.quotePath=false",
+            "diff", "--cached", "--name-only", "--diff-filter=AR",
+        ],
+        cwd=ws,
+        capture_output=True,
+        text=True,
+    )
+    added = set(
+        added_result.stdout.strip().splitlines() if added_result.returncode == 0 else []
+    )
+
+    structural_changes = [
+        change for f in staged_files if (change := _structural_change(f, f in added))
+    ]
 
     agents_staged = "AGENTS.md" in staged_files
 
@@ -449,7 +559,8 @@ async def docs_preflight() -> CommandResult[dict]:
 
     suggestions: list[str] = []
     if changelog.get("needs_update"):
-        suggestions.append("Run changeset_create to record the staged source changes")
+        changelogs = changelog.get("changelogs") or ["CHANGELOG.md"]
+        suggestions.append(f"{_changelog_suggestion(find_workspace())}: {', '.join(changelogs)}")
     if agents.get("needs_update"):
         suggestions.append("Update AGENTS.md to reflect the staged structural changes")
 

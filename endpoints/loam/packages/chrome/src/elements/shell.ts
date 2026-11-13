@@ -14,11 +14,11 @@ import {
 	createDefaultAppearance,
 	createDefaultLayout,
 	KERNEL_INTERFACE_VERSION,
-	type KernelEventV2,
+	type KernelEventV3,
 	LAYOUT_DEFAULTS_V0,
 	type LayoutPatchV0,
 	type LayoutStateV0,
-	type LoamKernelV2,
+	type LoamKernelV3,
 } from '@lushly-dev/loam-kernel';
 import type { SurfaceHostV1 } from '../editor/editor-frame.js';
 import { afterFirstFrame } from '../first-frame.js';
@@ -258,7 +258,7 @@ export class LoamShell extends FASTElement {
 	readonly rail = new RailBands(this);
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
-	kernel: LoamKernelV2 | null = null;
+	kernel: LoamKernelV3 | null = null;
 	/**
 	 * Whether the boot records list an app, so the first frame reads `app-list` (phase 2 specification,
 	 * 2.2). `mountShell`'s `listsApps` sets it.
@@ -356,14 +356,14 @@ export class LoamShell extends FASTElement {
 	}
 
 	/** Bind to a kernel and read its state. */
-	start(kernel: LoamKernelV2): Promise<void> {
+	start(kernel: LoamKernelV3): Promise<void> {
 		this.kernel = kernel;
 		if (!this.$fastController.isConnected) return Promise.resolve();
 		this.#started ??= this.#start(kernel);
 		return this.#started;
 	}
 
-	async #start(kernel: LoamKernelV2): Promise<void> {
+	async #start(kernel: LoamKernelV3): Promise<void> {
 		if (kernel.version !== KERNEL_INTERFACE_VERSION) {
 			await defineNotice();
 			this.failure = {
@@ -494,7 +494,7 @@ export class LoamShell extends FASTElement {
 	 * The commands stage B added, for the palette's rows, and the apps it read, whose surfaces start now.
 	 * A chunk that failed says so in main.
 	 */
-	async #stageBEnded(kernel: LoamKernelV2): Promise<void> {
+	async #stageBEnded(kernel: LoamKernelV3): Promise<void> {
 		if (kernel.lateFailure) {
 			this.landing = COULD_NOT_LOAD;
 			this.releaseMain(true);
@@ -546,7 +546,7 @@ export class LoamShell extends FASTElement {
 
 	/** What the URL shows, from `scope-get` and `section-get`, both unjournaled. */
 	async readState(): Promise<MainStateV1> {
-		const kernel = this.kernel as LoamKernelV2;
+		const kernel = this.kernel as LoamKernelV3;
 		const [scope, main] = await Promise.all([
 			kernel.call<object>('scope-get'),
 			kernel.call<object>('section-get'),
@@ -584,7 +584,7 @@ export class LoamShell extends FASTElement {
 	#loadApps(): Promise<void> {
 		this.#appsLoad ??= import('../apps/surfaces.js')
 			.then(async ({ attachSurfaces }) => {
-				const apps = await attachSurfaces(this, this.kernel as LoamKernelV2);
+				const apps = await attachSurfaces(this, this.kernel as LoamKernelV3);
 				this.apps = apps;
 				this.#cleanup.push(() => apps.dispose());
 			})
@@ -632,7 +632,7 @@ export class LoamShell extends FASTElement {
 			session.status === 'authenticated' ? (session.user?.name ?? session.user?.email ?? '') : '';
 	}
 
-	#onEvent(event: KernelEventV2): void {
+	#onEvent(event: KernelEventV3): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
 		this.rail.heard(event);
@@ -651,7 +651,8 @@ export class LoamShell extends FASTElement {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();
 		else if (event.command.startsWith('appearance-')) void this.#readAppearance();
-		else if (event.command.startsWith('auth-')) void this.#readSession();
+		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
+		else if (event.actorChanged || event.command.startsWith('auth-')) void this.#readSession();
 		else if (event.command === 'view-state-set') {
 			void this.readLayout();
 			void this.#readAppearance();

@@ -208,17 +208,35 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * Step 13 adds `checklist`, the second type, with no shell change: every row and ceiling is as step 12 left
  * them, and its view's pages, the editor and the handlers' frame, are recorded beside the native bundles,
  * never limited, as `notes`' bundle is.
+ * Phase 3's step 1 (identity core) set `kernelMinified` to its measurement after the coordinator's cuts,
+ * 114,364, approved by the coordinator on 2026-11-09: the access decision version 2, the stage A identity and
+ * membership, the person's view-state reads and the agent interface's wait for stage B. First paint
+ * 288,583 and 89,185 gzip, +1,697 and +688 over step 0b's 286,886 and 88,497, within the coordinator's
+ * step 1 target of 1,700 and 750; `late` 70,597. It raised `appsMinified` by 800, to 394,894, approved by
+ * the coordinator 2026-11-09: stage B's full check of a version 3 projection's `identity`, the one that fails
+ * closed (822), the outer actor copied onto port, nested and refusal calls (88), the version 3 deployment
+ * rows (53) and `member` (9), less what `apps` had left. After its review's fixes, under the same ceilings:
+ * first paint 288,566 and 89,207 gzip (+1,680, +710), the kernel alone 114,351, `apps` 394,885, `late` 70,924.
+ * #872's refinement of the input-schema rule, a closed tagged union (a `oneOf` of two or more branches
+ * beside only `type: 'object'`) read branch by branch, cost `apps` 88 and raised `appsMinified` by that less
+ * what `apps` had left, 79, to 394,973, approved by the owner on 2026-11-12 (`apps` 394,973).
+ * Phase 3's step 0c (AFD's MCP authorization scopes) raised `kernelMinified` to 114,444, approved by the
+ * coordinator on 2026-11-10: the kernel bundles afd-server's lean `/define` path, where `defineCommand` now
+ * carries a command's `scopes` (M6's metadata) and the engine two optional hooks that look a hidden command
+ * up as a missing one; no authorization code. First paint 288,640 and 89,242 gzip, +74 and +35 over `main`
+ * at `dd5d3616` (288,566 and 89,207), within 0c's allowance of 80 and 40; the kernel alone 114,444 (+93).
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
 	jsGzip: 91_000,
 	cssMinified: 8_496,
-	kernelMinified: 113_401,
+	kernelMinified: 114_444,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
+	lateIdentityMinified: 16_000,
 	urlMinified: 5_247,
-	appsMinified: 394_094,
+	appsMinified: 394_973,
 	surfacesMinified: 85_000,
 	viewMinified: 25_105,
 	consoleMinified: 91_222,
@@ -378,8 +396,9 @@ async function measurePage() {
 	};
 	// In the order a page loads them, so a shared chunk, classic Zod's among them, is charged to the first.
 	// `late-documents` is a chunk of its own, with a row of its own, so `late` leaves it out (2.4, step 9).
-	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07).
-	const late = closure(/^assets\/late-(?!documents-|editor-)/, initial);
+	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07), and phase 3's
+	// `late-identity` (phase 3 specification, 13).
+	const late = closure(/^assets\/late-(?!documents-|editor-|identity-)/, initial);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
@@ -394,7 +413,21 @@ async function measurePage() {
 	if (lateEditor.size === 0) {
 		throw new Error('budget: the build has no `late-editor` chunk to measure');
 	}
-	const afterLate = new Set([...initial, ...late, ...lateDocuments, ...lateEditor]);
+	// Awaited beside them, phase 3's (13): charged after `late-editor`, whose state it shares.
+	const lateIdentity = closure(
+		/^assets\/late-identity-/,
+		new Set([...initial, ...late, ...lateDocuments, ...lateEditor])
+	);
+	if (lateIdentity.size === 0) {
+		throw new Error('budget: the build has no `late-identity` chunk to measure');
+	}
+	const afterLate = new Set([
+		...initial,
+		...late,
+		...lateDocuments,
+		...lateEditor,
+		...lateIdentity,
+	]);
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -480,6 +513,7 @@ async function measurePage() {
 		lateMinified: sizeOf(late),
 		lateDocumentsMinified: sizeOf(lateDocuments),
 		lateEditorMinified: sizeOf(lateEditor),
+		lateIdentityMinified: sizeOf(lateIdentity),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -565,6 +599,7 @@ const ROWS = [
 	['lateMinified', "The kernel's `late` chunk and its imports, minified"],
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
+	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

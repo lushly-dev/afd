@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-afd",
-	"version": "2.2.0-preview.2",
+	"version": "2.2.0-preview.3",
 	"type": "module",
 	"files": [
 		"dist",
@@ -46,7 +46,7 @@
 		"directory": "integrations/specimen-afd"
 	},
 	"peerDependencies": {
-		"@lushly-dev/specimen": "^2.2.0-preview",
+		"@lushly-dev/specimen": "workspace:^",
 		"@lushly-dev/afd-core": "^2.2.0",
 		"@lushly-dev/afd-server": "^2.2.0"
 	}

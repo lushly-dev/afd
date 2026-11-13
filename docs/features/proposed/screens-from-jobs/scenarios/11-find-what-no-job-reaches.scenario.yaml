@@ -1,0 +1,51 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. Coverage reads the job captures in the set labelled
+# `main`. `example-notice` declares `variant` as `warning` or `error`; the only job that renders
+# it, keep-a-draft, shows a warning at step 4. `example-banner` is rendered by isolated specimens
+# and by no job. `example-chip` is reached by a job, and its unreached `size=small` has a coverage
+# waiver whose reason says small chips appear only in a settings dialog no job opens.
+
+name: Find what no job reaches
+description: >-
+  When I ask which job states render a component, I want the list, the component states no job
+  reaches, and the ones I already answered left answered, so that each gap is questioned once.
+job: find-what-no-job-reaches
+tags: []
+
+steps:
+  - description: The notice is reached by one job step, and its error variant by none
+    command: specimen-coverage
+    input:
+      component: example-notice
+      obligations: jobs@1
+      captures: main
+    expect:
+      success: true
+      data:
+        components.0.tag: example-notice
+        components.0.jobs.reachedBy.0.key: keep-a-draft/4
+        components.0.jobs.unreached.0: variant=error
+
+  - description: A component no job renders is named, with the reason
+    command: specimen-coverage
+    input:
+      component: example-banner
+      obligations: jobs@1
+      captures: main
+    expect:
+      success: true
+      data:
+        components.0.jobs.reachedBy: { length: 0 }
+        components.0.jobs.reason: { contains: No job capture renders }
+
+  - description: A gap answered by a waiver stays answered
+    command: specimen-coverage
+    input:
+      component: example-chip
+      obligations: jobs@1
+      captures: main
+    expect:
+      success: true
+      data:
+        components.0.jobs.unreached: { length: 0 }
+        waived: 1

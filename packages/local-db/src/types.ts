@@ -54,9 +54,11 @@ export interface HealthStatus {
  * Implementations:
  * - `MemoryAdapter` — in-memory Maps, for unit tests
  * - `HttpAdapter` — fetch-based, for REST API backends (SQLite, Postgres, etc.)
+ * - `IndexedDbAdapter` — IndexedDB, from `@lushly-dev/local-db/indexeddb`
+ * - `SqliteAdapter` — `node:sqlite`, from `@lushly-dev/local-db/sqlite`
  * - Custom adapters can wrap IndexedDB, Firestore, Cosmos DB, etc.
  *
- * Both built-in adapters pass the same contract suite: records are JSON copies (never live
+ * Every built-in adapter passes the same contract suite: records are JSON copies (never live
  * references to stored data), table names are arbitrary strings except `''`, `.` and `..`
  * (rejected with a 400 `DataAdapterError`), and failures reject with a `DataAdapterError`
  * whose `status` follows HTTP.

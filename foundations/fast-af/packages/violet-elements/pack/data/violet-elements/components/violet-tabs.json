@@ -1,0 +1,165 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "tabs.name",
+				"text": "The tablist cannot be named: the role=\"tablist\" element is inside the shadow root, there is no label attribute, and an aria-label on the host does not reach it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Active tab id.",
+				"name": "activeid",
+				"property": "activeid",
+				"rules": [
+					"taxonomy.activeid",
+					"taxonomy.activeid.not-for"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "open",
+				"description": "Visual treatment for the tab rail.",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "VioletTabsAppearance"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables tab interaction.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "horizontal",
+				"description": "Orientation for the tablist keyboard and layout framing.",
+				"name": "orientation",
+				"property": "orientation",
+				"rules": [
+					"taxonomy.orientation"
+				],
+				"type": "VioletTabsOrientation"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_surface-page)",
+				"name": "--_panel-background"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_border-subtle) 92%, transparent)",
+				"name": "--_panel-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-lg, 24px)",
+				"name": "--_panel-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_shadow-control)",
+				"name": "--_panel-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_border-subtle) 92%, transparent)",
+				"name": "--_tablist-divider"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the active tab changes.",
+				"name": "change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-tab"
+				],
+				"basis": "observed",
+				"description": "Tab items.",
+				"name": "tab"
+			},
+			{
+				"accepts": [
+					"violet-tab-panel"
+				],
+				"basis": "observed",
+				"description": "Panels paired to tabs in source order.",
+				"name": "tabpanel"
+			}
+		]
+	},
+	"examples": [],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "example"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.activeid",
+		"taxonomy.activeid.not-for",
+		"taxonomy.appearance",
+		"taxonomy.disabled",
+		"taxonomy.orientation",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Tab set that shows one violet-tab-panel at a time, chosen by its violet-tab; for switching views within one section of a page.",
+	"tag": "violet-tabs",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "tabs.structure",
+			"text": "Only direct children count: violet-tab and violet-tab-panel elements, paired by order (first tab with first panel). It assigns their slots, missing ids, hidden state and ARIA links."
+		},
+		{
+			"basis": "authored",
+			"id": "tabs.active",
+			"text": "activeid is the active tab's id, so give tabs ids to set or read it. If it names no enabled tab, a tab with aria-selected=\"true\", else the first enabled one, wins and activeid is rewritten."
+		},
+		{
+			"basis": "authored",
+			"id": "tabs.change",
+			"text": "change fires whenever activeid changes, from script too, and once at startup when activeid was not set. event.detail is the active violet-tab element; read its id."
+		},
+		{
+			"basis": "authored",
+			"id": "tabs.keyboard",
+			"text": "Activation is automatic: arrow keys for the orientation (Left and Right mirrored in RTL), Home and End move focus and activate in one step, skipping disabled tabs. Each panel is a tab stop."
+		}
+	]
+}

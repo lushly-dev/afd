@@ -709,13 +709,14 @@ for (const path of umbelVersions) {
 		const top = Object.keys(profile.properties).filter(
 			(key) => !(key in core.$defs.manifest.properties)
 		);
-		assert.deepEqual(top.sort(), ['component', 'packs']);
-		assert.deepEqual(added('mount').sort(), ['bearer', 'command', 'cwd', 'env']);
-		assert.deepEqual(added('mountTool'), ['bind_space']);
 		// Manifest version 3 adds `journal` to commands and pipelines and `authority_prompt` to
 		// commands; version 4 adds `confirm_preview` to commands and `expose` and `result` to
-		// pipelines; version 5 adds `task` and `person` to both (spec/plugin-manifest.md, P3).
+		// pipelines; version 5 adds `task` and `person` to both; version 6 adds the top-level
+		// `records` (spec/plugin-manifest.md, P3).
 		const version = Number(path.match(/\.v(\d+)\.json$/)[1]);
+		assert.deepEqual(top.sort(), ['component', 'packs', ...(version >= 6 ? ['records'] : [])]);
+		assert.deepEqual(added('mount').sort(), ['bearer', 'command', 'cwd', 'env']);
+		assert.deepEqual(added('mountTool'), ['bind_space']);
 		for (const definition of ['plugin', 'grant', 'context', 'skill', 'config']) {
 			assert.deepEqual(added(definition), [], definition);
 		}

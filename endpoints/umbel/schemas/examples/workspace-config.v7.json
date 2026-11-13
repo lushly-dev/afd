@@ -1,0 +1,6 @@
+{
+	"config_version": 7,
+	"principal": {
+		"on_behalf_of": "local"
+	}
+}

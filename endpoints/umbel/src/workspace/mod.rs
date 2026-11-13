@@ -8,7 +8,9 @@ mod error;
 mod hosted;
 mod keys;
 mod layout;
+mod person;
 mod plugins_config;
+mod records;
 mod space;
 
 use std::fs::{self, OpenOptions};
@@ -35,8 +37,16 @@ pub use hosted::{
 };
 pub use keys::{KEY_BYTES, TOKEN_CHARS};
 pub use layout::Layout;
+pub use person::{
+    AssuranceLevel, DEFAULT_DECISION_TTL_S, DEFAULT_LOCAL_PAGE_BIND, DEFAULT_VERIFIED_LEVELS,
+    LocalPageConfig, PERSON_DECISION_TTL_MAX_S, PERSON_DECISION_TTL_MIN_S, PersonConfig,
+};
 pub use plugins_config::{
     DefaultAccess, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
+};
+pub use records::{
+    DEFAULT_MEANING_K, DEFAULT_MEANING_WEIGHT, DEFAULT_MODEL_MAX_LENGTH, DEFAULT_MODEL_TIMEOUT_MS,
+    MeaningConfig, ModelConfig, ModelProvider, Pooling, VerifiedAdmits,
 };
 pub use space::SpaceId;
 
@@ -99,7 +109,7 @@ impl Workspace {
     }
 
     /// Create a workspace in `dir` (made when missing): `umbel.toml` holding only
-    /// `config_version = 5`, when given, `name`, and `[principal] on_behalf_of` equal to the
+    /// `config_version = 7`, when given, `name`, and `[principal] on_behalf_of` equal to the
     /// default `local_id`, so a local agent's records belong to the same person as the CLI's
     /// (phase 3 section 3.2); `spaces/main/`; `state/` with the keys and a `.gitignore` of `*`.
     ///

@@ -103,6 +103,7 @@ A local test authorization server fixture issues tokens for a test audience, ext
 | A5 | Where are scopes enforced? | HTTP 403 for individual tools (via `Mcp-Name`), a tool error for meta-tools and groups. *Amended 2026-11-04 (Umbel D106):* the HTTP layer parses the body, so a missing scope on any non-streamed `tools/call`, including the commands `afd-call`, `afd-batch` and `afd-pipe` name, is an HTTP 403 decided before dispatch; a batch with any missing step is one 403 naming every missing scope. `INSUFFICIENT_SCOPE` remains for calls HTTP cannot answer ([M6](../../../../spec/authorization.md#m6-scopes)). |
 | A6 | Is list filtering on by default? | No. It changes caching, so hosts opt in. |
 | A7 | Does AFD include an authorization server? | No. AFD is the resource server only. |
+| A8 | Must every issuer's tokens follow RFC 9068's names? | *Added 2026-11-12 (Umbel D184), not yet in `spec/`:* no. A JWT issuer may carry a claim profile (token types `at+jwt` or `JWT`, an exact audience, `jti` or `uti`, `client_id`, `azp` or `appid`, and `scope`, `scp` or `roles`), each defaulting to today's rule, and a server may set a scope qualifier. Specified in the [Umbel auth profiles specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/auth-profiles.spec.md), section 2; written into `spec/authorization.md` by its step A1. |
 
 ## Out of scope
 

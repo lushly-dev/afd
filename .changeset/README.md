@@ -30,4 +30,4 @@ fragments use separately owned storage. See [platform release controls](../docs/
   a no-op changeset.
 - Record Python, Rust and C++ changes in `python/CHANGELOG.md`, `packages/rust/CHANGELOG.md`
   and `packages/cpp/CHANGELOG.md`. Each is released on its own `python-v*`, `rust-v*` or
-  `cpp-v*` tag; the `do-release` skill has the steps.
+  `cpp-v*` tag; the `cut-release` skill has the steps.

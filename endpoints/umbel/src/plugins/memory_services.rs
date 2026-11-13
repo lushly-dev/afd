@@ -167,10 +167,18 @@ impl CallServices {
         self.shared.memory_policy.clone().unwrap_or_default()
     }
 
+    /// Only a verified person-page decision grants phase 5 memory authority; the local page
+    /// proves no identity and remains available to the record-review services alone.
+    fn verified_decision(&self) -> Option<&umbel_sdk::PersonDecision> {
+        self.person_decision
+            .as_ref()
+            .filter(|decision| decision.level == "verified")
+    }
+
     /// How this call's caller is a person, if it is: a decision on the person page for this very
     /// call first, then the CLI's terminal check, then the library's word.
     fn proof(&self) -> Option<Proof> {
-        if let Some(decided) = &self.verified {
+        if let Some(decided) = self.verified_decision() {
             return Some(Proof::Verified(decided.clone()));
         }
         if crate::authority::terminal_person(
@@ -340,7 +348,7 @@ impl CallServices {
         };
         if current.authority() == Some(Authority::Person)
             && !self.person()
-            && self.verified.is_none()
+            && self.verified_decision().is_none()
         {
             return Err(refused(
                 "MEMORY_AUTHORITY_TOO_LOW",
@@ -595,6 +603,18 @@ impl CallServices {
         mut request: Confirm,
     ) -> Result<MemoryVersionMeta> {
         let (store, filter, principal) = self.memory_writing(space)?;
+        // A decision on the local person page is `local`, which a memory envelope (version 3)
+        // cannot hold: said by name, before anything else (the Ideas host-review specification,
+        // step H3).
+        if crate::person::PersonMark::of(&self.context).is_some_and(|mark| {
+            mark.level == crate::person::LOCAL_LEVEL
+                && Some(mark.command.as_str()) == self.command.as_deref()
+        }) {
+            return Err(refused(
+                "MEMORY_CONFIRM_NOT_ALLOWED",
+                "a decision on the local person page (level local) cannot confirm a record: a memory envelope records terminal or verified only",
+            ));
+        }
         // How the person was proven (envelope version 3, phase 5 sections 2.4 and 7.1): a decision
         // on the person page for this very call; the terminal check at the CLI; or, through the
         // library, the embedding application's own word, recorded as `embedder` and admitted only
@@ -869,7 +889,7 @@ impl CallServices {
         let (store, _filter, principal) = self.memory_writing(space)?;
         // The caller is verified for this very call, on the person page (7.2): no terminal check,
         // no library word and no form answer erases (owner decision 9).
-        if self.command.as_deref() != Some(ERASE_COMMAND) || self.verified.is_none() {
+        if self.command.as_deref() != Some(ERASE_COMMAND) || self.verified_decision().is_none() {
             return Err(refused(
                 "MEMORY_ERASE_NOT_ALLOWED",
                 "memory-erase needs a person verified on the person page for this call",

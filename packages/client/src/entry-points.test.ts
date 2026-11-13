@@ -9,7 +9,7 @@
 
 import { readFileSync, realpathSync } from 'node:fs';
 import { createRequire } from 'node:module';
-import { dirname, join, relative } from 'node:path';
+import { dirname, join, relative, sep } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 import { describe, expect, expectTypeOf, it } from 'vitest';
 import * as root from './index.js';
@@ -145,11 +145,16 @@ async function bundleForBrowser(
 	}
 }
 
-/** This package's own `eventsource`, as esbuild's metafile spells it: relative to the package. */
+/**
+ * This package's own `eventsource`, as esbuild's metafile spells it: relative to the package,
+ * with forward slashes on every platform.
+ */
 const OWN_EVENTSOURCE = `${relative(
 	packageRoot,
 	realpathSync(join(packageRoot, 'node_modules/eventsource'))
-)}/`;
+)
+	.split(sep)
+	.join('/')}/`;
 
 /** The modules of this package the entry may load: everything else it names is a type. */
 const OWN_MODULES = [

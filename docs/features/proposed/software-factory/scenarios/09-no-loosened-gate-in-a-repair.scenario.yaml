@@ -1,0 +1,34 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Never pass a failing check by loosening it
+description: >-
+  When a branch ejected for a failing check comes back with edits to a gate, I want it refused until
+  a diagnosis has found the gate edit to be the right repair, so that no agent passes a check by
+  weakening it and a real gate fix is not stuck.
+job: no-loosened-gate-in-a-repair
+tags: [slice]
+fixture:
+  file: fixtures/ejected.json
+  base: fresh.json
+steps:
+  - description: A repair that edits a gate path is refused with the way forward
+    command: lane-enqueue
+    input: { worktree: wt/loosened, title: Fix docs build, body_file: pr-body.md }
+    expect:
+      success: false
+      error:
+        code: GATE_EDIT_IN_REPAIR
+        message: scripts/check-file-size.mjs
+        suggestion: { contains: gate-allow }
+  - description: After a diagnosis, the foreman records that the gate edit is the right repair
+    command: gate-allow
+    input: { branch: fix/loosened-check, reason: The size limit counted generated files; the diagnosis confirmed the fix }
+    expect:
+      success: true
+      data: { allowed: true }
+  - description: The branch is now accepted
+    command: lane-enqueue
+    input: { worktree: wt/loosened }
+    expect:
+      success: true
+      data:
+        state: queued

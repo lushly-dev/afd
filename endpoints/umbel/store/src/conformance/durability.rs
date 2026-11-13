@@ -59,6 +59,7 @@ fn reopen(env: &Env<'_>) -> CaseResult {
         index,
         memory,
         memory_restore: _,
+        lane: _,
     } = f.stores.clone();
     drop((documents, graph, index, memory));
     let reopened = (env.factory)(&dir, SPACE).map_err(|e| format!("reopening: {e}"))?;

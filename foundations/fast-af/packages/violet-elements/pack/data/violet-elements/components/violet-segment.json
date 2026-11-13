@@ -1,0 +1,145 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "segment.name",
+				"text": "Its inner button has role radio and is named by the slotted text. An aria-label on the violet-segment host is not forwarded, so keep readable text in the slot."
+			},
+			{
+				"basis": "authored",
+				"id": "segment.disabled",
+				"text": "A disabled segment cannot be clicked, and the group's arrow keys and Tab stop skip it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "checked",
+				"property": "checked",
+				"rules": [
+					"taxonomy.checked"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-segment-selected-background, var(--_surface-page))",
+				"name": "--_segment-selected-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-segment-selected-border, var(--_border-subtle))",
+				"name": "--_segment-selected-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-segment-selected-shadow, var(--_shadow-control))",
+				"name": "--_segment-selected-shadow"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the segment's own `disabled` changes, so its group can move the Tab stop.",
+				"name": "disabled-change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the segment requests selection.",
+				"name": "select-request"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Visible segment label content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-segment--checked",
+			"html": "<div style=\"max-inline-size: 12rem;\"><violet-segment checked value=\"overview\">Overview</violet-segment></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-segment--disabled",
+			"html": "<div style=\"max-inline-size: 12rem;\"><violet-segment disabled value=\"overview\">Overview</violet-segment></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-segment--overview",
+			"html": "<div style=\"max-inline-size: 12rem;\"><violet-segment checked value=\"overview\">Overview</violet-segment></div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.checked",
+		"taxonomy.disabled",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "One option inside violet-segmented-control: its slotted text is the visible label and its value is what the group selects.",
+	"tag": "violet-segment",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "segment.parent",
+			"text": "Use it only as a child of violet-segmented-control. On its own, a click just fires select-request with detail.value, and nothing becomes checked unless you handle that event."
+		},
+		{
+			"basis": "authored",
+			"id": "segment.checked",
+			"text": "The parent control owns checked: it sets it on the segment whose value equals the control's value and clears it on the rest. Choose through the control's value, not this attribute."
+		},
+		{
+			"basis": "authored",
+			"id": "segment.value",
+			"text": "Give every segment a unique, non-empty value; a segment with an empty value can never be checked. Clicking the segment that is already checked does nothing."
+		}
+	]
+}

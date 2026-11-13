@@ -98,8 +98,10 @@ fn versions_1_to_4_read_as_version_5_with_auth_mode_none() {
         assert_eq!(config.limits, umbel::workspace::RateLimits::default());
         assert_eq!(config.usage, umbel::workspace::UsageConfig::default());
     }
-    assert_eq!(umbel::CONFIG_VERSION, 5);
-    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5]);
+    // Versions 6 (the records host specification) and 7 (the Ideas host-review specification)
+    // are read beside them and tested in `config_v6.rs` and `config_v7.rs`.
+    assert_eq!(umbel::CONFIG_VERSION, 7);
+    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[test]
@@ -175,11 +177,11 @@ fn a_refusal_names_its_key_in_details() {
 }
 
 #[test]
-fn another_version_is_unsupported_and_names_1_to_5() {
-    for version in [0, 6] {
+fn another_version_is_unsupported_and_names_1_to_7() {
+    for version in [0, 8] {
         let error = open(&format!("config_version = {version}\n")).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-        assert!(error.message().contains("1 to 5"), "{error}");
+        assert!(error.message().contains("1 to 7"), "{error}");
     }
 }
 
@@ -821,6 +823,43 @@ fn a_person_login_requires_user_verification() {
     );
     let error = invalid(&other, "auth.namespaces.partners.person.issuer");
     assert!(error.message().contains("own namespace"), "{error}");
+    // D181: mfa (a passkey login) only where every class is phishing-resistant.
+    for (acr, uv) in [
+        ("\"phr\", \"urn:x:uv\"", "\"mfa\""),
+        ("\"mfa\"", "\"mfa\""),
+        ("\"urn:x:uv\"", "\"pin\", \"mfa\""),
+    ] {
+        let error = invalid(
+            &login(&format!(
+                "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [{acr}], uv_amr = [{uv}] }}"
+            )),
+            "person.uv_amr",
+        );
+        assert!(error.message().contains("phishing-resistant"), "{error}");
+    }
+    for bare in ["hwk", "swk"] {
+        invalid(
+            &login(&format!(
+                "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [\"phr\"], uv_amr = [\"{bare}\"] }}"
+            )),
+            "person.uv_amr",
+        );
+    }
+    for (acr, uv) in [
+        ("\"phr\"", "\"mfa\""),
+        ("\"phr\", \"phrh\"", "\"pin\", \"mfa\""),
+        ("\"phrh\"", "\"mfa\""),
+    ] {
+        let workspace = open(&login(&format!(
+            "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [{acr}], uv_amr = [{uv}] }}"
+        )))
+        .unwrap();
+        let person = workspace.config().auth.namespaces[0]
+            .person
+            .clone()
+            .unwrap();
+        assert!(person.uv_amr.iter().any(|method| method == "mfa"));
+    }
     // Every RFC 8176 user-verification method is accepted.
     let all = login(
         "person = { issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", subject_claim = \"oid\", max_age_s = 3600, acr_values = [\"phr\", \"urn:x:uv\"], uv_amr = [\"pin\", \"fpt\", \"face\", \"iris\", \"retina\", \"vbm\"] }",

@@ -33,6 +33,20 @@ impl Param for i64 {
     }
 }
 
+/// Bytes, as a blob: a record's match digest.
+impl Param for &[u8] {
+    fn into_value(self) -> Value {
+        Value::Blob(self.to_vec())
+    }
+}
+
+/// A text value or `NULL`: what `IS ?` compares a nullable column with.
+impl Param for Option<&str> {
+    fn into_value(self) -> Value {
+        self.map_or(Value::Null, |text| Value::Text(text.to_owned()))
+    }
+}
+
 /// SQL text and the parameters its `?` marks take, in order.
 pub(crate) struct Sql {
     pub(crate) text: String,

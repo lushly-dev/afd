@@ -64,6 +64,8 @@ function escapeRegex(value) {
 // about 1% of the context window, Codex about 2%) and drop entries once it overflows.
 const listedFields = ['description', 'when_to_use'];
 const maxDescription = 1024;
+// Hosts list about 8,000 characters when they can't size the listing from the context window.
+const hostListingFallback = 8000;
 
 function blockScalar(indicator, lines, field, terminated) {
 	const header = indicator.match(/^([>|])([-+]?)$/);
@@ -214,6 +216,17 @@ export function declaresOwner(text, owner) {
 }
 
 /** Characters a skill adds to the host listing; user-only skills are not listed. */
+/**
+ * The owner's standing rule of 2026-11-12, after Lushly's budget rules: a pull request that
+ * still needs more listing raises the budget itself, up to the hosts' fallback listing size.
+ */
+export function listingRaiseAdvice(characters) {
+	const raise = Math.ceil(characters / 100) * 100;
+	return raise <= hostListingFallback
+		? `If it still doesn't fit, raise listingBudget and botcore.toml's listing_budget to ${raise} (the total rounded up to a multiple of 100) in the same pull request, under the owner's standing rule.`
+		: `Raising listingBudget to ${raise} would go past the hosts' ${hostListingFallback}-character fallback listing, so ask the owner first.`;
+}
+
 export function listingCharacters(text, skill) {
 	let fields;
 	try {
@@ -390,7 +403,7 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 				.slice(0, 3)
 				.map(([name, size]) => `${name} (${size})`);
 			throw new Error(
-				`Skill listing over budget for ${profileName}: ${characters} description characters exceed listingBudget ${profile.listingBudget}. Shorten descriptions (largest: ${largest.join(', ')}) or remove skills that add no unique context.`
+				`Skill listing over budget for ${profileName}: ${characters} description characters exceed listingBudget ${profile.listingBudget}. Shorten descriptions that aren't earning their length (largest: ${largest.join(', ')}) or remove skills that add no unique context. ${listingRaiseAdvice(characters)}`
 			);
 		}
 		onListing?.(profileName, { characters, budget: profile.listingBudget, skills: listing.size });
@@ -401,7 +414,7 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 			await mkdir(path.dirname(change.path), { recursive: true });
 			await writeFile(change.path, change.content);
 		}
-	return changes.map((change) => path.relative(root, change.path));
+	return changes.map((change) => path.relative(root, change.path).split(path.sep).join('/'));
 }
 
 if (process.argv[1] && path.resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {

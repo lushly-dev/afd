@@ -187,6 +187,14 @@ function compareElements(
 		compareRecord(differences, 'layout', ref, 'scroll', before.scroll, after.scroll);
 		compareRecord(differences, 'styles', ref, '', before.styles, after.styles);
 		compareRecord(differences, 'state', ref, '', before.state, after.state);
+		compareRecord(
+			differences,
+			'a11y',
+			ref,
+			'accessibility',
+			before.accessibility ?? {},
+			after.accessibility ?? {}
+		);
 	}
 }
 

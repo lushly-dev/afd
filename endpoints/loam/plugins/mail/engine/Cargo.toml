@@ -1,0 +1,90 @@
+[package]
+name = "loam_mail"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.98"
+publish = false
+license = "MIT"
+description = "Loam Mail's engine: a person's mail on their machine, served as AFD commands"
+repository = "https://github.com/lushly-dev/afd"
+
+# The engine is its own workspace, as Umbel is (the engine's specification, section 2).
+[workspace]
+
+[lints.rust]
+unsafe_code = "forbid"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"
+
+[lib]
+name = "loam_mail"
+
+[[bin]]
+name = "loam-mail"
+path = "src/main.rs"
+
+[dependencies]
+# `server` serves MCP over HTTP and stdio (the specification's 3.2 to 3.4).
+afd = { path = "../../../../../packages/rust", default-features = false, features = ["native", "approval", "journal-file", "server"] }
+# IMAP (the specification's section 5.2): its framing and its parser. The engine sends its own
+# commands and reads every response itself.
+async-imap = { version = "0.12", default-features = false, features = ["runtime-tokio"] }
+async-trait = "0.1"
+# `serve`'s HTTP surface: the layer in front of every route, `/mcp` and the command line's route
+# (the specification's 3.4). HTTP/1.1 on loopback only.
+axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
+# The command line's call to a running server, over hyper's client connection.
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
+# The approval middleware's signing key, made afresh for each process.
+getrandom = "0.3"
+# Reading a message's HTML for the evidence of the specification's section 6: the text a person
+# sees, the text they do not, and its links.
+html5ever = "0.40"
+markup5ever_rcdom = "0.40"
+# A link's host read as a browser reads it: backslashes, missing slashes, IDNs, IPv6.
+url = "2"
+# Cleaning a message's HTML for display (the specification's 6.4). Its `cssparser` and
+# `dtoa-short` are MPL-2.0, allowed by name in `tests/licences.rs`.
+ammonia = "4.2"
+mail-parser = "1.0.1"
+# The store (the specification's section 4). SQLite is bundled, at the version Umbel pins, so the
+# repository carries one.
+rusqlite = { version = "0.41", features = ["bundled"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+# The log's file names, and a message's identity.
+sha2 = "0.11"
+tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
+tokio = { version = "1", default-features = false, features = ["rt", "rt-multi-thread", "time", "net", "io-util", "io-std", "signal", "macros", "sync"] }
+# The MCP service mounted at `/mcp`, and driving the router in tests.
+tower = { version = "0.5", features = ["util"] }
+# TLS to the provider, with the operating system's certificates. `ring` rather than the default
+# `aws-lc-rs`, which needs CMake to build.
+rustls = { version = "0.23", default-features = false, features = ["ring", "std", "tls12"] }
+rustls-native-certs = "0.8"
+tokio-rustls = { version = "0.26", default-features = false, features = ["ring", "tls12"] }
+# The log is compressed: mail is mostly text.
+zstd = { version = "0.14", default-features = false }
+
+# Making a batch of the log's files durable with one flush: a plain `fsync` per file and one
+# `F_FULLFSYNC` on macOS, `syncfs` on Linux. `std` offers only the full flush per file.
+[target.'cfg(unix)'.dependencies]
+rustix = { version = "1", features = ["fs", "termios"] }
+
+# Account sign-ins in the macOS keychain (the specification's section 3.1). `keyring-core` with
+# the Apple store alone, as the `keyring` crate advises an application that knows its platforms.
+[target.'cfg(target_os = "macos")'.dependencies]
+apple-native-keyring-store = { version = "1", features = ["keychain"] }
+keyring-core = "1"
+
+[dev-dependencies]
+async-trait = "0.1"
+serde_json = "1"
+tempfile = "3"

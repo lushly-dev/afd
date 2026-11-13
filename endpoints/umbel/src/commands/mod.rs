@@ -7,6 +7,7 @@ mod auth_show;
 mod event_ack;
 mod event_list;
 mod event_rebuild;
+mod person_page;
 mod plugin_check;
 mod plugin_list;
 mod plugin_new;
@@ -25,6 +26,8 @@ mod store_doctor;
 #[cfg(feature = "store-embedded")]
 mod store_memory;
 #[cfg(feature = "store-embedded")]
+mod store_records;
+#[cfg(feature = "store-embedded")]
 mod store_show;
 #[cfg(feature = "auth")]
 mod usage_list;
@@ -38,6 +41,7 @@ pub(crate) use auth_show::auth_show;
 pub(crate) use event_ack::event_ack;
 pub(crate) use event_list::{event_list, read_events};
 pub(crate) use event_rebuild::event_rebuild;
+pub(crate) use person_page::person_page_serve;
 pub(crate) use plugin_check::plugin_check;
 pub(crate) use plugin_list::plugin_list;
 pub(crate) use plugin_new::plugin_new;
@@ -52,6 +56,12 @@ pub(crate) use store_check::store_check;
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_doctor::{
     checks as store_doctor_checks, memory_checks as store_memory_checks,
+};
+#[cfg(feature = "store-embedded")]
+pub(crate) use store_records::{
+    HOLD as STORE_DOCUMENTS_HOLD, HOLD_KEPT as STORE_DOCUMENTS_HOLD_KEPT,
+    REINDEX as STORE_RECORDS_REINDEX, REINDEX_KEPT as STORE_RECORDS_REINDEX_KEPT,
+    checks as store_record_checks, store_documents_hold, store_records_reindex,
 };
 #[cfg(feature = "store-embedded")]
 pub(crate) use store_show::store_show;

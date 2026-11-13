@@ -1,0 +1,479 @@
+{
+  "rules": [
+    {
+      "id": "import.root",
+      "text": "Importing \"@lushly-dev/violet-elements\" registers every element. A per-element module registers only itself and what it imports: the tabs module does not register tab or tab-panel, nor the menu module menu-item.",
+      "appliesTo": {
+        "tags": [
+          "violet-accordion",
+          "violet-accordion-item",
+          "violet-alert",
+          "violet-approval-card",
+          "violet-badge",
+          "violet-breadcrumb",
+          "violet-breadcrumb-item",
+          "violet-button",
+          "violet-calendar",
+          "violet-card",
+          "violet-carousel",
+          "violet-chat-composer",
+          "violet-chat-suggestions",
+          "violet-checkbox",
+          "violet-color-picker",
+          "violet-color-swatch",
+          "violet-combobox",
+          "violet-conversation-thread",
+          "violet-data-grid",
+          "violet-data-grid-attachment-cell",
+          "violet-data-grid-multi-picker",
+          "violet-data-grid-persona-picker",
+          "violet-data-grid-pill-select",
+          "violet-data-grid-rating",
+          "violet-data-grid-reference-picker",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-dialog",
+          "violet-divider",
+          "violet-empty-state",
+          "violet-file-explorer",
+          "violet-file-upload",
+          "violet-gantt",
+          "violet-icon",
+          "violet-icon-button",
+          "violet-image",
+          "violet-listbox",
+          "violet-menu",
+          "violet-menu-item",
+          "violet-message",
+          "violet-message-media",
+          "violet-message-status",
+          "violet-message-text",
+          "violet-option",
+          "violet-option-group",
+          "violet-pagination",
+          "violet-persona",
+          "violet-popover",
+          "violet-progress",
+          "violet-radio",
+          "violet-radio-group",
+          "violet-range-slider",
+          "violet-reasoning-block",
+          "violet-segment",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-skeleton",
+          "violet-slider",
+          "violet-snackbar",
+          "violet-source-citation",
+          "violet-spinner",
+          "violet-switch",
+          "violet-tab",
+          "violet-tab-panel",
+          "violet-tabs",
+          "violet-teaching-tip",
+          "violet-text",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-theme",
+          "violet-time-picker",
+          "violet-toast",
+          "violet-tool-call-card",
+          "violet-tool-result-card",
+          "violet-tooltip",
+          "violet-tree",
+          "violet-tree-item"
+        ]
+      }
+    },
+    {
+      "id": "theme.install",
+      "text": "Components render the light theme with no setup. For dark or high-contrast, call installVioletTheme() once and then applyVioletThemePreset(document, preset); both are exported from the package root.",
+      "appliesTo": {
+        "tags": [
+          "violet-accordion",
+          "violet-accordion-item",
+          "violet-approval-card",
+          "violet-breadcrumb",
+          "violet-breadcrumb-item",
+          "violet-button",
+          "violet-calendar",
+          "violet-card",
+          "violet-carousel",
+          "violet-chat-composer",
+          "violet-chat-suggestions",
+          "violet-checkbox",
+          "violet-color-picker",
+          "violet-color-swatch",
+          "violet-combobox",
+          "violet-conversation-thread",
+          "violet-data-grid",
+          "violet-data-grid-attachment-cell",
+          "violet-data-grid-multi-picker",
+          "violet-data-grid-persona-picker",
+          "violet-data-grid-pill-select",
+          "violet-data-grid-rating",
+          "violet-data-grid-reference-picker",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-dialog",
+          "violet-divider",
+          "violet-empty-state",
+          "violet-file-explorer",
+          "violet-file-upload",
+          "violet-gantt",
+          "violet-icon",
+          "violet-icon-button",
+          "violet-image",
+          "violet-listbox",
+          "violet-menu",
+          "violet-menu-item",
+          "violet-message",
+          "violet-message-media",
+          "violet-message-status",
+          "violet-message-text",
+          "violet-option",
+          "violet-option-group",
+          "violet-pagination",
+          "violet-persona",
+          "violet-popover",
+          "violet-radio",
+          "violet-radio-group",
+          "violet-range-slider",
+          "violet-reasoning-block",
+          "violet-segment",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-skeleton",
+          "violet-slider",
+          "violet-source-citation",
+          "violet-spinner",
+          "violet-switch",
+          "violet-tab",
+          "violet-tab-panel",
+          "violet-tabs",
+          "violet-teaching-tip",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker",
+          "violet-tool-call-card",
+          "violet-tool-result-card",
+          "violet-tooltip",
+          "violet-tree",
+          "violet-tree-item"
+        ]
+      }
+    },
+    {
+      "id": "a11y.managed",
+      "text": "The component sets roles, ARIA states, ids, tabindex and keyboard handling on itself and on its child items. Do not add role, ARIA state attributes, tabindex or key handlers for the same purpose.",
+      "appliesTo": {
+        "tags": [
+          "violet-accordion",
+          "violet-accordion-item",
+          "violet-breadcrumb-item",
+          "violet-combobox",
+          "violet-listbox",
+          "violet-menu",
+          "violet-menu-item",
+          "violet-option",
+          "violet-option-group",
+          "violet-radio",
+          "violet-radio-group",
+          "violet-segment",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-tab",
+          "violet-tab-panel",
+          "violet-tabs",
+          "violet-tree",
+          "violet-tree-item"
+        ]
+      }
+    },
+    {
+      "id": "field.label",
+      "text": "The label attribute renders a visible label inside the component and makes it part of the control's accessible name.",
+      "appliesTo": {
+        "tags": [
+          "violet-chat-composer",
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-radio-group",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-slider",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker",
+          "violet-tree"
+        ]
+      }
+    },
+    {
+      "id": "field.aria-label",
+      "text": "Without a label attribute, an aria-label attribute on the host is used as the control's accessible name.",
+      "appliesTo": {
+        "tags": [
+          "violet-listbox",
+          "violet-radio-group",
+          "violet-segmented-control",
+          "violet-slider",
+          "violet-text-field",
+          "violet-tree"
+        ]
+      }
+    },
+    {
+      "id": "field.label-required",
+      "text": "An aria-label attribute on the host is not read as the control's name. Name the control with the label attribute.",
+      "appliesTo": {
+        "tags": [
+          "violet-chat-composer",
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-file-upload",
+          "violet-select",
+          "violet-text-area",
+          "violet-time-picker"
+        ]
+      }
+    },
+    {
+      "id": "field.placeholder",
+      "text": "The placeholder is entry guidance shown while the control is empty. It is not a label: name the control with the label attribute.",
+      "appliesTo": {
+        "tags": [
+          "violet-chat-composer",
+          "violet-combobox",
+          "violet-select",
+          "violet-text-area",
+          "violet-text-field"
+        ]
+      }
+    },
+    {
+      "id": "field.supporting-text",
+      "text": "The supporting-text attribute is plain helper text rendered under the control and already linked to it as its description.",
+      "appliesTo": {
+        "tags": [
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-radio-group",
+          "violet-range-slider",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-slider",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker",
+          "violet-tree"
+        ]
+      }
+    },
+    {
+      "id": "field.value-attribute",
+      "text": "The value attribute is the initial value and the form-reset default. Typing and writes to the value property are not reflected back to the attribute; read the property.",
+      "appliesTo": {
+        "tags": [
+          "violet-combobox",
+          "violet-text-area",
+          "violet-text-field"
+        ]
+      }
+    },
+    {
+      "id": "field.input-change",
+      "text": "An input event fires on every edit and a change event when the edit is committed. Both are CustomEvents with detail.value (a string).",
+      "appliesTo": {
+        "tags": [
+          "violet-color-picker",
+          "violet-date-picker",
+          "violet-slider",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker"
+        ]
+      }
+    },
+    {
+      "id": "event.native-input",
+      "text": "A host listener for input also receives the inner control's native input event, which has no detail. Read the host's value property, or skip events without detail.",
+      "appliesTo": {
+        "tags": [
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-slider",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker"
+        ]
+      }
+    },
+    {
+      "id": "form.participation",
+      "text": "Form-associated: submits under its name attribute, submits nothing while disabled or inside <fieldset disabled>, restores its initial state on form reset, and exposes checkValidity(), reportValidity() and validity.",
+      "appliesTo": {
+        "tags": [
+          "violet-checkbox",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-file-upload",
+          "violet-radio-group",
+          "violet-segmented-control",
+          "violet-select",
+          "violet-slider",
+          "violet-switch",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker"
+        ]
+      }
+    },
+    {
+      "id": "form.invalid",
+      "text": "Unless the control is disabled or readonly, the invalid attribute sets a custom validity error, so checkValidity() fails and native validation blocks form submission until the attribute is removed.",
+      "appliesTo": {
+        "tags": [
+          "violet-checkbox",
+          "violet-color-picker",
+          "violet-combobox",
+          "violet-date-picker",
+          "violet-file-upload",
+          "violet-radio-group",
+          "violet-range-slider",
+          "violet-select",
+          "violet-slider",
+          "violet-switch",
+          "violet-text-area",
+          "violet-text-field",
+          "violet-time-picker"
+        ]
+      }
+    },
+    {
+      "id": "form.required-error",
+      "text": "With the required attribute and no value, the error message is rendered from the first render, before any interaction. The error-text attribute replaces the built-in wording.",
+      "appliesTo": {
+        "tags": [
+          "violet-combobox",
+          "violet-radio-group",
+          "violet-segmented-control",
+          "violet-select"
+        ]
+      }
+    },
+    {
+      "id": "toggle.label",
+      "text": "The default slot is the visible label and the accessible name. When there is no slot text, as with the inline attribute in a table cell, set aria-label on the host.",
+      "appliesTo": {
+        "tags": [
+          "violet-checkbox",
+          "violet-radio",
+          "violet-switch"
+        ]
+      }
+    },
+    {
+      "id": "toggle.form-value",
+      "text": "The checked attribute reflects the live state. The form receives the value attribute (default \"on\") under name only while checked. The change event fires on user toggles only, with detail.checked.",
+      "appliesTo": {
+        "tags": [
+          "violet-checkbox",
+          "violet-switch"
+        ]
+      }
+    },
+    {
+      "id": "options.children",
+      "text": "Choices are violet-option descendants, optionally wrapped in violet-option-group. The parent rewrites the selected attribute of every option; choose through the parent's value, or mark one option selected initially.",
+      "appliesTo": {
+        "tags": [
+          "violet-combobox",
+          "violet-listbox",
+          "violet-select"
+        ]
+      }
+    },
+    {
+      "id": "overlay.anchor",
+      "text": "The anchor attribute is the id of an element outside the component, resolved with document.getElementById when the component connects or the attribute changes. That element must already exist and must not be inside a shadow root.",
+      "appliesTo": {
+        "tags": [
+          "violet-popover",
+          "violet-teaching-tip",
+          "violet-tooltip"
+        ]
+      }
+    },
+    {
+      "id": "overlay.positioning",
+      "text": "The positioning attribute is above, below, before or after; before and after are the physical left and right of the anchor. It flips to the opposite side when there is no room.",
+      "appliesTo": {
+        "tags": [
+          "violet-popover",
+          "violet-teaching-tip",
+          "violet-tooltip"
+        ]
+      }
+    },
+    {
+      "id": "overlay.open-change",
+      "text": "An open-change event fires after each open and each close, with detail.open as a boolean.",
+      "appliesTo": {
+        "tags": [
+          "violet-date-picker",
+          "violet-date-range-picker",
+          "violet-dialog",
+          "violet-menu",
+          "violet-popover",
+          "violet-snackbar",
+          "violet-teaching-tip",
+          "violet-toast"
+        ]
+      }
+    },
+    {
+      "id": "message.announcement",
+      "text": "The announcement attribute controls the live region: polite gives role status, assertive gives role alert, off gives none. The tone attribute is visual only and does not change it.",
+      "appliesTo": {
+        "tags": [
+          "violet-alert",
+          "violet-snackbar",
+          "violet-toast"
+        ]
+      }
+    },
+    {
+      "id": "message.tone",
+      "text": "The tone attribute is default, info, success, warning or danger. Success, warning and danger show a built-in leading icon; content in the icon slot replaces it.",
+      "appliesTo": {
+        "tags": [
+          "violet-alert",
+          "violet-toast"
+        ]
+      }
+    },
+    {
+      "id": "a11y.decorative",
+      "text": "Set the decorative attribute when adjacent text already conveys the meaning; the element is then hidden from assistive technology. Leave it off when the visual carries meaning alone.",
+      "appliesTo": {
+        "tags": [
+          "violet-badge",
+          "violet-color-swatch",
+          "violet-divider",
+          "violet-icon",
+          "violet-image",
+          "violet-persona",
+          "violet-spinner"
+        ]
+      }
+    }
+  ]
+}

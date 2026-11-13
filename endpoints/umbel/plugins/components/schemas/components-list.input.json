@@ -1,0 +1,29 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"library": {
+			"type": "string",
+			"description": "List only this library"
+		},
+		"prefix": {
+			"type": "string",
+			"description": "Only tags that start with this"
+		},
+		"contains": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"description": "Only tags whose name or summary holds this, ignoring ASCII case"
+		},
+		"after": {
+			"type": "string",
+			"maxLength": 165,
+			"description": "The page starts after this tag: the value of the last answer's next.after, written <library>/<tag> when more than one library is listed"
+		}
+	}
+}

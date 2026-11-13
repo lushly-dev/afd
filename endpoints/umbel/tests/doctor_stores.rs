@@ -168,7 +168,7 @@ async fn a_store_newer_than_this_build_fails_stores_version() {
         .unwrap()
         .to_owned();
     assert!(
-        message.contains("version 99") && message.contains("serves up to version 1"),
+        message.contains("version 99") && message.contains("serves up to version 4"),
         "{message}"
     );
 }
@@ -312,5 +312,230 @@ mod memory {
         std::fs::set_permissions(&file, std::fs::Permissions::from_mode(0o644)).unwrap();
         let (status, message) = status_of(&statuses(&host).await, "stores.memory_modes");
         assert_eq!(status, "fail", "{message}");
+    }
+}
+
+/// The record lane's checks (records host specification, section 12.3): `records.declared` and
+/// `records.size`, which read the lane of each declared kind of each loaded plugin instance, and
+/// `records.standing`, which reads the configuration of each space where a standing kind is
+/// enabled.
+mod records {
+    use super::*;
+    use support::records::{Notes, config as notes_config, manifest};
+
+    fn notes_host(dir: &Path, manifest: String) -> Host {
+        seal(dir, |b| {
+            b.with_compiled(sdk(Notes::with_manifest(manifest)))
+        })
+        .unwrap()
+    }
+
+    async fn check(host: &Host, id: &str) -> (String, String, String) {
+        let (_, data) = doctor(host).await;
+        let found = data["checks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|check| check["id"] == id)
+            .unwrap_or_else(|| panic!("no {id}"))
+            .clone();
+        let text = |key: &str| found[key].as_str().unwrap_or_default().to_owned();
+        (text("status"), text("message"), text("suggestion"))
+    }
+
+    async fn put(host: &Host, kind: &str, id: &str, body: Value) {
+        let args = json!({ "op": "put", "args": { "kind": kind, "id": id, "body": body } });
+        let written = call(host, agent("ada"), "notes-write", args).await;
+        assert!(written.success, "{written:?}");
+    }
+
+    async fn reindex(dir: &Path, manifest: String) -> support::Run {
+        support::cli_with(
+            dir,
+            &["call", "store-records-reindex", "{}", "--yes"],
+            support::Scripted::no_terminal(),
+            |b| b.with_compiled(sdk(Notes::with_manifest(manifest))),
+        )
+        .await
+    }
+
+    /// The fixture's manifest without its declaration of `note`.
+    fn undeclared() -> String {
+        let text = manifest();
+        let start = text.find("[[records]]\nkind = \"note\"").unwrap();
+        let end = text.find("[[records]]\nkind = \"bed\"").unwrap();
+        format!("{}{}", &text[..start], &text[end..])
+    }
+
+    #[tokio::test]
+    async fn the_two_record_checks_pass_before_and_after_a_declared_put() {
+        let dir = support::workspace(&notes_config("", ""));
+        let host = notes_host(dir.path(), manifest());
+        // No space has a store yet, and the doctor gives it none.
+        let (status, message, _) = check(&host, "records.declared").await;
+        assert_eq!(
+            (status.as_str(), message.as_str()),
+            ("pass", "No stored space holds a declared record kind")
+        );
+        assert!(!dir.path().join("state/spaces/garden/store").exists());
+        put(
+            &host,
+            "note",
+            "n1",
+            json!({ "statement": "Prune roses in late winter." }),
+        )
+        .await;
+        let (status, message, _) = check(&host, "records.declared").await;
+        assert_eq!(
+            (status.as_str(), message.as_str()),
+            ("pass", "2 declared record kind(s) ready"),
+            "the garden's two kinds; the orchard has no store"
+        );
+        let (status, message, _) = check(&host, "records.size").await;
+        assert_eq!(
+            (status.as_str(), message.as_str()),
+            (
+                "pass",
+                "no declared record kind holds more than 100000 records in a space"
+            )
+        );
+        assert!(!dir.path().join("state/spaces/orchard/store").exists());
+    }
+
+    #[tokio::test]
+    async fn a_stale_kind_fails_and_an_unindexed_record_warns() {
+        let dir = support::workspace(&notes_config("", ""));
+        // A version of the plugin that does not declare `note` writes two: one the declaration
+        // will admit, and one whose statement is not a string.
+        let before = notes_host(dir.path(), undeclared());
+        put(
+            &before,
+            "note",
+            "n1",
+            json!({ "statement": "Prune roses in late winter." }),
+        )
+        .await;
+        put(
+            &before,
+            "note",
+            "n2",
+            json!({ "statement": ["Mulch", "the", "roses"] }),
+        )
+        .await;
+        let (status, _, _) = check(&before, "records.declared").await;
+        assert_eq!(
+            status, "pass",
+            "a kind no manifest declares is not the doctor's"
+        );
+        drop(before);
+        // The next version declares it: the records predate the declaration.
+        let host = notes_host(dir.path(), manifest());
+        let (status, message, suggestion) = check(&host, "records.declared").await;
+        assert_eq!(status, "fail", "{message}");
+        assert_eq!(
+            message,
+            "declared record kinds whose lane must be rebuilt: garden: notes.note"
+        );
+        assert!(
+            suggestion.contains("umbel store-records-reindex"),
+            "{suggestion}"
+        );
+        let outcome = call(&host, agent("a"), "workspace-doctor", json!({})).await;
+        assert_eq!(outcome.error.unwrap().code, "WORKSPACE_UNHEALTHY");
+        drop(host);
+        let rebuilt = reindex(dir.path(), manifest()).await;
+        assert_eq!(rebuilt.code, 0, "{}", rebuilt.stdout);
+        assert_eq!(rebuilt.json()["data"]["kinds"][0]["unindexed"], 1);
+        // Ready, with the one record the declaration does not admit left out and counted.
+        let host = notes_host(dir.path(), manifest());
+        let (status, message, suggestion) = check(&host, "records.declared").await;
+        assert_eq!(status, "warn", "{message}");
+        assert!(message.ends_with("garden: notes.note (1)"), "{message}");
+        assert!(!message.contains("Mulch"), "{message}");
+        assert!(
+            suggestion.contains("a text pointer holds a string"),
+            "{suggestion}"
+        );
+        let outcome = call(&host, agent("a"), "workspace-doctor", json!({})).await;
+        assert!(outcome.success, "a warning leaves the workspace healthy");
+        let warned: Vec<String> = outcome
+            .warnings
+            .unwrap_or_default()
+            .into_iter()
+            .map(|warning| warning.code)
+            .collect();
+        assert!(
+            warned.contains(&"DOCTOR_RECORDS_DECLARED".to_owned()),
+            "{warned:?}"
+        );
+        // A put the declaration admits indexes the record, and the warning goes.
+        put(
+            &host,
+            "note",
+            "n2",
+            json!({ "statement": "Mulch the roses." }),
+        )
+        .await;
+        let (status, message, _) = check(&host, "records.declared").await;
+        assert_eq!(status, "pass", "{message}");
+    }
+
+    #[tokio::test]
+    async fn a_space_with_a_standing_kind_and_no_person_warns_and_each_is_listed() {
+        use support::standing::{config, plugin, workspace};
+        let writable = "\n[plugins.notes.grants.content_write]\nallow = [\"garden/wiki\"]\n";
+        let garden = "person = \"human:local\"\nverified_admits = \"affirmed+attested\"";
+        // The garden has its person; the orchard, where the same standing kind is enabled,
+        // has none. No space has a store: the check reads the configuration and the manifests.
+        let dir = workspace(&config(garden, "", writable));
+        let host = seal(dir.path(), |b| b.with_compiled(plugin())).unwrap();
+        let (status, message, suggestion) = check(&host, "records.standing").await;
+        assert_eq!(status, "warn", "{message}");
+        assert!(
+            message.starts_with(
+                "spaces where a standing record kind is enabled and no person is configured, so no record there can be affirmed or attested: orchard."
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains(
+                "garden (notes.note): own collections: journal; command-writable collections: wiki; verified_admits: affirmed+attested"
+            ),
+            "{message}"
+        );
+        assert!(
+            message.contains(
+                "orchard (notes.note): own collections: none; command-writable collections: none; verified_admits: affirmed"
+            ),
+            "{message}"
+        );
+        assert!(
+            !message.contains("human:local"),
+            "whether a person is set, never who: {message}"
+        );
+        assert!(
+            suggestion.contains("person = \"human:<id>\""),
+            "{suggestion}"
+        );
+        let outcome = call(&host, agent("a"), "workspace-doctor", json!({})).await;
+        assert!(outcome.success, "a warning leaves the workspace healthy");
+        drop(host);
+        // With a person in each space the check passes, and still lists them.
+        let dir = workspace(&config(garden, "person = \"human:rowan\"", writable));
+        let host = seal(dir.path(), |b| b.with_compiled(plugin())).unwrap();
+        let (status, message, _) = check(&host, "records.standing").await;
+        assert_eq!(status, "pass", "{message}");
+        assert!(
+            message
+                .starts_with("every space where a standing record kind is enabled has a person."),
+            "{message}"
+        );
+        assert!(message.contains("orchard (notes.note)"), "{message}");
+        // A workspace where no standing kind is enabled has nothing to say.
+        let dir = support::workspace(&notes_config("", ""));
+        let host = notes_host(dir.path(), undeclared());
+        let (status, message, _) = check(&host, "records.standing").await;
+        assert_eq!(status, "pass", "{message}");
+        assert_eq!(message, "No space enables a standing record kind");
     }
 }

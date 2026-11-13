@@ -1,0 +1,483 @@
+{
+	"about": "The proposal's criterion 3 (section 10): questions about FAST-AF's components, each with the JSON value that answers it, and tags that do not exist. tests/facts.rs briefs every tag at once; each fact must be in the brief, or in the components-open call its omitted names. section is a brief section, or floor (the entry's own fields) or ruleText (a shared rule's text); match picks one item of a list section; field is the item's field, compared with basis left out; contains is a value the section's list holds. The answers were read from violet-elements' pack when this was written and are not regenerated: a change to one is a change to what the brief answers.",
+	"facts": [
+		{
+			"id": "button-type-values",
+			"question": "Which values does violet-button's type attribute take?",
+			"tag": "violet-button",
+			"section": "attributes",
+			"match": {
+				"name": "type"
+			},
+			"field": "values",
+			"answer": [
+				{
+					"value": "button"
+				},
+				{
+					"value": "submit"
+				},
+				{
+					"value": "reset"
+				}
+			]
+		},
+		{
+			"id": "button-type-default",
+			"question": "What is violet-button's type by default?",
+			"tag": "violet-button",
+			"section": "attributes",
+			"match": {
+				"name": "type"
+			},
+			"field": "default",
+			"answer": "button"
+		},
+		{
+			"id": "button-appearance-type",
+			"question": "What type does violet-button's appearance attribute have?",
+			"tag": "violet-button",
+			"section": "attributes",
+			"match": {
+				"name": "appearance"
+			},
+			"field": "type",
+			"answer": "VioletButtonAppearance"
+		},
+		{
+			"id": "button-disabled-type",
+			"question": "Is violet-button's disabled a boolean?",
+			"tag": "violet-button",
+			"section": "attributes",
+			"match": {
+				"name": "disabled"
+			},
+			"field": "type",
+			"answer": "boolean"
+		},
+		{
+			"id": "button-before-slot",
+			"question": "What goes in violet-button's before slot?",
+			"tag": "violet-button",
+			"section": "slots",
+			"match": {
+				"name": "before"
+			},
+			"field": "description",
+			"answer": "Leading inline content such as an icon."
+		},
+		{
+			"id": "button-type-rule",
+			"question": "Which shared rule governs violet-button's type attribute?",
+			"tag": "violet-button",
+			"section": "rules",
+			"contains": "taxonomy.type"
+		},
+		{
+			"id": "button-import",
+			"question": "Where is violet-button imported from?",
+			"tag": "violet-button",
+			"section": "floor",
+			"field": "import",
+			"answer": "@lushly-dev/violet-elements"
+		},
+		{
+			"id": "combobox-open-role",
+			"question": "Which role does violet-combobox expose when open?",
+			"tag": "violet-combobox",
+			"section": "roles",
+			"match": {
+				"state": "open"
+			},
+			"field": "role",
+			"answer": "listbox"
+		},
+		{
+			"id": "combobox-form",
+			"question": "Is violet-combobox form-associated?",
+			"tag": "violet-combobox",
+			"section": "form",
+			"match": {},
+			"field": "associated",
+			"answer": true
+		},
+		{
+			"id": "combobox-change",
+			"question": "What does violet-combobox's change event mean?",
+			"tag": "violet-combobox",
+			"section": "events",
+			"match": {
+				"name": "change"
+			},
+			"field": "description",
+			"answer": "Emitted when an option is chosen or the text is committed."
+		},
+		{
+			"id": "combobox-filter",
+			"question": "How does violet-combobox filter its options?",
+			"tag": "violet-combobox",
+			"section": "usage",
+			"match": {
+				"id": "combobox.filter"
+			},
+			"field": "text",
+			"answer": "Typing filters by label, ignoring case and punctuation; arrow keys skip non-matching options, and \"No matching options\" shows when none match. Unchosen text is discarded on Tab, Escape or an outside press."
+		},
+		{
+			"id": "select-open-name",
+			"question": "Where does violet-select's open listbox get its name?",
+			"tag": "violet-select",
+			"section": "roles",
+			"match": {
+				"state": "open"
+			},
+			"field": "name",
+			"answer": "from the label and the shown value"
+		},
+		{
+			"id": "select-accepts",
+			"question": "Which elements does violet-select's default slot accept?",
+			"tag": "violet-select",
+			"section": "slots",
+			"match": {
+				"name": ""
+			},
+			"field": "accepts",
+			"answer": ["violet-option", "violet-option-group"]
+		},
+		{
+			"id": "select-name",
+			"question": "How is violet-select named for assistive technology?",
+			"tag": "violet-select",
+			"section": "a11y",
+			"match": {
+				"id": "select.name"
+			},
+			"field": "text",
+			"answer": "The trigger is named by the label plus the shown value. Without a label its name is only the value or placeholder text."
+		},
+		{
+			"id": "dialog-alert-role",
+			"question": "Which role does violet-dialog have as an alert?",
+			"tag": "violet-dialog",
+			"section": "roles",
+			"match": {
+				"state": "alert"
+			},
+			"field": "role",
+			"answer": "alertdialog"
+		},
+		{
+			"id": "dialog-type-default",
+			"question": "What is violet-dialog's type by default?",
+			"tag": "violet-dialog",
+			"section": "attributes",
+			"match": {
+				"name": "type"
+			},
+			"field": "default",
+			"answer": "modal"
+		},
+		{
+			"id": "dialog-request-close",
+			"question": "When does violet-dialog fire request-close?",
+			"tag": "violet-dialog",
+			"section": "events",
+			"match": {
+				"name": "request-close"
+			},
+			"field": "description",
+			"answer": "Emitted before close. Call preventDefault() to cancel."
+		},
+		{
+			"id": "dialog-title-slot",
+			"question": "What is violet-dialog's title slot for?",
+			"tag": "violet-dialog",
+			"section": "slots",
+			"match": {
+				"name": "title"
+			},
+			"field": "description",
+			"answer": "Dialog title text, auto-wired to aria-labelledby."
+		},
+		{
+			"id": "tabs-tab-accepts",
+			"question": "Which element goes in violet-tabs' tab slot?",
+			"tag": "violet-tabs",
+			"section": "slots",
+			"match": {
+				"name": "tab"
+			},
+			"field": "accepts",
+			"answer": ["violet-tab"]
+		},
+		{
+			"id": "tabs-orientation-default",
+			"question": "Which orientation do violet-tabs take by default?",
+			"tag": "violet-tabs",
+			"section": "attributes",
+			"match": {
+				"name": "orientation"
+			},
+			"field": "default",
+			"answer": "horizontal"
+		},
+		{
+			"id": "tabs-no-example",
+			"question": "Does the pack hold an example of violet-tabs?",
+			"tag": "violet-tabs",
+			"section": "gaps",
+			"contains": {
+				"kind": "example"
+			}
+		},
+		{
+			"id": "tab-role",
+			"question": "Which role does violet-tab have?",
+			"tag": "violet-tab",
+			"section": "roles",
+			"match": {
+				"state": "default"
+			},
+			"field": "role",
+			"answer": "tab"
+		},
+		{
+			"id": "tooltip-delay",
+			"question": "How long does violet-tooltip wait before it shows, by default?",
+			"tag": "violet-tooltip",
+			"section": "attributes",
+			"match": {
+				"name": "delay"
+			},
+			"field": "default",
+			"answer": 250
+		},
+		{
+			"id": "tooltip-positioning",
+			"question": "Where does violet-tooltip show by default?",
+			"tag": "violet-tooltip",
+			"section": "attributes",
+			"match": {
+				"name": "positioning"
+			},
+			"field": "default",
+			"answer": "above"
+		},
+		{
+			"id": "tooltip-role",
+			"question": "Which role does an open violet-tooltip have?",
+			"tag": "violet-tooltip",
+			"section": "roles",
+			"match": {
+				"state": "open"
+			},
+			"field": "role",
+			"answer": "tooltip"
+		},
+		{
+			"id": "spinner-size-values",
+			"question": "Which sizes does violet-spinner come in?",
+			"tag": "violet-spinner",
+			"section": "attributes",
+			"match": {
+				"name": "size"
+			},
+			"field": "values",
+			"answer": [
+				{
+					"value": "sm"
+				},
+				{
+					"value": "md"
+				},
+				{
+					"value": "lg"
+				}
+			]
+		},
+		{
+			"id": "spinner-decorative",
+			"question": "When is violet-spinner decorative?",
+			"tag": "violet-spinner",
+			"section": "a11y",
+			"match": {
+				"id": "spinner.decorative"
+			},
+			"field": "text",
+			"answer": "Set decorative when visible text nearby, such as \"Saving...\", already says it is loading; it is then hidden from assistive technology."
+		},
+		{
+			"id": "option-role-name",
+			"question": "Where does violet-option get its accessible name?",
+			"tag": "violet-option",
+			"section": "roles",
+			"match": {
+				"state": "default"
+			},
+			"field": "name",
+			"answer": "from its text"
+		},
+		{
+			"id": "option-request-select",
+			"question": "What does violet-option's request-select event mean?",
+			"tag": "violet-option",
+			"section": "events",
+			"match": {
+				"name": "request-select"
+			},
+			"field": "description",
+			"answer": "Emitted when the option is chosen, for the list that owns it."
+		},
+		{
+			"id": "menu-trigger-accepts",
+			"question": "Which element is violet-menu's trigger?",
+			"tag": "violet-menu",
+			"section": "slots",
+			"match": {
+				"name": "trigger"
+			},
+			"field": "accepts",
+			"answer": ["violet-button"]
+		},
+		{
+			"id": "menu-role",
+			"question": "Which role does an open violet-menu have?",
+			"tag": "violet-menu",
+			"section": "roles",
+			"match": {
+				"state": "open"
+			},
+			"field": "role",
+			"answer": "menu"
+		},
+		{
+			"id": "progress-max",
+			"question": "What is violet-progress's max by default?",
+			"tag": "violet-progress",
+			"section": "attributes",
+			"match": {
+				"name": "max"
+			},
+			"field": "default",
+			"answer": "100"
+		},
+		{
+			"id": "progress-indeterminate",
+			"question": "How is violet-progress made indeterminate?",
+			"tag": "violet-progress",
+			"section": "usage",
+			"match": {
+				"id": "progress.indeterminate"
+			},
+			"field": "text",
+			"answer": "Set value=\"\" for indeterminate, which also hides the percentage. With no value attribute it shows 0, and a value that is not a number is treated as 0."
+		},
+		{
+			"id": "checkbox-value",
+			"question": "What value does violet-checkbox submit by default?",
+			"tag": "violet-checkbox",
+			"section": "attributes",
+			"match": {
+				"name": "value"
+			},
+			"field": "default",
+			"answer": "on"
+		},
+		{
+			"id": "checkbox-indeterminate",
+			"question": "What type is violet-checkbox's indeterminate?",
+			"tag": "violet-checkbox",
+			"section": "attributes",
+			"match": {
+				"name": "indeterminate"
+			},
+			"field": "type",
+			"answer": "boolean"
+		},
+		{
+			"id": "checkbox-css",
+			"question": "What is the default of violet-checkbox's --_border-strong?",
+			"tag": "violet-checkbox",
+			"section": "cssProperties",
+			"match": {
+				"name": "--_border-strong"
+			},
+			"field": "default",
+			"answer": "var(--color-border-strong, rgba(28, 26, 13, 0.48))"
+		},
+		{
+			"id": "text-field-before",
+			"question": "Which element goes in violet-text-field's before slot?",
+			"tag": "violet-text-field",
+			"section": "slots",
+			"match": {
+				"name": "before"
+			},
+			"field": "accepts",
+			"answer": ["violet-icon"]
+		},
+		{
+			"id": "text-field-example",
+			"question": "What does violet-text-field's overview example look like?",
+			"tag": "violet-text-field",
+			"section": "examples",
+			"match": {
+				"from": "components-text-field--overview"
+			},
+			"field": "html",
+			"answer": "<violet-text-field label=\"Plant name\" name=\"plantName\" placeholder=\"Search cultivated rows\" required supporting-text=\"Use this for quick filtering or manual entry.\" type=\"search\"><violet-icon decorative icon=\"system/search\" label slot=\"before\"></violet-icon></violet-text-field>"
+		},
+		{
+			"id": "rule-type",
+			"question": "What does the shared rule taxonomy.type say?",
+			"tag": "violet-button",
+			"section": "ruleText",
+			"match": {
+				"id": "taxonomy.type"
+			},
+			"field": "text",
+			"answer": "Passes through the native HTML control type when the component wraps a native form control with standard type semantics. Not for: visual variants; business modes; custom component family names."
+		},
+		{
+			"id": "menu-item-invoke",
+			"question": "What does violet-menu-item's invoke event mean?",
+			"tag": "violet-menu-item",
+			"section": "events",
+			"match": {
+				"name": "invoke"
+			},
+			"field": "description",
+			"answer": "Emitted when the item is activated (click, Enter, or Space). Not fired when disabled."
+		},
+		{
+			"id": "radio-group-form",
+			"question": "Is violet-radio-group form-associated?",
+			"tag": "violet-radio-group",
+			"section": "form",
+			"match": {},
+			"field": "associated",
+			"answer": true
+		},
+		{
+			"id": "badge-summary",
+			"question": "What is violet-badge for?",
+			"tag": "violet-badge",
+			"section": "floor",
+			"field": "summary",
+			"answer": "Compact, non-interactive inline label for a status, category or count."
+		}
+	],
+	"unknown": [
+		{
+			"tag": "violet-buton",
+			"nearest": ["violet-button", "violet-icon", "violet-option"]
+		},
+		{
+			"tag": "violet-data-table"
+		},
+		{
+			"tag": "lushly-card"
+		}
+	]
+}

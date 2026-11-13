@@ -1,0 +1,194 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "declared",
+				"default": "Message",
+				"description": "Programmatic label forwarded to the composer input.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "Send a message\\u2026",
+				"name": "placeholder",
+				"property": "placeholder",
+				"rules": [
+					"taxonomy.placeholder"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "ready",
+				"name": "status",
+				"property": "status",
+				"rules": [
+					"taxonomy.status"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_border-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-composer-font-size, var(--_body-size, 14px))",
+				"name": "--_composer-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-composer-line-height, var(--_body-line, 20px))",
+				"name": "--_composer-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-composer-max-rows, 8)",
+				"name": "--_composer-max-rows"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-composer-min-rows, 3)",
+				"name": "--_composer-min-rows"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_focus-ring"
+			},
+			{
+				"basis": "declared",
+				"default": "none",
+				"name": "--_shadow-control"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_surface-page"
+			},
+			{
+				"basis": "declared",
+				"default": "transparent",
+				"name": "--_surface-subtle"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "When the user clicks stop during streaming.",
+				"name": "stop"
+			},
+			{
+				"basis": "declared",
+				"description": "When the user submits a message. Detail: { text }.",
+				"name": "submit"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-button"
+				],
+				"basis": "observed",
+				"description": "Action buttons (attach file, etc.).",
+				"name": "actions"
+			},
+			{
+				"basis": "observed",
+				"description": "Below-input content (token count, model picker, etc.).",
+				"name": "footer"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-composer--disabled",
+			"html": "<violet-chat-composer disabled label=\"Message\" placeholder=\"Composer is disabled\" status=\"ready\" style=\"max-inline-size: 600px;\" value=\"This draft is locked while the workspace syncs.\"></violet-chat-composer>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-composer--overview",
+			"html": "<violet-chat-composer label=\"Message\" placeholder=\"Send a message…\" status=\"ready\" style=\"max-inline-size: 600px;\" value=\"Draft a planting note for the north shade bed.\"></violet-chat-composer>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-composer--streaming",
+			"html": "<violet-chat-composer label=\"Message\" placeholder=\"Send a message…\" status=\"streaming\" style=\"max-inline-size: 600px;\" value=\"Summarize the latest irrigation recommendations.\"></violet-chat-composer>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "label",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"field.label",
+		"field.label-required",
+		"field.placeholder",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.label",
+		"taxonomy.placeholder",
+		"taxonomy.status",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-chat-composer",
+	"usage": []
+}

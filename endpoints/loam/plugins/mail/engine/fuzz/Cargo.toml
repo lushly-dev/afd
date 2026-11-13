@@ -1,0 +1,45 @@
+[package]
+name = "loam_mail_fuzz"
+version = "0.0.0"
+edition = "2024"
+publish = false
+license = "MIT"
+description = "Fuzz targets for Loam Mail's readers of strangers' bytes (the specification's 6.4)"
+
+# Its own workspace: it builds with nightly Rust and libFuzzer, apart from the engine.
+[workspace]
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+loam_mail = { path = ".." }
+
+[[bin]]
+name = "header"
+path = "fuzz_targets/header.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "body"
+path = "fuzz_targets/body.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "html"
+path = "fuzz_targets/html.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "parts"
+path = "fuzz_targets/parts.rs"
+test = false
+doc = false
+bench = false

@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { execTool } from './release/exec-tool.mjs';
 import './view-state-package.test.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -24,7 +25,7 @@ function ensureBuilt(packageDirectory, requiredFiles) {
 	const distDirectory = join(repoRoot, packageDirectory, 'dist');
 	if (requiredFiles.every((file) => existsSync(join(distDirectory, file)))) return;
 
-	execFileSync('pnpm', ['--dir', packageDirectory, 'build'], {
+	execTool('pnpm', ['--dir', packageDirectory, 'build'], {
 		cwd: repoRoot,
 		stdio: 'inherit',
 	});
@@ -54,13 +55,18 @@ function runConsumer(consumerRoot, source) {
 test('release documentation and workflow agree with root scripts', () => {
 	const manifest = JSON.parse(read('package.json'));
 	const agents = read('AGENTS.md');
+	// AGENTS.md routes shipping to prepare-pr, which carries the changeset rule.
+	const ship = read('.claude/skills/prepare-pr/SKILL.md');
 	const release = read('.github/workflows/release.yml');
 
 	assert.equal(typeof manifest.scripts.changeset, 'string');
 	assert.equal(typeof manifest.scripts['version-packages'], 'string');
 	assert.equal(manifest.scripts['test:coverage'], 'pnpm -r --no-bail test --coverage');
-	assert.doesNotMatch(agents, /pnpm release patch|scripts\/release\.mjs|push origin main --tags/);
-	assert.match(agents, /pnpm changeset/);
+	for (const text of [agents, ship]) {
+		assert.doesNotMatch(text, /pnpm release patch|scripts\/release\.mjs|push origin main --tags/);
+	}
+	assert.match(agents, /`prepare-pr`/);
+	assert.match(ship, /fragment in `\.changeset\/` by hand \(`pnpm changeset` prompts\)/);
 
 	const qualityGate = release.indexOf('run: pnpm check');
 	const publishAction = release.search(/uses: changesets\/action@[0-9a-f]{40} # v2\./);
@@ -149,6 +155,68 @@ test('npm publication requires durable ownership before upload and completion af
 	assert.match(workflow, /registry versions exist without verified finalization/);
 });
 
+test('a push to main cannot cancel a recovery dispatch that is waiting', () => {
+	const workflow = read('.github/workflows/release.yml');
+	// One concurrency group keeps a single pending run, and a newer run replaces it. In the pushes'
+	// group, a push therefore cancelled a recovery waiting behind an earlier push's run.
+	const group = workflow.match(/^concurrency: (.+)$/m)?.[1];
+	assert.equal(
+		group,
+		"${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && '-recovery' || '' }}"
+	);
+	// A run that is publishing or recovering is never cancelled either.
+	assert.doesNotMatch(workflow, /cancel-in-progress/);
+	// What the groups no longer serialize, the claim does: a push run reads it before anything it
+	// could publish, and only the recovery job reconciles.
+	const release = workflow.slice(
+		workflow.indexOf('\n  release:'),
+		workflow.indexOf('\n  recover:')
+	);
+	const recover = workflow.slice(workflow.indexOf('\n  recover:'));
+	assert.match(release, /if: >-\n\s+github\.event_name == 'push'/);
+	assert.ok(
+		release.indexOf('release-claim.mjs inspect') < release.indexOf('run: pnpm check:all'),
+		'a push run reads the claim before the gate and the upload'
+	);
+	assert.match(
+		recover,
+		/if: github\.event_name == 'workflow_dispatch' && github\.ref == 'refs\/heads\/main'/
+	);
+	assert.doesNotMatch(release, /release-recover\.mjs/);
+});
+
+test('the release tag token is narrow, late and reaches only the tag push', () => {
+	const workflow = read('.github/workflows/release.yml');
+	const release = workflow.slice(
+		workflow.indexOf('\n  release:'),
+		workflow.indexOf('\n  recover:')
+	);
+	const recover = workflow.slice(workflow.indexOf('\n  recover:'));
+	for (const [job, before, pusher] of [
+		[release, 'run: pnpm publish:npm', 'node scripts/release-finalize.mjs'],
+		[recover, 'run: pnpm check:all', 'node scripts/release-recover.mjs'],
+	]) {
+		const start = job.indexOf('- name: Create release tag token');
+		const push = job.indexOf(pusher);
+		assert.ok(job.indexOf(before) >= 0 && start > job.indexOf(before), 'created after the gate');
+		assert.ok(push > start, 'created before the tag push');
+		const step = job.slice(start, job.indexOf('\n\n', start));
+		// A missing or broken App must not hold a release GITHUB_TOKEN could still finish.
+		assert.match(step, /continue-on-error: true/);
+		assert.match(step, /vars\.RELEASE_TAG_APP_CLIENT_ID != ''/);
+		assert.deepEqual(step.match(/permission-[a-z-]+: \w+/g), [
+			'permission-contents: write',
+			'permission-workflows: write',
+		]);
+		assert.equal(job.match(/steps\.tag-token\.outputs\.token/g)?.length, 1, 'one step gets it');
+		const nextStep = job.indexOf('\n      - ', push);
+		const env = job.slice(job.lastIndexOf('\n      - ', push), nextStep);
+		assert.match(env, /TAG_TOKEN: \$\{\{ steps\.tag-token\.outputs\.token \}\}/);
+		assert.match(env, /GIT_CONFIG_VALUE_0=\n/, 'clears the credential checkout stored');
+		assert.match(env, /add-mask::\$credential/);
+	}
+});
+
 test('an approved Specimen release builds and stages every prebuilt host before packing', () => {
 	const workflow = read('.github/workflows/release.yml');
 	const platforms = readdirSync(join(repoRoot, 'foundations/specimen/packages'))
@@ -198,6 +266,48 @@ test('workflow actions are pinned to full commit SHAs', () => {
 				`${entry}: pin "${match[1]}" to a commit SHA with a "# vX.Y.Z" comment`
 			);
 		}
+	}
+});
+
+test('agent instruction files fit what every harness loads', () => {
+	// The root AGENTS.md loads in every session of every harness, so it carries only what every
+	// session needs; detail goes to the skill or document that owns it. 12 KiB is about 200 lines of
+	// ordinary length, the size Claude Code's documentation gives as the target for such a file.
+	const rootBudget = 12 * 1024;
+	// Codex concatenates the AGENTS.md files from the repository root down to its working directory
+	// and stops adding files once they reach project_doc_max_bytes, 32 KiB by default, so a nested
+	// file has to fit under that together with the files above it.
+	const chainLimit = 32 * 1024;
+
+	// A hook exports GIT_DIR and its relatives, which would point this at another repository.
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([name]) => !name.startsWith('GIT_'))
+	);
+	const files = execFileSync(
+		'git',
+		['ls-files', '--cached', '--others', '--exclude-standard', '--', ':(glob)**/AGENTS.md'],
+		{ cwd: repoRoot, env, encoding: 'utf8' }
+	)
+		.split('\n')
+		.filter((file) => file && existsSync(join(repoRoot, file)));
+	const size = (file) => Buffer.byteLength(read(file));
+
+	assert.ok(files.includes('AGENTS.md'), 'the root AGENTS.md must exist');
+	assert.ok(
+		size('AGENTS.md') <= rootBudget,
+		`AGENTS.md is ${size('AGENTS.md')} bytes, over its ${rootBudget}-byte budget: move detail into the skill or document that owns it and leave a pointer`
+	);
+	for (const file of files) {
+		const directories = file.split('/').slice(0, -1);
+		const above = directories
+			.map((_, depth) => `${directories.slice(0, depth + 1).join('/')}/AGENTS.md`)
+			.filter((path) => path !== file && files.includes(path));
+		const chain = file === 'AGENTS.md' ? [file] : ['AGENTS.md', ...above, file];
+		const bytes = chain.reduce((total, path) => total + size(path), 0);
+		assert.ok(
+			bytes <= chainLimit,
+			`${chain.join(' + ')} is ${bytes} bytes, over the ${chainLimit} bytes Codex loads: a session started in ${directories.join('/')} would lose instructions`
+		);
 	}
 });
 
@@ -309,6 +419,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'console',
 		'chrome',
 		'web',
+		'identity',
 		'host',
 		'app-hello',
 		'app-tally',
@@ -411,6 +522,7 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 		['loam', 'run'],
 		['walk', 'run'],
 		['mounted', 'mounted'],
+		['hosted', 'run'],
 	]) {
 		const block = new RegExp(
 			`^ {2}${job}:\\n[\\s\\S]*?(?=^ {2}[\\w-]+:\\n|$(?![\\s\\S]))`,
@@ -435,8 +547,15 @@ test("loam.yml shows the titles Loam phase 2's exit check reads, and a manual ru
 				'          node --test --test-reporter=spec scripts/plugin-manifest.test.mjs\n'
 		)
 	);
+	// Phase 6's P6-E7 titles, which ci.yml's log cannot show: local-db's SQLite contract, verbose.
+	assert.ok(
+		loam.includes(
+			"- name: AFD's host path\n" +
+				'        run: pnpm -F @lushly-dev/local-db exec vitest run src/sqlite-adapter.test.ts src/entry.test.ts --reporter=verbose --reporter=github-actions\n'
+		)
+	);
 	// test:browser chains two runs, so a flag would reach only the last: each config names the reporter.
-	for (const config of ['browser', 'conformance', 'mounted', 'walk'])
+	for (const config of ['browser', 'conformance', 'mounted', 'walk', 'hosted'])
 		assert.match(
 			read(`endpoints/loam/packages/web/vitest.${config}.config.ts`),
 			/^\t\treporters: process\.env\.GITHUB_ACTIONS === 'true' \? \['verbose', 'github-actions'\] : \['verbose'\],$/m,
@@ -560,6 +679,36 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 	// The knowledge job uploads its eval report as a workflow artifact; that is not publication.
 	assert.doesNotMatch(umbel, /publish|upload(?!-artifact)|id-token|secrets\./);
 	assert.match(umbel, /actions\/upload-artifact@[0-9a-f]{40} # v/);
+});
+
+test("Mail's engine is a private, route-less Loam plugin outside Loam's workflow", async () => {
+	const { loadInventory } = await import('./release/control.mjs');
+	const manifestPath = 'endpoints/loam/plugins/mail/engine/Cargo.toml';
+	const unit = loadInventory(repoRoot).units.find((entry) => entry.id === 'loam-mail');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(unit.gates, ['loam-plugins.yml', 'release-approval']);
+	assert.deepEqual(
+		unit.distributions.map((entry) => [entry.name, entry.manifest, entry.format, entry.private]),
+		[['loam_mail', manifestPath, 'rust', true]]
+	);
+	const boundary = JSON.parse(read('architecture.json')).units.find(
+		(entry) => entry.manifest === manifestPath
+	);
+	assert.equal(boundary.family, 'loam');
+	assert.equal(boundary.layer, 'endpoint');
+	const manifest = read(manifestPath);
+	assert.match(manifest, /^publish = false$/m);
+	assert.match(manifest, /^afd = \{ path = "\.\.\/\.\.\/\.\.\/\.\.\/\.\.\/packages\/rust"/m);
+	// The engine is a binary: its lock is committed so CI builds what it tested.
+	assert.match(read('.gitignore'), /^!endpoints\/loam\/plugins\/mail\/engine\/Cargo\.lock$/m);
+	// Loam's D109: a plugin is outside Loam's workflow, on push and on pull request.
+	const loam = read('.github/workflows/loam.yml');
+	assert.equal(loam.split("- '!endpoints/loam/plugins/**'").length - 1, 2);
+	const plugins = read('.github/workflows/loam-plugins.yml');
+	assert.match(plugins, /permissions:\n {2}contents: read/);
+	assert.doesNotMatch(plugins, /publish|upload|id-token|secrets\./);
+	assert.equal(plugins.split("- '!endpoints/loam/plugins/*/docs/**'").length - 1, 2);
 });
 
 test("Umbel's test identity provider is a private, route-less, test-only unit", async () => {

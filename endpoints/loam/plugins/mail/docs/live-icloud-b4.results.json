@@ -1,0 +1,134 @@
+{
+	"authenticationResults": {
+		"commonFieldOrders": [
+			{
+				"messages": 869,
+				"order": "R[nodomain>nodomain] R[other>nodomain] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] R[other>other]"
+			},
+			{
+				"messages": 438,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 431,
+				"order": "R[nodomain>nodomain] R[other>nodomain] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] R[nofrom>nodomain] R[nodomain>nodomain]"
+			},
+			{
+				"messages": 389,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 311,
+				"order": "R[nodomain>nodomain] R[other>nodomain] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 287,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] R[nofrom>other]"
+			},
+			{
+				"messages": 238,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 237,
+				"order": "R[nodomain>nodomain] R[other>nodomain] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] R[nodomain>other]"
+			},
+			{
+				"messages": 236,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 221,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] R[nofrom>other]"
+			},
+			{
+				"messages": 207,
+				"order": "R[nodomain>nodomain] R[other>nodomain] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com]"
+			},
+			{
+				"messages": 192,
+				"order": "R[me.com>nodomain] R[other>me.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] A[icloud.com] R[nofrom>nodomain] R[nodomain>nodomain]"
+			}
+		],
+		"fieldsAboveTheFirstResult": {
+			"2-5": 3452,
+			"6+": 10689
+		},
+		"firstFieldOfTheBlock": {
+			"other": 13299,
+			"received": 842
+		},
+		"messagesWithNone": 8471,
+		"messagesWithSeveral": 13471,
+		"otherServerDomain": {
+			"apple.com": 877,
+			"google.com": 795,
+			"icloud.com": 31063,
+			"mac.com": 2733,
+			"mailspamprotection.com": 21,
+			"me.com": 3738,
+			"messagesystems.com": 23,
+			"mimecast.com": 80,
+			"no server named": 164,
+			"others": 100
+		},
+		"receivedFieldsAboveTheFirstResult": {
+			"2-5": 13912,
+			"6+": 229
+		},
+		"refusedBelowAReceivedFieldTakenBy": {
+			"mac.com": 382,
+			"me.com": 36,
+			"others": 139,
+			"outlook.com": 41
+		},
+		"theEngineReadsChecks": {
+			"dkim=fail": 263,
+			"dkim=neutral": 5,
+			"dkim=none": 858,
+			"dkim=other": 3,
+			"dkim=pass": 10723,
+			"dkim=permerror": 46,
+			"dkim=temperror": 11,
+			"dmarc=fail": 296,
+			"dmarc=none": 2108,
+			"dmarc=pass": 8477,
+			"dmarc=permerror": 5,
+			"dmarc=temperror": 1,
+			"spf=fail": 295,
+			"spf=neutral": 71,
+			"spf=none": 707,
+			"spf=other": 68,
+			"spf=pass": 11783,
+			"spf=permerror": 1,
+			"spf=softfail": 462,
+			"spf=temperror": 1
+		},
+		"theEngineReadsNone": 598,
+		"theEngineReadsTheProvidersResults": 13543,
+		"topmostDomainRunInterruptedByAnotherField": 12491,
+		"topmostReceivedByDomain": {
+			"mac.com": 5352,
+			"no server named": 8691,
+			"others": 57,
+			"outlook.com": 41
+		},
+		"topmostServerDomain": {
+			"apple.com": 356,
+			"google.com": 136,
+			"icloud.com": 8857,
+			"mac.com": 1977,
+			"me.com": 2809,
+			"others": 6
+		}
+	},
+	"headerBlocks": 22612,
+	"run": "Step B4, the header blocks of the owner's iCloud account, its largest mailbox left out, read once and kept nowhere. Counts only; servers grouped by the domain their names end in, those seen fewer than 20 times together as others.",
+	"sharedSubjects": {
+		"messagesNamingNoOther": 16214,
+		"messagesUnderSubjectsInSeveralThreads": 6075,
+		"ofThemInOneThread": 1307,
+		"ofThemInSeveralThreads": 1159,
+		"subjectsSharedByTwoOrMore": 2466
+	}
+}

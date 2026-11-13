@@ -1,0 +1,235 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "tree-item.name",
+				"text": "Its label is the default-slot text. For an item with no text, set aria-label on violet-tree-item; value then falls back to it as well."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "expandable",
+				"property": "expandable",
+				"rules": [
+					"taxonomy.expandable",
+					"taxonomy.expandable.not-for"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "expanded",
+				"property": "expanded",
+				"rules": [
+					"taxonomy.expanded"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "selected",
+				"property": "selected",
+				"rules": [
+					"taxonomy.selected"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-indent-step, 1rem)",
+				"name": "--_tree-indent-step"
+			},
+			{
+				"basis": "declared",
+				"default": "1",
+				"name": "--_tree-level"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-background-hover, var(--_surface-subtle))",
+				"name": "--_tree-row-background-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-background-selected, color-mix(in srgb, var(--_surface-subtle) 76%, white))",
+				"name": "--_tree-row-background-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-border-selected, var(--_border-subtle))",
+				"name": "--_tree-row-border-selected"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-gap, var(--_space-inline-md))",
+				"name": "--_tree-row-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-padding-block, var(--_space-stack-2xs))",
+				"name": "--_tree-row-padding-block"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-padding-inline, var(--_space-inline-md))",
+				"name": "--_tree-row-padding-inline"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-row-radius, var(--_radius-md))",
+				"name": "--_tree-row-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-tree-toggle-size, 0.875rem)",
+				"name": "--_tree-toggle-size"
+			},
+			{
+				"basis": "declared",
+				"default": "0.75rem",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the item requests selection.",
+				"name": "select-request"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the item requests an expansion change.",
+				"name": "toggle-request"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Primary item label.",
+				"name": ""
+			},
+			{
+				"accepts": [
+					"violet-tree-item"
+				],
+				"basis": "observed",
+				"description": "Nested `violet-tree-item` descendants; usually assigned automatically.",
+				"name": "item"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional trailing metadata.",
+				"name": "meta"
+			},
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Optional leading visual such as an icon.",
+				"name": "start"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-tree-item--disabled",
+			"html": "<div style=\"max-inline-size: 28rem;\">\n            <violet-tree appearance=\"plain\" error-text label=\"Disabled tree item\" supporting-text value>\n                <violet-tree-item aria-expanded=\"true\" aria-level=\"1\" aria-posinset=\"1\" aria-selected=\"false\" aria-setsize=\"1\" expanded id=\"violet-tree-item-0\" role=\"treeitem\" style=\"--_tree-level: 1;\" tabindex=\"0\" value=\"workspace\">\n                    Workspace\n                    <violet-tree-item aria-disabled=\"true\" aria-level=\"2\" aria-posinset=\"1\" aria-selected=\"false\" aria-setsize=\"1\" disabled id=\"violet-tree-item-1\" role=\"treeitem\" slot=\"item\" style=\"--_tree-level: 2;\" tabindex=\"-1\" value=\"analytics\">Analytics</violet-tree-item>\n                </violet-tree-item>\n            </violet-tree>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-tree-item--overview",
+			"html": "<div style=\"max-inline-size: 28rem;\">\n            <violet-tree appearance=\"plain\" error-text label=\"Tree item states\" supporting-text value=\"overview\">\n                <violet-tree-item aria-level=\"1\" aria-posinset=\"1\" aria-selected=\"true\" aria-setsize=\"2\" id=\"violet-tree-item-0\" role=\"treeitem\" selected style=\"--_tree-level: 1;\" tabindex=\"0\" value=\"overview\">Overview</violet-tree-item>\n                <violet-tree-item aria-expanded=\"true\" aria-level=\"1\" aria-posinset=\"2\" aria-selected=\"false\" aria-setsize=\"2\" expanded id=\"violet-tree-item-1\" role=\"treeitem\" style=\"--_tree-level: 1;\" tabindex=\"-1\" value=\"operations\">\n                    Operations\n                    <violet-tree-item aria-level=\"2\" aria-posinset=\"1\" aria-selected=\"false\" aria-setsize=\"2\" id=\"violet-tree-item-2\" role=\"treeitem\" slot=\"item\" style=\"--_tree-level: 2;\" tabindex=\"-1\" value=\"propagation\">Propagation</violet-tree-item>\n                    <violet-tree-item aria-disabled=\"true\" aria-level=\"2\" aria-posinset=\"2\" aria-selected=\"false\" aria-setsize=\"2\" disabled id=\"violet-tree-item-3\" role=\"treeitem\" slot=\"item\" style=\"--_tree-level: 2;\" tabindex=\"-1\" value=\"irrigation\">Irrigation</violet-tree-item>\n                </violet-tree-item>\n            </violet-tree>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-tree-item--selected",
+			"html": "<div style=\"max-inline-size: 28rem;\">\n            <violet-tree appearance=\"plain\" error-text label=\"Selected tree item\" supporting-text value=\"overview\">\n                <violet-tree-item aria-level=\"1\" aria-posinset=\"1\" aria-selected=\"true\" aria-setsize=\"2\" id=\"violet-tree-item-0\" role=\"treeitem\" selected style=\"--_tree-level: 1;\" tabindex=\"0\" value=\"overview\">Overview</violet-tree-item>\n                <violet-tree-item aria-level=\"1\" aria-posinset=\"2\" aria-selected=\"false\" aria-setsize=\"2\" id=\"violet-tree-item-1\" role=\"treeitem\" style=\"--_tree-level: 1;\" tabindex=\"-1\" value=\"analytics\">Analytics</violet-tree-item>\n            </violet-tree>\n        </div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"a11y.managed",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.expandable",
+		"taxonomy.expandable.not-for",
+		"taxonomy.expanded",
+		"taxonomy.selected",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "One node of a violet-tree; child violet-tree-item elements make it a branch.",
+	"tag": "violet-tree-item",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "tree-item.structure",
+			"text": "The label goes in the default slot. Child violet-tree-item elements become its branch and are moved to the item slot automatically; do not set that slot yourself."
+		},
+		{
+			"basis": "authored",
+			"id": "tree-item.click",
+			"text": "Clicking the chevron toggles the branch; clicking elsewhere on the row selects the item. Both work only inside violet-tree, which handles its select-request and toggle-request events."
+		},
+		{
+			"basis": "authored",
+			"id": "tree-item.expandable",
+			"text": "For a branch whose children load later, set expandable, then append the child items when the tree fires expanded-change for it."
+		},
+		{
+			"basis": "authored",
+			"id": "tree-item.value",
+			"text": "value falls back to the label text for selection and event details. expanded and selected can be set in markup for the initial state."
+		},
+		{
+			"basis": "authored",
+			"id": "tree-item.disabled",
+			"text": "A disabled item cannot be selected or toggled by click but stays in arrow-key navigation."
+		}
+	]
+}

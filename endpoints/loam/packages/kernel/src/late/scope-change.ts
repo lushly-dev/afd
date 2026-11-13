@@ -15,12 +15,14 @@ import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
-import { actorKey } from '../scope/access.js';
+import { type AccessActorV1, personOf } from '../scope/access.js';
 import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
+import type { PersonalStore } from '../scope/personal.js';
 import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
+import { lineZero } from './auth-gate.js';
 import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
@@ -30,6 +32,7 @@ import {
 	setMain,
 	setScopeProject,
 } from './main-state.js';
+import type { SessionSettle } from './session-settle.js';
 
 export interface LateScopeDeps {
 	scope: ScopeRuntime;
@@ -40,10 +43,16 @@ export interface LateScopeDeps {
 	apps(): AppsRuntime;
 	auth: AuthAdapter;
 	isMutation(name: string): boolean;
+	/** A `provider` deployment's view-state store (phase 3 specification, 4.5). */
+	personal?: PersonalStore | undefined;
 	/** The documents specification's check, for a type's instance commands (4.2 and 4.4). */
 	documents?: DocumentCheck;
 	/** After every call: the editor owner it may have moved gives up its overlays (documents specification, 5.4). */
 	settle?(name: string, call: CommandContext): Promise<void> | undefined;
+	/** The kernel's hearing of the adapter, built after this, which needs `applyScopeChange` (phase 3 specification, 4.4). */
+	session?(): SessionSettle | undefined;
+	/** The kernel's clock, which a session's expiry is read on (phase 3 specification, 4.4). */
+	clock?: { now(): number } | undefined;
 	/**
 	 * What only a replay sets (10): its recorded actor by trace ID, undefined when the journal has no such
 	 * entry, and `replaying`.
@@ -51,6 +60,10 @@ export interface LateScopeDeps {
 	internals?: {
 		actorOf?(traceId: string | undefined): { actor?: Actor } | undefined;
 		replaying?: boolean;
+		/** A replay's: its Mock set to the person a `session-settle` entry records (phase 3 specification, 4.4). */
+		drive?(person: string | null): void;
+		/** A replay's, at a reload: its Mock set to the person the page's first settle names (4.4). */
+		startPage?(): void;
 	};
 }
 
@@ -169,7 +182,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		const table = `app-${named.instance}`;
 		if (await deps.store.get(table, storeRecordId(here, key))) return undefined;
 		const { data } = await deps.store.list<AppStoreRecord>(table);
-		const actor = actorKey(call);
+		const { actor } = call;
 		const levels = levelsOf(named.instance);
 		const ids = data.filter((row) => row.key === key).map((row) => rowProject(row.id));
 		// A project the cache does not hold is nowhere, not the workspace: only an id with no project is.
@@ -197,10 +210,11 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		return mismatchRefusal(key, target, current);
 	}
 
+	/** The person the last call was for (phase 3 specification, 3.1): an agent's call for them is no change. */
 	let lastActor: string | undefined;
 
 	/** Leave the active project when `actor` may not be in it. */
-	const leaveIfRefused = (actor: string, context: CommandContext): void => {
+	const leaveIfRefused = (actor: AccessActorV1, context: CommandContext): void => {
 		const active = scope.active();
 		if (!scope.allows(actor, active)) {
 			applyScopeChange({ workspace: active.workspace }, 'actor', context);
@@ -223,18 +237,32 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		 * person's `layout-get` keeps working.
 		 */
 		before(call, name) {
-			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10).
+			// The journal's actor, whatever the replay's one Mock holds, so a refusal stays one (10); then line 0
+			// on that actor, before line 1 (phase 3 specification, 3.3; the step 1 review's I9).
 			const recorded = deps.internals?.actorOf?.(call.traceId);
 			if (recorded) {
 				if (recorded.actor) call.actor = recorded.actor;
 				else delete call.actor;
 			}
-			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move.
+			// A call queued across a change of person, a copied actor not the person's now, or one stamped as a person
+			// the shell is not settled for (4.4), then line 0. Before a command that reads membership again, line 0
+			// waits for what was read, in `run` (the review of step 2's I5), unless the call names another workspace,
+			// which line 1 would refuse after it.
+			const session = deps.session?.();
+			const waits =
+				session?.rereadsBefore(name) &&
+				((call.scope as ScopeV1 | undefined)?.workspace ?? scope.workspace.id) ===
+					scope.workspace.id;
+			const refused =
+				session?.refuse(call, name) ?? (waits ? undefined : lineZero(scope, call, name));
+			if (refused) return refused;
+			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move. A
+			// change of person by `session-settle` moves it there.
 			const mark = (call as { [CALL_MARK]?: string })[CALL_MARK];
-			const actor = actorKey(call);
-			if (mark === undefined || actor === lastActor) return;
-			lastActor = actor;
-			leaveIfRefused(actor, call);
+			const person = personOf(call);
+			if (mark === undefined || person === lastActor || name === 'session-settle') return;
+			lastActor = person;
+			leaveIfRefused(call.actor, call);
 			// A shell command that asked for the active scope runs where it lands, so a person's `layout-get`
 			// keeps working. An app's command, a surface's call and an explicit scope keep theirs, and line 2
 			// refuses them.
@@ -258,6 +286,20 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 					'Replay the whole journal the session recorded'
 				);
 			}
+			// A `provider` deployment writes each person's records under their key: what the person leaving has
+			// pending is written as theirs before a sign-in or sign-out changes who is signed in (4.5).
+			if (deps.personal && name.startsWith('auth-')) await deps.viewState.flush();
+			const session = deps.session?.();
+			if (session) {
+				// Membership read again before an owner's command, settled top-level when it changed, then line 0
+				// on what was read (phase 3 specification, 4.4 and 7.6). A read or a settle that fails refuses the
+				// call, and so does a change of person while it read or since the call was stamped (B2, B3, I1).
+				const refused =
+					(await session.reread(name, input)) ??
+					session.refuse(call, name) ??
+					lineZero(scope, call, name);
+				if (refused) return refused;
+			}
 			const requested = call.scope as ScopeV1;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;
@@ -267,7 +309,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				owner === undefined &&
 				AT_CALL_SCOPE.test(name) &&
 				!BOOT_ONLY.includes(name) &&
-				!scope.allows(actorKey(call), requested)
+				!scope.allows(call.actor, requested)
 			) {
 				return projectNotFound();
 			}
@@ -276,7 +318,7 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				const off = disabledRefusal(scope, owner);
 				if (off) return off;
 				// Line 2: the access decision, before anything else about the call.
-				if (!scope.allows(actorKey(call), requested)) return projectNotFound();
+				if (!scope.allows(call.actor, requested)) return projectNotFound();
 				// Line 3: the owning app's levels.
 				const levels = apps.scopeLevelsOf(name) ?? ['workspace'];
 				if (!levels.includes('workspace') && requested.project === undefined) {
@@ -310,8 +352,16 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// Status, deviation 18). A nested mutation is refused at the port, and nothing chained waits on itself.
 			const documents = owner === undefined ? undefined : deps.documents;
 			const chained = documents?.chained(name, input);
-			const result =
-				documents && chained !== undefined ? await documents.serial(chained, rest) : await rest();
+			// An `auth-*` call settles inside itself (phase 3 specification, 4.4).
+			const auth = name.startsWith('auth-') ? session : undefined;
+			auth?.authStart();
+			let result: CommandResult | undefined;
+			try {
+				result =
+					documents && chained !== undefined ? await documents.serial(chained, rest) : await rest();
+			} finally {
+				await auth?.authEnd(call, name, result?.success === true);
+			}
 			await deps.settle?.(name, call);
 			if (
 				result.success &&
@@ -319,8 +369,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				(call as { [CALL_MARK]?: string })[CALL_MARK]
 			) {
 				// After sign-in or sign-out: the actor the adapter now reports (3.4).
-				lastActor = sessionActor(deps.auth);
-				leaveIfRefused(lastActor, call);
+				const actor = sessionActor(deps.auth, deps.clock);
+				lastActor = personOf({ actor });
+				leaveIfRefused(actor, call);
 			}
 			return result;
 		},

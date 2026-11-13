@@ -1,6 +1,6 @@
 import { type ChildProcess, spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HostError } from './errors.js';
@@ -11,7 +11,7 @@ import {
 	LOCK_STATEMENTS,
 	readLockInfo,
 } from './lock.js';
-import { temporaryDirectory } from './test-support.js';
+import { expectMode, temporaryDirectory } from './test-support.js';
 
 /**
  * Another process taking the same lock with the same statements, as a second `loam-host` would. It
@@ -46,8 +46,16 @@ function otherProcess(data: string): Promise<{ child: ChildProcess; said: string
 	});
 }
 
-afterEach(() => {
-	for (const child of children.splice(0)) child.kill('SIGKILL');
+// Waits for each child to exit: Windows cannot delete the lock's journal while a child still holds it open.
+afterEach(async () => {
+	await Promise.all(
+		children.splice(0).map(async (child) => {
+			if (child.exitCode !== null || child.signalCode !== null) return;
+			const exited = once(child, 'exit');
+			child.kill('SIGKILL');
+			await exited;
+		})
+	);
 });
 
 describe('the data directory lock (section 4)', () => {
@@ -104,8 +112,8 @@ describe('the data directory lock (section 4)', () => {
 		expect(info).toEqual(lock.info);
 		expect(info?.pid).toBe(process.pid);
 		expect(JSON.parse(readFileSync(join(data, LOCK_INFO_FILE), 'utf8'))).toEqual(lock.info);
-		expect(statSync(join(data, LOCK_INFO_FILE)).mode & 0o777).toBe(0o600);
-		expect(statSync(join(data, LOCK_FILE)).mode & 0o777).toBe(0o600);
+		expectMode(join(data, LOCK_INFO_FILE), 0o600);
+		expectMode(join(data, LOCK_FILE), 0o600);
 		lock.release();
 		lock.release();
 		expect(existsSync(join(data, LOCK_INFO_FILE))).toBe(false);

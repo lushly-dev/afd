@@ -5,7 +5,7 @@
  * {@link createAppPort}'s `checkedCall`, which every path of an app's call goes through.
  */
 
-import { type CommandResult, failure } from '@lushly-dev/afd-core';
+import { type Actor, type CommandResult, failure } from '@lushly-dev/afd-core';
 import type { ManifestV2 } from '@lushly-dev/loam-manifest';
 import type { AppDefinitionV1, LoamClientV1, ScopeV1 } from '@lushly-dev/loam-sdk';
 import { BOOT_ONLY } from '../commands.js';
@@ -76,11 +76,13 @@ interface Binding {
 	readOnly?: boolean;
 	/** The outer call's trace ID, for a handler's nested call. */
 	parent?: string;
+	/** The outer call's actor, for a handler's nested call (phase 3 specification, 3.1). */
+	actor?: Actor;
 }
 
 export function createAppPort(options: AppPortOptions): {
 	port: AppPortV2;
-	nestedClient(parent: string, scope: ScopeV1): LoamClientV1;
+	nestedClient(parent: string, scope: ScopeV1, actor: Actor | undefined): LoamClientV1;
 } {
 	const { record, manifest, config, packageUrl, host, ports, granted } = options;
 	const { instance } = record;
@@ -88,17 +90,11 @@ export function createAppPort(options: AppPortOptions): {
 	const callable =
 		host.scope.callable?.(granted, APP_CALLABLE_SHELL_COMMANDS_V1) ?? new Set<string>();
 	let modalRefusedUntil = 0;
-
-	/** A view's `modal-open`: a person who closes one gets time to leave before the next. */
-	async function viewModal<T>(run: () => Promise<CommandResult<T>>): Promise<CommandResult<T>> {
-		const opened = await run();
-		const overlayId = (opened.data as { overlayId?: string } | undefined)?.overlayId;
-		const held = overlayId === undefined ? undefined : host.overlays.whenClosed(overlayId);
-		void held?.settled.then(({ reason }) => {
-			if (reason === 'user') modalRefusedUntil = host.clock() + VIEW_MODAL_COOLDOWN_MS;
-		});
-		return opened;
-	}
+	/**
+	 * Set while this view's `modal-open` is in flight or the modal it opened is open, and cleared when both
+	 * are done. A view's modal waits for it (7).
+	 */
+	let modalHeld: Promise<void> | undefined;
 
 	/**
 	 * Every check an app's call passes, in order, for every path: the chrome's port, a surface's port and a
@@ -111,7 +107,7 @@ export function createAppPort(options: AppPortOptions): {
 	 * 4. A command that names an instance, naming another: `CALL_NOT_GRANTED`.
 	 * 5. A handler's nested mutation: `NESTED_MUTATION_REFUSED`.
 	 * 6. An embed's mutation: `EMBED_READ_ONLY`.
-	 * 7. A view's modal within the cooldown: `OVERLAY_COOLDOWN`.
+	 * 7. A view's modal within the cooldown, checked once its earlier modal has closed: `OVERLAY_COOLDOWN`.
 	 *
 	 * It then runs bound to the surface's scope, the handler's, or the active scope; a workspace-only app's
 	 * call always at the workspace. The scope middleware's own lines follow (3.4).
@@ -131,6 +127,7 @@ export function createAppPort(options: AppPortOptions): {
 		const fields: KernelCallFields = {
 			caller: instance,
 			...(binding.parent !== undefined ? { parent: binding.parent } : {}),
+			...(binding.actor !== undefined ? { actor: binding.actor } : {}),
 			...(binding.scope !== undefined || wide
 				? { scope: wide ? { workspace: bound.workspace } : bound }
 				: {}),
@@ -165,8 +162,32 @@ export function createAppPort(options: AppPortOptions): {
 			return refuse('app-nested-refuse');
 		if (binding.readOnly && host.isMutation(command)) return refuse('app-embed-refuse');
 		if (record.kind === 'view' && command === 'modal-open') {
-			if (host.clock() < modalRefusedUntil) return refuse('app-modal-refuse');
-			return viewModal(() => host.runAs<T>(command, input, rest, fields));
+			// One at a time, and none while the view's modal is open, so the cooldown is checked once that
+			// modal has closed. Checked only on arrival, a call sent while it was open could reach the kernel
+			// just after a person closed it, and open the next before the cooldown began (#1054).
+			return (async () => {
+				while (modalHeld) await modalHeld;
+				if (host.clock() < modalRefusedUntil) return refuse('app-modal-refuse');
+				const opened = host.runAs<T>(command, input, rest, fields);
+				modalHeld = opened
+					.then(
+						async (result) => {
+							// A refusal opened nothing, and no overlay has the id `undefined`.
+							const closed = await host.overlays.whenClosed(
+								(result.data as { overlayId: string } | undefined)?.overlayId as string
+							)?.settled;
+							// A person's close: the cooldown begins before any waiting call checks it.
+							if (closed?.reason === 'user')
+								modalRefusedUntil = host.clock() + VIEW_MODAL_COOLDOWN_MS;
+						},
+						() => {}
+					)
+					// A call that threw holds nothing either: it answered its own caller, and those waiting run theirs.
+					.finally(() => {
+						modalHeld = undefined;
+					});
+				return opened;
+			})();
 		}
 		return host.runAs<T>(command, input, rest, fields);
 	}
@@ -267,8 +288,9 @@ export function createAppPort(options: AppPortOptions): {
 	};
 	return {
 		port,
-		nestedClient: (parent, scope) => ({
-			call: (name, input, callOptions) => checkedCall(name, input, callOptions, { parent, scope }),
+		nestedClient: (parent, scope, actor) => ({
+			call: (name, input, callOptions) =>
+				checkedCall(name, input, callOptions, { parent, scope, ...(actor ? { actor } : {}) }),
 		}),
 	};
 }

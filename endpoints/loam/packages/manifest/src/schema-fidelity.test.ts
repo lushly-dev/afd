@@ -7,6 +7,7 @@
  */
 
 import { createRequire } from 'node:module';
+import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { coreRules, inputSchemaProblem, needsInput } from './core-rules.js';
@@ -117,8 +118,8 @@ interface Row {
 }
 
 /** The table's size, so a report of it can be checked. */
-const ACCEPTED = 46;
-const REFUSED = 74;
+const ACCEPTED = 47;
+const REFUSED = 76;
 
 const TABLE: Row[] = [
 	// `required` and `minProperties` in branches: the follow-up itself.
@@ -296,6 +297,53 @@ const TABLE: Row[] = [
 	{
 		construct: 'additionalProperties false beside oneOf',
 		schema: root({ additionalProperties: false, oneOf: [typed('a'), typed('b')] }),
+		refused: 'additionalProperties',
+	},
+	{
+		// #872: a closed tagged union at the root, read branch by branch.
+		construct: 'closed oneOf branches beside only type: object',
+		schema: {
+			type: 'object',
+			oneOf: [
+				{
+					...typed('a', { properties: { kind: { const: 'a' }, a: { type: 'string' } } }),
+					additionalProperties: false,
+				},
+				{
+					...typed('b', { properties: { kind: { const: 'b' }, b: { type: 'string' } } }),
+					additionalProperties: false,
+				},
+			],
+		},
+		refused: null,
+		inputs: [
+			{ kind: 'a', a: 'x' },
+			{ kind: 'a', a: 'x', c: 'y' },
+			{ kind: 'a', a: 'x', b: 'y' },
+			{ kind: 'b', b: 'y', a: 'x' },
+			{ kind: 'c' },
+		],
+	},
+	{
+		construct: 'one closed oneOf branch beside only type: object',
+		schema: {
+			type: 'object',
+			oneOf: [
+				{ type: 'object', properties: { kind: { const: 'a' } }, additionalProperties: false },
+			],
+		},
+		refused: 'additionalProperties',
+		inputs: [{ kind: 'a', z: 1 }],
+	},
+	{
+		construct: 'closed anyOf branches beside only type: object',
+		schema: {
+			type: 'object',
+			anyOf: [
+				{ ...typed('a'), additionalProperties: false },
+				{ ...typed('b'), additionalProperties: false },
+			],
+		},
 		refused: 'additionalProperties',
 	},
 	{
@@ -1089,7 +1137,7 @@ describe('the input-schema rule against the kernel and a reference', () => {
 	it('accepts the shipped apps’ schemas', async () => {
 		const { readdirSync, readFileSync } = await import('node:fs');
 		const { join } = await import('node:path');
-		const apps = new URL('../../../apps/', import.meta.url).pathname;
+		const apps = fileURLToPath(new URL('../../../apps/', import.meta.url));
 		const files = readdirSync(apps).flatMap((app) => {
 			const dir = join(apps, app, 'schemas');
 			try {

@@ -35,6 +35,7 @@ function renderGroup(args: VioletOptionGroupStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Option Group",
+    component: "violet-option-group",
     tags: ["autodocs"],
     parameters: {
         docs: {

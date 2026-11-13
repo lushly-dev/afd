@@ -1,0 +1,53 @@
+{
+  "tag": "violet-tree-item",
+  "summary": "One node of a violet-tree; child violet-tree-item elements make it a branch.",
+  "usage": [
+    {
+      "id": "tree-item.structure",
+      "text": "The label goes in the default slot. Child violet-tree-item elements become its branch and are moved to the item slot automatically; do not set that slot yourself.",
+      "members": [
+        "item"
+      ]
+    },
+    {
+      "id": "tree-item.click",
+      "text": "Clicking the chevron toggles the branch; clicking elsewhere on the row selects the item. Both work only inside violet-tree, which handles its select-request and toggle-request events.",
+      "members": [
+        "select-request",
+        "toggle-request"
+      ]
+    },
+    {
+      "id": "tree-item.expandable",
+      "text": "For a branch whose children load later, set expandable, then append the child items when the tree fires expanded-change for it.",
+      "members": [
+        "expandable"
+      ]
+    },
+    {
+      "id": "tree-item.value",
+      "text": "value falls back to the label text for selection and event details. expanded and selected can be set in markup for the initial state.",
+      "members": [
+        "value",
+        "expanded",
+        "selected"
+      ]
+    },
+    {
+      "id": "tree-item.disabled",
+      "text": "A disabled item cannot be selected or toggled by click but stays in arrow-key navigation.",
+      "members": [
+        "disabled"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "tree-item.name",
+      "text": "Its label is the default-slot text. For an item with no text, set aria-label on violet-tree-item; value then falls back to it as well.",
+      "members": [
+        "value"
+      ]
+    }
+  ]
+}

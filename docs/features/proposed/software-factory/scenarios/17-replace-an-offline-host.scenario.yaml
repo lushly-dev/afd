@@ -1,0 +1,42 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Replace a lane host that went offline
+description: >-
+  When the lane host dies or disappears, I want another ready machine to take over the queue and the
+  claims from what is on GitHub, so that a fleet survives losing a machine and nothing is stranded
+  on its disk.
+job: replace-an-offline-host
+fixture:
+  file: fixtures/host-offline.json
+  base: fresh.json
+steps:
+  - description: The old host's readiness record has gone stale
+    command: lane-host-list
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: workstation, reachable: false }
+          - { id: mini, reachable: true, ready: true }
+  - description: An ordinary move is refused, pointing to recovery
+    command: lane-host-set
+    input: { id: mini }
+    expect:
+      success: false
+      error:
+        code: LANE_BUSY
+        suggestion: { contains: recover }
+  - description: Recovery rebuilds the queue and claims on the new host from origin and GitHub
+    command: lane-host-set
+    input: { id: mini, recover: true }
+    expect:
+      success: true
+      data:
+        host: { id: mini }
+        rebuilt: { queue: 2, claims: 2 }
+  - description: The new host holds the queue
+    command: lane-status
+    expect:
+      success: true
+      data:
+        host: { id: mini, isLaneHost: true }
+        queue: { length: 2 }

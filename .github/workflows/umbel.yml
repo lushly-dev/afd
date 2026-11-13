@@ -11,6 +11,13 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      # The components plugin's default pack is a byte-equal copy of Specimen's fixture, and its
+      # reader is held to Specimen's invalid fixtures (specification, section 4).
+      - 'foundations/specimen/fixtures/pack/**'
+      - 'foundations/specimen/docs/pack-format.md'
+      # Its end-to-end tests serve FAST-AF's committed pack with the catalog export wrote for it
+      # (specification, section 12, step C4), so a rebuilt record without a new export fails here.
+      - 'foundations/fast-af/packages/violet-elements/pack/**'
       - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   pull_request:
@@ -22,6 +29,13 @@ on:
       # The conformance job runs the todo example's suite and AFD's CLI against Umbel.
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
+      # The components plugin's default pack is a byte-equal copy of Specimen's fixture, and its
+      # reader is held to Specimen's invalid fixtures (specification, section 4).
+      - 'foundations/specimen/fixtures/pack/**'
+      - 'foundations/specimen/docs/pack-format.md'
+      # Its end-to-end tests serve FAST-AF's committed pack with the catalog export wrote for it
+      # (specification, section 12, step C4), so a rebuilt record without a new export fails here.
+      - 'foundations/fast-af/packages/violet-elements/pack/**'
       - '.cargo/config.toml'
       - '.github/workflows/umbel.yml'
   # The macOS leg and the MSRV check run daily and on demand.
@@ -60,7 +74,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: host
-        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path .cargo/config.toml --path .github/workflows/umbel.yml
+        run: node scripts/affected.mjs gate --path endpoints/umbel/ --except endpoints/umbel/docs/ --path packages/rust/ --path foundations/specimen/fixtures/pack/ --path foundations/specimen/docs/pack-format.md --path foundations/fast-af/packages/violet-elements/pack/ --path .cargo/config.toml --path .github/workflows/umbel.yml
 
   check:
     name: Umbel (fmt, clippy, test)
@@ -84,7 +98,7 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: endpoints/umbel
       - name: Format
@@ -106,6 +120,10 @@ jobs:
       # target lints them above as plain crates; wit-bindgen stubs the imports there).
       - name: Clippy (components, wasm32-wasip2)
         run: cargo clippy --locked --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component -- -D warnings
+      # The components plugin has no component build until its step D2, so it is linted for the
+      # target and not built as a `.wasm` file (specification, section 11).
+      - name: Clippy (components plugin, wasm32-wasip2)
+        run: cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings
       # The component-loader tests read hello and the fixture components from
       # target/wasm32-wasip2/release/; no .wasm file is committed.
       - name: Build the components
@@ -117,7 +135,7 @@ jobs:
       # --no-fail-fast here and in the other test steps: one failing test binary must not hide the
       # results of the binaries after it.
       - name: Test
-        run: cargo test --locked --no-fail-fast --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory --exclude umbel-plugin-context --exclude umbel-plugin-curator --exclude umbel-first-party --exclude umbel-hook
+        run: cargo test --locked --no-fail-fast --workspace --exclude umbel-store-embedded --exclude umbel-okf --exclude umbel-scan --exclude umbel-plugin-sources-filesystem --exclude umbel-plugin-knowledge --exclude umbel-plugin-memory --exclude umbel-plugin-context --exclude umbel-plugin-components --exclude umbel-plugin-ideas --exclude umbel-plugin-curator --exclude umbel-first-party --exclude umbel-hook
 
   msrv:
     name: Umbel (MSRV 1.97)
@@ -134,7 +152,7 @@ jobs:
       - name: Install Rust 1.97
         run: rustup toolchain install 1.97.0 --profile minimal
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: endpoints/umbel
           key: msrv
@@ -145,9 +163,11 @@ jobs:
   # conformance suite, and the embedded backend with its bundled SQLite and tantivy builds. Each
   # later step adds its crates to these commands. Step 3 measured the job cold on the development
   # machine (build 83 s, clippy 20 s, tests 75 s, the wasm and MSRV checks 27 s: about 3.4 minutes
-  # at -j4 on a loaded host). Three times that is 10 minutes; the timeout is 15 because the hosted
-  # runners are slower than that machine and had not run the job when this was set
-  # (specification, "Amendments from step 3", C14). Phase 3 step 3a's embedded memory store is in
+  # at -j4 on a loaded host). Three times that is 10 minutes, and the timeout was 15 until the
+  # hosted runners had run the job (specification, "Amendments from step 3", C14). They are slower
+  # than that: with a cold cache the macOS leg took 12 to 15 minutes on 2026-11-08 to 11-10 and was
+  # cancelled at 15 once, and the Linux leg took 13. The timeout is 30, twice the slowest hosted
+  # run, so a cold cache no longer fails the job. Phase 3 step 3a's embedded memory store is in
   # `umbel-store-embedded`, so the same `cargo test` runs its `memory_*` tests and `run_all`, which
   # now holds the memory conformance groups. Step 3b's sealing and key-file tests are there too:
   # `cargo test` enables the crate's `testkit` feature (the crash points of section 7.4) through its
@@ -164,7 +184,7 @@ jobs:
           ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
           && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: endpoints/umbel
@@ -175,7 +195,7 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: endpoints/umbel
           key: knowledge
@@ -223,8 +243,9 @@ jobs:
   # `umbel-first-party`. `cargo fmt` and the
   # workspace clippy are the `check` job's, which leaves these crates' tests to this job; the
   # `check` job's host tests include `tests/default_tools.rs`. Step 8 measured the job's clippy
-  # and tests cold at 120 s on the development machine; three times that is six minutes, and the
-  # timeout stays 15 because hosted runners are slower, as the knowledge job's (C14).
+  # and tests cold at 120 s on the development machine; three times that is six minutes. Hosted
+  # runners are slower, as the knowledge job found (C14): the macOS leg took 11 to 13 minutes on
+  # 2026-11-08 and 11-09, so the timeout is 30, the knowledge job's.
   memory:
     name: Umbel memory (${{ matrix.os }})
     needs: scope
@@ -236,7 +257,7 @@ jobs:
           ${{ fromJSON((github.event_name == 'schedule' || github.event_name == 'workflow_dispatch')
           && '["ubuntu-latest", "macos-latest"]' || '["ubuntu-latest"]') }}
     runs-on: ${{ matrix.os }}
-    timeout-minutes: 15
+    timeout-minutes: 30
     defaults:
       run:
         working-directory: endpoints/umbel
@@ -247,12 +268,12 @@ jobs:
       - name: Install Rust toolchain
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: endpoints/umbel
           key: memory
       - name: Clippy
-        run: cargo clippy --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets -- -D warnings
+        run: cargo clippy --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-components -p umbel-plugin-ideas -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets -- -D warnings
       # `exit_memory` (the phase 3 exit criterion) writes its report here, as the knowledge job's
       # `exit_thousand` does; `leak_probes`, `poisoning` and `forget_bytes` are in the same crate.
       # `exit_curator` (the phase 4 exit criterion) writes its own beside it; `curator_leaks` is
@@ -261,7 +282,7 @@ jobs:
         env:
           UMBEL_EXIT_REPORT: ${{ runner.temp }}/memory-exit-report.json
           UMBEL_CURATOR_EXIT_REPORT: ${{ runner.temp }}/curator-exit-report.json
-        run: cargo test --locked --no-fail-fast -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook
+        run: cargo test --locked --no-fail-fast -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-components -p umbel-plugin-ideas -p umbel-plugin-curator -p umbel-first-party -p umbel-hook
       - name: Upload the exit reports
         if: always()
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -276,7 +297,7 @@ jobs:
         run: rustup toolchain install 1.97.0 --profile minimal
       - name: Check (MSRV 1.97)
         if: matrix.os == 'ubuntu-latest'
-        run: cargo +1.97.0 check --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets
+        run: cargo +1.97.0 check --locked -p umbel-plugin-memory -p umbel-plugin-context -p umbel-plugin-components -p umbel-plugin-ideas -p umbel-plugin-curator -p umbel-first-party -p umbel-hook --all-targets
 
   # The todo example's conformance suite against Umbel, and AFD's own clients (specification
   # section 13, exit runs 3 and 4 and the external client check).
@@ -289,7 +310,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version-file: '.nvmrc'
           cache: pnpm
@@ -298,7 +319,7 @@ jobs:
         working-directory: endpoints/umbel
         run: rustup toolchain install
       - name: Cache cargo
-        uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: |
             endpoints/umbel

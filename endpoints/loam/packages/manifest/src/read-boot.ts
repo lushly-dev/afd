@@ -26,10 +26,24 @@ export interface BootAppV2 {
 	refusal: BootRefusalV2 | null;
 }
 
+/** A way to sign in to a `provider` deployment (phase 3 specification, 2.2; D99). */
+export type IdentityMethodV1 = 'passkey' | 'password' | `oidc:${string}`;
+
+/**
+ * A deployment's identity as its projection carries it (phase 3 specification, 2.1 and 2.2): `local`, a
+ * personal store where every actor is a member and an owner, or `provider`, with the bound organization's
+ * slug for display only, the provider's path relative to `site.base_path`, and the ways in.
+ */
+export type IdentityV1 =
+	| { mode: 'local'; organization?: undefined }
+	| { mode: 'provider'; organization: string; path: string; methods: IdentityMethodV1[] };
+
 export interface BootProjectionV2 {
 	generation: string;
 	workspace: { id: string; name: string };
 	apps: BootAppV2[];
+	/** Version 3's `identity`; `readBoot` always sets it, `local` for a version 2 projection or none (2.2). */
+	identity?: IdentityV1;
 }
 
 /** An instance id or app id, as the projection's schema has it. */
@@ -103,7 +117,19 @@ function appOf(value: unknown): BootAppV2 | undefined {
 }
 
 /**
- * Undefined when `raw` is not a version 2 projection at all. Each field is checked as it is read, as
+ * Stage A's reading of a version 3 projection's `identity` (2.1): `local` only when there is none or it is
+ * exactly `{ mode: 'local' }`; anything else is `provider`, signed out until a session is proved, the
+ * stricter mode. Its fields are not checked here: they are for display, and stage B's `readProjection`
+ * refuses a malformed one. So nothing malformed boots as `local`, and first paint holds no full check (13).
+ */
+const bootIdentity = (value: unknown): IdentityV1 =>
+	// One key, so its JSON has one spelling: exactly `{ mode: 'local' }`.
+	value === undefined || JSON.stringify(value) === '{"mode":"local"}'
+		? { mode: 'local' }
+		: ({ ...recordOf(value), mode: 'provider' } as IdentityV1);
+
+/**
+ * Undefined when `raw` is not a version 2 or 3 projection at all. Each field is checked as it is read, as
  * `unavailableApps` did: a display field out of shape takes its default, after the entry's own `title`
  * and `order` where it has them, and the entry stays listed,
  * since stage B will refuse it with its reason. An entry whose `instance` or `app` fails its pattern,
@@ -113,8 +139,11 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 	const projection = recordOf(raw);
 	const workspace = recordOf(projection?.workspace);
 	const id = workspace?.id;
+	const version = projection?.deployment_version;
+	const identity = version === 3 ? bootIdentity(projection?.identity) : { mode: 'local' as const };
 	if (
-		projection?.deployment_version !== 2 ||
+		!projection ||
+		(version !== 2 && version !== 3) ||
 		!Array.isArray(projection.apps) ||
 		typeof id !== 'string' ||
 		!WORKSPACE_ID.test(id)
@@ -133,5 +162,6 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 		generation: typeof projection.generation === 'string' ? projection.generation : '',
 		workspace: { id, name: text(workspace?.name, 80) ?? id },
 		apps,
+		identity,
 	};
 }

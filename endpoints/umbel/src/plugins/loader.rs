@@ -31,7 +31,7 @@ use super::manifest::{
 };
 #[cfg(feature = "mounted")]
 use super::mounted;
-use super::packs::{PackSet, PackState};
+use super::packs::{PackOrigin, PackSet, PackState};
 use super::pipelines::{self, Known, PipelinePlan, PipelineState};
 use super::skills::{LoadedSkill, read_skill};
 use super::source::{CompiledCatalog, ResolvedSource, resolve_source};
@@ -173,6 +173,10 @@ pub(crate) struct GateEntry {
     /// is marked `dev.umbel/no-change` and makes no event (phase 3 section 6.4), and its event's
     /// text-derived envelope fields are nulled (section 6.2, rule 6).
     pub memory_writer: bool,
+    /// Whether the instance's manifest declares a record kind (the records host specification,
+    /// sections 2 and 14): its event's text-derived envelope fields are removed, as a memory
+    /// writer's are.
+    pub lane_writer: bool,
     /// `journal.mode = "digest"`: the input keys the journal keeps (phase 3 section 7.1). A
     /// pipeline with a digest step inherits digest with no kept key.
     pub digest: Option<Vec<String>>,
@@ -195,6 +199,48 @@ pub(crate) struct LoadedPlugins {
     pub suggestions: Vec<String>,
     /// Every skill of every loaded instance, in `plugins.enabled` order and manifest order.
     pub skills: Vec<LoadedSkill>,
+    /// Every space override of a loaded compiled instance's pack, which the doctor's
+    /// `plugins.pack_checks` hands to the plugin's own check (D172), in instance order, then pack
+    /// and space order.
+    pub pack_checks: Vec<PackCheck>,
+}
+
+/// One space override of one compiled instance's pack, and what checking it needs (D172).
+#[derive(Clone)]
+pub(crate) struct PackCheck {
+    pub instance: String,
+    pub required: bool,
+    pub pack: String,
+    pub space: String,
+    pub plugin: Arc<dyn CompiledPlugin>,
+    pub services: Services,
+}
+
+impl PackCheck {
+    /// Run the plugin's own check against the override: `None` when the plugin offers none.
+    pub(crate) fn run(&self) -> Option<Value> {
+        let input = serde_json::json!({ "space": self.space });
+        let services = self.services.call(&input, &afd::CommandContext::default());
+        self.plugin.check_pack(&self.pack, services)
+    }
+}
+
+impl std::fmt::Debug for PackCheck {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PackCheck")
+            .field("instance", &self.instance)
+            .field("required", &self.required)
+            .field("pack", &self.pack)
+            .field("space", &self.space)
+            .finish_non_exhaustive()
+    }
+}
+
+impl PartialEq for PackCheck {
+    fn eq(&self, other: &Self) -> bool {
+        (&self.instance, self.required, &self.pack, &self.space)
+            == (&other.instance, other.required, &other.pack, &other.space)
+    }
 }
 
 impl LoadedPlugins {
@@ -266,6 +312,9 @@ pub(crate) struct Inputs<'a> {
     /// Extra trusted root certificates (PEM) for HTTPS mounts.
     #[cfg_attr(not(feature = "mounted"), allow(dead_code))]
     pub mount_roots: &'a [Vec<u8>],
+    /// The marks the plugin gate's local arm hands to a handler (the Ideas host-review
+    /// specification, section 6.2), which each plugin handler's wrapper takes.
+    pub local_marks: &'a Arc<crate::person::LocalMarks>,
 }
 
 /// An instance past steps 1 and 2.
@@ -294,6 +343,8 @@ struct Prepared {
     spaces: Vec<String>,
     /// The instance's skills that no earlier instance of the same plugin already ships.
     skills: Vec<LoadedSkill>,
+    /// A compiled instance's space overrides, for the doctor (D172).
+    pack_checks: Vec<PackCheck>,
 }
 
 /// One instance in `plugins.enabled` order: failed, or prepared and waiting for its pipelines.
@@ -419,6 +470,7 @@ pub(crate) fn load(inputs: &Inputs<'_>) -> Result<LoadedPlugins, PluginError> {
         loaded.contexts.extend(prepared.contexts);
         loaded.suggestions.extend(prepared.suggestions);
         loaded.skills.extend(prepared.skills);
+        loaded.pack_checks.extend(prepared.pack_checks);
         loaded.instances.push(prepared.report);
     }
     Ok(loaded)
@@ -444,6 +496,7 @@ fn gate_entry(
         shown: Vec::new(),
         pipeline,
         memory_writer: false,
+        lane_writer: false,
         digest: None,
         authority_prompt: None,
         steps: Vec::new(),
@@ -733,6 +786,9 @@ fn prepare(
     let workspace = inputs.workspace;
     let files = resolved.files.as_ref() as &dyn PluginFiles;
     let hosted = person_page_served(workspace.config());
+    // Where a person-decided command is registered for MCP: the hosted page's workspaces, and a
+    // workspace whose local page is served (the Ideas host-review specification, section 6.2).
+    let served = hosted || local_page_served(workspace.config());
 
     // 3. The instance configuration.
     let configuration = config::resolve(&instance.id, manifest, files, &instance.config)?;
@@ -889,11 +945,13 @@ fn prepare(
             suggestions,
             spaces: enabled,
             skills,
+            pack_checks: Vec::new(),
         });
     }
 
     // 6. Prepare the kind: a compiled plugin builds its handlers; a pack plugin has no code.
     let memory_writer = granted.contains("memory_write");
+    let lane_writer = !manifest.records.is_empty();
     let services = Services::new(Shared {
         instance: instance.id.clone(),
         granted,
@@ -913,9 +971,10 @@ fn prepare(
                     CommandPolicy {
                         store_write: command.effects.contains(&Effect::StoreWrite),
                         cli_only: command.expose.cli
-                            && !mcp_registered(command, hosted)
+                            && !mcp_registered(command, served)
                             && !command.expose.agent,
-                        person: command.person,
+                        require_human: command.require_human,
+                        person: command.person.unwrap_or_default(),
                     },
                 )
             })
@@ -924,7 +983,32 @@ fn prepare(
         attestations: Arc::clone(inputs.attestations),
         memory_policy: instance.memory_write.clone(),
         prompts: Arc::clone(inputs.prompts),
+        records: manifest
+            .records
+            .iter()
+            .map(|decl| (decl.kind.clone(), decl.clone()))
+            .collect(),
+        records_default_access: instance.records_default_access,
     });
+    let pack_checks: Vec<PackCheck> = match &resolved.compiled {
+        Some(plugin) => pack_states
+            .iter()
+            .flat_map(|(pack, states)| {
+                states
+                    .iter()
+                    .filter(|state| state.origin == PackOrigin::Override)
+                    .map(|state| PackCheck {
+                        instance: instance.id.clone(),
+                        required,
+                        pack: pack.clone(),
+                        space: state.space.clone(),
+                        plugin: Arc::clone(plugin),
+                        services: services.clone(),
+                    })
+            })
+            .collect(),
+        None => Vec::new(),
+    };
     let implementations = match &resolved.compiled {
         Some(plugin) => plugin.commands(services)?,
         #[cfg(feature = "component")]
@@ -959,7 +1043,12 @@ fn prepare(
         &schemas,
         returns,
         implementations,
-        hosted,
+        Registration {
+            served,
+            hosted,
+            local_marks: local_page_served(workspace.config())
+                .then(|| Arc::clone(inputs.local_marks)),
+        },
     )?;
     let space_names: Vec<String> = spaces
         .iter()
@@ -980,6 +1069,7 @@ fn prepare(
                     command.require_human,
                 );
                 entry.memory_writer = memory_writer;
+                entry.lane_writer = lane_writer;
                 entry.person = command.person;
                 entry.preview = command.confirm_preview.clone();
                 entry.shown = command
@@ -1001,7 +1091,7 @@ fn prepare(
     let suggestions = manifest
         .commands
         .iter()
-        .filter(|command| command.first_class && mcp_registered(command, hosted))
+        .filter(|command| command.first_class && mcp_registered(command, served))
         .map(|command| command.name.clone())
         .collect();
     Ok(Prepared {
@@ -1028,6 +1118,7 @@ fn prepare(
         suggestions,
         spaces: space_names,
         skills,
+        pack_checks,
     })
 }
 
@@ -1229,14 +1320,33 @@ pub(super) fn check_name(
     }
 }
 
-/// A shared handler, so a definition can wrap a plugin's `Arc`.
-struct Shared2(Arc<dyn CommandHandler>);
+/// A shared handler, so a definition can wrap a plugin's `Arc`. Where the local page is served,
+/// it also takes the mark the plugin gate's local arm holds for this command's call, and runs the
+/// handler with it (the Ideas host-review specification, section 6.2).
+struct Shared2 {
+    handler: Arc<dyn CommandHandler>,
+    name: String,
+    local_marks: Option<Arc<crate::person::LocalMarks>>,
+}
 
 #[async_trait]
 impl CommandHandler for Shared2 {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
-        self.0.execute(input, context).await
+        let marked = self
+            .local_marks
+            .as_ref()
+            .and_then(|marks| marks.take(&self.name, &context));
+        self.handler.execute(input, marked.unwrap_or(context)).await
     }
+}
+
+/// How the definitions of one instance are registered: where a person-decided command is
+/// registered for MCP (`served`), where it is host-verified (`hosted`, the hosted page's
+/// workspaces), and the local arm's marks where the local page is served.
+struct Registration {
+    served: bool,
+    hosted: bool,
+    local_marks: Option<Arc<crate::person::LocalMarks>>,
 }
 
 /// The key of a plugin tool's origin in the tool's `_meta` (section 8.1).
@@ -1271,11 +1381,26 @@ pub(crate) fn person_page_served(config: &crate::workspace::Config) -> bool {
         }
 }
 
+/// Whether a workspace serves the local person page (the Ideas host-review specification,
+/// section 6.2): mode `none` with `person.local.enabled`, which configuration admits only in a
+/// build with the `auth` feature. Its page is `umbel person page-serve`'s, on a loopback address.
+pub(crate) fn local_page_served(config: &crate::workspace::Config) -> bool {
+    config.auth.mode == crate::workspace::AuthMode::None && config.person.local.enabled
+}
+
+/// Whether a person-decided command is registered for MCP in the workspace: where the hosted
+/// page is served ([`person_page_served`]) or the local page is ([`local_page_served`]).
+pub(crate) fn person_mcp_served(config: &crate::workspace::Config) -> bool {
+    person_page_served(config) || local_page_served(config)
+}
+
 /// Whether the command is registered for MCP: as [`CommandDecl::mcp_exposed`] says, and, where
-/// the person page is served ([`person_page_served`], `served`), a `require-human` command whose
-/// `person` names `mcp` and which declares `expose.mcp` (phase 5 section 7.1). Such a command is
-/// host-verified ([`definitions`]), and the scope resolver lists and serves it only to callers
-/// whose namespace serves verified commands; elsewhere it stays off MCP, as in phases 2 to 4.
+/// a person page is served ([`person_mcp_served`], `served`), a `require-human` command whose
+/// `person` names `mcp` and which declares `expose.mcp` (phase 5 section 7.1). On the hosted page
+/// such a command is host-verified ([`definitions`]), and the scope resolver lists and serves it
+/// only to callers whose namespace serves verified commands; on the local page it is not, and the
+/// plugin gate's local arm decides it (the Ideas host-review specification, section 6.2);
+/// elsewhere it stays off MCP, as in phases 2 to 4.
 pub(crate) fn mcp_registered(command: &CommandDecl, served: bool) -> bool {
     command.mcp_exposed() || (served && person_mcp(command) && command.expose.mcp)
 }
@@ -1309,8 +1434,13 @@ fn definitions(
     schemas: &[Value],
     returns: Vec<Option<Value>>,
     implementations: Vec<PluginCommand>,
-    hosted: bool,
+    registration: Registration,
 ) -> Result<Vec<(CommandDefinition, Value)>, PluginError> {
+    let Registration {
+        served,
+        hosted,
+        local_marks,
+    } = registration;
     let bad =
         |key: String, problem: String| PluginError::manifest_invalid(&manifest.file, &key, problem);
     let mut remaining: Vec<Option<PluginCommand>> = implementations.into_iter().map(Some).collect();
@@ -1354,7 +1484,11 @@ fn definitions(
                     &command.name,
                     &command.description,
                     vec![],
-                    Shared2(handler),
+                    Shared2 {
+                        handler,
+                        name: command.name.clone(),
+                        local_marks: local_marks.clone().filter(|_| person_mcp(command)),
+                    },
                 );
                 if let Some(category) = &command.category {
                     definition = definition.with_category(category);
@@ -1411,12 +1545,14 @@ fn definitions(
             }
         };
         let mut definition = definition
-            .with_expose(expose(command, hosted))
+            .with_expose(expose(command, served))
             .with_tool_meta(ORIGIN_KEY, origin(instance, manifest, command));
         // A command a person decides over MCP is confirmed by the host alone (step 1's
         // amendment): AFD never sends it a form nor takes an acknowledgement, whatever
-        // `mcp.confirmations` says, and only Umbel's relay can confirm it.
-        if person_mcp(command) {
+        // `mcp.confirmations` says, and only Umbel's relay can confirm it. On the local page it
+        // has no confirmation mode: AFD's own confirmation is all AFD adds, and the plugin gate's
+        // local arm decides it (the Ideas host-review specification, section 6.2).
+        if person_mcp(command) && (hosted || !served) {
             definition =
                 definition.with_confirmation_mode(afd::CommandConfirmationMode::HostVerified);
         }

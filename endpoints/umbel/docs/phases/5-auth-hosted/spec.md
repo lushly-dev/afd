@@ -103,7 +103,7 @@
     exactly the answer it would get if no one else had called: no total, no trace id, sealed cursors
     ([Amendments from step 9](#amendments-from-step-9)). Requests refused before their body is read are not metered.
     No OpenTelemetry export (owner decision 15).
-  - Step 10, memory, done 2026-11-10: `memory-confirm` over MCP at `verified` with `memory-preview` (8.1);
+  - Step 10, memory, implemented locally 2026-11-10, not pushed or merged as checked 2026-11-13: `memory-confirm` over MCP at `verified` with `memory-preview` (8.1);
     another principal's record changed only by its owner (with equivalents) or a person holding an `editors` token,
     never a sharing writer as such and over MCP never anyone but the owner (8.3); `memory-erase` for a verified
     eraser, blind, after a dry run whose plan it presents, with the two-person rule's erase requests, counts only and
@@ -296,7 +296,7 @@
   `middleware.rs`, `provenance.rs`), `stores.memory_erase` (`src/commands/store_doctor.rs`); envelope version 3's
   `embedder` assurance and `erasure`; `plugins/memory/tests/erase.rs`, `editors.rs`, `confirm_preview.rs` (with
   `tests/hosted_kit/`), `store-embedded/tests/memory_erase.rs`.
-- **Not done:** steps 11 and 12 of section [16](#16-implementation-plan).
+- **Not done:** finish and validate the local step 10 candidate (the [2026-11-13 resume audit](../../STATUS.md#phase-5-auth-and-hosted)), then steps 11 and 12 of section [16](#16-implementation-plan).
 - **Follow-ups:** section [Follow-ups](#follow-ups).
 
 ### Review response
@@ -319,7 +319,7 @@ standards. All hold; three hold in part.
 | 11 | Layer order: the per-token limit sat before verification; the person page inside the bearer layer and outside host checks; "fail closed" too broad | Holds | A new order: an IP limit before verification, the token limit after it, the person page mounted beside MCP with its own host check; the test restated (6.3) |
 | 12 | Several introspection issuers leak opaque tokens; RFC 7662 and RFC 9068 claim requirements | Holds | At most one introspection issuer, used only for non-JWS tokens; `exp`, `iat`, `iss`, `aud`, `sub` and `client_id` required in a response; `iat` and `jti` required in a JWT (3.2) |
 | 13 | The relay protocol was under-specified | Holds | Pending retries, the relay `requestState`, the server-side PKCE verifier and the shared `person.key` are specified (7.2, 7.3) |
-| 14 | `prompt=login` with empty `acr_values` is passable by browser automation; clickjacking | Holds | Threat row; the doctor warns on empty `acr_values` (made a failure, with user verification checked on every login, by owner decision 6 on 2026-11-04); `frame-ancestors 'none'` and `X-Frame-Options: DENY` (7.2, 6.1, 13.2) |
+| 14 | `prompt=login` with empty `acr_values` is passable by browser automation; clickjacking | Holds | Threat row; the doctor warns on empty `acr_values` (made a failure, with user verification checked on every login, by owner decision 6 on 2026-11-04; a passkey login, `mfa` under a phishing-resistant class, accepted by D181 on 2026-11-12); `frame-ancestors 'none'` and `X-Frame-Options: DENY` (7.2, 6.1, 13.2) |
 | 15 | `memory-erase` against D85's "blind" | Holds | Erase acts on the target principal's records without the eraser's filter and returns counts only (8.4) |
 | 16 | Host-run redaction adds a privileged filter against D101; no durable trigger; ownership undefined | Holds | Question 11 amends D101 explicitly; an erasure outbox row in the forget's transaction; ownership is the instance's record namespace, with a host-only command (8.5) |
 | 17 | Plan order | Holds | `umbel-testkit-idp` is step 1b; 0c needs 0b; step 2 split into 2a to 2c (16) |
@@ -584,6 +584,7 @@ person = { issuer = "corp-idp", client_id = "umbel-person-page", client_secret_e
            subject_claim = "sub", max_age_s = 300,
            acr_values = ["phr"],                                        # required: classes needing user verification
            uv_amr = ["pin", "fpt", "face", "iris", "retina", "vbm"] }   # RFC 8176 user-verification methods
+# A passkey login (amended 2026-11-12, D181): acr_values = ["phr"], uv_amr = ["mfa"]
 
 [auth.issuers.corp-idp]                        # an OIDC provider; issues the person login, and may issue tokens
 issuer = "https://idp.example.com"
@@ -639,7 +640,9 @@ Rules checked at open, each failing with `WORKSPACE_CONFIG_INVALID` naming the k
 - **Namespaces.** A namespace's `person.issuer` is an issuer of that namespace. Its `acr_values` and `uv_amr` must
   be non-empty, and `uv_amr` may name only RFC 8176 user-verification methods (`pin`, `fpt`, `face`, `iris`,
   `retina`, `vbm`). A person login without them is invalid, and its namespace's `verified` commands are not served
-  (owner decision 6).
+  (owner decision 6). *Amended 2026-11-12 (D181):* `uv_amr` may also name `mfa`, a passkey login, but only when every
+  `acr_values` class is phishing-resistant (`phr` or `phrh`); `mfa` beside any other class is refused at open
+  (`WORKSPACE_CONFIG_INVALID`, naming `uv_amr`). `hwk` and `swk` stay refused: they report possession only.
 - **Secrets.** Every `*_env` key names a variable, never a value.
 - **Operator id.** In modes `oauth` and `gateway`, `principal.local_id` is `<ns>/<subject>` for a declared
   namespace (4.6).
@@ -1043,7 +1046,7 @@ checks, which apply whenever `auth.mode` is not `none`.
 | `auth.subjects` | A `sub` subject claim at an issuer whose `subject_types_supported` lacks `public` (4.1) |
 | `auth.services` | An issuer with neither `services.clients` nor `services.claim` (warn) |
 | `auth.principals` | `local_id` not namespaced; a `readers`, approver or member entry no namespace or equivalent can produce (4.6) |
-| `auth.person` | **Fails** (owner decision 6) when a namespace's person login has empty `acr_values` or `uv_amr`; when the provider publishes `acr_values_supported` without a configured class; or when it publishes `claims_supported` without `acr` or `amr`. While it fails, that namespace's `verified` commands are not served. Warns when an area with `approve_over_mcp`, or a command with `person.mcp`, has callers in a namespace with no person login; those commands are then not served to them (7.1) |
+| `auth.person` | **Fails** (owner decision 6) when a namespace's person login has empty `acr_values` or `uv_amr`; when `uv_amr` names `mfa` while `acr_values` allows a class other than `phr` or `phrh` (*amended 2026-11-12, D181*); when the provider publishes `acr_values_supported` without a configured class; or when it publishes `claims_supported` without `acr` or `amr`. While it fails, that namespace's `verified` commands are not served. Warns when an area with `approve_over_mcp`, or a command with `person.mcp`, has callers in a namespace with no person login; those commands are then not served to them (7.1) |
 | `auth.secrets` | A `*_env` variable unset |
 | `auth.shared` | `state/shared/` not writable, or not on a local filesystem (D29) |
 | `auth.confirmations` | `mcp.confirmations = "enforce"` (fail). **Why:** under `enforce` the caller's own `confirm: true` proceeds, and under `require-human` an accepted form answer proceeds (`confirmations.rs:268-294`). Neither proves a person, so person-gated commands use the host-verified mode (3.1), and `mcp.confirmations` governs only ordinary `confirm_prompt` commands |
@@ -1104,7 +1107,12 @@ sharing `state/`. Several machines are phase 6, and the shared-state traits (10.
   a valid person login** (one passing `auth.person`). Elsewhere it is not listed and is refused as an unexposed
   command, so mode `none` behaves as phases 2 to 4.
 - **User verification is mandatory** (owner decision 6). Every person login requests an `acr` class that requires
-  user verification, and every ID token it returns must prove it (7.2, step 3).
+  user verification, and every ID token it returns must prove it (7.2, step 3). *Amended 2026-11-12 (D181):* a
+  phishing-resistant multi-factor login counts as user verification: a phishing-resistant `acr` with `amr` `mfa`,
+  which is how a passkey login is reported, since WebAuthn tells a provider only that the authenticator verified the
+  person, not how. Password plus a security key touched without its PIN also passes; that consequence was put to the
+  owner on 2026-11-12, who accepted it: asked whether the rule should also accept a password plus a security key
+  touched without its PIN, he answered "I think that's fine".
 - A `person.cli = "verified"` command at the CLI needs a namespaced `local_id` and that namespace's login, else
   `PERSON_VERIFICATION_UNAVAILABLE`.
 - No other path gives a person:
@@ -1145,6 +1153,12 @@ and `response_mode=query` (so `SameSite=Lax` holds on the return). It is not an 
    - **User verification** (owner decision 6): `acr` must be one of `acr_values`, **and** `amr` must contain at least
      one `uv_amr` method. An ID token without both is refused with `PERSON_VERIFICATION_INSUFFICIENT`, and nothing
      is recorded. The check runs on every login, because no metadata can prove what a class means.
+   - *Amended 2026-11-12 (D181):* `mfa` counts only when the token's `acr` is `phr` or `phrh`, checked at return
+     whatever the configuration says. So `acr` `phr` with `amr` `["mfa", "hwk"]`, `["mfa", "swk"]` or `["mfa"]`
+     passes where `uv_amr` names `mfa`. `hwk` or `swk` is neither required nor enough alone. What this proves is a
+     phishing-resistant, multi-factor login, not a passkey as such: a password with a security key touched without
+     its PIN also qualifies, as both a knowledge and a possession factor. A synced passkey (`swk`) is still bound to
+     the page's origin; a deployment that wants only keys that cannot leave their hardware asks for `phrh` alone.
    - **Its `subject_claim` must equal `for.subject`, in the same namespace**; otherwise "This request is for another
      person", and nothing is recorded.
 4. **Decide.** The page renders **at page time**:
@@ -1552,7 +1566,8 @@ meanwhile.
 | Scope escalation through batch or pipe | Every step resolved before dispatch | `scope_gate.rs` |
 | Confirmation replay across actors (#532) | Actor and credentials bound | AFD `server_confirmations.rs`; `confirm_binding.rs` |
 | An agent answering for a person | Host-verified mode: no form, no `confirm: true`; a URL login bound to `for` | `person_page.rs`, `relay.rs` |
-| **Browser automation with saved credentials** passing `prompt=login` | **Closed under owner decision 6's condition:** every login must show a configured `acr` and a user-verification `amr` (a PIN or biometric at the authenticator), which stored credentials and a scripted browser cannot produce; `auth.person` fails without the configuration, and its commands are not served. Not defended, and stated: an attacker who controls the person's authenticator itself, which no remote check can detect | `doctor_auth.rs`, `person_page.rs` |
+| **Browser automation with saved credentials** passing `prompt=login` | **Closed under owner decision 6's condition:** every login must show a configured `acr` and a user-verification `amr` (a PIN or biometric at the authenticator), which stored credentials and a scripted browser cannot produce; `auth.person` fails without the configuration, and its commands are not served. *Amended 2026-11-12 (D181):* or a phishing-resistant `acr` with `amr` `mfa` (a passkey login). That login needs a gesture at the person's authenticator (user verification, or a touch for a key used after a password), which a scripted browser cannot make. A touch shows that someone is present, not who. Not defended, and stated: an attacker who controls the person's authenticator itself, which no remote check can detect | `doctor_auth.rs`, `person_page.rs` |
+| A provider reporting `phr` and `mfa` for a phishable login (D181, 2026-11-12) | Not defended, and stated: Umbel believes the provider's `acr` and `amr`, as it always has (a provider that misreports `acr` was trusted under decision 6 too). Umbel narrows what it accepts: `mfa` only with a phishing-resistant class, at open and at every return, so a provider honestly reporting password and one-time code as `mfa` under a phishable class is refused | `person_page.rs`, `config_v5.rs`, `src/person/oidc.rs` |
 | A single eraser erasing alone where two are available | `erase_approvals = 2`; the doctor's `stores.memory_erase` warning (owner decision 9) | `memory/tests/erase.rs` |
 | Clickjacking the decision | `frame-ancestors 'none'`, `X-Frame-Options: DENY` | `person_page.rs` |
 | Phishing (another person opens the link) | `for.subject` and namespace matched | `person_page.rs` |
@@ -1649,11 +1664,11 @@ It asserts:
 | `tests/config_v5.rs`, `tests/manifest_v5.rs` | host | 2.2, 2.3 (`person` per surface, MCP exposure only with `mcp`, the preview `keep` rule) |
 | `tests/auth_layers.rs`, `tests/auth_tokens.rs`, `tests/token_canary.rs`, `tests/auth_keys.rs` | host | 6.3; 3.2 and 3.3 through the host |
 | `tests/principal_v1.rs` | host | 4.1 (namespaces, subject claims, services, the `~` form), `act` from an `act` issuer kept and from a non-`act` issuer ignored, groups from claims, 4.6's equivalents |
-| `tests/doctor_auth.rs` | host | Every `auth.*` check of 6.1; `auth.person` fails on empty `acr_values` or `uv_amr`, on an unsupported class, and on `claims_supported` without `acr` or `amr`, and while it fails the namespace's `verified` commands are neither listed nor callable |
+| `tests/doctor_auth.rs` | host | Every `auth.*` check of 6.1; `auth.person` fails on empty `acr_values` or `uv_amr`, on an unsupported class, and on `claims_supported` without `acr` or `amr`, and while it fails the namespace's `verified` commands are neither listed nor callable; it passes `uv_amr = ["mfa"]` with only phishing-resistant classes (D181, 2026-11-12) |
 | `tests/auth_show.rs` | host | 10.3: own projection only |
 | `tests/scope_gate.rs`, `tests/space_visibility.rs` | host | 5.2 to 5.4, built-ins included |
 | `tests/gateway_mode.rs` | host | 4.4, the meet included |
-| `tests/person_page.rs` | host | 7.2: every rule, binding to every field of `for` (a different client of the same person refused), headers, the preview rendered at page time and not stored; an ID token with no `acr`, an unlisted `acr`, no `amr`, or only `pwd` and `otp` in `amr`, each refused with `PERSON_VERIFICATION_INSUFFICIENT` |
+| `tests/person_page.rs` | host | 7.2: every rule, binding to every field of `for` (a different client of the same person refused), headers, the preview rendered at page time and not stored; an ID token with no `acr`, an unlisted `acr`, no `amr`, or only `pwd` and `otp` in `amr`, each refused with `PERSON_VERIFICATION_INSUFFICIENT`. *Amended 2026-11-12 (D181):* where `uv_amr` names `mfa`, `acr` `phr` or `phrh` with `amr` `["mfa", "hwk"]`, `["mfa", "swk"]` or `["mfa"]` decides; `hwk` alone, or `mfa` under an unlisted class, is refused; where it does not, `mfa` is refused. `config_v5.rs` refuses `mfa` beside a class other than `phr` or `phrh` |
 | `tests/confirm_binding.rs` | host | #532 through Umbel |
 | `tests/shared_nonces.rs`, `tests/tasks.rs`, `tests/limits.rs`, `tests/usage.rs` | host | 10.2, 12.2, 11, 12.1, with two processes where shared |
 | `tests/cursor_v1.rs` | host | 9.3: readable heads, deterministic equality, version 0 for `process` |
@@ -1780,6 +1795,8 @@ Each entry keeps the question as it was asked, the decision, and the alternative
      namespace's `verified` commands are not served until it is fixed (2.2, 6.1).
    - With that, the browser-automation threat is closed except against an attacker who controls the person's
      authenticator (13.2).
+   - *Amended 2026-11-12 (D181), decided by the owner:* a passkey login is user verification. `uv_amr` may name
+     `mfa` where every class is `phr` or `phrh`, and a login with such an `acr` and `amr` `mfa` passes (2.2, 7.2).
 
    *Alternatives not chosen:* (a) the token's `sub` as the person, with form answers; (b) RFC 9470 step-up claims with
    form answers; (c) WebAuthn user verification held by Umbel per decision; and, for the strengthening, (d) a doctor
@@ -2409,7 +2426,7 @@ leaves a confirmation's `assurance` out (a row below); no other plugin behaviour
 | 7.2 step 2: `state`, the login and the cookie | `<login id>.<HMAC>`; a `__Host-` cookie whose hash is in the row | As written; a **login is taken once** on its return, and only with its browser's cookie (a leaked `state` without the cookie spends nothing, review), so a replayed `state` finds nothing, and a return that fails after that spends it; a decision starts at most 8 logins (its link is unauthenticated); a login lives at most 10 minutes and never past its decision. The cookie is one per login, `__Host-umbel-person-<login id>`, `Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=600`, cleared once the person decides | Single use is what makes `state` unreplayable; one cookie per login keeps two decisions in one browser apart |
 | 7.2 step 3: the ID token | Signature, `iss`, `aud` = `client_id`, the stored `nonce`, `exp`, `auth_time` within `max_age_s` | Also, by Umbel's own code: a compact JWS with object parts and unique members; `typ` absent or `JWT`; AFD's header rules (`check_jws_header`) against the login issuer's `algorithms`; the key under its `kid`, fitting the `alg` (`check_key_fit`), material that can verify; `aud` exactly one audience, the client id; `azp`, when present, the client id; `exp`, `iat` and `nbf` whole seconds within `auth.clock_skew_s`; `auth_time` no older than `max_age_s` (no skew added) and **not before the login began** (less the skew): a provider that reused a session despite `prompt=login` is refused | "Fresh login" read strictly; no library default applies (step 0b's rule) |
 | 7.2 step 3: RFC 9207 | "Checked when the provider advertises it" | An `iss` on the response must be the provider's whenever present, and is required when the provider advertises `authorization_response_iss_parameter_supported` | A mix-up answer never passes because a provider stayed silent |
-| 7.2 step 3: user verification | `acr` one of `acr_values`, `amr` holding a `uv_amr` method; otherwise `PERSON_VERIFICATION_INSUFFICIENT` | As written, compared exactly; the page answers 403 naming `PERSON_VERIFICATION_INSUFFICIENT`, the login is spent, and the decision stays pending (the agent's retry is asked again) | The code is the person's to read; the call itself is still undecided |
+| 7.2 step 3: user verification | `acr` one of `acr_values`, `amr` holding a `uv_amr` method; otherwise `PERSON_VERIFICATION_INSUFFICIENT` | As written, compared exactly; the page answers 403 naming `PERSON_VERIFICATION_INSUFFICIENT`, the login is spent, and the decision stays pending (the agent's retry is asked again). *Amended 2026-11-12 (D181):* `mfa` counts only under `acr` `phr` or `phrh` (`auth::proves_user_verification`) | The code is the person's to read; the call itself is still undecided |
 | 7.2 step 3: the subject | Its `subject_claim` equals `for.subject` in the same namespace | The claim (a claim text of 1 to 255 characters) mapped as 4.1 maps an id in the login's namespace (`mapped_id`, literal or `~` hashed) must equal `for.subject`; otherwise 403 "This request is for another person", with nothing of the request shown | The same mapping as every principal id |
 | 7.2 step 4: the post's origin | "Their own origin check for posts" | `Origin` exactly the public URL's origin, or `Origin: null` with `Sec-Fetch-Site: same-origin`; no `Origin` is refused. The form also carries the CSRF token (an HMAC of the decision and login ids under `person.key`) and the login's cookie; exactly the fields `login`, `csrf` and `decision`, each once, at most 4 KiB | The page's own `Referrer-Policy: no-referrer` makes a browser serialise its same-origin form post's `Origin` as `null` (Fetch, "append a request `Origin` header"); its fetch metadata, which no page can set, says where the post came from |
 | 7.2 step 4: the headers | CSP `default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` | Also `base-uri 'none'` in the CSP, `Cache-Control: no-store`, `Pragma: no-cache`, `X-Content-Type-Options: nosniff` and `Cross-Origin-Opener-Policy: same-origin`, on every response, the redirect to the provider included (so the provider never learns the decision's URL) | Stricter, and the page's URL names a decision |

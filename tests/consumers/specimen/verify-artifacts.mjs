@@ -204,6 +204,9 @@ assert.deepEqual(Object.keys(native.exports), [
 	'./evidence',
 	'./preview',
 	'./test',
+	'./pack',
+	'./pack/*.schema.json',
+	'./guide/*.schema.json',
 ]);
 assert(!Object.keys(native.dependencies).some((name) => name.startsWith('@lushly-dev/')));
 assert(!Object.keys(native.scripts ?? {}).some((key) => /install|prepare/.test(key)));
@@ -213,7 +216,10 @@ assert.deepEqual(Object.keys(integrationPeers), [
 	'@lushly-dev/afd-core',
 	'@lushly-dev/afd-server',
 ]);
-assert.deepEqual(integration.peerDependencies, integrationPeers);
+// Its Specimen peer is `workspace:^`, which pack writes as the version it was built against (#1066).
+assert.equal(integrationPeers['@lushly-dev/specimen'], 'workspace:^');
+const packedPeers = { ...integrationPeers, '@lushly-dev/specimen': `^${specimenVersion}` };
+assert.deepEqual(integration.peerDependencies, packedPeers);
 const cli = packedManifest('@lushly-dev/specimen-cli');
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
@@ -288,14 +294,22 @@ import * as types from '@lushly-dev/specimen/types';
 import { contextSchema, captureRequestSchema, observationSchema, buildOutputSchema } from '@lushly-dev/specimen/schema';
 import * as schema from '@lushly-dev/specimen/schema';
 import * as evidence from '@lushly-dev/specimen/evidence';
-assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DiscoveryError', 'NORMALIZATION_VERSION', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
+assert.deepEqual(Object.keys(root).sort(), ['CAPTURE_VERSION', 'DEFAULT_STORY_FILES', 'DEFAULT_THEME_THRESHOLD', 'DiscoveryError', 'NORMALIZATION_VERSION', 'THEME_TAGS', 'UNSUPPORTED_ANNOTATIONS', 'composeTokenMaps', 'createSpecimenBench', 'declaredThemes', 'defineGuideSource', 'definePlugin', 'diffObservations', 'finiteValues', 'normalizeDom', 'normalizeSpecifier', 'readManifest']);
 assert.deepEqual(Object.keys(types).sort(), ['CAPTURE_VERSION', 'NORMALIZATION_VERSION']);
-assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema']);
+assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchema', 'baselineRequestSchema', 'buildOutputSchema', 'captureRequestSchema', 'componentSchemaSchema', 'contextSchema', 'contractRequestSchema', 'contractRunSchema', 'coverageRequestSchema', 'coverageRunSchema', 'inspectRequestSchema', 'inspectResultSchema', 'matrixRequestSchema', 'matrixRunSchema', 'migrateRequestSchema', 'migrationReportSchema', 'observationSchema', 'packCheckRunSchema', 'packExportRequestSchema', 'packExportRunSchema', 'packRequestSchema', 'packRunSchema', 'profileRequestSchema', 'profileRunSchema', 'runRequestSchema', 'storyRunSchema', 'suggestRequestSchema', 'suggestRunSchema', 'suiteRequestSchema', 'suiteRunSchema', 'themeSupportSchema', 'themesRequestSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(evidence), ['claim']);
+const pack = await import('@lushly-dev/specimen/pack');
+assert.equal(pack.PACK_FORMAT_VERSION, 1);
+const packRoot = new URL('./fixtures/pack/', import.meta.url).pathname;
+for (const form of ['committed', 'exported'])
+	assert.deepEqual(pack.checkPack(await pack.readPackFiles(packRoot + form), { form }).problems, []);
+const { default: componentSchema } = await import('@lushly-dev/specimen/pack/component.schema.json', { with: { type: 'json' } });
+assert.deepEqual(componentSchema, pack.packJsonSchemas().component);
+assert.equal(pack.packComponentSchema.safeParse({ format: 0 }).success, false);
 assert.equal(evidence.claim({}, 'default', 'an-expectation'), undefined);
 const { setCustomElementsManifest } = await import('@lushly-dev/specimen/preview');
 setCustomElementsManifest({ modules: [] });
-assert.equal(CAPTURE_VERSION, '0.8');
+assert.equal(CAPTURE_VERSION, '0.9');
 assert.equal(NORMALIZATION_VERSION, '0.2');
 assert.equal(typeof normalizeDom('<div> hello </div>'), 'string');
 assert(captureRequestSchema.safeParse({ id: 'primary' }).success);
@@ -467,13 +481,13 @@ import { createSpecimenBench } from '@lushly-dev/specimen';
 import * as integration from '@lushly-dev/specimen-afd';
 import * as endpoint from '@lushly-dev/specimen-cli';
 const { createSpecimenCommands, executeSpecimenCommand, executeSpecimenDiff } = integration;
-assert.deepEqual(Object.keys(integration).sort(), ['a11yRunSchema', 'buildOutputSchema', 'contextSchema', 'contractRunSchema', 'coverageRunSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'matrixRunSchema', 'observationSchema', 'profileRunSchema', 'storyRunSchema', 'suggestRunSchema', 'suiteRunSchema']);
+assert.deepEqual(Object.keys(integration).sort(), ['a11yRunSchema', 'buildOutputSchema', 'contextSchema', 'contractRunSchema', 'coverageRunSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'matrixRunSchema', 'observationSchema', 'profileRunSchema', 'storyRunSchema', 'suggestRunSchema', 'suiteRunSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(endpoint), ['runCli']);
 const root = new URL('./fixtures/', import.meta.url).pathname;
 const bench = await createSpecimenBench({ root });
 try {
 	const commands = createSpecimenCommands(bench);
-	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-a11y', 'specimen-baseline', 'specimen-build', 'specimen-contract', 'specimen-coverage', 'specimen-diff', 'specimen-inspect', 'specimen-list', 'specimen-matrix', 'specimen-migrate', 'specimen-profile', 'specimen-render', 'specimen-run', 'specimen-suggest', 'specimen-validate']);
+	assert.deepEqual(commands.map((command) => command.name).sort(), ['specimen-a11y', 'specimen-baseline', 'specimen-build', 'specimen-contract', 'specimen-coverage', 'specimen-diff', 'specimen-inspect', 'specimen-list', 'specimen-matrix', 'specimen-migrate', 'specimen-pack', 'specimen-pack-check', 'specimen-pack-export', 'specimen-profile', 'specimen-render', 'specimen-run', 'specimen-suggest', 'specimen-themes', 'specimen-validate']);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-list', {})).success, true);
 	assert.equal((await executeSpecimenCommand(bench, 'specimen-unknown', {})).success, false);
 	assert.equal((await executeSpecimenDiff({ left: {}, right: {} })).error.code, 'VALIDATION_ERROR');
@@ -526,7 +540,7 @@ const missing = await install(
 assert.match(missing.log, /ERR_PNPM_PEER_DEP_ISSUES/);
 for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev/afd-server'])
 	assert(
-		missing.log.includes(`missing peer ${peer}@${integrationPeers[peer]}`),
+		missing.log.includes(`missing peer ${peer}@${packedPeers[peer]}`),
 		`expected missing ${peer}`
 	);
 passed('integration without peers is rejected (missing peer)');
@@ -557,10 +571,7 @@ for (const [peer, version] of Object.entries(incompatible)) {
 		overrides: false,
 	});
 	assert.match(result.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-	assert(
-		result.log.includes(`unmet peer ${peer}@${integrationPeers[peer]}: found 3.0.0`),
-		result.log
-	);
+	assert(result.log.includes(`unmet peer ${peer}@${packedPeers[peer]}: found 3.0.0`), result.log);
 	passed(`integration with ${peer}@3.0.0 is rejected (unmet peer)`);
 }
 

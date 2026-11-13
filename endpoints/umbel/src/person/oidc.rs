@@ -31,7 +31,6 @@ use base64::Engine;
 use base64::engine::general_purpose::URL_SAFE_NO_PAD;
 use serde_json::{Map, Value};
 
-use crate::auth::UV_AMR_METHODS;
 use crate::auth::fetch::{FetchError, Fetcher};
 use crate::auth::gateway::{
     claim_text, compact_parts, decode_part, decoding_key, signing_algorithm,
@@ -84,14 +83,8 @@ pub(crate) fn login_findings(
             "namespace {ns}: its person login's uv_amr is empty"
         ));
     }
-    if let Some(other) = login
-        .uv_amr
-        .iter()
-        .find(|method| !UV_AMR_METHODS.contains(&method.as_str()))
-    {
-        failures.push(format!(
-            "namespace {ns}: uv_amr names {other}, which is not an RFC 8176 user-verification method"
-        ));
+    if let Some(problem) = crate::auth::uv_amr_problem(&login.acr_values, &login.uv_amr) {
+        failures.push(format!("namespace {ns}: uv_amr {problem}"));
     }
     match strings(document.get("acr_values_supported")) {
         Some(Some(supported)) => {
@@ -632,7 +625,7 @@ impl Provider {
 
     /// Verify `token` as this provider's ID token for this client and login (the module's rules),
     /// then user verification (owner decision 6): `acr` one of `acr_values` and `amr` holding one
-    /// of `uv_amr`. The subject claim's value is returned for the page to match.
+    /// of `uv_amr`, `mfa` only with a phishing-resistant `acr` (D181). The subject claim's value is returned for the page to match.
     pub(crate) async fn verify(
         &self,
         token: &str,
@@ -766,10 +759,12 @@ impl Provider {
             .get("amr")
             .and_then(Value::as_array)
             .ok_or(Refusal::Amr)?;
+        // `mfa` counts only with a phishing-resistant `acr` (D181), checked here as well as at
+        // open, so a login built around the configuration's rules is refused too.
         let user_verified = verified_by
             .iter()
             .filter_map(Value::as_str)
-            .any(|method| self.login.uv_amr.iter().any(|uv| uv == method));
+            .any(|method| crate::auth::proves_user_verification(method, acr, &self.login.uv_amr));
         if !user_verified {
             return Err(Refusal::Amr);
         }
@@ -868,6 +863,71 @@ mod tests {
             let (failures, warnings) = login_findings("corp", "idp", &login, document, strict);
             assert!(failures.is_empty() && warnings.is_empty());
         }
+    }
+
+    #[test]
+    fn auth_person_accepts_mfa_only_with_phishing_resistant_classes() {
+        let document = serde_json::json!({ "acr_values_supported": ["phr", "phrh", "mfa"], "claims_supported": ["acr", "amr"] });
+        let document = document.as_object().unwrap();
+        let mut login = login();
+        login.uv_amr = vec!["mfa".into()];
+        for strict in [true, false] {
+            let (failures, warnings) = login_findings("corp", "idp", &login, document, strict);
+            assert!(failures.is_empty() && warnings.is_empty(), "{failures:?}");
+        }
+        login.acr_values = vec!["phr".into(), "mfa".into()];
+        let (failures, _) = login_findings("corp", "idp", &login, document, false);
+        assert!(
+            failures
+                .iter()
+                .any(|failure| failure.contains("uv_amr names `mfa`")),
+            "{failures:?}"
+        );
+    }
+
+    #[tokio::test]
+    async fn mfa_is_user_verification_only_under_a_phishing_resistant_acr() {
+        let kit = umbel_testkit_idp::TestIdp::start().await.unwrap();
+        let environment = crate::auth::fetch::AuthEnvironment {
+            roots: vec![kit.ca().certificate_pem().as_bytes().to_vec()],
+            ..crate::auth::fetch::AuthEnvironment::default()
+        };
+        let fetcher = Fetcher::new(&environment).unwrap();
+        // A login that open would refuse (mfa beside a phishable class): the return holds the
+        // rule on its own.
+        let mut login = login();
+        login.acr_values = vec!["phr".into(), "urn:x:uv".into()];
+        login.uv_amr = vec!["mfa".into()];
+        let provider = Provider::new(
+            "corp",
+            "idp",
+            kit.identity_provider().issuer(),
+            vec!["RS256".into()],
+            login,
+            fetcher,
+            &environment,
+            60,
+            Some("secret".into()),
+        );
+        let token = |acr: &str| {
+            kit.identity_provider()
+                .id_token("ada", "page")
+                .nonce("n-1")
+                .claim("acr", serde_json::json!(acr))
+                .claim("amr", serde_json::json!(["mfa", "hwk"]))
+                .sign()
+        };
+        let now_ms = afd::Clock::now(&afd::SYSTEM_CLOCK);
+        let expected = Expected {
+            nonce: "n-1",
+            started_ms: now_ms - 5_000,
+        };
+        assert!(provider.verify(&token("phr"), &expected).await.is_ok());
+        assert_eq!(
+            provider.verify(&token("urn:x:uv"), &expected).await.err(),
+            Some(Refusal::Amr)
+        );
+        assert!(Refusal::Amr.insufficient());
     }
 
     #[tokio::test]

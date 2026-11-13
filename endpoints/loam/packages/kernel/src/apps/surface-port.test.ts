@@ -28,10 +28,10 @@ import {
 	seedProjects,
 } from '../testing.js';
 import { createFixturePorts } from '../testing-probe.js';
-import type { LoamKernelV2, ScopeV1, ViewBrokerV1 } from '../types.js';
+import type { LoamKernelV3, ScopeV1, ViewBrokerV1 } from '../types.js';
 import { createAppStore } from './store.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -524,6 +524,49 @@ describe("P2-E7: a view's broker is its surface's", () => {
 		expect((await journal.read()).at(-1)?.command).toBe('app-modal-refuse');
 	});
 
+	it("7. holds a view's modal sent while its modal is open, and refuses it once a person closes that one (#1054)", async () => {
+		const { kernel, journal } = await viewKernel();
+		await kernel.call('app-open', { instance: 'probev' });
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
+		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
+			overlayId: string;
+		}>;
+		expect(opened.success).toBe(true);
+		// Sent while the modal is open, so it waits for it rather than racing the person's close.
+		const again = view.toolsCall(modal);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		await kernel.call('overlay-dismiss', {
+			overlayId: opened.data?.overlayId,
+			result: 'cancel',
+		});
+		expect(((await again).structuredContent as CommandResult).error?.code).toBe('OVERLAY_COOLDOWN');
+		expect((await journal.read()).at(-1)?.command).toBe('app-modal-refuse');
+		const listed = await kernel.call<{ overlays: unknown[] }>('overlay-list', {});
+		expect(listed.data?.overlays).toEqual([]);
+	});
+
+	it("runs a view's held modal once its earlier one closes with no person's dismissal", async () => {
+		const { kernel } = await viewKernel();
+		await kernel.call('app-open', { instance: 'probev' });
+		const view = kernel.appPort('probev').surface({ scope: WORKSPACE }).view as ViewBrokerV1;
+		const modal = { name: 'modal-open', arguments: { title: 'Sure?', body: 'Say so.' } };
+		const opened = (await view.toolsCall(modal)).structuredContent as CommandResult<{
+			overlayId: string;
+		}>;
+		const again = view.toolsCall(modal);
+		await new Promise((resolve) => setTimeout(resolve, 0));
+		// A timeout is not a person's close, so no cooldown begins and the held call opens the next.
+		await kernel.call('overlay-dismiss', {
+			overlayId: opened.data?.overlayId,
+			result: 'cancel',
+			reason: 'timeout',
+		});
+		const next = (await again).structuredContent as CommandResult<{ overlayId: string }>;
+		expect(next.success).toBe(true);
+		expect(next.data?.overlayId).not.toBe(opened.data?.overlayId);
+	});
+
 	it("refuses a nested query's write from inside a mutation", async () => {
 		const workspace = await scoped();
 		const relayed = await workspace.kernel
@@ -543,7 +586,7 @@ describe("P2-E7: a view's broker is its surface's", () => {
 });
 
 /** The probe app without its optional `projects` grant. */
-async function probeKernel(): Promise<LoamKernelV2> {
+async function probeKernel(): Promise<LoamKernelV3> {
 	const manifest = {
 		...PROBE_MANIFEST,
 		grants: PROBE_MANIFEST.grants?.filter((grant) => grant.name !== 'projects'),

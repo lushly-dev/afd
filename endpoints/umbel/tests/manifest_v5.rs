@@ -820,17 +820,19 @@ fn versions_1_to_4_refuse_what_version_5_adds() {
 
 #[test]
 fn a_host_reads_manifest_versions_1_to_5_and_scopes_stay_reserved() {
-    assert_eq!(umbel::MANIFEST_VERSION, 5);
-    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5]);
+    // Version 6 (the records host specification) is read beside them and tested in
+    // `manifest_v6.rs`.
+    assert_eq!(umbel::MANIFEST_VERSION, 6);
+    assert_eq!(umbel::MANIFEST_VERSIONS, [1, 2, 3, 4, 5, 6]);
     let error = invalid(
         &v5(&refresh("scopes = [\"umbel:write\"]")),
         "commands[0].scopes",
     );
     assert!(error.message().contains("reserved"), "{error}");
-    let error = parse(&head(6, "compiled")).unwrap_err();
+    let error = parse(&head(7, "compiled")).unwrap_err();
     assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED");
     assert!(
-        error.suggestion().contains("manifest versions 1 to 5"),
+        error.suggestion().contains("manifest versions 1 to 6"),
         "{error}"
     );
 }

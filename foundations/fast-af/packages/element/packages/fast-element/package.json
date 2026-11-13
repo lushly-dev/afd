@@ -1,7 +1,7 @@
 {
   "name": "@lushly-dev/fast-element",
   "description": "A library for constructing Web Components",
-  "version": "3.0.1-preview.1",
+  "version": "3.0.1-preview.2",
   "author": "Lushly Dev (forked from Microsoft FAST)",
   "homepage": "https://github.com/lushly-dev/afd/tree/main/foundations/fast-af/packages/element/packages/fast-element#readme",
   "license": "MIT",
@@ -211,16 +211,14 @@
   },
   "devDependencies": {
     "@ast-grep/cli": "^0.51.1",
-    "@biomejs/biome": "^2.4.7",
+    "@biomejs/biome": "^2.6.6",
     "@microsoft/api-extractor": "7.60.1",
     "@playwright/test": "1.64.1",
     "@rollup/plugin-terser": "1.0.2",
-    "@rollup/plugin-typescript": "12.3.1",
-    "concurrently": "10.0.6",
+    "concurrently": "10.0.7",
     "esbuild": "0.28.2",
     "rollup": "4.68.0",
-    "tslib": "^2.8.1",
-    "typescript": "~5.9.3",
+    "typescript": "^7.0.2",
     "vite": "8.3.5"
   },
   "files": [

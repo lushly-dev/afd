@@ -1,0 +1,249 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "text-area.describedby",
+				"text": "The textarea is described only by its supporting text; an aria-describedby on the host is not forwarded to it."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Disables the field.",
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field invalid.",
+				"name": "invalid",
+				"property": "invalid",
+				"rules": [
+					"taxonomy.invalid"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional field label.",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": null,
+				"description": "Maximum number of characters, forwarded to the native textarea.",
+				"name": "maxlength",
+				"property": "maxLength",
+				"rules": [
+					"taxonomy.maxlength"
+				],
+				"type": "number | null"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Native form name used during submission.",
+				"name": "name",
+				"property": "name",
+				"rules": [
+					"taxonomy.name"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional placeholder text.",
+				"name": "placeholder",
+				"property": "placeholder",
+				"rules": [
+					"taxonomy.placeholder"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field readonly.",
+				"name": "readonly",
+				"property": "readonly",
+				"rules": [
+					"taxonomy.readonly"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"description": "Marks the field as required.",
+				"name": "required",
+				"property": "required",
+				"rules": [
+					"taxonomy.required"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": 4,
+				"description": "Number of visible rows.",
+				"name": "rows",
+				"property": "rows",
+				"rules": [
+					"taxonomy.rows"
+				],
+				"type": "number"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Optional supporting text shown below the field.",
+				"name": "supporting-text",
+				"property": "supportingText",
+				"rules": [
+					"taxonomy.supporting-text"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "",
+				"description": "Current textarea value.",
+				"name": "value",
+				"property": "value",
+				"rules": [
+					"taxonomy.value"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--space-layout-sm, 12px)",
+				"name": "--_space-layout-sm"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the value is committed.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the value changes while typing.",
+				"name": "input"
+			}
+		],
+		"form": {
+			"associated": true,
+			"basis": "observed"
+		},
+		"slots": [
+			{
+				"accepts": [
+					"violet-icon"
+				],
+				"basis": "observed",
+				"description": "Leading inline content such as a note or search affordance.",
+				"name": "before"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-text-area--disabled",
+			"html": "<violet-text-area disabled label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Unavailable while sync is running\" rows=\"5\" supporting-text=\"Disabled areas should still show their footprint in a dense form.\"></violet-text-area>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text-area--invalid",
+			"html": "<violet-text-area invalid label=\"Harvest notes\" name=\"harvestNotes\" placeholder=\"Describe the issue...\" required rows=\"5\" supporting-text=\"Required before submitting the crop review.\"></violet-text-area>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-text-area--overview",
+			"html": "<violet-text-area label=\"Planting notes\" name=\"plantingNotes\" placeholder=\"Add observations for this bed...\" required rows=\"4\" supporting-text=\"Keep the most recent field notes with the current plan.\"></violet-text-area>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "maxlength",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"event.native-input",
+		"field.input-change",
+		"field.label",
+		"field.label-required",
+		"field.placeholder",
+		"field.supporting-text",
+		"field.value-attribute",
+		"form.invalid",
+		"form.participation",
+		"import.root",
+		"taxonomy.disabled",
+		"taxonomy.invalid",
+		"taxonomy.label",
+		"taxonomy.maxlength",
+		"taxonomy.name",
+		"taxonomy.placeholder",
+		"taxonomy.readonly",
+		"taxonomy.required",
+		"taxonomy.rows",
+		"taxonomy.supporting-text",
+		"taxonomy.value",
+		"theme.install"
+	],
+	"status": "stable",
+	"summary": "Multi-line text input with a built-in label and supporting text; use for free-form text longer than one line.",
+	"tag": "violet-text-area",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "text-area.validation",
+			"text": "Only required (whitespace-only counts as empty) and invalid affect validity. The maxlength attribute limits typing but a longer value set from script is not reported invalid. A readonly field is never invalid."
+		},
+		{
+			"basis": "authored",
+			"id": "text-area.rows",
+			"text": "The rows attribute sets the initial height and falls back to 4 when it is not a positive number; the user can still resize the field vertically."
+		},
+		{
+			"basis": "authored",
+			"id": "text-area.error",
+			"text": "There is no error-text attribute and no error message is rendered: invalid only turns the border red and sets aria-invalid. Put the error wording in supporting-text while invalid."
+		}
+	]
+}

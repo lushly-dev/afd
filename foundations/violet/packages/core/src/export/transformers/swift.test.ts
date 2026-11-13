@@ -103,6 +103,19 @@ describe('swift transformer', () => {
 		expect(swift).not.toContain('(a, r, g, b) = (int >> 24');
 	});
 
+	it('reads four-digit hex in CSS RGBA order, alpha last, inside and outside the color category', () => {
+		const swift = swiftTransformer.transform([
+			token('color.tint', '#F008'),
+			token('border.veil', '#0a3c'),
+		]);
+
+		expect(lineFor(swift, 'tint')).toBe('public static let tint = SwiftUI.Color(hex: "#F008")');
+		expect(lineFor(swift, 'veil')).toBe('public static let veil = SwiftUI.Color(hex: "#0a3c")');
+		expect(swift).toContain(
+			'        case 4: // RGBA (16-bit), CSS order: alpha last\n            (r, g, b, a) = ((int >> 12) * 17, (int >> 8 & 0xF) * 17, (int >> 4 & 0xF) * 17, (int & 0xF) * 17)\n',
+		);
+	});
+
 	it('escapes quotes, backslashes and control characters in string literals', () => {
 		const swift = swiftTransformer.transform([
 			token('font.family', '"Segoe UI", sans-serif'),

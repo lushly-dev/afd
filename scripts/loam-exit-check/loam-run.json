@@ -192,6 +192,74 @@
 					"conclusion": "success"
 				}
 			]
+		},
+		{
+			"name": "Hosted development profile",
+			"databaseId": 5,
+			"status": "completed",
+			"conclusion": "success",
+			"steps": [
+				{
+					"name": "Set up job",
+					"number": 1,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run actions/checkout",
+					"number": 2,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run pnpm/action-setup",
+					"number": 3,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run actions/setup-node",
+					"number": 4,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run pnpm install --frozen-lockfile",
+					"number": 5,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Build the web host, the hosted server and their dependencies",
+					"number": 6,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Run pnpm -F @lushly-dev/loam-web exec playwright install --with-deps chromium",
+					"number": 7,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Hosted criterion against the development profile",
+					"number": 8,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "The run leaves tracked files unchanged",
+					"number": 9,
+					"status": "completed",
+					"conclusion": "success"
+				},
+				{
+					"name": "Complete job",
+					"number": 10,
+					"status": "completed",
+					"conclusion": "success"
+				}
+			]
 		}
 	]
 }

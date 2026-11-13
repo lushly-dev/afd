@@ -12,18 +12,22 @@ export default defineConfig({
 		reportCompressedSize: false,
 		rolldownOptions: {
 			output: {
-				// The kernel's `document-*` definitions and its editor commands, which `late` imports in stage B, are
-				// named `late-documents` and `late-editor` so `budget` counts each once, in its own row (phase 2
-				// specification, 2.4). A name only: the bundler parts the chunks as it would.
+				// The kernel's `document-*` definitions, its editor commands and its hearing of the adapter, which `late`
+				// imports in stage B, are named `late-documents`, `late-editor` and `late-identity` so `budget` counts
+				// each once, in its own row (phase 2 specification, 2.4; phase 3 specification, 13). A name only: the
+				// bundler parts the chunks as it would.
 				chunkFileNames: (chunk) => {
-					const late = /kernel[\\/]dist[\\/]late[\\/](documents|editor-commands)\.js$/.exec(
-						chunk.facadeModuleId ?? ''
-					)?.[1];
+					const late =
+						/kernel[\\/]dist[\\/]late[\\/](documents|editor-commands|session-settle)\.js$/.exec(
+							chunk.facadeModuleId ?? ''
+						)?.[1];
 					return late === 'documents'
 						? 'assets/late-documents-[hash].js'
-						: late
-							? 'assets/late-editor-[hash].js'
-							: 'assets/[name]-[hash].js';
+						: late === 'session-settle'
+							? 'assets/late-identity-[hash].js'
+							: late
+								? 'assets/late-editor-[hash].js'
+								: 'assets/[name]-[hash].js';
 				},
 				codeSplitting: {
 					groups: [

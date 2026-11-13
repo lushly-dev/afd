@@ -1,0 +1,16 @@
+# The Mail proposal's phase 0, step 0.3: does a local store hold a mailbox?
+# A measurement tool, not the engine. It builds on the versions Umbel's embedded store pins,
+# so a shared target directory compiles them once.
+[package]
+name = "loam_mail_store_bench"
+version = "0.0.0"
+edition = "2021"
+publish = false
+
+# Its own workspace, so no other manifest in the repository picks it up.
+[workspace]
+
+[dependencies]
+rusqlite = { version = "0.41", features = ["bundled"] }
+tantivy = { version = "0.27", default-features = false, features = ["mmap", "stopwords", "stemmer", "lz4-compression"] }
+serde_json = "1"

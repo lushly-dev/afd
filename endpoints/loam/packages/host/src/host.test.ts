@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process';
-import { existsSync, readdirSync, statSync } from 'node:fs';
+import { existsSync, readdirSync } from 'node:fs';
 import { chmod, mkdir, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
@@ -8,10 +8,13 @@ import { promisify } from 'node:util';
 import { afterEach, describe, expect, it } from 'vitest';
 import { HostError } from './errors.js';
 import { createLoamHost, type LoamHost, type LoamHostConfig } from './host.js';
+import { bindServer, createHostServer, HOST_INTERNALS } from './internal.js';
 import { acquireDataLock } from './lock.js';
 import {
 	deploymentFile,
+	expectMode,
 	fixtureDist,
+	loosen,
 	raw,
 	rawRequest,
 	SHELL_POLICY,
@@ -374,14 +377,14 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 
 	it('P6-E1: creates the data directory 0700, writes the site 0600 and 0700, and never a mounts file', async () => {
 		const { data } = await start();
-		expect(statSync(data).mode & 0o777).toBe(0o700);
+		expectMode(data, 0o700);
 		expect(readdirSync(join(data, 'public'))).toEqual(['site']);
 		const walk = (directory: string): void => {
-			expect(statSync(directory).mode & 0o777, directory).toBe(0o700);
+			expectMode(directory, 0o700, directory);
 			for (const entry of readdirSync(directory, { withFileTypes: true })) {
 				const path = join(directory, entry.name);
 				if (entry.isDirectory()) walk(path);
-				else expect(statSync(path).mode & 0o777, path).toBe(0o600);
+				else expectMode(path, 0o600, path);
 			}
 		};
 		walk(join(data, 'public'));
@@ -415,6 +418,7 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 		const data = join(root, 'data');
 		await mkdir(data, { mode: 0o750 });
 		await chmod(data, 0o750);
+		if (process.platform === 'win32') loosen(data);
 		await expect(
 			createLoamHost({
 				server: serverConfig(data),
@@ -478,6 +482,31 @@ describe('a failed start leaves nothing half-built', () => {
 		const { shell, sandbox } = boundAddresses(host);
 		expect(sandbox?.port).toBe(taken);
 		expect((await raw(shell.port, '/index.html', { host: SHELL_HOST })).status).toBe(200);
+	});
+});
+
+describe('sockets handed over by the development profile (5.1)', () => {
+	it('serves on them with one request handler each, however often listen() runs', async () => {
+		const root = await temporaryDirectory();
+		const data = join(root, 'data');
+		await mkdir(data, { mode: 0o700 });
+		const shell = createHostServer();
+		await bindServer(shell, '127.0.0.1', 0);
+		const port = (shell.address() as AddressInfo).port;
+		const host = await createLoamHost({
+			server: serverConfig(data, { listen: `127.0.0.1:${port}` }),
+			deployment: await deploymentFile(root),
+			dist: await fixtureDist(root),
+			[SERVE_STATIC_DEPLOYMENT]: true,
+			[HOST_INTERNALS]: { lock: acquireDataLock(data), servers: { shell } },
+		});
+		hosts.push(host);
+		await host.listen();
+		await host.listen();
+		expect(shell.listenerCount('request')).toBe(1);
+		expect((await raw(port, '/index.html', { host: SHELL_HOST })).status).toBe(200);
+		await host.close();
+		expect(shell.listening).toBe(false);
 	});
 });
 
@@ -549,6 +578,12 @@ describe('TLS and HSTS (3.1, 3.5)', () => {
 		});
 		expect(named.status).toBe(200);
 		expect(named.headers['strict-transport-security']).toBe('max-age=31536000');
+		const port443 = await raw(remote.port, '/', {
+			host: 'loam.example.test:443',
+			accept: HTML,
+			tls: true,
+		});
+		expect(port443.status).toBe(200);
 		const misdirected = await raw(remote.port, '/', { host: SHELL_HOST, tls: true });
 		expect(misdirected.status).toBe(421);
 		expect(misdirected.headers['strict-transport-security']).toBe('max-age=31536000');

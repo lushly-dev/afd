@@ -1,15 +1,17 @@
-//! Group `envelope`: the refusals of section 2.1, on every write path.
+//! Group `envelope`: the refusals of section 2.1, on every write path, and the `local` assurance
+//! that only envelope version 4 holds (the Ideas host-review specification, section 6.4).
 
 use serde_json::json;
 
-use super::{CaseResult, Ctx, Env, ensure_eq, expect_err, invalid, pass, samples};
-use crate::{DocumentStore, Envelope, Expect, Origin, Source};
+use super::{CaseResult, Ctx, Env, ensure_eq, everyone, expect_err, invalid, pass, samples};
+use crate::{Assurance, Authority, Confirmation, DocumentStore, Envelope, Expect, Origin, Source};
 
 pub(super) const CASES: &[(&str, super::CaseFn)] = &[
     ("origin_unspecified_is_refused", unspecified),
     ("missing_access_or_sensitivity_is_refused", missing),
     ("malformed_values_are_refused", malformed),
     ("reserved_fields_do_not_parse", reserved),
+    ("a_local_assurance_needs_version_4", local_assurance),
 ];
 
 fn base() -> Envelope {
@@ -127,5 +129,70 @@ fn reserved(_: &Env<'_>) -> CaseResult {
             invalid,
         )?;
     }
+    pass()
+}
+
+/// An envelope of `version` whose confirmation was proven by `assurance`.
+fn confirmed(version: u32, assurance: Assurance) -> Envelope {
+    let mut e = base();
+    e.version = version;
+    e.authority = Some(Authority::Person.as_str().to_owned());
+    e.confirmation = Some(Confirmation {
+        by: "human:local".to_owned(),
+        at: "2026-11-02T10:00:00.000Z".to_owned(),
+        prior_authority: Authority::Agent,
+        assurance: Some(assurance),
+    });
+    e.delegation_chain = Some(Vec::new());
+    e
+}
+
+fn local_assurance(env: &Env<'_>) -> CaseResult {
+    let s = env.fresh()?;
+    let d = &*s.stores.documents;
+    // Version 3 knows two assurances: a `local` one is refused, on every write path.
+    refused(
+        d,
+        |e| *e = confirmed(3, Assurance::local()),
+        "a local assurance in version 3",
+    )?;
+    // Version 4 holds a `local` assurance and nothing else.
+    refused(
+        d,
+        |e| *e = confirmed(4, Assurance::terminal()),
+        "a terminal assurance in version 4",
+    )?;
+    // A version 4 envelope is stored and read back as it was written.
+    let envelope = confirmed(4, Assurance::local());
+    d.put_record(
+        "suite",
+        "confirmed",
+        "local",
+        json!({ "note": "mulch before the frost" }),
+        envelope.clone(),
+        Expect::Absent,
+    )
+    .ctx("put_record with a version 4 envelope")?;
+    let got = d
+        .get_record("suite", "confirmed", "local", &everyone())
+        .ctx("get_record")?
+        .ok_or("the version 4 record is not readable")?;
+    ensure_eq(got.envelope, envelope, "the version 4 envelope reads back")?;
+    // A version 3 envelope is stored as it is today.
+    let terminal = confirmed(3, Assurance::terminal());
+    d.put_record(
+        "suite",
+        "confirmed",
+        "terminal",
+        json!({ "note": "water at dawn" }),
+        terminal.clone(),
+        Expect::Absent,
+    )
+    .ctx("put_record with a version 3 envelope")?;
+    let got = d
+        .get_record("suite", "confirmed", "terminal", &everyone())
+        .ctx("get_record")?
+        .ok_or("the version 3 record is not readable")?;
+    ensure_eq(got.envelope, terminal, "the version 3 envelope reads back")?;
     pass()
 }

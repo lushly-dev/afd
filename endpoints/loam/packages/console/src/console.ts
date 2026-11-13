@@ -101,7 +101,10 @@ const template = html<LoamConsole>`
 		<div class="group">
 			<h1>${(x) => x.app?.title ?? x.context?.instance ?? ''}</h1>
 			<p class="secondary" ?hidden="${(x) => !x.app}">${(x) => x.app?.trustLine ?? ''}</p>
-			<p class="secondary" ?hidden="${(x) => !x.loading}">Loading…</p>
+			<div class="actions" ?hidden="${(x) => !x.loading}">
+				<violet-spinner decorative size="sm"></violet-spinner>
+				<p class="secondary">Loading…</p>
+			</div>
 		</div>
 		${when(
 			(x) => x.loadFailure !== null,

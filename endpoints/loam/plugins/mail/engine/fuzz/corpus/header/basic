@@ -1,0 +1,7 @@
+From: a <a@example.com>
+Subject: =?utf-8?q?caf=C3=A9?=
+Message-ID: <x@y>
+References: <a@b> <c@d>
+Authentication-Results: mx.example; spf=pass; dkim=fail
+List-Id: <l.example.com>
+

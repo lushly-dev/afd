@@ -2144,19 +2144,20 @@ test.describe("The ElementController", () => {
             });
 
             class Test extends FASTElement {
-                observed: boolean;
                 observedChanged() {
-                    if (this.observed) {
+                    if ((this as any).observed) {
                         orderLog.push("observables bound");
                     }
                 }
             }
 
             Observable.defineProperty(Test.prototype, "observed");
-            // Set the default via the internal backing field so that the
-            // change handler doesn't fire on the prototype itself. The
-            // @observable decorator does this automatically.
-            (Test.prototype as any)._observed = true;
+
+            // A value set before upgrade is what connect binds. The element
+            // is made before its definition so that the test doesn't depend
+            // on how the test runner compiles a declared class field.
+            const element = document.createElement(name) as any;
+            element.observed = true;
 
             (
                 await FASTElementDefinition.compose(
@@ -2165,8 +2166,8 @@ test.describe("The ElementController", () => {
                     },
                 )
             ).define();
+            customElements.upgrade(element);
 
-            const element = document.createElement(name) as any;
             const controller = ElementController.forCustomElement(element);
             Observable.getNotifier(controller).subscribe(
                 {

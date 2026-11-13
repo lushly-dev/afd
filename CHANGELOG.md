@@ -1,6 +1,8 @@
 # Changelog
 
-AFD's four implementations are versioned and released independently, and each keeps its own changelog. This file is the index.
+Everything released from this repository is versioned independently and keeps its own changelog: AFD's four implementations, and the other projects in the family that carry a version. This file is the index.
+
+## AFD
 
 | Implementation | Package | Changelog | Release tags |
 |---|---|---|---|
@@ -25,13 +27,34 @@ Changesets writes these changelogs when it versions the packages.
 | `@lushly-dev/afd-adapters` | [packages/adapters/CHANGELOG.md](packages/adapters/CHANGELOG.md) |
 | `@lushly-dev/local-db` | [packages/local-db/CHANGELOG.md](packages/local-db/CHANGELOG.md) |
 
+## The rest of the family
+
+Specimen and `@lushly-dev/fast-element` are published to npm under the `preview` tag and Botcore to PyPI; the Violet packages are versioned here but not published from this repository yet. Umbel, Loam and Health have no release, so their status files are the record ([Umbel](endpoints/umbel/docs/STATUS.md), [Loam](endpoints/loam/docs/STATUS.md)).
+
+| Project | Package | Changelog |
+|---|---|---|
+| Specimen | `@lushly-dev/specimen` | [foundations/specimen/CHANGELOG.md](foundations/specimen/CHANGELOG.md) |
+| Specimen | `@lushly-dev/specimen-afd` | [integrations/specimen-afd/CHANGELOG.md](integrations/specimen-afd/CHANGELOG.md) |
+| Specimen | `@lushly-dev/specimen-fast-af` | [integrations/specimen-fast-af/CHANGELOG.md](integrations/specimen-fast-af/CHANGELOG.md) |
+| Specimen | `@lushly-dev/specimen-cli` | [endpoints/specimen-cli/CHANGELOG.md](endpoints/specimen-cli/CHANGELOG.md) |
+| FAST-AF | `@lushly-dev/fast-element` | [foundations/fast-af/packages/element/packages/fast-element/CHANGELOG.md](foundations/fast-af/packages/element/packages/fast-element/CHANGELOG.md) |
+| Violet | `@lushly-dev/violet-core` | [foundations/violet/packages/core/CHANGELOG.md](foundations/violet/packages/core/CHANGELOG.md) |
+| Violet | `@lushly-dev/violet-runtime` | [foundations/violet/packages/runtime/CHANGELOG.md](foundations/violet/packages/runtime/CHANGELOG.md) |
+| Violet | `@lushly-dev/violet-afd` | [integrations/violet-afd/CHANGELOG.md](integrations/violet-afd/CHANGELOG.md) |
+| Violet | `@lushly-dev/violet-cli` | [endpoints/violet-cli/CHANGELOG.md](endpoints/violet-cli/CHANGELOG.md) |
+| Violet | `@lushly-dev/violet-server` | [endpoints/violet-server/CHANGELOG.md](endpoints/violet-server/CHANGELOG.md) |
+| Botcore | [`lushly-botcore`](https://pypi.org/project/lushly-botcore/) on PyPI | [endpoints/botcore/CHANGELOG.md](endpoints/botcore/CHANGELOG.md) |
+| Alfred | `alfred`, this repository's quality bot | [alfred/CHANGELOG.md](alfred/CHANGELOG.md) |
+
+Specimen's four prebuilt host packages keep changelogs beside them, in `foundations/specimen/packages/`. The shared AFD contract has its own: [spec/CHANGELOG.md](spec/CHANGELOG.md).
+
 ## Recording a change
 
-- **An `@lushly-dev/*` package:** run `pnpm changeset` and commit the file it creates.
-- **Python, Rust or C++:** add an entry to that implementation's changelog, in its unreleased section.
-- **Anything else** (CI, docs, examples, alfred) ships in no package, so its pull request is the record.
+- **An `@lushly-dev/*` package**, in AFD or in a project above: run `pnpm changeset` and commit the file it creates.
+- **Python, Rust, C++, Botcore or Alfred:** add an entry to that changelog, in its unreleased section.
+- **Anything else** (CI, docs, examples, unreleased projects) ships in no package, so its pull request is the record.
 
-The [`do-release` skill](.claude/skills/do-release/SKILL.md) describes how each implementation is released.
+The [`cut-release` skill](.claude/skills/cut-release/SKILL.md) describes how each one is released.
 
 ## Earlier history
 

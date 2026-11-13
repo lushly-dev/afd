@@ -1,0 +1,156 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "",
+				"name": "aria-label",
+				"property": "ariaLabel",
+				"rules": [
+					"taxonomy.aria-label",
+					"taxonomy.aria-label.not-for"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "disabled",
+				"property": "disabled",
+				"rules": [
+					"taxonomy.disabled"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "readonly",
+				"property": "readonly",
+				"rules": [
+					"taxonomy.readonly"
+				],
+				"type": "boolean"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--color-focus-ring, rgba(24, 24, 27, 0.5))",
+				"name": "--_focus-ring"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--radius-md, 4px)",
+				"name": "--_radius-md"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_text-muted) 36%, transparent)",
+				"name": "--_rating-empty"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-warning-text, #92400E)",
+				"name": "--_rating-filled"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_rating-filled) 82%, var(--_surface-page))",
+				"name": "--_rating-hover"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--size-font-sm, 12px)",
+				"name": "--_size-font-sm"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-page, #fffefa)",
+				"name": "--_surface-page"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-surface-subtle, #f0efe6)",
+				"name": "--_surface-subtle"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-muted, #616775)",
+				"name": "--_text-muted"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-text-secondary, #414651)",
+				"name": "--_text-secondary"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted whenever the rating is committed by pointer or keyboard interaction.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted whenever the rating changes.",
+				"name": "input"
+			}
+		],
+		"slots": []
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-data-grid-rating--dense-scale",
+			"html": "<violet-data-grid-rating aria-label=\"Risk score\"></violet-data-grid-rating>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-data-grid-rating--disabled",
+			"html": "<violet-data-grid-rating aria-label=\"Harvest confidence rating\" disabled></violet-data-grid-rating>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-data-grid-rating--empty",
+			"html": "<violet-data-grid-rating aria-label=\"Harvest confidence rating\"></violet-data-grid-rating>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.aria-label",
+		"taxonomy.aria-label.not-for",
+		"taxonomy.disabled",
+		"taxonomy.readonly",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-data-grid-rating",
+	"usage": []
+}

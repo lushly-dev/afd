@@ -1,0 +1,78 @@
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# The figures are in the error's details ({ limit, retryAfterMs }), which P4-E10 asserts. The
+# owner's half of limits (the quarter rule, limit-usage-get) is P4-E10's too.
+name: Learn which limit my app hit, and what to change
+description: >-
+  When my app hits one of the shell's limits, I want to learn which one and when to try again,
+  so that I fix my app instead of guessing.
+job: limit-refuses-call
+tags: [loam-runner]
+steps:
+  - description: "[caller: hello] Push 1 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 1 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 2 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 2 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 3 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 3 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 4 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 4 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 5 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 5 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 6 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 6 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 7 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 7 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 8 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 8 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 9 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 9 }
+    expect:
+      success: true
+  - description: "[caller: hello] Push 10 of the ten a minute allows"
+    command: notification-push
+    input: { title: Reminder 10 }
+    expect:
+      success: true
+  - description: "[caller: hello] The eleventh is refused, naming the fixed rate and when to retry"
+    command: notification-push
+    input: { title: Reminder 11 }
+    expect:
+      success: false
+      error:
+        code: RATE_LIMITED
+        suggestion: { contains: fixed }
+  - description: "[caller: hello] The ten that fitted are all there"
+    command: notification-list
+    input: { source: hello, unread: true }
+    expect:
+      success: true
+      data: { unread: 10 }

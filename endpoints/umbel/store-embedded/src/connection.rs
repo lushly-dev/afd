@@ -8,7 +8,9 @@ use rusqlite::{Connection, OptionalExtension, TransactionBehavior};
 use umbel_store::StoreError;
 
 use crate::error::{Fail, map_sql};
-use crate::schema::{SCHEMA, SCHEMA_VERSION};
+use crate::schema::{
+    HELD_SCHEMA, LANE_SCHEMA, POSTINGS_BACKFILL, POSTINGS_SCHEMA, SCHEMA, SCHEMA_VERSION,
+};
 
 /// How many idle connections the pool keeps.
 const MAX_IDLE: usize = 8;
@@ -126,8 +128,8 @@ fn connect(path: &Path, timeout: Duration) -> Result<Connection, Fail> {
     Ok(conn)
 }
 
-/// Switch to WAL, then create or check the schema under a write transaction, so two processes
-/// opening a fresh store at once do not both create it.
+/// Switch to WAL, then create, migrate or check the schema under a write transaction, so two
+/// processes opening a fresh store, or one at an earlier version, at once do not both write it.
 fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(), Fail> {
     let deadline = Instant::now() + timeout;
     loop {
@@ -167,12 +169,45 @@ fn initialise(conn: &mut Connection, space: &str, timeout: Duration) -> Result<(
                 "INSERT INTO meta (key, value) VALUES ('space', ?1)",
                 [space],
             )?;
-            tx.execute(
-                "INSERT INTO meta (key, value) VALUES ('store_traits_version', ?1)",
-                [umbel_store::STORE_TRAITS_VERSION.to_string()],
-            )?;
-            tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         }
+        if version < 2 {
+            // Schema version 2 (records host specification, section 5.1): the record lane's
+            // tables, in the opening transaction of a new store and of a store at version 1,
+            // whose own tables and rows are left as they are. The traits version is set, not
+            // inserted: a version 1 store already records the one it was created under.
+            tx.execute_batch(LANE_SCHEMA)?;
+            for (key, value) in [
+                (
+                    "store_traits_version",
+                    umbel_store::STORE_TRAITS_VERSION.to_string(),
+                ),
+                (
+                    "lane_normalisation",
+                    umbel_store::lane::NORMALISATION_VERSION.to_string(),
+                ),
+            ] {
+                tx.execute(
+                    "INSERT INTO meta (key, value) VALUES (?1, ?2)
+                     ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+                    [key, value.as_str()],
+                )?;
+            }
+        }
+        if version < 3 {
+            // Schema version 3: which documents the host held to their files. A store at
+            // version 1 or 2 gains the table empty: none of its documents was held, so none
+            // is the person's own by collection until the host holds it
+            // (`store-documents-hold`, or the next put of an own collection's document).
+            tx.execute_batch(HELD_SCHEMA)?;
+        }
+        if version < 4 {
+            // Schema version 4: each declared kind's count of postings, which a match compares
+            // with its bound (records host specification, section 8.2). A store at version 2 or
+            // 3 has it counted here, once, from its lane; a new store has no kind to count.
+            tx.execute_batch(POSTINGS_SCHEMA)?;
+            tx.execute_batch(POSTINGS_BACKFILL)?;
+        }
+        tx.pragma_update(None, "user_version", SCHEMA_VERSION)?;
         tx.commit()?;
     }
     let stored: Option<String> = conn

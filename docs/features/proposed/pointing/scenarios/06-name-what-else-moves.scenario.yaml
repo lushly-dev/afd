@@ -1,0 +1,52 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented. In `example-toolbar`, `color.accent.primary` is read by the Share button,
+# the Export button and the focus ring of the search field. `button.share.background` is read
+# only by the Share button.
+
+name: Name what else a correction would change
+description: >-
+  When a correction for the element I pointed at would also change other elements, I want those
+  named before it is written, so that a fix for one thing does not quietly move another.
+job: name-what-else-moves
+tags: [preview]
+
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The person points at the Share button
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button, name: Share }
+    expect:
+      success: true
+
+  - description: A change to the shared accent names the two other elements it moves
+    command: specimen-impact
+    input:
+      point: "${{ steps[0].data.point.id }}"
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: color.accent.primary, value: "#1F6FEB" }
+    expect:
+      success: true
+      data:
+        status: changed
+        outside: { length: 2 }
+        outside.0.name: Export
+        outside.1.role: searchbox
+
+  - description: A change to a token only that button reads moves nothing else
+    command: specimen-impact
+    input:
+      point: "${{ steps[0].data.point.id }}"
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: button.share.background, value: "#1F6FEB" }
+    expect:
+      success: true
+      data:
+        status: changed
+        outside: { length: 0 }

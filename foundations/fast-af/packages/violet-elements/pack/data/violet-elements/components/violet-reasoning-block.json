@@ -1,0 +1,129 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "expanded",
+				"property": "expanded",
+				"rules": [
+					"taxonomy.expanded"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "Thinking",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "done",
+				"name": "state",
+				"property": "state",
+				"rules": [
+					"taxonomy.state"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-reasoning-bg, var(--_surface-subtle, rgba(28, 26, 13, 0.04)))",
+				"name": "--_reasoning-bg"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-reasoning-border, var(--_border-subtle))",
+				"name": "--_reasoning-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-reasoning-font-size, var(--_caption-size, 12px))",
+				"name": "--_reasoning-font-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-reasoning-line-height, var(--_caption-line, 16px))",
+				"name": "--_reasoning-line-height"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-reasoning-toggle-size, var(--_body-size, 14px))",
+				"name": "--_reasoning-toggle-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_reasoning-toggle-size)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Reasoning text content.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-reasoning-block--custom-label",
+			"html": "<violet-reasoning-block label=\"Chain of thought\" state=\"done\">Analyzing the query to determine the best approach for answering this question about garden maintenance schedules.</violet-reasoning-block>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-reasoning-block--expanded",
+			"html": "<violet-reasoning-block expanded label=\"Thinking\" state=\"done\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil.\n\nI know hostas are popular but deer eat them. Ferns and astilbe are more deer-resistant options. Brunnera and bleeding heart are also good candidates.</violet-reasoning-block>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-reasoning-block--overview",
+			"html": "<violet-reasoning-block label=\"Thinking\" state=\"done\">The user is asking about shade-tolerant plants. I should consider their USDA hardiness zone and soil type. Let me think about which perennials would work best for partial shade conditions with well-drained soil...</violet-reasoning-block>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.expanded",
+		"taxonomy.label",
+		"taxonomy.state",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-reasoning-block",
+	"usage": []
+}

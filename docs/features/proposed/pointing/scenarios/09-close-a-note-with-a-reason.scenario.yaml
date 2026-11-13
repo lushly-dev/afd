@@ -1,0 +1,98 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented. The open note `note-9v4b7n2k5m1c`, assigned to an agent, is the project's
+# only note.
+
+name: Close a note with what was done and why
+description: >-
+  When an agent resolves a note, I want it to say what it did and why, so that I can check the
+  work, and I want resolved notes out of the open list, so that the list shows only what is left.
+job: close-a-note-with-a-reason
+tags: [notes, quiet]
+
+fixture:
+  file: fixtures/one-note.json
+
+steps:
+  - description: Closing without a reason is refused
+    command: specimen-note-resolve
+    input:
+      id: note-9v4b7n2k5m1c
+      outcome: fixed
+    expect:
+      success: false
+      error:
+        code: REASON_REQUIRED
+        suggestion: { contains: reason }
+
+  - description: Closing with a reason records it with the evidence
+    command: specimen-note-resolve
+    input:
+      id: note-9v4b7n2k5m1c
+      outcome: fixed
+      reason: Export now opens a menu with CSV and PDF
+      evidence: { revision: 4f2c9a1 }
+    expect:
+      success: true
+      data:
+        note:
+          state: resolved
+          resolution:
+            outcome: fixed
+            reason: { contains: CSV and PDF }
+
+  - description: The open list no longer shows it
+    command: specimen-note-list
+    input: {}
+    expect:
+      success: true
+      data:
+        notes: { length: 0 }
+
+  - description: The person can still read what was done
+    command: specimen-note-list
+    input:
+      state: resolved
+    expect:
+      success: true
+      data:
+        notes: { length: 1 }
+        notes.0.id: note-9v4b7n2k5m1c
+        notes.0.resolution.reason: { contains: CSV and PDF }
+
+  - description: Closing it again is refused
+    command: specimen-note-resolve
+    input:
+      id: note-9v4b7n2k5m1c
+      outcome: fixed
+      reason: Done
+    expect:
+      success: false
+      error:
+        code: NOTE_ALREADY_RESOLVED
+        suggestion: { contains: specimen-note-reopen }
+
+  - description: The person disagrees and reopens it; the resolution stays in its history
+    command: specimen-note-reopen
+    input:
+      id: note-9v4b7n2k5m1c
+      reason: PDF export fails for long reports
+    expect:
+      success: true
+      data:
+        note:
+          state: open
+          history: { length: 2 }
+          history.0.change: resolved
+          history.0.reason: { contains: CSV and PDF }
+          history.1.change: reopened
+
+  - description: Reopening a note that is open is refused
+    command: specimen-note-reopen
+    input:
+      id: note-9v4b7n2k5m1c
+      reason: Again
+    expect:
+      success: false
+      error:
+        code: NOTE_NOT_RESOLVED
+        suggestion: { contains: specimen-note-resolve }

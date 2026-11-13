@@ -95,7 +95,19 @@ pub(crate) fn open(dir: &Path, space: &str) -> Result<Stores, StoreError> {
         index: Some(index),
         memory: Some(memory),
         memory_restore: Some(restore_memory),
+        lane: Some(open_lane),
     })
+}
+
+/// The suite's `LaneOpen`: the document store of `space` under `dir` with the record lane's
+/// bounds set to `limits`.
+pub(crate) fn open_lane(
+    dir: &Path,
+    space: &str,
+    limits: umbel_store::lane::LaneLimits,
+) -> Result<Arc<dyn DocumentStore>, StoreError> {
+    let store = SqliteStore::open(dir, space, StoreOptions::default())?.with_lane_limits(limits);
+    Ok(Arc::new(store))
 }
 
 /// The command that re-runs this test binary as one writer child (specification section 3.1).

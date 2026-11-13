@@ -1,0 +1,268 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": [
+			{
+				"basis": "authored",
+				"id": "toast.announcement",
+				"text": "announcement defaults to polite: the title and body get role=status; assertive gives role=alert. The actions slot is outside the live region."
+			},
+			{
+				"basis": "authored",
+				"id": "toast.focus",
+				"text": "Opening does not move focus, and its tab position follows its place in the DOM, not the corner it appears in. A toast with actions never times out. The close button is named \"Dismiss notification\"."
+			}
+		]
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "declared",
+				"default": "polite",
+				"name": "announcement",
+				"property": "announcement",
+				"rules": [
+					"taxonomy.announcement"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "declared",
+				"default": true,
+				"name": "dismissible",
+				"property": "dismissible",
+				"rules": [
+					"taxonomy.dismissible"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "open",
+				"property": "open",
+				"rules": [
+					"taxonomy.open"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "5000",
+				"name": "timeout",
+				"property": "timeout",
+				"rules": [
+					"taxonomy.timeout"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": "default",
+				"name": "tone",
+				"property": "tone",
+				"rules": [
+					"taxonomy.tone"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-body-line, var(--_body-line))",
+				"name": "--_toast-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-body-size, var(--_body-size))",
+				"name": "--_toast-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-border, var(--_border-subtle))",
+				"name": "--_toast-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-emphasis, var(--_text-secondary))",
+				"name": "--_toast-emphasis"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-gap, var(--_space-md))",
+				"name": "--_toast-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-icon-size, 1rem)",
+				"name": "--_toast-icon-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-padding, var(--_space-md))",
+				"name": "--_toast-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-radius, calc(var(--_radius-lg) * 1.33))",
+				"name": "--_toast-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-shadow, var(--_shadow-floating))",
+				"name": "--_toast-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-surface, var(--_surface-card))",
+				"name": "--_toast-surface"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-title-line, var(--_body-line))",
+				"name": "--_toast-title-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-toast-title-size, var(--_body-size))",
+				"name": "--_toast-title-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-surface)",
+				"name": "--violet-card-background"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-border)",
+				"name": "--violet-card-border-color"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-padding)",
+				"name": "--violet-card-padding"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-radius)",
+				"name": "--violet-card-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-shadow)",
+				"name": "--violet-card-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_toast-icon-size)",
+				"name": "--violet-icon-size"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted when the toast closes because of timeout or the dismiss button. Detail: `{ reason: \"timeout\" | \"dismiss-button\" }`.",
+				"name": "dismiss"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the open state changes. Detail: `{ open: boolean }`.",
+				"name": "open-change"
+			}
+		],
+		"slots": [
+			{
+				"basis": "observed",
+				"description": "Toast body content.",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional action controls. Presence of actions disables auto-dismiss.",
+				"name": "actions"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional leading icon that overrides the default tone icon.",
+				"name": "icon"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional toast heading.",
+				"name": "title"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-toast--dismiss-interaction",
+			"html": "<violet-toast announcement=\"polite\" dismissible timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-toast--dismissible",
+			"html": "<violet-toast announcement=\"polite\" dismissible open timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-toast--overview",
+			"html": "<violet-toast announcement=\"polite\" dismissible open timeout=\"5000\" tone=\"success\">\n            <span slot=\"title\">Propagation synced</span>\n            Seed-source defaults were updated for the spring-greens plan.\n        </violet-toast>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "role"
+		},
+		{
+			"kind": "unobserved",
+			"name": "announcement",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "dismissible",
+			"section": "attributes"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"message.announcement",
+		"message.tone",
+		"overlay.open-change",
+		"taxonomy.announcement",
+		"taxonomy.dismissible",
+		"taxonomy.open",
+		"taxonomy.timeout",
+		"taxonomy.tone"
+	],
+	"status": "stable",
+	"summary": "Transient notification fixed to a corner of the viewport, shown while its open attribute is set.",
+	"tag": "violet-toast",
+	"usage": [
+		{
+			"basis": "authored",
+			"id": "toast.open",
+			"text": "It is hidden until open is set and has no show method. Every toast is position: fixed at the same block-end, inline-end corner, so open toasts overlap unless the page offsets them (--violet-toast-inset-block-end)."
+		},
+		{
+			"basis": "authored",
+			"id": "toast.timeout",
+			"text": "It closes itself after timeout (ms) only while dismissible is false and the actions slot is empty. dismissible defaults to true even without the attribute, so set the property to false in script."
+		},
+		{
+			"basis": "authored",
+			"id": "toast.dismiss",
+			"text": "Closing by timeout, the close button or dismiss(reason) clears open, fires open-change, then dismiss with detail.reason (timeout or dismiss-button). Clearing open from script fires only open-change."
+		}
+	]
+}

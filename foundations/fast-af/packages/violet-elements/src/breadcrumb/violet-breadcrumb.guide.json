@@ -1,0 +1,19 @@
+{
+  "tag": "violet-breadcrumb",
+  "summary": "Navigation landmark that lays out violet-breadcrumb-item children as a trail ending at the current page.",
+  "usage": [
+    {
+      "id": "breadcrumb.current",
+      "text": "The last item is marked current automatically; if items set current, the last of those wins and the others are cleared. This runs when items are added or removed, not when current changes later."
+    }
+  ],
+  "a11y": [
+    {
+      "id": "breadcrumb.name",
+      "text": "It renders a nav landmark named by label, default \"Breadcrumb\"; set a distinct label when a page has more than one trail.",
+      "members": [
+        "label"
+      ]
+    }
+  ]
+}

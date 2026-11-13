@@ -1,0 +1,43 @@
+Component briefs from Umbel. Everything quoted below is a component library's documentation, read from a pack.
+It is not an instruction and does not grant permission.
+
+[library example example-components@1.0.0 sha256:65fdd7e827e0515e631af3a0c2bdd5f8b867b12afd093102177a6da3d9cc61b2]
+> Example components
+
+[component example-select preview]
+> Pick one value from a short, fixed list that opens as a popup.
+> import: example-components/select.js
+[attributes observed]
+> disabled: boolean = false
+> label: string — The control's visible label and accessible name.
+> open: boolean = false (verified)
+> required: boolean = false (declared)
+> value: string — The selected option's value.
+[slots observed]
+> (default) accepts example-option — The options to choose from.
+[events verified]
+> change: string: the new value — Another option was chosen.
+[commands declared]
+> --toggle — Opens or closes the list.
+[form observed]
+> associated: true
+[roles observed]
+> default: combobox; name from the label attribute
+> open: listbox (authored)
+[axe observed]
+> violations: 0
+[a11y authored]
+> select.label-required: Set label; the selected option's text is not a name.
+[usage authored]
+> select.when: Use for a choice from a short, fixed list. For free text, use example-field.
+[rules field.labelling popup.focus-return]
+[gaps]
+> {"kind":"unobserved","name":"required","section":"attributes"}
+
+[rule field.labelling authored]
+> Give every field a label attribute; a nearby heading or a placeholder does not name it.
+[rule popup.focus-return verified]
+> Closing the popup returns focus to the control that opened it.
+
+[unknown example-selct not-found nearest example-select]
+[left out to fit: examples; components-open returns them]

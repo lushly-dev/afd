@@ -4,9 +4,10 @@
  * learns of its scope.
  */
 
-import { actorKey, decideAccess } from './access.js';
+import { type AccessActorV1, decideAccess, type MembershipV1 } from './access.js';
 import { createRecordCache, type RecordCache } from './cache.js';
 import {
+	type AgentMemberV1,
 	PROJECT_TABLE,
 	type ProjectV1,
 	type ScopeChangeV2,
@@ -22,11 +23,23 @@ import {
  */
 export const CALL_MARK = Symbol();
 
+/**
+ * A queued call's ticket: the person signed in when it was queued, and the `auth-*` call queued ahead of it on
+ * its interface that had not ended then, whose `left`, the person it left signed in, `late/` sets when it ends.
+ */
+export interface QueuedTicket {
+	person: string | undefined;
+	behind?: QueuedTicket;
+	left?: string | undefined;
+}
+
 /** What a call's event carries of its scope, kept by trace ID as `seqs` is (11.1). */
 export interface ScopeSeen {
 	scope?: ScopeV1;
 	scopeChanged?: ScopeChangeV2;
 	mainChanged?: 'push' | 'replace';
+	/** The person the kernel decides for changed, by `session-settle` (phase 3 specification, 4.4). */
+	actorChanged?: true;
 	/** A type's instance command that changed this document succeeded (documents specification, 5.7). */
 	document?: string;
 }
@@ -40,10 +53,21 @@ export interface ScopeRuntime {
 	setActive(scope: ScopeV1): void;
 	/** A project by `id` or slug. */
 	project(ref: string): ProjectV1 | undefined;
-	/** `decideAccess`, with the project read from the cache. */
-	allows(actor: string, scope: ScopeV1): boolean;
-	/** The actor `decideAccess` reads from a call's context: its id, or `local`. */
-	actorKey(context: { actor?: { id?: string } }): string;
+	/**
+	 * `decideAccess` version 2 (phase 3 specification, 3.3), with the project read from the cache, the
+	 * kernel's {@link ScopeRuntime.membership} and an agent member's record from {@link ScopeRuntime.agents}.
+	 */
+	allows(actor: AccessActorV1, scope: ScopeV1): boolean;
+	/**
+	 * The membership a browser kernel decides with (phase 3 specification, 3.3 and 7.6): `local` mode's,
+	 * where every actor is a member and an owner, unless the host gave stage A the probe's.
+	 */
+	membership: MembershipV1;
+	/**
+	 * The `agent-member` table, loaded by `late/` with the late commands: before then no record exists, so an
+	 * `agt_` actor is refused (phase 3 specification, 3.3's line 4).
+	 */
+	agents?: RecordCache<AgentMemberV1>;
 	/**
 	 * Whether an app can open in a scope with `project`, or none (phase 2 specification, 7.1 and 9.1): with
 	 * no project, if its levels hold the workspace; in a project, always, by narrowing, unless the instance
@@ -68,28 +92,34 @@ export interface ScopeRuntime {
 	note(traceId: string | undefined, seen: ScopeSeen): void;
 }
 
-export function createScopeRuntime(workspace: { id: string; name: string }): ScopeRuntime {
+export function createScopeRuntime(
+	workspace: { id: string; name: string },
+	membership: MembershipV1
+): ScopeRuntime {
 	let active: ScopeV1 = { workspace: workspace.id };
 	const projects = createRecordCache<ProjectV1>(PROJECT_TABLE);
 	const workspaceApps = createRecordCache<WorkspaceAppV1>(WORKSPACE_APP_TABLE);
 	const seen = new Map<string, ScopeSeen>();
 	const project = (ref: string) =>
 		projects.get(ref) ?? projects.all().find((candidate) => candidate.slug === ref);
-	return {
+	const runtime: ScopeRuntime = {
 		workspace,
 		projects,
 		workspaceApps,
+		membership,
 		active: () => active,
 		setActive(scope) {
 			active = scope;
 		},
 		project,
-		actorKey,
 		allows: (actor, scope) =>
 			decideAccess({
 				actor,
 				scope,
 				project: scope.project === undefined ? undefined : projects.get(scope.project),
+				membership: runtime.membership,
+				// The table holds only `agt_` ids, and `decideAccess` reads the record only for one.
+				agent: runtime.agents?.get(actor?.id as string),
 			}).allowed,
 		opensIn(instance, levels, inProject) {
 			if (inProject === undefined) return levels.includes('workspace');
@@ -103,4 +133,5 @@ export function createScopeRuntime(workspace: { id: string; name: string }): Sco
 			if (held) Object.assign(held, extra);
 		},
 	};
+	return runtime;
 }

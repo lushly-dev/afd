@@ -14,6 +14,8 @@ import type {
 	RandomSource,
 } from '@lushly-dev/afd-core';
 import type { ContextField } from './context-fields.js';
+import type { McpAuthOptions, PreDispatchCheck, PreDispatchCheckOptions } from './mcp-auth.js';
+import type { Credentials } from './mcp-auth-rules.js';
 import type { ResourcesOption } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
 import type { SkillCatalog } from './skills.js';
@@ -123,6 +125,11 @@ export interface McpServerOptions {
 	 * Credentials set here are the host's, not afd-server's: `isVerifiedCredentials` does not
 	 * recognise them, so afd-auth's middleware still gates such a call on its own session.
 	 *
+	 * With `auth`, it is given the request's verified `credentials` as its second argument, and
+	 * maps them to the `actor` (M4); the `credentials` it returns are ignored, since only the
+	 * server sets them. Without an `actor` from it, the actor is `{ kind: 'agent', id: <clientId>,
+	 * onBehalfOf: <subject> }`. The `Authorization` header is gone from `req` by then.
+	 *
 	 * @example
 	 * ```typescript
 	 * createContext: (req) => ({ clientId: req.socket.remoteAddress ?? 'unknown' }),
@@ -131,6 +138,27 @@ export interface McpServerOptions {
 	 * ```
 	 */
 	createContext?: CreateRequestContext;
+
+	/**
+	 * MCP authorization (`spec/authorization.md`, M1 to M5 and M7): the server becomes an OAuth
+	 * 2.1 protected resource. Every HTTP route (`/mcp`, `/sse`, `/message`, `/rpc`, `/batch`,
+	 * `/stream`, `/health` and any other path) then needs exactly one valid bearer token in the
+	 * `Authorization` header, verified by `auth.verifier` (`JwtVerifier`, with the audience
+	 * always checked); a request without one is answered 401 with M5's challenge and body. Only
+	 * the RFC 9728 metadata, served at its two well-known paths, and CORS preflights are public.
+	 * stdio, `server.execute` and in-process registries are unaffected.
+	 *
+	 * Each call's context carries the verified `credentials` (never the token), frozen, and
+	 * recognised by `isVerifiedCredentials` until the request ends or they expire. **A host that
+	 * also runs afd-auth's middleware passes `isVerifiedCredentials` to it**
+	 * (`createAuthMiddleware(adapter, { isVerifiedCredentials })`, from
+	 * `@lushly-dev/afd-server/credentials`), so a token's call keeps the actor its credentials
+	 * map to instead of being gated on the adapter's session.
+	 *
+	 * Scopes (M6: `requiredScopes`, `resolver`, `filterToolsByScope`) are not enforced by this
+	 * version; passing one throws rather than being ignored.
+	 */
+	auth?: McpAuthOptions;
 
 	/** Maximum concurrent `/sse` connections; more receive HTTP 503 (default: 100). */
 	maxSseConnections?: number;
@@ -357,7 +385,8 @@ export type { CommandMiddleware } from '@lushly-dev/afd-core';
 
 /**
  * Derive per-request `CommandContext` values from an HTTP request, for example the
- * authenticated user or the remote address.
+ * authenticated user or the remote address. On a server with `auth`, `verified.credentials` are
+ * the request's verified credentials, to map to an `actor`.
  *
  * The returned object is merged into the context of every command the request executes
  * (`tools/call`, `afd-call`, batch items, pipeline steps, `/rpc`, `/batch` and `/stream`).
@@ -365,16 +394,42 @@ export type { CommandMiddleware } from '@lushly-dev/afd-core';
  * returned. A throw is reported to `onError` and answered as an internal error.
  */
 export type CreateRequestContext = (
-	req: IncomingMessage
+	req: IncomingMessage,
+	verified: { credentials?: Credentials }
 ) => Record<string, unknown> | Promise<Record<string, unknown>>;
 
 /**
  * Embeddable Node HTTP handler returned by `createMcpHandler()`.
  */
 export type McpHandler = {
-	(req: IncomingMessage, res: ServerResponse): Promise<void>;
+	/**
+	 * Serve one request. `body` is its body when a host's own layer has already read it (to run
+	 * {@link McpHandler.preDispatchCheck}); the handler then reads it instead of the stream.
+	 */
+	(req: IncomingMessage, res: ServerResponse, body?: Uint8Array | string): Promise<void>;
 	/** Close active SSE/stream responses when the embedding host shuts down. */
 	dispose(): void;
+	/**
+	 * **Trust-bearing.** Admit `credentials` that a host's own layer vouches for, for `req` alone,
+	 * instead of a bearer token (`spec/authorization.md`, M6, "A host's own layer"): only for a
+	 * gateway that has itself authenticated the caller, never from anything the caller sent. They
+	 * are checked as a verifier's are (shape, a numeric `expiresAt` not yet passed, the
+	 * certificate binding where required), frozen, and branded for `isVerifiedCredentials` while
+	 * the handler serves `req`. A request without them still needs a valid bearer token.
+	 *
+	 * @throws Error without the `auth` option; when `req` carries a bearer token (in the
+	 *   `Authorization` header or the query) or was admitted before; or when the credentials fail
+	 *   those checks
+	 */
+	admit(req: IncomingMessage, credentials: Credentials): void;
+	/**
+	 * The decision before dispatch for a host's own layer (M6): the bearer layer's own
+	 * implementation, with a 403 in the host's scheme (`challenge`) and suggestion
+	 * (`scopeSource`). Run its `decide(req, body)` after `admit` and after reading the body.
+	 *
+	 * @throws Error without the `auth` option
+	 */
+	preDispatchCheck(options?: PreDispatchCheckOptions): PreDispatchCheck;
 };
 
 /**

@@ -79,7 +79,7 @@ fn write_events(root: &Path, space: &str, text: &str) {
 }
 
 #[test]
-fn a_fresh_workspace_is_healthy_with_fifteen_skipped_checks() {
+fn a_fresh_workspace_is_healthy_with_seventeen_skipped_checks() {
     let (_dir, root) = fresh();
     let report = doctor::run(&root);
     assert!(report.healthy());
@@ -103,12 +103,17 @@ fn a_fresh_workspace_is_healthy_with_fifteen_skipped_checks() {
             "stores.sweep",
             "stores.capture",
             "stores.memory_erase",
+            "records.declared",
+            "records.standing",
+            "records.own",
+            "records.size",
             "state.writable",
             "state.lock",
             "keys.present",
             "journal.readable",
             "events.consistent",
             "http.config",
+            "person.local",
             "mcp.surface",
             "cli.verbs",
             "plugins.config",
@@ -118,7 +123,8 @@ fn a_fresh_workspace_is_healthy_with_fifteen_skipped_checks() {
             "plugins.skills",
             "plugins.loaded",
             "plugins.first_class",
-            "plugins.pipelines"
+            "plugins.pipelines",
+            "plugins.pack_checks"
         ]
     );
     for check in &report.checks {
@@ -134,11 +140,16 @@ fn a_fresh_workspace_is_healthy_with_fifteen_skipped_checks() {
             "stores.sweep",
             "stores.capture",
             "stores.memory_erase",
+            "records.declared",
+            "records.standing",
+            "records.own",
+            "records.size",
             "mcp.surface",
             "cli.verbs",
             "plugins.loaded",
             "plugins.first_class",
             "plugins.pipelines",
+            "plugins.pack_checks",
         ];
         let expected = if sealed_only.contains(&check.id.as_str()) {
             CheckStatus::Skip
@@ -210,11 +221,11 @@ fn a_workspace_whose_umbel_toml_does_not_parse_is_still_reported() {
 
 #[test]
 fn config_parse_fails_for_another_version_and_names_the_supported_one() {
-    let (_dir, root) = with_config("config_version = 6\n");
+    let (_dir, root) = with_config("config_version = 8\n");
     let report = doctor::run(&root);
     let parse = check(&report, "config.parse");
     assert_eq!(parse.status, CheckStatus::Fail);
-    assert!(parse.message.contains("versions 1 to 5"));
+    assert!(parse.message.contains("versions 1 to 7"));
     assert!(parse.suggestion.is_some());
 }
 

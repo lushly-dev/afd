@@ -20,10 +20,10 @@ import {
 	scopedDeployment,
 	scopedPorts,
 } from '../testing.js';
-import type { AppSummaryV2, KernelEventV2, LoamKernelV2, ProjectV1, ScopeV1 } from '../types.js';
-import { decideAccess, LOCAL_ACTOR } from './access.js';
+import type { AppSummaryV2, KernelEventV3, LoamKernelV3, ProjectV1, ScopeV1 } from '../types.js';
+import { decideAccess, LOCAL_ACTOR, LOCAL_MEMBERSHIP, personKey } from './access.js';
 
-const kernels: LoamKernelV2[] = [];
+const kernels: LoamKernelV3[] = [];
 afterEach(async () => {
 	vi.useRealTimers();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -42,6 +42,20 @@ async function scoped(options: Parameters<typeof createScopedWorkspace>[0] = {})
 }
 
 const entries = (workspace: ScopedWorkspace) => workspace.journal.read();
+
+/**
+ * A kernel clock the test sets, stepping a millisecond per reading, which the fixture's Mock shares: a session ends
+ * on the kernel's time (phase 3 specification, 4.4; amended in its step 2 from faking the system's).
+ */
+function settableClock(start: number) {
+	let at = start;
+	return {
+		now: () => at++,
+		set(time: number) {
+			at = time;
+		},
+	};
+}
 const lastEntry = async (workspace: ScopedWorkspace) =>
 	(await entries(workspace)).at(-1) as JournalEntry;
 const replayOf = (journal: readonly JournalEntry[]) =>
@@ -68,32 +82,32 @@ async function enterRestricted(workspace: ScopedWorkspace): Promise<ProjectV1> {
 }
 
 describe('decideAccess', () => {
+	// Amended in phase 3's step 1 to `AccessInputV2` (phase 3 specification, 2.1's table): the call's whole
+	// actor and the membership, `local` here, where every actor is a member.
 	const project = (access: ProjectV1['access']): ProjectV1 =>
 		({ id: 'prj_a', access }) as ProjectV1;
+	const human = (id: string) => ({ kind: 'human' as const, id });
+	const decide = (actor: ReturnType<typeof human> | undefined, scope: ScopeV1, at?: ProjectV1) =>
+		decideAccess({ actor, scope, project: at, membership: LOCAL_MEMBERSHIP, agent: undefined });
 
 	it('allows the workspace with no project, and a workspace-access project to anyone', () => {
-		expect(decideAccess({ actor: LOCAL_ACTOR, scope: WORKSPACE, project: undefined })).toEqual({
-			allowed: true,
-		});
+		expect(decide(undefined, WORKSPACE)).toEqual({ allowed: true });
 		expect(
-			decideAccess({
-				actor: 'anyone',
-				scope: { workspace: 'w', project: 'prj_a' },
-				project: project({ mode: 'workspace' }),
-			}).allowed
+			decide(human('anyone'), { workspace: 'w', project: 'prj_a' }, project({ mode: 'workspace' }))
+				.allowed
 		).toBe(true);
 	});
 
 	it('refuses a missing project, a mismatched record, and a restricted one without the actor', () => {
 		const scope = { workspace: 'w', project: 'prj_a' };
 		const restricted = project({ mode: 'restricted', members: ['someone'] });
-		expect(decideAccess({ actor: 'someone', scope, project: undefined }).allowed).toBe(false);
-		expect(
-			decideAccess({ actor: 'someone', scope: { ...scope, project: 'prj_b' }, project: restricted })
-				.allowed
-		).toBe(false);
-		expect(decideAccess({ actor: LOCAL_ACTOR, scope, project: restricted }).allowed).toBe(false);
-		expect(decideAccess({ actor: 'someone', scope, project: restricted }).allowed).toBe(true);
+		expect(decide(human('someone'), scope)).toEqual({ allowed: false, reason: 'project' });
+		expect(decide(human('someone'), { ...scope, project: 'prj_b' }, restricted).allowed).toBe(
+			false
+		);
+		expect(decide(undefined, scope, restricted).allowed).toBe(false);
+		expect(personKey(undefined) ?? LOCAL_ACTOR).toBe(LOCAL_ACTOR);
+		expect(decide(human('someone'), scope, restricted).allowed).toBe(true);
 	});
 });
 
@@ -144,7 +158,7 @@ describe('P2-E4: each path of 3.2 reaches `context.scope`', () => {
 
 	it("puts the call's effective scope and the change on the event", async () => {
 		const workspace = await scoped();
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		workspace.kernel.subscribe((event) => events.push(event));
 		await workspace.kernel.call('app-open', { instance: 'solo' });
 		await workspace.kernel.call('scope-set', { project: 'atlas' });
@@ -224,7 +238,7 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 		await enterRestricted(workspace);
 		await kernel.call('app-open', { instance: 'dual' });
 		await kernel.call('dual-put', { key: 'k', value: 'vault' });
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const out = await kernel.call('auth-sign-out');
 		expect(out.success).toBe(true);
@@ -241,12 +255,11 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 	});
 
 	it('takes an expired session into account at the next call, with no auth command', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
-		const workspace = await scoped();
+		const time = settableClock(Date.UTC(2026, 10, 3));
+		const workspace = await scoped({ clock: time.now });
 		await enterRestricted(workspace);
 		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		// An app's command keeps the scope it was made in, and line 2 refuses it: no new read succeeds.
 		const where = await workspace.kernel.call<{ scope: ScopeV1 }>('dual-where');
 		expect(where.error?.code).toBe('PROJECT_NOT_FOUND');
@@ -256,36 +269,32 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 			WORKSPACE
 		);
 		expect((await workspace.kernel.call('layout-get')).success).toBe(true);
-		vi.useRealTimers();
 		const { report } = await replayOf(await entries(workspace));
 		expect(report.diverged).toBe(false);
 	});
 
 	it('refuses a surface bound to a restricted project once the session ends, and writes nothing', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
-		const workspace = await scoped();
+		const time = settableClock(Date.UTC(2026, 10, 3));
+		const workspace = await scoped({ clock: time.now });
 		await enterRestricted(workspace);
 		const vault = (await workspace.kernel.call<{ scope: ScopeV1 }>('scope-get')).data?.scope;
 		const surface = workspace.kernel.appPort('dual').surface({ scope: vault as ScopeV1 });
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		const put = await surface.call('dual-put', { key: 'k', value: 'after' });
 		expect(put.error?.code).toBe('PROJECT_NOT_FOUND');
 		expect(await workspace.store.get('app-dual', 'k')).toBeNull();
 		expect((await workspace.store.list('app-dual')).data).toEqual([]);
-		vi.useRealTimers();
 	});
 
 	it('leaves a restricted project at stage A when the session has already expired', async () => {
-		vi.useFakeTimers({ toFake: ['Date'] });
-		vi.setSystemTime(Date.UTC(2026, 10, 3));
+		const time = settableClock(Date.UTC(2026, 10, 3));
 		const store = new MemoryAdapter();
-		const auth = new MockAuthAdapter();
-		const first = await scoped({ store, auth });
+		const auth = new MockAuthAdapter({ clock: { now: time.now } });
+		const first = await scoped({ store, auth, clock: time.now });
 		await enterRestricted(first);
 		await first.kernel.flush();
 		await first.kernel.dispose();
-		vi.setSystemTime(Date.UTC(2026, 10, 3, 2));
+		time.set(Date.UTC(2026, 10, 3, 2));
 		// The same adapter, its session now expired, and a boot whose stage B waits: stage A alone chooses.
 		const second = await createKernel({
 			store,
@@ -294,14 +303,13 @@ describe('P2-E4: a person is never locked out of the shell', () => {
 			auth,
 			environment: createFixedEnvironment(),
 			host: 'test',
-			clock: createSteppingClock(Date.UTC(2026, 0, 2)),
+			clock: time.now,
 			boot: readBoot(scopedDeployment()) as BootProjectionV2,
 			appsLoader: () => new Promise(() => {}),
 		});
 		kernels.push(second);
 		expect((await second.call<{ scope: ScopeV1 }>('scope-get')).data?.scope).toEqual(WORKSPACE);
 		expect((await second.call('layout-get')).success).toBe(true);
-		vi.useRealTimers();
 	});
 
 	it('moves the active scope to the workspace when the active project is archived, and restores it', async () => {
@@ -680,7 +688,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 
 	/** A session that `setup` left, then a reload whose URL names `initialScope`, on one journal. */
 	async function reloadAfter(
-		setup: (kernel: LoamKernelV2) => Promise<unknown>,
+		setup: (kernel: LoamKernelV3) => Promise<unknown>,
 		initialScope: { project: string | null }
 	) {
 		const store = new MemoryAdapter();
@@ -759,7 +767,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;
 		await kernel.call('app-open', { instance: 'dual' });
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('app-route-set', { instance: 'dual', path: 'a' });
 		for (let step = 0; step < 3; step++) {
@@ -779,7 +787,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 	it('P2-E8: app-close closes a section too, and an app reopened still reports mainChanged', async () => {
 		const workspace = await scoped();
 		const { kernel } = workspace;
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		await kernel.call('section-open', { section: 'projects' });
 		expect((await kernel.call('app-close')).success).toBe(true);
@@ -819,7 +827,7 @@ describe("P2-E8: stage A's scope from the URL (6.3)", () => {
 			},
 			{ project: 'atlas' }
 		);
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		restricted.second.kernel.subscribe((event) => events.push(event));
 		const atlas = restricted.second.scopes.atlas.project as string;
 		expect((await restricted.second.kernel.call('scope-set', { project: atlas })).success).toBe(
@@ -1056,7 +1064,7 @@ describe('P2-E3: (kernel unit) an app that cannot open here, through app-open or
 
 	it('opens an app with the switch, main showing it with no section, and reports mainChanged', async () => {
 		const { kernel } = await scoped();
-		const events: KernelEventV2[] = [];
+		const events: KernelEventV3[] = [];
 		kernel.subscribe((event) => events.push(event));
 		const opened = await kernel.call('scope-set', { project: 'atlas', app: 'tasks' });
 		expect(opened.data).toMatchObject({ active: 'tasks' });

@@ -1,0 +1,48 @@
+{
+  "tag": "violet-segmented-control",
+  "summary": "Single-choice group of violet-segment buttons for switching between a few short, mutually exclusive options such as views or modes.",
+  "usage": [
+    {
+      "id": "segmented-control.children",
+      "text": "Children are violet-segment elements, each with a unique non-empty value and its visible text in the default slot. The control checks the segment whose value equals its value; do not set checked on segments.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "segmented-control.initial",
+      "text": "value defaults to empty, which leaves every segment unchecked. Set value to one segment's value so a choice shows on first render.",
+      "members": [
+        "value"
+      ]
+    },
+    {
+      "id": "segmented-control.change",
+      "text": "change fires on click and arrow-key selection only, as a plain event with no detail; read the value property. No input event fires, and setting value in script fires nothing.",
+      "members": [
+        "change",
+        "value"
+      ]
+    },
+    {
+      "id": "segmented-control.disabled",
+      "text": "Disabling the control disables every segment. A disabled segment is skipped by the arrow keys and never becomes the Tab stop.",
+      "members": [
+        "disabled"
+      ]
+    }
+  ],
+  "a11y": [
+    {
+      "id": "segmented-control.keyboard",
+      "text": "The group is one Tab stop: the checked segment, or the first enabled one. Arrow keys (mirrored right to left), Home and End move focus and select together, like native radios, and fire change.",
+      "members": [
+        "change"
+      ]
+    },
+    {
+      "id": "segmented-control.segment-names",
+      "text": "Each segment is a radio named by its slotted text. An aria-label on a violet-segment is not forwarded, so an icon-only segment still needs readable text in its slot."
+    }
+  ]
+}

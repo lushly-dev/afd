@@ -8,9 +8,10 @@
 //!
 //! | Route | What |
 //! | --- | --- |
-//! | `GET <path>/d/<id>` | Open: a login for a pending decision, then a redirect to the provider |
-//! | `GET <path>/d/return` | The provider's answer: the login's checks, then the decision page |
-//! | `POST <path>/d/<id>` | Decide: approve or decline, once |
+//! | `GET <path>/d/<id>[?page=<n>]` | With this browser's verified login of the decision, its page `n` (1 by default); else a login for a pending decision, then a redirect to the provider |
+//! | `GET <path>/d/return` | The provider's answer: the login's checks, then the decision's first page, or the list |
+//! | `POST <path>/d/<id>` | A page's choices and its `decision`: `next`, `previous`, `approve` or `decline`, the last two once |
+//! | `GET <path>/d/[?namespace=<id>]` | The person's pending decisions, after a login of their own (the Ideas host-review specification, section 5) |
 //! | `GET <path>/d/style.css` | The page's style sheet |
 //!
 //! **Every response** is `Cache-Control: no-store`, `Content-Security-Policy: default-src
@@ -20,7 +21,9 @@
 //! URL's host (its own host check, 6.3); a post must come from the public URL's origin (`Origin`
 //! exactly, or `Origin: null` with `Sec-Fetch-Site: same-origin`, which a browser sends for a
 //! same-origin form under `Referrer-Policy: no-referrer`) and carry the form's CSRF token (an
-//! HMAC of the decision and login ids under `person.key`) and the login's cookie.
+//! HMAC under `person.key` of the decision and login ids, and of the page shown and its hash) and
+//! the login's cookie. A page renders for a login's cookie only on a request whose
+//! `Sec-Fetch-Site` is `same-origin` or `none`.
 //!
 //! **The login** (7.2, steps 2 and 3): a random login id, with the PKCE verifier and the `nonce`
 //! kept in its row, and a `__Host-` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`) per
@@ -31,10 +34,26 @@
 //! 4.1 maps it in the login's namespace, must be the decision's `for.subject`, else "This request
 //! is for another person". Any refusal records nothing.
 //!
-//! **The page** (7.2, step 4) renders, at page time, the command's preview under the logged-in
-//! person's reader filter, who asked (the actor, the client and the delegation chain) and the
-//! space. Only the preview's SHA-256 is kept, in the login's row; a preview that cannot be shown
-//! leaves only Decline.
+//! **The page** (7.2, step 4) renders, at page time, one page of the command's preview under the
+//! logged-in person's reader filter, who asked (the actor, the client and the delegation chain)
+//! and the space. A paged preview's items each have a checkbox (the Ideas host-review
+//! specification, sections 2 and 3): the form posts the page, the decision and the zero-based
+//! positions left checked, which the store maps to the ids of the page it rendered. Only each
+//! page's SHA-256 and its items' ids are kept, in the decision's row; a page that cannot be shown
+//! uncut leaves only Decline, and Approve is offered once every page was shown.
+//!
+//! **The local page** (the Ideas host-review specification, section 6.3) serves the same routes
+//! at the root of `http://<person.local.bind>`, for the local person's decisions only, with no
+//! login and so no cookie (`__Host-` needs `Secure`, which plain HTTP cannot set) and no
+//! `/d/return`. Its CSRF token is the HMAC of the decision id and the string `local` (where the
+//! hosted page has the login id), with the page shown and its hash, as A21 binds the hosted
+//! page's. A request's `Host` must be the bind's address and port exactly, against DNS rebinding:
+//! another site that rebinds its name to `127.0.0.1` sends its own name. A post's `Origin` must be
+//! exactly `http://<bind>`, or `null` with `Sec-Fetch-Site: same-origin`; a page renders only for
+//! a request whose `Sec-Fetch-Site`, when sent, is `same-origin` or `none`, as A25 has the hosted
+//! page do. The headers, the escaping and the request limit are the hosted page's. These checks
+//! stop another web site, not a process on this machine: the page proves that something here
+//! posted its form, and records `local` (6.5).
 
 use std::sync::Arc;
 
@@ -45,14 +64,21 @@ use axum::response::Response;
 use http_body_util::BodyExt;
 
 use super::oidc::{Expected, Refusal};
-use super::service::{PersonService, is_id, random_id, random_secret, sha256_hex};
-use crate::shared::person::{Decided, LoginStart, NewLogin, Status, Verified};
+use super::service::{
+    MAX_PREVIEW_ITEMS, MAX_PREVIEW_PAGES, PersonService, PreviewPage, is_id, random_id,
+    random_secret, sha256_hex,
+};
+use crate::shared::person::{
+    Action, Choice, Decided, LOGIN_START_TTL_MS, LoginStart, MAX_DECISION_LIFE_MS,
+    MAX_LOGINS_PER_DECISION, NewListLogin, NewLogin, Render, Rendered, Status, Verified,
+};
 
 /// The page's Content Security Policy: nothing but its own style sheet and its own form target,
 /// never framed.
 pub(crate) const CSP: &str = "default-src 'none'; style-src 'self'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'";
-/// How long a login lives, at most: the decision's own expiry caps it.
-const LOGIN_TTL_MS: i64 = 600_000;
+/// How long a login to the list of pending decisions lives. A decision's login lives as long as
+/// its decision (the Ideas host-review specification, section 4).
+const LIST_LOGIN_TTL_MS: i64 = 600_000;
 /// The largest form a decision posts.
 const MAX_FORM_BYTES: usize = 4096;
 /// The page's own limit (6.3, layer 4): requests a minute per decision, per login, or (for a
@@ -60,11 +86,18 @@ const MAX_FORM_BYTES: usize = 4096;
 pub(crate) const PAGE_REQUESTS_PER_MINUTE: u64 = 30;
 /// The cookie name's prefix; the login id follows.
 const COOKIE_PREFIX: &str = "__Host-umbel-person-";
+/// What the local page's CSRF token binds where the hosted page's binds the login id: no login
+/// id is ever this string, since every one is 26 characters of base32.
+const LOCAL_LOGIN: &str = "local";
+/// What the local page says of itself on every page (section 6.5).
+const NO_SIGN_IN: &str = "This page has no sign-in. Anything on this machine can open it, every other account on this machine included: what it shows can be read, and a request approved, by any of them.";
 
 const STYLE: &str = "body{font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#1b1b1f;background:#fbfbfd}\
 h1{font-size:1.4rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem}dt{font-weight:600}\
 pre{white-space:pre-wrap;overflow-wrap:anywhere;background:#f0f0f4;padding:1rem;border-radius:.4rem}\
-button{font-size:1rem;padding:.5rem 1.2rem;margin-right:.8rem}@media (prefers-color-scheme:dark){body{background:#151518;color:#e9e9ee}pre{background:#24242a}}";
+button{font-size:1rem;padding:.5rem 1.2rem;margin-right:.8rem}\
+ul.items{list-style:none;padding:0}ul.items li{margin:.4rem 0}ul.items label{display:flex;gap:.6rem;align-items:flex-start}\
+ul.items span{white-space:pre-wrap;overflow-wrap:anywhere}table{border-collapse:collapse}td,th{text-align:left;padding:.25rem .8rem .25rem 0}@media (prefers-color-scheme:dark){body{background:#151518;color:#e9e9ee}pre{background:#24242a}}";
 
 /// What the routes need: the service and the page's public URL's parts.
 #[derive(Clone)]
@@ -76,10 +109,13 @@ pub(crate) struct PersonPage {
     host: String,
     /// The public URL's port, when it names one.
     port: Option<u16>,
-    /// `https://<host>[:<port>]`.
+    /// `https://<host>[:<port>]`, or `http://<bind>` on the local page.
     origin: String,
     /// [`PAGE_REQUESTS_PER_MINUTE`] per peer.
     limit: Arc<crate::surfaces::http::layers::SlidingLimit>,
+    /// On the local page, its bind as a `Host` header must name it (section 6.3); `None` on the
+    /// hosted page.
+    local: Option<String>,
 }
 
 impl std::fmt::Debug for PersonPage {
@@ -136,9 +172,24 @@ impl PersonPage {
         let url = reqwest::Url::parse(service.page_url()).ok()?;
         let host = url.host_str()?.to_ascii_lowercase();
         let port = url.port();
-        let origin = match port {
-            Some(port) => format!("https://{host}:{port}"),
-            None => format!("https://{host}"),
+        // The local page: the bind, exactly as configuration writes it (one spelling for each
+        // address, `[::1]` bracketed), over plain HTTP.
+        let local = service
+            .is_local()
+            .then(|| {
+                service
+                    .page_url()
+                    .strip_prefix("http://")
+                    .map(str::to_owned)
+            })
+            .flatten();
+        if service.is_local() && local.is_none() {
+            return None;
+        }
+        let origin = match (&local, port) {
+            (Some(bind), _) => format!("http://{bind}"),
+            (None, Some(port)) => format!("https://{host}:{port}"),
+            (None, None) => format!("https://{host}"),
         };
         Some(Self {
             service,
@@ -147,6 +198,7 @@ impl PersonPage {
             port,
             origin,
             limit,
+            local,
         })
     }
 
@@ -183,7 +235,7 @@ impl PersonPage {
     }
 
     /// Whether the request names the public URL's host: its host, and its port when the public
-    /// URL names one.
+    /// URL names one. On the local page, exactly its bind's address and port (section 6.3).
     fn host_ok(&self, headers: &HeaderMap) -> bool {
         let mut values = headers.get_all(header::HOST).iter();
         let (Some(value), None) = (values.next(), values.next()) else {
@@ -192,6 +244,9 @@ impl PersonPage {
         let Ok(value) = value.to_str() else {
             return false;
         };
+        if let Some(bind) = &self.local {
+            return value == bind;
+        }
         let (host, port) = if let Some(rest) = value.strip_prefix('[') {
             let Some((inner, after)) = rest.split_once(']') else {
                 return false;
@@ -263,6 +318,9 @@ impl PersonPage {
         };
         let rest = rest.to_owned();
         let method = request.method().clone();
+        if self.local.is_some() {
+            return self.local_route(&rest, &method, request).await;
+        }
         match (rest.as_str(), &method) {
             ("style.css", &Method::GET) => {
                 let mut response = Response::new(Body::from(STYLE));
@@ -272,13 +330,105 @@ impl PersonPage {
                 );
                 with_headers(response)
             }
+            ("", &Method::GET) => self.list(request.uri().query()).await,
             ("return", &Method::GET) => self.returned(request).await,
-            (id, &Method::GET) if is_id(id) => self.open(id, request.headers()).await,
+            (id, &Method::GET) if is_id(id) => {
+                self.open(id, request.uri().query(), request.headers())
+                    .await
+            }
             (id, &Method::POST) if is_id(id) => self.decide(id, request).await,
-            ("style.css" | "return", _) => self.method_not_allowed("GET"),
+            ("" | "style.css" | "return", _) => self.method_not_allowed("GET"),
             (id, _) if is_id(id) => self.method_not_allowed("GET, POST"),
             _ => self.not_found(),
         }
+    }
+
+    /// The style sheet.
+    fn style() -> Response {
+        let mut response = Response::new(Body::from(STYLE));
+        response.headers_mut().insert(
+            header::CONTENT_TYPE,
+            HeaderValue::from_static("text/css; charset=utf-8"),
+        );
+        with_headers(response)
+    }
+
+    /// The local page's routes (section 6.3): the style sheet, the list of the local person's
+    /// pending decisions, a decision's pages and its form; no `/d/return`, since nothing logs in.
+    async fn local_route(&self, rest: &str, method: &Method, request: Request) -> Response {
+        match (rest, method) {
+            ("style.css", &Method::GET) => Self::style(),
+            ("", &Method::GET) => {
+                if !Self::own_request(request.headers()) {
+                    return self.foreign();
+                }
+                if Self::query(request.uri().query(), &[]).is_none() {
+                    return self.not_found();
+                }
+                let config = self.service.workspace_config();
+                let Some(subject) = super::local_subject(config) else {
+                    return self.unavailable_now();
+                };
+                self.list_page(super::LOCAL_NAMESPACE, &subject, self.service.now())
+                    .await
+            }
+            (id, &Method::GET) if is_id(id) => {
+                self.open_local(id, request.uri().query(), request.headers())
+                    .await
+            }
+            (id, &Method::POST) if is_id(id) => self.decide(id, request).await,
+            ("" | "style.css", _) => self.method_not_allowed("GET"),
+            (id, _) if is_id(id) => self.method_not_allowed("GET, POST"),
+            _ => self.not_found(),
+        }
+    }
+
+    /// Whether a request is the page's own or typed, by its fetch metadata, which no page can
+    /// set: `Sec-Fetch-Site` `same-origin` or `none`, or not sent at all (a client that is not a
+    /// browser, which another site cannot drive).
+    fn own_request(headers: &HeaderMap) -> bool {
+        match headers.get("sec-fetch-site") {
+            None => true,
+            Some(value) => matches!(value.to_str(), Ok("same-origin" | "none")),
+        }
+    }
+
+    /// The local page's answer to a request another site made.
+    fn foreign(&self) -> Response {
+        self.message(
+            StatusCode::FORBIDDEN,
+            "Open it directly",
+            "Open the request's link in this machine's browser, as it was given. Nothing was recorded.",
+        )
+    }
+
+    /// `GET /d/<id>[?page=<n>]` on the local page: page `n` (1 when not named) of a pending,
+    /// live decision of the local person, with no login.
+    async fn open_local(&self, id: &str, query: Option<&str>, headers: &HeaderMap) -> Response {
+        let Some(params) = Self::query(query, &["page"]) else {
+            return self.not_found();
+        };
+        let page = match params.get("page") {
+            None => 1,
+            Some(text) => match Self::page_number(text) {
+                Some(page) => page,
+                None => return self.not_found(),
+            },
+        };
+        if !Self::own_request(headers) {
+            return self.foreign();
+        }
+        let decision = match self.service.decision(id).await {
+            Ok(Some(decision)) => decision,
+            Ok(None) => return self.not_found(),
+            Err(_) => return self.unavailable_now(),
+        };
+        let now = self.service.now();
+        if decision.status != Status::Pending || !decision.live(now) || !decision.is_local() {
+            return self.not_found();
+        }
+        let shown = self.service.preview_page(&decision, page).await;
+        self.respond(&decision, LOCAL_LOGIN, shown).await
     }
 
     /// The limit's bucket of a request: the decision its path names, or the login its `state`
@@ -321,9 +471,49 @@ impl PersonPage {
         )
     }
 
-    /// `GET <path>/d/<id>`: a login for a pending, live decision, then the provider.
-    async fn open(&self, id: &str, headers: &HeaderMap) -> Response {
-        let _ = headers;
+    /// The query's parameters, each at most once and each one of `allowed`; `None` otherwise.
+    fn query(
+        query: Option<&str>,
+        allowed: &[&str],
+    ) -> Option<std::collections::BTreeMap<String, String>> {
+        let query = query.unwrap_or_default();
+        let mut params = std::collections::BTreeMap::new();
+        for (name, value) in url::form_urlencoded::parse(query.as_bytes()) {
+            if !allowed.contains(&name.as_ref())
+                || params
+                    .insert(name.into_owned(), value.into_owned())
+                    .is_some()
+            {
+                return None;
+            }
+        }
+        Some(params)
+    }
+
+    /// A page number as a form or a query gives it: 1 to [`MAX_PREVIEW_PAGES`].
+    fn page_number(text: &str) -> Option<u32> {
+        if text.is_empty() || text.len() > 3 || !text.bytes().all(|byte| byte.is_ascii_digit()) {
+            return None;
+        }
+        text.parse::<u32>()
+            .ok()
+            .filter(|page| (1..=MAX_PREVIEW_PAGES).contains(page))
+    }
+
+    /// `GET <path>/d/<id>[?page=<n>]`: with a verified login of this decision in this browser,
+    /// its page `n` (1 when not named); otherwise a login for the pending, live decision, then the
+    /// provider.
+    async fn open(&self, id: &str, query: Option<&str>, headers: &HeaderMap) -> Response {
+        let Some(params) = Self::query(query, &["page"]) else {
+            return self.not_found();
+        };
+        let page = match params.get("page") {
+            None => 1,
+            Some(text) => match Self::page_number(text) {
+                Some(page) => page,
+                None => return self.not_found(),
+            },
+        };
         let decision = match self.service.decision(id).await {
             Ok(Some(decision)) => decision,
             Ok(None) => return self.not_found(),
@@ -332,6 +522,36 @@ impl PersonPage {
         let now = self.service.now();
         if decision.status != Status::Pending || !decision.live(now) {
             return self.not_found();
+        }
+        // The browser's login of this decision, if it holds one that is verified and live, on a
+        // request the browser says is the page's own or typed (fetch metadata, which no page can
+        // set): another site's link starts a fresh login instead of rendering a page.
+        let own = matches!(
+            headers
+                .get("sec-fetch-site")
+                .and_then(|value| value.to_str().ok()),
+            Some("same-origin" | "none")
+        );
+        let cookies = if own {
+            Self::login_cookies(headers)
+        } else {
+            Vec::new()
+        };
+        for (login, value) in cookies {
+            let store = Arc::clone(&self.service.store);
+            let (decision_id, login_id, hash) = (id.to_owned(), login.clone(), sha256_hex(&value));
+            let verified = tokio::task::spawn_blocking(move || {
+                store.verified_login(&decision_id, &login_id, &hash, now)
+            })
+            .await;
+            match verified {
+                Ok(Ok(true)) => {
+                    let shown = self.service.preview_page(&decision, page).await;
+                    return self.respond(&decision, &login, shown).await;
+                }
+                Ok(Ok(false)) => {}
+                _ => return self.unavailable_now(),
+            }
         }
         let Some(provider) = self.service.provider(&decision.for_.namespace).cloned() else {
             return self.unavailable_now();
@@ -349,6 +569,8 @@ impl PersonPage {
         };
         let started = {
             let store = Arc::clone(&self.service.store);
+            // Ten minutes to come back from the provider; verified, as long as its decision
+            // (section 4).
             let row = NewLogin {
                 id: login.clone(),
                 decision: id.to_owned(),
@@ -356,7 +578,7 @@ impl PersonPage {
                 nonce: nonce.clone(),
                 browser_hash: sha256_hex(&browser),
                 created_ms: now,
-                expires_ms: now.saturating_add(LOGIN_TTL_MS),
+                expires_ms: now.saturating_add(LOGIN_START_TTL_MS),
             };
             tokio::task::spawn_blocking(move || store.start_login(&row, now)).await
         };
@@ -372,9 +594,31 @@ impl PersonPage {
             }
             _ => return self.unavailable_now(),
         }
+        // The cookie may outlive the login: the row, not the cookie, decides.
+        let life_ms = decision
+            .created_ms
+            .saturating_add(MAX_DECISION_LIFE_MS)
+            .saturating_sub(now);
+        self.to_provider(
+            &provider, &doc, &login, &verifier, &nonce, &browser, life_ms,
+        )
+    }
+
+    /// The redirect to `provider` for `login`, setting its cookie for `life_ms`.
+    #[allow(clippy::too_many_arguments)]
+    fn to_provider(
+        &self,
+        provider: &super::oidc::Provider,
+        doc: &super::oidc::ProviderDoc,
+        login: &str,
+        verifier: &str,
+        nonce: &str,
+        browser: &str,
+        life_ms: i64,
+    ) -> Response {
         let state = format!(
             "{login}.{}",
-            self.service.mac("umbel/person/state/1", &[&login])
+            self.service.mac("umbel/person/state/1", &[login])
         );
         let challenge = {
             use base64::Engine;
@@ -383,10 +627,10 @@ impl PersonPage {
                 .encode(Sha256::digest(verifier.as_bytes()))
         };
         let location = provider.authorization_url(
-            &doc,
+            doc,
             &self.service.redirect_uri(),
             &state,
-            &nonce,
+            nonce,
             &challenge,
         );
         let mut response = Response::new(Body::empty());
@@ -397,12 +641,99 @@ impl PersonPage {
         response.headers_mut().insert(header::LOCATION, location);
         let cookie = format!(
             "{COOKIE_PREFIX}{login}={browser}; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age={}",
-            LOGIN_TTL_MS / 1000
+            life_ms.max(0) / 1000
         );
         if let Ok(cookie) = HeaderValue::from_str(&cookie) {
             response.headers_mut().insert(header::SET_COOKIE, cookie);
         }
         with_headers(response)
+    }
+
+    /// `GET <path>/d/[?namespace=<id>]`: a login for the list of the person's pending decisions
+    /// (section 5), then the provider. The namespace is the one named, or the page's only one;
+    /// with several and none named, a choice of them.
+    async fn list(&self, query: Option<&str>) -> Response {
+        let Some(params) = Self::query(query, &["namespace"]) else {
+            return self.not_found();
+        };
+        let namespaces = self.service.namespaces();
+        let namespace = match (params.get("namespace"), namespaces.as_slice()) {
+            (Some(named), _) if namespaces.contains(named) => named.clone(),
+            (Some(_), _) | (None, []) => return self.not_found(),
+            (None, [only]) => only.clone(),
+            (None, several) => {
+                let links: String = several
+                    .iter()
+                    .map(|namespace| {
+                        let href = format!(
+                            "{}?{}",
+                            self.prefix,
+                            url::form_urlencoded::Serializer::new(String::new())
+                                .append_pair("namespace", namespace)
+                                .finish()
+                        );
+                        format!(
+                            "<li><a href=\"{}\">{}</a></li>",
+                            escape(&href),
+                            escape(namespace)
+                        )
+                    })
+                    .collect();
+                return self.page(
+                    StatusCode::OK,
+                    "Pending requests",
+                    &format!("<p>Sign in to see your pending requests in:</p><ul>{links}</ul>"),
+                );
+            }
+        };
+        let Some(provider) = self.service.provider(&namespace).cloned() else {
+            return self.unavailable_now();
+        };
+        let Ok(doc) = provider.ensure().await else {
+            return self.unavailable_now();
+        };
+        let (Some(login), Some(verifier), Some(nonce), Some(browser)) = (
+            random_id(),
+            random_secret(),
+            random_secret(),
+            random_secret(),
+        ) else {
+            return self.unavailable_now();
+        };
+        let now = self.service.now();
+        let started = {
+            let store = Arc::clone(&self.service.store);
+            let row = NewListLogin {
+                id: login.clone(),
+                namespace,
+                verifier: verifier.clone(),
+                nonce: nonce.clone(),
+                browser_hash: sha256_hex(&browser),
+                created_ms: now,
+                expires_ms: now.saturating_add(LIST_LOGIN_TTL_MS),
+            };
+            tokio::task::spawn_blocking(move || store.start_list_login(&row, now)).await
+        };
+        match started {
+            Ok(Ok(LoginStart::Started)) => {}
+            Ok(Ok(_)) => {
+                return self.message(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "Too many sign-ins",
+                    "Too many people are signing in to see their requests. Try again in a few minutes.",
+                );
+            }
+            _ => return self.unavailable_now(),
+        }
+        self.to_provider(
+            &provider,
+            &doc,
+            &login,
+            &verifier,
+            &nonce,
+            &browser,
+            LIST_LOGIN_TTL_MS,
+        )
     }
 
     /// The cookie `name`'s one value, if the request sends exactly one.
@@ -425,7 +756,34 @@ impl PersonPage {
         found
     }
 
-    /// `GET <path>/d/return`: the provider's answer (7.2, step 3), then the page (step 4).
+    /// Every login cookie the request sends, as its login id and value, at most
+    /// [`MAX_LOGINS_PER_DECISION`] of them.
+    fn login_cookies(headers: &HeaderMap) -> Vec<(String, String)> {
+        let mut found = Vec::new();
+        for value in headers.get_all(header::COOKIE) {
+            let Ok(value) = value.to_str() else {
+                continue;
+            };
+            for pair in value.split(';') {
+                let Some((key, value)) = pair.trim().split_once('=') else {
+                    continue;
+                };
+                if let Some(login) = key.strip_prefix(COOKIE_PREFIX)
+                    && is_id(login)
+                    && !found
+                        .iter()
+                        .any(|(seen, _): &(String, String)| seen == login)
+                {
+                    found.push((login.to_owned(), value.to_owned()));
+                }
+            }
+        }
+        found.truncate(usize::try_from(MAX_LOGINS_PER_DECISION).unwrap_or(8));
+        found
+    }
+
+    /// `GET <path>/d/return`: the provider's answer (7.2, step 3), then the decision's first page
+    /// (step 4), or the list of pending decisions for a login to the list.
     async fn returned(&self, request: Request) -> Response {
         let refused = |page: &Self| {
             page.message(
@@ -490,14 +848,23 @@ impl PersonPage {
         if params.contains_key("error") {
             return fail(self, "provider-error", refused(self));
         }
-        let decision = match self.service.decision(&row.decision).await {
-            Ok(Some(decision)) if decision.status == Status::Pending && decision.live(now) => {
-                decision
+        // A login to the list names its namespace; a decision's is its decision's.
+        let (decision, namespace) = if row.decision.is_empty() {
+            match &row.namespace {
+                Some(namespace) => (None, namespace.clone()),
+                None => return fail(self, "login", refused(self)),
             }
-            Ok(_) => return fail(self, "decision", self.not_found()),
-            Err(_) => return fail(self, "store", self.unavailable_now()),
+        } else {
+            match self.service.decision(&row.decision).await {
+                Ok(Some(decision)) if decision.status == Status::Pending && decision.live(now) => {
+                    let namespace = decision.for_.namespace.clone();
+                    (Some(decision), namespace)
+                }
+                Ok(_) => return fail(self, "decision", self.not_found()),
+                Err(_) => return fail(self, "store", self.unavailable_now()),
+            }
         };
-        let Some(provider) = self.service.provider(&decision.for_.namespace).cloned() else {
+        let Some(provider) = self.service.provider(&namespace).cloned() else {
             return fail(self, "provider", self.unavailable_now());
         };
         let Ok(doc) = provider.ensure().await else {
@@ -553,9 +920,32 @@ impl PersonPage {
             }
             Err(refusal) => return fail(self, refusal.code(), refused(self)),
         };
-        // The subject, mapped as 4.1 maps it in the login's namespace, is the person the request
-        // is for (the login is the namespace's own, so the namespace matches by construction).
-        let mapped = crate::auth::mapped_id(&decision.for_.namespace, &proved.subject);
+        // The subject, mapped as 4.1 maps it in the login's namespace.
+        let mapped = crate::auth::mapped_id(&namespace, &proved.subject);
+        let Some(decision) = decision else {
+            // The list (section 5): the person's own pending decisions, and nothing to decide.
+            if provider.namespace != namespace {
+                return fail(self, "wrong-person", refused(self));
+            }
+            let finished = {
+                let store = Arc::clone(&self.service.store);
+                let login = row.id.clone();
+                let verified = Verified {
+                    auth_time_ms: proved.auth_time_s.saturating_mul(1000),
+                    acr: proved.acr.clone(),
+                    preview_hash: format!("sha256:{}", sha256_hex("")),
+                    preview_ok: false,
+                };
+                tokio::task::spawn_blocking(move || store.finish_login(&login, Some(&verified)))
+                    .await
+            };
+            if !matches!(finished, Ok(Ok(true))) {
+                return self.unavailable_now();
+            }
+            return self.list_page(&namespace, &mapped, now).await;
+        };
+        // The person the request is for (the login is the namespace's own, so the namespace
+        // matches by construction).
         if provider.namespace != decision.for_.namespace || mapped != decision.for_.subject {
             return fail(
                 self,
@@ -567,13 +957,13 @@ impl PersonPage {
                 ),
             );
         }
-        // The page, rendered now: the preview under this person's reader filter.
-        let (preview, preview_ok) = self.service.preview(&decision).await;
+        // The first page, rendered now: the preview under this person's reader filter.
+        let shown = self.service.preview_page(&decision, 1).await;
         let verified = Verified {
             auth_time_ms: proved.auth_time_s.saturating_mul(1000),
             acr: proved.acr.clone(),
-            preview_hash: format!("sha256:{}", sha256_hex(&preview)),
-            preview_ok,
+            preview_hash: shown.hash.clone(),
+            preview_ok: shown.ok,
         };
         let finished = {
             let store = Arc::clone(&self.service.store);
@@ -583,26 +973,161 @@ impl PersonPage {
         if !matches!(finished, Ok(Ok(true))) {
             return self.unavailable_now();
         }
-        self.decision_page(&decision, &row.id, &mapped, &preview, preview_ok)
+        self.respond(&decision, &row.id, shown).await
+    }
+
+    /// The list of `namespace`'s person `subject`'s pending, live decisions (section 5): for
+    /// each, the command, the spaces, when it was begun and when it expires, and a link to its
+    /// page. No preview is run for it.
+    async fn list_page(&self, namespace: &str, subject: &str, now: i64) -> Response {
+        let found = {
+            let store = Arc::clone(&self.service.store);
+            let (namespace, subject) = (namespace.to_owned(), subject.to_owned());
+            tokio::task::spawn_blocking(move || store.pending_for(&namespace, &subject, now)).await
+        };
+        let Ok(Ok(decisions)) = found else {
+            return self.unavailable_now();
+        };
+        let rows: String = decisions
+            .iter()
+            .map(|decision| {
+                format!(
+                    "<tr><td><a href=\"{href}\"><code>{command}</code></a></td><td>{spaces}</td><td>{asked}</td><td>{expires}</td></tr>",
+                    href = escape(&format!("{}{}", self.prefix, decision.id)),
+                    command = escape(&decision.command),
+                    spaces = escape(&decision.spaces.join(", ")),
+                    asked = escape(&super::iso(decision.created_ms)),
+                    expires = escape(&super::iso(decision.expires_ms)),
+                )
+            })
+            .collect();
+        let body = if decisions.is_empty() {
+            "<p>Nothing is waiting for you.</p>".to_owned()
+        } else {
+            format!(
+                "<table><thead><tr><th>Command</th><th>Spaces</th><th>Asked at</th><th>Expires</th></tr></thead><tbody>{rows}</tbody></table>"
+            )
+        };
+        let intro = if self.local.is_some() {
+            format!(
+                "<p>Requests waiting for <b>{subject}</b> on this machine. {NO_SIGN_IN} Open a request to review it.</p>",
+                subject = escape(subject),
+            )
+        } else {
+            format!(
+                "<p>Signed in as <b>{namespace}/{subject}</b>. Open a request to review it; each asks you to sign in for it.</p>",
+                namespace = escape(namespace),
+                subject = escape(subject),
+            )
+        };
+        self.page(
+            StatusCode::OK,
+            "Pending requests",
+            &format!("{intro}{body}"),
+        )
+    }
+
+    /// Record `shown`, a page of `decision` rendered for `login`, and answer it (section 2): a
+    /// review that changed starts again from page 1, with a line that says so; a page whose
+    /// items another page lists cannot be shown.
+    async fn respond(
+        &self,
+        decision: &crate::shared::person::Decision,
+        login: &str,
+        mut shown: PreviewPage,
+    ) -> Response {
+        let mut notice = None;
+        let mut decision = decision.clone();
+        for _ in 0..2 {
+            if !shown.ok {
+                // A page recorded before that cannot be shown now is a review that changed: what
+                // was seen of it no longer counts toward Approve.
+                if decision.seen(shown.page).is_none() {
+                    return self.decision_page(&decision, login, &shown, notice);
+                }
+                let cleared = {
+                    let store = Arc::clone(&self.service.store);
+                    let id = decision.id.clone();
+                    tokio::task::spawn_blocking(move || store.clear_pages(&id)).await
+                };
+                if !matches!(cleared, Ok(Ok(()))) {
+                    return self.unavailable_now();
+                }
+                decision.pages.clear();
+                decision.pages_total = None;
+                decision.excluded.clear();
+                notice = Some("The review changed while you read it.");
+                shown = self.service.preview_page(&decision, 1).await;
+                continue;
+            }
+            let rendered = {
+                let store = Arc::clone(&self.service.store);
+                let render = Render {
+                    decision: decision.id.clone(),
+                    login: login.to_owned(),
+                    page: shown.page,
+                    pages: shown.pages,
+                    hash: shown.hash.clone(),
+                    items: shown.items.iter().map(|(id, _)| id.clone()).collect(),
+                    ttl_ms: self.service.ttl_ms(),
+                };
+                let now = self.service.now();
+                tokio::task::spawn_blocking(move || store.render(&render, now)).await
+            };
+            match rendered {
+                Ok(Ok(Rendered::Recorded(now))) => {
+                    return self.decision_page(&now, login, &shown, notice);
+                }
+                Ok(Ok(Rendered::Changed)) => {
+                    notice = Some("The review changed while you read it.");
+                    decision.pages.clear();
+                    decision.pages_total = None;
+                    decision.excluded.clear();
+                    shown = self.service.preview_page(&decision, 1).await;
+                }
+                Ok(Ok(Rendered::Duplicate)) => {
+                    return self.decision_page(
+                        &decision,
+                        login,
+                        &PreviewPage::unavailable(shown.page),
+                        notice,
+                    );
+                }
+                Ok(Ok(Rendered::Gone)) => return self.not_found(),
+                _ => return self.unavailable_now(),
+            }
+        }
+        // It changed again as it was shown from the start: only Decline.
+        self.decision_page(&decision, login, &PreviewPage::unavailable(1), notice)
+    }
+
+    /// The form's CSRF token: an HMAC of the decision, the login, and the page shown with its
+    /// hash, so a form posts only from the page as it was shown.
+    fn csrf(&self, decision: &str, login: &str, page: u32, hash: &str) -> String {
+        self.service.mac(
+            "umbel/person/csrf/2",
+            &[decision, login, &page.to_string(), hash],
+        )
     }
 
     fn decision_page(
         &self,
         decision: &crate::shared::person::Decision,
         login: &str,
-        person: &str,
-        preview: &str,
-        preview_ok: bool,
+        shown: &PreviewPage,
+        notice: Option<&str>,
     ) -> Response {
-        let csrf = self
-            .service
-            .mac("umbel/person/csrf/1", &[&decision.id, login]);
+        let csrf = self.csrf(&decision.id, login, shown.page, &shown.hash);
         let actor = decision.for_.actor.id.as_deref().unwrap_or("(none)");
         let client = decision
             .for_
             .client_id
             .as_deref()
-            .unwrap_or("the umbel command at a terminal");
+            .unwrap_or(if decision.is_local() {
+                "an agent over stdio on this machine"
+            } else {
+                "the umbel command at a terminal"
+            });
         let chain: Vec<&str> = decision
             .chain
             .iter()
@@ -613,20 +1138,84 @@ impl PersonPage {
         } else {
             chain.join(" \u{2192} ")
         };
-        let approve = if preview_ok {
-            "<button type=\"submit\" name=\"decision\" value=\"approve\">Approve</button>"
+        let button = |action: &str, label: &str| {
+            format!("<button type=\"submit\" name=\"decision\" value=\"{action}\">{label}</button>")
+        };
+        let mut buttons = String::new();
+        if shown.ok && shown.page > 1 {
+            buttons.push_str(&button("previous", "Previous page"));
+        }
+        if shown.ok && shown.page < shown.pages {
+            buttons.push_str(&button("next", "Next page"));
+        }
+        // Approve only once every page was shown (section 2).
+        if shown.ok && decision.every_page_seen() {
+            buttons.push_str(&button("approve", "Approve"));
+        }
+        buttons.push_str(&button("decline", "Decline"));
+        let items: String = shown
+            .items
+            .iter()
+            .enumerate()
+            .map(|(position, (id, text))| {
+                format!(
+                    "<li><label><input type=\"checkbox\" name=\"k\" value=\"{position}\"{checked}><span>{text}</span></label></li>",
+                    checked = if decision.excluded.contains(id) {
+                        ""
+                    } else {
+                        " checked"
+                    },
+                    text = escape(text),
+                )
+            })
+            .collect();
+        let items = if items.is_empty() {
+            String::new()
         } else {
-            ""
+            format!(
+                "<p>Uncheck an item to leave it out; the rest is applied.</p><ul class=\"items\">{items}</ul>"
+            )
+        };
+        let paging = if shown.pages > 1 {
+            format!(
+                "<p>Page {} of {}. Approve appears once you have seen every page.</p>",
+                shown.page, shown.pages
+            )
+        } else {
+            String::new()
+        };
+        let notice = notice
+            .map(|notice| format!("<p class=\"notice\"><b>{}</b></p>", escape(notice)))
+            .unwrap_or_default();
+        // The local page has no login: its form names none, and it says what it proves.
+        let (who, login_field) = if self.local.is_some() {
+            (
+                format!(
+                    "<p>For <b>{person}</b> on this machine. {NO_SIGN_IN} Decide this request yourself and approve it only if you asked for it.</p>",
+                    person = escape(&decision.for_.subject),
+                ),
+                String::new(),
+            )
+        } else {
+            (
+                format!(
+                    "<p>Signed in as <b>{namespace}/{person}</b>. Decide this request yourself: approve it only if you asked for it.</p>",
+                    namespace = escape(&decision.for_.namespace),
+                    person = escape(&decision.for_.subject),
+                ),
+                format!(
+                    "<input type=\"hidden\" name=\"login\" value=\"{}\">",
+                    escape(login)
+                ),
+            )
         };
         let body = format!(
-            "<p>Signed in as <b>{namespace}/{person}</b>. Decide this request yourself: approve it only if you asked for it.</p>\
+            "{notice}{who}\
              <dl><dt>Command</dt><dd><code>{command}</code></dd><dt>Spaces</dt><dd>{space}</dd>\
              <dt>Asked by</dt><dd><code>{actor}</code></dd><dt>Client</dt><dd><code>{client}</code></dd>\
              <dt>Through</dt><dd><code>{chain}</code></dd><dt>Asked at</dt><dd>{asked}</dd><dt>Expires</dt><dd>{expires}</dd></dl>\
-             <h2>What it will do</h2><pre>{preview}</pre>\
-             <form method=\"post\" action=\"{action}\"><input type=\"hidden\" name=\"login\" value=\"{login}\"><input type=\"hidden\" name=\"csrf\" value=\"{csrf}\">{approve}<button type=\"submit\" name=\"decision\" value=\"decline\">Decline</button></form>",
-            namespace = escape(&decision.for_.namespace),
-            person = escape(person),
+             <h2>What it will do</h2>{paging}\
+             <form method=\"post\" action=\"{action}\"><pre>{preview}</pre>{items}{login_field}<input type=\"hidden\" name=\"csrf\" value=\"{csrf}\"><input type=\"hidden\" name=\"page\" value=\"{page}\">{buttons}</form>",
             command = escape(&decision.command),
             space = escape(&decision.spaces.join(", ")),
             actor = escape(actor),
@@ -634,15 +1223,16 @@ impl PersonPage {
             chain = escape(&chain),
             asked = escape(&super::iso(decision.created_ms)),
             expires = escape(&super::iso(decision.expires_ms)),
-            preview = escape(preview),
+            preview = escape(&shown.heading),
             action = escape(&format!("{}{}", self.prefix, decision.id)),
-            login = escape(login),
             csrf = escape(&csrf),
+            page = shown.page,
         );
         self.page(StatusCode::OK, "Review a request", &body)
     }
 
-    /// `POST <path>/d/<id>`: the person's decision, once (7.2, step 4).
+    /// `POST <path>/d/<id>`: the person's choices on a page, and a move to another page or the
+    /// decision, once (7.2, step 4; section 2).
     async fn decide(&self, id: &str, request: Request) -> Response {
         let refused = |page: &Self| {
             page.message(
@@ -677,51 +1267,128 @@ impl PersonPage {
             Err(_) => return refused(self),
         };
         let mut fields: std::collections::BTreeMap<String, String> = Default::default();
+        let mut checked: Vec<usize> = Vec::new();
         for (name, value) in url::form_urlencoded::parse(&body) {
             let name = name.into_owned();
-            if !matches!(name.as_str(), "login" | "csrf" | "decision")
+            if name == "k" {
+                // A position: digits only, on a page of at most `MAX_PREVIEW_ITEMS`.
+                let position = (!value.is_empty()
+                    && value.len() <= 3
+                    && value.bytes().all(|byte| byte.is_ascii_digit()))
+                .then(|| value.parse::<usize>().ok())
+                .flatten()
+                .filter(|position| *position < MAX_PREVIEW_ITEMS);
+                match position {
+                    Some(position) if checked.len() < MAX_PREVIEW_ITEMS => checked.push(position),
+                    _ => return refused(self),
+                }
+                continue;
+            }
+            if !matches!(name.as_str(), "login" | "csrf" | "page" | "decision")
                 || fields.insert(name, value.into_owned()).is_some()
             {
                 return refused(self);
             }
         }
-        let (Some(login), Some(csrf), Some(choice)) = (
-            fields.get("login"),
+        // A form that names no page posts from the first, which is all an unpaged preview has: the
+        // form phase 5 posts stays valid.
+        let page = match fields.get("page") {
+            None => Some(1),
+            Some(page) => Self::page_number(page),
+        };
+        // The local page's form names no login; the hosted page's always does.
+        let login = match (&self.local, fields.get("login")) {
+            (Some(_), None) => Some(LOCAL_LOGIN.to_owned()),
+            (Some(_), Some(_)) => None,
+            (None, login) => login.filter(|login| is_id(login)).cloned(),
+        };
+        let (Some(login), Some(csrf), Some(page), Some(action)) = (
+            login,
             fields.get("csrf"),
-            fields.get("decision"),
+            page,
+            fields
+                .get("decision")
+                .and_then(|action| Action::parse(action)),
         ) else {
             return refused(self);
         };
-        let approve = match choice.as_str() {
-            "approve" => true,
-            "decline" => false,
-            _ => return refused(self),
+        // The token names the page shown: the page recorded under that number, or, for a
+        // Decline, the page that could not be shown.
+        let recorded = match self.service.decision(id).await {
+            Ok(Some(decision)) => decision.seen(page).map(|seen| seen.hash.clone()),
+            Ok(None) => None,
+            Err(_) => return self.unavailable_now(),
         };
-        let expected = self.service.mac("umbel/person/csrf/1", &[id, login]);
-        if !is_id(login) || !crate::shared::person::same_digest(csrf, &expected) {
+        let unshown = PreviewPage::unavailable(page).hash;
+        let Some(shown_hash) = recorded.into_iter().chain([unshown]).find(|hash| {
+            crate::shared::person::same_digest(csrf, &self.csrf(id, &login, page, hash))
+        }) else {
             log_refusal("csrf");
             return refused(self);
-        }
-        let Some(cookie) = Self::cookie(&headers, &format!("{COOKIE_PREFIX}{login}")) else {
-            log_refusal("cookie");
-            return refused(self);
+        };
+        // The hosted page's login cookie; the local page has none.
+        let cookie = if self.local.is_some() {
+            None
+        } else {
+            let Some(cookie) = Self::cookie(&headers, &format!("{COOKIE_PREFIX}{login}")) else {
+                log_refusal("cookie");
+                return refused(self);
+            };
+            Some(cookie)
         };
         let now = self.service.now();
         let decided = {
             let store = Arc::clone(&self.service.store);
-            let (id, login, hash) = (id.to_owned(), login.clone(), sha256_hex(&cookie));
-            tokio::task::spawn_blocking(move || store.decide(&id, &login, &hash, approve, now))
-                .await
+            let (id, login) = (id.to_owned(), login.clone());
+            let choice = Choice {
+                page,
+                action,
+                checked,
+                hash: shown_hash,
+                max_age_ms: self.service.ttl_ms(),
+            };
+            tokio::task::spawn_blocking(move || match cookie {
+                Some(cookie) => store.decide(&id, &login, &sha256_hex(&cookie), &choice, now),
+                None => store.decide_local(&id, &choice, now),
+            })
+            .await
         };
         let decision = match decided {
             Ok(Ok(Decided::Recorded(decision))) => decision,
+            Ok(Ok(Decided::Moved(to))) => {
+                let mut response = Response::new(Body::empty());
+                *response.status_mut() = StatusCode::SEE_OTHER;
+                if let Ok(location) =
+                    HeaderValue::from_str(&format!("{}{id}?page={to}", self.prefix))
+                {
+                    response.headers_mut().insert(header::LOCATION, location);
+                }
+                return with_headers(response);
+            }
+            Ok(Ok(Decided::Changed)) => {
+                log_refusal("changed");
+                return self.message(
+                    StatusCode::FORBIDDEN,
+                    "This request changed",
+                    "This request changed, and nothing was recorded. Open the request's link again to see it as it is now.",
+                );
+            }
             Ok(Ok(Decided::Refused)) => {
                 log_refusal("decide");
                 return refused(self);
             }
+            Ok(Ok(Decided::Stale)) => {
+                log_refusal("stale");
+                return self.message(
+                    StatusCode::FORBIDDEN,
+                    "Sign in again",
+                    "Your sign-in is older than this request's lifetime, so nothing was recorded. Open the request's link again to sign in and decide.",
+                );
+            }
             _ => return self.unavailable_now(),
         };
         self.service.journal(&decision).await;
+        let approve = decision.status == Status::Approved;
         let (title, text) = if approve {
             (
                 "Approved",
@@ -734,6 +1401,9 @@ impl PersonPage {
             )
         };
         let mut response = self.message(StatusCode::OK, title, text);
+        if self.local.is_some() {
+            return response;
+        }
         if let Ok(cleared) = HeaderValue::from_str(&format!(
             "{COOKIE_PREFIX}{login}=; Path=/; Secure; HttpOnly; SameSite=Lax; Max-Age=0"
         )) {

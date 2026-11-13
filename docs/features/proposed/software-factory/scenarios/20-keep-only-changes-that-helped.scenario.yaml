@@ -1,0 +1,57 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is the lane's state as the review opens; loading it runs the lane's review-open step, which
+# computes the review, judges the experiments that are due and restores the dials it reverts.
+name: Keep a change only if it helped
+description: >-
+  When a change the factory made to itself has had enough merges to judge, I want it kept only if its
+  number improved beyond its normal range without its paired numbers getting worse, and undone otherwise,
+  so that the factory never keeps a change on hope.
+job: keep-only-changes-that-helped
+tags: [improvement]
+fixture:
+  file: fixtures/experiments.json
+  base: fresh.json
+steps:
+  - description: >-
+      The lane judged each experiment due: one kept, one dial restored, one too early, one code change
+      to revert; the owed revert keeps the review open
+    command: factory-health
+    expect:
+      success: true
+      data:
+        verdicts:
+          exp-3: { verdict: kept }
+          exp-4:
+            verdict: reverted
+            because: { contains: idleSeatHours }
+            restored: { key: lane.queueTarget, value: 2 }
+          exp-5: { verdict: inconclusive, because: { contains: merges } }
+          exp-6: { verdict: revert, prs: [618] }
+        review: { state: open, unanswered: [exp-6] }
+  - description: The dial the lane restored is back at its previous value
+    command: dial-get
+    input: { key: lane.queueTarget }
+    expect:
+      success: true
+      data: { key: lane.queueTarget, value: 2 }
+  - description: The foreman reverts the code change that made things worse
+    command: lane-revert
+    input: { prs: [618], reason: 'exp-6: idle foreman wakes per merge rose from 0.62 to 0.95 after #618' }
+    expect:
+      success: true
+      data:
+        revertPrs: { length: 1 }
+  - description: With the revert made, the review closes and reports the verdicts
+    command: factory-health
+    expect:
+      success: true
+      data:
+        review: { state: closed, trendComment: { matches: 'issues/140#issuecomment-' } }
+  - description: The kept change stays, with its evidence
+    command: improvement-list
+    input: { state: kept }
+    expect:
+      success: true
+      data:
+        experiments:
+          - { id: exp-3, metric: toolingEjectionsPerMerge, before: 0.4, after: 0.07 }

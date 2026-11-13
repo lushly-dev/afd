@@ -10,7 +10,12 @@ on:
         required: true
         type: string
 
-concurrency: ${{ github.workflow }}-${{ github.ref }}
+# A group keeps one pending run, and a newer run replaces it. So a recovery dispatch has a group of
+# its own: in the pushes' group, a push to main cancelled a recovery that was waiting behind an
+# earlier push's run (twice on 2026-11-11). The group is not what keeps two runs from publishing.
+# The durable claim is: a push run stops at a failed or pending claim, and a recovery takes over
+# only the exact failed claim its approval names.
+concurrency: ${{ github.workflow }}-${{ github.ref }}${{ github.event_name == 'workflow_dispatch' && '-recovery' || '' }}
 
 # `pnpm install` installs the lefthook git hooks, and the Changesets action pushes the release
 # branch: the pre-push hook would run package tests against unbuilt output on the runner.
@@ -35,7 +40,7 @@ jobs:
         with:
           persist-credentials: false
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
           cache: pnpm
@@ -72,7 +77,7 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
       - name: Install Rust toolchain
@@ -115,7 +120,7 @@ jobs:
         uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
 
       - name: Setup Node.js
-        uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
           registry-url: 'https://registry.npmjs.org'
@@ -146,7 +151,7 @@ jobs:
 
       - name: Download the prebuilt Specimen hosts
         if: steps.intent.outputs.specimen == 'true'
-        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        uses: actions/download-artifact@9000827ccba6bdab643e8b6fd33ac0654aef8333 # v8.0.2
         with:
           pattern: specimen-host-binary-*
           path: ${{ runner.temp }}/specimen-hosts
@@ -183,11 +188,37 @@ jobs:
         env:
           NPM_CONFIG_PROVENANCE: true
 
+      # GITHUB_TOKEN cannot create a ref at a commit whose workflow files differ from main's, which a
+      # workflow change merged during the release causes (#952). This token is created late and
+      # reaches only the next step. Without the App, or if the token cannot be created, the push
+      # uses GITHUB_TOKEN as before.
+      - name: Create release tag token
+        id: tag-token
+        if: steps.intent.outputs.publishable == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
       - name: Push release tags and create GitHub Releases
         if: steps.intent.outputs.publishable == 'true'
-        run: node scripts/release-finalize.mjs "$RUNNER_TEMP/npm-publication.json" "$RUNNER_TEMP/npm-plan.json"
+        run: |
+          if [ -n "$TAG_TOKEN" ]; then
+            # The empty value drops the credential actions/checkout stored; git sends only the App's.
+            credential=$(printf 'x-access-token:%s' "$TAG_TOKEN" | base64 -w0)
+            echo "::add-mask::$credential"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0=
+            export GIT_CONFIG_KEY_1=http.https://github.com/.extraheader
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $credential"
+          fi
+          node scripts/release-finalize.mjs "$RUNNER_TEMP/npm-publication.json" "$RUNNER_TEMP/npm-plan.json"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_TOKEN: ${{ steps.tag-token.outputs.token }}
 
       - name: Complete durable publication claim
         id: complete
@@ -222,6 +253,25 @@ jobs:
           node scripts/release-control.mjs select --output "$RUNNER_TEMP/npm-selection.json"
           node --input-type=module -e 'import fs from "node:fs"; const selection = JSON.parse(fs.readFileSync(`${process.env.RUNNER_TEMP}/npm-selection.json`)); fs.appendFileSync(process.env.GITHUB_OUTPUT, `selectable=${selection.selectable}\n`);'
 
+      # A pull request opened or updated with GITHUB_TOKEN starts no workflows, so the release pull
+      # request would never get `ci-ok`, the check main requires. The release App's token starts them.
+      # Without the App, or if the token cannot be created, GITHUB_TOKEN opens it as before and the
+      # pull request needs its checks started by hand (close and reopen it).
+      - name: Create release pull request token
+        id: pr-token
+        if: steps.selection.outputs.selectable == 'true' && vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-pull-requests: write
+
+      - name: Warn when the release pull request will start no checks
+        if: steps.selection.outputs.selectable == 'true' && steps.pr-token.outputs.token == ''
+        run: echo "::warning::No release App token; the release pull request is opened with GITHUB_TOKEN and starts no workflows. Close and reopen it to run its checks, or give the App Pull requests write access."
+
       # Publication is independent of pending fragments held in other families.
       - name: Create selected release PR
         if: steps.selection.outputs.selectable == 'true'
@@ -236,7 +286,7 @@ jobs:
           push-with-git-cli: true
           pr-title: 'chore: release packages'
           commit-message: 'chore: release packages'
-          github-token: ${{ secrets.GITHUB_TOKEN }}
+          github-token: ${{ steps.pr-token.outputs.token || secrets.GITHUB_TOKEN }}
 
   recover:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
@@ -252,7 +302,7 @@ jobs:
         with:
           fetch-depth: 0
       - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
-      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
           node-version: '26'
           registry-url: 'https://registry.npmjs.org'
@@ -264,10 +314,36 @@ jobs:
         run: |
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+      # GITHUB_TOKEN cannot create a ref at a commit whose workflow files differ from main's, which a
+      # workflow change merged during the release causes (#952). This token is created late and
+      # reaches only the next step. Without the App, or if the token cannot be created, the push
+      # uses GITHUB_TOKEN as before.
+      - name: Create release tag token
+        id: tag-token
+        if: vars.RELEASE_TAG_APP_CLIENT_ID != ''
+        continue-on-error: true
+        uses: actions/create-github-app-token@64ab729a6294000f5aa4a4bc0b73d1f32bc45510 # v3.3.0
+        with:
+          client-id: ${{ vars.RELEASE_TAG_APP_CLIENT_ID }}
+          private-key: ${{ secrets.RELEASE_TAG_APP_PRIVATE_KEY }}
+          permission-contents: write
+          permission-workflows: write
+
       - name: Reconcile original artifacts and complete publication
-        run: node scripts/release-recover.mjs
+        run: |
+          if [ -n "$TAG_TOKEN" ]; then
+            # The empty value drops the credential actions/checkout stored; git sends only the App's.
+            credential=$(printf 'x-access-token:%s' "$TAG_TOKEN" | base64 -w0)
+            echo "::add-mask::$credential"
+            export GIT_CONFIG_COUNT=2
+            export GIT_CONFIG_KEY_0=http.https://github.com/.extraheader GIT_CONFIG_VALUE_0=
+            export GIT_CONFIG_KEY_1=http.https://github.com/.extraheader
+            export GIT_CONFIG_VALUE_1="AUTHORIZATION: basic $credential"
+          fi
+          node scripts/release-recover.mjs
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG_TOKEN: ${{ steps.tag-token.outputs.token }}
           NPM_CONFIG_PROVENANCE: true
           RECOVERY_APPROVAL: ${{ inputs.recovery_approval }}
       - name: Retain recovery evidence

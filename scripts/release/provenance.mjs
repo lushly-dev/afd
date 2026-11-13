@@ -8,7 +8,8 @@
  *
  * An imported `package.json` also records `manifest_shape_sha256`, the digest of the manifest with
  * every dependency range blanked, so a change to ranges alone (a Dependabot update) is not an
- * adaptation: the provenance tests accept it until the file's next recorded change.
+ * adaptation: the provenance tests accept it until the file's next recorded change. A record whose
+ * digest was updated by hand keeps a stale shape; running this again refreshes it.
  *
  *   node scripts/release/provenance.mjs <family> "<reason>"
  */
@@ -62,6 +63,19 @@ export function manifestShape(bytes) {
 export function matchesRecord(file, bytes) {
 	if (sha(bytes) === file.current_import_sha256) return true;
 	return Boolean(file.manifest_shape_sha256) && manifestShape(bytes) === file.manifest_shape_sha256;
+}
+
+/**
+ * Whether a manifest's recorded shape is stale: the record's digest is the file's, but its shape is
+ * not. A digest updated by hand, with the shape left behind, passes on `main` and then fails every
+ * dependency update to that manifest.
+ */
+export function hasStaleShape(file, bytes) {
+	return (
+		Boolean(file.manifest_shape_sha256) &&
+		sha(bytes) === file.current_import_sha256 &&
+		manifestShape(bytes) !== file.manifest_shape_sha256
+	);
 }
 
 const isManifest = (path) => path === 'package.json' || path.endsWith('/package.json');
@@ -123,6 +137,9 @@ export function recordProvenance(root, family, reason) {
 				file.stage_reason ??= 'Recorded at import';
 			} else if (!file.import_reason?.includes(reason))
 				file.import_reason = `${file.import_reason}; ${reason}`;
+		} else if (hasStaleShape(file, bytes)) {
+			// The file is as recorded, so there is no reason to add: only the shape follows it.
+			Object.assign(file, shape);
 		} else continue;
 		changed.push(path);
 	}

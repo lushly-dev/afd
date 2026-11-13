@@ -27,7 +27,7 @@ import {
 } from 'zod/mini';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
-import { actorKey } from '../scope/access.js';
+import { personOf } from '../scope/access.js';
 import type { ScopeV1 } from '../scope/records.js';
 import type { ScopeRuntime } from '../scope/runtime.js';
 import {
@@ -207,7 +207,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 	): Promise<LinkRowV1[]> {
 		const call = callOf(context);
 		const here = call.scope as ScopeV1;
-		const actor = actorKey(context);
+		const { actor } = context;
 		const found: LinkRowV1[] = [];
 		for (const link of links) {
 			const record = await store.get<DocumentRecordV1>(DOCUMENT_TABLE, link[other]);
@@ -281,7 +281,7 @@ export function createLinkCommands(deps: LinkDeps): ZodCommandDefinition[] {
 					anchor,
 					kind,
 					createdAt: callNow(context),
-					createdBy: actorKey(context),
+					createdBy: personOf(context),
 				};
 				// Only a remove's undo names an id, never an app's: any other, or one taken, is a missing document's
 				// answer, so nothing learns whether an id exists. No write lands over an existing id.

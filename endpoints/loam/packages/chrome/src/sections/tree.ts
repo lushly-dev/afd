@@ -305,6 +305,9 @@ export class LoamTree extends FASTElement {
 				.detail;
 			if (expanded) this.expanded.add(value);
 			else this.expanded.delete(value);
+			const node = this.#find(value);
+			const item = this.#item(value);
+			if (node && item) this.#name(item, node);
 			this.dispatchEvent(
 				new CustomEvent(TREE_EXPAND_EVENT, { detail: { id: value, expanded }, bubbles: true })
 			);
@@ -506,18 +509,29 @@ export class LoamTree extends FASTElement {
 				}
 				icon.setAttribute('icon', node.icon);
 			} else icon?.remove();
-			item.setAttribute(
-				'aria-label',
-				node.description ? `${node.title}, ${node.description}` : node.title
-			);
 			item.expandable = node.lazy === true;
 			item.expanded = this.expanded.has(node.id);
+			this.#name(item, node);
 			this.#renderLevel(item, node.children ?? []);
 			const at = items()[index] ?? null;
 			if (at === item) return;
 			if (existing && move) move.call(parent, item, at);
 			else parent.insertBefore(item, at);
 		});
+	}
+
+	/**
+	 * A row's name: its title, then its description. An open branch has no label and is named by its
+	 * content, which says the same, since a tree item's name from content leaves its group out. With
+	 * a label, the rows shown beneath it would count as visible text its name lacks (WCAG 2.5.3).
+	 */
+	#name(item: VioletTreeItem, node: LoamTreeNode): void {
+		if (item.expanded && (node.children?.length ?? 0) > 0) item.removeAttribute('aria-label');
+		else
+			item.setAttribute(
+				'aria-label',
+				node.description ? `${node.title}, ${node.description}` : node.title
+			);
 	}
 
 	/** Open the row's menu; from the keyboard, focus goes to its first action, and back to the row. */

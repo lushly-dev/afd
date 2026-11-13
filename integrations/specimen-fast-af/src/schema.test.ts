@@ -66,4 +66,51 @@ describe('FAST-AF schema enrichment', () => {
 		expect(merged.unknown).toEqual([]);
 		expect(merged.commands).toEqual([{ id: 'x.press', label: 'Press' }]);
 	});
+
+	it('keeps an attribute the manifest lists apart from its property once, on the property', () => {
+		const base: ComponentSchema = {
+			tag: 'x-press',
+			sources: ['manifest'],
+			// The manifest names the property and the attribute, but does not link them.
+			properties: [{ name: 'label', description: 'The visible label.' }],
+			attributes: [
+				{ name: 'label', type: 'string', default: '""' },
+				{ name: 'size', type: 'string' },
+			],
+			slots: [],
+			events: [],
+			cssProperties: [],
+			commands: [],
+			unknown: [],
+		};
+		const merged = mergeFastSchema('x-press', base, fast);
+		expect(merged.properties.find((item) => item.name === 'label')).toEqual({
+			name: 'label',
+			description: 'The visible label.',
+			type: 'string',
+			attribute: 'label',
+			default: '""',
+		});
+		expect(merged.attributes).toEqual([{ name: 'size', type: 'string' }]);
+	});
+
+	it('takes what the manifest says of the attribute over what it says of the property', () => {
+		const base: ComponentSchema = {
+			tag: 'x-press',
+			sources: ['manifest'],
+			properties: [{ name: 'label', description: 'Owns the label.', default: '"a"' }],
+			attributes: [{ name: 'label', description: 'The visible label and accessible name.' }],
+			slots: [],
+			events: [],
+			cssProperties: [],
+			commands: [],
+			unknown: [],
+		};
+		const merged = mergeFastSchema('x-press', base, fast);
+		expect(merged.properties.find((item) => item.name === 'label')).toMatchObject({
+			attribute: 'label',
+			description: 'The visible label and accessible name.',
+			default: '"a"',
+		});
+	});
 });

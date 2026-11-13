@@ -52,6 +52,7 @@ function renderTextField(args: VioletTextFieldStoryArgs): HTMLElement {
 
 const meta = {
     title: "Components/Text Field",
+    component: "violet-text-field",
     tags: ["autodocs"],
     parameters: {
         docs: {

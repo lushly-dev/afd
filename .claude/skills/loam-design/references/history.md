@@ -182,3 +182,6 @@ The values above landed, for the theme and the components together:
   with no new token. A view's focus ring is `size.space.xs` of `color.focus.ring` (`Highlight` under forced
   colors), since `shell.size.focus` is the shell's; it sets `color-scheme` from the host context's `theme`;
   an item is a `button` with `role="checkbox"`, its box on the field tokens, done a tick and a line through.
+- **2026-11-12. Brief before writing markup (Component Briefs, step C5).** Call `components-brief` from the
+  repository's `umbel` MCP server before writing Loam markup with `violet-*` components; `design.md` wins
+  where the brief and Loam's rules differ.

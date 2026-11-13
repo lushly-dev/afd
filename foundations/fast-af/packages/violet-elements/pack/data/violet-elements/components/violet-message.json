@@ -1,0 +1,137 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": "assistant",
+				"name": "message-role",
+				"property": "messageRole",
+				"rules": [
+					"taxonomy.message-role"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "streaming",
+				"property": "streaming",
+				"rules": [
+					"taxonomy.streaming"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": "default",
+				"name": "tone",
+				"property": "tone",
+				"rules": [
+					"taxonomy.tone"
+				],
+				"type": "string"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--violet-message-body-line, var(--_body-line, 20px))",
+				"name": "--_msg-body-line"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-message-body-size, var(--_body-size, 14px))",
+				"name": "--_msg-body-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_card-border-width, 1px)",
+				"name": "--_msg-border-width"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-message-meta-size, var(--_meta-size, 11px))",
+				"name": "--_msg-meta-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--violet-message-system-size, var(--_caption-size, 12px))",
+				"name": "--_msg-system-size"
+			}
+		],
+		"events": [],
+		"slots": [
+			{
+				"accepts": [
+					"violet-message-text"
+				],
+				"basis": "observed",
+				"description": "Message parts (text, tool cards, media, etc.).",
+				"name": ""
+			},
+			{
+				"basis": "observed",
+				"description": "Optional avatar/icon for the message author.",
+				"name": "avatar"
+			},
+			{
+				"basis": "observed",
+				"description": "Optional metadata row (timestamp, model name, etc.).",
+				"name": "meta"
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "conversation-message--all-roles",
+			"html": "<div style=\"display: flex; flex-direction: column; gap: 12px; max-inline-size: 600px;\"><violet-message message-role=\"system\" tone=\"default\"><violet-message-text state=\"done\">Session started.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">What is composting?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Composting is the natural process of recycling organic matter, such as food scraps and yard waste, into a nutrient-rich soil amendment.</violet-message-text></violet-message><violet-message message-role=\"user\" tone=\"default\"><violet-message-text state=\"done\">How long does it take?</violet-message-text></violet-message><violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Hot composting can produce usable compost in 4-8 weeks. Cold composting takes 6-12 months but requires less effort.</violet-message-text></violet-message></div>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message--error-tone",
+			"html": "<violet-message message-role=\"assistant\" tone=\"error\"><violet-message-text state=\"done\">I encountered an error while processing your request. Please try again.</violet-message-text></violet-message>"
+		},
+		{
+			"basis": "observed",
+			"from": "conversation-message--overview",
+			"html": "<violet-message message-role=\"assistant\" tone=\"default\"><violet-message-text state=\"done\">Hostas, ferns, and astilbe are excellent choices for partial shade gardens. They require minimal maintenance and provide beautiful foliage throughout the growing season.</violet-message-text></violet-message>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.message-role",
+		"taxonomy.streaming",
+		"taxonomy.tone",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-message",
+	"usage": []
+}

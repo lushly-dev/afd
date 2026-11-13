@@ -104,6 +104,9 @@ const selfReference = {
 	},
 };
 
+/** The MCP authorization layer and the library it verifies signatures with. */
+const MCP_AUTH_LAYER = /src\/(mcp-auth|strict-json)|\/jose\//;
+
 /** Workspace inputs appear as `../core/dist/...`, installed ones as `.../afd-core/dist/...`. */
 const NODE_ONLY_CORE = /core\/dist\/(platform\.js|connectors\/|journal-file\.js)/;
 
@@ -166,6 +169,7 @@ describe('@lushly-dev/afd-server/define', () => {
 		expect(inputs.some((input) => input.endsWith('src/schema.ts'))).toBe(true);
 		expect(inputs.some((input) => input.endsWith('core/dist/commands.js'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
+		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
 		// Only the narrow core subpaths: not the core root, and nothing that needs Node.js.
 		expect(
 			inputs.filter((input) => /core\/dist\/index\.js/.test(input) || NODE_ONLY_CORE.test(input))
@@ -217,6 +221,10 @@ const HOST_IMPORTS =
  *   nor approvals are in it. Measured again 2026-11-02 with esbuild 0.28.2 on the lean path: 38,588
  *   bytes before it and under 39,000 after, with almost nothing to spare, since `issue-message.ts`
  *   was cut down to fit. The next addition here moves something out or changes this budget openly.
+ *   Raised to 39,100 by MCP authorization's scopes (Loam phase 3 step 0c, approved by the
+ *   coordinator 2026-11-10): measured 38,997 bytes on `main` and 39,071 after, with esbuild
+ *   0.28.2; `defineCommand` carrying a command's `scopes` adds 31, and the engine's two optional
+ *   hooks that look a hidden command up as a missing one add 43. No authorization code is in it.
  * - 48.0 KB for a host that also imports `createApprovalMiddleware`.
  * - 68.6 KB for a host that also imports `createDirectToolSurface`: the router, the tool
  *   list, the meta-tools, `lazy-tools` and `bootstrap/`.
@@ -227,7 +235,7 @@ const DIRECT_BUDGETS = [
 	{
 		what: 'a host that imports the registry, the journal and defineCommand',
 		imports: HOST_IMPORTS,
-		bytes: 39_000,
+		bytes: 39_100,
 	},
 	{
 		what: 'the same host with the approval middleware',
@@ -288,6 +296,8 @@ describe('@lushly-dev/afd-server/direct', () => {
 		expect(inputs.some((input) => input.endsWith('src/approval-crypto.ts'))).toBe(true);
 		expect(inputs.filter((input) => /modelcontextprotocol|^node:/.test(input))).toEqual([]);
 		expect(inputs.filter((input) => NODE_ONLY_CORE.test(input))).toEqual([]);
+		// MCP authorization (spec/authorization.md) is the HTTP layer's: none of it, nor jose.
+		expect(inputs.filter((input) => MCP_AUTH_LAYER.test(input))).toEqual([]);
 	});
 
 	it('keeps the tool surface out of a registry that does not ask for it', async () => {

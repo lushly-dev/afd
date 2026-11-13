@@ -106,6 +106,13 @@ describe("violet-file-explorer", () => {
         expect(crumbNames(explorer)).toEqual(["Files"]);
     });
 
+    it("keeps a row's visible name and metadata together in its accessible name", async () => {
+        const explorer = await mount([{ id: "docs", name: "Documents", kind: "folder", meta: "12 items" }]);
+
+        // The kind follows them: between them, the visible text would not be part of the name.
+        expect(row(explorer, "docs").getAttribute("aria-label")).toBe("Documents, 12 items, folder");
+    });
+
     it("composes violet-tree for folder navigation with treeitem semantics", async () => {
         const explorer = await mount();
 

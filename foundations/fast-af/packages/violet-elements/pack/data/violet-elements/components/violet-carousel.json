@@ -1,0 +1,197 @@
+{
+	"a11y": {
+		"axe": {
+			"basis": "observed",
+			"exceptions": [],
+			"violations": 0
+		},
+		"role": [],
+		"statements": []
+	},
+	"api": {
+		"attributes": [
+			{
+				"basis": "observed",
+				"default": 0,
+				"name": "active-index",
+				"property": "activeIndex",
+				"rules": [
+					"taxonomy.active-index",
+					"taxonomy.active-index.not-for"
+				],
+				"type": "number"
+			},
+			{
+				"basis": "observed",
+				"default": "framed",
+				"name": "appearance",
+				"property": "appearance",
+				"rules": [
+					"taxonomy.appearance"
+				],
+				"type": "\"framed\" | \"plain\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "framed"
+					},
+					{
+						"basis": "observed",
+						"value": "plain"
+					}
+				]
+			},
+			{
+				"basis": "observed",
+				"default": "Carousel",
+				"name": "label",
+				"property": "label",
+				"rules": [
+					"taxonomy.label"
+				],
+				"type": "string"
+			},
+			{
+				"basis": "observed",
+				"default": false,
+				"name": "loop",
+				"property": "loop",
+				"rules": [
+					"taxonomy.loop"
+				],
+				"type": "boolean"
+			},
+			{
+				"basis": "observed",
+				"default": 1,
+				"name": "slides-per-view",
+				"property": "slidesPerView",
+				"rules": [
+					"taxonomy.slides-per-view"
+				],
+				"type": "number"
+			}
+		],
+		"commands": [],
+		"cssProperties": [
+			{
+				"basis": "declared",
+				"default": "var(--_border-subtle)",
+				"name": "--_carousel-border"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--color-state-success-foreground, #245c36)",
+				"name": "--_carousel-dot-active"
+			},
+			{
+				"basis": "declared",
+				"default": "color-mix(in srgb, var(--_text-muted) 32%, transparent)",
+				"name": "--_carousel-dot-idle"
+			},
+			{
+				"basis": "declared",
+				"default": "0.625rem",
+				"name": "--_carousel-dot-size"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-md)",
+				"name": "--_carousel-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "calc(var(--_radius-md) * 2)",
+				"name": "--_carousel-radius"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_shadow-card)",
+				"name": "--_carousel-shadow"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_space-sm)",
+				"name": "--_carousel-slide-gap"
+			},
+			{
+				"basis": "declared",
+				"default": "1",
+				"name": "--_carousel-slides-per-view"
+			},
+			{
+				"basis": "declared",
+				"default": "var(--_surface-card)",
+				"name": "--_carousel-surface"
+			}
+		],
+		"events": [
+			{
+				"basis": "declared",
+				"description": "Emitted after the active slide changes.",
+				"name": "change"
+			},
+			{
+				"basis": "declared",
+				"description": "Emitted when the active slide changes. Detail: `{ activeIndex, slide }`.",
+				"name": "slide-change"
+			}
+		],
+		"slots": [
+			{
+				"accepts": [
+					"violet-card"
+				],
+				"basis": "observed",
+				"description": "Slide content. Each top-level slotted element becomes one slide.",
+				"name": ""
+			}
+		]
+	},
+	"examples": [
+		{
+			"basis": "observed",
+			"from": "components-carousel--card-strip",
+			"html": "<div style=\"max-inline-size: 34rem;\">\n            <violet-carousel active-index=\"0\" appearance=\"plain\" label=\"Card strip carousel\" slides-per-view=\"2\" style=\"--_carousel-slides-per-view: 2;\">\n                \n        <violet-card appearance=\"filled\" aria-hidden=\"false\" data-active data-carousel-index=\"0\" data-carousel-label=\"Propagation dashboard\" data-label=\"Propagation dashboard\" orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(222, 234, 223, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Propagation dashboard</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Track sowing method, tray count, and current greenhouse staffing in one quick review panel.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"false\" data-active data-carousel-index=\"1\" data-carousel-label=\"Watering reminders\" data-label=\"Watering reminders\" orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(226, 238, 247, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Watering reminders</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Coordinate moisture checks, next irrigation windows, and exception alerts for the active block.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"true\" data-carousel-index=\"2\" data-carousel-label=\"Harvest prep\" data-label=\"Harvest prep\" inert orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(248, 238, 224, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Harvest prep</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Keep cut lists, pack-out tasks, and fulfillment notes aligned before the crew starts its pass.\n            </violet-text>\n        </violet-card>\n    \n            </violet-carousel>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-carousel--keyboard-navigation",
+			"html": "<div style=\"max-inline-size: 34rem;\">\n            <violet-carousel active-index=\"1\" appearance=\"framed\" label=\"Keyboard carousel\" slides-per-view=\"1\" style=\"--_carousel-slides-per-view: 1;\">\n                \n        <violet-card appearance=\"filled\" aria-hidden=\"true\" data-carousel-index=\"0\" data-carousel-label=\"Propagation dashboard\" data-label=\"Propagation dashboard\" inert orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(222, 234, 223, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Propagation dashboard</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Track sowing method, tray count, and current greenhouse staffing in one quick review panel.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"false\" data-active data-carousel-index=\"1\" data-carousel-label=\"Watering reminders\" data-label=\"Watering reminders\" orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(226, 238, 247, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Watering reminders</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Coordinate moisture checks, next irrigation windows, and exception alerts for the active block.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"true\" data-carousel-index=\"2\" data-carousel-label=\"Harvest prep\" data-label=\"Harvest prep\" inert orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(248, 238, 224, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Harvest prep</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Keep cut lists, pack-out tasks, and fulfillment notes aligned before the crew starts its pass.\n            </violet-text>\n        </violet-card>\n    \n            </violet-carousel>\n        </div>"
+		},
+		{
+			"basis": "observed",
+			"from": "components-carousel--looping",
+			"html": "<div style=\"max-inline-size: 34rem;\">\n            <violet-carousel active-index=\"0\" appearance=\"framed\" label=\"Looping harvest carousel\" loop slides-per-view=\"1\" style=\"--_carousel-slides-per-view: 1;\">\n                \n        <violet-card appearance=\"filled\" aria-hidden=\"false\" data-active data-carousel-index=\"0\" data-carousel-label=\"Propagation dashboard\" data-label=\"Propagation dashboard\" orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(222, 234, 223, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Propagation dashboard</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Track sowing method, tray count, and current greenhouse staffing in one quick review panel.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"true\" data-carousel-index=\"1\" data-carousel-label=\"Watering reminders\" data-label=\"Watering reminders\" inert orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(226, 238, 247, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Watering reminders</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Coordinate moisture checks, next irrigation windows, and exception alerts for the active block.\n            </violet-text>\n        </violet-card>\n    \n        <violet-card appearance=\"filled\" aria-hidden=\"true\" data-carousel-index=\"2\" data-carousel-label=\"Harvest prep\" data-label=\"Harvest prep\" inert orientation=\"vertical\" padding=\"large\" style=\"--violet-card-background:rgba(248, 238, 224, 0.95); min-block-size: 16rem; block-size: 100%;\">\n            <violet-text as=\"h3\" tone=\"default\" variant=\"title-sm\">Harvest prep</violet-text>\n            <violet-text as=\"p\" style=\"display:block; margin-block-start:12px;\" tone=\"secondary\" variant=\"body\">\n                Keep cut lists, pack-out tasks, and fulfillment notes aligned before the crew starts its pass.\n            </violet-text>\n        </violet-card>\n    \n            </violet-carousel>\n        </div>"
+		}
+	],
+	"format": 1,
+	"gaps": [
+		{
+			"kind": "summary"
+		},
+		{
+			"kind": "usage"
+		},
+		{
+			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
+		}
+	],
+	"import": "@lushly-dev/violet-elements",
+	"rules": [
+		"import.root",
+		"taxonomy.active-index",
+		"taxonomy.active-index.not-for",
+		"taxonomy.appearance",
+		"taxonomy.label",
+		"taxonomy.loop",
+		"taxonomy.slides-per-view",
+		"theme.install"
+	],
+	"status": "stable",
+	"tag": "violet-carousel",
+	"usage": []
+}

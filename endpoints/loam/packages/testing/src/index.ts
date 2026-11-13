@@ -12,7 +12,7 @@ import {
 	type AppDetailV1,
 	type AppPortV2,
 	LoamKernelError,
-	type LoamKernelV2,
+	type LoamKernelV3,
 } from '@lushly-dev/loam-kernel';
 import {
 	createFixturePorts,
@@ -65,7 +65,7 @@ export interface AppTestKernelOptions {
 }
 
 export interface AppTestKernel {
-	kernel: LoamKernelV2;
+	kernel: LoamKernelV3;
 	port: AppPortV2;
 	journal: MemoryJournalSink;
 	/** Replay everything journaled so far on a fresh kernel; it throws on any difference. */

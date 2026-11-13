@@ -413,9 +413,9 @@ a private `WeakSet`, so a copy, an object built with the same fields, the
 `createContext` sets are never recognised. Branded credentials are frozen, and
 stop being recognised once their `expiresAt` has passed (`isVerifiedCredentials(value, now?)`,
 `now` defaulting to `Date.now()`) or their request has ended. No entry exports
-the functions that brand and unbrand; until the server verifies tokens itself,
-nothing is branded. A nested call keeps the brand only if it is given the same
-object.
+the functions that brand and unbrand: only the [`auth` option](#mcp-authorization)
+brands, the credentials of a request it verified. A nested call keeps the brand
+only if it is given the same object.
 
 A host that serves MCP with token authorization through afd-auth's middleware
 passes it there, so a token's call keeps its actor rather than the session's:
@@ -429,6 +429,160 @@ const auth = createAuthMiddleware(adapter, { isVerifiedCredentials });
 
 The entry loads nothing else of the server and is held browser-safe by
 `entry-points.test.ts`. The root entry exports the same function.
+
+### MCP authorization
+
+With `auth`, `createMcpHandler` (and `createMcpServer` over HTTP) is an OAuth 2.1
+protected resource, as [`spec/authorization.md`](../../spec/authorization.md) M1
+to M7 specify:
+
+```typescript
+import { createMcpHandler, JwtVerifier, jwksKeySource } from '@lushly-dev/afd-server';
+
+const resource = 'https://todo.example.com/mcp';
+const handler = createMcpHandler({
+  name: 'todo',
+  version: '1.0.0',
+  commands,
+  allowedHosts: ['todo.example.com'],
+  auth: {
+    resource,
+    authorizationServers: ['https://auth.example.com'],
+    scopesSupported: ['todo:read'],
+    verifier: new JwtVerifier({
+      rules: { resource },
+      issuers: [
+        {
+          issuer: 'https://auth.example.com',
+          algorithms: ['RS256', 'ES256', 'EdDSA'],
+          // The host fetches; AFD opens no socket.
+          keys: jwksKeySource(() => fetch('https://auth.example.com/jwks').then((r) => r.json())),
+        },
+      ],
+    }),
+  },
+  // Map the verified credentials to an actor (optional).
+  createContext: (_req, { credentials }) => ({
+    actor: { kind: 'agent', id: credentials?.clientId, onBehalfOf: credentials?.subject },
+  }),
+});
+```
+
+- **Every HTTP route needs exactly one bearer token** in the `Authorization`
+  header (`/mcp`, `/sse`, `/message`, `/rpc`, `/batch`, `/stream`, `/health`
+  and any other path). A missing, malformed or refused one, a token in the query
+  or a form body, or a second header is a 401 with M5's exact
+  `WWW-Authenticate` challenge and JSON body. Only the RFC 9728 metadata,
+  served by `GET` at `/.well-known/oauth-protected-resource<path>` and
+  `/.well-known/oauth-protected-resource`, and CORS preflights are public.
+  `/health` needs a token too, so it fails closed: a host that needs a public
+  health check serves its own route before handing the request to the handler.
+  stdio, `server.execute()` and in-process registries are unaffected.
+- **`JwtVerifier`** applies every M3 rule itself, in order; `jose` checks the
+  signature only, through WebCrypto (RS256 to RS512, PS256 to PS512, ES256,
+  ES384 and EdDSA on Ed25519). The audience check is not optional: `aud` must be
+  the `resource`, alone. `none` and `HS*` are always refused, the clock skew is
+  at most 300 seconds (default 60) and the lifetime at most 3600 seconds by
+  default. An opaque token goes to `createIntrospectionVerifier({ issuer, rules,
+  introspect })`, given as `introspection`, whose `introspect(token)` is the
+  host's RFC 7662 call; its rules must name the same resource and binding
+  requirement. Give each issuer a key source of its own (a `kid` names a key
+  only within one issuer's set): two issuers sharing one are refused, and so is
+  an issuer `authorizationServers` does not name. `jwksKeySource` keeps the last
+  good keys while loads fail, for at most `maxStaleMs` (default one hour), then
+  answers `unavailable`.
+- **Whatever the verifier, the layer checks** the credentials' shape, their
+  certificate binding against this request's TLS client certificate, the
+  binding requirement, and `expiresAt` (within the verifier's skew), refusing
+  with M5's 401.
+- **HTTP sessions belong to their caller.** With `contexts`, a session that
+  `initialize` creates on `/message` is bound to the credentials' issuer,
+  subject and client; another caller presenting its `Mcp-Session-Id` is
+  answered as for an unknown session.
+- **Commands see `context.credentials`** (`issuer`, `subject`, `clientId`,
+  `scopes`, `resource`, `expiresAt`, `issuedAt`, and `authTime`, `acr` and `cnf`
+  when present), frozen and recognised by `isVerifiedCredentials` until the
+  request ends. A token accepted inside the clock skew after its `exp` has
+  credentials `isVerifiedCredentials` no longer recognises, so afd-auth's
+  middleware gates that call on its session, and a server with no session
+  answers it `UNAUTHORIZED`: the safe side. Never the token: the layer removes the `Authorization` header
+  before `createContext` runs, and the journal never records credentials.
+  Without an `actor` from `createContext`, the actor is
+  `{ kind: 'agent', id: <clientId>, onBehalfOf: <subject> }`.
+- **A refused token's rule code** (`audience`, `expired`, ...) goes to
+  `auth.onRefusal`, by default a `console.warn` line, with the issuer's alias;
+  never the token or a claim. A host verifier may wrap `JwtVerifier` to refuse
+  more with a code of its own, which is answered the same way.
+- **Scopes (M6).** A command declares the scopes a caller's token needs with
+  `defineCommand({ scopes: ['todo:write'] })`, and `auth.requiredScopes` names
+  those every request needs; a call needs both, compared exactly. A missing
+  scope is one 403 before dispatch, with M5's challenge
+  (`Bearer error="insufficient_scope", scope="<missing>", resource_metadata=...`)
+  and body, naming every missing scope of every step once, in step order: for
+  a command's own tool, a grouped action, `afd-call`, each step of `afd-batch`
+  and `afd-pipe`, `/rpc`, `/batch` and `/stream`. A JSON-RPC batch is refused
+  with 400 first. A call decided after routing (`GET /stream`, say) fails with
+  `INSUFFICIENT_SCOPE` (`details.scopes`, not retryable) before any
+  confirmation, a batch or pipeline as a whole.
+- **A resolver** (`auth.resolver`) decides every call instead of the static
+  rule: `resolve(command, input, credentials)` answers `'allowed'`,
+  `{ missing: [...] }` or `'defer'` (the registry answers), first on the
+  arguments as sent, then again at execution on the validated input, so a rule
+  keyed on an argument holds when a default or a pipeline step supplies it.
+  `visible` and, optionally, `known` decide the listings; both must be pure.
+- **Listing** (`auth.filterToolsByScope: true`): `tools/list` (then
+  `cacheScope: "private"`), `afd-discover`, `afd-detail`, `afd-help` and
+  grouped actions show only what the caller may use, and no suggestion names
+  another command. With a resolver, a command its `known` rejects does not
+  exist for that caller at all: every route answers it exactly as a name that
+  does not exist, before validation, middleware or a confirmation.
+
+#### A host's own layer
+
+A gateway that authenticates its callers itself, instead of a bearer token,
+vouches for each one with `handler.admit(req, credentials)`. **This is the host
+vouching for a caller:** only a gateway that has itself authenticated the
+caller may call it, never with anything the caller sent. The credentials are
+checked as a verifier's are (shape, a numeric `expiresAt` not yet passed, the
+certificate binding where required), frozen and branded while the handler
+serves `req`; `admit` refuses a request that carries a bearer token, or was
+admitted before. It exists only on the handler object, which the host holds.
+The host then runs the bearer layer's own decision before dispatch, and passes
+the body it read on to the handler:
+
+```typescript
+const check = handler.preDispatchCheck({
+  challenge: new ScopeChallenge('Gateway', { realm: 'todo' }),
+  scopeSource: 'a new assertion from the gateway',
+});
+
+async function serve(req, res) {
+  const body = await readBody(req, check.maxBodyBytes + 1);
+  try {
+    handler.admit(req, await gatewayCredentials(req));
+  } catch {
+    // A bearer token beside the gateway's credentials, or credentials that fail the checks.
+    res.writeHead(400, { 'Content-Type': 'text/plain' });
+    res.end('One request has one source of credentials');
+    return;
+  }
+  const decided = check.decide(req, body);
+  if (!decided.proceed) {
+    res.writeHead(decided.status, decided.headers);
+    res.end(decided.body);
+    return;
+  }
+  await handler(req, res, body);
+}
+```
+
+`decide` answers exactly what the bearer layer would after admitting the same
+credentials (a 403, a 400 for a JSON-RPC batch, a 413 over the cap), but for a
+403's challenge in the host's scheme and its suggestion. A request with
+neither admitted credentials nor a valid bearer token still gets M5's 401.
+
+A server that also runs afd-auth's middleware passes `isVerifiedCredentials` to
+`createAuthMiddleware`, as [above](#verified-credentials-lushly-devafd-servercredentials).
 
 ### Basic Command
 
@@ -1012,7 +1166,8 @@ Create an MCP server from commands.
 | `allowedOrigins` | string[] | No | Additional exact browser origins |
 | `allowedHosts` | string[] | No | Accepted HTTP hostnames, without ports |
 | `maxBodyBytes` | number | No | Maximum JSON body bytes (default: 1048576) |
-| `createContext` | `(req) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command |
+| `createContext` | `(req, { credentials? }) => object \| Promise<object>` | No | Per-request values merged into the `CommandContext` of every remotely executed HTTP command; with `auth`, it is given the verified credentials |
+| `auth` | `McpAuthOptions` | No | [MCP authorization](#mcp-authorization): every HTTP route needs a verified bearer token, and `scopes`, `requiredScopes`, a `resolver` and `filterToolsByScope` decide each call |
 | `maxSseConnections` | number | No | Concurrent `/sse` connections before HTTP 503 (default: 100) |
 | `maxSessions` | number | No | Live HTTP sessions when `contexts` are set; the least recently used is evicted (default: 1000) |
 | `sessionIdleTimeoutMs` | number | No | Idle time before an HTTP session expires (default: 1800000, 30 minutes) |

@@ -14,16 +14,16 @@ const SIGNED_IN: BetterAuthSessionValue = {
 
 function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 	let value: BetterAuthSessionValue = { data: null, isPending: true };
-	let subscriber: ((next: BetterAuthSessionValue) => void) | null = null;
+	const subscribers = new Set<(next: BetterAuthSessionValue) => void>();
 	const refetch = vi.fn(async () => undefined);
 	const client: BetterAuthClient = {
 		signIn: { social: vi.fn(), email: vi.fn(), passkey: vi.fn(async () => ({ data: {} })) },
 		signOut: vi.fn(),
 		useSession: {
 			subscribe: (callback) => {
-				subscriber = callback;
+				subscribers.add(callback);
 				return () => {
-					subscriber = null;
+					subscribers.delete(callback);
 				};
 			},
 			get: () => ({ ...value, refetch }),
@@ -32,7 +32,7 @@ function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 	};
 	const emit = (next: BetterAuthSessionValue) => {
 		value = next;
-		subscriber?.({ ...next, refetch });
+		for (const subscriber of [...subscribers]) subscriber({ ...next, refetch });
 	};
 	return { client, emit, refetch };
 }
@@ -40,7 +40,7 @@ function stubClient(overrides: Partial<BetterAuthClient> = {}) {
 /** A browser with WebAuthn; `conditional` is what `isConditionalMediationAvailable` answers, or absent. */
 function withWebAuthn(conditional: boolean | 'absent' = true) {
 	const PublicKeyCredential = Object.assign(
-		function PublicKeyCredential() {},
+		() => {},
 		conditional === 'absent' ? {} : { isConditionalMediationAvailable: async () => conditional }
 	);
 	vi.stubGlobal('PublicKeyCredential', PublicKeyCredential);
@@ -51,7 +51,7 @@ afterEach(() => {
 	vi.unstubAllGlobals();
 });
 
-describe('BetterAuthAdapter passkey sign-in', () => {
+describe('P3-E9: BetterAuthAdapter passkey sign-in', () => {
 	it('signs in through the passkey plugin, passing autoFill', async () => {
 		withWebAuthn();
 		const { client } = stubClient();
@@ -154,7 +154,7 @@ describe('BetterAuthAdapter passkey sign-in', () => {
 	});
 });
 
-describe('BetterAuthAdapter initial and refresh', () => {
+describe('P3-E9: BetterAuthAdapter initial and refresh', () => {
 	it('reports initial until the store answers, then the store', () => {
 		const initial: AuthSessionState = {
 			status: 'authenticated',
@@ -216,6 +216,57 @@ describe('BetterAuthAdapter initial and refresh', () => {
 		adapter.dispose();
 	});
 
+	// Better Auth cancels a session request when a newer one starts (`fetchSession` in
+	// client/session-atom.mjs), and the cancelled `refetch` resolves with the newer request in
+	// flight: `isRefetching: true` and `error` cleared. Its sign-up and sign-in signal does this
+	// 10 ms after the call, which is how a refresh() of an unreachable provider once resolved.
+	it('refresh() waits for the request that cancelled its own, and rejects with what it found', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		emit(SIGNED_IN);
+		refetch.mockImplementation(async () => {
+			emit({ ...SIGNED_IN, isRefetching: true });
+		});
+		let outcome = 'pending';
+		const refreshing = adapter.refresh().then(
+			() => {
+				outcome = 'resolved';
+			},
+			(error: { code?: string }) => {
+				outcome = `rejected ${error.code}`;
+			}
+		);
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(outcome).toBe('pending');
+
+		emit({ ...SIGNED_IN, isRefetching: false, error: new TypeError('Failed to fetch') });
+		// A request that starts next clears the error; the answer was already read.
+		emit({ ...SIGNED_IN, isRefetching: true });
+		await refreshing;
+		expect(outcome).toBe('rejected NETWORK_ERROR');
+		expect(adapter.getSession().status).toBe('authenticated');
+		adapter.dispose();
+	});
+
+	it('refresh() resolves when the request that cancelled its own is answered', async () => {
+		const { client, emit, refetch } = stubClient();
+		const adapter = new BetterAuthAdapter({ client });
+		refetch.mockImplementation(async () => {
+			emit({ data: null, isPending: true, isRefetching: true });
+		});
+		const refreshing = adapter.refresh();
+		await new Promise((resolve) => setImmediate(resolve));
+		expect(adapter.getSession().status).toBe('loading');
+
+		emit({ ...SIGNED_IN, isRefetching: false });
+		await expect(refreshing).resolves.toBeUndefined();
+		expect(adapter.getSession().status).toBe('authenticated');
+		// The wait's own subscription is gone; the adapter's still follows the store.
+		emit({ data: null, isPending: false });
+		expect(adapter.getSession().status).toBe('unauthenticated');
+		adapter.dispose();
+	});
+
 	it('refresh() maps a refetch that does reject', async () => {
 		const { client, refetch } = stubClient();
 		const adapter = new BetterAuthAdapter({ client });
@@ -237,7 +288,7 @@ describe('BetterAuthAdapter initial and refresh', () => {
 	});
 });
 
-describe('BetterAuthAdapter capabilities over a stubbed client', () => {
+describe('P3-E9: BetterAuthAdapter capabilities over a stubbed client', () => {
 	it('lists sessions as handles and revokes one by its token', async () => {
 		const listSessions = vi.fn(async () => ({
 			data: [
@@ -442,7 +493,7 @@ describe('BetterAuthAdapter capabilities over a stubbed client', () => {
 	});
 });
 
-describe('BetterAuthAdapter session handles and member ids', () => {
+describe('P3-E9: BetterAuthAdapter session handles and member ids', () => {
 	const OTHER = {
 		id: 's-other',
 		token: 'token-other',
@@ -540,7 +591,7 @@ describe('BetterAuthAdapter session handles and member ids', () => {
 	});
 });
 
-describe('session rows', () => {
+describe('P3-E9: session rows', () => {
 	it('hashes a token to its first 16 hex characters of SHA-256', async () => {
 		// SHA-256("abc") = ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad
 		expect(await sessionHandle('abc')).toBe('ba7816bf8f01cfea');

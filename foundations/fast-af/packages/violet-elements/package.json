@@ -22,7 +22,7 @@
   "customElements": "custom-elements.json",
   "sideEffects": true,
   "engines": {
-    "node": ">=20.0.0"
+    "node": ">=22.12.0"
   },
   "scripts": {
     "build": "tsc -p tsconfig.lib.json",
@@ -34,10 +34,11 @@
     "theme:build": "node ./scripts/build-runtime-theme.mjs",
     "icons:build": "node ./scripts/build-icons.mjs",
     "cem:analyze": "cem analyze --config custom-elements-manifest.config.js && node ./scripts/normalize-custom-elements.mjs",
-    "verify:exports": "node ./scripts/verify-package-exports.mjs"
+    "verify:exports": "node ./scripts/verify-package-exports.mjs",
+    "pack:build": "node scripts/build-pack.mjs"
   },
   "dependencies": {
-    "@tanstack/virtual-core": "3.13.23",
+    "@tanstack/virtual-core": "3.19.11",
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
@@ -50,15 +51,17 @@
     "README.md"
   ],
   "devDependencies": {
-    "@biomejs/biome": "^2.4.7",
+    "@biomejs/biome": "^2.6.6",
     "@custom-elements-manifest/analyzer": "^0.11.0",
     "@lushly-dev/fast-element": "workspace:*",
     "@lushly-dev/specimen": "workspace:*",
+    "@lushly-dev/specimen-fast-af": "workspace:*",
+    "@typescript/typescript6": "^6.0.2",
     "@vitest/browser-playwright": "^5.1.0",
     "@vitest/coverage-v8": "^5.1.0",
-    "playwright": "^1.64.0",
+    "playwright": "^1.64.1",
     "rimraf": "^6.1.4",
-    "typescript": "^5.9.3",
+    "typescript": "^7.0.2",
     "vite": "8.3.5",
     "vitest": "^5.1.0"
   }

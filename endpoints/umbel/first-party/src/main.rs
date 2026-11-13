@@ -1,5 +1,6 @@
-//! `umbel-first-party`: the `umbel` command line with the five first-party plugins compiled in,
-//! `sources`, `knowledge`, `memory`, `context` and `curator` (decisions D57, D80 and D90). Enable
+//! `umbel-first-party`: the `umbel` command line with the seven first-party plugins compiled in,
+//! `sources`, `knowledge`, `memory`, `context`, `components`, `curator` and `ideas` (decisions
+//! D57, D80, D90, D151 and D173). Enable
 //! them in `umbel.toml` with `plugins.enabled` and allow their write grants for a space; the stock
 //! `umbel` binary compiles in no plugin. It is what `umbel-hook` runs by default.
 #![forbid(unsafe_code)]
@@ -19,7 +20,9 @@ async fn main() {
             .with_compiled(umbel::plugins::sdk(umbel_plugin_knowledge::plugin()))
             .with_compiled(umbel::plugins::sdk(umbel_plugin_memory::plugin()))
             .with_compiled(umbel::plugins::sdk(umbel_plugin_context::plugin()))
+            .with_compiled(umbel::plugins::sdk(umbel_plugin_components::plugin()))
             .with_compiled(umbel::plugins::sdk(umbel_plugin_curator::plugin()))
+            .with_compiled(umbel::plugins::sdk(umbel_plugin_ideas::plugin()))
     };
     // Not `.lock()`: `umbel serve --stdio` writes JSON-RPC through the same stdout from another
     // thread (the same reasoning as the stock binary's `main`).

@@ -11,6 +11,7 @@ type MetadataFields = Pick<
 	| 'undoable'
 	| 'examples'
 	| 'contexts'
+	| 'scopes'
 	| 'toolMeta'
 >;
 
@@ -45,6 +46,7 @@ export function commandToolMeta(
 		...(command.examples?.length && { examples: command.examples }),
 		...(outputSchema && { outputSchema: { ...outputSchema } }),
 		...(command.contexts?.length && { contexts: command.contexts }),
+		...(command.scopes?.length && { scopes: command.scopes }),
 	};
 	return Object.keys(meta).length > 0 ? meta : undefined;
 }

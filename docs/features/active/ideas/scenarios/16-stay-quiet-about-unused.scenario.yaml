@@ -1,0 +1,98 @@
+# Draft JTBD scenario for the Ideas proposal. The commands and their shapes are proposals;
+# the statements are invented fixtures about gardening and assert nothing about the world.
+#
+# The runner cannot move the clock between steps, so the reads take a date instead.
+
+name: Stay quiet about ideas I never use
+description: >-
+  When an idea I affirmed long ago is never used, I do not want to be asked to review it; when
+  it is about to be used, I do, so that review follows use and not the calendar.
+job: stay-quiet-about-unused
+tags: [anti, change, slice]
+
+steps:
+  - description: One idea
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Rotate brassicas on a four-year cycle.
+    expect:
+      success: true
+
+  - description: Another
+    command: ideas-capture
+    input:
+      type: principle
+      statement: Net brassicas from the day they are planted.
+    expect:
+      success: true
+
+  - description: Put both in front of me
+    command: ideas-review-stage
+    input:
+      decisions:
+        - decide: affirm
+          id: "${{ steps[0].data.id }}"
+          version: "${{ steps[0].data.version }}"
+        - decide: affirm
+          id: "${{ steps[1].data.id }}"
+          version: "${{ steps[1].data.version }}"
+    expect:
+      success: true
+
+  - description: I hold both
+    command: ideas-review-apply
+    input:
+      review: "${{ steps[2].data.review }}"
+      digest: "${{ steps[2].data.digest }}"
+    expect:
+      success: true
+
+  - description: Years later both are due, and neither is in use, so nothing asks for action
+    command: ideas-check
+    input:
+      asOf: "2030-01-01"
+      checks: [due-in-use]
+    expect:
+      success: true
+      data:
+        counts:
+          due-in-use: 0
+
+  - description: The digest is quiet too
+    command: ideas-digest
+    input:
+      asOf: "2030-01-01"
+    expect:
+      success: true
+      data:
+        dueInUse: { length: 0 }
+
+  - description: A draft reaches for one of them, and the bundle says it is due before it is used
+    command: ideas-bundle
+    input:
+      ids: ["${{ steps[1].data.id }}"]
+      asOf: "2030-01-01"
+    expect:
+      success: true
+      data:
+        attention:
+          due: { length: 1 }
+
+  - description: It is used anyway
+    command: ideas-output-record
+    input:
+      title: Brassicas without the pigeons
+      format: article
+      ideas: ["${{ steps[1].data.id }}"]
+    expect:
+      success: true
+
+  - description: Now the digest asks about that one only
+    command: ideas-digest
+    input:
+      asOf: "2030-01-01"
+    expect:
+      success: true
+      data:
+        dueInUse: { length: 1 }

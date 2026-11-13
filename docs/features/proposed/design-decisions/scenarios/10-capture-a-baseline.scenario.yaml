@@ -1,0 +1,49 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# The checkout is main at a1b2c3d, clean. A set named main already exists from it.
+
+name: Capture a set to review against
+description: >-
+  When I start reviewing a project, I want its specimens captured once, with their checks, into a
+  labelled set that answers with ids and counts only, so that a review has something to compare
+  against without filling the agent's context.
+job: capture-a-baseline
+tags: [slice]
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: Every specimen is captured with axe; the result is the set, its source and counts
+    command: specimen-capture
+    input:
+      label: main
+    expect:
+      success: true
+      data:
+        set: set-4f1c0a9e2b7d
+        label: main
+        revision: a1b2c3d
+        dirty: false
+        counts.captured: 7
+        counts.unavailable: 0
+        counts.axe.passed: 6
+        counts.axe.failed: 1
+        counts.axe.incomplete: 1
+        unavailable: { length: 0 }
+        skipped.jobs: 0
+
+  - description: A subset in another context gets its own set, so labels never mix contexts
+    command: specimen-capture
+    input:
+      ids: [toolbar--dense, toolbar--airy]
+      context: { theme: dark }
+      label: main-dark
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-' }
+        counts.captured: 1
+        counts.unavailable: 1
+        unavailable.0.id: toolbar--airy
+        unavailable.0.reason: { contains: light }

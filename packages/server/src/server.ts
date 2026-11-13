@@ -5,9 +5,9 @@
  * execution, tool routing, and transport layers into a single MCP server.
  */
 
-import { createServer, type Server as HttpServer } from 'node:http';
+import { createServer, type Server as HttpServer, type IncomingMessage } from 'node:http';
 import type { CommandContext } from '@lushly-dev/afd-core';
-import { isMcpExposed } from '@lushly-dev/afd-core';
+import { type CommandMiddleware, failure, isMcpExposed } from '@lushly-dev/afd-core';
 import { createContextCommands, getBootstrapCommands } from './bootstrap/registry.js';
 import { assertValidCommandNames, assertValidFirstClassTools } from './command-names.js';
 import { filterByContext } from './command-routing.js';
@@ -18,6 +18,12 @@ import { createExecutionEngine } from './execution.js';
 import { createHttpHandler } from './http-handler.js';
 import { createSessionStore } from './http-sessions.js';
 import {
+	createAuthLayer,
+	type PreDispatchCheck,
+	type PreDispatchCheckOptions,
+} from './mcp-auth.js';
+import type { Credentials } from './mcp-auth-rules.js';
+import {
 	createModernHttpLane,
 	DEFAULT_TOOLS_LIST_TTL_MS,
 	defaultInstructions,
@@ -27,6 +33,7 @@ import {
 import { assertToolMeta } from './meta-keys.js';
 import { createResourceService } from './resources.js';
 import type { ZodCommandDefinition } from './schema.js';
+import { listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { McpHandler, McpHandlerOptions, McpServer, McpServerOptions } from './server-types.js';
 import { isStdinPiped } from './server-types.js';
 import { createToolRouter } from './tool-router.js';
@@ -49,6 +56,19 @@ export { isStdinPiped, MAX_FIRST_CLASS_TOOLS } from './server-types.js';
 // ═══════════════════════════════════════════════════════════════════════════════
 // SERVER FACTORY
 // ═══════════════════════════════════════════════════════════════════════════════
+
+/**
+ * M6, "At execution": with a resolver, every command a call with credentials runs is decided again
+ * on its validated input (defaults applied, pipeline references resolved), after the required
+ * scopes. First in the remote engine's chain, so a missing scope reaches no other middleware.
+ */
+const executionScopes: CommandMiddleware = async (commandName, input, context, next) => {
+	const view = scopeViewOf(context);
+	const decision = view?.decideExecution(commandName, input);
+	return view && decision && decision !== 'proceed'
+		? failure(view.insufficientScope(decision.forbidden))
+		: next();
+};
 
 function createSharedHttpRuntime(options: McpHandlerOptions) {
 	const {
@@ -104,8 +124,12 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		// afd-help/afd-docs/afd-schema describe what a remote agent can see and call:
 		// MCP-exposed commands in the active context (built-ins included).
 		// The caller's context state: the HTTP session's, or the single stdio state.
+		// With MCP authorization's filtered listings, only what the caller is shown (M6).
 		const describe = (context?: CommandContext) =>
-			filterByContext(remoteCommands, resolveContextState(context, contextState)?.getActive());
+			listedCommands(
+				filterByContext(remoteCommands, resolveContextState(context, contextState)?.getActive()),
+				context
+			);
 		registeredCommands.push(
 			...getBootstrapCommands(describe, {
 				toolSurface: { toolStrategy, firstClassTools, contextFields },
@@ -132,7 +156,15 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 	const remoteCommands = registeredCommands.filter((command) => isMcpExposed(command));
 	const remoteEngine = createExecutionEngine({
 		commandMap: new Map(remoteCommands.map((command) => [command.name, command])),
-		middleware,
+		// MCP authorization (spec/authorization.md, M6): a resolver decides every command again at
+		// execution, on its validated input, before any other middleware or the handler; and a
+		// command hidden from the caller is looked up as a name that does not exist.
+		middleware: options.auth ? [executionScopes, ...middleware] : middleware,
+		...(options.auth && {
+			hidden: (commandName: string, context: CommandContext) =>
+				!(scopeViewOf(context)?.known(commandName) ?? true),
+			shown: shownOnly,
+		}),
 		devMode,
 		onCommand,
 		onError,
@@ -162,7 +194,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 
 	const boundGetToolsList = (context: CommandContext = {}) =>
 		getToolsList(
-			remoteCommands,
+			listedCommands(remoteCommands, context),
 			toolStrategy,
 			groupByFn,
 			resolveContextState(context, contextState)?.getActive(),
@@ -191,10 +223,21 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		devMode,
 		onError,
 	};
+	const maxBodyBytes = options.maxBodyBytes ?? 1024 * 1024;
+	const auth = options.auth
+		? createAuthLayer(options.auth, {
+				maxBodyBytes,
+				clock,
+				commands: remoteCommands,
+				toolStrategy,
+				groupByFn,
+			})
+		: undefined;
 	const modern = createModernHttpLane({
 		...modernDeps,
 		createContext: options.createContext,
-		maxBodyBytes: options.maxBodyBytes ?? 1024 * 1024,
+		maxBodyBytes,
+		auth,
 	});
 
 	const { handler, dispose } = createHttpHandler({
@@ -220,6 +263,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		contextFields,
 		onError,
 		modern,
+		auth,
 	});
 
 	return {
@@ -231,6 +275,7 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
 		dispose,
 		modernDeps,
 		contextState,
+		auth,
 		url: `http://${host}:${port}`,
 	};
 }
@@ -244,7 +289,20 @@ function createSharedHttpRuntime(options: McpHandlerOptions) {
  */
 export function createMcpHandler(options: McpHandlerOptions): McpHandler {
 	const runtime = createSharedHttpRuntime(options);
-	return Object.assign(runtime.handler, { dispose: runtime.dispose });
+	const { auth } = runtime;
+	const needsAuth = (what: string) =>
+		new Error(`[AFD] handler.${what} needs the auth option: this handler has no authorization`);
+	return Object.assign(runtime.handler, {
+		dispose: runtime.dispose,
+		admit(req: IncomingMessage, credentials: Credentials): void {
+			if (!auth) throw needsAuth('admit');
+			auth.hostAdmit(req, credentials);
+		},
+		preDispatchCheck(checkOptions?: PreDispatchCheckOptions): PreDispatchCheck {
+			if (!auth) throw needsAuth('preDispatchCheck');
+			return auth.preDispatchCheck(checkOptions);
+		},
+	});
 }
 
 /**
