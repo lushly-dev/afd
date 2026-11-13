@@ -28,7 +28,7 @@ rusqlite = { version = "0.41", features = ["bundled"] }
 tempfile = "3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
 # The tests boot a host with real collections, readers and allow lists.
-umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
+umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
 
 [lints]
 workspace = true

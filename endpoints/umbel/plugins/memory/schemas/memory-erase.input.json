@@ -1,0 +1,38 @@
+{
+	"type": "object",
+	"required": ["principal", "dryRun"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"principal": {
+			"type": "string",
+			"minLength": 3,
+			"maxLength": 200,
+			"description": "The principal whose records are erased, <kind>:<id> (human:corp/U019488227, agent:loopback)"
+		},
+		"ids": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 100,
+			"items": {
+				"type": "string"
+			},
+			"description": "Only these of the principal's records, by id; default: every record they own in the space, whoever may read it"
+		},
+		"dryRun": {
+			"type": "boolean",
+			"description": "true: count the records and compute the plan, erasing nothing (required first); false: erase, presenting the plan"
+		},
+		"plan": {
+			"type": "string",
+			"description": "The plan the dry run gave (sha256: and 64 hex digits); required when dryRun is false"
+		},
+		"request": {
+			"type": "string",
+			"description": "With erase_approvals = 2: the erase request (x- and 20 hex digits) a second eraser approves"
+		}
+	}
+}

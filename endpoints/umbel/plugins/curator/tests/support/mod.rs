@@ -330,6 +330,7 @@ impl Fx {
                     id: id.to_owned(),
                     at,
                     by: owner.to_owned(),
+                    equivalents: Vec::new(),
                     content_hash: hash,
                     trace_id: None,
                     assurance: Some(umbel_store::Assurance::terminal()),
@@ -345,6 +346,7 @@ impl Fx {
         self.memory_store("main")
             .forget(Forget {
                 owner: owner.to_owned(),
+                equivalents: Vec::new(),
                 selector: ForgetSelector::Ids(vec![id.to_owned()]),
                 at: self.clock,
                 trace_id: None,

@@ -98,7 +98,7 @@ fn of(ids: &std::collections::BTreeMap<&str, String>, letters: &[&str]) -> Vec<S
 
 #[tokio::test]
 async fn every_filter_and_project_rule_narrows_what_the_caller_reads() {
-    let fx = Fx::new();
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
     let ids = seeded(&fx).await;
     let recall = |extra: Value| {
         let mut input = json!({ "query": "rollback" });
@@ -128,7 +128,12 @@ async fn every_filter_and_project_rule_narrows_what_the_caller_reads() {
         (json!({ "tags": ["deploy"] }), vec!["a"]),
         (json!({ "session": "s-2" }), vec!["d"]),
         (json!({ "agent": "bot" }), vec!["d"]),
-        (json!({ "authorities": ["agent"] }), vec!["d"]),
+        // Bo's library actor is not the operator's person; its shared G has agent authority.
+        (json!({ "authorities": ["agent"] }), vec!["d", "g"]),
+        (
+            json!({ "authorities": ["person"] }),
+            vec!["a", "b", "c", "e"],
+        ),
         (json!({ "mine": true }), vec!["a", "b", "c", "d", "e"]),
     ] {
         let result = recall(filter.clone()).await;
@@ -157,7 +162,7 @@ async fn every_filter_and_project_rule_narrows_what_the_caller_reads() {
     let left_out = fx
         .person("memory-list", json!({ "authorities": ["agent"] }))
         .await;
-    assert_eq!(hit_ids(&left_out), of(&ids, &["d"]));
+    assert_eq!(hit_ids(&left_out), of(&ids, &["d", "g"]));
     // The schema refuses closed sets and ranges; the plugin, labels, queries and instants.
     for bad in [
         json!({ "query": "x", "classes": ["opinion"] }),
@@ -188,7 +193,7 @@ async fn every_filter_and_project_rule_narrows_what_the_caller_reads() {
 
 #[tokio::test]
 async fn hits_are_concise_or_detailed_labeled_and_cited() {
-    let fx = Fx::new();
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
     let ids = seeded(&fx).await;
     let concise = fx
         .person(
@@ -276,7 +281,7 @@ async fn hits_are_concise_or_detailed_labeled_and_cited() {
 
 #[tokio::test]
 async fn flagged_records_come_back_in_rank_order_with_their_label() {
-    let fx = Fx::new();
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
     let ids = seeded(&fx).await;
     let result = fx
         .person("memory-recall", json!({ "query": "instructions" }))

@@ -412,63 +412,16 @@ impl SqliteMemoryStore {
                 // session.
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
                 let (targets, not_found) = resolve(&tx, &req)?;
-                for rec in &targets {
-                    let key: Option<String> = tx.query_row(
-                        "SELECT capture_key FROM records WHERE rowid = ?1",
-                        [rec.rowid],
-                        |r| r.get(0),
-                    )?;
-                    if let Some(key) = key {
-                        let mut prefixes = vec![key.clone()];
-                        if matches!(req.selector, ForgetSelector::Session(_))
-                            && let Some(prefix) = capture_session_prefix(&key)
-                        {
-                            prefixes.push(prefix);
-                        }
-                        for prefix in prefixes {
-                            tx.execute(
-                                "INSERT OR IGNORE INTO capture_erasures \
-                                 (owner, key_prefix, erased_at, trace_id) VALUES (?1, ?2, ?3, ?4)",
-                                params![req.owner, prefix, req.at, req.trace_id],
-                            )?;
-                        }
-                    }
-                }
+                let session = matches!(req.selector, ForgetSelector::Session(_));
+                erase_prefixes(&tx, &targets, session, req.at, req.trace_id.as_deref())?;
                 tx.commit()?;
                 points::crash("forget-1");
-                let receipt = |wal| ForgetReceipt {
-                    erased: targets.len() as u64,
-                    ids: targets
-                        .iter()
-                        .take(MAX_FORGET_IDS)
-                        .map(|r| r.id.clone())
-                        .collect(),
-                    not_found: not_found.clone(),
-                    wal,
+                let erasure = Erasure {
+                    at: req.at,
+                    trace_id: req.trace_id.as_deref(),
+                    tombstone: "forget",
                 };
-                if targets.is_empty() {
-                    return Ok(receipt(WalState::Clean));
-                }
-                // Step 2: hold the memory write lock and destroy the keys. A failure before this
-                // commit destroyed nothing, and the call fails.
-                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
-                let ids: Vec<&str> = targets.iter().map(|r| r.id.as_str()).collect();
-                keys::destroy(kc, &ids, req.at, MarkerKind::Forget)?;
-                points::crash("forget-2");
-                // The erasure point is behind: from here a forget does not fail.
-                if remove_forgotten(tx, &targets, &req).is_err() {
-                    return Ok(receipt(WalState::Pending));
-                }
-                points::crash("forget-3");
-                if !settle_wal(conn, true, timeout) {
-                    return Ok(receipt(WalState::Pending));
-                }
-                points::crash("forget-4");
-                if keys::settle(kc, &ids).is_err() {
-                    return Ok(receipt(WalState::Pending));
-                }
-                points::crash("forget-5");
-                Ok(receipt(WalState::Clean))
+                erasure.run(conn, kc, &targets, not_found, timeout)
             })
         })
     }
@@ -477,6 +430,7 @@ impl SqliteMemoryStore {
         check_limit("sweep", req.limit, MAX_SWEEP_LIMIT)?;
         self.pool.read(|_| Ok(()))?;
         self.roll_forward()?;
+        self.purge_erase_state(req.now)?;
         let (purged, remaining) = self.purge(req.now, req.retention, req.limit, true)?;
         Ok(SweepReceipt { purged, remaining })
     }
@@ -575,56 +529,185 @@ impl SqliteMemoryStore {
     }
 }
 
-/// Step 3 of a forget, in step 2's transaction: for each id whose row still exists, remove its
-/// rows and write a tombstone and an `Erased` change; commit.
-fn remove_forgotten(
-    tx: rusqlite::Transaction<'_>,
+/// Step 1's erased prefixes (section 7.2), in its transaction: each target's capture window,
+/// and for a forget by session the whole session, under the record's owner.
+pub(super) fn erase_prefixes(
+    tx: &Connection,
     targets: &[RecordRow],
-    req: &Forget,
+    session: bool,
+    at: Millis,
+    trace_id: Option<&str>,
 ) -> Result<(), Fail> {
-    points::fail("forget-3")?;
-    for target in targets {
-        let Some(rec) = record_row(&tx, &target.id)? else {
-            continue;
-        };
-        tx.execute(
-            "INSERT OR IGNORE INTO tombstones (id, erased_at, trace_id, kind) \
-             VALUES (?1, ?2, ?3, 'forget')",
-            params![rec.id, req.at, req.trace_id],
+    for rec in targets {
+        let key: Option<String> = tx.query_row(
+            "SELECT capture_key FROM records WHERE rowid = ?1",
+            [rec.rowid],
+            |r| r.get(0),
         )?;
-        erase(
-            &tx,
-            &rec,
-            MemoryChangeKind::Erased,
-            req.at,
-            req.trace_id.as_deref(),
-            true,
-        )?;
+        if let Some(key) = key {
+            let mut prefixes = vec![key.clone()];
+            if session && let Some(prefix) = capture_session_prefix(&key) {
+                prefixes.push(prefix);
+            }
+            for prefix in prefixes {
+                tx.execute(
+                    "INSERT OR IGNORE INTO capture_erasures \
+                     (owner, key_prefix, erased_at, trace_id) VALUES (?1, ?2, ?3, ?4)",
+                    params![rec.owner, prefix, at, trace_id],
+                )?;
+            }
+        }
     }
-    tx.commit()?;
     Ok(())
+}
+
+/// Steps 2 to 5 of a forget or an erase, once step 1 has committed: what they write.
+pub(super) struct Erasure<'a> {
+    pub(super) at: Millis,
+    pub(super) trace_id: Option<&'a str>,
+    /// The tombstones' kind: `forget` or `erase`.
+    pub(super) tombstone: &'static str,
+}
+
+impl Erasure<'_> {
+    /// Destroy the targets' keys (the erasure point), remove their rows, compact and truncate,
+    /// settle. A failure before the key file's commit destroyed nothing and fails the call; after
+    /// it nothing fails, and `Pending` leaves the rest to the next writer's roll-forward.
+    pub(super) fn run(
+        &self,
+        conn: &mut Connection,
+        kc: &mut Connection,
+        targets: &[RecordRow],
+        not_found: Vec<String>,
+        timeout: std::time::Duration,
+    ) -> Result<ForgetReceipt, Fail> {
+        if targets.is_empty() {
+            return Ok(Self::receipt(targets, not_found, WalState::Clean));
+        }
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if !self.destroy_and_remove(tx, kc, targets)? {
+            return Ok(Self::receipt(targets, not_found, WalState::Pending));
+        }
+        Ok(self.settle(conn, kc, targets, not_found, timeout))
+    }
+
+    /// Build the receipt without reopening any erased content.
+    pub(super) fn receipt(
+        targets: &[RecordRow],
+        not_found: Vec<String>,
+        wal: WalState,
+    ) -> ForgetReceipt {
+        ForgetReceipt {
+            erased: targets.len() as u64,
+            ids: targets
+                .iter()
+                .take(MAX_FORGET_IDS)
+                .map(|r| r.id.clone())
+                .collect(),
+            not_found,
+            wal,
+        }
+    }
+
+    /// Steps 2 and 3 under a write lock the caller already holds. An erase rechecks its plan
+    /// under this same lock before calling: no writer can change it before key destruction.
+    pub(super) fn destroy_and_remove(
+        &self,
+        tx: rusqlite::Transaction<'_>,
+        kc: &mut Connection,
+        targets: &[RecordRow],
+    ) -> Result<bool, Fail> {
+        if targets.is_empty() {
+            tx.commit()?;
+            return Ok(true);
+        }
+        let ids: Vec<&str> = targets.iter().map(|r| r.id.as_str()).collect();
+        keys::destroy(kc, &ids, self.at, MarkerKind::Forget)?;
+        points::crash("forget-2");
+        // After the erasure point a removal failure is pending recovery, never a failed erase.
+        if self.remove(tx, targets).is_err() {
+            return Ok(false);
+        }
+        points::crash("forget-3");
+        Ok(true)
+    }
+
+    /// Steps 4 and 5 after row removal. They cannot fail the call past the erasure point.
+    pub(super) fn settle(
+        &self,
+        conn: &mut Connection,
+        kc: &mut Connection,
+        targets: &[RecordRow],
+        not_found: Vec<String>,
+        timeout: std::time::Duration,
+    ) -> ForgetReceipt {
+        if targets.is_empty() {
+            return Self::receipt(targets, not_found, WalState::Clean);
+        }
+        if !settle_wal(conn, true, timeout) {
+            return Self::receipt(targets, not_found, WalState::Pending);
+        }
+        points::crash("forget-4");
+        let ids: Vec<&str> = targets.iter().map(|r| r.id.as_str()).collect();
+        if keys::settle(kc, &ids).is_err() {
+            return Self::receipt(targets, not_found, WalState::Pending);
+        }
+        points::crash("forget-5");
+        Self::receipt(targets, not_found, WalState::Clean)
+    }
+
+    /// Step 3, in step 2's transaction: for each id whose row still exists, remove its rows and
+    /// write a tombstone and an `Erased` change; commit.
+    fn remove(&self, tx: rusqlite::Transaction<'_>, targets: &[RecordRow]) -> Result<(), Fail> {
+        points::fail("forget-3")?;
+        for target in targets {
+            let Some(rec) = record_row(&tx, &target.id)? else {
+                continue;
+            };
+            tx.execute(
+                "INSERT OR IGNORE INTO tombstones (id, erased_at, trace_id, kind) \
+                 VALUES (?1, ?2, ?3, ?4)",
+                params![rec.id, self.at, self.trace_id, self.tombstone],
+            )?;
+            erase(
+                &tx,
+                &rec,
+                MemoryChangeKind::Erased,
+                self.at,
+                self.trace_id,
+                true,
+            )?;
+        }
+        tx.commit()?;
+        Ok(())
+    }
 }
 
 /// The owner's records a forget erases, and the requested ids that were not the owner's.
 fn resolve(tx: &Connection, req: &Forget) -> Result<(Vec<RecordRow>, Vec<String>), Fail> {
     let mut targets = Vec::new();
     let mut not_found = Vec::new();
+    // The owner's records, and those of the legacy principals it stands for (phase 5 section 4.6).
+    let owns = |owner: &str| owner == req.owner || req.equivalents.iter().any(|e| e == owner);
     match &req.selector {
         ForgetSelector::Ids(ids) => {
             let mut seen = BTreeSet::new();
             for id in ids {
                 match record_row(tx, id)? {
-                    Some(rec) if rec.owner == req.owner && seen.insert(id.clone()) => {
+                    Some(rec) if owns(&rec.owner) && seen.insert(id.clone()) => {
                         targets.push(rec);
                     }
-                    Some(rec) if rec.owner == req.owner => {}
+                    Some(rec) if owns(&rec.owner) => {}
                     _ => not_found.push(id.clone()),
                 }
             }
         }
         selector => {
-            let mut sql = Sql::new("SELECT r.id FROM records r WHERE r.owner = ");
-            sql.bind(&req.owner);
+            let mut sql = Sql::new("SELECT r.id FROM records r WHERE r.owner IN ");
+            sql.bind_list(
+                std::iter::once(req.owner.as_str())
+                    .chain(req.equivalents.iter().map(String::as_str)),
+            );
             match selector {
                 ForgetSelector::Session(s) => {
                     sql.push(" AND r.session = ").bind(s);

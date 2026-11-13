@@ -349,6 +349,10 @@ pub(crate) fn attested(
         Surface::Cli => ("cli", CommandInterface::Cli),
     };
     let digest = afd::input_digest(input).ok()?;
+    // At the CLI, only the host's own command line (sealed, step 10).
+    if mark.surface == Surface::Cli && !crate::authority::is_cli(context) {
+        return None;
+    }
     if mark.command != command
         || context.interface != Some(interface)
         || mark.input_digest != digest
@@ -543,7 +547,9 @@ pub(crate) fn admit(
         Surface::Mcp => CommandInterface::Mcp,
         Surface::Cli => CommandInterface::Cli,
     };
-    if context.interface != Some(interface) {
+    if context.interface != Some(interface)
+        || (surface == Surface::Cli && !crate::authority::is_cli(context))
+    {
         return Err(refuse());
     }
     let Some(mark) = PersonMark::of(context) else {
@@ -1028,9 +1034,13 @@ mod tests {
                     Value::from(confirmed),
                 );
             }
+            crate::authority::seal_cli(&mut context);
             context
         };
         let confirmed = cli(Some("notes-review"));
+        let mut unsealed = confirmed.clone();
+        unsealed.extra.remove(crate::authority::CLI_SEAL_KEY);
+        assert!(proof("notes-review", terminal, &input(), &unsealed).is_none());
         assert_eq!(
             proof("notes-review", terminal, &input(), &confirmed),
             Some(umbel_store::Assurance::terminal())

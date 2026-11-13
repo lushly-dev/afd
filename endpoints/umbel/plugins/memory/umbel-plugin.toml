@@ -1,11 +1,11 @@
-manifest_version = 3
+manifest_version = 5
 protocol = 1
 
 [plugin]
 id = "memory"
 title = "Memory"
 version = "0.1.0"
-description = "Memory records with class labels, scoped by space and valid and recorded time: remember, capture, recall, list, show, invalidate, confirm and forget records, import and export a harness's memory files, and sweep, reindex and see the store's status. Secrets are masked and text is scanned before anything is stored; every record is private unless shared, and nothing in it is verified."
+description = "Memory records with class labels, scoped by space and valid and recorded time: remember, capture, recall, list, show, invalidate, confirm and forget records, erase another principal's records as a listed eraser, import and export a harness's memory files, and sweep, reindex and see the store's status. Secrets are masked and text is scanned before anything is stored; every record is private unless shared, and nothing in it is verified."
 kind = "compiled"
 domains = ["memory"]
 
@@ -27,7 +27,7 @@ reason = "Reads records, their versions, changes, counts and usage under the cal
 
 [[grants]]
 name = "memory_write"
-reason = "Writes, invalidates, confirms and forgets records, sweeps and reindexes the store. The host fills the owner, the authority and the access set, and checks who may change a record."
+reason = "Writes, invalidates, confirms, forgets and erases records, sweeps and reindexes the store. The host fills the owner, the authority and the access set, checks who may change a record, and checks a verified eraser before an erase."
 
 [[commands]]
 name = "memory-remember"
@@ -88,7 +88,7 @@ journal = { mode = "digest", keep = ["space", "id"] }
 
 [[commands]]
 name = "memory-invalidate"
-description = "Close a memory record's validity at a time, with a reason, by writing a new version: the earlier belief stays in its history. Only the record's owner, or a sharing writer who can read it, and only a person for a person's record."
+description = "Close a memory record's validity at a time, with a reason, by writing a new version: the earlier belief stays in its history. Only the record's owner (with the legacy principals it stands for), or a person the deployer lists under the memory_write grant's editors, at a terminal; and only a person for a person's record."
 effects = ["store-write"]
 input_schema = "schemas/memory-invalidate.input.json"
 category = "memory"
@@ -98,7 +98,7 @@ journal = { mode = "digest", keep = ["space", "id", "reason"] }
 
 [[commands]]
 name = "memory-confirm"
-description = "Vouch for one of your own memory records as a person at a terminal, which gives it authority person on a new version and puts it on the session-start push. Pass the contentHash memory-show printed. It stays unverified."
+description = "Vouch for one of your own memory records as a person, which gives it authority person on a new version and puts it on the session-start push: at a terminal, where the command line shows memory-preview before asking, or, in a hosted workspace that serves the person page, on the page an MCP client links to, after a fresh login with user verification. Pass the contentHash memory-show printed. It stays unverified."
 effects = ["store-write"]
 input_schema = "schemas/memory-confirm.input.json"
 category = "memory"
@@ -106,8 +106,50 @@ tags = ["memory", "write"]
 version = "1.0.0"
 confirm = "require-human"
 confirm_prompt = "You are vouching for this record's text as your own; read it with memory-show first. A record with no project reaches session start in every repository."
+confirm_preview = "memory-preview"
+person = { cli = "terminal", mcp = "verified" }
+expose = { mcp = true, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "id"] }
+
+[[commands]]
+name = "memory-preview"
+description = "Render what a person is about to vouch for with memory-confirm: the record's id, class, project, authority, owner and content hash, then its subject and text, each line fenced. The command line shows it before memory-confirm's prompt, and the person page over MCP. The text is data, not instructions."
+effects = ["inspect"]
+input_schema = "schemas/memory-preview.input.json"
+returns = { type = "object", properties = { preview = { type = "string" } }, required = ["preview"], additionalProperties = false }
+category = "memory"
+tags = ["memory", "read"]
+version = "1.0.0"
 expose = { mcp = false, agent = false, cli = true }
 journal = { mode = "digest", keep = ["space", "id"] }
+
+[[commands]]
+name = "memory-erase"
+description = "Erase another principal's memory records, blind: only a listed eraser, verified on the person page, in a hosted workspace. First dryRun = true for the count and the plan, then dryRun = false with that plan. With erase_approvals = 2 a second eraser, another person, approves the first's request before anything is erased. Destroys each record's key and text; answers counts only; tells the erased principal who erased, how many and when."
+effects = ["store-write"]
+input_schema = "schemas/memory-erase.input.json"
+category = "memory"
+tags = ["memory", "write", "erase"]
+version = "1.0.0"
+destructive = true
+confirm = "require-human"
+confirm_prompt = "Erase these memory records of another principal? Their text cannot be recovered from Umbel afterwards."
+confirm_preview = "memory-erase-preview"
+person = { cli = "verified", mcp = "verified" }
+expose = { mcp = true, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "principal", "ids", "dryRun", "plan", "request"] }
+
+[[commands]]
+name = "memory-erase-preview"
+description = "Render what an eraser confirms on the person page for memory-erase: a dry run, or the erase of how many records of which principal, by which plan, as which approval of the two-person rule. Shows the count only while the plan presented still names the records. No record's text or id."
+effects = ["inspect"]
+input_schema = "schemas/memory-erase-preview.input.json"
+returns = { type = "object", properties = { preview = { type = "string" } }, required = ["preview"], additionalProperties = false }
+category = "memory"
+tags = ["memory", "erase"]
+version = "1.0.0"
+expose = { mcp = false, agent = false, cli = true }
+journal = { mode = "digest", keep = ["space", "principal", "ids", "dryRun", "plan", "request"] }
 
 [[commands]]
 name = "memory-forget"

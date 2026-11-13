@@ -294,6 +294,7 @@ fn erased_prefix(env: &MemoryEnv<'_>) -> CaseResult {
     let forget = |selector| {
         m.forget(Forget {
             owner: ADA.into(),
+            equivalents: Vec::new(),
             selector,
             at: T0 + 1000,
             trace_id: None,
@@ -600,6 +601,7 @@ fn no_update(env: &MemoryEnv<'_>) -> CaseResult {
     )?;
     m.forget(Forget {
         owner: ADA.into(),
+        equivalents: Vec::new(),
         selector: ForgetSelector::Ids(vec![id.clone()]),
         at: T0 + 2000,
         trace_id: None,
