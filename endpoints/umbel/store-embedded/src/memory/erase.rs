@@ -581,39 +581,79 @@ impl Erasure<'_> {
         not_found: Vec<String>,
         timeout: std::time::Duration,
     ) -> Result<ForgetReceipt, Fail> {
-        let receipt = |wal| ForgetReceipt {
+        if targets.is_empty() {
+            return Ok(Self::receipt(targets, not_found, WalState::Clean));
+        }
+        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+        if !self.destroy_and_remove(tx, kc, targets)? {
+            return Ok(Self::receipt(targets, not_found, WalState::Pending));
+        }
+        Ok(self.settle(conn, kc, targets, not_found, timeout))
+    }
+
+    /// Build the receipt without reopening any erased content.
+    pub(super) fn receipt(
+        targets: &[RecordRow],
+        not_found: Vec<String>,
+        wal: WalState,
+    ) -> ForgetReceipt {
+        ForgetReceipt {
             erased: targets.len() as u64,
             ids: targets
                 .iter()
                 .take(MAX_FORGET_IDS)
                 .map(|r| r.id.clone())
                 .collect(),
-            not_found: not_found.clone(),
+            not_found,
             wal,
-        };
-        if targets.is_empty() {
-            return Ok(receipt(WalState::Clean));
         }
-        // Step 2: hold the memory write lock and destroy the keys. A failure before this commit
-        // destroyed nothing, and the call fails.
-        let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+    }
+
+    /// Steps 2 and 3 under a write lock the caller already holds. An erase rechecks its plan
+    /// under this same lock before calling: no writer can change it before key destruction.
+    pub(super) fn destroy_and_remove(
+        &self,
+        tx: rusqlite::Transaction<'_>,
+        kc: &mut Connection,
+        targets: &[RecordRow],
+    ) -> Result<bool, Fail> {
+        if targets.is_empty() {
+            tx.commit()?;
+            return Ok(true);
+        }
         let ids: Vec<&str> = targets.iter().map(|r| r.id.as_str()).collect();
         keys::destroy(kc, &ids, self.at, MarkerKind::Forget)?;
         points::crash("forget-2");
-        // The erasure point is behind: from here a forget does not fail.
+        // After the erasure point a removal failure is pending recovery, never a failed erase.
         if self.remove(tx, targets).is_err() {
-            return Ok(receipt(WalState::Pending));
+            return Ok(false);
         }
         points::crash("forget-3");
+        Ok(true)
+    }
+
+    /// Steps 4 and 5 after row removal. They cannot fail the call past the erasure point.
+    pub(super) fn settle(
+        &self,
+        conn: &mut Connection,
+        kc: &mut Connection,
+        targets: &[RecordRow],
+        not_found: Vec<String>,
+        timeout: std::time::Duration,
+    ) -> ForgetReceipt {
+        if targets.is_empty() {
+            return Self::receipt(targets, not_found, WalState::Clean);
+        }
         if !settle_wal(conn, true, timeout) {
-            return Ok(receipt(WalState::Pending));
+            return Self::receipt(targets, not_found, WalState::Pending);
         }
         points::crash("forget-4");
+        let ids: Vec<&str> = targets.iter().map(|r| r.id.as_str()).collect();
         if keys::settle(kc, &ids).is_err() {
-            return Ok(receipt(WalState::Pending));
+            return Self::receipt(targets, not_found, WalState::Pending);
         }
         points::crash("forget-5");
-        Ok(receipt(WalState::Clean))
+        Self::receipt(targets, not_found, WalState::Clean)
     }
 
     /// Step 3, in step 2's transaction: for each id whose row still exists, remove its rows and

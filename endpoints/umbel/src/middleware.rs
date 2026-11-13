@@ -473,8 +473,30 @@ async fn person_gate(
 ) -> Result<Option<crate::person::HeldMark>, CommandError> {
     use crate::plugins::Assurance;
     let person = entry.person.unwrap_or_default();
+    // Step 10's library settlement applies to compiled memory confirmation alone. It is the
+    // embedder's word for the operator, never a terminal mark or a person-page decision; the
+    // memory service still checks ownership and records `embedder` assurance.
+    if name == "memory-confirm"
+        && entry.kind == PluginKind::Compiled
+        && entry.memory_writer
+        && !entry.pipeline
+        && person.cli == Assurance::Terminal
+        && crate::authority::embedder_human(context)
+    {
+        return if crate::authority::embedder_person(context, config) {
+            Ok(None)
+        } else {
+            Err(CommandError::new(
+                "MEMORY_CONFIRM_NOT_ALLOWED",
+                "the library may confirm memory only for the operator's person",
+            )
+            .with_suggestion("Confirm as the operator through the library, or use the person page for your own record.")
+            .with_retryable(false))
+        };
+    }
     // The CLI interface counts only on the host's own command line (sealed, phase 5 step 10); a
-    // library context that sets it without the seal is the library's, which no gate admits.
+    // library context that sets it without the seal remains the library's. Only the explicit
+    // operator-memory-confirmation exception above admits one.
     let interface = context.interface.filter(|interface| {
         *interface != CommandInterface::Cli || crate::authority::is_cli(context)
     });

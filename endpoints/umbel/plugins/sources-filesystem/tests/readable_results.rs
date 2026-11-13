@@ -169,6 +169,18 @@ async fn paths_of_files_with_no_stored_document_are_for_a_person_at_the_command_
             .is_none()
     );
 
+    // A library caller cannot become the command line by choosing the CLI interface.
+    let unsealed = json_of(
+        fx.call(
+            human("local"),
+            CommandInterface::Cli,
+            "sources-status",
+            json!({}),
+        )
+        .await,
+    );
+    assert!(collection(&unsealed, "handbook").get("newPaths").is_none());
+
     // The same calls at the command line, by a person who can read the files anyway.
     let person = fx.cli("sources-status", json!({})).await;
     let person = json_of(person);

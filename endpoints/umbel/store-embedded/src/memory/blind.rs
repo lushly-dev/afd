@@ -10,7 +10,9 @@
 //! pending with the plan presented), selects the targets, computes their plan and, when it is the
 //! one presented, commits their erased prefixes; then phase 3's steps 2 to 5 run as for a forget
 //! (keys first, D73, D82). A plan that does not match erases nothing and voids the request, in that
-//! same transaction.
+//! same transaction. Step 2 checks the complete plan again under the write lock it holds through
+//! key destruction: a writer between the two transactions can make the plan stale, erasing
+//! nothing and leaving the request void.
 //!
 //! **Erase requests** live in the memory database's `erase_requests` table, created on first use
 //! (`IF NOT EXISTS`, so a database from before step 10 gains it without a schema version), never
@@ -138,6 +140,16 @@ impl SqliteMemoryStore {
     }
 
     pub(super) fn do_erase(&self, req: Erase) -> Result<EraseOutcome, StoreError> {
+        self.erase_with_plan_commit(req, || {})
+    }
+
+    // The callback permits a deterministic concurrent writer between the two transactions in
+    // this module's tests. Production calls use a no-op.
+    fn erase_with_plan_commit(
+        &self,
+        req: Erase,
+        on_plan_commit: impl FnOnce(),
+    ) -> Result<EraseOutcome, StoreError> {
         req.check()?;
         self.pool.read(|_| Ok(()))?;
         self.roll_forward()?;
@@ -186,14 +198,33 @@ impl SqliteMemoryStore {
                 erase_prefixes(&tx, &rows, false, req.at, req.trace_id.as_deref())?;
                 tx.commit()?;
                 points::crash("erase-1");
+                on_plan_commit();
                 let erasure = Erasure {
                     at: req.at,
                     trace_id: req.trace_id.as_deref(),
                     tombstone: "erase",
                 };
-                erasure
-                    .run(conn, kc, &rows, Vec::new(), timeout)
-                    .map(EraseOutcome::Erased)
+                // Step 2 is the erasure point. Recheck the complete plan under the lock that
+                // will be held through key destruction, including an unrestricted target set.
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                if erase_plan(&targets(&tx, &req.owners, req.ids.as_deref())?) != req.plan {
+                    tx.commit()?;
+                    return Ok(EraseOutcome::PlanStale);
+                }
+                if !erasure.destroy_and_remove(tx, kc, &rows)? {
+                    return Ok(EraseOutcome::Erased(Erasure::receipt(
+                        &rows,
+                        Vec::new(),
+                        umbel_store::memory::WalState::Pending,
+                    )));
+                }
+                Ok(EraseOutcome::Erased(erasure.settle(
+                    conn,
+                    kc,
+                    &rows,
+                    Vec::new(),
+                    timeout,
+                )))
             })
         })
     }
@@ -344,6 +375,106 @@ impl SqliteMemoryStore {
         match result {
             Ok(()) | Err(StoreError::Busy) => Ok(()),
             Err(other) => Err(other),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::sync::Arc;
+
+    use umbel_store::conformance::samples;
+    use umbel_store::memory::{Erase, EraseOutcome, EraseRequest, Invalidate, InvalidationReason};
+    use umbel_store::{MemoryStore, ReaderFilter};
+
+    use super::*;
+    use crate::StoreOptions;
+
+    #[test]
+    fn a_writer_between_plan_commit_and_key_destruction_makes_the_plan_stale() {
+        const OWNER: &str = "human:bo";
+        const REQUEST: &str = "x-0123456789abcdef0123";
+        let at = samples::MEMORY_AT;
+        for new_record in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let store = Arc::new(
+                SqliteMemoryStore::open(dir.path(), "main", StoreOptions::default()).unwrap(),
+            );
+            store
+                .write(samples::memory_batch(
+                    at,
+                    vec![samples::memory_entry(1, OWNER, &["space"], "one", "first")],
+                ))
+                .unwrap();
+            let owners = vec![OWNER.to_owned()];
+            let plan = erase_plan(&store.erase_targets(&owners, None).unwrap());
+            store
+                .erase_request_create(
+                    EraseRequest {
+                        id: REQUEST.to_owned(),
+                        target: OWNER.to_owned(),
+                        plan: plan.clone(),
+                        first: "human:ada".to_owned(),
+                        at,
+                        expires_at: at + 1000,
+                    },
+                    at,
+                )
+                .unwrap();
+            let writer = Arc::clone(&store);
+            let result = store
+                .erase_with_plan_commit(
+                    Erase {
+                        owners: owners.clone(),
+                        ids: None,
+                        plan,
+                        request: Some(REQUEST.to_owned()),
+                        at: at + 2,
+                        trace_id: None,
+                    },
+                    move || {
+                        if new_record {
+                            writer
+                                .write(samples::memory_batch(
+                                    at + 1,
+                                    vec![samples::memory_entry(
+                                        2,
+                                        OWNER,
+                                        &["space"],
+                                        "two",
+                                        "second",
+                                    )],
+                                ))
+                                .unwrap();
+                        } else {
+                            writer
+                                .invalidate(
+                                    Invalidate {
+                                        id: samples::memory_id(1),
+                                        at: at + 1,
+                                        valid_until: at + 1,
+                                        by: OWNER.to_owned(),
+                                        reason: InvalidationReason::Wrong,
+                                        note: None,
+                                        expect_version: Some(1),
+                                        trace_id: None,
+                                    },
+                                    &ReaderFilter::tokens(["space"]).unwrap(),
+                                )
+                                .unwrap();
+                        }
+                    },
+                )
+                .unwrap();
+            assert_eq!(result, EraseOutcome::PlanStale, "new_record={new_record}");
+            assert_eq!(store.key_status().unwrap().destroyed, 0);
+            let kept = store.erase_targets(&owners, None).unwrap();
+            assert_eq!(kept.len(), if new_record { 2 } else { 1 });
+            if !new_record {
+                assert_eq!(kept[0].record_version, 2);
+            }
+            assert!(store.erase_request(REQUEST, at + 2).unwrap().is_none());
         }
     }
 }

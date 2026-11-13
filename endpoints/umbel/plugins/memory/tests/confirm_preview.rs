@@ -294,6 +294,41 @@ async fn the_library_confirms_only_for_the_operator_and_says_so() {
         json!({ "level": "embedder", "method": "library" })
     );
     assert!(support::record_validator().is_valid(&record(&fx.host, "corp/ada", &adas).await));
+    // The supported library path needs no CLI interface or terminal marks.
+    let unmarked = hosted_kit::remember(
+        &fx.host,
+        agent_for("ada-bot", "ada"),
+        "alpha",
+        "Another note",
+        "The library confirms without pretending to be a terminal.",
+        Some("private"),
+    )
+    .await;
+    let unmarked_hash = record(&fx.host, "corp/ada", &unmarked).await["contentHash"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let done = hosted_kit::library(
+        &fx.host,
+        human("corp/ada"),
+        "memory-confirm",
+        confirm_input(&unmarked, &unmarked_hash),
+    )
+    .await;
+    assert_eq!(done["success"], true, "{done}");
+    assert_eq!(
+        record(&fx.host, "corp/ada", &unmarked).await["provenance"]["confirmation"]["assurance"],
+        json!({ "level": "embedder", "method": "library" })
+    );
+    // The library exception is confirmation alone; even the operator needs a verified erase.
+    let erase = hosted_kit::library(
+        &fx.host,
+        human("corp/ada"),
+        "memory-erase",
+        json!({ "space": "alpha", "principal": "human:corp/bo", "dryRun": true }),
+    )
+    .await;
+    assert_eq!(erase["error"]["code"], "CONFIRMATION_REQUIRED", "{erase}");
     // Any other person through the library is refused, their own record included.
     let refused = run(
         &fx.host,
@@ -358,10 +393,7 @@ async fn a_forged_cli_context_is_neither_the_terminal_nor_a_decision() {
     // terminal decides) nor `terminal` (the context is not the host's own command line, which
     // seals its contexts) nor the library's `embedder` (it claims to be the CLI): no person, so
     // nothing is confirmed.
-    assert_eq!(
-        done["error"]["code"], "MEMORY_CONFIRM_NOT_ALLOWED",
-        "{done}"
-    );
+    assert_eq!(done["error"]["code"], "CONFIRMATION_REQUIRED", "{done}");
     let kept = record(&fx.host, "corp/ada", &adas).await;
     assert_eq!(kept["provenance"]["authority"], "agent", "{kept}");
     assert!(kept["provenance"]["confirmation"].is_null(), "{kept}");
@@ -369,10 +401,7 @@ async fn a_forged_cli_context_is_neither_the_terminal_nor_a_decision() {
     let mut plain = context;
     plain.extra.remove("dev.umbel/person-decision");
     let done = run(&fx.host, plain, "memory-confirm", input).await;
-    assert_eq!(
-        done["error"]["code"], "MEMORY_CONFIRM_NOT_ALLOWED",
-        "{done}"
-    );
+    assert_eq!(done["error"]["code"], "CONFIRMATION_REQUIRED", "{done}");
 }
 
 #[tokio::test]
