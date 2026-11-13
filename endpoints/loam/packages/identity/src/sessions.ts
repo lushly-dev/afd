@@ -25,11 +25,16 @@ export type SessionMethodV1 = 'passkey' | 'password' | 'oidc';
 /** The session row's field Loam adds, by its schema name. */
 export const SESSION_METHOD_FIELD = 'loamMethod';
 
+/** The core OAuth callback, `/callback/:id`, on which genericOAuth's providers sign in (Better Auth 1.7.18). */
+export const OIDC_CALLBACK = '/callback/';
+
 /** The routes that make a session, and how (2.6): a passkey, a password, or the deployer's single sign-on. */
 export function methodOfPath(path: string | undefined): SessionMethodV1 | undefined {
 	if (path === '/passkey/verify-authentication') return 'passkey';
 	if (path === '/sign-in/email') return 'password';
-	if (path?.startsWith('/oauth2/callback/')) return 'oidc';
+	// A deployer's OIDC provider is a social provider of genericOAuth's, called back on the core `/callback/:id`; no
+	// social provider is configured otherwise (5.8), so that route is single sign-on's alone (NEW-2).
+	if (path?.startsWith(OIDC_CALLBACK)) return 'oidc';
 	return undefined;
 }
 
@@ -100,20 +105,33 @@ type Found = NonNullable<Awaited<ReturnType<typeof getSessionFromCtx>>>;
 /**
  * 5.8's first row, with D99 (5.2): a session made within `freshAge`, and for a person who holds a passkey, one made
  * by a passkey. Step 4 adds the `recovery` mark single sign-on recovery sets. Throws `REAUTH_REQUIRED`.
+ *
+ * Both are read from the session's own row in the store, found by its token: the session Better Auth hands a route has
+ * been through `parseSessionOutput`, which drops `loamMethod` (`returned: false`), so it never says `passkey` (the
+ * re-check of step 3's NEW-1). `internalAdapter.findSession` parses it the same way; `adapter.findOne` does not.
  */
 export async function requireFreshPasskeySession(
 	context: Pick<AuthContext, 'adapter'>,
 	found: Found,
 	now: number = Date.now()
 ): Promise<void> {
-	const session = found.session as unknown as SessionRow;
-	const made = new Date(session.createdAt).getTime();
+	const token = (found.session as { token?: unknown }).token;
+	const row =
+		typeof token === 'string' && token !== ''
+			? await context.adapter.findOne<SessionRow>({
+					model: 'session',
+					where: [{ field: 'token', value: token }],
+				})
+			: null;
+	// No row for the token, or one of another person: nothing here is fresh.
+	if (!row || row.userId !== found.user.id) throw reauthRequired();
+	const made = new Date(row.createdAt).getTime();
 	if (!(now - made <= FRESH_AGE_SECONDS * 1_000)) throw reauthRequired();
 	const held = await context.adapter.findOne<{ id: string }>({
 		model: 'passkey',
 		where: [{ field: 'userId', value: found.user.id }],
 	});
-	if (held && session[SESSION_METHOD_FIELD] !== 'passkey') throw reauthRequired();
+	if (held && row[SESSION_METHOD_FIELD] !== 'passkey') throw reauthRequired();
 }
 
 /**

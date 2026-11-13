@@ -10,6 +10,7 @@ import type { JournalEntry } from '@lushly-dev/afd-core';
 import type { Browser, Page } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
+	addVirtualAuthenticator,
 	type DeploymentSite,
 	kernelCall,
 	launchForDevHost,
@@ -28,13 +29,14 @@ const opened: ShellPage[] = [];
 
 beforeAll(async () => {
 	site = await serveDeployment({
-		config: providerDeployment(['password']),
+		config: providerDeployment(['passkey', 'password']),
 		authHost: {
 			organization: { slug: 'acme', name: 'Acme' },
 			people: [
 				{ email: 'dee@example.com', name: 'Dee', role: 'member', password: PASSWORD },
 				{ email: 'eli@example.com', name: 'Eli', role: 'member', password: PASSWORD },
 				{ email: 'fay@example.com', name: 'Fay', role: 'member', password: PASSWORD },
+				{ email: 'gil@example.com', name: 'Gil', role: 'member', password: PASSWORD },
 			],
 		},
 	});
@@ -190,5 +192,75 @@ describe('P3-E3: revocation reaches the shell (4.3, 4.6)', () => {
 		expect(stale.success).toBe(false);
 		expect(stale.error?.code).toBe('REAUTH_REQUIRED');
 		expect(await accountOf(page.page)).toBe('Fay');
+	});
+	it("P3-E3: a passkey holder's fresh passkey session revokes another device by handle and the others; their password session may not (NEW-1)", async () => {
+		const here = await open();
+		await addVirtualAuthenticator(here.page, { userVerified: true });
+		await signIn(here.page, 'gil@example.com');
+		// A fresh password session of a person with no passkey yet adds their first (5.2, D99).
+		const added = (await kernelCall(here.page, 'account-passkey-add', { name: 'Laptop' })) as {
+			success: boolean;
+			error?: unknown;
+		};
+		expect(added.success, JSON.stringify(added.error)).toBe(true);
+		await kernelCall(here.page, 'auth-sign-out');
+		await here.page.waitForFunction(
+			() => (document.querySelector('loam-shell') as unknown as { account: string }).account === ''
+		);
+		// Signed in again by the passkey: the ceremony through the provider, which marks the session `passkey`.
+		const passkey = (await kernelCall(here.page, 'auth-sign-in', { method: 'passkey' })) as {
+			success: boolean;
+			error?: unknown;
+		};
+		expect(passkey.success, JSON.stringify(passkey.error)).toBe(true);
+		await here.page.waitForFunction(
+			() =>
+				(document.querySelector('loam-shell') as unknown as { account: string }).account === 'Gil'
+		);
+		await settle(here.page);
+		const gil = site.authHost?.people['gil@example.com'] as string;
+		const newest = () =>
+			site.authHost
+				?.db()
+				.prepare('SELECT loamMethod FROM session WHERE userId = ? ORDER BY createdAt DESC LIMIT 1')
+				.get(gil) as { loamMethod: string | null };
+		expect(newest().loamMethod).toBe('passkey');
+		// Another device signs in by password: as the holder's, that session may revoke no other.
+		const there = await open();
+		await signIn(there.page, 'gil@example.com');
+		const handleOf = async (page: Page) => {
+			const listed = (await kernelCall(page, 'session-list')) as Listed;
+			expect(listed.success, JSON.stringify(listed.error)).toBe(true);
+			return listed.data?.sessions.find((row) => row.current)?.id as string;
+		};
+		const hereHandle = await handleOf(here.page);
+		const thereHandle = await handleOf(there.page);
+		const refused = (await kernelCall(there.page, 'session-revoke', { session: hereHandle })) as {
+			success: boolean;
+			error?: { code: string };
+		};
+		expect(refused.error?.code).toBe('REAUTH_REQUIRED');
+		expect(await providerKnows(here.page)).toBe(true);
+		// The passkey session revokes it by handle, at once.
+		const revoked = (await kernelCall(here.page, 'session-revoke', { session: thereHandle })) as {
+			success: boolean;
+			data?: { revoked: number; signedOut: boolean };
+			error?: unknown;
+		};
+		expect(revoked.success, JSON.stringify(revoked.error)).toBe(true);
+		expect(revoked.data).toMatchObject({ revoked: 1, signedOut: false });
+		expect(await providerKnows(there.page)).toBe(false);
+		// And the others, from a third device.
+		const third = await open();
+		await signIn(third.page, 'gil@example.com');
+		const others = (await kernelCall(here.page, 'session-revoke', { session: 'others' })) as {
+			success: boolean;
+			data?: { revoked: number; signedOut: boolean };
+			error?: unknown;
+		};
+		expect(others.success, JSON.stringify(others.error)).toBe(true);
+		expect(others.data).toMatchObject({ revoked: 1, signedOut: false });
+		expect(await providerKnows(third.page)).toBe(false);
+		expect(await accountOf(here.page)).toBe('Gil');
 	});
 });

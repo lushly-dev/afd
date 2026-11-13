@@ -152,12 +152,15 @@ describe('createLoamAuthOptions (2.6)', () => {
 			updatedAt: new Date(),
 		});
 		const at = (path: string, params?: Record<string, string>) => ({ path, params }) as never;
-		expect(
-			await creating(user(true), at('/oauth2/callback/:providerId', { providerId: 'okta' }))
-		).toBe(true);
-		expect(await creating(user(true), at('/oauth2/callback/okta'))).toBe(true);
-		expect(await creating(user(false), at('/oauth2/callback/okta'))).toBe(false);
-		expect(await creating(user(true), at('/oauth2/callback/other'))).toBe(false);
+		// genericOAuth's providers sign in on the core callback, `/callback/:id`, which names the provider in `id`
+		// and, as the router resolves it, last in the path (NEW-2).
+		expect(await creating(user(true), at('/callback/okta', { id: 'okta' }))).toBe(true);
+		expect(await creating(user(true), at('/callback/:id', { id: 'okta' }))).toBe(true);
+		expect(await creating(user(true), at('/callback/okta'))).toBe(true);
+		expect(await creating(user(false), at('/callback/okta', { id: 'okta' }))).toBe(false);
+		expect(await creating(user(true), at('/callback/other', { id: 'other' }))).toBe(false);
+		// A path no route serves names no provider.
+		expect(await creating(user(true), at('/oauth2/callback/okta'))).toBe(false);
 		expect(await creating(user(true), at('/sign-up/email'))).toBe(false);
 		expect(await creating(user(true), null)).toBe(false);
 		// Linking only on a verified email, never to another email.

@@ -30,6 +30,7 @@ beforeAll(async () => {
 			{ email: 'eli@example.com', role: 'member', password: PASSWORD },
 			{ email: 'fay@example.com', role: 'member', password: PASSWORD },
 			{ email: 'gus@example.com', role: 'member', password: PASSWORD },
+			{ email: 'hal@example.com', role: 'member', password: PASSWORD },
 		],
 		methods: ['passkey', 'password'],
 		send: async () => {},
@@ -104,13 +105,14 @@ function age(cookie: string, seconds = 360): void {
 }
 
 /** Give a person a passkey row, as a registration would have stored one. */
-function holdPasskey(email: string): void {
+function holdPasskey(email: string): string {
+	const id = randomUUID();
 	database
 		.prepare(
 			'INSERT INTO passkey (id, name, publicKey, userId, credentialID, counter, deviceType, backedUp, transports, createdAt) VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)'
 		)
 		.run(
-			randomUUID(),
+			id,
 			'Laptop',
 			'AAAA',
 			provider.people[email] as string,
@@ -119,6 +121,12 @@ function holdPasskey(email: string): void {
 			'internal',
 			new Date().toISOString()
 		);
+	return id;
+}
+
+/** A session made by a passkey, as the session hook marks one on `/passkey/verify-authentication`. */
+function madeByPasskey(cookie: string): void {
+	database.prepare("UPDATE session SET loamMethod = 'passkey' WHERE id = ?").run(rowOf(cookie).id);
 }
 
 const codeOf = (answer: Answer) => answer.body?.code;
@@ -127,7 +135,9 @@ describe('P3-E3: sessions at the provider (4.3, 4.6)', () => {
 	it('records how each session was made', async () => {
 		expect(rowOf(await signIn('bea@example.com')).loamMethod).toBe('password');
 		expect(methodOfPath('/passkey/verify-authentication')).toBe('passkey');
-		expect(methodOfPath('/oauth2/callback/corp')).toBe('oidc');
+		// genericOAuth's providers sign in on the core callback, `/callback/:id` (NEW-2).
+		expect(methodOfPath('/callback/corp')).toBe('oidc');
+		expect(methodOfPath('/oauth2/callback/corp')).toBeUndefined();
 		expect(methodOfPath('/sign-up/email')).toBeUndefined();
 	});
 
@@ -247,6 +257,71 @@ describe('P3-E1: 5.8 at the provider, by direct requests (D99)', () => {
 			const answer = await call('/loam/revoke-person', { cookie: fresh, body: { target } });
 			expect(codeOf(answer), target).toBe('REAUTH_REQUIRED');
 		}
+	});
+
+	it("lets a passkey holder's fresh passkey session revoke a handle and the others, register and delete; refuses their stale or password one", async () => {
+		const spare = holdPasskey('hal@example.com');
+		holdPasskey('hal@example.com');
+		const stale = await signIn('hal@example.com');
+		madeByPasskey(stale);
+		age(stale);
+		const password = await signIn('hal@example.com');
+		const victim = await signIn('hal@example.com');
+		// The session Better Auth hands a route drops `loamMethod` (returned: false); the rule reads the row (NEW-1).
+		for (const refused of [stale, password]) {
+			for (const [path, body] of [
+				['/loam/revoke-person', { target: 'others' }],
+				['/loam/revoke-person', { target: sessionHandle(rowOf(victim).token) }],
+				['/passkey/generate-register-options', undefined],
+				['/passkey/delete-passkey', { id: spare }],
+			] as const) {
+				const answer = await call(path, { cookie: refused, ...(body ? { body } : {}) });
+				expect(codeOf(answer), `${path} ${JSON.stringify(body)}`).toBe('REAUTH_REQUIRED');
+			}
+		}
+		expect((await call('/loam/whoami', { cookie: victim })).body).not.toBeNull();
+		const fresh = await signIn('hal@example.com');
+		madeByPasskey(fresh);
+		const handle = await call('/loam/revoke-person', {
+			cookie: fresh,
+			body: { target: sessionHandle(rowOf(victim).token) },
+		});
+		expect(handle.body).toEqual({ revoked: 1, signedOut: false });
+		expect((await call('/loam/whoami', { cookie: victim })).body).toBeNull();
+		const options = await call('/passkey/generate-register-options', { cookie: fresh });
+		expect(options.status, JSON.stringify(options.body)).toBe(200);
+		expect(options.body).toMatchObject({ challenge: expect.any(String) });
+		const removed = await call('/passkey/delete-passkey', { cookie: fresh, body: { id: spare } });
+		expect(removed.status, JSON.stringify(removed.body)).toBe(200);
+		const others = await call('/loam/revoke-person', { cookie: fresh, body: { target: 'others' } });
+		expect(others.body).toEqual({ revoked: 2, signedOut: false });
+		expect((await call('/loam/whoami', { cookie: fresh })).body).not.toBeNull();
+	});
+
+	it('answers /get-session without the session token, which only the HttpOnly cookie carries (NEW-3)', async () => {
+		const cookie = await signIn('dee@example.com');
+		const got = await call('/get-session', { cookie });
+		expect(got.status).toBe(200);
+		expect(got.body).toMatchObject({
+			user: { email: 'dee@example.com' },
+			session: { id: rowOf(cookie).id },
+		});
+		expect((got.body?.session as Record<string, unknown> | undefined)?.token).toBeUndefined();
+		expect(JSON.stringify(got.body)).not.toContain(rowOf(cookie).token);
+	});
+
+	it('serves no value of a disabled path with a parameter, as /reset-password/<token> (NEW-4)', async () => {
+		for (const path of [
+			'/reset-password/abc',
+			'/reset-password/abc?callbackURL=/x',
+			'/reset-password/abc/',
+			'/RESET-PASSWORD/abc',
+			'/reset-password/:token',
+		]) {
+			expect((await call(path)).status, path).toBe(404);
+		}
+		// What is served beside it is untouched.
+		expect((await call('/loam/whoami')).status).toBe(200);
 	});
 
 	it("serves none of Better Auth's own session and credential routes, which would skip D99 or answer tokens", async () => {

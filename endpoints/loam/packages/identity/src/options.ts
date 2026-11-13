@@ -21,6 +21,7 @@ import { loamAccessControl, loamRoles } from './roles.js';
 import {
 	FRESH_AGE_SECONDS,
 	methodOfPath,
+	OIDC_CALLBACK,
 	reauthRequired,
 	requireFreshPasskeySession,
 	SESSION_METHOD_FIELD,
@@ -99,9 +100,6 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 ]);
 
 export { FRESH_AGE_SECONDS };
-
-/** The genericOAuth callback, the one path on which a user may be created in step 1 (5.6). */
-const OIDC_CALLBACK = '/oauth2/callback/';
 
 /**
  * Better Auth's options for a deployment (2.6):
@@ -183,10 +181,11 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 					 * Step 4 adds the join path, which completes an invitation.
 					 */
 					async before(user, context) {
-						// The route's template names the provider in its parameters; a resolved path names it last.
 						const path = context?.path ?? '';
+						// The core callback, the one path on which a user may be created in step 1 (5.6), names the
+						// provider in its `id` parameter, or last in a resolved path.
 						const provider = path.startsWith(OIDC_CALLBACK)
-							? ((context?.params as { providerId?: string } | undefined)?.providerId ??
+							? ((context?.params as { id?: string } | undefined)?.id ??
 								path.slice(OIDC_CALLBACK.length))
 							: undefined;
 						const fromOidc = oidc.some(({ id }) => id === provider);

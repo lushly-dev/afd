@@ -110,6 +110,41 @@ async function bindingWarning(
 	return status.warning ? { warning: status.warning } : {};
 }
 
+/**
+ * A disabled path with a parameter, as `/reset-password/:token`, as a pattern over the path under the base path:
+ * Better Auth matches `disabledPaths` as exact strings, so it blocks only the literal `:token` (the re-check of step
+ * 3's NEW-4). Each segment that starts `:` matches any one segment.
+ */
+export function disabledPattern(path: string): RegExp | undefined {
+	if (!path.includes('/:')) return undefined;
+	const source = path
+		.split('/')
+		.map((segment) =>
+			segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+		)
+		.join('/');
+	return new RegExp(`^${source}/?$`, 'i');
+}
+
+/** `/get-session`'s answer without `session.token`: the cookie is HttpOnly, so no page script gets the token (4.1). */
+async function withoutToken(returned: unknown): Promise<Record<string, unknown> | undefined> {
+	const body =
+		returned instanceof Response
+			? returned.status === 200
+				? ((await returned
+						.clone()
+						.json()
+						.catch(() => undefined)) as unknown)
+				: undefined
+			: returned instanceof APIError
+				? undefined
+				: returned;
+	const session = (body as { session?: Record<string, unknown> } | null | undefined)?.session;
+	if (!session || !('token' in session)) return undefined;
+	const { token: _token, ...kept } = session;
+	return { ...(body as Record<string, unknown>), session: kept };
+}
+
 /** The paths whose caller Loam checks before the organization plugin runs (7.5). */
 const ROLE_PATHS = new Set(['/organization/update-member-role', '/organization/remove-member']);
 
@@ -140,6 +175,19 @@ export function loamServerPlugin(state: LoamProviderState) {
 		init(context: AuthContext) {
 			state.context = context;
 		},
+		/** A disabled path's every value, not only its template (NEW-4): answered as Better Auth answers one, 404. */
+		onRequest: (async (request: Request, context: AuthContext) => {
+			const patterns = (context.options.disabledPaths ?? []).flatMap(
+				(path) => disabledPattern(path) ?? []
+			);
+			if (patterns.length === 0) return;
+			const base = new URL(context.baseURL).pathname.replace(/\/$/, '');
+			const pathname = new URL(request.url).pathname;
+			const under = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+			if (patterns.some((pattern) => pattern.test(under))) {
+				return { response: new Response('Not Found', { status: 404 }) };
+			}
+		}) as BetterAuthPlugin['onRequest'],
 		endpoints: {
 			...sessionEndpoints(() => state.context),
 			/**
@@ -179,6 +227,19 @@ export function loamServerPlugin(state: LoamProviderState) {
 			),
 		},
 		hooks: {
+			after: [
+				{
+					/**
+					 * `/get-session` answers the session without its token (NEW-3): the session cookie is HttpOnly, and
+					 * the page reads the person and the expiry, never the token, which is the credential itself.
+					 */
+					matcher: (ctx: { path?: string }) => ctx.path === '/get-session',
+					handler: createAuthMiddleware(async (ctx) => {
+						const answer = await withoutToken(ctx.context.returned);
+						if (answer) return ctx.json(answer);
+					}),
+				},
+			],
 			before: [
 				freshSessionHook(() => state.context),
 				{
