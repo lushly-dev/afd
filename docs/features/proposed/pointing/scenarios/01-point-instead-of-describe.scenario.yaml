@@ -1,0 +1,73 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented. The specimen `example-toolbar` renders a toolbar with a search field and
+# two buttons, "Share" and "Export", each an `example-button` whose shadow root holds a native
+# `<button>`; the accessibility tree gives that inner button the role and name. In the review
+# page the person
+# picks "Share" and copies the pointer the page shows; the click itself is page behaviour that a
+# scenario cannot show, so the first step starts from the copied pointer.
+
+name: Point at an element instead of describing it
+description: >-
+  When I see something wrong on a rendered screen, I want to click it and hand the agent a
+  reference, so that I do not have to describe it in words and the agent does not guess.
+job: point-instead-of-describe
+tags: [slice]
+
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The pointer the review page copied resolves to one element, with its source
+    command: specimen-point
+    input:
+      pointer: "specimen:example-toolbar?theme=dark&viewport=1280x800#ref=root/example-toolbar:1/shadow/example-button:1&text=Share"
+    expect:
+      success: true
+      data:
+        point:
+          id: { matches: '^pt-[0-9a-z]{12}$' }
+          specimen: example-toolbar
+          context:
+            theme: dark
+            viewport: 1280x800
+          element:
+            tag: example-button
+          accessible:
+            role: button
+            name: Share
+            from: { contains: shadow/button:1 }
+          identity:
+            strongest: role-name
+          component:
+            tag: example-button
+            module: { contains: example-button }
+          source:
+            specimen:
+              module: { contains: toolbar.specimens }
+              exportName: Toolbar
+
+  - description: An agent naming the same role and name gets the same element, by the same climb
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button, name: Share }
+    expect:
+      success: true
+      data:
+        point:
+          element:
+            ref: root/example-toolbar:1/shadow/example-button:1
+            tag: example-button
+
+  - description: A name that matches nothing is refused as not found, apart from an ambiguous one
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button, name: Print }
+    expect:
+      success: false
+      error:
+        code: TARGET_NOT_FOUND
+        suggestion: { contains: review page }

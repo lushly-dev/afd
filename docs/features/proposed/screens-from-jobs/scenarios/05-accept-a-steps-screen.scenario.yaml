@@ -1,0 +1,85 @@
+# Draft JTBD scenario for the Screens from Jobs proposal. The commands and their shapes are
+# proposals, and the data is invented. As in 04, sets labelled `main` and `branch` exist, and the
+# conflict notice's padding change is intended. Accepting is Design Decisions' `decision-record`,
+# which asks a person to confirm; a scenario runs every step as one test actor and cannot show
+# that confirmation. `example-keep-a-draft-broken` fails at step 2, so its captures are not taken.
+
+name: Accept a step's screen
+description: >-
+  When a step's screen changed as I meant it to, I want to accept it with a reason, and a screen
+  that was never captured offered for nothing, so that the next review starts from what I agreed.
+job: accept-a-steps-screen
+tags: [slice, refuse]
+
+steps:
+  - description: The review puts the change to me
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [example-keep-a-draft]
+    expect:
+      success: true
+      data:
+        open: { length: 1 }
+
+  - description: I accept it, with a reason, and the answer is committed
+    command: decision-record
+    input:
+      question: Should the conflict notice keep the larger padding?
+      slug: notice-padding
+      items: ['${{ steps[0].data.open[0].item }}']
+      chosen: accept
+      reason: The notice read as cramped beside the editor's own padding.
+    expect:
+      success: true
+      data:
+        path: { matches: '^specimens/decisions/' }
+
+  - description: Reviewed again, nothing is left to look at
+    command: specimen-review
+    input:
+      before: main
+      after: branch
+      ids: [example-keep-a-draft]
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        settled.answered: 1
+
+  - description: A broken run captures nothing
+    command: specimen-job-run
+    input:
+      id: example-keep-a-draft-broken
+      label: broken
+    expect:
+      success: true
+      data:
+        status: failed
+
+  - description: Its captures block the review; there is nothing to accept
+    command: specimen-review
+    input:
+      before: main
+      after: broken
+      ids: [example-keep-a-draft-broken]
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        blocking.0.ids.0: example-keep-a-draft-broken
+
+  - description: Answering an item the sets do not raise is refused
+    command: decision-record
+    input:
+      question: Accept the second editor's screen?
+      slug: second-editor
+      items: ['changed:keep-a-draft/3:main..broken']
+      chosen: accept
+      reason: Looks right.
+    expect:
+      success: false
+      error:
+        code: REVIEW_ITEM_NOT_FOUND
+        suggestion: { contains: specimen-review }

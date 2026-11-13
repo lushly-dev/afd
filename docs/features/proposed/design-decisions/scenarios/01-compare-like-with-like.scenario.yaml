@@ -1,0 +1,54 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# toolbar--grouped fails colour contrast when it renders.
+
+name: Compare variants under the same conditions
+description: >-
+  When I am unsure between directions, I want several variants captured side by side under one
+  context and checkpoint, with each one's checks, so that I compare the designs and not the setups.
+job: compare-like-with-like
+tags: [slice]
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: A misspelled variant is refused before anything is captured, naming the nearest id
+    command: specimen-compare
+    input:
+      ids: [toolbar--dense, toolbar--dence]
+    expect:
+      success: false
+      error:
+        code: SPECIMEN_NOT_FOUND
+        message: toolbar--dence
+        suggestion: { contains: toolbar--dense }
+
+  - description: Three variants are captured in one context, with axe, each diffed against the first
+    command: specimen-compare
+    input:
+      ids: [toolbar--dense, toolbar--airy, toolbar--grouped]
+      context: { theme: light, viewport: { width: 1280, height: 800 } }
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-[0-9a-f]{12}$' }
+        context: { theme: light }
+        checkpoint: mount
+        captures: { length: 3 }
+        captures.0.id: toolbar--dense
+        captures.0.axe: passed
+        captures.0.screenshot: { exists: true }
+        captures.1.id: toolbar--airy
+        captures.1.axe: passed
+        captures.2.id: toolbar--grouped
+        captures.2.axe: failed
+        captures.2.violations: [color-contrast]
+        differences: { length: 2 }
+        differences.0.id: toolbar--airy
+        differences.0.against: toolbar--dense
+        differences.0.status: changed
+        differences.0.channels: { includes: layout }
+        differences.1.id: toolbar--grouped
+        differences.1.status: changed
+        page: { contains: 'compare.html?set=set-' }

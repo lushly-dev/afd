@@ -1,0 +1,78 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# main was captured in the light theme. toolbar--airy declares light only.
+
+name: Refuse a comparison of different setups
+description: >-
+  When two captures or sets were made under different conditions, I want the comparison refused
+  with the difference named, so that I never take a theme change for a design change.
+job: refuse-a-misleading-comparison
+tags: [slice, refuse]
+fixture:
+  file: fixtures/toolbar.json
+
+steps:
+  - description: The dense toolbar is captured in the dark theme into a labelled set
+    command: specimen-capture
+    input:
+      ids: [toolbar--dense]
+      context: { theme: dark }
+      label: dark
+    expect:
+      success: true
+      data:
+        set: { matches: '^set-' }
+        label: dark
+        counts.captured: 1
+
+  - description: Comparing it with the light capture is refused, naming the theme
+    command: specimen-diff
+    input:
+      left: { set: main, id: toolbar--dense }
+      right:
+        set: ${{ steps[0].data.set }}
+        id: toolbar--dense
+    expect:
+      success: false
+      error:
+        code: CAPTURES_INCOMPARABLE
+        message: context.theme
+        suggestion: { contains: allowContextDifferences }
+
+  - description: When the theme is the point, saying so allows the comparison
+    command: specimen-diff
+    input:
+      left: { set: main, id: toolbar--dense }
+      right:
+        set: ${{ steps[0].data.set }}
+        id: toolbar--dense
+      allowContextDifferences: [theme]
+    expect:
+      success: true
+      data:
+        status: changed
+
+  - description: A review across sets captured in different themes is refused the same way
+    command: specimen-review
+    input:
+      before: main
+      after: dark
+    expect:
+      success: false
+      error:
+        code: CAPTURES_INCOMPARABLE
+        message: context.theme
+        suggestion: { contains: specimen-capture }
+
+  - description: A variant that cannot render in the requested theme is refused, not shown in another
+    command: specimen-compare
+    input:
+      ids: [toolbar--dense, toolbar--airy]
+      context: { theme: dark }
+    expect:
+      success: false
+      error:
+        code: VARIANT_UNAVAILABLE
+        message: toolbar--airy
+        suggestion: { contains: light }

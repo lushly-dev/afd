@@ -1,0 +1,24 @@
+{
+	"app": "specimen",
+	"checkout": { "revision": "b7e4f10", "dirty": true },
+	"specimens": {
+		"example-toolbar": { "module": "src/toolbar/toolbar.specimens.ts", "exportName": "Toolbar" }
+	},
+	"points": {
+		"pt-5r8k2w9m4c1x": {
+			"specimen": "example-toolbar",
+			"context": { "theme": "dark", "viewport": "1280x800" },
+			"element": {
+				"ref": "root/example-toolbar:1/shadow/example-button:1",
+				"tag": "example-button"
+			},
+			"accessible": { "role": "button", "name": "Share" },
+			"source": {
+				"revision": "a1b2c3d",
+				"digests": { "src/example-button.ts": "4c1e", "src/toolbar/toolbar.ts": "9a07" }
+			}
+		}
+	},
+	"files": { "src/example-button.ts": "changed since the point: digest is now 7d22" },
+	"notes": {}
+}

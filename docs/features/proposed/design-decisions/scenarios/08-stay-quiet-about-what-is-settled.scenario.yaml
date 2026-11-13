@@ -1,0 +1,55 @@
+# Draft JTBD scenario for the Design Decisions proposal. The commands and their shapes are proposals;
+# the data is invented. Lists are asserted with dotted index paths where only part of an item
+# matters, because a list under `expect.data` is compared whole.
+# branch-quiet matches main in every channel. The empty list's undecided contrast check was
+# answered on 2026-11-11 and its fingerprint still matches.
+
+name: Stay quiet about what is settled
+description: >-
+  When the gates and earlier answers have settled everything in a change, I want the review to
+  say so in one line and list nothing, so that a review with nothing to judge costs me nothing.
+job: stay-quiet-about-what-is-settled
+tags: [quiet]
+fixture:
+  file: fixtures/decided.json
+  base: toolbar.json
+  overrides:
+    decisions:
+      - id: dec-q7k2m4xab3na
+        kind: choice
+        slug: toolbar-density
+        status: current
+        question: How dense should the toolbar be?
+        variants: [toolbar--dense, toolbar--airy, toolbar--grouped]
+        chosen: toolbar--dense
+        kept: [toolbar--airy, toolbar--grouped]
+        discarded: []
+        reason: The editor shows twelve commands; at the airy gap the last three wrap at 1280 px.
+        evidence: { set: set-9c03e1d27a55, dir: specimens/evidence/set-9c03e1d27a55/ }
+        subjects: { specimens: [toolbar--dense, editor--shell], files: ['src/toolbar/**'], tokens: [space.toolbar.gap] }
+        decidedBy: { kind: person }
+      - id: dec-t4vb7e2kq5mz
+        kind: answer
+        status: current
+        question: Is the empty list's hint readable over its background image?
+        options: [accept, reject]
+        chosen: accept
+        reason: The hint sits on the solid band of the image; measured 7.1 to 1 by hand.
+        answers:
+          - { item: 'check:list--empty:color-contrast:set-4f1c0a9e2b7d..set-4f1c0a9e2b7d', id: list--empty, check: color-contrast, fingerprint: c04 }
+        decidedBy: { kind: person }
+
+steps:
+  - description: Nothing is open and nothing blocks; the settled work is a count
+    command: specimen-review
+    input:
+      before: main
+      after: branch-quiet
+    expect:
+      success: true
+      data:
+        open: { length: 0 }
+        blocking: { length: 0 }
+        settled.unchanged: 4
+        settled.answered: 1
+        settled.kept: 2

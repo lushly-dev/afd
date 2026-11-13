@@ -1,0 +1,76 @@
+# Draft JTBD scenario for the Pointing proposal. The commands and their shapes are proposals.
+# The data is invented, as in scenario 01. The point `pt-5r8k2w9m4c1x` was made on the Share button of `example-toolbar`.
+# Since then `src/example-button.ts`, one of the files the specimen's page loaded, has changed.
+# Specimen cannot stop an agent's own file edit; it refuses its own commands on a stale point, and
+# the agent checks a point before editing (see the proposal's limits).
+
+name: Refuse a reference the code has moved past
+description: >-
+  When the code has changed since I pointed, I want work on that reference refused and a fresh
+  point asked for, so that a change never lands on the wrong element.
+job: refuse-a-stale-reference
+tags: [slice, refuse]
+
+fixture:
+  file: fixtures/stale-point.json
+
+steps:
+  - description: The check says the point is stale and names the file that changed
+    command: specimen-point-check
+    input:
+      id: pt-5r8k2w9m4c1x
+    expect:
+      success: true
+      data:
+        status: stale
+        changed:
+          includes: src/example-button.ts
+
+  - description: A correction previewed on the stale point is refused, with the way forward
+    command: specimen-impact
+    input:
+      point: pt-5r8k2w9m4c1x
+      nodeId: example-dark
+      changes:
+        - { type: override, tokenId: color.accent.primary, value: "#1F6FEB" }
+    expect:
+      success: false
+      error:
+        code: POINT_STALE
+        suggestion: { contains: specimen-point }
+
+  - description: A note on the stale point is refused the same way
+    command: specimen-note-add
+    input:
+      point: pt-5r8k2w9m4c1x
+      text: The share icon is too small at this size
+    expect:
+      success: false
+      error:
+        code: POINT_STALE
+        suggestion: { contains: specimen-point }
+
+  - description: Pointing again at the same element gives a current point
+    command: specimen-point
+    input:
+      id: example-toolbar
+      context: { theme: dark, viewport: 1280x800 }
+      target: { role: button, name: Share }
+    expect:
+      success: true
+      data:
+        point:
+          id: { matches: '^pt-[0-9a-z]{12}$' }
+          check:
+            command: specimen-point-check
+            when: { contains: before editing }
+
+  - description: The new point checks as current
+    command: specimen-point-check
+    input:
+      id: "${{ steps[3].data.point.id }}"
+    expect:
+      success: true
+      data:
+        status: current
+        changed: { length: 0 }
