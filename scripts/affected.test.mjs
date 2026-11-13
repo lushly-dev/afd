@@ -569,9 +569,12 @@ jobs:
 
 test('every pull-request workflow has a local suite, bound to its gates', () => {
 	const root = join(import.meta.dirname, '..');
+	// ci.yml is `pnpm check` itself; ci-ok.yml runs nothing locally, it waits for the others.
+	const notSuites = new Set(['ci.yml', 'ci-ok.yml']);
 	const workflows = readdirSync(join(root, '.github/workflows')).filter(
 		(file) =>
-			file !== 'ci.yml' && readTrigger(readFileSync(join(root, '.github/workflows', file), 'utf8'))
+			!notSuites.has(file) &&
+			readTrigger(readFileSync(join(root, '.github/workflows', file), 'utf8'))
 	);
 	assert.deepEqual(SUITES.map((suite) => suite.workflow).sort(), workflows.sort());
 	for (const suite of SUITES) {
