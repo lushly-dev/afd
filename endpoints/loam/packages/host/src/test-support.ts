@@ -1,5 +1,6 @@
 /** Fixtures for the suites: temporary directories, a built shell, configurations and raw requests. */
 
+import { execFileSync } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { request as httpRequest, type IncomingHttpHeaders } from 'node:http';
@@ -17,6 +18,38 @@ export async function temporaryDirectory(): Promise<string> {
 	const directory = await realpath(await mkdtemp(join(tmpdir(), 'loam-host-')));
 	made.push(directory);
 	return directory;
+}
+
+/** BUILTIN\Users, which `loosen` grants read on Windows. */
+export const USERS_SID = 'S-1-5-32-545';
+
+/** On Windows, grants BUILTIN\Users read on `path`, as a group or other mode bit opens it on POSIX. */
+export function loosen(path: string): void {
+	execFileSync('icacls', [path, '/grant', `*${USERS_SID}:(R)`], { stdio: 'ignore' });
+}
+
+const literal = (text: string) => text.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+
+/**
+ * Asserts the suggestion a loose `path` gets: exactly `chmod` on POSIX, and on Windows an `icacls` command
+ * that removes inheritance, grants the current user (whose SID the pattern leaves open) and removes
+ * BUILTIN\Users.
+ */
+export function expectLooseSuggestion(
+	suggestion: string | undefined,
+	path: string,
+	kind: 'file' | 'directory'
+): void {
+	if (process.platform !== 'win32') {
+		expect(suggestion).toBe(`Run \`chmod ${kind === 'directory' ? 700 : 600} ${path}\`.`);
+		return;
+	}
+	const grant = literal(kind === 'directory' ? '(OI)(CI)(F)' : '(F)');
+	expect(suggestion).toMatch(
+		new RegExp(
+			`^Run \`icacls "${literal(path)}" /inheritance:r /grant:r "\\*S-[\\d-]+:${grant}" /remove:g \\*${USERS_SID}\`\\.$`
+		)
+	);
 }
 
 /**
