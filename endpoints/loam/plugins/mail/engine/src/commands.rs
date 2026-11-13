@@ -13,8 +13,9 @@ use serde_json::json;
 use crate::engine::Engine;
 use crate::provider::ProviderError;
 use crate::secrets::account_key;
-use crate::store::{AccountRow, MailboxRow, MailboxStatus, StoreError};
+use crate::store::{AccountRow, MailboxRow, MailboxStatus, RebuildProgress, StoreError};
 use crate::sync::{AccountReport, SyncError, sync_account};
+use crate::work::Accounts;
 
 /// A store's refusal as a command's failure, in the engine's own words.
 #[must_use]
@@ -44,6 +45,60 @@ struct Rebuild {
     engine: Arc<Engine>,
 }
 
+/// Marks the store as rebuilding, throwing away what is derived, unless a
+/// rebuild is under way already. Returns whether one was. Once marked, a
+/// stop loses nothing: the next rebuild, or the next server, carries it on.
+pub(crate) fn begin_rebuild(engine: &Engine) -> Result<bool, Box<CommandError>> {
+    engine
+        .with_store(|store| {
+            let resumed = store.rebuilding()?;
+            if !resumed {
+                store.rebuild_begin()?;
+            }
+            Ok(resumed)
+        })
+        .map_err(|error| Box::new(store_failure(&error)))
+}
+
+/// Recomputes every derived table and the index of a store marked as
+/// rebuilding, a batch at a time, taking the store for each batch alone, so
+/// that on a server other commands run between them. `step` hears of each
+/// batch; `resumed` is reported as given.
+pub(crate) async fn rebuild_in_steps(
+    engine: &Engine,
+    now: i64,
+    resumed: bool,
+    mut step: impl FnMut(RebuildProgress) + Send,
+) -> Result<serde_json::Value, Box<CommandError>> {
+    let mut reported = 0;
+    loop {
+        let progress = engine
+            .with_store(|store| store.rebuild_step(now))
+            .map_err(|error| Box::new(store_failure(&error)))?;
+        step(progress);
+        // A line for each ten thousand messages, and one at the end.
+        if progress.finished || progress.done >= reported + 10_000 {
+            reported = progress.done;
+            engine.report(&format!(
+                "rebuilt {} of {} messages",
+                progress.done, progress.total
+            ));
+        }
+        if progress.finished {
+            let threads = engine
+                .with_store(|store| store.thread_count())
+                .map_err(|error| Box::new(store_failure(&error)))?;
+            return Ok(json!({
+                "messages": progress.total,
+                "threads": threads,
+                "resumed": resumed,
+            }));
+        }
+        // Where a server stops its work, between two batches.
+        tokio::task::yield_now().await;
+    }
+}
+
 #[async_trait]
 impl CommandHandler for Rebuild {
     async fn execute(
@@ -51,36 +106,24 @@ impl CommandHandler for Rebuild {
         _input: serde_json::Value,
         context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
-        let now = context.clock().now();
-        let engine = &self.engine;
-        let rebuilt = engine.with_store(|store| {
-            let resumed = store.rebuilding()?;
-            let mut reported = 0;
-            let done = store.rebuild(now, |progress| {
-                // A line for each ten thousand messages, and one at the end.
-                if progress.finished || progress.done >= reported + 10_000 {
-                    reported = progress.done;
-                    engine.report(&format!(
-                        "rebuilt {} of {} messages",
-                        progress.done, progress.total
-                    ));
-                }
-            })?;
-            Ok((resumed, done.total, store.thread_count()?))
-        });
-        match rebuilt {
-            Ok((resumed, messages, threads)) => success(json!({
-                "messages": messages,
-                "threads": threads,
-                "resumed": resumed,
-            })),
-            Err(error) => failure(store_failure(&error)),
+        let resumed = match begin_rebuild(&self.engine) {
+            Ok(resumed) => resumed,
+            Err(error) => return failure(*error),
+        };
+        let work = self.engine.work();
+        if work.serving() {
+            return success(work.ask_rebuild(resumed).json("rebuild"));
+        }
+        match rebuild_in_steps(&self.engine, context.clock().now(), resumed, |_| {}).await {
+            Ok(rebuilt) => success(rebuilt),
+            Err(error) => failure(*error),
         }
     }
 }
 
 /// `mail-rebuild`: recomputes every derived table and the search index from
-/// the log (the specification's section 4.3).
+/// the log (the specification's section 4.3). On a server it asks the server
+/// to, and returns at once; `mail-status` reports how far it has come.
 #[must_use]
 pub fn rebuild(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
@@ -92,10 +135,6 @@ pub fn rebuild(engine: Arc<Engine>) -> CommandDefinition {
     .as_mutation()
     .with_expose(command_line_only())
 }
-
-/// How long `mail-sync` with `follow` waits between passes. IDLE, which
-/// would wake it at once for the inbox, arrives with `serve` (step B5).
-const FOLLOW_EVERY: std::time::Duration = std::time::Duration::from_secs(5 * 60);
 
 /// An optional integer parameter.
 fn optional(name: &str, kind: JsonSchemaType, description: &str) -> CommandParameter {
@@ -194,6 +233,59 @@ fn report_json(report: &AccountReport) -> serde_json::Value {
     })
 }
 
+/// One pass of sync over the account named, or every account, then a while
+/// of deriving again what an older derivation read. With one account its
+/// failure is the answer; with several, each one's failure is reported
+/// beside the others.
+pub(crate) async fn sync_now(
+    engine: &Engine,
+    named: Option<i64>,
+    clock: &dyn afd::Clock,
+) -> Result<serde_json::Value, Box<CommandError>> {
+    let Some(connector) = engine.connector().cloned() else {
+        return Err(Box::new(CommandError::new(
+            "PROVIDER_UNAVAILABLE",
+            "this build of the engine cannot reach a provider",
+        )));
+    };
+    let accounts = accounts_for(engine, named)?;
+    let mut reports = Vec::new();
+    for account in &accounts {
+        let progress = |line: &str| {
+            engine.report(&format!("account {}: {line}", account.id.0));
+        };
+        match sync_account(
+            engine,
+            connector.as_ref(),
+            account,
+            engine.sync_options(),
+            clock,
+            &progress,
+        )
+        .await
+        {
+            Ok(report) => reports.push(report_json(&report)),
+            Err(error) if accounts.len() == 1 => return Err(Box::new(sync_failure(&error))),
+            Err(error) => {
+                let error = sync_failure(&error);
+                reports.push(json!({
+                    "account": account.id.0,
+                    "error": { "code": error.code, "message": error.message },
+                }));
+            }
+        }
+    }
+    // Mail an older derivation read is read again, a while each pass. A
+    // failure here is reported beside the pass, which stands.
+    let (rederived, rederive_error) = rederive_for_a_while(engine, clock).await;
+    let rederive_error = rederive_error.map(|error| store_failure(&error).message);
+    Ok(json!({
+        "accounts": reports,
+        "rederived": rederived,
+        "rederiveError": rederive_error,
+    }))
+}
+
 struct Sync {
     engine: Arc<Engine>,
 }
@@ -213,73 +305,48 @@ impl CommandHandler for Sync {
             .get("follow")
             .and_then(serde_json::Value::as_bool)
             .unwrap_or(false);
+        let engine = &self.engine;
+        let work = engine.work();
+        if work.serving() {
+            if follow {
+                return failure(
+                    CommandError::new(
+                        "INVALID_INPUT",
+                        "`follow` is for the command line with no server; the server syncs every few minutes",
+                    )
+                    .with_suggestion("Call mail-sync without `follow` to ask for a pass now."),
+                );
+            }
+            // The account named must be there now, so the caller hears of it.
+            if let Err(error) = accounts_for(engine, named) {
+                return failure(*error);
+            }
+            let accounts = named.map_or(Accounts::All, Accounts::One);
+            return success(work.ask_sync(accounts).json("sync"));
+        }
         if follow && context.interface != Some(CommandInterface::Cli) {
             return failure(
                 CommandError::new("INVALID_INPUT", "`follow` runs only at the command line")
                     .with_suggestion("Call mail-sync without `follow`; each call runs one pass."),
             );
         }
-        let engine = &self.engine;
-        let Some(connector) = engine.connector().cloned() else {
-            return failure(CommandError::new(
-                "PROVIDER_UNAVAILABLE",
-                "this build of the engine cannot reach a provider",
-            ));
-        };
-        let accounts = match accounts_for(engine, named) {
-            Ok(accounts) => accounts,
-            Err(error) => return failure(*error),
-        };
         let clock = context.clock();
         loop {
-            let mut reports = Vec::new();
-            for account in &accounts {
-                let progress = |line: &str| {
-                    engine.report(&format!("account {}: {line}", account.id.0));
-                };
-                match sync_account(
-                    engine,
-                    connector.as_ref(),
-                    account,
-                    engine.sync_options(),
-                    clock,
-                    &progress,
-                )
-                .await
-                {
-                    Ok(report) => reports.push(report_json(&report)),
-                    // One account is the whole answer; with several, the
-                    // others still sync and the failure is reported beside them.
-                    Err(error) if accounts.len() == 1 => return failure(sync_failure(&error)),
-                    Err(error) => {
-                        let error = sync_failure(&error);
-                        reports.push(json!({
-                            "account": account.id.0,
-                            "error": { "code": error.code, "message": error.message },
-                        }));
-                    }
-                }
+            match sync_now(engine, named, clock).await {
+                Ok(report) if !follow => return success(report),
+                Ok(_) => {}
+                Err(error) => return failure(*error),
             }
-            // Mail an older derivation read is read again, a while each pass.
-            // A failure here is reported beside the pass, which stands.
-            let (rederived, rederive_error) = rederive_for_a_while(engine, clock);
-            let rederive_error = rederive_error.map(|error| store_failure(&error).message);
-            if !follow {
-                return success(json!({
-                    "accounts": reports,
-                    "rederived": rederived,
-                    "rederiveError": rederive_error,
-                }));
-            }
-            engine.report("waiting five minutes before the next pass");
-            tokio::time::sleep(FOLLOW_EVERY).await;
+            engine.report("waiting before the next pass");
+            tokio::time::sleep(engine.sync_options().every).await;
         }
     }
 }
 
 /// `mail-sync`: runs a pass of sync over every account, or the one named
 /// (the specification's section 5.7). With `follow`, at the command line, it
-/// keeps syncing until stopped.
+/// keeps syncing until stopped. On a server it asks the server for a pass and
+/// returns at once; `mail-status` reports it.
 #[must_use]
 pub fn sync(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
@@ -310,7 +377,10 @@ const REDERIVE_FOR: std::time::Duration = std::time::Duration::from_secs(30);
 /// Derives again, newest first, what an older derivation read, for at most
 /// [`REDERIVE_FOR`]. Returns how many messages it derived, and why it stopped
 /// short when it did.
-fn rederive_for_a_while(engine: &Engine, clock: &dyn afd::Clock) -> (u64, Option<StoreError>) {
+async fn rederive_for_a_while(
+    engine: &Engine,
+    clock: &dyn afd::Clock,
+) -> (u64, Option<StoreError>) {
     let started = std::time::Instant::now();
     let mut done = 0u64;
     while started.elapsed() < REDERIVE_FOR {
@@ -324,6 +394,8 @@ fn rederive_for_a_while(engine: &Engine, clock: &dyn afd::Clock) -> (u64, Option
         }
         done += u64::try_from(batch).unwrap_or(u64::MAX);
         engine.report(&format!("derived {done} messages again"));
+        // Where a server stops its work, between two batches.
+        tokio::task::yield_now().await;
     }
     (done, None)
 }
@@ -403,6 +475,8 @@ impl CommandHandler for Status {
                 "accounts": accounts,
                 // Messages an older derivation read, waiting to be read again.
                 "stale": stale,
+                // What a running server carries on; null without one.
+                "work": self.engine.work().status(),
             })),
             Err(error) => failure(store_failure(&error)),
         }
@@ -645,4 +719,36 @@ pub fn account_list(engine: Arc<Engine>) -> CommandDefinition {
         AccountList { engine },
     )
     .with_expose(ExposeOptions::new().with_cli(true).with_mcp(true))
+}
+
+#[cfg(test)]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use super::*;
+    use crate::home::Home;
+
+    #[test]
+    fn a_rebuild_takes_the_store_a_batch_at_a_time() {
+        let directory = tempfile::tempdir().unwrap();
+        let engine = Engine::new(Some(Home::at(directory.path().join("data"))));
+        let runtime = tokio::runtime::Builder::new_current_thread()
+            .build()
+            .unwrap();
+        let resumed = begin_rebuild(&engine).unwrap();
+        assert!(!resumed);
+        assert!(begin_rebuild(&engine).unwrap(), "one is under way");
+        let mut steps = 0;
+        let rebuilt = runtime
+            .block_on(rebuild_in_steps(&engine, 0, resumed, |_| {
+                // Another command, between two batches: it would wait for
+                // ever if the rebuild held the store from batch to batch.
+                engine.with_store(|store| store.accounts()).unwrap();
+                steps += 1;
+            }))
+            .unwrap();
+        assert!(steps >= 1);
+        assert_eq!(rebuilt["resumed"], json!(false));
+        assert!(!engine.with_store(|store| store.rebuilding()).unwrap());
+    }
 }

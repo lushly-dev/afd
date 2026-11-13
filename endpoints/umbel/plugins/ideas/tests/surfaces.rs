@@ -121,3 +121,28 @@ async fn the_skill_is_served() {
         }
     }
 }
+
+#[test]
+fn the_skill_reviews_in_bulk_on_the_page_and_does_not_send_the_agent_to_the_guide_first() {
+    // Section 11.3, and phase 0.10: an agent told to call the guide first called it before
+    // every request.
+    let text = include_str!("../skills/ideas-guide/SKILL.md");
+    for needed in [
+        "part `\"*\"`",
+        "one link",
+        "Never ask them to confirm decisions",
+        "uncheck what they disagree with",
+        "Send the same call again",
+        "not before every request",
+        "stage an `undo`",
+    ] {
+        assert!(text.contains(needed), "the skill lacks: {needed}");
+    }
+    for refused in [
+        "ideas-guide first",
+        "Call `ideas-guide` before",
+        "Start with `ideas-guide`",
+    ] {
+        assert!(!text.contains(refused), "the skill says: {refused}");
+    }
+}

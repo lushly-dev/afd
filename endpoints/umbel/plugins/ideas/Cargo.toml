@@ -31,10 +31,12 @@ umbel-sdk = { path = "../../sdk" }
 [dev-dependencies]
 afd = { path = "../../../../packages/rust", default-features = false }
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
+# `net` and `io-util` for `tests/review_page.rs`, which speaks HTTP to the local person page.
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread"] }
 # The tests boot a host with the plugin and its grants, with no loader (so no wasmtime), and run
-# the command line in process for the person-gated import.
-umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
+# the command line in process for the person-gated import. `auth` serves the local person page
+# `tests/review_page.rs` confirms on (the review host specification, step H3).
+umbel = { path = "../..", default-features = false, features = ["auth", "cli", "store-embedded", "testkit"] }
 # `tests/scenarios.rs` reads the scenario files as written (14.3): a pure Rust YAML 1.2 reader,
 # without its legacy text encodings.
 yaml-rust2 = { version = "0.13", default-features = false }

@@ -158,7 +158,7 @@ fn serve(args: &[String], engine: Arc<Engine>, registry: CommandRegistry) -> Exi
 }
 
 /// `loam-mail mcp`.
-fn mcp(engine: &Engine, registry: CommandRegistry) -> ExitCode {
+fn mcp(engine: &Arc<Engine>, registry: CommandRegistry) -> ExitCode {
     let runtime = match server_runtime() {
         Ok(runtime) => runtime,
         Err(error) => {

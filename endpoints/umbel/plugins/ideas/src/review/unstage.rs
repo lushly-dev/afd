@@ -93,7 +93,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let staged = in_review(cx, call, &review.id, &["staged"]).map_err(host)?;
     let staged_count = staged.len();
     let (parts, whole) =
-        listed(cx, call, &split(staged), false, &mut Ideas::default()).map_err(host)?;
+        listed(cx, call, &split(staged), false, &mut Ideas::read(cx)?).map_err(host)?;
     cx.log(
         Level::Info,
         &format!(
