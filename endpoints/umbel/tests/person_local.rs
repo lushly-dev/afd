@@ -382,6 +382,25 @@ async fn person_local_is_refused_outside_mode_none_or_off_loopback() {
             config(bind, "").replace("127.0.0.1:7421", "192.0.2.7:7421"),
             "person.local.bind",
         ),
+        // Mode gateway refuses the page as mode oauth does.
+        (
+            "config_version = 7\n\n[principal]\nlocal_id = \"corp/U019488227\"\n\n[http]\nbind = \"127.0.0.1:8443\"\npublic_url = \"https://umbel.example.com/mcp\"\nallowed_hosts = [\"umbel.example.com\"]\n\n[auth]\nmode = \"gateway\"\n\n[auth.namespaces.corp]\n\n[auth.gateway]\nalias = \"edge\"\nnamespace = \"corp\"\nissuer = \"https://gateway.example.com\"\nkeys = \"secrets/gateway/jwks.json\"\nmax_scopes = [\"umbel:read\", \"umbel:write:main\"]\n\n[person.local]\nenabled = true\n".to_owned(),
+            "person.local.enabled",
+        ),
+        // Every IPv6 address but `::1` is off loopback, an IPv4-mapped one included.
+        (
+            config(bind, "").replace("127.0.0.1:7421", "[::]:7421"),
+            "person.local.bind",
+        ),
+        (
+            config(bind, "").replace("127.0.0.1:7421", "[::ffff:127.0.0.1]:7421"),
+            "person.local.bind",
+        ),
+        // `local` is the local page's namespace, reserved in every mode.
+        (
+            config(bind, "").replace("[plugins]", "[auth.namespaces.local]\n\n[plugins]"),
+            "auth.namespaces.local",
+        ),
     ] {
         let dir = support::workspace(&text);
         let error = HostBuilder::open(dir.path())
@@ -390,6 +409,14 @@ async fn person_local_is_refused_outside_mode_none_or_off_loopback() {
         assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID", "{text}");
         assert!(error.message().contains(key), "{}", error.message());
     }
+    // `::1` is loopback, and its page is served there.
+    let dir = support::workspace(&config(bind, "").replace("127.0.0.1:7421", "[::1]:7421"));
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .with_compiled(plugin(&support::person::Seen::default()))
+        .seal()
+        .unwrap();
+    assert!(host.local_person_server().unwrap().is_some());
 }
 
 #[tokio::test]
@@ -457,7 +484,10 @@ async fn the_doctor_warns_while_the_local_page_is_enabled() {
     assert!(
         check
             .message
-            .contains("an agent can start umbel person page-serve itself"),
+            .contains("an agent can start umbel person page-serve itself")
+            && check
+                .message
+                .contains("Loopback is shared by every account"),
         "{}",
         check.message
     );
@@ -469,4 +499,188 @@ async fn the_doctor_warns_while_the_local_page_is_enabled() {
         .find(|check| check.id == "person.local")
         .unwrap();
     assert_eq!(serde_json::to_value(check.status).unwrap(), json!("pass"));
+    assert!(check.message.contains("not enabled"), "{}", check.message);
+    // A space that lists `local` among its verified levels is named, page or no page.
+    let dir = support::workspace(
+        "config_version = 7\n\n[spaces.main]\nverified_levels = [\"terminal\", \"local\"]\n",
+    );
+    let report = umbel::doctor::run(dir.path());
+    let check = report
+        .checks
+        .iter()
+        .find(|check| check.id == "person.local")
+        .unwrap();
+    assert_eq!(serde_json::to_value(check.status).unwrap(), json!("warn"));
+    assert!(
+        check
+            .message
+            .contains("spaces.main.verified_levels lists local"),
+        "{}",
+        check.message
+    );
+}
+
+/// Two identical calls sent at once after one approval: the decision runs exactly one of them,
+/// and the other begins a decision of its own.
+#[tokio::test]
+async fn two_identical_calls_racing_after_one_approval_run_once() {
+    let local = Local::start().await;
+    let input = json!({ "proposal": "p-race" });
+    let id = decision_of(&local.call("gate-approve", input.clone()).await);
+    assert_eq!(decide(&local, &id, "approve").await.status, 200);
+    let (first, second) = tokio::join!(
+        local.call("gate-approve", input.clone()),
+        local.call("gate-approve", input.clone())
+    );
+    let ran = [&first, &second]
+        .iter()
+        .filter(|outcome| outcome["success"] == true)
+        .count();
+    assert_eq!(ran, 1, "{first}\n{second}");
+    assert_eq!(local.seen.runs("gate-approve"), 1);
+    let refused = if first["success"] == true {
+        &second
+    } else {
+        &first
+    };
+    assert_ne!(decision_of(refused), id);
+}
+
+/// The local registration is not host-verified, so AFD lets a pipeline name the command as a
+/// step. The step meets the plugin gate as a call of its own: it needs its own decision, spent
+/// once, and the pipeline's own acknowledgement grants nothing.
+#[tokio::test]
+async fn a_person_gated_step_of_a_pipeline_needs_its_own_decision() {
+    const PIPE: &str = r#"
+[[pipelines]]
+name = "gate-pipe"
+description = "Apply a proposal as a step."
+effects = ["plugin-state"]
+input_schema = { type = "object", properties = { proposal = { type = "string" } }, required = ["proposal"], additionalProperties = false }
+expose = { mcp = true, agent = false, cli = true }
+journal = { mode = "digest", keep = ["proposal"] }
+steps = [ { command = "gate-approve", input = { proposal = "$input.proposal" } } ]
+"#;
+    let local = Local::start_plugin("", |seen| {
+        support::person::plugin_with(seen, format!("{}{PIPE}", support::person::MANIFEST))
+    })
+    .await;
+    let input = json!({ "proposal": "p-pipe" });
+    let asked = local.call("gate-pipe", input.clone()).await;
+    assert_eq!(asked["success"], false, "{asked}");
+    assert!(
+        asked.to_string().contains("CONFIRMATION_REQUIRED"),
+        "{asked}"
+    );
+    assert_eq!(local.seen.runs("gate-approve"), 0);
+    // The step's decision is the step's call's, for its command and input.
+    let list = local.open("/d/").await;
+    assert!(
+        list.text.contains("<code>gate-approve</code>"),
+        "{}",
+        list.text
+    );
+    let start = list
+        .text
+        .find("<a href=\"/d/")
+        .unwrap_or_else(|| panic!("{asked}\n{}", list.text))
+        + "<a href=\"/d/".len();
+    let id = list.text[start..start + 26].to_owned();
+    assert_eq!(decide(&local, &id, "approve").await.status, 200);
+    let ran = local.call("gate-pipe", input.clone()).await;
+    assert_eq!(ran["success"], true, "{ran}");
+    let runs = local.seen.of("gate-approve");
+    assert_eq!(runs.len(), 1);
+    assert_eq!(runs[0]["mark"]["level"], "local");
+    // Spent: the pipeline sent again does not run the step.
+    let again = local.call("gate-pipe", input).await;
+    assert_eq!(again["success"], false, "{again}");
+    assert_eq!(local.seen.runs("gate-approve"), 1);
+}
+
+/// A decision on the local page cannot confirm a memory, end to end: the refusal names `local`,
+/// and no confirmation, which a journaled event would carry, is recorded (the follow-up of step
+/// H1's review).
+#[tokio::test]
+async fn memory_confirm_under_a_local_decision_is_refused_by_name() {
+    use support::memory::{MemoryProbe, config, manifest};
+    let gated = manifest("")
+        .replace("manifest_version = 3", "manifest_version = 5")
+        .replace(
+            "journal = { mode = \"digest\" }\nconfirm_prompt = \"You are vouching for this record's text as your own.\"\nconfirm = \"require-human\"\nexpose = { mcp = false, agent = false, cli = true }",
+            "journal = { mode = \"digest\", keep = [\"space\"] }\nconfirm_prompt = \"You are vouching for this record's text as your own.\"\nconfirm = \"require-human\"\nperson = { cli = \"terminal\", mcp = \"verified\" }\nexpose = { mcp = true, agent = false, cli = true }\nconfirm_preview = \"mem-preview\"",
+        )
+        + "\n[[commands]]\nname = \"mem-preview\"\ndescription = \"Show what a confirmation does.\"\neffects = [\"inspect\"]\ninput_schema = { type = \"object\", properties = { space = { type = \"string\" } }, additionalProperties = false }\nexpose = { mcp = false, agent = false, cli = true }\njournal = { mode = \"digest\", keep = [\"space\"] }\nreturns = { type = \"object\", properties = { preview = { type = \"string\" } }, required = [\"preview\"], additionalProperties = false }\n";
+    assert!(gated.contains("mcp = \"verified\""));
+    let (listener, bind) = support::local::bound();
+    let text = config("", "on_behalf_of = \"ada\"").replacen(
+        "config_version = 4",
+        "config_version = 7",
+        1,
+    ) + &format!("\n[person.local]\nenabled = true\nbind = \"{bind}\"\n");
+    let dir = support::workspace(&text);
+    let host = HostBuilder::open(dir.path())
+        .unwrap()
+        .with_compiled(umbel::plugins::sdk(MemoryProbe::with_manifest(gated)))
+        .seal()
+        .unwrap();
+    let page = support::local::serve(&host, listener);
+    let remembered = support::call(
+        &host,
+        afd::Actor::new(afd::ActorKind::Human).with_id("ada"),
+        "mem-remember",
+        json!({ "space": "main", "args": {} }),
+    )
+    .await;
+    let id = remembered.data.unwrap()["ids"][0]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let call = || async {
+        let mut stdio = Stdio::connect(&host).await;
+        command_result(
+            &stdio
+                .request(
+                    "tools/call",
+                    json!({ "name": "mem-confirm", "arguments": { "space": "main", "args": { "id": id }, "confirm": true } }),
+                )
+                .await,
+        )
+    };
+    let decision = decision_of(&call().await);
+    let shown = page
+        .get(&format!("/d/{decision}"), &[("sec-fetch-site", "none")])
+        .await;
+    assert_eq!(shown.status, 200, "{}", shown.text);
+    let csrf = hidden(&shown.text, "csrf");
+    let posted = page
+        .send(page.request(
+            "POST",
+            &format!("/d/{decision}"),
+            &[
+                ("content-type", FORM),
+                ("origin", &format!("http://{bind}")),
+            ],
+            format!("csrf={csrf}&page=1&decision=approve"),
+        ))
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    let outcome = call().await;
+    assert_eq!(outcome["success"], false, "{outcome}");
+    assert!(
+        outcome.to_string().contains("level local"),
+        "the refusal names local: {outcome}"
+    );
+    let shown = support::call(
+        &host,
+        afd::Actor::new(afd::ActorKind::Human).with_id("ada"),
+        "mem-read",
+        json!({ "space": "main", "args": { "op": "show", "id": id } }),
+    )
+    .await;
+    assert_eq!(
+        shown.data.unwrap()["result"]["confirmation"],
+        false,
+        "nothing was confirmed"
+    );
 }

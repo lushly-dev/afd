@@ -434,16 +434,7 @@ pub(crate) fn plugin_gate(
                     .await
                     {
                         Err(error) => return failure(error),
-                        Ok(None) => {}
-                        Ok(Some(mark)) => {
-                            held_mark = gate
-                                .local
-                                .as_ref()
-                                .and_then(|local| local.marks.hold(&trace, mark));
-                            if held_mark.is_none() {
-                                return failure(crate::person::not_decided(&name));
-                            }
-                        }
+                        Ok(held) => held_mark = held,
                     }
                 }
                 let mut result = next().await;
@@ -468,8 +459,9 @@ pub(crate) fn plugin_gate(
 ///
 /// Where the local page is served (`local`, the Ideas host-review specification, section 6.2),
 /// a `verified` MCP call goes to its local arm instead: a decision on the local page for this
-/// call, spent once, whose mark (level `local`) the gate answers for the handler to carry. Every
-/// other arm answers no mark: the relay or the CLI set theirs before the call.
+/// call, spent once, whose mark (level `local`) the gate holds for the handler to carry, in a
+/// slot reserved before anything is spent. Every other arm answers none: the relay or the CLI
+/// set theirs before the call.
 async fn person_gate(
     entry: &GateEntry,
     name: &str,
@@ -478,21 +470,27 @@ async fn person_gate(
     config: &crate::workspace::Config,
     ledger: Option<&dyn crate::person::DecisionLedger>,
     local: Option<&LocalArm>,
-) -> Result<Option<crate::person::PersonMark>, CommandError> {
+) -> Result<Option<crate::person::HeldMark>, CommandError> {
     use crate::plugins::Assurance;
     let person = entry.person.unwrap_or_default();
     if context.interface == Some(CommandInterface::Mcp)
         && person.mcp == Some(Assurance::Verified)
         && let Some(local) = local
     {
-        // A call with no trace cannot be handed its mark, so it is never decided.
-        if context.trace_id.as_deref().is_none_or(str::is_empty) {
-            return Err(crate::person::not_decided(name));
-        }
         let Some(gate) = local.gate.get() else {
             return Err(crate::person::not_decided(name));
         };
-        return gate.decide(name, input, context).await.map(Some);
+        // The call's slot first: a call that cannot be handed its mark (no trace, or one another
+        // call in flight holds) is refused before a decision is spent for it.
+        let Some(held) = local
+            .marks
+            .reserve(context.trace_id.as_deref().unwrap_or_default())
+        else {
+            return Err(crate::person::not_decided(name));
+        };
+        let mark = gate.decide(name, input, context).await?;
+        held.fill(mark);
+        return Ok(Some(held));
     }
     match context.interface {
         Some(CommandInterface::Cli) if person.cli == Assurance::Verified => crate::person::admit(

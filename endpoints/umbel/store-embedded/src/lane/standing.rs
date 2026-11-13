@@ -101,7 +101,11 @@ fn push_by_collection(sql: &mut Sql, view: &StandingView) {
 /// `<no command writes files where d lies, and a mark of the space's person names d's content
 /// now>` over `documents d`: what makes a document the person's own by a mark, without the
 /// speaker.
-fn push_marked(sql: &mut Sql, view: &StandingView, mark: &str) {
+///
+/// With `at_levels`, the mark was also made at one of the view's `levels` (the Ideas host-review
+/// specification, section 6.5), as [`push_affirmed_at`] holds a decision: a mark made on the
+/// local page attests nothing to a call for verified content unless the space lists `local`.
+fn push_marked(sql: &mut Sql, view: &StandingView, mark: &str, at_levels: bool) {
     sql.push("(");
     if !view.command_writable.is_empty() {
         sql.push("d.collection NOT IN ")
@@ -112,16 +116,20 @@ fn push_marked(sql: &mut Sql, view: &StandingView, mark: &str) {
         "EXISTS (SELECT 1 FROM doc_own o WHERE o.doc = d.doc AND o.doc_hash = d.content_hash AND ",
     );
     push_by_person(sql, "o.by", view);
+    if at_levels && !view.levels.is_empty() {
+        sql.push(" AND json_extract(o.assurance, '$.level') IN ")
+            .bind_list(view.levels.iter());
+    }
     sql.push(mark).push("))");
 }
 
 /// `<the document d is the person's own now for the evidence e>`: by collection, or by a mark
 /// whose speaker is the evidence's (section 6.3's two branches).
-fn push_own(sql: &mut Sql, view: &StandingView) {
+fn push_own(sql: &mut Sql, view: &StandingView, at_levels: bool) {
     sql.push("(");
     push_by_collection(sql, view);
     sql.push(" OR ");
-    push_marked(sql, view, " AND o.speaker IS e.speaker");
+    push_marked(sql, view, " AND o.speaker IS e.speaker", at_levels);
     sql.push(")");
 }
 
@@ -133,11 +141,16 @@ fn push_own(sql: &mut Sql, view: &StandingView) {
 /// It does not ask whether the reader may read the cited document: standing is a fact about the
 /// record, and the same for every reader of it.
 pub(super) fn push_attested(sql: &mut Sql, view: &StandingView) {
+    push_attested_as(sql, view, false);
+}
+
+/// [`push_attested`], its mark held to the view's `levels` when `at_levels`.
+fn push_attested_as(sql: &mut Sql, view: &StandingView, at_levels: bool) {
     sql.push(
         "EXISTS (SELECT 1 FROM record_evidence e JOIN documents d ON d.doc = e.doc \
          AND d.content_hash = e.doc_hash WHERE e.lane = l.lane AND e.verbatim = 1 AND ",
     );
-    push_own(sql, view);
+    push_own(sql, view, at_levels);
     sql.push(")");
 }
 
@@ -162,6 +175,9 @@ fn push_affirmed_at(sql: &mut Sql, view: &StandingView) {
 /// A view that names `levels` admits an affirmed record only when its decision was made at one
 /// of them, and a record affirmed at another level at no standing (the Ideas host-review
 /// specification, section 6.5): it is still affirmed, so it is neither attested nor unverified.
+/// It admits an attested record only when its document is the person's own by its collection,
+/// or by a mark made at one of the levels; one attested only through a mark at another level is
+/// admitted at no standing either.
 pub(super) fn and_admitted(sql: &mut Sql, decl: &RecordDecl, view: &StandingView) {
     if !decl.standing {
         return;
@@ -173,10 +189,11 @@ pub(super) fn and_admitted(sql: &mut Sql, decl: &RecordDecl, view: &StandingView
         }
         if view.admits(Standing::Attested) {
             arms.push(|sql, view| {
+                // Attested through a mark made at a listed level, as an affirmation is held.
                 sql.push("(NOT ");
                 push_affirmed(sql, view);
                 sql.push(" AND ");
-                push_attested(sql, view);
+                push_attested_as(sql, view, true);
                 sql.push(")");
             });
         }
@@ -312,7 +329,7 @@ fn sources(
     );
     sql.bind_list(lanes.iter().copied());
     sql.push(" AND e.verbatim = 1 AND ");
-    push_own(&mut sql, view);
+    push_own(&mut sql, view, false);
     sql.and_readable("record_access", LANE_ACCESS, reader);
     let mut statement = conn.prepare_cached(&sql.text)?;
     let mut rows = statement.query(params_from_iter(&sql.params))?;
@@ -697,7 +714,7 @@ impl SqliteStore {
         sql.push(STORED_AT).push(", ").push(GENERATED_AT).push(", ");
         // Whether a mark makes it the person's own, the speaker that mark names, and whether
         // the host held its content to its file.
-        push_marked(&mut sql, view, "");
+        push_marked(&mut sql, view, "", false);
         sql.push(
             ", (SELECT o.speaker FROM doc_own o WHERE o.doc = d.doc AND o.doc_hash = d.content_hash), ",
         )

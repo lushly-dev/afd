@@ -2280,3 +2280,125 @@ async fn a_decision_on_the_local_page_affirms_as_local_and_verified_content_list
         );
     }
 }
+
+/// Call `notes-verify` with `arguments` over stdio, approve its decision on the local page at
+/// `bind`, and call it again: the second call's result.
+async fn decided_on_the_local_page(
+    host: &Host,
+    bind: std::net::SocketAddr,
+    arguments: Value,
+) -> Value {
+    use support::hosted::Client;
+    use umbel::testkit::mcp::{Stdio, command_result};
+    let mut arguments = arguments;
+    arguments["confirm"] = json!(true);
+    let call = || async {
+        let mut stdio = Stdio::connect(host).await;
+        let response = stdio
+            .request(
+                "tools/call",
+                json!({ "name": "notes-verify", "arguments": arguments.clone() }),
+            )
+            .await;
+        command_result(&response)
+    };
+    let asked = call().await;
+    assert_eq!(asked["error"]["code"], "CONFIRMATION_REQUIRED", "{asked}");
+    let id = asked["error"]["details"]["decision"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let page = Client::plain(bind).with_host(&bind.to_string());
+    let shown = page
+        .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+        .await;
+    assert_eq!(shown.status, 200, "{}", shown.text);
+    let csrf = support::local::hidden(&shown.text, "csrf");
+    let posted = page
+        .send(page.request(
+            "POST",
+            &format!("/d/{id}"),
+            &[
+                ("content-type", "application/x-www-form-urlencoded"),
+                ("origin", &format!("http://{bind}")),
+            ],
+            format!("csrf={csrf}&page=1&decision=approve"),
+        ))
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    call().await
+}
+
+/// A person's mark made on the local page (the security review of step H3): a record attested
+/// only through it is verified content only where the space lists `local`, as an affirmation
+/// made there is.
+#[tokio::test]
+async fn a_mark_made_on_the_local_page_attests_verified_content_only_when_local_is_listed() {
+    for (levels, verified) in [
+        ("", json!(["t"])),
+        (
+            "verified_levels = [\"terminal\", \"verified\", \"local\"]",
+            json!(["k", "t"]),
+        ),
+    ] {
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+        let bind = listener.local_addr().unwrap();
+        listener.set_nonblocking(true).unwrap();
+        let text = config(
+            &format!("{PERSON}\nverified_admits = \"affirmed+attested\"\n{levels}"),
+            "",
+            &format!(
+                "\n[principal]\non_behalf_of = \"local\"\n\n[person.local]\nenabled = true\nbind = \"{bind}\"\n"
+            ),
+        )
+        .replacen("config_version = 6", "config_version = 7", 1);
+        let dir = workspace(&text);
+        // `t` is attested through the journal, an own collection; `k` cites a talk, which only
+        // a mark can make the person's own.
+        sync(dir.path(), "journal", "roses", ROSES).await;
+        cite(dir.path(), "t", ROSES, "journal/roses").await;
+        sync(dir.path(), "talks", "sun", SUN).await;
+        cite(dir.path(), "k", SUN, "talks/sun").await;
+        assert_eq!(standing(dir.path(), "k").await, "unverified");
+        let host = host(dir.path());
+        let server = host.local_person_server().unwrap().unwrap();
+        tokio::spawn(server.serve(
+            tokio::net::TcpListener::from_std(listener).unwrap(),
+            std::future::pending(),
+        ));
+        let marked = decided_on_the_local_page(
+            &host,
+            bind,
+            json!({ "space": "garden", "op": "mark", "id": "talks/sun" }),
+        )
+        .await;
+        assert_eq!(marked["success"], true, "{marked}");
+        let assurance: String = sqlite(dir.path())
+            .query_row(
+                "SELECT assurance FROM doc_own WHERE doc = 'talks/sun'",
+                [],
+                |row| row.get(0),
+            )
+            .unwrap();
+        assert_eq!(
+            serde_json::from_str::<Value>(&assurance).unwrap(),
+            json!({ "level": "local", "method": "local-page" })
+        );
+        let find = |args: Value| {
+            let host = &host;
+            async move { result(&run(host, agent("ada"), "notes-read", "find", args).await) }
+        };
+        // An ordinary read reads `k` attested; a call for verified content only with `local`.
+        assert_eq!(
+            find(json!({ "standings": ["attested"] })).await["ids"],
+            json!(["k", "t"])
+        );
+        let asked = find(json!({ "verifiedOnly": true })).await;
+        assert_eq!(asked["ids"], verified, "{levels}");
+        assert_eq!(
+            asked["total"],
+            verified.as_array().unwrap().len(),
+            "{levels}"
+        );
+    }
+}

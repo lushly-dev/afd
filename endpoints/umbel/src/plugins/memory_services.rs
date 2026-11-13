@@ -481,6 +481,18 @@ impl CallServices {
         mut request: Confirm,
     ) -> Result<MemoryVersionMeta> {
         let (store, filter, principal) = self.memory_writing(space)?;
+        // A decision on the local person page is `local`, which a memory envelope (version 3)
+        // cannot hold: said by name, before anything else (the Ideas host-review specification,
+        // step H3).
+        if crate::person::PersonMark::of(&self.context).is_some_and(|mark| {
+            mark.level == crate::person::LOCAL_LEVEL
+                && Some(mark.command.as_str()) == self.command.as_deref()
+        }) {
+            return Err(refused(
+                "MEMORY_CONFIRM_NOT_ALLOWED",
+                "a decision on the local person page (level local) cannot confirm a record: a memory envelope records terminal or verified only",
+            ));
+        }
         if !self.person() {
             return Err(refused(
                 "MEMORY_CONFIRM_NOT_ALLOWED",

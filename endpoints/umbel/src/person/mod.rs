@@ -606,32 +606,39 @@ pub(crate) type LocalGateSlot = std::sync::Arc<std::sync::OnceLock<std::sync::Ar
 /// under the same trace finds it taken; the gate removes what is left when the call returns.
 #[derive(Debug, Default)]
 pub(crate) struct LocalMarks {
-    held: std::sync::Mutex<std::collections::HashMap<String, PersonMark>>,
+    held: std::sync::Mutex<std::collections::HashMap<String, Option<PersonMark>>>,
 }
 
 impl LocalMarks {
-    fn lock(&self) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, PersonMark>> {
+    fn lock(
+        &self,
+    ) -> std::sync::MutexGuard<'_, std::collections::HashMap<String, Option<PersonMark>>> {
         self.held
             .lock()
             .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
-    /// Hold `mark` for the call under `trace` until the guard is dropped. `None` when a mark is
-    /// already held under `trace`: two calls never share one.
-    pub(crate) fn hold(
-        self: &std::sync::Arc<Self>,
-        trace: &str,
-        mark: PersonMark,
-    ) -> Option<HeldMark> {
+    /// Reserve the slot of the call under `trace` until the guard is dropped, before anything
+    /// is spent, so a decision is spent only for a call that can be handed its mark. `None` when
+    /// the call has no trace or a slot is already held under it: two calls never share one.
+    pub(crate) fn reserve(self: &std::sync::Arc<Self>, trace: &str) -> Option<HeldMark> {
         let mut held = self.lock();
         if trace.is_empty() || held.contains_key(trace) {
             return None;
         }
-        held.insert(trace.to_owned(), mark);
+        held.insert(trace.to_owned(), None);
         Some(HeldMark {
             marks: std::sync::Arc::clone(self),
             trace: trace.to_owned(),
         })
+    }
+
+    /// Hold `mark` for the call under `trace`: [`Self::reserve`], then [`HeldMark::fill`].
+    #[cfg(all(test, feature = "auth"))]
+    fn hold(self: &std::sync::Arc<Self>, trace: &str, mark: PersonMark) -> Option<HeldMark> {
+        let held = self.reserve(trace)?;
+        held.fill(mark);
+        Some(held)
     }
 
     /// The mark held for `command` under `context`'s trace, taken once, with the context the
@@ -642,10 +649,10 @@ impl LocalMarks {
         let trace = context.trace_id.as_deref()?;
         let mark = {
             let mut held = self.lock();
-            if held.get(trace)?.command != command {
+            if held.get(trace)?.as_ref()?.command != command {
                 return None;
             }
-            held.remove(trace)?
+            held.remove(trace)??
         };
         let mut principal = Principal::from_context(context)?;
         principal.human_present = Some(crate::principal::HumanPresent {
@@ -675,6 +682,13 @@ impl LocalMarks {
 pub(crate) struct HeldMark {
     marks: std::sync::Arc<LocalMarks>,
     trace: String,
+}
+
+impl HeldMark {
+    /// Put the admitted call's mark in the slot reserved for it.
+    pub(crate) fn fill(&self, mark: PersonMark) {
+        self.marks.lock().insert(self.trace.clone(), Some(mark));
+    }
 }
 
 impl Drop for HeldMark {

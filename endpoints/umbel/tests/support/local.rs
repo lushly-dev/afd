@@ -38,26 +38,25 @@ impl Local {
     }
 
     pub async fn start_with(extra: &str) -> Self {
-        // The page's own listener, bound first so the bind is known and held.
-        let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
-        let bind = listener.local_addr().unwrap();
-        listener.set_nonblocking(true).unwrap();
+        Self::start_plugin(extra, plugin).await
+    }
+
+    /// As [`Self::start_with`], with the `gate` plugin `make` builds from the record of calls.
+    pub async fn start_plugin(
+        extra: &str,
+        make: impl FnOnce(&Seen) -> super::plugins::Raw,
+    ) -> Self {
+        let (listener, bind) = bound();
         let dir = super::workspace(&config(bind, extra));
         let seen = Seen::default();
         let clock = afd::fixed_clock(1_800_000_000_000);
         let host = HostBuilder::open(dir.path())
             .unwrap()
-            .with_compiled(plugin(&seen))
+            .with_compiled(make(&seen))
             .with_auth_clock(clock.clone())
             .seal()
             .unwrap();
-        let server = host
-            .local_person_server()
-            .unwrap()
-            .expect("the local page is served");
-        let listener = tokio::net::TcpListener::from_std(listener).unwrap();
-        tokio::spawn(server.serve(listener, std::future::pending()));
-        let page = Client::plain(bind).with_host(&bind.to_string());
+        let page = serve(&host, listener);
         Self {
             dir,
             host,
@@ -109,6 +108,26 @@ impl Local {
             )
             .await
     }
+}
+
+/// A loopback listener for a local page, bound first so its bind is known and held.
+pub fn bound() -> (std::net::TcpListener, SocketAddr) {
+    let listener = std::net::TcpListener::bind("127.0.0.1:0").unwrap();
+    let bind = listener.local_addr().unwrap();
+    listener.set_nonblocking(true).unwrap();
+    (listener, bind)
+}
+
+/// Serve `host`'s local page on `listener`, and a browser of it.
+pub fn serve(host: &Host, listener: std::net::TcpListener) -> Client {
+    let bind = listener.local_addr().unwrap();
+    let server = host
+        .local_person_server()
+        .unwrap()
+        .expect("the local page is served");
+    let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+    tokio::spawn(server.serve(listener, std::future::pending()));
+    Client::plain(bind).with_host(&bind.to_string())
 }
 
 /// The refusal's code and details.

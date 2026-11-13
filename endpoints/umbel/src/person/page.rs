@@ -89,6 +89,8 @@ const COOKIE_PREFIX: &str = "__Host-umbel-person-";
 /// What the local page's CSRF token binds where the hosted page's binds the login id: no login
 /// id is ever this string, since every one is 26 characters of base32.
 const LOCAL_LOGIN: &str = "local";
+/// What the local page says of itself on every page (section 6.5).
+const NO_SIGN_IN: &str = "This page has no sign-in. Anything on this machine can open it, every other account on this machine included: what it shows can be read, and a request approved, by any of them.";
 
 const STYLE: &str = "body{font-family:system-ui,sans-serif;max-width:46rem;margin:2rem auto;padding:0 1rem;line-height:1.5;color:#1b1b1f;background:#fbfbfd}\
 h1{font-size:1.4rem}dl{display:grid;grid-template-columns:max-content 1fr;gap:.25rem 1rem}dt{font-weight:600}\
@@ -1008,7 +1010,7 @@ impl PersonPage {
         };
         let intro = if self.local.is_some() {
             format!(
-                "<p>Requests waiting for <b>{subject}</b> on this machine. Open a request to review it.</p>",
+                "<p>Requests waiting for <b>{subject}</b> on this machine. {NO_SIGN_IN} Open a request to review it.</p>",
                 subject = escape(subject),
             )
         } else {
@@ -1189,7 +1191,7 @@ impl PersonPage {
         let (who, login_field) = if self.local.is_some() {
             (
                 format!(
-                    "<p>For <b>{person}</b> on this machine. This page has no sign-in: anything on this machine can open it, so decide this request yourself and approve it only if you asked for it.</p>",
+                    "<p>For <b>{person}</b> on this machine. {NO_SIGN_IN} Decide this request yourself and approve it only if you asked for it.</p>",
                     person = escape(&decision.for_.subject),
                 ),
                 String::new(),

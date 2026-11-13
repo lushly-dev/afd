@@ -43,7 +43,7 @@ Code paths are relative to `endpoints/umbel/`.
   items, lifetime and the list on the hosted page, is implemented** (2026-11-13) on the branch
   `lush/ideas-h2-paged`, amended below ([H2](#amendments-from-step-h2), A9 to A20), and resolves the
   plugin's follow-up C1-3 (A19). **Step H3, the local page, is implemented** (2026-11-13) on the
-  branch `lush/ideas-h3-local`, amended below ([H3](#amendments-from-step-h3), A26 to A40): the local
+  branch `lush/ideas-h3-local`, amended below ([H3](#amendments-from-step-h3), A26 to A45, A41 to A45 from its security review): the local
   registration, service and ledger, `for_of_local`, the plugin gate's local arm and the mark it hands
   the handler, `attested` and `gate_proof`'s local arms, `umbel person page-serve` with 6.3's rules,
   `verified_levels` in the 6.6 clause, and the doctor's `person.local`. It resolves the follow-ups
@@ -273,7 +273,7 @@ that a version 3 envelope with `local` is refused and a version 4 one is stored 
 | Assurance | How | What it shows | What it does not |
 | --- | --- | --- | --- |
 | `terminal` | The CLI's prompt, answered at a terminal with no agent variable set (D86, records host 6.1) | A process with a terminal answered | That a person typed it: a process that unsets the variables and holds a pseudo-terminal passes (D74, D86) |
-| `local` | A form posted to the loopback page with its CSRF token | Something on this machine reached the port, fetched the page and posted it | **That a person clicked.** An agent with a shell can start `person-page-serve` itself, fetch the form and post it; an agent driving a browser can click it. The Origin, Host and CSRF checks stop another web site, not a local process |
+| `local` | A form posted to the loopback page with its CSRF token | Something on this machine reached the port, fetched the page and posted it | **That a person clicked, or which person.** An agent with a shell can start `person-page-serve` itself, fetch the form and post it; an agent driving a browser can click it. Loopback is shared by every account on the machine: another user can open the list and the previews, read what they show, and approve. The Origin, Host and CSRF checks stop another web site, not a local process or another local account |
 | `verified` | A fresh login with user verification on the hosted page (phase 5, 7.2) | The person the call is for logged in, with user verification, for this decision | That they read what they confirmed |
 
 **Turning on `person.local` relaxes, for that workspace, what step B3's review made strict** (the records host
@@ -433,6 +433,11 @@ the person store keeps schema version 2.
 | A38 | Section 7 suggests "the person runs umbel person-page-serve" | The suggestion names `umbel person page-serve` (A36) |
 | A39 | The doctor's check is named in section 10 and nowhere placed | `person.local`, after `http.config` and the hosted profile's checks, in every mode, skipped without a readable configuration: `pass` when the page is off, `warn` when it is on, naming 6.5's limit (`person_local`, `src/doctor.rs`). It is not one of `AUTH_CHECKS` |
 | A40 | Section 9 places the local list's test in `person_local.rs`, and the follow-up in `person_pending.rs` | `tests/person_pending.rs` holds it; the local harness both use is `tests/support/local.rs`. The principal schema's local shape is pinned in `tests/schemas/phase5_records.rs`. The scope resolver follow-up is answered in `person_local.rs`: the local service is no hosted one, so `ScopePolicy::set_person` is never called and nothing is withheld; over stdio a command in `mcp.first_class_tools` is listed, and any locally registered command is callable by name |
+| A41 | The security review of H3 (blocker): a mark a person makes on the local page makes a record attested, and the level filter of A34 held only affirmations | The attested arm under `levels` holds the mark that makes the document the person's own to the same levels (`json_extract(o.assurance, '$.level')`, `push_marked`, `store-embedded/src/lane/standing.rs`); an own collection needs no mark and is unaffected. A record attested only through a local mark is left out of a call for verified content unless the space lists `local`. The conformance case `levels_admit_an_affirmation_only_at_a_level_they_list` gains such a record, and `records_standing.rs` a case end to end |
+| A42 | `Decision::is_local` reads a hosted namespace named `local` (a CLI decision has no issuer or client) as the local page's | `local` is reserved as a namespace id in every configuration version (`namespaces`, `src/workspace/hosted.rs`; `workspace-config.v7.json`) |
+| A43 | 6.5 and the doctor said nothing of other accounts on the machine | The doctor, every local page (the list included) and 6.5 say that loopback is shared by every account, which can read the list and the previews and approve |
+| A44 | The gate spent a decision before it knew it could hand the mark over | The local arm reserves the call's slot first (`LocalMarks::reserve`, then `HeldMark::fill`); a call with no trace, or one whose trace another call in flight holds, is refused before anything is spent |
+| A45 | A memory confirmation under a local mark was refused by the store with a message that did not name `local`, and the doctor did not name a space that admits `local` | `svc_memory_confirm` refuses it first, naming level `local`; the doctor's `person.local` warns, page or no page, for each space whose `verified_levels` lists `local`. `person_local.rs` adds a race of two calls after one approval, mode `gateway` refused, the binds `[::]` and `[::ffff:127.0.0.1]` refused and `[::1]` served, memory confirmation end to end, and a pipeline whose step needs its own decision: the local registration is not `HostVerified`, so AFD admits it as a step, and the step meets the gate as a call of its own |
 
 ## Follow-ups
 

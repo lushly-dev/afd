@@ -1391,7 +1391,11 @@
 				"namespaces": {
 					"type": "object",
 					"propertyNames": {
-						"$ref": "#/$defs/namespace"
+						"$ref": "#/$defs/namespace",
+						"not": {
+							"const": "local"
+						},
+						"description": "local is reserved: it is the namespace of decisions made on the local person page (the Ideas host-review specification, section 6.2)."
 					},
 					"additionalProperties": {
 						"type": "object",

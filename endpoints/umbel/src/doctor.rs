@@ -891,16 +891,36 @@ fn person_local(config: Option<&crate::workspace::Config>) -> Check {
         return Check::skip(ID, NEEDS_CONFIG);
     };
     let local = &config.person.local;
-    if !local.enabled {
+    // A space whose `verified_levels` lists `local` gives a call for verified content what
+    // anything on this machine confirmed on the local page.
+    let mut parts: Vec<String> = config
+        .spaces
+        .iter()
+        .filter(|space| {
+            space
+                .verified_levels
+                .contains(&crate::workspace::AssuranceLevel::Local)
+        })
+        .map(|space| {
+            format!(
+                "spaces.{}.verified_levels lists local, so a call for verified content there is given what anything on this machine confirmed on the local person page",
+                space.id
+            )
+        })
+        .collect();
+    if local.enabled {
+        parts.insert(0, format!(
+            "The local person page is enabled at http://{}/d/. It has no sign-in, so a decision made there shows only that something on this machine posted its form, not that a person clicked: an agent can start umbel person page-serve itself and post the form. Loopback is shared by every account on this machine, so another user can read the list and the previews and approve, and any process here can read what they show. Its decisions are recorded as local, never verified, and a call for verified content leaves them out unless a space's verified_levels lists local",
+            local.bind
+        ));
+    }
+    if parts.is_empty() {
         return Check::pass(ID, "The local person page is not enabled");
     }
     Check::warn(
         ID,
-        format!(
-            "The local person page is enabled at http://{}/d/. It has no sign-in, so a decision made there shows only that something on this machine posted its form, not that a person clicked: an agent can start umbel person page-serve itself and post the form. Its decisions are recorded as local, never verified, and a call for verified content leaves them out unless a space's verified_levels lists local",
-            local.bind
-        ),
-        "Enable [person.local] only where no agent on this machine should be kept from confirming its own requests; for a proof that a person decided, use a hosted workspace with a person login.",
+        parts.join("; "),
+        "Enable [person.local] only where no agent and no other account on this machine should be kept from confirming its requests, and list local in a space's verified_levels only where that is acceptable; for a proof that a person decided, use a hosted workspace with a person login.",
     )
 }
 
