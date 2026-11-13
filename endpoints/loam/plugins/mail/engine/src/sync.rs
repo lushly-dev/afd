@@ -54,6 +54,9 @@ pub struct Options {
     pub retries: u32,
     /// The wait before the first new connection; it doubles each time.
     pub backoff: Duration,
+    /// How long after one pass the next begins, when a server runs them or
+    /// `mail-sync` follows.
+    pub every: Duration,
 }
 
 impl Default for Options {
@@ -65,6 +68,7 @@ impl Default for Options {
             whole_limit: WHOLE_LIMIT,
             retries: 5,
             backoff: Duration::from_secs(1),
+            every: Duration::from_secs(5 * 60),
         }
     }
 }

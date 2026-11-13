@@ -70,6 +70,9 @@ pub struct World {
     /// closes every new connection unanswered until `down` is cleared.
     pub down_on_drop: bool,
     pub down: bool,
+    /// Take each new connection and never answer it, as a provider that
+    /// hangs would.
+    pub stall: bool,
     /// Give a mailbox a new `UIDVALIDITY` when it is opened with QRESYNC, as
     /// if it changed between two openings.
     pub renumber_on_qresync: Option<String>,
@@ -88,6 +91,7 @@ impl World {
             drop_after_commands: None,
             down_on_drop: false,
             down: false,
+            stall: false,
             renumber_on_qresync: None,
             connections: 0,
         }
@@ -233,6 +237,12 @@ struct Session {
 async fn serve(stream: TcpStream, world: Arc<Mutex<World>>) {
     if world.lock().unwrap().down {
         return;
+    }
+    if world.lock().unwrap().stall {
+        // The connection stays open, and nothing is ever written to it.
+        let _held = &stream;
+        let never: std::convert::Infallible = std::future::pending().await;
+        match never {}
     }
     let (read, mut write) = stream.into_split();
     let mut lines = BufReader::new(read);
