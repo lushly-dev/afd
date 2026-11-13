@@ -3,7 +3,7 @@
  * File Size Guard — Pre-commit
  *
  * A runaway guard, not a factoring rule: only a source file over 1,500 lines blocks a commit.
- * The 500-line review threshold belongs to a periodic bloat sweep, which ranks
+ * The 500-line review threshold belongs to the sweep-bloat skill's periodic pass, which ranks
  * oversized files by size and churn and splits them on purpose, a few at a time, so a feature
  * never stops to split a file mid-change. The pair matches botcore.toml (file_size_warn /
  * file_size_error), which Botcore's dev_check_size reads.
@@ -176,7 +176,7 @@ for (const filePath of files) {
 			filePath,
 			lineCount,
 			`Over the ${WARN_THRESHOLD}-line review threshold`,
-			`No action needed in this change: the bloat sweep ranks it. Blocks only past ${ERROR_THRESHOLD} lines.`
+			`No action needed in this change: the sweep-bloat skill ranks it. Blocks only past ${ERROR_THRESHOLD} lines.`
 		);
 	}
 }

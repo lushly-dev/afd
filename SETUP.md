@@ -141,7 +141,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 
 | Script | What it checks |
 |--------|---------------|
-| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1500 (the same pair as `botcore.toml`). A runaway guard with no override: the 500-line review belongs to a periodic bloat sweep, not to the commit. Generated files and Markdown are not size-checked |
+| `check-file-size.mjs` | `.ts` under `packages/` and `.js`/`.mjs` under `scripts/`: warn >500 lines, error >1500 (the same pair as `botcore.toml`). A runaway guard with no override: the 500-line review belongs to the `sweep-bloat` skill's periodic pass, not to the commit. Generated files and Markdown are not size-checked |
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
