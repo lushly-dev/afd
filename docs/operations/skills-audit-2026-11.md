@@ -269,7 +269,7 @@ Open items, each now tracked where it can be closed (2026-11-12):
 - **`lushly-botcore` 0.6.1.** Lushly receives #794 and #799 only after this release. Re-prepared with the docs-check fix (#1023) and merged in [#1089](https://github.com/lushly-dev/afd/pull/1089); the owner's tag push, which publishes it, is [#1092](https://github.com/lushly-dev/afd/issues/1092). Then `skill-seed --update` refreshes Lushly's six seeded skills, and the hash-pinned `skill-manager` exemption in Lushly's agent-docs baseline expires.
 - **Lushly label descriptions (owner).** [lushly-dev/lushly#2326](https://github.com/lushly-dev/lushly/issues/2326).
 - **FAST-AF docs.** [#1085](https://github.com/lushly-dev/afd/issues/1085).
-- **loam-design (owner).** Whether it becomes a router to `endpoints/loam/docs/design.md`, reversing Loam's D26: [#1086](https://github.com/lushly-dev/afd/issues/1086).
+- **loam-design (owner).** Whether it becomes a router to `endpoints/loam/docs/design.md`, reversing Loam's D26: [#1086](https://github.com/lushly-dev/afd/issues/1086). Decided by the owner on 2026-11-13: it stays a full skill and D26 stands (Loam's D114).
 
 ## Owner decisions (2026-11-03)
 
