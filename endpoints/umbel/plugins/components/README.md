@@ -93,7 +93,7 @@ before it writes. A session that has called the tool is never refused, and any l
 ahead, so a session without this server loses one refusal. Step C5 found that agents did not call
 the tool unless something named it: Claude Code defers MCP tools, and a hook's added context
 arrives only after the write. What it costs is recorded in the
-[Component Briefs status](../../../../docs/features/active/component-briefs/STATUS.md#step-c5-the-setup-and-its-cost).
+[Component Briefs status](../../../../docs/features/complete/component-briefs/STATUS.md#step-c5-the-setup-and-its-cost).
 
 ## Limits
 

@@ -17,7 +17,7 @@ records which hold, and Umbel serves the result.
 - **Not verified:** everything in [Design](#5-design). It is a draft to write
   jobs against. The paths have not been walked by readers who did not write
   them, and the owner has not cut, added or ranked the jobs.
-- **Evidence this rests on:** thin. [Component Briefs](../../active/component-briefs/prototype.md)
+- **Evidence this rests on:** thin. [Component Briefs](../../complete/component-briefs/prototype.md)
   found that better context made an agent's pages cheaper and not measurably
   more correct. [Phase 0](#phase-0-prove-it) tests this proposal's claims
   before any format is written.
@@ -26,7 +26,7 @@ records which hold, and Umbel serves the result.
 | --- | --- |
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (its `components` plugin), `endpoints/loam` (its specimens and design record) |
-| Related | [Specimens status](../../active/specimens/STATUS.md), [Component Briefs status](../../active/component-briefs/STATUS.md), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
+| Related | [Specimens status](../../active/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
 
 ## 1. Problem and goal
 
