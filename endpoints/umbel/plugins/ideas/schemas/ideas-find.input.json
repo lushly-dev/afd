@@ -1,0 +1,73 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"text": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 1024,
+			"description": "Words the wording holds; needed for order rank"
+		},
+		"type": {
+			"type": "string",
+			"description": "One of the pack's types; ideas-guide lists them"
+		},
+		"tags": {
+			"type": "array",
+			"minItems": 1,
+			"maxItems": 8,
+			"items": {
+				"type": "string",
+				"maxLength": 40
+			},
+			"description": "Any of these tags"
+		},
+		"said": {
+			"type": "string",
+			"enum": ["person", "agent", "unknown"],
+			"description": "Who spoke these words, as the caller says; it decides nothing"
+		},
+		"standing": {
+			"type": "array",
+			"minItems": 1,
+			"items": {
+				"type": "string",
+				"enum": ["seed", "affirmed"]
+			},
+			"description": "Only these standings"
+		},
+		"verifiedOnly": {
+			"type": "boolean",
+			"description": "Only what the person affirmed at a verified level"
+		},
+		"state": {
+			"type": "string",
+			"enum": ["live", "declined"],
+			"description": "live (the default) or declined"
+		},
+		"order": {
+			"type": "string",
+			"enum": ["recent", "id", "rank"],
+			"description": "recent (the default), id, or rank, which needs text"
+		},
+		"limit": {
+			"type": "integer",
+			"minimum": 1,
+			"maximum": 200,
+			"description": "Default 50"
+		},
+		"after": {
+			"type": "string",
+			"description": "The next of the page before, for the same query",
+			"maxLength": 2048
+		},
+		"total": {
+			"type": "boolean",
+			"description": "Whether to count; default true"
+		}
+	}
+}

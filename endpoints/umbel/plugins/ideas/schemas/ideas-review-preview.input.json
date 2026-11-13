@@ -1,0 +1,23 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["review", "part", "digest"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"review": {
+			"type": "string",
+			"maxLength": 28
+		},
+		"part": {
+			"type": "string",
+			"maxLength": 64
+		},
+		"digest": {
+			"type": "string",
+			"maxLength": 71
+		}
+	}
+}
