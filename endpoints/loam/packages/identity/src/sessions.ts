@@ -74,6 +74,13 @@ interface SessionRow {
 	[SESSION_METHOD_FIELD]?: string | null;
 }
 
+/**
+ * Whether `revoke-person` also revokes the person's OAuth consents and refresh tokens (4.6). Not until step 7, which
+ * configures the OAuth provider (step 3's deviation 2): until then there are none, and a guard test refuses an OAuth
+ * or consent plugin while this is `false`.
+ */
+export const REVOKES_CONSENTS = false;
+
 /** A refusal the provider answers with Loam's code (section 15). */
 const refuse = (
 	status: 'UNAUTHORIZED' | 'BAD_REQUEST' | 'NOT_FOUND',
@@ -109,13 +116,14 @@ export async function requireFreshPasskeySession(
 	if (held && session[SESSION_METHOD_FIELD] !== 'passkey') throw reauthRequired();
 }
 
-/** The paths whose session 5.8's first row and D99 decide, before Better Auth runs them. */
+/**
+ * The paths whose session 5.8's first row and D99 decide, before Better Auth runs them. Better Auth's own session
+ * revocations are not served at all (`LOAM_DISABLED_PATHS`); Loam's `revoke-person` decides its own.
+ */
 const FRESH_PATHS = new Set([
 	'/passkey/generate-register-options',
 	'/passkey/verify-registration',
 	'/passkey/delete-passkey',
-	'/revoke-other-sessions',
-	'/revoke-sessions',
 ]);
 
 /**
@@ -151,8 +159,9 @@ export function freshSessionHook(context: () => AuthContext | undefined) {
  * past `freshAge`; Better Auth's `/list-sessions` needs a fresh one.
  *
  * - `GET <path>/loam/sessions`: the person's live sessions by handle, never by token, with this one marked.
- * - `POST <path>/loam/revoke-person { target }`: a handle, `others` or `all`. `others` and `all` need a fresh session
- *   made by a passkey for a person who holds one. Step 7 adds the person's OAuth consents and refresh tokens, which
+ * - `POST <path>/loam/revoke-person { target }`: a handle, `others` or `all`. Revoking any session but the caller's
+ *   own, by handle, `others` or `all`, needs a fresh session made by a passkey for a person who holds one (4.6, as
+ *   amended by the review of step 3's B1); revoking the caller's own is a sign-out and needs nothing. Step 7 adds the person's OAuth consents and refresh tokens, which
  *   do not exist until it configures the OAuth provider (9.4).
  */
 export function sessionEndpoints(context: () => AuthContext | undefined) {
@@ -197,7 +206,6 @@ export function sessionEndpoints(context: () => AuthContext | undefined) {
 				const rows = await sessionsOf(ctx, found.user.id);
 				let revoked: SessionRow[];
 				if (target === 'others' || target === 'all') {
-					await requireFreshPasskeySession(context() ?? ctx.context, found);
 					revoked = target === 'all' ? rows : rows.filter((row) => row.token !== own);
 				} else {
 					const named = rows.find((row) => sessionHandle(row.token) === target);
@@ -205,6 +213,10 @@ export function sessionEndpoints(context: () => AuthContext | undefined) {
 						throw refuse('NOT_FOUND', 'SESSION_NOT_FOUND', 'You have no session with this handle');
 					}
 					revoked = [named];
+				}
+				// One handle at a time must not do what `others` may not (B1): only the caller's own needs nothing.
+				if (revoked.some((row) => row.token !== own)) {
+					await requireFreshPasskeySession(context() ?? ctx.context, found);
 				}
 				for (const row of revoked) await ctx.context.internalAdapter.deleteSession(row.token);
 				const signedOut = revoked.some((row) => row.token === own);

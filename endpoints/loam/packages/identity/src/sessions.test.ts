@@ -206,31 +206,85 @@ describe('P3-E3: sessions at the provider (4.3, 4.6)', () => {
 describe('P3-E1: 5.8 at the provider, by direct requests (D99)', () => {
 	it('refuses a passkey registration, a removal or a revocation of others from a stale session', async () => {
 		const stale = await signIn('bea@example.com');
+		const other = await signIn('bea@example.com');
 		age(stale);
 		for (const [path, body] of [
 			['/passkey/generate-register-options', undefined],
 			['/passkey/delete-passkey', { id: 'none' }],
-			['/revoke-other-sessions', {}],
-			['/revoke-sessions', {}],
+			['/loam/revoke-person', { target: 'others' }],
+			['/loam/revoke-person', { target: 'all' }],
+			// One handle at a time is no way around `others` (the review of step 3's B1).
+			['/loam/revoke-person', { target: sessionHandle(rowOf(other).token) }],
 		] as const) {
 			const answer = await call(path, { cookie: stale, ...(body ? { body } : {}) });
-			expect(answer.status, path).toBe(401);
-			expect(codeOf(answer), path).toBe('REAUTH_REQUIRED');
+			expect(answer.status, `${path} ${JSON.stringify(body)}`).toBe(401);
+			expect(codeOf(answer), `${path} ${JSON.stringify(body)}`).toBe('REAUTH_REQUIRED');
 		}
+		expect((await call('/loam/whoami', { cookie: other })).body).not.toBeNull();
+		// Its own session, by its own handle, is a sign-out, which needs nothing.
+		const own = await call('/loam/revoke-person', {
+			cookie: stale,
+			body: { target: sessionHandle(rowOf(stale).token) },
+		});
+		expect(own.body).toEqual({ revoked: 1, signedOut: true });
 	});
 
 	it('refuses a password session of a person who holds a passkey, however fresh', async () => {
 		holdPasskey('olu@example.com');
 		const fresh = await signIn('olu@example.com');
-		for (const path of ['/passkey/generate-register-options', '/revoke-other-sessions']) {
-			const answer = await call(path, {
-				cookie: fresh,
-				...(path.startsWith('/revoke') ? { body: {} } : {}),
-			});
-			expect(codeOf(answer), path).toBe('REAUTH_REQUIRED');
+		const other = await signIn('olu@example.com');
+		const registration = await call('/passkey/generate-register-options', { cookie: fresh });
+		expect(codeOf(registration)).toBe('REAUTH_REQUIRED');
+		for (const target of ['others', sessionHandle(rowOf(other).token)]) {
+			const answer = await call('/loam/revoke-person', { cookie: fresh, body: { target } });
+			expect(codeOf(answer), target).toBe('REAUTH_REQUIRED');
 		}
-		const others = await call('/loam/revoke-person', { cookie: fresh, body: { target: 'others' } });
-		expect(codeOf(others)).toBe('REAUTH_REQUIRED');
+	});
+
+	it("serves none of Better Auth's own session and credential routes, which would skip D99 or answer tokens", async () => {
+		holdPasskey('fay@example.com');
+		const fresh = await signIn('fay@example.com');
+		const victim = await signIn('fay@example.com');
+		for (const [path, body] of [
+			['/list-sessions', undefined],
+			['/revoke-session', { token: rowOf(victim).token }],
+			['/revoke-sessions', {}],
+			['/revoke-other-sessions', {}],
+			['/update-session', { loamMethod: 'passkey' }],
+			['/get-access-token', { providerId: 'corp' }],
+			['/refresh-token', { providerId: 'corp' }],
+			['/account-info', undefined],
+			['/list-accounts', undefined],
+			['/link-social', { provider: 'corp' }],
+			['/unlink-account', { providerId: 'credential' }],
+			['/change-password', { currentPassword: PASSWORD, newPassword: `${PASSWORD}!` }],
+			['/verify-password', { password: PASSWORD }],
+			['/delete-user', {}],
+			['/sign-up/email', { email: 'new@example.com', password: PASSWORD, name: 'New' }],
+		] as const) {
+			const answer = await call(path, { cookie: fresh, ...(body ? { body } : {}) });
+			expect(answer.status, path).toBe(404);
+			expect(JSON.stringify(answer.body), path).not.toContain(rowOf(victim).token);
+		}
+		expect((await call('/loam/whoami', { cookie: victim })).body).not.toBeNull();
+		expect(rowOf(fresh).loamMethod).toBe('password');
+	});
+
+	it("refuses a cookie's request from another origin, whatever NODE_ENV says (CSRF)", async () => {
+		const here = await signIn('dee@example.com');
+		const answer = await provider.auth.handler(
+			new Request(`${ORIGIN}/api/auth/loam/revoke-person`, {
+				method: 'POST',
+				headers: {
+					origin: 'https://evil.example',
+					cookie: here,
+					'content-type': 'application/json',
+				},
+				body: JSON.stringify({ target: 'all' }),
+			})
+		);
+		expect(answer.status).toBe(403);
+		expect((await call('/loam/whoami', { cookie: here })).body).not.toBeNull();
 	});
 
 	it("lets a fresh password session of a person with no passkey yet start their first one's registration", async () => {
