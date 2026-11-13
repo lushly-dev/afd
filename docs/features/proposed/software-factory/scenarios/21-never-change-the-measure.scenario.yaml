@@ -1,0 +1,89 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The last step stands for Jason's own approval: the runner cannot confirm as a person, so the plugin's
+# tests check that a person must.
+name: Never improve the numbers by changing how they are measured or checking less
+description: >-
+  When the factory proposes a change to itself, I want it refused if it would change how the factory is
+  measured or judged, touch a dial only Jason sets, overlap a change already being tested or answer a
+  number that is not a problem, and I want branches that change measures or checks held for Jason, so
+  that every improvement it reports is real and can be told apart from the others.
+job: never-change-the-measure
+tags: [improvement]
+fixture:
+  file: fixtures/guardrails.json
+  base: fresh.json
+steps:
+  - description: The loop's own settings are not the loop's to change
+    command: improvement-propose
+    input:
+      review: review-19
+      metric: idleSeatHours
+      hypothesis: Judge with fewer merges so changes settle sooner.
+      change: { kind: dial, key: review.minMerges, step: down }
+    expect:
+      success: false
+      error:
+        code: MEASURE_CHANGE
+        suggestion: { contains: Jason }
+  - description: A dial Jason owns becomes a question in his queue, not a change
+    command: improvement-propose
+    input:
+      review: review-19
+      metric: idleSeatHours
+      hypothesis: More plan room would start more cells.
+      change: { kind: dial, key: plans.ceiling, step: up }
+    expect:
+      success: false
+      error:
+        code: DIAL_NOT_DELEGATED
+        suggestion: { contains: owner-queue }
+  - description: A second dial experiment is refused while one is running
+    command: improvement-propose
+    input:
+      review: review-19
+      metric: idleSeatHours
+      hypothesis: Start cells sooner so seats are not empty.
+      change: { kind: dial, key: lane.queueTarget, step: up }
+    expect:
+      success: false
+      error:
+        code: EXPERIMENT_OPEN
+        suggestion: { contains: exp-1 }
+  - description: A number that is not an open finding cannot be changed
+    command: improvement-propose
+    input:
+      review: review-19
+      metric: revertsPerMerge
+      hypothesis: Fewer reverts with a stricter pre-queue.
+      change: { kind: issue, title: 'factory: run the unit tests before queueing', body_file: findings/reverts.md }
+    expect:
+      success: false
+      error:
+        code: NOT_ANOMALY
+  - description: A branch that edits how the factory measures is held for Jason
+    command: lane-enqueue
+    input: { worktree: wt/measure }
+    expect:
+      success: true
+      data: { state: held, holdReason: measure-change }
+  - description: A factory branch that changes tests is held the same way, so nothing wins by checking less
+    command: lane-enqueue
+    input: { worktree: wt/loosen }
+    expect:
+      success: true
+      data: { state: held, holdReason: gate-change }
+  - description: Jason's queue holds the dial question and both approvals, each showing its effect
+    command: owner-queue
+    expect:
+      success: true
+      data:
+        items:
+          - { kind: decision, question: { contains: plans.ceiling } }
+          - { kind: approve, ref: fix/health-window, evidence: { exists: true } }
+          - { kind: approve, ref: fix/quarantine-flaky, question: { contains: fewer } }
+  - description: Jason's approval releases the measurement change to the queue
+    command: measure-approve
+    input: { branch: fix/health-window, reason: 'The window now ends when the review opens.' }
+    expect:
+      success: true
+      data: { approved: true, state: queued }

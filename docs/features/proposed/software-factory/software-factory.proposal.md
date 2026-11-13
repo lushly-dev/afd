@@ -1,7 +1,8 @@
 # Software Factory: the merge lane as a botcore plugin
 
 **Status:** Proposed, 2026-11-12; revised the same day after three independent readers
-walked the jobs. **Author:** Claude Code session with Jason.
+walked the jobs. Revised 2026-11-13: [the improvement loop](#the-improvement-loop) added, and
+Phase 0 done. **Author:** Claude Code session with Jason.
 **Origin:** Lushly's [software factory plan](https://github.com/lushly-dev/lushly/blob/main/Docs/features/active/software-factory.plan.md)
 (fleet v2, Lushly #2164 and #2187) and its
 [merge lane runbook](https://github.com/lushly-dev/lushly/blob/main/Docs/operations/merge-lane.md).
@@ -21,6 +22,7 @@ Jason's answers of 2026-11-12.
 | Capacity | The workstation (Ryzen 9 7950X3D, 16 cores / 32 threads, 64 GB) has far more room than the Mac mini (M4, 10 cores, 24 GB) | Validation concurrency is a dial sized per host, not Lushly's fixed "one final at a time" |
 | Jobs | Keep every job; the build order is left to the implementer | The order in [Jobs](#jobs) is the build order |
 | Intake | AFD needs Lushly's triage | An AFD `triage-issues` skill, a label file, and the label and claim rules in the plugin ([Intake](#intake)) |
+| Self-improvement (2026-11-13) | A closed loop: every 12 hours at most, check the factory's health, find what is wrong, change it, and keep the change only if the next check shows it helped. Merges per hour is an indicator to explain, never a finding | [The improvement loop](#the-improvement-loop): five commands, a `health-review` event, seven jobs, guardrails so it cannot improve its numbers by changing its measures or checking less. Lushly's lane gets it first |
 
 ## Goal
 
@@ -113,7 +115,8 @@ checks (a monorepo typecheck included) in one call.
 ### Commands
 
 The draft below is enough to write the [jobs](#jobs) against; the exact specification
-follows approval. Every refusal carries a `suggestion` naming the way forward.
+follows approval. Every refusal carries a `suggestion` naming the way forward. The
+improvement loop's five commands are in [its section](#the-improvement-loop).
 
 | Command | Input | Result `data` | Refusals |
 |---|---|---|---|
@@ -166,6 +169,7 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 | `owner-replied` | Jason replied on an issue in `owner-queue` | Run `triage-issues` on it |
 | `lane-stopped` | The lane process is gone; produced by `lane-status` and `lane-wait` from the lock's process check, since a dead lane cannot report itself | Read the log, `lane-start` |
 | `queue-empty` | Nothing queued, no cell active, owed coverage done | Run `triage-issues`; start cells if work remains; otherwise finish |
+| `health-review` | A review the lane opened has something to answer | `factory-health`; answer every anomaly with `health-explain` or `improvement-propose`; `lane-revert` any experiment judged `revert`. Answered when the review closes ([the improvement loop](#the-improvement-loop)) |
 
 A cell that ends its turn without enqueueing calls no command, so the lane cannot see it.
 The foreman learns it from T3 Code when `delegate_task` completes, and acts at once:
@@ -215,6 +219,8 @@ Everything Lushly hard-codes becomes configuration under `[tool.botcore.factory]
 | `screens` | Capture changed stories and routes before and after, desktop and phone | Lushly's capture script |
 | `preview` | Serve the app for a given commit | `merge-lane preview` |
 | `ignore_branches` | `changeset-release/*` (the release PR is never the lane's) | Same |
+| `measure_paths` | The plugin's records, cause map, health and judging modules and their fixed-records test, and the adapter's `review` keys and this key | Its `merge-lane` report, health and flake-rule code |
+| `trend_issue` | A new issue, as `[sweep]`'s #1098 | A new Lushly issue |
 
 The lane's own record of a validation (head, base, tree, command, result, duration) is
 written for every repository, so the PR's Verification section and the report never depend
@@ -299,7 +305,8 @@ parts, the rules shared through the plugin:
   `loam`, `site`, `spec`, `specimen`, `umbel`, `view-state` and `violet`.
   `status:accepted`, `status:blocked`, `status:needs-info` and the old priority names are
   legacy: triage replaces them. Lushly's `runs:local` and `needs:local-validation` are
-  left out until AFD has a cloud lane.
+  left out until AFD has a cloud lane. The improvement loop adds `area:factory` for the
+  issues it files.
 - **`scripts/issue-labels.mjs`** checks the rules (`check`), compares the file with
   GitHub (`labels`) and lists what a cell may take (`dispatch`), ahead of the plugin.
   `issue-check` will share its rules. `dispatchable` is in dispatch order:
@@ -343,7 +350,8 @@ operator work. Fleet merges carry their changesets like any other PR.
 
 ## AFD prerequisites
 
-Things AFD and the workstation lack that the lane needs:
+Things AFD and the workstation lacked that the lane needs, all done in Phase 0
+(2026-11-13); the fifth was solved by moving `origin` to HTTPS through `gh`:
 
 1. **One required aggregate check.** AFD has 20 path-filtered workflows and no single
    check that says "everything that ran passed". Add one (Lushly's `ci-ok` pattern) and
@@ -393,36 +401,292 @@ Lushly's lane assumes macOS. The plugin must not:
 | `experience.hold` | off | Merging UI changes at once against seeing them first |
 | `lane.autostart` | on | Restarting the lane with the host |
 | `logs.keepDays` | 30 | Disk against history |
+| `review.enabled` | on | The improvement loop at all |
+| `review.minHours` | 12 | How often the factory checks itself, at most |
+| `review.baselineDays` | 7 | A baseline that follows the factory against one that ignores a bad week |
+| `review.minMerges` | 10 | Judging sooner against judging noise |
+| `review.minLaneHours` | 4 | The same, for numbers per lane-hour |
+| `review.maxChecks` | 4 | Reviews an experiment may stay inconclusive before it expires |
+| `review.memoryDays` | 30 | How long a failed change may not be tried again |
+| `review.maxBadVerdicts` | 3 | Failed experiments in a row before the loop turns itself off |
+| `review.cellsMax` | 1 | Cells improving the factory against cells on the backlog |
+| `review.issuesMax` | 3 | Improvement issues open at once |
+| `review.dials` | `lane.slots`, `lane.queueTarget`; `cells.max` and `lane.queueMax` upward | Which dials the loop may step on its own |
+
+The `review.*` dials are Jason's: the loop may not change them (`MEASURE_CHANGE`), and
+`dial-set` on one needs a person's confirmation.
 
 The lane host itself is the `FACTORY_LANE_HOST` variable, set by `lane-host-set`.
 
 ## Measurement
 
-Lushly's five numbers (merged PRs per hour, validations per merged PR, share of validation
-time that produced a merge, stale or killed runs, plan share per merged PR), plus:
-re-runs caused by `main` moving and peak memory and CPU per slot (concurrency), and foreman
-wakes per merged PR (the cost of coordination). `lane-report --compare <run>` gives each
-number's change, so a dial change is judged against the run before it.
+The lane writes a record for every attempt and every merge: when the branch was first
+enqueued, held, validated and merged; the outcome and its cause; the plan, the route and the
+issue's execution profile; the checks and tests the validation ran. `lane-report` and
+`factory-health` compute everything from those records, and agents write no bookkeeping.
+
+Numbers come in three kinds, because some measure the factory and some measure the work it
+was given:
+
+- **Findings** are the factory's own cost and quality. They should not move with how hard
+  the work is, so a lasting change beyond their normal range is the factory's problem.
+- **Indicators** describe the work: throughput, cycle time from claim to merge, plan share
+  per merge. A day of three deep issues is slower, and that is not a regression. An indicator
+  never starts a change, and throughput is judged only after adjusting for the work mix: each
+  merge counts its profile's baseline cycle minutes (a `deep` merge weighs as much as several
+  `bounded` ones), and `adjustedThroughput` is the window's weighted minutes per lane-hour over
+  the baseline's. Raw merges per lane-hour is reported, never judged. What the mix does not
+  account for is flagged, and asks for an explanation, not a fix.
+- **Guards and reports** are never targets. `checksRun` must not fall, so no change wins by
+  checking less; `ownerWaitHours` is Jason's response time, reported but not judged, since the
+  loop cannot change it.
+
+Every finding is also paired with `checksRun`, the guard, so no change wins by checking less.
+
+| Metric | Kind | Better | Unit and source | Spread floor | Paired: must not get worse |
+|---|---|---|---|---|---|
+| `queueWaitMinutes` | finding | down | Per merge, from the first `lane-enqueue` to validation; held time counts, except time held for Jason | 2 | `mainMovedRerunsPerMerge`, `revertsPerMerge`, `adjustedThroughput` |
+| `validationMinutesPerMerge` | finding | down | Per merge | 2 | `revertsPerMerge`, `mainBroken` |
+| `validationsPerMerge` | finding | down | Per merge | 0.1 | `revertsPerMerge` |
+| `flakyRerunsPerMerge` | finding | down | Per merge; a retry inside `validate` counts | 0.1 | `validationMinutesPerMerge` |
+| `mainMovedRerunsPerMerge` | finding | down | Per merge | 0.1 | `queueWaitMinutes` |
+| `toolingEjectionsPerMerge` | finding | down | Per merge, ejections the cause map assigns to the factory or the repository's tooling | 0.1 | `validationMinutesPerMerge` |
+| `idleSeatHours` | finding | down | Per lane-hour: seats empty while dispatchable work waited | 0.1 | `mainMovedRerunsPerMerge`, `revertsPerMerge` |
+| `idleWakesPerMerge` | finding | down | Per merge: foreman wakes that ended with no action | 0.1 | — |
+| `revertsPerMerge`, `experiencesRejected` | finding | down | Per merge | 0.1 | — |
+| `mainBroken` | finding | down | Per lane-hour | 0.1 | — |
+| `checksRun` | guard | not down | Checks and tests per validation | 5% of the median | — |
+| `adjustedThroughput` | indicator | up | Weighted minutes per lane-hour over the baseline's (above) | 0.1 | — |
+| `cycleMinutes` | indicator | down | Claim to merge, per execution profile | 10% of the median | — |
+| `planSharePerMerge` | indicator | down | Per merge | 0.1 | — |
+| `mergedPerLaneHour`, `ownerWaitHours` | report | — | Raw throughput; hours items waited in `owner-queue` | — | — |
+
+"Lane-hours" are hours the lane ran, not clock hours. A per-merge floor of 0.1 is one event
+in `review.minMerges` merges, so a single event never decides anything; a `main-broken` is
+handled at once anyway. Concurrency adds peak memory and CPU per slot. `lane-report --compare
+<run>` gives each number's change between two runs.
+
+## The improvement loop
+
+Jason's direction of 2026-11-13: the factory checks its own health on a schedule, finds
+what is wrong, proposes a change, makes it, and judges it at the next check. A loop that
+changes itself can make itself worse while reporting progress, so most of this section is
+about how a change proves it helped and how one that did not is undone.
+
+### When it runs
+
+The lane opens a review at the end of a run and, in a longer run, every `review.minHours`
+(12), never more often. A lane restart that hands over to new lane code does not end a run.
+A review due while one is still open folds its window into it; one left open past the next
+due time is raised to Jason as a `loop` item in `owner-queue`, so a stalled loop is never
+silent. When the lane opens a review it does every deterministic part itself, before waking
+anyone: it computes the window and its anomalies, judges the experiments that have come due
+and restores the dials of those it reverts. `factory-health` then only reads the review, and
+the `health-review` event wakes a fresh foreman session only if something needs an answer.
+
+### The rules
+
+- **Baseline.** Each metric's values over the reviews of the last `review.baselineDays` (7):
+  their median, and their spread as the median absolute deviation scaled to a standard
+  deviation (`1.4826 × MAD`), never below the metric's floor.
+- **Enough data.** A per-merge metric needs `review.minMerges` (10) merges in the window; a
+  per-lane-hour metric needs `review.minLaneHours` (4). Below that it is `insufficient`, and
+  time-based findings are still judged, so a lane that merged little while work waited is a
+  finding, not silence (job 23).
+- **Anomaly.** A value strictly beyond `median ± 2 × spread` in the worse direction. A number
+  seen there once is `watching` and needs no answer; it becomes an anomaly to answer only when
+  it persists into the next review. This holds for findings and indicators alike. Persistence
+  keeps the loop from treating one unusual window as a level, and from claiming credit when
+  such a window returns to normal by itself.
+- **Indicators.** Throughput is judged on `adjustedThroughput` only. A window whose raw
+  throughput fell but whose adjusted throughput is normal is recorded as `work-mix` with the
+  per-profile numbers, and the review closes without anyone being woken (job 19).
+- **Evidence.** Each anomaly carries what a diagnosis needs: the records that moved it most,
+  their causes and `logPath`s, the window's and the baseline's mix and per-profile values, and
+  for capacity metrics the slots' occupancy and `suggestedSlots`.
+
+### Answering a review
+
+Every anomaly in `review.unanswered` gets one answer:
+
+- `improvement-propose`, for a finding the factory can change (below);
+- `health-explain` with a `cause`: `work-mix`, `outside` (a GitHub outage, a plan reset,
+  naming the event), `follows` (it follows from another anomaly, named in `refs`), or `watch`
+  (not understood yet: carry it to the next review). A finding explained as `outside` in three
+  reviews in a row goes to Jason as a `decision` item.
+
+Owed reverts are answers too: a code change judged `revert` stays in `unanswered` until the
+foreman's `lane-revert` of its PRs. When nothing is unanswered the review closes. The lane comments on
+the repository's trend issue (`trend_issue`, as the bloat sweep does on #1098) only when an
+experiment started or was judged or something went to Jason, and posts one roll-up a week.
+Quiet reviews stay in `factory-health`'s history.
+
+### Experiments
+
+`improvement-propose` takes the anomaly and a change, and the lane fills in the rest: the
+direction comes from the metric, the paired metrics from its table row, and the `before`
+from the windows the anomaly persisted over, frozen. The change is one of:
+
+- **A dial, one step**: `{ kind: dial, key, step: up | down }`, applied at once by the lane.
+  Only `review.dials` may be stepped: `lane.slots` (up to `suggestedSlots`), `lane.queueTarget`
+  and, upward only, `cells.max` and `lane.queueMax`. Lowering capacity, `lane.coverageEvery`
+  (it decides how often `main-broken` can be seen) and Jason's dials (`plans.ceiling`,
+  `fable.ceiling`, `experience.hold`) are refused with `DIAL_NOT_DELEGATED`; the lane files the
+  question in `owner-queue` itself, once per dial and direction, and remembers his answer.
+- **An issue**: `{ kind: issue, title, body_file }`, filed with `area:factory` and
+  `status:triage`, the hypothesis and the experiment in its body. Triage plans it and a cell
+  builds it through the lane like any other work, so the factory improves itself with its own
+  process and behind its own gates. The experiment starts when its PR merges and expires if
+  it has not after `review.maxChecks` reviews.
+
+Refused, checked in this order: a change to the loop's own measures (`MEASURE_CHANGE`); one of
+Jason's dials (`DIAL_NOT_DELEGATED`); a metric that is not an unanswered finding in the open
+review (`NOT_ANOMALY`); the same change for the same metric reverted or expired in the last
+`review.memoryDays` (30) (`ALREADY_TRIED`); a second dial experiment, or one that overlaps an
+open experiment (`EXPERIMENT_OPEN`, naming it); and beyond the budget (`IMPROVEMENT_BUDGET`).
+Two experiments overlap when either one's metric is the other's metric or one of its paired
+metrics; the guard, `checksRun`, is paired with everything and does not count.
+
+**Verdicts**, made by the lane at the first review with `review.minMerges` merges since the
+change:
+
+Here "better" and "worse" are measured against the frozen `before` for the metric, in units
+of its baseline spread, and against each paired metric's own baseline for the pairs.
+
+- **kept**: the metric is better by more than `2 × spread`, no paired metric is worse by
+  more than `2 × spread`, and `checksRun` did not fall. The metric's baseline then restarts
+  from the change, so the new level is the new normal.
+- **trade-off**: the metric is better by more than `2 × spread` but a paired metric is worse
+  by more than that. A dial is restored and a code change is held as it is; either way Jason
+  gets a `decision` showing both numbers, since a trade is his to make.
+- **reverted**: a dial whose metric is worse by more than `1 × spread`. The lane restores the
+  previous value itself.
+- **revert**: a code change whose metric is worse by more than `1 × spread`. The foreman
+  reverts its PRs with `lane-revert`.
+- **inconclusive**: anything else: too few merges, a change within the band, or
+  `confounded` because a merge touching `gate_paths` or an overlapping factory change landed
+  in its window. It carries to the next review.
+- **expired**: inconclusive for `review.maxChecks` (4) reviews. A dial is restored; a code
+  change goes to Jason as a `decision` (keep or revert), because reverting a sound fix as
+  "unproven" only churns.
+
+Verdicts in one review are taken in the order the changes were made.
+
+### Guardrails
+
+- **It never changes how it is measured.** The loop's settings (`review.*`), the records,
+  the cause map, the flake rule, the computation, the judging, the adapter's `measure_paths`
+  key and a fixed-records test that recomputes every number are `measure_paths`. A branch
+  that edits them is held (`holdReason: measure-change`) as an `approve` item in
+  `owner-queue`. The item shows Jason the last `review.baselineDays` of numbers computed with
+  the old code and the new, so he judges an effect, not code. `measure-approve`, which a
+  person confirms, releases it; experiments on the affected metrics end inconclusive and
+  their baselines restart. Held branches are not queued by `queue-room`.
+- **It never improves by checking less.** An `area:factory` branch that touches `gate_paths`,
+  or whose validation runs fewer checks than `main`'s, or that deletes or skips a test, is
+  held the same way (`holdReason: gate-change`), its item saying in plain words what it stops
+  checking. Adding tests holds nothing. Every experiment is paired with `checksRun`.
+- **One dial at a time, and no overlap**, so every change can be told apart from the others.
+- **A budget.** At most `review.cellsMax` (1) cells work on the factory at once and at most
+  `review.issuesMax` (3) improvement issues are open; `issue-check` and `canStartCell` skip
+  `area:factory` issues while the budget is full, so they never block the backlog.
+- **It stops on harm.** A `main-broken`, or a `lane-revert` that no verdict owed, while an
+  experiment is running ends the experiments whose change preceded it: dials are restored at
+  once, code is judged `revert`, and the event names the experiments it ended. Counting
+  `reverted`, `revert` and `expired` verdicts in the order they were made, after
+  `review.maxBadVerdicts` (3) in a row without a `kept` the lane turns the loop off
+  (`review.enabled`) and leaves Jason one `loop` item saying what failed and that the break
+  itself may have had another cause (job 24).
+- **It can be turned off.** With `review.enabled` off, no review opens, running experiments
+  end as `stopped` with the dials they set listed (left as they are, for Jason to keep or
+  reset), and held branches stay held. Turning it on needs a person's confirmation.
+- **It judges itself.** `factory-health`'s `loop` and the weekly roll-up compare every finding
+  with a baseline frozen before the loop's first change, and count kept, reverted and expired
+  verdicts, the harm it caused (reverts, `main-broken`) and its own cost (review sessions and
+  their plan share). Jason reads in one place whether the loop is earning its keep.
+
+### Commands
+
+| Command | Input | Result `data` | Refusals |
+|---|---|---|---|
+| `factory-health` | `review?` (default the latest) | `review { id, state, unanswered[], note?, trendComment? }`; `window { from, to, merges, laneHours, byProfile }`; `metrics { <key>: { kind, value, baseline { median, spread }, state } }` with `state` one of `normal`, `watching`, `high`, `low`, `insufficient`; `anomalies[] { metric, kind, state, persisted, evidence }`; `verdicts { <experiment>: { verdict, because, restored?, prs? } }`; `loop { enabled, sinceStart { <finding>: change }, kept, reverted, expired, harm, reviews, planShare }`. A read: the lane computed it | `NOT_FOUND` |
+| `health-explain` | `review`, `metric`, `cause` (`work-mix`, `outside`, `follows`, `watch`), `note`, `refs?` | `review { state, unanswered[], trendComment? }` | `NOT_FOUND`, `NOT_ANOMALY` |
+| `improvement-propose` | `review`, `metric`, `hypothesis`, `change` | `experiment { id, state, before, paired[] }`; for a dial `applied { key, value, previous }`; for an issue `issue { number, labels }`; `review { state, unanswered[], trendComment? }` | `NOT_ANOMALY`, `MEASURE_CHANGE`, `DIAL_NOT_DELEGATED`, `EXPERIMENT_OPEN`, `ALREADY_TRIED`, `IMPROVEMENT_BUDGET`, `DIAL_OUT_OF_RANGE` |
+| `improvement-list` | `state?` (`proposed`, `running`, `kept`, `trade-off`, `reverted`, `expired`, `stopped`), `limit?`, `cursor?` | `experiments[] { id, metric, change, state, before, after, checks, verdict? }` | — |
+| `measure-approve` | `branch`, `reason` | `approved`, `state`: a branch held for `measure-change` or `gate-change` joins the queue. A person confirms | `NOT_FOUND` |
+
+`factory-health` and `improvement-list` are reads (`inspect`); the others write state
+(`history-write`), and `improvement-propose` also writes to GitHub (`service`).
+`lane-enqueue`'s result gains `holdReason`, `owner-queue`'s kinds gain `approve` and `loop`,
+`cell-register` gains `IMPROVEMENT_BUDGET`, and `main-broken` carries `endedExperiments`.
+
+### Lushly's lane first
+
+Lushly has run its lane since 2026-11-11, so it can judge on real numbers now, while AFD's
+lane will need a week of runs after Phase 2 for a baseline. The loop goes into Lushly's
+`scripts/merge-lane*.mjs` first, and the plugin ports rules that have been judged. The rules
+(baseline, anomaly, verdict) are small and pure and written to port; the records and commands
+are each lane's own.
+
+What Lushly already has: its `report` computes merges per hour, finals per merge, the share
+of final time that merged, killed and outside-stale runs and per-route ejections; its issues
+carry the same execution profiles (`frontier` included); its dials are re-read at each step
+from `~/.config/lushly/factory.json`.
+
+What it has to add:
+
+- **Records it does not keep yet.** The issue's execution profile on `merged`; when a cell
+  started (no event records it, and merged cells leave `state.json`), so cycle time can be
+  computed; flakes as events (today they are only in receipts); foreman wakes; idle seats
+  while work waited; time items waited on Jason; plan use per merge (it is read only at a
+  run's start and stop).
+- **Its own definitions.** `flakyRerunsPerMerge` is finals with a recorded flake
+  (`passed-with-flake`, the flake rule's single re-run of at most two tests) per merge; a
+  flake-cap failure is a tooling ejection. Review lanes run in the cell, not the lane, so
+  they are not measured. The cause map uses Lushly's names: `lane-error`, `main-suspect`,
+  `merged-without-ci-ok` and `lane-stopped-unexpectedly` are the factory's; `stale-external`
+  is not; `install-failed`, `pr-closing-issues`, `pr-closed`, `pr-head-changed` and the
+  retired `ci-timeout` are classified one by one. Merges made outside the lane are left out.
+- **Its own commands**: `merge-lane health`, `explain`, `improve`, `experiments` and
+  `approve`; `health-review` through `wait` and `foreman.webhook`. `wait` marks an event seen
+  when read, so an open review stays visible in `health`, not only in the event. A handover
+  restart (`run-stopped` with `handover: true`) does not end a run.
+- **A measure hold it does not have.** Lushly's lane has no held state and no owner queue,
+  and its gate paths merge with no one holding them. So `enqueue` refuses a branch that
+  touches the measure paths, or an `area:factory` branch touching gate paths or tests, until
+  `merge-lane approve <branch>` records Jason's approval. That matters more there, because the
+  lane restarts itself onto merged lane code.
+- **Its dials and records in a place that lasts**: the experiments and baselines in a data
+  directory, not `~/.cache/lushly/merge-lane/`; the delegated dials without `lane.slots`,
+  which Lushly does not have; a trend issue in Lushly.
 
 ## Phases
 
-- [ ] **Phase 0: prerequisites.** Intake (the label file, `triage-issues` and `issue-check`
-  ahead of the rest of the plugin), the aggregate required check, the pre-push hook that
-  accepts the lane's record, and the workstation's symlinks, toolchain, SSH alias and pnpm
-  store.
+- [x] **Phase 0: prerequisites.** Done 2026-11-13. Intake: the label file, `issue-labels.mjs`
+  and `triage-issues` (#1100), with the backlog triaged. `ci-ok`, one verdict for every pull
+  request (#1123), required on `main`, with the release pull request opened by the release
+  App so it gets one (#1136). Pre-push accepts a `pnpm verify` record for the exact commit
+  pushed (#1127). The workstation: Developer Mode and symlinks, pnpm, Python through uv, `gh`
+  signed in, a pnpm store it owns, `origin` over HTTPS through `gh` instead of the SSH alias;
+  and the tooling, alfred and workspace tests passing on Windows (#1115, #1121, #1130, #1134),
+  so the full pre-push hook runs there with nothing skipped.
 - [ ] **Phase 1: the plugin, one slot.** botcore's host changes (`add_policy`, input
   schemas and descriptions in the catalog, wrong-case refusals, confirmations); then
   `botcore-factory` with its two hosts and bounded output; the adapter; host probing and
   selection; the webhook wake; Windows and macOS process control; experience review; tests
   against a fixture repository. `prepare-pr` lane
   mode and `run-fleet` in AFD. Run one AFD fleet on the workstation and report the
-  numbers.
+  numbers. The lane records every number [Measurement](#measurement) names from its first
+  run, so the improvement loop has a baseline when it arrives.
 - [ ] **Phase 2: concurrency.** `lane.slots` above 1, the shared host lock, the
   re-validate-on-moved-main rule; measure against Phase 1.
 - [ ] **Phase 3: cells on other machines.** `lane-handoff` from the Mac mini and the
   MacBook Air, so their plans feed the workstation's lane.
 - [ ] **Phase 4: Lushly moves on.** A Lushly adapter (receipts, review lanes, flake rule,
   its pre-queue check) reaches parity with `scripts/merge-lane.mjs`; Lushly's lane retires.
+- [ ] **Phase 5: the improvement loop.** First in Lushly's lane, which has the history to
+  judge on now; then in the plugin, once AFD's lane has a week of runs after Phase 2. It can
+  run beside Phases 3 and 4.
 
 ## Jobs
 
@@ -449,6 +713,13 @@ what one AFD fleet on the workstation needs; the rest follow in the order listed
 | 15 | 02 | Move the lane to another machine without stranding a branch | |
 | 16 | 17 | Replace a lane host that went offline | |
 | 17 | 13 | Hand over, repair and watch a branch from another machine | handoff |
+| 18 | 23 | Stay quiet when there is too little to judge | improvement |
+| 19 | 19 | Treat a hard day as a hard day | improvement |
+| 20 | 18 | Spot a real regression in the factory's own overhead | improvement |
+| 21 | 21 | Never improve the numbers by changing how they are measured or checking less | improvement |
+| 22 | 20 | Keep a change only if it helped | improvement |
+| 23 | 24 | Stop when the loop does harm | improvement |
+| 24 | 22 | Turn a finding into work the factory does on itself, within a budget | improvement |
 
 ### What writing and walking them changed
 
@@ -517,20 +788,80 @@ Declined: an asynchronous pre-queue check. Cells call the host's CLI, which has 
 time limit, and a refusal the cell sees at once is cheaper than one it hears about after
 ending its turn.
 
+The improvement loop's jobs (18 to 24) were written on 2026-11-13 and walked the same day by
+two readers who had not written them: one as Jason and the foreman, drafting its own job list
+from Jason's words before reading; one as the calling agent with only the catalog, checking
+the rules and the Lushly section against Lushly's runbook. What changed:
+
+- **No credit for chance.** A finding is acted on only when it persists into a second review;
+  an experiment is judged against a `before` frozen over those windows; the baseline restarts
+  at a kept change. One unusual window returning to normal was being scored as a kept change.
+- **The rules are specified:** a table of every metric's kind, direction, unit and paired
+  metrics; spread as scaled MAD with a floor; anomalies only in the worse direction; per
+  lane-hour numbers judged on few merges; an `expired` verdict, and expired code going to
+  Jason instead of being reverted.
+- **Indicators are adjusted for the work mix** by the lane, so a hard day closes its review
+  without waking anyone (job 19, reframed from "explain a slow day").
+- **More ways it could look better without being better are closed:** `checksRun` paired with
+  everything; `area:factory` branches touching gates or tests held like measure changes;
+  queue wait counted from the first enqueue; `lane.coverageEvery` and capacity cuts taken from
+  the delegated dials; one dial experiment at a time and no overlapping metrics; `NOT_ANOMALY`
+  and `ALREADY_TRIED`.
+- **It stops on harm and can be turned off** (job 24): a `main-broken` or revert ends the
+  experiments before it at once, and three failed verdicts in a row turn the loop off.
+- **The lane does the deterministic work:** it computes the review, judges the experiments and
+  restores dials when it opens a review; `factory-health` is a read; a dial change is a step,
+  not a value; the event wakes the foreman only when something needs an answer.
+- **The foreman can diagnose:** anomalies carry their evidence; `health-explain` takes a
+  structured cause (`work-mix`, `outside`, `follows`, `watch`), not prose.
+- **Fewer interruptions:** the trend issue gets a comment only when something happened, and a
+  weekly roll-up; a stalled review or a repeated "outside" becomes one item for Jason.
+- **Lushly's section corrected:** the records it lacks (profile on `merged`, cell start,
+  flakes as events, foreman wakes, idle seats, plan use per merge), its own cause names and
+  flake definition, no review-lane measures, a refusal in place of a hold it does not have, and
+  state outside its cache directory.
+
+Declined: switching a kept dial off for one window as a control. Persistence and the frozen
+`before` answer most of what it would, at a cost of a deliberately worse window each time;
+it can be added if the loop's own score shows kept changes fading.
+
+A third reader walked that revision in all three seats and recomputed every expected value
+from the stated rules and the fixtures. What changed:
+
+- **Experiments stop confounding each other:** only an overlapping factory change or a merge
+  touching `gate_paths` confounds; overlap is defined, with the guard left out; refusals are
+  checked in a stated order; `checksRun` is paired with every finding.
+- **The loop's own work is not harm:** a revert a verdict owes does not end experiments, and
+  the bad-verdict count is `reverted`, `revert` and `expired`, in the order changes were made.
+- **Noise cannot drive it:** persistence always, indicators included, with the one-window
+  exception gone; spread floors stated; a paired metric fails only past `2 × spread`; an
+  improved metric with a worse pair is a `trade-off` for Jason, not a failure; every case has a
+  verdict.
+- **Throughput has an exact formula** (profile-weighted minutes per lane-hour), and raw merges
+  per lane-hour is reported only.
+- **Jason is asked less and told more:** a factory branch is held only when it checks less,
+  not for adding tests; his own response time is left out of queue wait; `factory-health`
+  carries the loop's comparison with its pre-loop baseline; Phase 5's exit is four roll-ups.
+- **The fixtures share one timeline** (exp-1 to exp-9, 2030-01-09 to 01-25), each loaded
+  through the lane's review-open step, and every expected value follows from the rules.
+
 ### What scenarios cannot show
 
 The lane's loop (validation, merging, CI waits, screens) runs between commands, so jobs
-08, 12, 15 and 16 start from fixture state the loop would have written. Every step runs as
+08, 12, 15 and 16 start from fixture state the loop would have written, and the improvement
+jobs (18 to 24) from the review the lane computed when it opened it. Every step runs as
 the same test actor, so the effect rules (a cell refused an `operate` command) need the
 plugin's unit tests. Throughput, re-run cost, host load and foreman cost need the
-measurements above.
+measurements above. Whether the loop's thresholds separate a real regression from noise, and
+whether the changes it keeps are real, needs weeks of reviews: the loop's own score on the
+trend issue is that measure.
 
 ### Checks
 
-Run 2026-11-12 after the second revision
+Run 2026-11-13 after the loop's revision
 ([jobs first](../../../../.claude/skills/afd/references/jobs-first.md)): `afd scenario
-validate` and the dry-run check pass all 17 files with fixtures resolved. The coverage
-report uses 30 of 31 drafted commands (all but `lane-run`, kept for debugging) and 18 of 24
+validate` and the dry-run check pass all 24 files with fixtures resolved. The coverage
+report uses 35 of 36 drafted commands (all but `lane-run`, kept for debugging) and 24 of 30
 error codes; no scenario calls an undrafted command.
 
 Six refusals have no scenario. Five depend on the environment, which a fixture cannot
@@ -545,6 +876,9 @@ but is not yet. The plugin's unit tests cover all six.
   run on the workstation with its numbers reported.
 - Phase 2: the `concurrency` scenarios pass and the measured re-run cost is reported.
 - Phase 3: the `handoff` scenarios pass.
+- Phase 5: the `improvement` scenarios pass, and on a real lane four weekly roll-ups show the
+  loop's verdicts, its harm and its cost, with the kept changes still holding against the
+  baseline frozen before the loop began.
 
 ## Open questions
 

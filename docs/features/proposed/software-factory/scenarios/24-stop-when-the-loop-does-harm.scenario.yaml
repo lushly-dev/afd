@@ -1,0 +1,49 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The fixture is the lane's state when main broke; loading it runs what the lane does then: it ends the
+# experiments whose change preceded the break and counts their verdicts. Turning the loop back on needs a
+# person's confirmation, which a scenario cannot give.
+name: Stop when the loop does harm
+description: >-
+  When main breaks while the factory is testing a change to itself, I want that change undone at once rather
+  than at the next review, and the loop turned off after repeated failures with one note for me, so that the
+  loop can never keep harming the factory while it waits to judge itself.
+job: stop-when-the-loop-does-harm
+tags: [improvement]
+fixture:
+  file: fixtures/harm.json
+  base: fresh.json
+steps:
+  - description: The foreman learns that main broke
+    command: lane-wait
+    input: { consumer: foreman, timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { type: main-broken, endedExperiments: [exp-9] }
+  - description: >-
+      The running experiment ended at once and its dial was restored; a third failed verdict in a row
+      turned the loop off
+    command: factory-health
+    expect:
+      success: true
+      data:
+        verdicts:
+          exp-9:
+            verdict: reverted
+            because: { contains: main-broken }
+            restored: { key: lane.slots, value: 2 }
+        loop: { enabled: false }
+  - description: The dial is back where it was
+    command: dial-get
+    input: { key: lane.slots }
+    expect:
+      success: true
+      data: { key: lane.slots, value: 2 }
+  - description: Jason has one note saying the loop stopped and why
+    command: owner-queue
+    expect:
+      success: true
+      data:
+        items:
+          - { kind: loop, question: { matches: 'three[\s\S]*PR 640' } }
