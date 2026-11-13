@@ -1,0 +1,26 @@
+{
+	"hooks": {
+		"PreToolUse": [
+			{
+				"matcher": "Write|Edit",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node \"${CLAUDE_PROJECT_DIR}/scripts/components-brief-hook.mjs\" pre"
+					}
+				]
+			}
+		],
+		"PostToolUse": [
+			{
+				"matcher": "mcp__umbel__components-brief",
+				"hooks": [
+					{
+						"type": "command",
+						"command": "node \"${CLAUDE_PROJECT_DIR}/scripts/components-brief-hook.mjs\" post"
+					}
+				]
+			}
+		]
+	}
+}
