@@ -39,14 +39,15 @@ Today the rules are fixed in two places:
   `<prefix>:<verb>` (`src/surfaces/http.rs:387`).
 
 An Entra deployment breaks each of these: its access tokens are typed `JWT`, carry a GUID audience, `uti`, `azp` and
-`scp`; its passkey `amr` is `fido` and `mfa`; it reports no `phr`; its discovery omits `amr` from `claims_supported`.
+`scp`; by its documentation, not yet by a tenant, its passkey `amr` is `fido` and `mfa` and it reports no `phr`; its
+discovery omits `amr` from `claims_supported` (seen in public tenant metadata).
 
 | Rule | How this serves it |
 | --- | --- |
-| Defaults stay strict | Every new setting defaults to today's rule. A file that sets none of them behaves exactly as today |
+| Defaults stay strict | Every new setting defaults to today's rule. A file that sets none of them checks tokens and logins exactly as today and writes byte-identical records, since the standard rule records no evidence (6.3) |
 | Loosening is explicit | A deployer loosens only by naming a setting or a preset. Nothing widens by detection |
 | The doctor says what is lost | Each loosened rule warns, naming what Umbel can no longer check |
-| Records tell strong from weak | Every person decision records the rule and the evidence that proved it, and a login proven by the deployer's own rule has its own level |
+| Records tell strong from weak | A login proven by the deployer's own rule has its own level, `declared`, and records the rule and the evidence that proved it; `verified` still means today's rule |
 
 ## 1. Where each part belongs (D183)
 
@@ -88,13 +89,19 @@ Rules, added to M3:
   `audience`. There is no URL comparison. Without one, M3.1 applies unchanged. Either way, `credentials.resource` stays
   the configured resource.
 - **Rule 7.** The required claims are `exp`, `iat`, `sub`, the token id claim and the client id claim, under today's
-  limits. **When the token types admit `JWT`, at least one of the scope claims must be present: else `claims`.** An
-  OpenID Connect ID token is also typed `JWT` and carries no `scp` or `roles`, so it cannot pass as an access token.
-  The audience is the second guard: Umbel refuses at open a profile whose audience is a person-login client id (3.2).
+  limits. **When the token types admit `JWT`, two more rules hold, each refusing with `claims`: at least
+  one of the scope claims is present; and none of `nonce`, `at_hash` or `c_hash` is present.** An OpenID Connect ID
+  token is also typed `JWT`. The first rule alone is not enough: an Entra ID token carries `roles` when its user holds
+  app roles, and the `entra` preset reads `roles`. Without the second, only its missing `azp` (a v2 ID token has none)
+  would stop it, which is an accident, not a rule. The second is the guard: an ID token carries `nonce` when the login
+  sent one (OIDC Core 3.1.3.6 and 2), often `at_hash` or `c_hash`, and an access token carries none of the three. The
+  audience is a further guard, for Umbel's own logins only: Umbel refuses at open a profile whose audience is one of
+  its person-login client ids (3.2). It cannot see the provider's other clients, hence the Entra checklist's API app
+  with no redirect URIs (7.4).
 - **Rule 9.** Each scope claim is read in the profile's order. `scope` and `scp` are strings under M3.2's grammar.
   `roles` is an array of strings, each one M3.2 scope token. A claim of the wrong type, or a bad token, is
-  `scope-malformed`. Absent claims grant nothing. The scopes join in that order, a repeat counting once at its first
-  place. The qualifier (2.2), then the prefix and the limit, apply to the joined list.
+  `scope-malformed`. Absent claims grant nothing. The scopes join in that order. The qualifier (2.2) is stripped
+  from each, then a repeat counts once at its first place, then the prefix and the limit apply.
 - **M4.** `clientId` is the client id claim's value; `scopes` the joined list. Nothing else changes.
 
 A profile is refused when built (an error naming the setting, as `TokenRules` refuses today) for: an empty set; a
@@ -109,7 +116,8 @@ Default: none.
 - **Verification (M3.2).** With a qualifier, a scope token that starts with it is read as the rest. A token equal to
   the qualifier alone is dropped. Bare tokens are read as today. So both a qualified and a bare token verify.
 - **Publishing (M5, M7).** Every scope the server publishes is prefixed with it: `scopes_supported`, the 401's
-  `scope`, the 403's `scope`, and the scopes named in the 403 body's and `INSUFFICIENT_SCOPE`'s suggestion. Scope
+  `scope`, the 403's `scope`, and the scopes named in the 403 body's and `INSUFFICIENT_SCOPE`'s suggestion.
+  `INSUFFICIENT_SCOPE`'s `details.scopes` (M6) is qualified too, so a client requests exactly what it names. Scope
   decisions inside the server stay bare.
 
 ### 2.3 Names per language
@@ -119,7 +127,7 @@ Default: none.
 | Profile | `ClaimProfile::default()`, `.with_token_types(I) -> Result`, `.with_audience(s) -> Result`, `.with_token_id_claim(TokenIdClaim)`, `.with_client_id_claim(ClientIdClaim)`, `.with_scope_claims(I) -> Result`; enums `TokenType { AtJwt, Jwt }`, `TokenIdClaim { Jti, Uti }`, `ClientIdClaim { ClientId, Azp, Appid }`, `ScopeClaim { Scope, Scp, Roles }` | `createClaimProfile(options?: ClaimProfileOptions): ClaimProfile` with `tokenTypes?: ('at+jwt' \| 'JWT')[]`, `audience?`, `tokenIdClaim?: 'jti' \| 'uti'`, `clientIdClaim?: 'client_id' \| 'azp' \| 'appid'`, `scopeClaims?: ('scope' \| 'scp' \| 'roles')[]`; throws on an invalid option | `ClaimProfile(token_types=("at+jwt",), audience=None, token_id_claim="jti", client_id_claim="client_id", scope_claims=("scope",))`, frozen; `ValueError` on an invalid one |
 | On an issuer | `JwtIssuer::with_profile(self, ClaimProfile) -> Self` | `JwtIssuer.profile?: ClaimProfile \| ClaimProfileOptions` | `JwtIssuer(profile=...)` |
 | Rule functions | `check_jws_header_for(header, algorithms, &ClaimProfile)`, `check_claims_for(claims, issuer, rules, &ClaimProfile, now, certificate)`; today's `check_jws_header` and `check_claims` keep their signatures and use the default profile (`claims.rs:198`, `:325`) | `checkJwsHeader(header, algorithms, profile?)`, `checkClaims(claims, issuer, rules, now, certificate?, profile?)` (`mcp-auth-rules.ts:235`, `:345`) | `check_jws_header(header, algorithms, profile=None)`, `check_claims(..., profile=None)` |
-| Qualifier | `TokenRules::with_scope_qualifier(q) -> Result` (beside `with_scope_prefix`, `claims.rs:85`); `ProtectedResource::with_scope_qualifier(q) -> Result` (beside `with_scopes_supported`, `resource.rs:178`) | `TokenRulesOptions.scopeQualifier`, `ProtectedResourceOptions.scopeQualifier` (`mcp-auth-rules.ts:102`, `mcp-auth-resource.ts:130`) | `TokenRules(scope_qualifier=None)`, `ProtectedResource(scope_qualifier=None)` |
+| Qualifier | `TokenRules::with_scope_qualifier(q) -> Result` (beside `with_scope_prefix`, `claims.rs:85`); `ProtectedResource::with_scope_qualifier(q) -> Result` (beside `with_scopes_supported`, `resource.rs:178`) | `TokenRulesOptions.scopeQualifier`, `ProtectedResourceOptions.scopeQualifier` (`mcp-auth-rules.ts:102`, `mcp-auth-resource.ts:124`) | `TokenRules(scope_qualifier=None)`, `ProtectedResource(scope_qualifier=None)` |
 
 Every new item is additive with today's default, so it is a minor release in each package.
 
@@ -131,7 +139,8 @@ Every new item is additive with today's default, so it is a minor release in eac
 - `claims`: a case's `config` may carry `profile`. Cases: a GUID audience accepted byte-equal and refused in another
   case; an array of one accepted and of two refused; `uti` and `azp` read; `appid` read; `jti` missing under a `uti`
   profile accepted; `uti` missing refused with `claims`; `scp` and `roles` joined in order with a repeat counted once;
-  `roles` not an array is `scope-malformed`; under a `JWT` profile no scope claim is `claims` (the ID-token case);
+  `roles` not an array is `scope-malformed`; under a `JWT` profile no scope claim is `claims` (the ID-token case); under a `JWT` profile `roles` with `nonce`, with
+  `at_hash` and with `c_hash` are each `claims`; under the default profile `nonce` is ignored, as today;
   under a `JWT` profile an empty `scp` passes with no scopes.
 - `scopeClaims`: a case may carry `qualifier`. Cases: qualified read as bare; bare read as bare; the qualifier alone
   dropped; a qualified scope outside the prefix dropped; the limit counted after the qualifier.
@@ -162,7 +171,8 @@ scope_claims = ["scp", "roles"]                      # "scope" | "scp" | "roles"
 `IssuerConfig` (`src/workspace/hosted.rs:321-348`) gains `preset: Option<Preset>` and `profile: ClaimProfileConfig`
 (the five settings, with defaults). `ISSUER_KEYS` (`hosted.rs:78-89`) gains the six keys; `AUTH_KEYS` gains
 `scope_qualifier`. They are configuration version 7 keys: a version 5 or 6 file naming them is refused with "needs
-config_version = 7", as `is_v7_key` (`src/workspace/person.rs:257`) answers today.
+config_version = 7": `is_v7_key` (`src/workspace/person.rs:257`, beside `TOP_KEYS_V7` at `:18`) gains
+`auth.scope_qualifier`, the six `auth.issuers.<alias>` keys and 5's `auth.namespaces.<ns>.person` keys.
 
 ### 3.2 Rules at open
 
@@ -182,7 +192,7 @@ Each fails with `WORKSPACE_CONFIG_INVALID` naming the key:
 ### 3.3 Verifier and metadata
 
 - `token_rules` (`src/auth/verifier.rs:82-101`) adds `.with_scope_qualifier(q)` when `auth.scope_qualifier` is set.
-- `HostVerifier::from_config` (`verifier.rs:112`) builds each JWT issuer's `ClaimProfile` from its settings and calls
+- `HostVerifier::from_config` (`verifier.rs:114`) builds each JWT issuer's `ClaimProfile` from its settings and calls
   `JwtIssuer::with_profile`.
 - `protected_resource` (`src/surfaces/http.rs:366-389`) adds `.with_scope_qualifier(q)`. `scopes_supported` becomes
   `["<qualifier><prefix>:read"]`, and every challenge names qualified scopes (2.2).
@@ -214,7 +224,7 @@ A namespace's person login (`PersonLogin`, `hosted.rs:353-368`) gains, in config
 - **The request** (phase 5, 7.2 step 2; `authorization_url`, `oidc.rs:541-570`): `scope` is `scopes` joined by
   spaces. The `claims` request's `id_token` member holds `amr` and `auth_time` as essential (as today), `acr` with
   the standard rule's and every `acr` rule's values when any exists, and `acrs` with every `acrs` rule's values when
-  any exists. One value is sent as `"value"`, several as `"values"` (OIDC Core 5.5.1). `acr_values` is sent only when
+  any exists. Values are always sent as `"values"`, as today (`oidc.rs:551`), even when there is one. `acr_values` is sent only when
   some rule reads `acr`, holding those values.
 - **The `claims_supported` check** (`login_findings`, `oidc.rs:48-133`): the claims required are `amr`, plus `acr`
   when some rule reads it, plus `acrs` when some rule reads it. A published list lacking one fails, as today, or
@@ -276,7 +286,9 @@ as the strict choice. A warning never stops the page: the deployer chose the rul
 
 ### 6.3 What is recorded (D187)
 
-Every login the page accepts records **how** it was proven:
+**The standard rule records no evidence**: its level, `verified`, names the rule, so a deployment with no declared
+rule writes records byte-identical to today's (envelope version 3, no new member). A login a declared rule proves
+always records how:
 
 ```json
 "evidence": { "rule": "entra-passkey", "acrClaim": "acrs", "amr": ["fido", "mfa"] }
@@ -291,16 +303,26 @@ Where it is recorded:
 | Shape | Change | Where today |
 | --- | --- | --- |
 | `Proved` | Gains `level` and `evidence` | `src/person/oidc.rs:218-224` |
-| Person decision, version 2 | Gains `evidence`: `null` until decided, the object after; `level` may be `declared` | `schemas/person-decision.v2.json` (H1) |
+| Person decision, version 2 | Gains an optional `evidence`, present only on a decided `declared` decision; `level` may be `declared` | `schemas/person-decision.v2.json` (H1) |
 | `PersonMark` | Gains `evidence`; `level` from the login, no longer the constant `"verified"` | `src/person/mod.rs:121`; `src/person/service.rs:656` |
-| `umbel_sdk::PersonDecision` | Gains `evidence: Option<Evidence>` (`None` for `local`); `level` may be `declared` | `sdk/src/cx.rs:143-165` |
-| `umbel_store::Assurance` | Gains `evidence: Option<Evidence>`. Level `declared`, method `person-page`, with `namespace`, `authTime`, `acr` and `evidence` all required. A `verified` assurance may carry `evidence`; new writes always do. `Assurance::declared(namespace, auth_time, acr, evidence)` and `Assurance::with_evidence(evidence)` | `store/src/envelope.rs:145-223` |
-| Provenance envelope, version 4 | Admits `declared`, and `evidence` on `verified` and `declared` (`is_valid`, `envelope.rs:204`). An envelope holding either is written as version 4 | `schemas/provenance-envelope.v4.json` |
+| `umbel_sdk::PersonDecision` | Gains `evidence: Option<Evidence>` (`None` for `local` and `verified`); `level` may be `declared` | `sdk/src/cx.rs:143-165` |
+| `umbel_store::Assurance` | Gains `evidence: Option<Evidence>`. Level `declared`, method `person-page`, with `namespace`, `authTime`, `acr` and `evidence` all required. A `verified` assurance never carries `evidence`. `Assurance::declared(namespace, auth_time, acr, evidence)` and `Assurance::with_evidence(evidence)` | `store/src/envelope.rs:145-223` |
+| Provenance envelope, version 4 | Admits `declared` with `evidence` (`is_valid`, `envelope.rs:204`). An envelope holding it is written as version 4; one holding `verified` keeps today's version | `schemas/provenance-envelope.v4.json` |
 | Principal version 1, `humanPresent` | `level` may be `declared`, with the fields `verified` requires | `schemas/principal.v1.json`; `src/principal.rs:75` |
-| `AssuranceLevel` | Gains `Declared` (`"declared"`); `ALL` holds four. `DEFAULT_VERIFIED_LEVELS` is unchanged: `terminal` and `verified` | `src/workspace/person.rs:47-80` |
+| `AssuranceLevel` | Gains `Declared` (`"declared"`), last, after `Local`, so the derived `Ord` of the three existing levels is unchanged; `ALL` holds four. `DEFAULT_VERIFIED_LEVELS` is unchanged: `terminal` and `verified` | `src/workspace/person.rs:47-80` |
 
 `Evidence` is one struct in `umbel_store` (`rule: String`, `acr_claim: String`, `amr: Vec<String>`, serialised in
 camel case, `deny_unknown_fields`), re-exported by the SDK.
+
+**Sites that write or accept `"verified"` today**, each changed exactly so:
+- Resume gates, `src/person/mod.rs:273-280` and `:422-429`: accept a mark and a `humanPresent` whose `level` is
+  `verified` **or** `declared`, only with `method` `person-page`. Any other pairing is refused as today. Step H3 of the
+  review host specification edits `:273-280` too, for its local arm.
+- `src/person/service.rs:656` and `:668` (`PersonMark`, `HumanPresent`): the login's level, not the constant.
+- `src/person/service.rs:692` (the journal record's input) and `src/shared/person.rs:141` (the decision record's
+  `level`): the decision's level.
+- `src/shared/person.rs:186-196` is the login attempt's state `verified`, not an assurance level: unchanged.
+- `src/person/mod.rs:515`, `:528` and `src/person/service.rs:1024` are tests: unchanged, each with a `declared` twin.
 
 **What changes for a command.** A command with `person.mcp = "verified"` (phase 5, 2.3) is served by the page when the
 namespace's login exists, as today. A login proven by a declared rule decides it: the deployer chose that rule. What a
@@ -313,8 +335,8 @@ plugin or reader sees is the level and the evidence. `verified_only` (D180) admi
 
 `preset` on an issuer names a set of defaults. Any key the file sets wins over the preset. A preset fills only keys the
 file leaves out, and never a deployer's value such as `issuer` or `audience`. It applies to the issuer, to every
-person login whose `issuer` is that issuer, and, where noted, to `[auth]`. No preset is the default, and no preset
-behaves as today. `umbel doctor` prints each value a preset filled (7.4).
+person login whose `issuer` is that issuer, and, where noted, to `[auth]`. No preset is the default. Only the absence of a
+preset is today's behaviour. `umbel doctor` prints each value a preset filled (7.4).
 
 ### 7.2 The two presets
 
@@ -328,8 +350,8 @@ behaves as today. `umbel doctor` prints each value a preset filled (7.4).
 | `client_id_claim` | `client_id` | `azp` |
 | `scope_claims` | `["scope"]` | `["scp", "roles"]` |
 | `services` | None | `{ claim = { name = "idtyp", value = "app" } }` |
-| `[auth] scope_qualifier` | None | `http.public_url` followed by `/`, when an access-token issuer has this preset |
-| `[auth] max_token_lifetime_s` | 3600 | 5400, when an access-token issuer has this preset (Entra's 60 to 90 minutes) |
+| `[auth] scope_qualifier` | None | `http.public_url` followed by `/`, when any access-token issuer has this preset; it then applies to every issuer, and `auth.provider` says so |
+| `[auth] max_token_lifetime_s` | 3600 | 5400, when any access-token issuer has this preset (Entra's 60 to 90 minutes); it then applies to every issuer, and `auth.provider` says so |
 | Person `scopes` | `["openid"]` | `["openid", "profile"]` (Entra issues `oid` only with `profile`) |
 | Person `subject_claim` | `sub` | `oid` |
 | Person `claims_supported_check` | `fail` | `warn` (Entra's discovery omits `amr`, confirmed against public metadata) |
@@ -371,6 +393,7 @@ it passes. Without a preset it passes with no notes.
 - a Conditional Access authentication context (`c1` by default) whose policy requires the built-in Phishing-resistant
   MFA strength, with sign-in frequency "every time";
 - passkeys (FIDO2) enabled with user verification required;
+- the API app has no redirect URIs, so no ID token is issued to it (2.1, rule 7);
 - MCP clients pre-registered or pre-authorised (Entra offers neither dynamic registration nor client metadata
   documents);
 - no continuous access evaluation (`xms_cc`) on the API app, whose long-lived tokens exceed `max_token_lifetime_s`.
@@ -399,19 +422,20 @@ date and result. Until all pass, `entra` stays provisional (7.3).
 | E7 | `prompt=login` yields a fresh `auth_time` | Sign in twice within a minute. Pass: the second `auth_time` is the second sign-in's |
 | E8 | Tokens without continuous access evaluation live at most 5400 seconds | Decode ten tokens. Pass: each `exp - iat` is at most 5400 |
 | E9 | App-only tokens carry `idtyp = "app"` and `roles` as an array | Request a client-credentials token. Pass: both, and Umbel maps it to a service |
-| E10 | The two guards hold with real tokens | Send Umbel an ID token issued to the person-login app, and one issued to the API app. Pass: both refused, with `audience` and `claims` |
+| E10 | The ID-token guards hold with real tokens | Send Umbel an ID token issued to the person-login app, and one issued to the API app itself for a user holding an app role, so it carries `roles` (give the API app a redirect URI for this test only). Pass: refused with `audience`, then with `claims` |
+| E11 | Windows Hello for Business reports `amr` `hwk`, `ngcmfa` and `mfa` with `acrs` `c1` (the `entra-hello` rule) | Sign in with Windows Hello through the person page. Pass: the ID token holds all three and `c1`, and the decision records `entra-hello` |
 
 ## 10. Tests
 
 | File | What it pins |
 | --- | --- |
 | `packages/rust/tests/authorization_cases.rs` | Loads 2.4's new cases |
-| `packages/rust/tests/auth_verifier.rs` | One test per new rule with signed tokens: a `JWT` token passes a `JWT` profile and fails the default; GUID audience; `uti`; `azp`; `appid`; `scp` and `roles`; an ID-token shape refused with `claims`; the qualifier read and published; each profile construction error |
+| `packages/rust/tests/auth_verifier.rs` | One test per new rule with signed tokens: a `JWT` token passes a `JWT` profile and fails the default; GUID audience; `uti`; `azp`; `appid`; `scp` and `roles`; ID-token shapes refused with `claims` (no scope claim; `roles` with `nonce`, `at_hash` or `c_hash`); the qualifier read and published; each profile construction error |
 | `packages/server/src/authorization-cases.test.ts` | The same cases |
 | `packages/server/src/mcp-auth-verifier.test.ts` | The same signed-token tests |
 | `tests/auth_profiles_config.rs` | 3.1 and 3.2, 5's keys, 6.1's rules at open, 7's presets (each filled value, a file value winning, `entra` without `audience` refused, the `[auth]` defaults), version 5 and 6 files refused with "needs config_version = 7", and a file with no new key equal to today's parse |
 | `tests/auth_profiles_tokens.rs` | Through the HTTP surface with `umbel-testkit-idp` (`TokenBuilder::header_member`, `claim`, `without_claim`, `testkit-idp/src/token.rs:530-559`): an Entra-shaped token admitted and mapped by `oid`, with `scp` and `roles`; an ID token refused; qualified `scopes_supported` and challenges; an issuer without settings refusing the same token exactly as today |
-| `tests/person_assurance.rs` | With the test identity provider's `adjust_token` and `set_metadata_patch` (`testkit-idp/src/role.rs:312`, `:650`): the request's `scope`, `claims` and `acr_values` per 5; the standard rule unchanged (D181's cases repeated); each declared rule matching and not; order; `acr` absent with an `acrs` rule; refusal codes; `claims_supported` lacking `amr` failing, then warning; `evidence` and `declared` in the decision record, `PersonDecision`, the envelope and `humanPresent`; `verified_only` refusing `declared` by default and admitting it when listed |
+| `tests/person_assurance.rs` | With the test identity provider's `adjust_token` and `set_metadata_patch` (`testkit-idp/src/role.rs:312`, `:650`): the request's `scope`, `claims` and `acr_values` per 5; the standard rule unchanged (D181's cases repeated); each declared rule matching and not; order; `acr` absent with an `acrs` rule; refusal codes; `claims_supported` lacking `amr` failing, then warning; `evidence` and `declared` in the decision record, `PersonDecision`, the envelope and `humanPresent`; `verified_only` refusing `declared` by default and admitting it when listed; the resume gates refusing `declared` with any method but `person-page`; with no declared rule, the decision record and envelope byte-equal to today's |
 | `tests/doctor_auth_provider.rs` | 6.2's warnings, with and without the single-factor sentence; 7.4's notes, warnings and pass |
 | `tests/schemas.rs` | The changed schemas stay closed, and new examples validate: `workspace-config.v7.entra.json`, `person-decision.v2.declared.json`, `provenance-envelope.v4.declared.json` |
 
@@ -422,16 +446,16 @@ Each step is one pull request. AFD's steps change only `spec/`, `docs/` and `pac
 
 | Step | Deliverable | Exit |
 | --- | --- | --- |
-| A1. AFD spec | `spec/authorization.md` (M3 rules 2, 6, 7 and 9, M3.2, M4, M5, M7, Options, Conformance) and `spec/authorization.json` (2.4); the language parity rows; decision A8 in the MCP Authorization proposal. Documents and cases only | The repository's documentation checks; each new case's expected value computed by Node from the rules, as for step 0a |
+| A1. AFD spec | `spec/authorization.md` (M3 rules 2, 6, 7 and 9, M3.2, M4, M5, M6, M7, Options, Conformance) and `spec/authorization.json` (2.4); the language parity rows; decision A8 in the MCP Authorization proposal. `rust.yml` runs on the cases file, and both loaders read every `jwtHeaders` and `claims` case (`packages/rust/tests/authorization_cases.rs:219`, `:270`; `packages/server/src/authorization-cases.test.ts`), so A1 also makes each loader skip, by name, a case carrying `profile`, `qualifier` or `scopeQualifier`. A2 and A3 remove their language's skip | The repository's documentation checks; each new case's expected value computed by Node from the rules, as for step 0a |
 | A2. AFD Rust | 2.1 to 2.3 in `claims.rs`, `jwt.rs`, `resource.rs`, with the release note the Rust package asks for | `cargo test` with `server-auth`; `authorization_cases.rs` and `auth_verifier.rs` pass; `tests/auth_canary.rs` unchanged |
 | A3. AFD TypeScript | The same in `mcp-auth-rules.ts`, `mcp-auth-jwt.ts`, `mcp-auth-resource.ts`, with a changeset (minor) | The server package's tests; the two test files pass |
 | U1. Shapes (needs nothing) | 3.1, 5 and 6.1's keys parsed and validated; the presets as data in `src/auth/presets.rs`; `Evidence`, `AssuranceLevel::Declared`, the schemas and examples of 6.3. Nothing acts on them | The Umbel gate; `auth_profiles_config.rs` and `schemas.rs` pass |
 | U2. Tokens (needs A2, U1) | 3.3 and 4 | The Umbel gate; `auth_profiles_tokens.rs` passes |
-| U3. Person page (needs U1) | 5, 6.1 and 6.3: the request, the rules at return, the evidence carried to every shape, `verified_levels` reading `declared` | The Umbel gate; `person_assurance.rs` passes |
+| U3. Person page (needs U1, and the review host specification's H3, which adds the gate's local arm in the same lines) | 5, 6.1 and 6.3: the request, the rules at return, the evidence carried to every shape, `verified_levels` reading `declared` | The Umbel gate; `person_assurance.rs` passes |
 | U4. Doctor and presets (needs U2, U3) | 6.2 and 7.4; the README's hosted section names the presets and links here | The Umbel gate; `doctor_auth_provider.rs` passes |
 | E. Tenant tests (needs U4 and a tenant) | Section 9 run and recorded here; the provisional warning removed if all pass | Every row of section 9 recorded |
 
-Python implements 2.1 to 2.3 with its M1 to M4, from the same cases; no Python step is planned here.
+Python implements 2.1 to 2.3 with its M1 to M4, from the same cases, as part of language parity closure's Python auth item (D6 of `docs/features/active/parity-closure/parity-closure.plan.md`); no Python step is planned here. Its loader, `python/tests/test_principal_binding.py`, reads only `principalBindings`, so it needs no skip.
 
 ## 12. Versions (D188)
 
