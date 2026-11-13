@@ -6,9 +6,12 @@ import importlib.metadata
 import logging
 from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Protocol, runtime_checkable
+from typing import TYPE_CHECKING, Any, Protocol, runtime_checkable
 
 from pydantic import BaseModel
+
+if TYPE_CHECKING:
+    from botcore.host import CommandPolicy
 
 logger = logging.getLogger(__name__)
 
@@ -42,6 +45,7 @@ class PluginRegistry:
         self._config_defaults: dict[str, Any] = {}
         self._docs: dict[str, str] = {}
         self._middleware: list[Callable[..., Any]] = []
+        self._policies: dict[str, CommandPolicy] = {}
 
     def add_commands(self, commands: list[Callable[..., Any]]) -> None:
         """Register command functions."""
@@ -51,6 +55,26 @@ class PluginRegistry:
                 raise ValueError(f"Duplicate command: {command.__name__}")
             names.add(command.__name__)
         self._commands.extend(commands)
+
+    def add_policy(self, name: str, policy: CommandPolicy) -> None:
+        """Declare the managed-host policy of a command this plugin registers.
+
+        ``name`` is the command function's name. ``build_host`` refuses a policy for a
+        command the declaring plugin does not register, and lets an explicit host policy
+        only narrow this one. Legacy surfaces ignore policies.
+        """
+        from botcore.host import CommandPolicy
+
+        if not isinstance(policy, CommandPolicy):
+            raise TypeError(f"Policy for {name} must be a CommandPolicy")
+        if name in self._policies:
+            raise ValueError(f"Duplicate policy: {name}")
+        self._policies[name] = policy
+
+    def add_policies(self, policies: dict[str, CommandPolicy]) -> None:
+        """Declare several command policies; see add_policy."""
+        for name, policy in policies.items():
+            self.add_policy(name, policy)
 
     def add_skills_dir(self, path: Path) -> None:
         """Register a skill directory."""
@@ -113,6 +137,10 @@ class PluginRegistry:
     @property
     def middleware(self) -> list[Callable[..., Any]]:
         return list(self._middleware)
+
+    @property
+    def policies(self) -> dict[str, CommandPolicy]:
+        return dict(self._policies)
 
 
 def discover_plugins(allowlist: tuple[str, ...] | None = None) -> dict[str, BotCorePlugin]:
