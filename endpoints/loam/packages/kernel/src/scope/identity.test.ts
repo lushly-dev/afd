@@ -586,7 +586,10 @@ describe('personalRecordId and the personal store (phase 3 specification, 4.5)',
 		const mine = personalStore(store, () => person);
 		// First paint's store reads only: stage B attaches the writes (13).
 		expect(mine.create).toBeUndefined();
-		personalWrites(mine, store, new ViewStateRegistry());
+		personalWrites(mine, store, new ViewStateRegistry(), () => person);
+		// `late`'s keys, for the person the shell is for, are `personalRecordId`'s (4.4, 4.5).
+		expect(mine.key('loam.scope')).toBe(personalRecordId('loam.scope', BEA));
+		expect(mine.key('loam.appearance')).toBe('loam.appearance');
 		await mine.create('settings', { id: 'loam.scope', value: 'bea' });
 		await mine.create('settings', { id: 'loam.layout.~projects', value: 'bea' });
 		await mine.create('settings', { id: 'loam.appearance', value: 'profile' });
@@ -617,7 +620,7 @@ describe("a person's pending write (the step 1 review's I1)", () => {
 		let person = BEA;
 		const personal = personalStore(store, () => person);
 		const registry = new ViewStateRegistry({ adapter: personal });
-		personalWrites(personal, store, registry);
+		personalWrites(personal, store, registry, () => person);
 		let state: Record<string, unknown> = { project: null };
 		registry.register('loam.scope', {
 			get: () => state,

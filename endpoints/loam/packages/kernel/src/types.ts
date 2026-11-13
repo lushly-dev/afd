@@ -197,11 +197,17 @@ export interface KernelPortsV1 {
 	/** Interface 2's transport, whose command calls carry `_meta` (phase 2 specification, 9.2). */
 	mountTransport(entry: ProjectionMountedV1, url: string): Promise<MountTransportV2>;
 	/**
-	 * Interface 3's: run `fn` at `at` on the kernel's clock, for the session's expiry timer (phase 3
-	 * specification, 4.4); the web host with `setTimeout`, tests and replay with a fake. Returns a cancel.
-	 * Optional: the timer that reads it lands with `session-settle`.
+	 * Interface 3's: run `fn` at `at` on the kernel's clock, for the session's expiry timer and the
+	 * membership read's timeout (phase 3 specification, 4.4 and 7.6); tests with a fake. Returns a cancel.
+	 * Absent, `late/` uses `setTimeout` on the kernel's clock; a replay never arms the timer.
 	 */
 	schedule?(at: number, fn: () => void): () => void;
+	/**
+	 * Interface 3's: the signed-in person's membership of the bound organization now, null for none, which the
+	 * kernel reads again before an owner's command and on a change of person (phase 3 specification, 4.4 and
+	 * 7.6); the web host from `whoami` (step 3). Absent, the kernel decides with the membership it holds.
+	 */
+	readMembership?(): Promise<{ role: 'owner' | 'admin' | 'member'; digest: string } | null>;
 }
 
 export interface HandlerFrameV1 {

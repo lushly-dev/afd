@@ -563,7 +563,7 @@ export class EditorController implements FrameListener {
 		// A record's title, status or scope may have changed: each is read again.
 		if (event.command.startsWith('document-')) this.#records.clear();
 		if (
-			/^(editor-|document-|auth-)/.test(event.command) ||
+			/^(editor-|document-|auth-|session-settle$)/.test(event.command) ||
 			event.scopeChanged ||
 			event.mainChanged
 		) {

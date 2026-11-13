@@ -41,6 +41,9 @@ async function definitions() {
 				isMutation: () => false,
 				summaries: () => [],
 				run: () => Promise.resolve({ success: true }) as never,
+				runBoot: () => Promise.resolve({ success: true }),
+				pending: {},
+				queued: Symbol(),
 			})
 		).shell,
 	};

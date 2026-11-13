@@ -4,7 +4,7 @@
  * reference workspace and the `probe` fixture app. No DOM dependency.
  */
 
-import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { MockAuthAdapter, type User } from '@lushly-dev/afd-auth';
 import {
 	type CommandContext,
 	type CommandResult,
@@ -123,8 +123,8 @@ export interface ReplayKernelOptions {
 	/** The recording kernel's identity (phase 3 specification, 2.1). */
 	identity?: IdentityV1;
 	/**
-	 * The membership the recording kernel decided with. Step 2 journals it in `session-settle`, which a
-	 * replay then reads instead (4.4).
+	 * The membership the recording kernel started with. Each `session-settle` entry records the settled person's
+	 * role and digest, which the replay applies over it as the original did (4.4).
 	 */
 	membership?: MembershipV1;
 }
@@ -327,6 +327,40 @@ export async function replayKernel(
 	}
 	const nested = nestedReplay(ordered);
 	const byTrace = new Map(ordered.map((entry) => [entry.traceId, entry]));
+	const auth = new MockAuthAdapter();
+	// The users the journal's `auth-*` results name, so a settled person reads back as they were recorded.
+	const users = new Map<string, User>();
+	for (const entry of ordered) {
+		const user = (entry.result.data as { user?: User } | undefined)?.user;
+		if (typeof user?.id === 'string') users.set(user.id, user);
+	}
+	/** The replay's Mock set to `person`, as an entry records it: no provider is reached (phase 3 specification, 4.4). */
+	const drive = (person: string | null): void => {
+		const state = auth.getSession();
+		if (person === null) {
+			if (state.status !== 'unauthenticated') auth._reset();
+			return;
+		}
+		if (state.status === 'authenticated' && state.user.id === person) return;
+		const email = person.startsWith('mock-user-') ? person.slice('mock-user-'.length) : person;
+		auth._setUser(users.get(person) ?? { id: person, email, name: email.split('@')[0] as string });
+	};
+	/**
+	 * A page starts as the person its first `session-settle { reason: 'provider' }` names: the original's stage A
+	 * ran as the probe's person, which that settle records (4.4). A page with none starts signed out, as the Mock's
+	 * page does.
+	 */
+	const startPage = (base: string | undefined): void => {
+		const first = ordered.find(
+			(entry) =>
+				traceBaseOf(entry.traceId) === base &&
+				entry.command === 'session-settle' &&
+				(entry.input as { reason?: unknown } | undefined)?.reason === 'provider'
+		);
+		if (first) drive((first.input as { person: string | null }).person);
+	};
+	let session = traceBaseOf(ordered[0]?.traceId);
+	startPage(session);
 	// Shared with the kernel, which reads it at each call, so a kept kernel goes live when the replay ends.
 	const internals: KernelPartsInternals = {
 		answerNested: (parent, name, input) => nested.answer(parent, name, input),
@@ -337,13 +371,15 @@ export async function replayKernel(
 			const entry = traceId === undefined ? undefined : byTrace.get(traceId);
 			return entry ? { ...(entry.actor !== undefined ? { actor: entry.actor } : {}) } : undefined;
 		},
+		drive,
+		startPage: () => startPage(session),
 	};
 	const parts = await createKernelParts(
 		{
 			store: new MemoryAdapter(),
 			storeKind: 'memory',
 			journal: new MemoryJournalSink(),
-			auth: new MockAuthAdapter(),
+			auth,
 			environment: options.environment ?? createFixedEnvironment(),
 			host: 'test',
 			...(options.commands !== undefined ? { commands: options.commands } : {}),
@@ -358,7 +394,6 @@ export async function replayKernel(
 	let kept = false;
 	try {
 		const recorded: number[] = [];
-		let session = traceBaseOf(ordered[0]?.traceId);
 		const target: JournalReplayTarget = {
 			async execute(name: string, input: unknown, context: CommandContext = {}) {
 				const base = traceBaseOf(context.traceId);
@@ -419,6 +454,8 @@ export async function replayKernel(
 		delete internals.answerNested;
 		delete internals.nestedUnrecorded;
 		delete internals.actorOf;
+		delete internals.drive;
+		delete internals.startPage;
 		kept = options.keep === true;
 		return {
 			report,

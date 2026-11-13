@@ -53,4 +53,5 @@ export const changesDocuments = (event: KernelEventV3): boolean =>
 	event.success &&
 	event.mutation &&
 	(event.document !== undefined ||
+		event.actorChanged === true ||
 		/^(document-(?!open$)|project-update$|workspace-app-set$|auth-)/.test(event.command));

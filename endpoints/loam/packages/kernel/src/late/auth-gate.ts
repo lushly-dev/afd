@@ -17,7 +17,7 @@ import { isVerifiedCredentials } from '@lushly-dev/afd-server/credentials';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import { INTERNAL_COMMANDS } from '../commands.js';
-import { kernelFailure } from '../errors.js';
+import { kernelFailure, PAGE_DECIDED } from '../errors.js';
 import {
 	type AccessActorV1,
 	AGENT_MEMBER_PREFIX,
@@ -124,6 +124,31 @@ export function lineZero(
 	return notMember(call.actor);
 }
 
+/**
+ * `SESSION_CHANGED` (4.4, 15): a call queued across a change of person, or a copied actor not the person signed in.
+ * Retryable, journaled, and decided by the page, so a replay answers it from its entry.
+ */
+export const sessionChanged = (): CommandResult<never> =>
+	kernelFailure(
+		'SESSION_CHANGED',
+		'The person signed in changed before this call ran',
+		'Run it again as the person now signed in',
+		{ retryable: true, details: { [PAGE_DECIDED]: true } }
+	);
+
+/**
+ * `MEMBERSHIP_UNAVAILABLE` (4.4, 7.6): the host's membership read failed before a command that needs it.
+ * Fail closed, never deciding an owner's command on what the kernel last held. Retryable, journaled, and
+ * decided by the page, so a replay answers it from its entry.
+ */
+export const membershipUnavailable = (name: string): CommandResult<never> =>
+	kernelFailure(
+		'MEMBERSHIP_UNAVAILABLE',
+		`Membership could not be read before '${name}'`,
+		'Try again in a moment; the sign-in provider did not answer',
+		{ retryable: true, details: { [PAGE_DECIDED]: true } }
+	);
+
 /** The agent interface's agent when a call names none (phase 3 specification, 3.1). */
 export const SHELL_AGENT = 'shell-agent';
 
@@ -156,6 +181,20 @@ export function agentActor(name: string | undefined): Actor | CommandResult<neve
 
 export interface AuthGateOptions {
 	identity: IdentityV1;
+	/** The kernel's clock, which the Mock shares: a session's expiry and a token's are read on it (4.4). */
+	clock?: { now(): number } | undefined;
+	/**
+	 * Where the gate keeps a palette call's copied actor (a port's, a surface's or a nested call's) before
+	 * afd-auth's middleware stamps the person signed in on it, so `SESSION_CHANGED` can compare them (4.4).
+	 */
+	copied?: WeakMap<object, Actor>;
+	/**
+	 * After a call, once its entry is journaled: an `auth-*` call's change of person that its command did not make
+	 * is settled then, after it (4.4; the review of step 2's I2).
+	 */
+	after?(name: string): void;
+	/** Before the call is stamped: a change of person not yet settled is settled first (4.4, #854). */
+	before?(name: string, context: CommandContext): Promise<void> | undefined;
 }
 
 /**
@@ -164,8 +203,8 @@ export interface AuthGateOptions {
  * - `exclude`: in `local` mode every held command, as phases 0 to 2 have it; in `provider` mode only the
  *   signed-out commands and the kernel's own;
  * - `isVerifiedCredentials`, so a call whose credentials afd-server verified keeps its actor and never
- *   reads the adapter's session (4.1). Sessions expire on the system clock, as the Mock's do: the kernel's
- *   clock reaches the middleware and the Mock together with `session-settle`'s expiry timer (4.4);
+ *   reads the adapter's session (4.1);
+ * - the kernel's clock, which the host gives the Mock too, so a session expires on the kernel's time (4.4);
  * - before it, a session whose user id starts `agt_` is signed out and the call refused
  *   `AGENT_CANNOT_SIGN_IN`: no person's id may (3.2), so a forged or misconfigured adapter cannot make an
  *   agent member a person.
@@ -178,8 +217,19 @@ export function createAuthGate(
 	const exclude = held
 		.map((command) => command.name)
 		.filter((name) => options.identity.mode === 'local' || SESSIONLESS.has(name));
-	const gate = createAuthMiddleware(auth, { exclude, isVerifiedCredentials });
+	const { clock, copied } = options;
+	const gate = createAuthMiddleware(auth, { exclude, isVerifiedCredentials, clock });
 	return async (name, input, context, next) => {
+		await options.before?.(name, context);
+		// A nested call's or a port's carries its outer call's actor, copied (3.1).
+		if (
+			copied &&
+			(context.parent !== undefined || context.caller !== undefined) &&
+			context.actor !== undefined &&
+			!isVerifiedCredentials(context.credentials, (clock ?? Date).now())
+		) {
+			copied.set(context, context.actor);
+		}
 		const state = auth.getSession();
 		if (
 			state.status === 'authenticated' &&
@@ -194,6 +244,10 @@ export function createAuthGate(
 				'Agent members act through delegation or a connection; sign in as a person'
 			);
 		}
-		return gate(name, input, context, next);
+		try {
+			return await gate(name, input, context, next);
+		} finally {
+			options.after?.(name);
+		}
 	};
 }

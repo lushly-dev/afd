@@ -17,13 +17,15 @@ export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
  * Boot's own journaled work (phase 2 specification, 2.2): `run` answers `COMMAND_NOT_FOUND` for these
  * names unless it is given the kernel's `BOOT_FIELDS`, so no person, app or agent reaches them, and
  * `mcpOptions()` leaves them out. `app-settle` follows the apply (F3); `document-trash-expire` is the
- * documents specification's (step 9).
+ * documents specification's (step 9). `session-settle` is the kernel's change of person (phase 3
+ * specification, 4.4): never queued, so it runs before any call it must come before.
  * Each is a mutation, which a kernel event of boot's own work reports.
  */
 export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'workspace-deployment-apply',
 	'app-settle',
 	'document-trash-expire',
+	'session-settle',
 ]);
 
 /**

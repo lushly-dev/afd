@@ -32,6 +32,7 @@ import {
 	closeTab,
 	createEditors,
 	type EditorChange,
+	type EditorDraftsV1,
 	type EditorStateV1,
 	findTab,
 	keepTabs,
@@ -52,6 +53,8 @@ export interface EditorCommandDeps {
 	lateScope: LateScope;
 	check: DocumentCheck;
 	isMutation(name: string): boolean;
+	/** The dirty tabs and selections, in maps `late` makes, which a change of person moves (phase 3, 4.5). */
+	drafts: EditorDraftsV1;
 }
 
 /** What the rest of `late` asks of the editor area. */
@@ -127,7 +130,7 @@ export function createEditorParts(deps: EditorCommandDeps, kit: DocumentKit): Ed
 		unknown,
 		enum: choice,
 	} = kit.z;
-	const editors = createEditors(deps.viewState);
+	const editors = createEditors(deps.viewState, deps.drafts);
 	/** Every definition here is the `editor` category's, a mutation and instant unless it says otherwise. */
 	const defineCommandWithSchema: DocumentKit['define'] = (definition) =>
 		kit.define({ category: 'editor', executionTime: 'instant', mutation: true, ...definition });
