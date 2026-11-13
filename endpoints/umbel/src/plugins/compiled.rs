@@ -198,9 +198,10 @@ struct SdkHandler<P: umbel_sdk::Plugin> {
 /// The call context a plugin receives (WIT `call-context`): the command, the trace id, the
 /// resolved space for a command with a `space` input, a summary of the actor, the host's
 /// pipeline attestation for a step (phase 4 section 10.1), whether the host counts the caller
-/// as a person (phase 3 section 3.3), the caller's delegation chain, and a person's decision on
-/// the person page for this very call with the validated `input` (phase 5 step 6). Never a
-/// credential or a token.
+/// as a person (phase 3 section 3.3), the caller's delegation chain, a person's decision on
+/// the person page for this very call with the validated `input` (phase 5 step 6), and the page
+/// of its preview the person page asks for (the Ideas host-review specification, section 2).
+/// Never a credential or a token.
 pub(super) fn call_context(
     name: &str,
     has_space: bool,
@@ -236,9 +237,7 @@ pub(super) fn call_context(
         delegation_chain: crate::principal::Principal::chain_of(context),
         person_decision: services.person_decision(input),
         person_check: services.person_check(),
-        // The person page asks for a page of a preview from step H2 of the Ideas host-review
-        // specification; until then no call carries one.
-        preview_page: None,
+        preview_page: services.preview_page(),
     }
 }
 
