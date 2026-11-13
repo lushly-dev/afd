@@ -35,7 +35,7 @@ skip = [
     "skill-manager",
 
     # AFD-local skills, including the session loop; skip also keeps seed from
-    # treating a local skill that shares a retired botcore name as botcore's.
+    # treating a future local skill that shares a retired botcore name as botcore's.
     "afd",
     "afd-auth",
     "afd-cpp",
@@ -45,11 +45,11 @@ skip = [
     "afd-site-design",
     "afd-typescript",
     "brief-status",
-    "do-end-session",
-    "do-init-afd",
-    "do-prepare-pr",
-    "do-release",
+    "cut-release",
+    "end-session",
     "loam-design",
+    "prepare-pr",
+    "start-session",
 ]
 
 # Per-package overrides for Python and Rust subdirectories

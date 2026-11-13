@@ -1,13 +1,13 @@
 ---
-name: do-init-afd
+name: start-session
 description: >
   Starts an AFD session: preflights the worktree, refreshes origin/main, installs
   dependencies, classifies dirty files and adopts the issue or brief. Use when
   starting or resuming work ("start session", "init", "resume this worktree"); ship
-  with do-prepare-pr, close with do-end-session.
+  with prepare-pr, close with end-session.
 ---
 
-# Do Init AFD
+# Start Session
 
 The costliest session failure is a stale base: a worktree cut from an old local
 `main` can lag far behind and carry another task's commits. Catch it on turn one,
@@ -26,7 +26,7 @@ resolve. Name the state and do nothing else.
 
 **Dirty tree.** Classify every file as task work, unrelated or unknown. Never edit,
 stage or revert unrelated or unknown files; carry the classification to
-`do-prepare-pr`.
+`prepare-pr`.
 
 **No bare `git stash`.** Worktrees share one `.git`, so every session shares the
 stash stack and a `pop` can take another session's changes. Use a WIP commit.

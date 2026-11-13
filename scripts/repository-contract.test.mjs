@@ -54,8 +54,8 @@ function runConsumer(consumerRoot, source) {
 test('release documentation and workflow agree with root scripts', () => {
 	const manifest = JSON.parse(read('package.json'));
 	const agents = read('AGENTS.md');
-	// AGENTS.md routes shipping to do-prepare-pr, which carries the changeset rule.
-	const ship = read('.claude/skills/do-prepare-pr/SKILL.md');
+	// AGENTS.md routes shipping to prepare-pr, which carries the changeset rule.
+	const ship = read('.claude/skills/prepare-pr/SKILL.md');
 	const release = read('.github/workflows/release.yml');
 
 	assert.equal(typeof manifest.scripts.changeset, 'string');
@@ -64,7 +64,7 @@ test('release documentation and workflow agree with root scripts', () => {
 	for (const text of [agents, ship]) {
 		assert.doesNotMatch(text, /pnpm release patch|scripts\/release\.mjs|push origin main --tags/);
 	}
-	assert.match(agents, /`do-prepare-pr`/);
+	assert.match(agents, /`prepare-pr`/);
 	assert.match(ship, /fragment in `\.changeset\/` by hand \(`pnpm changeset` prompts\)/);
 
 	const qualityGate = release.indexOf('run: pnpm check');

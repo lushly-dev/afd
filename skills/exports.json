@@ -67,11 +67,11 @@
 				"afd-site-design",
 				"afd-typescript",
 				"brief-status",
-				"do-end-session",
-				"do-init-afd",
-				"do-prepare-pr",
-				"do-release",
-				"loam-design"
+				"cut-release",
+				"end-session",
+				"loam-design",
+				"prepare-pr",
+				"start-session"
 			]
 		}
 	}

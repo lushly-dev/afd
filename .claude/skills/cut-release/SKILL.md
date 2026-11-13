@@ -1,5 +1,5 @@
 ---
-name: do-release
+name: cut-release
 description: >
   Prepares an AFD release on its track: npm (the Changesets version PR), Python (PyPI),
   Rust (crates.io), C++ (tag only) or Botcore (PyPI), with tag schemes, the contract version
@@ -7,7 +7,7 @@ description: >
 argument-hint: npm | python | rust | cpp | botcore
 ---
 
-# Do Release
+# Cut Release
 
 AFD's four implementations each follow semver on their own API, with their own version, changelog, tag and release path; before 1.0 a minor release may break the API. They are four of the admitted units in `scripts/release/inventory.json`; `botcore` publishes `lushly-botcore` alone, and Specimen's four units and `fast-element` publish an npm prerelease under `preview`. Every other unit there, the other five Botcore distributions included, is quarantined and has no release path: stop and ask.
 

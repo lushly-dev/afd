@@ -24,17 +24,17 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 
 | Before you | Read |
 |------------|------|
-| Start or resume a session | `do-init-afd`: base refresh, install, the Node version, task intake. For a new machine, [SETUP.md](SETUP.md) |
+| Start or resume a session | `start-session`: base refresh, install, the Node version, task intake. For a new machine, [SETUP.md](SETUP.md) |
 | Work in Loam, Umbel or an active feature | Its `STATUS.md`, in `endpoints/loam/docs/`, `endpoints/umbel/docs/` or `docs/features/active/<feature>/`. It is the source of truth for progress; update it before the session ends |
 | Add or change a command | `afd`: jobs written as scenarios before the commands, `domain-action` names, a `CommandResult` whose errors carry a `suggestion`, parity across the four languages. Then the language's skill |
 | Write or change markup with `violet-*` components | Call `components-brief` once for the page first: the `umbel` server in `.mcp.json` (the [components plugin's README](endpoints/umbel/plugins/components/README.md#use-in-this-repository) says how to build it). In Loam, then `loam-design`, whose rules win where the two differ |
-| Edit FAST-AF, Violet, Specimen, Botcore or Health | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): they were imported and are changed here, never upstream first, and an edit needs a provenance record |
-| Change CI, a hook, `scripts/affected` or a dependency | [gates.md](.claude/skills/do-prepare-pr/references/gates.md): what each gate covers, the scope rules, the dependency age limit |
+| Edit FAST-AF, Violet, Specimen, Botcore or Health | [gates.md](.claude/skills/prepare-pr/references/gates.md): they were imported and are changed here, never upstream first, and an edit needs a provenance record |
+| Change CI, a hook, `scripts/affected` or a dependency | [gates.md](.claude/skills/prepare-pr/references/gates.md): what each gate covers, the scope rules, the dependency age limit |
 | Edit a skill | `manage-skills`. The Botcore-sourced skills are generated: edit the source in `endpoints/botcore/src/botcore/skills/` and run `pnpm skills:sync` |
 | Delegate work or choose a model | [Model routing](docs/operations/model-routing.md), which is separate from the models an application built with AFD selects |
-| Push, open a pull request or merge | `do-prepare-pr`: review, changeset, gates, the pull request, and lockfile changes merged one at a time |
-| End a session | `do-end-session`: what landed, what to file, what to record |
-| Cut a release | `do-release` |
+| Push, open a pull request or merge | `prepare-pr`: review, changeset, gates, the pull request, and lockfile changes merged one at a time |
+| End a session | `end-session`: what landed, what to file, what to record |
+| Cut a release | `cut-release` |
 
 The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 

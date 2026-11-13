@@ -1,5 +1,5 @@
 ---
-name: do-end-session
+name: end-session
 description: >
   Closes an AFD session so it can be archived without losing work: checks each PR
   landed by content, files untracked findings, captures knowledge and deletes
@@ -8,7 +8,7 @@ description: >
 argument-hint: check | park
 ---
 
-# Do End Session
+# End Session
 
 The goal: nothing durable exists only in this transcript, and nothing unlanded is
 lost when the harness reclaims the worktree.
@@ -46,7 +46,7 @@ Read `.merged`, not `.state`, which is `closed` for merged and abandoned alike. 
 missing remote branch is not "nothing unpushed": head branches are deleted on merge,
 but a never-pushed or hand-deleted branch looks the same, so resolve it through
 `.merged` and the content check. That check settles every ambiguous signal ("0
-commits ahead", a squash merge): after the fetch, run do-init-afd's landing check;
+commits ahead", a squash merge): after the fetch, run start-session's landing check;
 a diff of the branch's files against `origin/main` that is empty, or shows only
 other PRs' later changes, means landed.
 
@@ -61,8 +61,8 @@ Every session PR ends merged, or closed with a recorded reason.
 
 - **Check for supersession before waiting.** A parallel session may have landed an
   equivalent change; close a redundant PR as superseded.
-- **Red CI** goes back through `do-prepare-pr`, which owns push and update.
-- **Merge only when the user authorized it**, through `do-prepare-pr`'s merge step.
+- **Red CI** goes back through `prepare-pr`, which owns push and update.
+- **Merge only when the user authorized it**, through `prepare-pr`'s merge step.
   `main` has no required checks, so bind the merge to the head whose checks you
   verified: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
   40-character SHA (a short one is rejected).
