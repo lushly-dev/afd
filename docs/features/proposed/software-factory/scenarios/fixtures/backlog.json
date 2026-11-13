@@ -47,7 +47,7 @@
 		},
 		{
 			"number": 206,
-			"labels": ["status:planned", "execution:bounded", "priority:p1", "area:server"],
+			"labels": ["status:planned", "execution:bounded", "priority:1", "area:server"],
 			"assignees": [],
 			"openPrs": [],
 			"createdAt": "2030-01-02T09:00:00Z"

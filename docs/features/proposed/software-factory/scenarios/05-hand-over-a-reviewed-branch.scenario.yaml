@@ -25,7 +25,7 @@ steps:
       success: false
       error:
         code: REVIEW_MISSING
-        suggestion: { contains: do-prepare-pr }
+        suggestion: { contains: prepare-pr }
   - description: A branch with no registered cell is refused
     command: lane-enqueue
     input: { worktree: wt/stray, title: Stray, body_file: pr-body.md }

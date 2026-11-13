@@ -21,7 +21,7 @@ check_agents = true
 # Must equal listingBudget in skills/exports.json; pnpm check:skills compares them.
 # Standing rule (owner, 2026-11-12): a PR that still needs more raises both to the
 # listing total rounded up to the next 100, up to 8,000; above that, ask the owner.
-listing_budget = 6200
+listing_budget = 6300
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
@@ -50,6 +50,7 @@ skip = [
     "loam-design",
     "prepare-pr",
     "start-session",
+    "triage-issues",
 ]
 
 # Per-package overrides for Python and Rust subdirectories
