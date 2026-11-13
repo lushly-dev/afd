@@ -57,7 +57,7 @@ about a screen, not a component.
   ([status](../../active/specimens/STATUS.md)). The plan asks it to "prove explicit
   application-command/view-state dispatch, structured results and cancellation"
   (`docs/features/active/specimens/implementation.md:85`). The proposal says command steps name
-  their runner (`runner: 'afd'`), reuse `afd-testing` "through a new browser-step adapter", and
+  their runner (an `afd` runner id), reuse `afd-testing` "through a new browser-step adapter", and
   land only with a consuming scenario (`docs/features/proposed/specimens/specimens.proposal.md:58,93,396`).
   Its scope is an open question in the status (line 223).
 - **Command steps today** run against one element: `CommandRunner.run(element, name, input)`
@@ -73,7 +73,7 @@ about a screen, not a component.
 - **123 screen specimens:** 115 in `endpoints/loam/packages/chrome/specimens/specimen.config.json`
   and 8 in `endpoints/loam/apps/notes/specimens/specimen.config.json`. Their states are built in
   three ways:
-  - Commands on a real test kernel: `shellFixture` (`support.ts:61-90`); `Shell` runs
+  - Commands on a real test kernel: `shellFixture` (`support.ts:62-91`); `Shell` runs
     `appearance-set` and two `layout-set` calls.
   - Properties set directly: `ListFailed` sets `element.failure`.
   - Stub clients: the notes editor's `contextOver()` answers `notes-content-get`
@@ -106,6 +106,11 @@ For the owner to cut, add and rank.
    the app does not render), I want that said, so that a missing capture is never read as a pass.
 6. **Keep scenarios runnable without a browser.** When no browser is available, I want the
    scenario to run as it does today, so that capture is something added, never required.
+7. **Refuse a capture from the wrong state.** When a step failed or was skipped, I want no capture
+   taken and checked as if the step had passed, and the reason given, so that a broken step is
+   never reviewed as a screen.
+8. **Stay quiet about steps not marked.** When a step is not marked for capture, I want nothing
+   captured or reported for it, so that a scenario's output grows only where I asked.
 
 ## 4. Starting points
 

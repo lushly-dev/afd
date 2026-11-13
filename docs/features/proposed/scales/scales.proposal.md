@@ -89,6 +89,8 @@ For the owner to cut, add and rank, once the owner agrees with the direction.
    so that the choice explains itself.
 5. **Refuse a bad derivation.** When a transform is not in the grammar, or references form a
    cycle, I want it refused with the reason, so that no value resolves to nonsense.
+6. **Stay quiet about values on the rule.** When a value is on the rule, I want nothing reported
+   for it, so that only values off the rule draw attention.
 
 ## 4. Starting points
 

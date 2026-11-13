@@ -8,9 +8,10 @@
 - **Verified:** nothing first-hand except the `specimen-diff` fault in
   [follow-ups](STATUS.md#follow-ups-not-yet-issues). [What exists today](#2-what-exists-today)
   comes from a survey another agent made on 2026-11-13 at `e5d683a8`; each claim names its file.
-- **Next:** the owner cuts, adds and ranks the [jobs](#3-jobs-draft). Commands are drafted
-  against the ranked jobs, then written as scenarios, as
-  [jobs first](../../../../.claude/skills/afd/references/jobs-first.md) requires.
+- **Next:** the owner cuts, adds and ranks the [jobs](#3-jobs-draft). Commands are then drafted
+  against the ranked jobs and written as scenarios. Ranking before drafting is the order chosen
+  here; the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) ranks
+  after the scenarios and the walks, which still follow.
 
 | Field | Value |
 | --- | --- |
@@ -140,8 +141,8 @@ Not a design: where each job would most likely build on what exists.
 - **Review (jobs 5, 6, 8):** classify each difference from `specimen-diff` and each gate outcome
   as settled or open, and show only the open ones on the review page, with the two captures.
   `incompleteChecks`, `insufficient-evidence` and `contradicted` are the first inputs.
-- **Pointing** supplies the way a person marks an element during review; see
-  [Pointing](../pointing/pointing.proposal.md).
+- **Pointing** would let a person mark an element during review; see
+  [Pointing](../pointing/pointing.proposal.md). The review works without it.
 
 ## 5. Open questions
 

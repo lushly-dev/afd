@@ -21,7 +21,10 @@ agent never has to scan the code to learn what is current. It follows the shape 
   stays the source of truth.
 - **Done:** the problem, what exists today and draft jobs.
 - **Not done:** the owner's ranking of the jobs, drafted commands, scenario files, the checks,
-  reader walks, review and any design.
+  reader walks, a full review and any design. One independent reader reviewed the scaffold.
+- **Order:** the owner cuts and ranks the draft jobs before commands are drafted. That is an
+  order chosen for these early proposals; the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md)
+  puts the owner's ranking after the scenarios and the reader walks, and they still follow.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -34,7 +37,7 @@ agent never has to scan the code to learn what is current. It follows the shape 
 | Draft the commands against the ranked jobs | Not started | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
 | Walk the paths with readers who did not write them | Not started | Three seats |
-| Independent review | Not started | |
+| Independent review | Scaffold reviewed 2026-11-13 (one pass, findings fixed); a full review after drafting not started | |
 
 ## What was read to write it
 
@@ -51,4 +54,4 @@ section 2 with a file for each claim. The ideas in the proposal's section 4 come
 
 | Date | Session | What changed |
 | --- | --- | --- |
-| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code. Nothing committed |
+| 2026-11-13 | Scaffold | After the [Patterns](../patterns/patterns.proposal.md) proposal, the owner agreed to four follow-on proposals from the same discussion: Design Decisions, Screens from Jobs, Pointing and Scales. This scaffold was written from a survey of the code, reviewed once by an independent reader, and committed with its epic |

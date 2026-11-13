@@ -7,8 +7,8 @@
   no scenario files yet. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** nothing first-hand. [What exists today](#2-what-exists-today) comes from a survey
   another agent made on 2026-11-13 at `e5d683a8`; each claim names its file. The ideas in
-  [section 4](#4-ideas-to-start-from) come from the owner's earlier editor work, read for ideas
-  only.
+  [section 4](#4-ideas-to-start-from) come from the owner's earlier editor work in a private
+  repository, read for ideas only; nothing here depends on it.
 - **Next:** the owner cuts, adds and ranks the [jobs](#3-jobs-draft) and answers where pointing
   happens ([question 1](#5-open-questions)).
 
@@ -17,14 +17,14 @@
 | Epic | [#1110](https://github.com/lushly-dev/afd/issues/1110) |
 | Units likely touched | `foundations/specimen` (the host and the review page), `integrations/specimen-afd`, `integrations/violet-afd`, `endpoints/loam` |
 | Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../active/specimens/STATUS.md) (T09, T10) |
-| Rank among the four | Third. It needs a surface to point from, which Design Decisions' review provides |
+| Rank among the four | Third. Design Decisions' review is the first surface to point from; pointing in the running application ([question 1](#5-open-questions)) would not need it |
 
 ## 1. Problem
 
 A person looking at a rendered screen sees the thing that is wrong. To get it fixed they
 describe it in words ("the second button in the toolbar, the one next to search"), and the
-agent guesses which element and which source file that means. Two jobs from the owner's tooling
-guide are missing:
+agent guesses which element and which source file that means. Two of the jobs a design
+toolchain needs are missing:
 
 1. **Targeting.** No way to click an element and hand the agent a reference to it that is
    precise, stable and tied to its source.
@@ -47,8 +47,8 @@ guide are missing:
   element" (line 404): not-found and ambiguous are not told apart.
 - **No source mapping.** A capture knows its specimen, module and export and the source revision
   (`src/types.ts:191-196,638-652`), but no element maps to a file or line.
-- **The review page** has no inspector, overlay or click-to-select
-  (`src/browser/page.ts:244-265,501`).
+- **The review page** (`src/browser/page.ts`) has no inspector, overlay or click-to-select;
+  a search of Specimen finds no inspect-mode or selection code.
 - **T09, Violet context and impact, and T10, the Violet lens,** are "Not started, optional"
   ([status](../../active/specimens/STATUS.md)). The Specimens proposal plans `specimen-impact`,
   taking an offline snapshot and `changes.impact`'s input
@@ -91,9 +91,13 @@ For the owner to cut, add and rank.
 6. **Leave a note on an element.** When I notice something I will not fix now, I want to pin a
    note to the element for an agent to pick up later, so that the observation is not lost.
 7. **Keep a note whose element is gone.** When the element a note was pinned to no longer
-   exists, I want the note marked orphaned, not dropped or moved to another element.
+   exists, I want the note marked orphaned, not dropped or moved to another element, so that I
+   can see what it was about and decide where it belongs.
 8. **Close a note with a reason.** When an agent resolves a note, I want it to say what it did and
    why, so that I can check it.
+9. **Leave the rest alone.** When I point at one element, I want the agent to change only that
+   element, within what the edit allows, and to say nothing about the rest of the page, so that
+   a correction stays small and easy to check.
 
 ## 4. Ideas to start from
 
