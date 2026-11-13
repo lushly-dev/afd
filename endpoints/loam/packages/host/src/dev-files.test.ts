@@ -1,4 +1,4 @@
-import { readdirSync, readFileSync, statSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -14,15 +14,15 @@ import {
 	writeDevPorts,
 } from './dev-files.js';
 import { HostError } from './errors.js';
-import { temporaryDirectory } from './test-support.js';
+import { expectMode, temporaryDirectory } from './test-support.js';
 
 describe("the development profile's files (5.1)", () => {
 	it('makes the certificate once, 0600 in a 0700 directory, and reuses it', async () => {
 		const data = await temporaryDirectory();
 		const first = await ensureCertificate(data);
-		expect(statSync(join(data, 'tls')).mode & 0o777).toBe(0o700);
-		expect(statSync(first.certificate).mode & 0o777).toBe(0o600);
-		expect(statSync(first.key).mode & 0o777).toBe(0o600);
+		expectMode(join(data, 'tls'), 0o700);
+		expectMode(first.certificate, 0o600);
+		expectMode(first.key, 0o600);
 		expect(first.spki).toBe(spkiOf(readFileSync(first.certificate)));
 		const second = await ensureCertificate(data);
 		expect(second.spki).toBe(first.spki);
@@ -44,7 +44,7 @@ describe("the development profile's files (5.1)", () => {
 		const secret = readFileSync(path, 'utf8');
 		expect(secret.trim()).toMatch(/^[A-Za-z0-9_-]{43}$/);
 		expect(Buffer.from(secret.trim(), 'base64url')).toHaveLength(32);
-		expect(statSync(path).mode & 0o777).toBe(0o600);
+		expectMode(path, 0o600);
 		await ensureAuthSecret(data);
 		expect(readFileSync(path, 'utf8')).toBe(secret);
 	});
@@ -54,7 +54,7 @@ describe("the development profile's files (5.1)", () => {
 		expect(await readMail(data)).toEqual([]);
 		const sink = await createMailSink(data);
 		expect(sink.path).toBe(join(data, MAIL_FILE));
-		expect(statSync(sink.path).mode & 0o777).toBe(0o600);
+		expectMode(sink.path, 0o600);
 		await sink.send({ to: 'a@example.com', subject: 'Join', text: 'link one' });
 		await sink.send({ to: 'b@example.com', subject: 'Recover', text: 'link two' });
 		await writeFile(sink.path, `${readFileSync(sink.path, 'utf8')}{"to":"c@exa`);
@@ -72,7 +72,7 @@ describe("the development profile's files (5.1)", () => {
 		expect(readDevPorts(data)).toBeNull();
 		await writeDevPorts(data, { port: 8443 });
 		expect(readDevPorts(data)).toEqual({ port: 8443 });
-		expect(statSync(join(data, 'dev.json')).mode & 0o777).toBe(0o600);
+		expectMode(join(data, 'dev.json'), 0o600);
 		await writeDevPorts(data, { port: 8443, sandboxPort: 8444 });
 		expect(readDevPorts(data)).toEqual({ port: 8443, sandboxPort: 8444 });
 	});
@@ -99,7 +99,7 @@ describe("the development profile's files (5.1)", () => {
 	it("takes a data directory that is missing, empty, or already the profile's, and makes it 0700", async () => {
 		const root = await temporaryDirectory();
 		await claimDataDirectory(join(root, 'missing'));
-		expect(statSync(join(root, 'missing')).mode & 0o777).toBe(0o700);
+		expectMode(join(root, 'missing'), 0o700);
 		for (const [name, file, text] of [
 			['empty', undefined, undefined],
 			['recorded', 'dev.json', '{"port":8443}'],
@@ -111,7 +111,7 @@ describe("the development profile's files (5.1)", () => {
 			await chmod(directory, 0o755);
 			if (file) await writeFile(join(directory, file), text as string);
 			await claimDataDirectory(directory);
-			expect(statSync(directory).mode & 0o777, name).toBe(0o700);
+			expectMode(directory, 0o700, name);
 		}
 	});
 
@@ -123,7 +123,7 @@ describe("the development profile's files (5.1)", () => {
 		await writeFile(join(theirs, 'notes.txt'), 'mine');
 		await writeFile(join(theirs, '.gitignore'), 'node_modules\n');
 		await expect(claimDataDirectory(theirs)).rejects.toMatchObject({ code: 'HOST_CONFIG_INVALID' });
-		expect(statSync(theirs).mode & 0o777).toBe(0o755);
+		expectMode(theirs, 0o755);
 		expect(readdirSync(theirs).sort()).toEqual(['.gitignore', 'notes.txt']);
 		await writeFile(join(root, 'file'), 'x');
 		await expect(claimDataDirectory(join(root, 'file'))).rejects.toMatchObject({

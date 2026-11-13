@@ -133,9 +133,9 @@
       "path": "endpoints/violet-cli/src/cli.test.ts",
       "upstream_path": "packages/cli/src/cli.test.ts",
       "upstream_sha256": "64e2b5a8d70acf9b42f5c0c0325d48675a6da9bd35f753d45dfde7cfce4e75c4",
-      "current_import_sha256": "c532e5951f1d5a67c6059925f67a4d0cdfe068bb1aa4c9007543c96c18a9352c",
+      "current_import_sha256": "19997561942b6387653b33cc96ad9cb215c00d4c5d7c187227415ecf27ef18d4",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested Make trend test query clocks later than fixture writes so exclusive upper bounds cannot omit same-millisecond events or snapshots.",
+      "reason": "Package specifier @lushly-dev/violet-afd; header comment names where command logic is tested Make trend test query clocks later than fixture writes so exclusive upper bounds cannot omit same-millisecond events or snapshots. Close the databases a failed command left open before removing the temporary directory, which Windows refuses while the file is open.",
       "candidate": {
         "path": "packages/cli/src/cli.test.ts",
         "sha256": "feb861d9a2f27a4c24b51ab38c5ea032e8f4440cbbecc27a8a10f592ff12c15e",
@@ -146,9 +146,9 @@
       "path": "endpoints/violet-cli/src/cli.ts",
       "upstream_path": "packages/cli/src/cli.ts",
       "upstream_sha256": "09ec3df6132767797ab6af062ca0f60d0f52ae34f4ba51aa999c928d494d8e76",
-      "current_import_sha256": "7076f004d3a6737cd7de739aedcc09eb2d498945becea384e8811d342afde406",
+      "current_import_sha256": "f7391572ba343700034d04bbba29e86b037c45f2bf1a6e756e5c141a1b74a3ba",
       "classification": "adapted",
-      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding)",
+      "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; reports its package version (src/version.ts) instead of the hard-coded upstream 0.1.0; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); closes the SQLite databases a command opened once its action finishes (exported closeDatabases, run from a postAction hook) so Windows can delete the file",
       "candidate": {
         "path": "packages/cli/src/cli.ts",
         "sha256": "475f80decc27712ff654f3c981d96f6d2e374793846f48a4dd0ccebf85ab3c5b",

@@ -427,7 +427,8 @@ bearer_file = "keys/http.token"
 		await write(paths.root, 'private/mounts.json', 'old');
 		await write_(paths, mountsOut);
 		expect(JSON.parse(readFileSync(mountsOut, 'utf8')).mounts[0].bearer).toBe(TOKEN);
-		expect(statSync(mountsOut).mode & 0o777).toBe(0o600);
+		// Windows has no POSIX mode bits: chmod only sets or clears the read-only flag.
+		if (process.platform !== 'win32') expect(statSync(mountsOut).mode & 0o777).toBe(0o600);
 	});
 
 	it('refuses `--mounts-out` inside anything served', async () => {

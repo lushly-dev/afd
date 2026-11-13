@@ -1,7 +1,8 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
-import { join } from 'node:path';
+import { createRequire } from 'node:module';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 import { appNew } from './app-new.js';
@@ -61,10 +62,18 @@ describe('loam app new', () => {
 			await mkdir(join(dir, 'test'));
 			await writeFile(join(dir, 'src/probe.ts'), 'export const mode = process.env.MODE;\n');
 			await writeFile(join(dir, 'test/probe.ts'), 'export const mode = process.env.MODE;\n');
-			const tsc = fileURLToPath(new URL('../node_modules/.bin/tsc', import.meta.url));
+			// Start tsc's script with Node: Windows installs `.bin/tsc` as a `.cmd` shim that needs a shell.
+			const tsc = join(
+				dirname(createRequire(import.meta.url).resolve('typescript/package.json')),
+				'bin/tsc'
+			);
 			const run = (...args: string[]) => {
 				try {
-					execFileSync(tsc, args, { cwd: dir, encoding: 'utf8', stdio: 'pipe' });
+					execFileSync(process.execPath, [tsc, ...args], {
+						cwd: dir,
+						encoding: 'utf8',
+						stdio: 'pipe',
+					});
 					return '';
 				} catch (error) {
 					// tsc writes its diagnostics to stdout; a failure to start it has none.

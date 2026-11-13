@@ -6,7 +6,7 @@
  */
 
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { join, relative } from 'node:path';
+import { join, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { describe, expect, it } from 'vitest';
 
@@ -61,7 +61,8 @@ describe('the shell names no document type', () => {
 	it('P2-D2: names `notes-`, a quoted `notes` and `checklist`, in any case, nowhere in kernel, chrome or web/src', () => {
 		const files = Object.fromEntries(
 			SCANNED.flatMap((directory) => sources(join(PACKAGES, directory))).map((path) => [
-				relative(PACKAGES, path),
+				// Keys use '/' on every system, as ALLOWED writes them.
+				relative(PACKAGES, path).split(sep).join('/'),
 				readFileSync(path, 'utf8'),
 			])
 		);
