@@ -1,10 +1,9 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
 name: Stop starting cells when every plan is at its ceiling
 description: >-
-  When every plan has used more than the ceiling, I want to be told to start nothing and when
-  the next window resets, so that no cell is paused for days holding its issue.
+  When every plan has used more than the ceiling, I want to be told to start nothing and when the
+  next window resets, and a registration refused, so that no cell is paused for days holding its issue.
 job: stop-at-the-ceiling
-
 fixture:
   file: fixtures/at-ceiling.json
   base: fresh.json
@@ -25,3 +24,11 @@ steps:
         canStartCell: false
         reason: { contains: ceiling }
         nextReset: '2030-01-08T00:00:00Z'
+  - description: A registration on a plan above its ceiling is refused
+    command: cell-register
+    input: { branch: fix/parser-empty-input, issues: [101], thread: thread-1, plan: plan-a, route: sol/high }
+    expect:
+      success: false
+      error:
+        code: PLAN_ABOVE_CEILING
+        suggestion: { contains: '2030-01-08' }

@@ -1,0 +1,37 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The runs' history is fixture state the lane's loop would have written.
+name: Finish a run and judge the dials against the run before
+description: >-
+  When the queue is empty and nothing is left, I want the run's numbers beside the previous run's and
+  a clean stop, so that I can tell whether a dial change helped without anyone keeping records by hand.
+job: finish-and-judge-the-dials
+tags: [slice]
+fixture:
+  file: fixtures/finished.json
+  base: fresh.json
+steps:
+  - description: The wait reports the empty queue
+    command: lane-wait
+    input: { consumer: foreman, timeoutMs: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { type: queue-empty }
+  - description: The report gives the run's numbers and their change from the run before
+    command: lane-report
+    input: { run: run-2, compare: run-1 }
+    expect:
+      success: true
+      data:
+        mergedPerHour: 2.25
+        staleRuns: 0
+        reruns: 3
+        foreman: { wakes: 27, wakesPerMerge: 3 }
+        delta:
+          mergedPerHour: 0.75
+  - description: The lane stops cleanly
+    command: lane-stop
+    expect:
+      success: true
+      data: { running: false }

@@ -1,5 +1,5 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
-# The lane's loop runs between commands, so the ejection is fixture state the loop would have written.
+# The ejection is fixture state the lane's loop would have written.
 name: Get an ejected branch back and return to the front
 description: >-
   When the lane ejects my branch, I want the reason, the failing line and the log, and my repaired
@@ -12,27 +12,42 @@ fixture:
 steps:
   - description: The foreman's wait returns the ejection with everything the cell needs
     command: lane-wait
-    input: { timeoutMs: 1000 }
+    input: { consumer: foreman, timeoutMs: 1000 }
     expect:
       success: true
       data:
-        event:
-          type: ejected
-          branch: fix/parser-empty-input
-          reason: final-failed
-          detail: { contains: parses empty input }
-          logPath: { contains: attempts/ }
+        events:
+          - id: ev-7
+            type: ejected
+            branch: fix/parser-empty-input
+            reason: final-failed
+            detail: { contains: parses empty input }
+            logPath: { contains: attempts/ }
+  - description: Reading does not resolve it, so a foreman that died here would find it again
+    command: lane-status
+    expect:
+      success: true
+      data:
+        openEvents: { length: 1 }
   - description: The repaired branch goes ahead of the branch that was already waiting
     command: lane-enqueue
-    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    input: { worktree: wt/parser }
     expect:
       success: true
       data:
+        state: queued
         position: 1
-  - description: The event was marked seen, so a second wait does not repeat it
-    command: lane-wait
-    input: { timeoutMs: 1 }
+  - description: The re-enqueue answered the ejection
+    command: lane-status
     expect:
       success: true
       data:
-        event: { type: timeout }
+        openEvents: { length: 0 }
+  - description: A second wait has nothing new
+    command: lane-wait
+    input: { consumer: foreman, timeoutMs: 1 }
+    expect:
+      success: true
+      data:
+        events: { length: 0 }
+        timedOut: true

@@ -1,0 +1,38 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: See in one place what is waiting on me
+description: >-
+  When the factory needs something only I can give, I want one list of the questions and operator
+  steps waiting on me, oldest first, so that I am interrupted as rarely as possible and nothing waits
+  unseen.
+job: see-what-waits-on-me
+tags: [slice]
+fixture:
+  file: fixtures/backlog.json
+  base: fresh.json
+steps:
+  - description: The queue lists the product question and the expired sign-in
+    command: owner-queue
+    expect:
+      success: true
+      data:
+        items:
+          - { kind: decision, ref: '204', question: { contains: plugins } }
+          - { kind: sign-in, ref: ev-41 }
+  - description: Status counts what waits on the owner
+    command: lane-status
+    expect:
+      success: true
+      data:
+        waitingOnOwner: 2
+        paused: true
+  - description: After the sign-in, resuming the lane clears that item
+    command: lane-resume
+    expect:
+      success: true
+      data: { paused: false }
+  - description: Only the product question remains
+    command: owner-queue
+    expect:
+      success: true
+      data:
+        items: { length: 1 }

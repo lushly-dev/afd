@@ -1,39 +1,46 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
 name: Hand over a reviewed branch and end the turn
 description: >-
-  When my branch is implemented, reviewed and committed, I want to hand it to the lane in one
-  call, so that I can end my turn and never wait on validation, the push or the merge.
+  When my branch is implemented, reviewed and committed, I want to hand it to the lane in one call
+  naming only my worktree, so that I can end my turn and never wait on validation, the push or the merge.
 job: hand-over-a-reviewed-branch
 tags: [slice]
 fixture:
   file: fixtures/running.json
   base: fresh.json
-  overrides:
-    dials: { lane.queueMax: 10 }
 steps:
   - description: A worktree with uncommitted changes is refused, naming the files
     command: lane-enqueue
-    input: { branch: fix/half-done, title: Half done, bodyFile: pr-body.md, reviewers: [review-code], issues: [106] }
+    input: { worktree: wt/half-done, title: Half done, bodyFile: pr-body.md }
     expect:
       success: false
       error:
         code: DIRTY_WORKTREE
         message: src/parse.ts
         suggestion: { contains: commit }
-  - description: A branch without its review evidence is refused, naming the step that is missing
+  - description: A head with no recorded review is refused, whatever the caller says
     command: lane-enqueue
-    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [], issues: [101] }
+    input: { worktree: wt/unreviewed, title: Fix unreviewed, bodyFile: pr-body.md }
     expect:
       success: false
       error:
         code: REVIEW_MISSING
         suggestion: { contains: do-prepare-pr }
-  - description: With its review recorded, the branch passes the cheap checks and joins the queue
+  - description: A branch with no registered cell is refused
     command: lane-enqueue
-    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    input: { worktree: wt/stray, title: Stray, bodyFile: pr-body.md }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: cell-register }
+  - description: A reviewed, committed branch passes the cheap checks and joins the queue
+    command: lane-enqueue
+    input: { worktree: wt/parser, title: Accept empty parser input, bodyFile: pr-body.md }
     expect:
       success: true
       data:
+        state: queued
         position: 3
         head: a1b2c3d
         prequeue:

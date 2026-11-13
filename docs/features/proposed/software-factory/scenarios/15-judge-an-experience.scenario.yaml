@@ -1,0 +1,37 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# Capturing the screens happens in the lane's loop; the run's pairs are fixture state.
+name: Judge a changed experience from side-by-side screens
+description: >-
+  When a run merged changes to what people see, I want the before and after screens of each in one
+  place and a way to run both versions locally, so that I judge experiences without reading code.
+job: judge-an-experience
+tags: [slice]
+fixture:
+  file: fixtures/finished.json
+  base: fresh.json
+steps:
+  - description: The run's digest lists each changed experience with its screen pairs
+    command: lane-report
+    input: { run: run-2 }
+    expect:
+      success: true
+      data:
+        experiences:
+          - pr: 520
+            pairs: { length: 2 }
+  - description: Both versions of one PR are served locally
+    command: pr-preview
+    input: { pr: 520 }
+    expect:
+      success: true
+      data:
+        before: { url: { contains: localhost } }
+        after: { url: { contains: localhost } }
+  - description: A PR the factory did not merge has no preview
+    command: pr-preview
+    input: { pr: 999 }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-report }

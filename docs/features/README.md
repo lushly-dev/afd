@@ -75,7 +75,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | [Plugin Discovery](./proposed/plugin-discovery/) | Auto-discovery of AFD plugins |
 | [Rust Distribution](./proposed/rust-distribution/) | Rust-based distribution layer |
 | [Rust Support](./proposed/rust-support/) | Core crate published as 0.1.0; broader MCP transport and distribution proposal remains open |
-| [Software Factory](./proposed/software-factory/software-factory.proposal.md) | The merge lane from Lushly's fleet v2 as a shared botcore plugin: cells hand reviewed branches to one lane that validates, merges and ejects; a stateless foreman starts cells on the plan with the most room. Lane host chosen from the connected machines, validation concurrency sized per host. Proposed 2026-11-12 with 14 jobs as scenarios, triage intake included; nothing implemented |
+| [Software Factory](./proposed/software-factory/software-factory.proposal.md) | The merge lane from Lushly's fleet v2 as a shared botcore plugin: cells hand reviewed branches to one lane that validates, merges and ejects; a stateless foreman starts cells on the plan with the most room. Lane host chosen from the connected machines, validation concurrency sized per host. Proposed 2026-11-12 with 16 jobs as scenarios, walked by independent readers; triage intake and experience review included; nothing implemented |
 | [Skill Knowledge Layer](./proposed/skill-knowledge-layer/) | Skills as structured knowledge for agents |
 | [Zero Chat Tools](./proposed/zero-chat-tools/) | Canvas-aware AFD commands for Zero chat agent |
 

@@ -1,8 +1,9 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
-name: Hand over a branch from another machine
+name: Hand over, repair and watch a branch from another machine
 description: >-
-  When my cell runs on a machine that is not the lane host, to spend that machine's plans, I want
-  to read the lane's queue and hand my branch across, so that the lane validates it like any other.
+  When my cell runs on a machine that is not the lane host, to spend that machine's plans, I want to
+  read the lane's queue, hand my branch across, hear when it is ejected and bring back its log and
+  the lane's copy, so that a remote cell works exactly like a local one.
 job: hand-off-from-another-machine
 tags: [handoff]
 fixture:
@@ -10,7 +11,19 @@ fixture:
   base: fresh.json
   overrides:
     thisMachine: laptop
-    dials: { lane.queueMax: 10 }
+    events:
+      - id: ev-20
+        type: ejected
+        branch: fix/remote-docs
+        machine: laptop
+        reason: final-failed
+        detail: FAIL docs links
+        logPath: attempts/fix-remote-docs-1.log
+        deliveredTo: []
+        open: true
+    worktrees:
+      wt/parser: { branch: fix/parser-empty-input, clean: true, head: a1b2c3d, review: { head: a1b2c3d }, prequeue: { lint: pass }, gatePathsChanged: [] }
+      wt/remote-docs: { branch: fix/remote-docs, clean: true, head: 7c6b5a4, review: { head: 7c6b5a4 }, prequeue: { lint: pass }, gatePathsChanged: [] }
 steps:
   - description: The lane's queue and seats are readable from this machine
     command: lane-handoff
@@ -19,10 +32,10 @@ steps:
       success: true
       data:
         queue: { length: 2 }
-        seatsTaken: 3
+        seatsTaken: 5
   - description: Enqueueing locally is refused here, pointing to the hand-off
     command: lane-enqueue
-    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    input: { worktree: wt/parser }
     expect:
       success: false
       error:
@@ -30,8 +43,24 @@ steps:
         suggestion: { contains: lane-handoff }
   - description: The hand-off queues the branch on the lane host
     command: lane-handoff
-    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    input: { worktree: wt/parser, title: Accept empty parser input, bodyFile: pr-body.md }
     expect:
       success: true
       data:
+        state: queued
         position: 3
+  - description: This machine hears about its own ejected branch
+    command: lane-handoff
+    input: { watch: true, consumer: laptop, timeoutMs: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { id: ev-20, branch: fix/remote-docs, reason: final-failed }
+  - description: The ejection's log and the lane's copy of the branch come back to the cell
+    command: lane-handoff
+    input: { sync: true, worktree: wt/remote-docs }
+    expect:
+      success: true
+      data:
+        logPath: { contains: attempts/ }

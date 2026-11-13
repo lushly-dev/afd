@@ -1,14 +1,16 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
-name: Start a cell on the plan with the most room
+name: Start a cell on the plan and host with room
 description: >-
-  When the queue is short, I want to know whether to start another cell and on which plan,
-  so that allowance about to reset is spent first and no plan is drained early.
+  When the queue is short, I want to know whether to start another cell and on which plan, and the
+  limits enforced when I register it, so that allowance about to reset is spent first, no plan is
+  drained early and the host never takes more cells than it can carry.
 job: start-a-cell-where-there-is-room
 tags: [slice]
 fixture:
   file: fixtures/fresh.json
   overrides:
-    dials: { lane.host: workstation }
+    laneHost: workstation
+    dials: { cells.max: 1 }
 steps:
   - description: Each plan shows its room (window elapsed minus share used)
     command: plan-list
@@ -25,18 +27,34 @@ steps:
       data:
         canStartCell: true
         plan: { id: plan-a }
-  - description: The foreman registers the cell it started
+  - description: A cell with two issues is refused while one issue per cell is the rule
+    command: cell-register
+    input: { branch: fix/core-pair, issues: [101, 102], thread: thread-1, plan: plan-a, route: sol/high }
+    expect:
+      success: false
+      error:
+        code: TOO_MANY_ISSUES
+        suggestion: { contains: cells.issuesMax }
+  - description: Registering the cell claims its issue in the same call
     command: cell-register
     input: { branch: fix/parser-empty-input, issues: [101], thread: thread-1, plan: plan-a, route: sol/high }
     expect:
       success: true
       data:
-        cell: { branch: fix/parser-empty-input, plan: plan-a }
-  - description: Registering the same branch twice is refused
+        cell: { branch: fix/parser-empty-input, plan: plan-a, issues: [101] }
+  - description: The same branch cannot be registered twice
     command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [101], thread: thread-9, plan: plan-b, route: opus/high }
+    input: { branch: fix/parser-empty-input, issues: [102], thread: thread-9, plan: plan-b, route: opus/medium }
     expect:
       success: false
       error:
         code: ALREADY_EXISTS
         suggestion: { contains: lane-drop }
+  - description: Another cell beyond cells.max is refused even if the foreman did not check first
+    command: cell-register
+    input: { branch: fix/client-retry, issues: [103], thread: thread-2, plan: plan-a, route: sol/high }
+    expect:
+      success: false
+      error:
+        code: CELLS_FULL
+        suggestion: { contains: lane-wait }

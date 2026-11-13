@@ -1,15 +1,17 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
-name: Triage the backlog so the foreman has work
+# do-triage itself is a skill that writes labels through gh; these steps show what it reads back.
+name: Triage the backlog so the foreman takes the most urgent work first
 description: >-
   When issues arrive unlabelled or labelled against the rules, I want them listed with each broken
-  rule and the planned, unclaimed issues listed apart, so that the foreman dispatches only work
-  triage has decided and two cells never take the same issue.
+  rule and the dispatchable issues listed in priority order, with stale claims named, so that the
+  foreman takes the most urgent work first and two cells never take the same issue.
 job: triage-the-backlog
 tags: [slice]
 fixture:
   file: fixtures/backlog.json
+  base: fresh.json
 steps:
-  - description: The check lists untriaged issues, rule violations and what may be dispatched
+  - description: The check lists untriaged issues, rule violations, the dispatch order and stale claims
     command: issue-check
     expect:
       success: true
@@ -17,34 +19,36 @@ steps:
         untriaged: [202]
         violations:
           - { number: 203, rule: { contains: one execution } }
-        dispatchable: [201]
-  - description: A cell claims a dispatchable issue for its branch
-    command: issue-claim
-    input: { number: 201, branch: fix/parser-empty-input }
+        dispatchable: [206, 201]
+        staleClaims:
+          - { number: 208, branch: fix/cli-help }
+  - description: Registering a cell on the first dispatchable issue claims it
+    command: cell-register
+    input: { branch: fix/server-timeout, issues: [206], thread: thread-1, plan: plan-a, route: sol/high }
     expect:
       success: true
       data:
-        claim: { number: 201, branch: fix/parser-empty-input }
-  - description: A second claim on the same issue is refused, naming the holder
-    command: issue-claim
-    input: { number: 201, branch: fix/other-attempt }
+        cell: { issues: [206] }
+  - description: An issue another cell holds is refused, naming the holder
+    command: cell-register
+    input: { branch: fix/other-attempt, issues: [205], thread: thread-2, plan: plan-a, route: sol/high }
     expect:
       success: false
       error:
         code: ALREADY_CLAIMED
-        message: fix/parser-empty-input
+        message: fix/client-timeout
         suggestion: { contains: issue-check }
-  - description: An issue triage deferred cannot be claimed
-    command: issue-claim
-    input: { number: 204, branch: feat/naming }
+  - description: An issue triage deferred cannot be taken
+    command: cell-register
+    input: { branch: feat/naming, issues: [204], thread: thread-3, plan: plan-a, route: sol/high }
     expect:
       success: false
       error:
         code: NOT_DISPATCHABLE
         suggestion: { contains: do-triage }
-  - description: The claimed issue leaves the dispatchable list
+  - description: The claimed issue leaves the dispatch list, and the expert lane never enters it
     command: issue-check
     expect:
       success: true
       data:
-        dispatchable: { length: 0 }
+        dispatchable: [201]

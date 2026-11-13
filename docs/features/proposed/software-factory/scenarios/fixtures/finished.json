@@ -1,25 +1,64 @@
 {
-	"dials": {
-		"lane.host": "workstation",
-		"lane.slots": 2,
-		"cells.max": 4,
-		"lane.queueTarget": 2,
-		"lane.queueMax": 10,
-		"plans.ceiling": 85,
-		"fable.ceiling": 50
+	"laneHost": "workstation",
+	"lane": {
+		"running": true,
+		"paused": false,
+		"runId": "run-2"
 	},
-	"lane": { "running": true, "paused": false },
 	"runs": [
 		{
 			"id": "run-1",
 			"hours": 4,
+			"merged": 6,
+			"validations": 11,
+			"staleRuns": 1,
+			"reruns": 0,
+			"foremanWakes": 30,
+			"prs": []
+		},
+		{
+			"id": "run-2",
+			"hours": 4,
 			"merged": 9,
 			"validations": 13,
-			"productiveMinutes": 210,
-			"validationMinutes": 260,
 			"staleRuns": 0,
-			"reruns": 3
+			"reruns": 3,
+			"foremanWakes": 27,
+			"prs": [
+				{
+					"number": 518,
+					"branch": "fix/retry-backoff",
+					"route": "sol/high"
+				},
+				{
+					"number": 520,
+					"branch": "feat/empty-state",
+					"route": "opus/medium"
+				}
+			],
+			"experiences": [
+				{
+					"pr": 520,
+					"pairs": [
+						{
+							"story": "collection-empty",
+							"width": "desktop"
+						},
+						{
+							"story": "collection-empty",
+							"width": "phone"
+						}
+					]
+				}
+			]
 		}
 	],
-	"events": [{ "type": "queue-empty", "seen": false }]
+	"events": [
+		{
+			"id": "ev-30",
+			"type": "queue-empty",
+			"deliveredTo": [],
+			"open": true
+		}
+	]
 }
