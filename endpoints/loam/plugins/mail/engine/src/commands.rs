@@ -33,7 +33,7 @@ pub fn store_failure(error: &StoreError) -> CommandError {
 
 /// Exposed to the command line alone: not to MCP, the in-app agent or the
 /// palette (the specification's section 11).
-fn command_line_only() -> ExposeOptions {
+pub(crate) fn command_line_only() -> ExposeOptions {
     ExposeOptions::new()
         .with_cli(true)
         .with_agent(false)
@@ -463,7 +463,7 @@ pub fn credential_for(command: &str, input: &serde_json::Value) -> Option<Creden
 #[must_use]
 pub fn approval_summary(command: &str, input: &serde_json::Value) -> Option<String> {
     if command != "mail-account-add" {
-        return None;
+        return crate::tokens::approval_summary(command, input);
     }
     let (provider, address) = account_fields(input).ok()?;
     Some(format!(

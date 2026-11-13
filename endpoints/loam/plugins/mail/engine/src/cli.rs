@@ -2,9 +2,10 @@
 //!
 //! It answers `help` and `version`, and runs a command the registry exposes
 //! to the command line: `loam-mail <command> [input]`, where the input is a
-//! JSON object. `serve` and `mcp` arrive with later steps, and with them the
-//! forwarding of a command to a running server; until then a command opens
-//! the store itself.
+//! JSON object. The program runs a command itself when no server owns the
+//! store, and forwards it to the running server's own route when one does
+//! ([`Runner`]); either way it passes through the same registry, middleware
+//! and journal. `serve` and `mcp` are the program's, in `main`.
 //!
 //! A person's command (the specification's section 3.5) is held by the
 //! approval middleware. At a terminal the command line shows what will
@@ -16,7 +17,11 @@
 
 use std::io::Write;
 
-use afd::{ActorKind, CommandContext, CommandError, CommandInterface, CommandRegistry, failure};
+use afd::{
+    ActorKind, CommandContext, CommandError, CommandInterface, CommandRegistry, CommandResult,
+    failure,
+};
+use async_trait::async_trait;
 
 /// What a person at a terminal asks of a command's output budget: more than
 /// any command allows, so each gives its largest.
@@ -50,6 +55,81 @@ pub trait Person {
     fn secret(&mut self, prompt: &str) -> std::io::Result<String>;
 }
 
+/// Where the command line's commands run.
+#[async_trait]
+pub trait Runner {
+    /// Runs `name` with `input` as the command line: a person's when
+    /// `terminal`, a script's otherwise, with the approval of a held call
+    /// the person said yes to.
+    async fn run(
+        &self,
+        name: &str,
+        input: serde_json::Value,
+        terminal: bool,
+        approval: Option<String>,
+    ) -> CommandResult<serde_json::Value>;
+}
+
+/// The context a command runs with at the command line, in this process or
+/// on a server's route for it (the specification's 3.3).
+#[must_use]
+pub fn command_line_context(terminal: bool) -> CommandContext {
+    let context = CommandContext::new()
+        .with_interface(CommandInterface::Cli)
+        .with_actor(if terminal {
+            ActorKind::Human
+        } else {
+            ActorKind::Script
+        });
+    // A person at a terminal reads what a command gives, not a model's
+    // context: each command's largest budget, which the ask is clamped to.
+    if terminal {
+        context.with_output_budget_ask(PERSON_BUDGET)
+    } else {
+        context
+    }
+}
+
+/// Runs commands on a registry in this process.
+pub struct Local<'a>(pub &'a CommandRegistry);
+
+#[async_trait]
+impl Runner for Local<'_> {
+    async fn run(
+        &self,
+        name: &str,
+        input: serde_json::Value,
+        terminal: bool,
+        approval: Option<String>,
+    ) -> CommandResult<serde_json::Value> {
+        let mut context = command_line_context(terminal);
+        if let Some(approval) = approval {
+            context = context.with_approval(approval);
+        }
+        self.0.execute(name, input, Some(context)).await
+    }
+}
+
+/// Runs commands on the server that owns the store.
+#[async_trait]
+impl Runner for crate::forward::Server {
+    async fn run(
+        &self,
+        name: &str,
+        input: serde_json::Value,
+        terminal: bool,
+        approval: Option<String>,
+    ) -> CommandResult<serde_json::Value> {
+        self.call(&crate::serve::Forwarded {
+            command: name.to_string(),
+            input,
+            terminal,
+            approval,
+        })
+        .await
+    }
+}
+
 /// Who is at the command line (the specification's section 3.3).
 pub enum Caller<'a> {
     /// Standard input is a terminal: a person, who can be asked.
@@ -72,6 +152,24 @@ pub fn run(
     out: &mut dyn Write,
     err: &mut dyn Write,
 ) -> std::io::Result<u8> {
+    run_on(args, registry, &Local(registry), caller, secrets, out, err)
+}
+
+/// [`run`], running each command through `runner`: this process's
+/// registry, or a running server. `registry` still answers `help` and says
+/// which commands the command line may run.
+///
+/// # Errors
+/// Returns an error only when writing to `out` or `err` fails.
+pub fn run_on(
+    args: &[String],
+    registry: &CommandRegistry,
+    runner: &(dyn Runner + Sync),
+    caller: Caller<'_>,
+    secrets: &dyn Secrets,
+    out: &mut dyn Write,
+    err: &mut dyn Write,
+) -> std::io::Result<u8> {
     match args.first().map(String::as_str) {
         None | Some("help" | "--help" | "-h") => {
             write_help(registry, out)?;
@@ -82,7 +180,7 @@ pub fn run(
             Ok(EXIT_OK)
         }
         Some(name) if exposed(registry, name) => {
-            run_command(name, &args[1..], registry, caller, secrets, out, err)
+            run_command(name, &args[1..], runner, caller, secrets, out, err)
         }
         Some(other) => {
             // The argument is echoed with control characters removed, so that
@@ -110,7 +208,7 @@ fn exposed(registry: &CommandRegistry, name: &str) -> bool {
 fn run_command(
     name: &str,
     rest: &[String],
-    registry: &CommandRegistry,
+    runner: &(dyn Runner + Sync),
     caller: Caller<'_>,
     secrets: &dyn Secrets,
     out: &mut dyn Write,
@@ -133,21 +231,11 @@ fn run_command(
             return Ok(EXIT_USAGE);
         }
     };
-    let mut context = CommandContext::new()
-        .with_interface(CommandInterface::Cli)
-        .with_actor(match caller {
-            Caller::Terminal(_) => ActorKind::Human,
-            Caller::Script => ActorKind::Script,
-        });
-    // A person at a terminal reads what a command gives, not a model's
-    // context: each command's largest budget, which the ask is clamped to.
-    if matches!(caller, Caller::Terminal(_)) {
-        context = context.with_output_budget_ask(PERSON_BUDGET);
-    }
+    let terminal = matches!(caller, Caller::Terminal(_));
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
-    let mut result = runtime.block_on(registry.execute(name, input.clone(), Some(context.clone())));
+    let mut result = runtime.block_on(runner.run(name, input.clone(), terminal, None));
     if let Some((summary, token)) = held(&result) {
         match caller {
             Caller::Script => {
@@ -187,11 +275,7 @@ fn run_command(
                     }
                     // Making the password may have taken a while: a fresh
                     // hold gives a fresh token.
-                    let again = runtime.block_on(registry.execute(
-                        name,
-                        input.clone(),
-                        Some(context.clone()),
-                    ));
+                    let again = runtime.block_on(runner.run(name, input.clone(), terminal, None));
                     if let Some((_, fresh)) = held(&again) {
                         token = fresh;
                     }
@@ -204,14 +288,13 @@ fn run_command(
                     }
                     kept = Some((ask.key, before));
                 }
-                let approved = context.with_approval(token);
                 // The stop is listened for first, so that it is caught from
                 // the start of the sign-in.
                 let finished = runtime.block_on(async {
                     tokio::select! {
                         biased;
                         () = stopped() => None,
-                        result = registry.execute(name, input, Some(approved)) => Some(result),
+                        result = runner.run(name, input, terminal, Some(token)) => Some(result),
                     }
                 });
                 let interrupted = finished.is_none();
@@ -252,39 +335,48 @@ fn run_command(
     Ok(if result.success { EXIT_OK } else { EXIT_FAILED })
 }
 
-/// Waits until the person stops the program: Ctrl-C, or, on unix, the
-/// terminal closing or a request to end. A signal that cannot be listened
-/// for is never taken for one that came.
-async fn stopped() {
-    let interrupt = async {
+/// What completes when the person stops the program: Ctrl-C, or, on Unix,
+/// the terminal closing or a request to end. It listens from the moment it
+/// is called, not from when it is first awaited, so a signal that arrives in
+/// between is not lost and does not end the process without its cleanup. A
+/// signal that cannot be listened for is never taken for one that came.
+///
+/// Call it inside a Tokio runtime.
+#[cfg(unix)]
+pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
+    use tokio::signal::unix::{Signal, SignalKind, signal};
+    async fn arrives(signal: Option<Signal>) {
+        if let Some(mut signal) = signal
+            && signal.recv().await.is_some()
+        {
+            return;
+        }
+        std::future::pending::<()>().await;
+    }
+    let [interrupt, hangup, terminate] = [
+        SignalKind::interrupt(),
+        SignalKind::hangup(),
+        SignalKind::terminate(),
+    ]
+    .map(|kind| signal(kind).ok());
+    async move {
+        tokio::select! {
+            () = arrives(interrupt) => {}
+            () = arrives(hangup) => {}
+            () = arrives(terminate) => {}
+        }
+    }
+}
+
+/// What completes when the person presses Ctrl-C. A signal that cannot be
+/// listened for is never taken for one that came.
+#[cfg(not(unix))]
+pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
+    async {
         if tokio::signal::ctrl_c().await.is_err() {
             std::future::pending::<()>().await;
         }
-    };
-    #[cfg(unix)]
-    {
-        use tokio::signal::unix::{SignalKind, signal};
-        let other = async {
-            match (
-                signal(SignalKind::hangup()),
-                signal(SignalKind::terminate()),
-            ) {
-                (Ok(mut hangup), Ok(mut terminate)) => {
-                    tokio::select! {
-                        _ = hangup.recv() => {}
-                        _ = terminate.recv() => {}
-                    }
-                }
-                _ => std::future::pending::<()>().await,
-            }
-        };
-        tokio::select! {
-            () = interrupt => {}
-            () = other => {}
-        }
     }
-    #[cfg(not(unix))]
-    interrupt.await;
 }
 
 /// The summary and token of a call the approval middleware held.
@@ -371,6 +463,14 @@ fn write_help(registry: &CommandRegistry, out: &mut dyn Write) -> std::io::Resul
     writeln!(
         out,
         "  {PROGRAM} <command> [input]    Run a command; the input is a JSON object"
+    )?;
+    writeln!(
+        out,
+        "  {PROGRAM} serve [--port N]     Serve on 127.0.0.1: MCP for agents, and the commands run here"
+    )?;
+    writeln!(
+        out,
+        "  {PROGRAM} mcp                  Serve MCP on standard input and output"
     )?;
     writeln!(out)?;
     let mut commands: Vec<_> = registry
