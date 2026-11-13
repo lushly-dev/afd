@@ -36,9 +36,9 @@ pub use document::{
 pub use embed::{EmbedError, Embedder, ModelId};
 pub use envelope::{
     Actor, ActorKind, Assurance, Authority, ByAt, ChainLink, Confirmation, DerivedFrom,
-    ENVELOPE_VERSION, Envelope, LATEST_ENVELOPE_VERSION, MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS,
-    MAX_DELEGATION_CHAIN, MAX_ENVELOPE_LIST, MAX_REDACTIONS, MEMORY_ENVELOPE_VERSION, Origin,
-    Redaction, Sensitivity, Source,
+    ENVELOPE_VERSION, Envelope, LATEST_ENVELOPE_VERSION, LOCAL_ASSURANCE_ENVELOPE_VERSION,
+    MAX_CONSTRAINT_CHARS, MAX_CONSTRAINTS, MAX_DELEGATION_CHAIN, MAX_ENVELOPE_LIST, MAX_REDACTIONS,
+    MEMORY_ENVELOPE_VERSION, Origin, Redaction, Sensitivity, Source,
 };
 pub use error::{Result, StoreError};
 pub use graph::{

@@ -1,0 +1,1828 @@
+{
+	"$schema": "https://json-schema.org/draft/2020-12/schema",
+	"$id": "https://afd.dev/umbel/schemas/workspace-config.v7.json",
+	"title": "Umbel workspace configuration, version 7",
+	"description": "umbel.toml read as JSON (D107; D180, the Ideas host-review specification sections 4, 6.1 and 6.5). Version 7 is version 6 with [person]: decision_ttl_s, the lifetime of every person decision begun on this host (60 to 86400 seconds, default 600), moved by each page the person is shown and never past 24 hours after the decision began; and [person.local], the person page served on a loopback address by umbel person-page-serve for a workspace in auth.mode none, with no login: enabled (default false; only with auth.mode none, and only in a build with the auth feature) and bind (a loopback address, default 127.0.0.1:7421). A space gains verified_levels, the levels of affirmation a call's verified_only admits: terminal, verified and local, each at most once, default [\"terminal\", \"verified\"]. The host reads versions 1 to 6 as version 7 with the default lifetime, no local page and the default verified_levels (workspace-config.v1.json to workspace-config.v6.json); umbel init writes version 7. Rules that need more than a schema are checked when the host opens the workspace, each a WORKSPACE_CONFIG_INVALID naming the key: person.local.enabled needs auth.mode none and the auth feature, and every version 6 rule. umbel.toml read as JSON (D107, phase 5 specification section 2.2; D161, D166, the records host specification sections 3 and 9.2). Version 6 is version 5 with a space's person (the one person, human:<id>, whose decisions give standing in the space), verified_admits (what a call that asks for verified content only is given: affirmed, the default, or affirmed+attested) and [spaces.<id>.meaning] (the model the space's record lanes are matched by meaning with, the weight of the fused score and the k its gate counts within); a collection's own (its documents are the person's own; it needs the space's person) and speaker (which part of each document is the person's; with own only); [models] (the embedding models a space may name, none by default: static and onnx read pinned files from a directory of the workspace, http posts to an endpoint and so sends record text off the machine); and the records_write grant table's default_access (the access set of a new record of a declared kind: private, the default, or space). Version 5 is version 4 with [auth] (mode none, oauth or gateway; the scope prefix; identity namespaces with at most one person login each; issuers; the gateway), [http.tls], http.public_url and http.trusted_proxies (phase 5 step 3), [http.person] (phase 5 step 5b), [limits], [usage], [principal.equivalents], an access group's claim, and the memory_write grant table's editors, erasers, erase_approvals and erase_approval_window_s (sections 8.3 and 8.4). The host reads versions 1 to 5 as version 6 with no person, no own collection and no model (workspace-config.v1.json to workspace-config.v5.json); umbel init writes version 6. Every key but config_version has a default baked into the binary. Rules that need more than a schema are checked when the host opens the workspace, each a WORKSPACE_CONFIG_INVALID naming the key: a non-loopback http.bind needs a hosted mode and [http.tls]; http.public_url's host is one http.allowed_hosts admits and its path is http.path; every issuer and the gateway name a declared namespace, a person login's issuer is an issuer of its namespace, an issuer's iss is unique, an issuer serving a person login states access_tokens, the gateway's alias and iss are no issuer's; a gateway on a non-loopback bind needs client_cert_sha256 and client_auth = \"ca\", and pinned certificates need client_auth other than none; in a hosted mode principal.local_id and principal.on_behalf_of are <namespace>/<subject> for a declared namespace; each equivalent maps a principal no namespace can produce to one a namespace produces; a group claim names an issuer whose access tokens are accepted; usage.readers' groups are declared; a space's meaning.model is the id of a [models] table; a collection with own = true is not command-writable, which is to say no enabled instance's grants.content_write.allow covers it or covers a collection of any space whose root overlaps its root, as written or once resolved; and every version 4 rule.",
+	"type": "object",
+	"required": ["config_version"],
+	"additionalProperties": false,
+	"properties": {
+		"config_version": {
+			"const": 7
+		},
+		"name": {
+			"type": "string",
+			"minLength": 1
+		},
+		"default_space": {
+			"$ref": "#/$defs/spaceId"
+		},
+		"profile": {
+			"enum": ["team"]
+		},
+		"spaces": {
+			"type": "object",
+			"propertyNames": {
+				"$ref": "#/$defs/spaceId"
+			},
+			"additionalProperties": {
+				"type": "object",
+				"additionalProperties": false,
+				"properties": {
+					"title": {
+						"type": "string",
+						"minLength": 1
+					},
+					"readers": {
+						"description": "Who may read the space: \"*\", a principal string or group:<id>. Default [\"*\"].",
+						"type": "array",
+						"minItems": 1,
+						"items": {
+							"$ref": "#/$defs/reader"
+						}
+					},
+					"collections": {
+						"description": "The space's content roots (D52), keyed by collection id.",
+						"type": "object",
+						"propertyNames": {
+							"$ref": "#/$defs/collectionId"
+						},
+						"additionalProperties": {
+							"$ref": "#/$defs/collection"
+						}
+					},
+					"person": {
+						"description": "The one person whose decisions give standing in the space: a principal string human:<id>. None by default: without one no record of the space can be affirmed or attested.",
+						"$ref": "#/$defs/principalString",
+						"pattern": "^human:"
+					},
+					"verified_admits": {
+						"description": "What a call that asks for verified content only is given. Default affirmed. No setting asks for every read.",
+						"enum": ["affirmed", "affirmed+attested"]
+					},
+					"meaning": {
+						"description": "The model the space's record lanes are matched by meaning with, once its gate has passed. None by default.",
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["model"],
+						"properties": {
+							"model": {
+								"description": "The id of a [models] table.",
+								"$ref": "#/$defs/modelId"
+							},
+							"weight": {
+								"description": "w of the fused score, w * meaning + (1 - w) * words. Default 0.5.",
+								"type": "number",
+								"minimum": 0,
+								"maximum": 1
+							},
+							"k": {
+								"description": "The k within which the gate counts a probe's duplicate as found. Default 5.",
+								"type": "integer",
+								"minimum": 1,
+								"maximum": 20
+							}
+						}
+					},
+					"backend": {
+						"description": "Reserved (phase 6).",
+						"type": "string"
+					},
+					"verified_levels": {
+						"description": "The levels of affirmation a call's verified_only admits: terminal (the CLI's prompt), verified (the hosted person page) and local (the local person page), each at most once. Default [\"terminal\", \"verified\"].",
+						"type": "array",
+						"minItems": 1,
+						"maxItems": 3,
+						"uniqueItems": true,
+						"items": {
+							"enum": ["terminal", "verified", "local"]
+						}
+					}
+				},
+				"allOf": [
+					{
+						"description": "An own collection needs the space's person.",
+						"if": {
+							"properties": {
+								"collections": {
+									"not": {
+										"additionalProperties": {
+											"not": {
+												"properties": {
+													"own": {
+														"const": true
+													}
+												},
+												"required": ["own"]
+											}
+										}
+									}
+								}
+							},
+							"required": ["collections"]
+						},
+						"then": {
+							"required": ["person"]
+						}
+					}
+				]
+			}
+		},
+		"access": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"groups": {
+					"description": "Access groups, keyed by group id.",
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/groupId"
+					},
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"required": ["members"],
+						"properties": {
+							"members": {
+								"description": "Principal strings, or \"*\".",
+								"type": "array",
+								"items": {
+									"$ref": "#/$defs/member"
+								}
+							},
+							"claim": {
+								"description": "Members from one issuer's token claim, unioned with members, never from a gateway, lasting no longer than the token (section 4.5, owner decision 4).",
+								"type": "object",
+								"additionalProperties": false,
+								"required": ["issuer", "name", "value"],
+								"properties": {
+									"issuer": {
+										"$ref": "#/$defs/alias"
+									},
+									"name": {
+										"$ref": "#/$defs/claimName"
+									},
+									"value": {
+										"$ref": "#/$defs/claimValue"
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		"store": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"lock_timeout_ms": {
+					"description": "SQLite busy timeout and tantivy writer wait. Default 5000.",
+					"type": "integer",
+					"minimum": 100,
+					"maximum": 600000
+				},
+				"exclude_memory_from_machine_backup": {
+					"description": "Whether memory.sqlite3, memory.keys and their WAL and shared-memory files are excluded from the machine's backup (Time Machine on macOS; D87). Default true. A file-level copy is not covered.",
+					"type": "boolean"
+				}
+			}
+		},
+		"plugins": {
+			"type": "object",
+			"description": "enabled lists the instance ids in load order; every other key is an instance table named in it.",
+			"properties": {
+				"enabled": {
+					"description": "Instance ids, in load order.",
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/instanceId"
+					}
+				}
+			},
+			"propertyNames": {
+				"$ref": "#/$defs/instanceIdOrList"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/instance"
+			}
+		},
+		"mcp": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"first_class_tools": {
+					"type": "array",
+					"minItems": 1,
+					"maxItems": 8,
+					"items": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9]*(-[a-z][a-z0-9]*)+$"
+					}
+				},
+				"tools_list_ttl_ms": {
+					"type": "integer",
+					"minimum": 0
+				},
+				"confirmations": {
+					"enum": ["enforce", "require-human", "off"]
+				},
+				"instructions": {
+					"type": "string"
+				}
+			}
+		},
+		"http": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"bind": {
+					"description": "A socket address. A non-loopback one needs auth.mode oauth or gateway and [http.tls] (checked at open).",
+					"type": "string",
+					"pattern": "^([0-9]{1,3}(\\.[0-9]{1,3}){3}|\\[[0-9A-Fa-f:.]+\\]):[0-9]{1,5}$"
+				},
+				"path": {
+					"description": "Starts with /, is not / and not /health, and has no query, fragment or .. segment.",
+					"type": "string",
+					"pattern": "^/[^?#]+$",
+					"not": {
+						"anyOf": [
+							{
+								"const": "/health"
+							},
+							{
+								"pattern": "(^|/)\\.\\.(/|$)"
+							}
+						]
+					}
+				},
+				"allowed_hosts": {
+					"description": "Host names or IP literals, optionally with a port; no wildcard.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "^[^*\\s/?#@]+$"
+					}
+				},
+				"allowed_origins": {
+					"description": "Exact http or https origins; no wildcard and not null.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"pattern": "^https?://[^*\\s/?#@]+$"
+					}
+				},
+				"max_body_bytes": {
+					"type": "integer",
+					"minimum": 1024,
+					"maximum": 16777216
+				},
+				"public_url": {
+					"description": "The MCP endpoint's absolute https URL: the token audience (RFC 8707) and the metadata's resource (RFC 9728). Required when auth.mode is not none. Lowercase, no user information, query or fragment; its host is one http.allowed_hosts admits and its path equals http.path (checked at open).",
+					"type": "string",
+					"pattern": "^https://([a-z0-9.-]+|\\[[0-9a-f:.]+\\])(:[0-9]{1,5})?/[\\x21-\\x7e]*$",
+					"not": {
+						"pattern": "[?#@\"\\\\<>`{}|^]"
+					}
+				},
+				"tls": {
+					"$ref": "#/$defs/tls"
+				},
+				"trusted_proxies": {
+					"description": "Phase 5 step 3: exact peer addresses whose connections must open with a PROXY protocol version 2 header, which supplies the client address the per-IP limit keys on. A listed peer's connection without one is refused; no other peer's header is read, and no forwarded header ever is. One IPv4 or IPv6 address per entry (no port, prefix length or zone), each once, never unspecified, multicast or broadcast (checked at open), at most 64; only when auth.mode is not none.",
+					"type": "array",
+					"maxItems": 64,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^([0-9]{1,3}(\\.[0-9]{1,3}){3}|[0-9A-Fa-f:.]*:[0-9A-Fa-f:.]*)$"
+					}
+				},
+				"person": {
+					"$ref": "#/$defs/personListener"
+				}
+			}
+		},
+		"journal": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"record_failures": {
+					"type": "boolean"
+				},
+				"lock_timeout_ms": {
+					"type": "integer",
+					"minimum": 100,
+					"maximum": 600000
+				}
+			}
+		},
+		"events": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"retention": {
+					"description": "Reserved; phase 0 keeps every event.",
+					"type": "string"
+				}
+			}
+		},
+		"log": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"level": {
+					"enum": ["error", "warn", "info", "debug", "trace"]
+				},
+				"format": {
+					"enum": ["text", "json"]
+				}
+			}
+		},
+		"principal": {
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"local_id": {
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"description": "The operator's id. In auth.mode oauth and gateway, <namespace>/<subject> for a declared namespace (section 4.6, checked at open)."
+				},
+				"on_behalf_of": {
+					"type": "string",
+					"minLength": 1,
+					"description": "The person a local agent acts for. In auth.mode oauth and gateway, <namespace>/<subject> for a declared namespace (checked at open)."
+				},
+				"agent_env": {
+					"description": "Environment variable names that, when set, mark the CLI's caller as an agent (phase 3 section 3.3), beside CLAUDECODE, CLAUDE_CODE_ENTRYPOINT and AI_AGENT.",
+					"type": "array",
+					"maxItems": 64,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/envName"
+					}
+				},
+				"equivalents": {
+					"description": "Legacy principal strings mapped one way to namespaced ones, which every principal comparison consults (section 4.6, owner decision 16). Each key is a principal no namespace can produce; each value one a namespace produces; no chains (checked at open).",
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/principalString"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/principalString"
+					}
+				}
+			}
+		},
+		"auth": {
+			"$ref": "#/$defs/auth"
+		},
+		"limits": {
+			"description": "The hosted rate limits (section 11).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"ip_requests_per_minute": {
+					"description": "Per peer address, before verification. Default 1200.",
+					"type": "integer",
+					"minimum": 1
+				},
+				"calls_per_minute": {
+					"description": "Per verified issuer, subject and client. Default 600.",
+					"type": "integer",
+					"minimum": 1
+				},
+				"read_bytes_per_minute": {
+					"description": "Result bytes per effective principal. Default 67108864.",
+					"type": "integer",
+					"minimum": 1
+				},
+				"person_pages_per_hour": {
+					"description": "Person decisions begun per principal. Default 30.",
+					"type": "integer",
+					"minimum": 1
+				}
+			}
+		},
+		"usage": {
+			"description": "Content-free usage events (section 12.1).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"enabled": {
+					"description": "Default true.",
+					"type": "boolean"
+				},
+				"readers": {
+					"description": "Who reads everyone's usage: principal strings and group:<id>, never \"*\". Default none.",
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"oneOf": [
+							{
+								"$ref": "#/$defs/principalString"
+							},
+							{
+								"type": "string",
+								"pattern": "^group:[a-z][a-z0-9-]{0,62}$"
+							}
+						]
+					}
+				},
+				"retention_days": {
+					"description": "Default 400.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 36500
+				}
+			}
+		},
+		"models": {
+			"description": "The embedding models a space may name, keyed by model id. None by default: without a model every match is scored by words alone.",
+			"type": "object",
+			"propertyNames": {
+				"$ref": "#/$defs/modelId"
+			},
+			"additionalProperties": {
+				"$ref": "#/$defs/model"
+			}
+		},
+		"person": {
+			"description": "Person decisions on this host (the Ideas host-review specification, sections 4 and 6.1).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"decision_ttl_s": {
+					"description": "The lifetime of every person decision begun on this host, in seconds: from the last page the person was shown, never past 24 hours after the decision began. Default 600.",
+					"type": "integer",
+					"minimum": 60,
+					"maximum": 86400
+				},
+				"local": {
+					"description": "The local person page: served by umbel person-page-serve on a loopback address, with no login, for a workspace in auth.mode none. A decision made there records the level local, which shows that something on the machine posted the form, not that a person clicked.",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"enabled": {
+							"description": "Default false. Only with auth.mode none, and only in a build with the auth feature.",
+							"type": "boolean"
+						},
+						"bind": {
+							"description": "A loopback address and port. Default 127.0.0.1:7421.",
+							"type": "string",
+							"pattern": "^(127(\\.[0-9]{1,3}){3}|\\[::1\\]):[0-9]{1,5}$"
+						}
+					}
+				}
+			}
+		}
+	},
+	"$defs": {
+		"spaceId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"instanceId": {
+			"description": "Not \"enabled\": [plugins.enabled] would collide with the list.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}$",
+			"not": {
+				"const": "enabled"
+			}
+		},
+		"envName": {
+			"type": "string",
+			"pattern": "^[A-Za-z_][A-Za-z0-9_]{0,127}$",
+			"description": "The name of an environment variable, never its value."
+		},
+		"limits": {
+			"description": "A component's per-call limits, within the host caps (specification section 6.2).",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"fuel": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 20000000000
+				},
+				"timeout_ms": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 60000
+				},
+				"memory_bytes": {
+					"type": "integer",
+					"minimum": 65536,
+					"maximum": 1073741824
+				},
+				"table_elements": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 1000000
+				}
+			}
+		},
+		"instance": {
+			"description": "One plugin instance. The keys that apply depend on the plugin's kind, which only its manifest knows; the host checks that at load and the doctor checks it in plugins.sources.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"source": {
+					"description": "compiled:<id>, or a relative directory inside the workspace that holds umbel-plugin.toml. Default: compiled:<instance id> when the binary has it, plugins/<instance id> when that directory exists.",
+					"type": "string",
+					"minLength": 1,
+					"anyOf": [
+						{
+							"pattern": "^compiled:[a-z][a-z0-9]{0,31}$"
+						},
+						{
+							"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+							"not": {
+								"anyOf": [
+									{
+										"pattern": "^compiled:"
+									},
+									{
+										"pattern": "(^|/)\\.\\.(/|$)"
+									}
+								]
+							}
+						}
+					]
+				},
+				"required": {
+					"description": "Default true, and false for an HTTP mount.",
+					"type": "boolean"
+				},
+				"spaces": {
+					"description": "Default: every declared space.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/spaceId"
+					}
+				},
+				"deny": {
+					"description": "Grants withheld from the plugin.",
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"config",
+							"log",
+							"packs",
+							"events",
+							"clock",
+							"random",
+							"content",
+							"content_write",
+							"documents",
+							"documents_write",
+							"records",
+							"records_write",
+							"index",
+							"index_write",
+							"graph",
+							"graph_write",
+							"memory",
+							"memory_write",
+							"http",
+							"secrets"
+						]
+					}
+				},
+				"config": {
+					"description": "Validated against the plugin manifest's configuration schema.",
+					"type": "object"
+				},
+				"limits": {
+					"$ref": "#/$defs/limits"
+				},
+				"prefix": {
+					"description": "Mounted only: replaces the plugin's domain for this instance.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9]{0,31}$",
+					"not": {
+						"enum": [
+							"workspace",
+							"space",
+							"event",
+							"plugin",
+							"skill",
+							"afd",
+							"store",
+							"init",
+							"serve",
+							"help",
+							"docs",
+							"schema",
+							"call",
+							"batch"
+						]
+					}
+				},
+				"url": {
+					"description": "HTTP mounts only, required there: https, or http on a loopback address.",
+					"type": "string",
+					"pattern": "^(https://[^\\s@/?#]+|http://(localhost|127(\\.[0-9]{1,3}){3}|\\[::1\\])(:[0-9]{1,5})?)([/?#]\\S*)?$"
+				},
+				"bearer_env": {
+					"description": "HTTP mounts only: the environment variable that holds the deployer's own bearer token.",
+					"$ref": "#/$defs/envName"
+				},
+				"connect_timeout_ms": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 60000
+				},
+				"timeout_ms": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 300000
+				},
+				"max_result_bytes": {
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 16777216
+				},
+				"env": {
+					"description": "Stdio mounts only: added to PATH and the manifest's env, overriding it.",
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/envName"
+					},
+					"additionalProperties": {
+						"type": "string"
+					}
+				},
+				"grants": {
+					"description": "The per-instance allow lists of the write grants (D42, phase 2 specification section 3.3, rule 1): enabling an instance is not consent to a grant that writes. A required write grant with no list, or with an entry naming a space the instance is not enabled for, fails the load with PLUGIN_GRANT_DENIED (an optional one is withheld). memory_write's table also holds the sharing policy the host enforces (phase 3 section 3.2). records_write's table also holds default_access (the records host specification, section 3).",
+					"type": "object",
+					"additionalProperties": false,
+					"properties": {
+						"content_write": {
+							"$ref": "#/$defs/collectionAllow"
+						},
+						"documents_write": {
+							"$ref": "#/$defs/collectionAllow"
+						},
+						"records_write": {
+							"$ref": "#/$defs/recordsWriteAllow"
+						},
+						"index_write": {
+							"$ref": "#/$defs/spaceAllow"
+						},
+						"graph_write": {
+							"$ref": "#/$defs/spaceAllow"
+						},
+						"memory_write": {
+							"$ref": "#/$defs/memoryWriteAllow"
+						}
+					}
+				}
+			}
+		},
+		"collectionAllow": {
+			"description": "Entries <space>/<collection> or <space>/*.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[a-z][a-z0-9-]{0,62}/([a-z][a-z0-9-]{0,62}|\\*)$"
+					}
+				}
+			}
+		},
+		"spaceAllow": {
+			"description": "Entries <space> or *.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^([a-z][a-z0-9-]{0,62}|\\*)$"
+					}
+				}
+			}
+		},
+		"instanceIdOrList": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"groupId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"collectionId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"principalString": {
+			"description": "<kind>:<id>: kind is human, agent, service or script; the id is 1 to 128 characters without a control character and may hold colons.",
+			"type": "string",
+			"pattern": "^(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128}$"
+		},
+		"reader": {
+			"description": "\"*\", a principal string or group:<id>.",
+			"oneOf": [
+				{
+					"const": "*"
+				},
+				{
+					"$ref": "#/$defs/principalString"
+				},
+				{
+					"type": "string",
+					"pattern": "^group:[a-z][a-z0-9-]{0,62}$"
+				}
+			]
+		},
+		"member": {
+			"oneOf": [
+				{
+					"const": "*"
+				},
+				{
+					"$ref": "#/$defs/principalString"
+				}
+			]
+		},
+		"accessToken": {
+			"description": "space, group:<id> or principal:<kind>:<id>.",
+			"type": "string",
+			"pattern": "^(space|group:[a-z][a-z0-9-]{0,62}|principal:(human|agent|service|script):[^\\u0000-\\u001f\\u007f-\\u009f]{1,128})$"
+		},
+		"collection": {
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["root"],
+			"properties": {
+				"root": {
+					"description": "Relative to the workspace, with / separators, no .. segment, resolving inside the workspace. The root itself may be a symbolic link to a directory inside the workspace.",
+					"type": "string",
+					"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+					"not": {
+						"pattern": "(^|/)\\.\\.(/|$)"
+					}
+				},
+				"kind": {
+					"description": "Default markdown.",
+					"enum": ["markdown", "code"]
+				},
+				"include": {
+					"description": "Globset patterns. Default by kind: markdown **/*.md; code **/*.rs, **/*.py, **/*.ts, **/*.tsx, **/*.js, **/*.jsx, **/*.mjs.",
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+					}
+				},
+				"exclude": {
+					"type": "array",
+					"items": {
+						"type": "string",
+						"minLength": 1,
+						"maxLength": 512,
+						"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+					}
+				},
+				"access": {
+					"description": "The default access set of the collection's documents. Default [\"space\"].",
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"$ref": "#/$defs/accessToken"
+					}
+				},
+				"sensitivity": {
+					"description": "Default internal.",
+					"enum": ["public", "internal", "confidential", "restricted"]
+				},
+				"default_type": {
+					"description": "The type of a file without frontmatter or without type. Default document (code for a code collection).",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				},
+				"strict": {
+					"description": "Skip a file whose frontmatter fails the schema. Default false.",
+					"type": "boolean"
+				},
+				"max_file_bytes": {
+					"description": "Default 1048576.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 16777216
+				},
+				"own": {
+					"description": "Whether the collection's documents are the own of the space's person. Default false. Refused on a collection a command can write files into, and it needs the space's person.",
+					"type": "boolean"
+				},
+				"speaker": {
+					"description": "With own = true only: which part of each document is the person's, for a plugin's rule to use.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				}
+			},
+			"allOf": [
+				{
+					"description": "speaker goes with own = true.",
+					"if": {
+						"required": ["speaker"]
+					},
+					"then": {
+						"properties": {
+							"own": {
+								"const": true
+							}
+						},
+						"required": ["own"]
+					}
+				}
+			]
+		},
+		"memoryWriteAllow": {
+			"description": "Entries <space> or *, and the sharing policy of remembered records: default_access applies to memory-remember only (capture is always private); writers lists access tokens whose holders, acting as a person, may widen access; agents_may_share lets an agent holding such a token widen it too. Version 5 adds editors (access tokens, never space, whose holders, as a person, may change another principal's record, section 8.3), erasers (access tokens, never space, whose holders may run memory-erase as a verified person), erase_approvals (1 or 2, default 1) and erase_approval_window_s (600 to 604800, default 86400), section 8.4.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^([a-z][a-z0-9-]{0,62}|\\*)$"
+					}
+				},
+				"default_access": {
+					"enum": ["private", "space"]
+				},
+				"writers": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/accessToken"
+					}
+				},
+				"agents_may_share": {
+					"type": "boolean"
+				},
+				"editors": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/accessToken",
+						"not": {
+							"const": "space"
+						}
+					}
+				},
+				"erasers": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/accessToken",
+						"not": {
+							"const": "space"
+						}
+					}
+				},
+				"erase_approvals": {
+					"enum": [1, 2]
+				},
+				"erase_approval_window_s": {
+					"type": "integer",
+					"minimum": 600,
+					"maximum": 604800
+				}
+			}
+		},
+		"recordsWriteAllow": {
+			"description": "Entries <space> or *, and default_access: the access set the host gives a new record of a declared kind, private (the writer's principal, the default) or space.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["allow"],
+			"properties": {
+				"allow": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^([a-z][a-z0-9-]{0,62}|\\*)$"
+					}
+				},
+				"default_access": {
+					"enum": ["private", "space"]
+				}
+			}
+		},
+		"alias": {
+			"description": "An issuer or gateway alias.",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,62}$"
+		},
+		"namespace": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"httpsUrl": {
+			"description": "An absolute https URL without user information, query or fragment, compared exactly.",
+			"type": "string",
+			"pattern": "^https://[\\x21-\\x7e]+$",
+			"not": {
+				"pattern": "[?#@\"\\\\<>`{}|^]"
+			}
+		},
+		"filePath": {
+			"description": "A PEM or JWKS file: absolute, or relative to the workspace and not under state/; no .. segment.",
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 4096,
+			"pattern": "^[^\\\\\\u0000-\\u001f\\u007f]+$",
+			"not": {
+				"anyOf": [
+					{
+						"pattern": "(^|/)\\.\\.(/|$)"
+					},
+					{
+						"pattern": "^(\\./+)*state(/|$)"
+					}
+				]
+			}
+		},
+		"oauthText": {
+			"description": "A client id or acr value: 1 to 255 visible ASCII characters.",
+			"type": "string",
+			"pattern": "^[\\x21-\\x7e]{1,255}$"
+		},
+		"claimName": {
+			"type": "string",
+			"pattern": "^[\\x21-\\x7e]{1,255}$"
+		},
+		"claimValue": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 255,
+			"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+		},
+		"subjectClaim": {
+			"description": "A stable, non-pairwise subject claim (section 4.1); never a mutable claim such as email or preferred_username, nor a registered claim that names no one. Default sub.",
+			"allOf": [
+				{
+					"$ref": "#/$defs/claimName"
+				}
+			],
+			"not": {
+				"enum": [
+					"name",
+					"given_name",
+					"family_name",
+					"middle_name",
+					"nickname",
+					"preferred_username",
+					"profile",
+					"picture",
+					"website",
+					"email",
+					"email_verified",
+					"gender",
+					"birthdate",
+					"zoneinfo",
+					"locale",
+					"phone_number",
+					"phone_number_verified",
+					"address",
+					"updated_at",
+					"upn",
+					"unique_name",
+					"login_hint",
+					"iss",
+					"aud",
+					"exp",
+					"nbf",
+					"iat",
+					"jti",
+					"typ",
+					"scope",
+					"scp",
+					"azp",
+					"acr",
+					"amr",
+					"auth_time",
+					"nonce",
+					"at_hash",
+					"c_hash",
+					"sid",
+					"cnf",
+					"act",
+					"may_act",
+					"client_id",
+					"groups",
+					"roles"
+				]
+			}
+		},
+		"tls": {
+			"description": "In-process TLS (section 6.2): rustls, TLS 1.2 and 1.3. The key is read from its file, never stored here.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["cert", "key"],
+			"properties": {
+				"cert": {
+					"$ref": "#/$defs/filePath"
+				},
+				"key": {
+					"$ref": "#/$defs/filePath"
+				},
+				"client_auth": {
+					"description": "none (the default); ca: a client certificate chaining to client_ca; any: any certificate, self-signed included, for RFC 8705 binding only.",
+					"enum": ["none", "ca", "any"]
+				},
+				"client_ca": {
+					"$ref": "#/$defs/filePath"
+				}
+			},
+			"if": {
+				"properties": {
+					"client_auth": {
+						"const": "ca"
+					}
+				},
+				"required": ["client_auth"]
+			},
+			"then": {
+				"required": ["client_ca"]
+			},
+			"else": {
+				"properties": {
+					"client_ca": false
+				}
+			}
+		},
+		"personListener": {
+			"description": "Phase 5 step 5b (the owner's decision of 2026-11-09): in auth.mode gateway only, the person page's own listener, with its own TLS and public origin, which browsers reach directly and never through the gateway. Without it mode gateway serves no verified command. Checked at open: bind shares no port with http.bind on an address both could hold; public_url's host is one of its own allowed_hosts and not http.public_url's host (browsers send a host's cookies to every port of it), and no allowed_hosts entry names a host http.allowed_hosts names.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["bind", "public_url", "allowed_hosts", "tls"],
+			"properties": {
+				"bind": {
+					"description": "The socket address browsers reach the person page on.",
+					"type": "string",
+					"pattern": "^([0-9]{1,3}(\\.[0-9]{1,3}){3}|\\[[0-9A-Fa-f:.]+\\]):(0|[1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5])$"
+				},
+				"public_url": {
+					"description": "The page's own origin, https://<host>[:<port>]: lowercase, no path (not even /), no user information, query or fragment, and no :443. The page's routes are /d/... under it, and its OpenID Connect redirect URI is <public_url>/d/return.",
+					"type": "string",
+					"pattern": "^https://([a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*|\\[[0-9a-f:.]+\\])(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?$",
+					"not": {
+						"pattern": ":443$"
+					}
+				},
+				"allowed_hosts": {
+					"description": "The Host values the person page answers: lowercase host names or IP literals in their canonical form (checked at open), optionally with a port of 1 to 65535; no wildcard; at least one.",
+					"type": "array",
+					"minItems": 1,
+					"items": {
+						"type": "string",
+						"pattern": "^([a-z0-9]([a-z0-9-]*[a-z0-9])?(\\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*|\\[[0-9a-f:.]+\\])(:([1-9][0-9]{0,3}|[1-5][0-9]{4}|6[0-4][0-9]{3}|65[0-4][0-9]{2}|655[0-2][0-9]|6553[0-5]))?$"
+					}
+				},
+				"tls": {
+					"description": "Its own TLS: a certificate naming its host and the key. No client certificate is asked of a browser, so there is no client_auth or client_ca.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["cert", "key"],
+					"properties": {
+						"cert": {
+							"$ref": "#/$defs/filePath"
+						},
+						"key": {
+							"$ref": "#/$defs/filePath"
+						}
+					}
+				}
+			}
+		},
+		"personLogin": {
+			"description": "The namespace's person login (section 7.2): an OIDC confidential client at an issuer of the namespace. User verification is mandatory (owner decision 6): acr_values names classes requiring it, and uv_amr the RFC 8176 methods an ID token's amr must show. uv_amr may also name mfa, a passkey login, but only when every acr_values class is phishing-resistant, phr or phrh (D181).",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["issuer", "client_id", "client_secret_env", "acr_values", "uv_amr"],
+			"if": {
+				"required": ["uv_amr"],
+				"properties": {
+					"uv_amr": {
+						"contains": {
+							"const": "mfa"
+						}
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"acr_values": {
+						"items": {
+							"enum": ["phr", "phrh"]
+						}
+					}
+				}
+			},
+			"properties": {
+				"issuer": {
+					"$ref": "#/$defs/alias"
+				},
+				"client_id": {
+					"$ref": "#/$defs/oauthText"
+				},
+				"client_secret_env": {
+					"$ref": "#/$defs/envName"
+				},
+				"subject_claim": {
+					"$ref": "#/$defs/subjectClaim"
+				},
+				"max_age_s": {
+					"description": "Default 300.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 3600
+				},
+				"acr_values": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/oauthText"
+					}
+				},
+				"uv_amr": {
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": ["pin", "fpt", "face", "iris", "retina", "vbm", "mfa"]
+					}
+				}
+			}
+		},
+		"issuer": {
+			"description": "One trusted authorization server (sections 3.2 and 4.1).",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["issuer", "namespace"],
+			"properties": {
+				"issuer": {
+					"$ref": "#/$defs/httpsUrl"
+				},
+				"namespace": {
+					"$ref": "#/$defs/namespace"
+				},
+				"subject_claim": {
+					"$ref": "#/$defs/subjectClaim"
+				},
+				"verify": {
+					"description": "jwt (RFC 9068, the default) or introspection (RFC 7662), at most one issuer.",
+					"enum": ["jwt", "introspection"]
+				},
+				"algorithms": {
+					"description": "Default [\"RS256\"]. none, HS*, ES512 and Ed448 are refused.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"enum": [
+							"RS256",
+							"RS384",
+							"RS512",
+							"PS256",
+							"PS384",
+							"PS512",
+							"ES256",
+							"ES384",
+							"EdDSA"
+						]
+					}
+				},
+				"delegation": {
+					"description": "none (the default) or act: record the RFC 8693 act chain.",
+					"enum": ["none", "act"]
+				},
+				"services": {
+					"description": "How a service token is recognised beside sub == client_id (section 4.1).",
+					"type": "object",
+					"additionalProperties": false,
+					"minProperties": 1,
+					"properties": {
+						"clients": {
+							"type": "array",
+							"uniqueItems": true,
+							"items": {
+								"$ref": "#/$defs/oauthText"
+							},
+							"minItems": 1
+						},
+						"claim": {
+							"type": "object",
+							"additionalProperties": false,
+							"required": ["name", "value"],
+							"properties": {
+								"name": {
+									"$ref": "#/$defs/claimName"
+								},
+								"value": {
+									"$ref": "#/$defs/claimValue"
+								}
+							}
+						}
+					}
+				},
+				"introspection": {
+					"description": "The credentials Umbel authenticates to the introspection endpoint with; exactly with verify = introspection.",
+					"type": "object",
+					"additionalProperties": false,
+					"required": ["client_id", "client_secret_env"],
+					"properties": {
+						"client_id": {
+							"$ref": "#/$defs/oauthText"
+						},
+						"client_secret_env": {
+							"$ref": "#/$defs/envName"
+						}
+					}
+				},
+				"ca_file": {
+					"description": "The PEM file of the root certificates trusted for this issuer's metadata, key set and introspection fetches (amendment from step 2c). When set, only these roots are trusted for this issuer, never the platform's; no other issuer is affected. Each must be within its validity.",
+					"$ref": "#/$defs/filePath"
+				},
+				"access_tokens": {
+					"description": "Whether its access tokens are accepted and the protected-resource metadata names it. Required on an issuer that serves a person login (checked at open), false in mode gateway, true by default otherwise; false for an issuer that only serves a person login.",
+					"type": "boolean"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"verify": {
+								"const": "introspection"
+							}
+						},
+						"required": ["verify"]
+					},
+					"then": {
+						"required": ["introspection"],
+						"properties": {
+							"access_tokens": {
+								"const": true
+							}
+						}
+					},
+					"else": {
+						"properties": {
+							"introspection": false
+						}
+					}
+				}
+			]
+		},
+		"scope": {
+			"description": "<prefix>:<verb> or <prefix>:<verb>:<space> (section 5.1); the prefix is auth.scope_prefix (checked at open).",
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9.-]{0,31}:(read|write|approve|erase)(:[a-z][a-z0-9-]{0,62})?$"
+		},
+		"gateway": {
+			"description": "A gateway trusted only to say who authenticated (section 4.4, owner decision 5). On a non-loopback bind, client_cert_sha256 and client_auth = ca are required, and pins need client_auth other than none (checked at open). The keys file is a JWKS of 1 to 64 public keys, each with a unique kid and its alg, read when the HTTP surface starts.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["alias", "namespace", "issuer", "keys", "max_scopes"],
+			"properties": {
+				"alias": {
+					"$ref": "#/$defs/alias"
+				},
+				"namespace": {
+					"$ref": "#/$defs/namespace"
+				},
+				"issuer": {
+					"$ref": "#/$defs/httpsUrl"
+				},
+				"keys": {
+					"$ref": "#/$defs/filePath"
+				},
+				"client_cert_sha256": {
+					"type": "array",
+					"uniqueItems": true,
+					"items": {
+						"type": "string",
+						"pattern": "^[0-9a-f]{64}$"
+					}
+				},
+				"max_assertion_age_s": {
+					"description": "Default 60, and at most 60: an assertion expires at most 60 seconds after its iat, so a larger age could admit nothing more.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 60
+				},
+				"max_scopes": {
+					"description": "The scope ceiling, a meet in the scope order.",
+					"type": "array",
+					"minItems": 1,
+					"uniqueItems": true,
+					"items": {
+						"$ref": "#/$defs/scope"
+					}
+				}
+			}
+		},
+		"auth": {
+			"description": "The MCP Authorization layer (sections 2.2, 3 and 4). In mode none nothing changes from version 4.",
+			"type": "object",
+			"additionalProperties": false,
+			"properties": {
+				"mode": {
+					"description": "none (the default), oauth or gateway.",
+					"enum": ["none", "oauth", "gateway"]
+				},
+				"scope_prefix": {
+					"description": "Default umbel.",
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9.-]{0,31}$"
+				},
+				"filter_tools_by_scope": {
+					"description": "Default true.",
+					"type": "boolean"
+				},
+				"clock_skew_s": {
+					"description": "Default 60.",
+					"type": "integer",
+					"minimum": 0,
+					"maximum": 300
+				},
+				"max_token_lifetime_s": {
+					"description": "Default 3600.",
+					"type": "integer",
+					"minimum": 1,
+					"maximum": 86400
+				},
+				"require_bound_tokens": {
+					"description": "Default false. Mode oauth only, with [http.tls] client_auth other than none.",
+					"type": "boolean"
+				},
+				"namespaces": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/namespace"
+					},
+					"additionalProperties": {
+						"type": "object",
+						"additionalProperties": false,
+						"properties": {
+							"person": {
+								"$ref": "#/$defs/personLogin"
+							}
+						}
+					}
+				},
+				"issuers": {
+					"type": "object",
+					"propertyNames": {
+						"$ref": "#/$defs/alias"
+					},
+					"additionalProperties": {
+						"$ref": "#/$defs/issuer"
+					}
+				},
+				"gateway": {
+					"$ref": "#/$defs/gateway"
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"mode": {
+								"const": "gateway"
+							}
+						},
+						"required": ["mode"]
+					},
+					"then": {
+						"required": ["gateway"]
+					},
+					"else": {
+						"properties": {
+							"gateway": false
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"mode": {
+								"const": "oauth"
+							}
+						},
+						"required": ["mode"]
+					},
+					"then": {
+						"required": ["issuers"],
+						"properties": {
+							"issuers": {
+								"minProperties": 1
+							}
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"require_bound_tokens": {
+								"const": true
+							}
+						},
+						"required": ["require_bound_tokens"]
+					},
+					"then": {
+						"required": ["mode"],
+						"properties": {
+							"mode": {
+								"const": "oauth"
+							}
+						}
+					}
+				},
+				{
+					"description": "In mode gateway no access token is accepted: every issuer serves only a person login.",
+					"if": {
+						"properties": {
+							"mode": {
+								"const": "gateway"
+							}
+						},
+						"required": ["mode"]
+					},
+					"then": {
+						"properties": {
+							"issuers": {
+								"additionalProperties": {
+									"required": ["access_tokens"],
+									"properties": {
+										"access_tokens": {
+											"const": false
+										}
+									}
+								}
+							}
+						}
+					}
+				}
+			]
+		},
+		"modelId": {
+			"type": "string",
+			"pattern": "^[a-z][a-z0-9-]{0,31}$"
+		},
+		"modelDigest": {
+			"description": "sha256: and the file's SHA-256 in 64 lower-case hex digits.",
+			"type": "string",
+			"pattern": "^sha256:[0-9a-f]{64}$"
+		},
+		"model": {
+			"description": "One embedding model. static is a token lookup table, averaged; onnx is a transformer through ONNX Runtime; http posts { model, input } to an endpoint. A static or onnx model's files live in the workspace and are pinned by digest: the host never downloads one. The model's id in a store is this table's id and a digest of everything here but bearer_env and timeout_ms, so a changed file, pooling, length, endpoint or version is another model.",
+			"type": "object",
+			"additionalProperties": false,
+			"required": ["provider", "name"],
+			"properties": {
+				"provider": {
+					"enum": ["static", "onnx", "http"]
+				},
+				"name": {
+					"description": "The model's public name, for people and for the http request.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 128,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				},
+				"dir": {
+					"description": "static and onnx: the model's directory, relative to the workspace, with / separators, no .. segment, resolving inside the workspace and not under state/.",
+					"type": "string",
+					"pattern": "^[^/\\\\\\u0000][^\\\\\\u0000]*$",
+					"not": {
+						"anyOf": [
+							{
+								"pattern": "(^|/)\\.\\.(/|$)"
+							},
+							{
+								"pattern": "^(\\./+)*state(/|$)"
+							}
+						]
+					}
+				},
+				"files": {
+					"description": "static and onnx: each file's name and digest. static: exactly model.safetensors, tokenizer.json and config.json. onnx: exactly model.onnx, tokenizer.json, config.json, special_tokens_map.json and tokenizer_config.json.",
+					"type": "object",
+					"additionalProperties": {
+						"$ref": "#/$defs/modelDigest"
+					}
+				},
+				"pooling": {
+					"description": "onnx: default mean.",
+					"enum": ["mean", "cls"]
+				},
+				"max_length": {
+					"description": "onnx: the most tokens of a text the model reads. Default 512.",
+					"type": "integer",
+					"minimum": 16,
+					"maximum": 8192
+				},
+				"url": {
+					"description": "http: https and a host name of letters, digits, dots and hyphens or a bracketed IPv6 address; or http and a literal loopback address, 127.0.0.0/8 or [::1] as written, never a name. Then an optional port of 1 to 65535 without a leading zero, and an optional path, query or fragment of printable ASCII. No credentials.",
+					"type": "string",
+					"pattern": "^(https://([A-Za-z0-9.-]+|\\[[0-9A-Fa-f:.]+\\])|http://(127(\\.(25[0-5]|2[0-4][0-9]|1[0-9]{2}|[1-9]?[0-9])){3}|\\[::1\\]))(:(6553[0-5]|655[0-2][0-9]|65[0-4][0-9]{2}|6[0-4][0-9]{3}|[1-5][0-9]{4}|[1-9][0-9]{0,3}))?([/?#][\\x21-\\x7e]*)?$"
+				},
+				"dimensions": {
+					"description": "http: how many numbers a vector of the endpoint holds.",
+					"type": "integer",
+					"minimum": 16,
+					"maximum": 4096
+				},
+				"version": {
+					"description": "http: the deployer's word for which model the endpoint serves.",
+					"type": "string",
+					"minLength": 1,
+					"maxLength": 64,
+					"pattern": "^[^\\u0000-\\u001f\\u007f-\\u009f]+$"
+				},
+				"bearer_env": {
+					"description": "http: the environment variable that holds a bearer token.",
+					"$ref": "#/$defs/envName"
+				},
+				"timeout_ms": {
+					"description": "http: default 5000.",
+					"type": "integer",
+					"minimum": 100,
+					"maximum": 60000
+				}
+			},
+			"allOf": [
+				{
+					"if": {
+						"properties": {
+							"provider": {
+								"const": "static"
+							}
+						},
+						"required": ["provider"]
+					},
+					"then": {
+						"required": ["dir", "files"],
+						"properties": {
+							"files": {
+								"required": ["model.safetensors", "tokenizer.json", "config.json"],
+								"maxProperties": 3
+							},
+							"pooling": false,
+							"max_length": false,
+							"url": false,
+							"dimensions": false,
+							"version": false,
+							"bearer_env": false,
+							"timeout_ms": false
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"provider": {
+								"const": "onnx"
+							}
+						},
+						"required": ["provider"]
+					},
+					"then": {
+						"required": ["dir", "files"],
+						"properties": {
+							"files": {
+								"required": [
+									"model.onnx",
+									"tokenizer.json",
+									"config.json",
+									"special_tokens_map.json",
+									"tokenizer_config.json"
+								],
+								"maxProperties": 5
+							},
+							"url": false,
+							"dimensions": false,
+							"version": false,
+							"bearer_env": false,
+							"timeout_ms": false
+						}
+					}
+				},
+				{
+					"if": {
+						"properties": {
+							"provider": {
+								"const": "http"
+							}
+						},
+						"required": ["provider"]
+					},
+					"then": {
+						"required": ["url", "dimensions", "version"],
+						"properties": {
+							"dir": false,
+							"files": false,
+							"pooling": false,
+							"max_length": false
+						}
+					}
+				}
+			]
+		}
+	},
+	"allOf": [
+		{
+			"description": "[http.person] applies only in auth.mode gateway (phase 5 step 5b).",
+			"if": {
+				"properties": {
+					"http": {
+						"required": ["person"]
+					}
+				},
+				"required": ["http"]
+			},
+			"then": {
+				"required": ["auth"],
+				"properties": {
+					"auth": {
+						"required": ["mode"],
+						"properties": {
+							"mode": {
+								"const": "gateway"
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"description": "A hosted mode needs http.public_url.",
+			"if": {
+				"properties": {
+					"auth": {
+						"properties": {
+							"mode": {
+								"enum": ["oauth", "gateway"]
+							}
+						},
+						"required": ["mode"]
+					}
+				},
+				"required": ["auth"]
+			},
+			"then": {
+				"required": ["http"],
+				"properties": {
+					"http": {
+						"required": ["public_url"]
+					}
+				}
+			}
+		},
+		{
+			"description": "A non-loopback bind needs a hosted mode and [http.tls].",
+			"if": {
+				"properties": {
+					"http": {
+						"properties": {
+							"bind": {
+								"not": {
+									"pattern": "^(127(\\.[0-9]{1,3}){3}|\\[::1\\]):[0-9]{1,5}$"
+								}
+							}
+						},
+						"required": ["bind"]
+					}
+				},
+				"required": ["http"]
+			},
+			"then": {
+				"allOf": [
+					{
+						"properties": {
+							"auth": {
+								"properties": {
+									"mode": {
+										"enum": ["oauth", "gateway"]
+									}
+								},
+								"required": ["mode"]
+							}
+						},
+						"required": ["auth"]
+					},
+					{
+						"properties": {
+							"http": {
+								"required": ["tls"]
+							}
+						}
+					}
+				]
+			}
+		},
+		{
+			"description": "Bound tokens need a client certificate.",
+			"if": {
+				"properties": {
+					"auth": {
+						"properties": {
+							"require_bound_tokens": {
+								"const": true
+							}
+						},
+						"required": ["require_bound_tokens"]
+					}
+				},
+				"required": ["auth"]
+			},
+			"then": {
+				"required": ["http"],
+				"properties": {
+					"http": {
+						"required": ["tls"],
+						"properties": {
+							"tls": {
+								"required": ["client_auth"],
+								"properties": {
+									"client_auth": {
+										"enum": ["ca", "any"]
+									}
+								}
+							}
+						}
+					}
+				}
+			}
+		},
+		{
+			"description": "The local person page serves only a workspace in auth.mode none.",
+			"if": {
+				"properties": {
+					"person": {
+						"properties": {
+							"local": {
+								"properties": {
+									"enabled": {
+										"const": true
+									}
+								},
+								"required": ["enabled"]
+							}
+						},
+						"required": ["local"]
+					}
+				},
+				"required": ["person"]
+			},
+			"then": {
+				"not": {
+					"properties": {
+						"auth": {
+							"properties": {
+								"mode": {
+									"enum": ["oauth", "gateway"]
+								}
+							},
+							"required": ["mode"]
+						}
+					},
+					"required": ["auth"]
+				}
+			}
+		}
+	]
+}

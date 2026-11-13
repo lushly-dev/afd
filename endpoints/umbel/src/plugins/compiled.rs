@@ -236,6 +236,9 @@ pub(super) fn call_context(
         delegation_chain: crate::principal::Principal::chain_of(context),
         person_decision: services.person_decision(input),
         person_check: services.person_check(),
+        // The person page asks for a page of a preview from step H2 of the Ideas host-review
+        // specification; until then no call carries one.
+        preview_page: None,
     }
 }
 

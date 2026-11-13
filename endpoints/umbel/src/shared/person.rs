@@ -119,10 +119,12 @@ impl Decision {
         now_ms < self.expires_ms
     }
 
-    /// The decision as `person-decision.v1.json` gives it: the fields of section 7.2, never the
-    /// page's own columns.
+    /// The decision as `person-decision.v2.json` gives it: the fields of section 7.2, and the
+    /// pages rendered and the items pulled out (the Ideas host-review specification, section
+    /// 3), never the page's own columns. No row holds a page or an item until step H2 of that
+    /// specification, so both are empty.
     #[cfg(test)]
-    pub(crate) fn to_v1(&self) -> Value {
+    pub(crate) fn to_v2(&self) -> Value {
         use crate::person::iso;
         let decided = self.status != Status::Pending;
         serde_json::json!({
@@ -140,6 +142,8 @@ impl Decision {
             "authTime": self.auth_time_ms.filter(|_| decided).map(iso),
             "acr": self.acr.as_ref().filter(|_| decided),
             "previewHash": self.preview_hash.as_ref().filter(|_| decided),
+            "pages": [],
+            "excluded": [],
         })
     }
 }
@@ -946,9 +950,9 @@ mod tests {
         ));
         let stored = store.decision("d1").unwrap().unwrap();
         assert_eq!(stored.status, Status::Approved);
-        // The stored decision reads back as `person-decision.v1`: its members and no more.
-        let v1 = stored.to_v1();
-        let mut members: Vec<&String> = v1.as_object().unwrap().keys().collect();
+        // The stored decision reads back as `person-decision.v2`: its members and no more.
+        let v2 = stored.to_v2();
+        let mut members: Vec<&String> = v2.as_object().unwrap().keys().collect();
         members.sort();
         assert_eq!(
             members,
@@ -958,24 +962,26 @@ mod tests {
                 "command",
                 "createdAt",
                 "decidedAt",
+                "excluded",
                 "expires",
                 "for",
                 "id",
                 "inputDigest",
                 "level",
+                "pages",
                 "previewHash",
                 "properties",
                 "status",
                 "version"
             ]
         );
-        assert_eq!(v1["level"], "verified");
-        assert_eq!(v1["status"], "approved");
-        assert_eq!(v1["for"]["clientId"], "client");
-        assert_eq!(v1["properties"], serde_json::json!({ "proposal": "p-1" }));
+        assert_eq!(v2["level"], "verified");
+        assert_eq!(v2["status"], "approved");
+        assert_eq!(v2["for"]["clientId"], "client");
+        assert_eq!(v2["properties"], serde_json::json!({ "proposal": "p-1" }));
         let pending = {
             store.create(&decision("d9", now), now).unwrap();
-            store.decision("d9").unwrap().unwrap().to_v1()
+            store.decision("d9").unwrap().unwrap().to_v2()
         };
         for member in ["decidedAt", "level", "authTime", "acr", "previewHash"] {
             assert!(pending[member].is_null(), "{member}: {pending}");

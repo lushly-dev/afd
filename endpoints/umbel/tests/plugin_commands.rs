@@ -131,14 +131,15 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
     );
     // Phase 5 section 2: lists name every version read side by side; `provenance` stays the
     // envelope version this host writes.
-    assert_eq!(shown["versions"]["config"], json!([1, 2, 3, 4, 5, 6]));
+    assert_eq!(shown["versions"]["config"], json!([1, 2, 3, 4, 5, 6, 7]));
     assert_eq!(shown["versions"]["manifest"], json!([1, 2, 3, 4, 5, 6]));
     assert_eq!(shown["versions"]["provenance"], 3);
     // The records host specification, section 12.4: store traits version 3.
     assert_eq!(shown["versions"]["store"], 3);
     for (shape, versions) in [
         ("principal", json!([0, 1])),
-        ("envelope", json!([0, 1, 2, 3])),
+        // The Ideas host-review specification, section 6.4: envelope version 4.
+        ("envelope", json!([0, 1, 2, 3, 4])),
         ("event", json!([0, 1, 2, 3])),
         ("proposal", json!([1, 2, 3])),
         ("cursor", json!([0, 1])),
@@ -155,10 +156,11 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
         "bundle",
         "task",
         "usage",
-        "person",
     ] {
         assert_eq!(shown["versions"][shape], 1, "{shape}");
     }
+    // The Ideas host-review specification, section 3: person decision version 2.
+    assert_eq!(shown["versions"]["person"], 2);
     assert_eq!(shown["versions"]["protocol"], 1);
     assert_eq!(shown["versions"]["wit"], "umbel:plugin/plugin@1.0.0");
     assert_eq!(shown["versions"]["pack"], 1);

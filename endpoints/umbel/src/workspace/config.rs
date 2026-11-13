@@ -1,4 +1,4 @@
-//! `umbel.toml`, versions 1 to 6: defaults, key scan and validation (phase 0 specification
+//! `umbel.toml`, versions 1 to 7: defaults, key scan and validation (phase 0 specification
 //! section 2; phase 1 section 9.1 adds the plugin instances of version 2; phase 2 section 4.1
 //! adds the collections, readers, access groups and store of version 3; phase 3 section 2.4 adds
 //! the `memory_write` grant table, `principal.agent_env` and
@@ -7,7 +7,9 @@
 //! claims of version 5, in [`super::hosted`]; the records host specification section 3 adds a
 //! space's `person`, `verified_admits` and `[meaning]`, a collection's `own` and `speaker`,
 //! `[models]` and the `records_write` grant table's `default_access` of version 6, in
-//! [`super::records`]).
+//! [`super::records`]; the Ideas host-review specification sections 4, 6.1 and 6.5 add
+//! `[person]`, `[person.local]` and a space's `verified_levels` of version 7, in
+//! [`super::person`]).
 
 use std::collections::BTreeMap;
 use std::net::SocketAddr;
@@ -23,6 +25,9 @@ use super::hosted::{
     RateLimits, TOP_KEYS_V5, TlsConfig, UsageConfig, check_bind, check_channel, check_hosted,
     check_public_url, group_claim, is_v5_key,
 };
+use super::person::{
+    AssuranceLevel, PersonConfig, SPACE_KEYS_V7, TOP_KEYS_V7, is_v7_key, verified_levels,
+};
 use super::plugins_config::{
     GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
     MEMORY_WRITE_GRANT_KEYS, MEMORY_WRITE_GRANT_KEYS_V5, RECORDS_WRITE_GRANT_KEYS_V6, is_env_name,
@@ -37,11 +42,12 @@ use super::space::SpaceId;
 /// The configuration version this build writes (`umbel init`). It also reads version 1, which
 /// is version 2 with no plugins, version 2, which is version 3 with no collections, version 3,
 /// which is version 4 with no memory policy, version 4, which is version 5 with
-/// `auth.mode = "none"`, and version 5, which is version 6 with no person, no own collection and
-/// no model: each reads as version 6 with no change of meaning.
-pub const CONFIG_VERSION: u32 = 6;
+/// `auth.mode = "none"`, version 5, which is version 6 with no person, no own collection and no
+/// model, and version 6, which is version 7 with the default decision lifetime, no local page and
+/// the default `verified_levels`: each reads as version 7 with no change of meaning.
+pub const CONFIG_VERSION: u32 = 7;
 /// Every configuration version this build reads.
-pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
+pub const CONFIG_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6, 7];
 
 const TOP_KEYS: &[&str] = &[
     "config_version",
@@ -210,6 +216,9 @@ pub struct SpaceConfig {
     /// Version 6: `[spaces.<id>.meaning]`, the model the space's record lanes are matched by
     /// meaning with; none by default.
     pub meaning: Option<MeaningConfig>,
+    /// Version 7: the levels of affirmation a call's `verified_only` admits (the Ideas
+    /// host-review specification, section 6.5); `terminal` and `verified` by default.
+    pub verified_levels: Vec<AssuranceLevel>,
 }
 
 /// `[access.groups.<id>]`.
@@ -337,8 +346,8 @@ pub struct PrincipalConfig {
 #[non_exhaustive]
 pub struct Config {
     /// The `config_version` the file declared: 1, 2 with plugin instances, 3 with collections,
-    /// access groups and a store, 4 with the memory policy, 5 with `[auth]`, or 6 with standing
-    /// and `[models]`.
+    /// access groups and a store, 4 with the memory policy, 5 with `[auth]`, 6 with standing
+    /// and `[models]`, or 7 with `[person]`.
     pub version: u32,
     /// The workspace name.
     pub name: String,
@@ -376,6 +385,8 @@ pub struct Config {
     /// `[models]`, version 6: the embedding models a space may name, in configuration order;
     /// none by default.
     pub models: Vec<ModelConfig>,
+    /// `[person]`, version 7: the lifetime of a person decision and the local person page.
+    pub person: PersonConfig,
     /// The command-writable collections, as `(space, collection)` (the records host
     /// specification, section 3), judged when the configuration was read:
     /// [`Config::command_writable`] answers from it.
@@ -439,7 +450,7 @@ impl ConfigFile {
     ///
     /// # Errors
     /// `WORKSPACE_CONFIG_INVALID` for a syntax error or a missing or mistyped `config_version`;
-    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 6.
+    /// `WORKSPACE_CONFIG_UNSUPPORTED` for a version other than 1 to 7.
     pub fn parse(text: &str) -> Result<Self, WorkspaceError> {
         let table: Table = text.parse().map_err(|error: toml::de::Error| {
             let place = error.span().map(|span| {
@@ -455,21 +466,21 @@ impl ConfigFile {
         match table.get("config_version") {
             None => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "is required; set config_version = 6",
+                "is required; set config_version = 7",
             )),
-            Some(Value::Integer(version @ (1..=6))) => {
+            Some(Value::Integer(version @ (1..=7))) => {
                 let version = u32::try_from(*version).unwrap_or(CONFIG_VERSION);
                 Ok(Self { table, version })
             }
             Some(Value::Integer(other)) => Err(WorkspaceError::config_unsupported(other)),
             Some(_) => Err(WorkspaceError::config_invalid(
                 "config_version",
-                "must be the integer 1, 2, 3, 4, 5 or 6",
+                "must be the integer 1, 2, 3, 4, 5, 6 or 7",
             )),
         }
     }
 
-    /// The `config_version` of the file: 1 to 6.
+    /// The `config_version` of the file: 1 to 7.
     pub fn version(&self) -> u32 {
         self.version
     }
@@ -486,11 +497,13 @@ impl ConfigFile {
         let v4 = version >= 4;
         let v5 = version >= 5;
         let v6 = version >= 6;
+        let v7 = version >= 7;
         let top: Vec<&str> = TOP_KEYS
             .iter()
             .chain(TOP_KEYS_V3.iter().filter(|_| v3))
             .chain(TOP_KEYS_V5.iter().filter(|_| v5))
             .chain(TOP_KEYS_V6.iter().filter(|_| v6))
+            .chain(TOP_KEYS_V7.iter().filter(|_| v7))
             .copied()
             .collect();
         scan_table(&self.table, "", &top, &[], &mut scan);
@@ -543,8 +556,13 @@ impl ConfigFile {
         if v6 {
             self.scan_v6(&self.table, &mut scan);
         }
+        if v7 {
+            self.scan_v7(&self.table, &mut scan);
+        }
         if let Some(Value::Table(spaces)) = self.table.get("spaces") {
-            let (known, reserved) = if v6 {
+            let (known, reserved) = if v7 {
+                (SPACE_KEYS_V7, SPACE_RESERVED_V3)
+            } else if v6 {
                 (SPACE_KEYS_V6, SPACE_RESERVED_V3)
             } else if v3 {
                 (SPACE_KEYS_V3, SPACE_RESERVED_V3)
@@ -629,6 +647,7 @@ impl ConfigFile {
         if let Some(key) = self.scan_keys().unknown.into_iter().next() {
             let v5_only = self.version < 5 && is_v5_key(&key);
             let v6_only = self.version < 6 && is_v6_key(&key);
+            let v7_only = self.version < 7 && is_v7_key(&key);
             return Err(WorkspaceError::config_invalid(
                 &key,
                 if self.version >= 3 && key.ends_with(".content_roots") {
@@ -637,6 +656,8 @@ impl ConfigFile {
                     "needs config_version = 5"
                 } else if v6_only {
                     "needs config_version = 6"
+                } else if v7_only {
+                    "needs config_version = 7"
                 } else {
                     "is not a known key"
                 },
@@ -673,6 +694,7 @@ impl ConfigFile {
             usage: rest.usage,
             policy_version: self.policy_version(),
             models: rest.models,
+            person: rest.person,
             command_writable: writable
                 .into_iter()
                 .map(|entry| (entry.space, entry.collection))
@@ -747,6 +769,7 @@ impl ConfigFile {
                     };
                     let collections =
                         self.space_collections(entry, &key, standing.person.is_some())?;
+                    let verified_levels = verified_levels(entry, &key, self.version)?;
                     spaces.push(SpaceConfig {
                         id: space_id,
                         title,
@@ -755,6 +778,7 @@ impl ConfigFile {
                         person: standing.person,
                         verified_admits: standing.verified_admits,
                         meaning: standing.meaning,
+                        verified_levels,
                     });
                 }
             }
@@ -770,6 +794,7 @@ impl ConfigFile {
                 person: None,
                 verified_admits: VerifiedAdmits::default(),
                 meaning: None,
+                verified_levels: super::person::DEFAULT_VERIFIED_LEVELS.to_vec(),
             });
         }
         let default_space = match Reader::new(Some(&self.table), "").string("default_space")? {
@@ -1007,6 +1032,7 @@ impl ConfigFile {
             .ok()
             .map(|(spaces, _)| spaces.into_iter().map(|space| space.id).collect());
         let auth = self.auth(declared.as_deref())?;
+        let person = self.person(auth.mode)?;
         let store = Reader::new(self.section("store")?, "store");
         let store = StoreConfig {
             lock_timeout_ms: store
@@ -1032,6 +1058,7 @@ impl ConfigFile {
             limits: self.rate_limits()?,
             usage: self.usage()?,
             models: self.models()?,
+            person,
         })
     }
 
@@ -1158,6 +1185,7 @@ struct Rest {
     limits: RateLimits,
     usage: UsageConfig,
     models: Vec<ModelConfig>,
+    person: PersonConfig,
 }
 
 impl Rest {

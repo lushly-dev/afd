@@ -2,7 +2,9 @@
 //! sections 2, 8.2 and 9.1; phase 2 section 2; phase 3 section 2; phase 4 section 2, in
 //! `schemas/phase4.rs`; phase 5 section 2, in `schemas/phase5.rs` and
 //! `schemas/phase5_records.rs`; the records host specification sections 2 and 3, whose version 6
-//! schemas are held to the host in `manifest_v6.rs` and `config_v6.rs`) and the WIT world.
+//! schemas are held to the host in `manifest_v6.rs` and `config_v6.rs`; the Ideas host-review
+//! specification sections 3 and 6.4, in `schemas/review.rs`, whose configuration version 7 is
+//! held to the host in `config_v7.rs`) and the WIT world.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 #[path = "schemas/phase4.rs"]
@@ -11,6 +13,8 @@ mod phase4;
 mod phase5;
 #[path = "schemas/phase5_records.rs"]
 mod phase5_records;
+#[path = "schemas/review.rs"]
+mod review;
 
 use std::collections::BTreeMap;
 use std::fs;
@@ -23,7 +27,7 @@ use umbel::plugins::{Manifest, PackManifest};
 use umbel::provenance::Envelope;
 use umbel::workspace::ConfigFile;
 
-const STEMS: [&str; 45] = [
+const STEMS: [&str; 48] = [
     "workspace-config.v1",
     "workspace-config.v2",
     "workspace-config.v3",
@@ -69,6 +73,9 @@ const STEMS: [&str; 45] = [
     "person-decision.v1",
     "protected-resource.v1",
     "event-view.v1",
+    "workspace-config.v7",
+    "person-decision.v2",
+    "provenance-envelope.v4",
 ];
 
 fn schemas_dir() -> PathBuf {
@@ -1546,7 +1553,7 @@ fn the_version_4_config_schema_refuses_what_the_host_refuses() {
     }
     let bad = [
         json!({ "config_version": 3, "principal": { "agent_env": ["MY_AGENT"] } }),
-        json!({ "config_version": 7 }),
+        json!({ "config_version": 8 }),
         json!({ "config_version": 4, "principal": { "agent_env": ["not a name"] } }),
         json!({ "config_version": 4, "principal": { "agent_env": "MY_AGENT" } }),
         json!({ "config_version": 4, "store": { "exclude_memory_from_machine_backup": "yes" } }),

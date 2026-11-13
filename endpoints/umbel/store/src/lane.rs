@@ -800,7 +800,9 @@ fn check_decider(by: &str, at: &str, assurance: &Assurance) -> Result<()> {
     if at.is_empty() || at.chars().any(char::is_control) {
         return Err(StoreError::invalid("a decision names when it was made"));
     }
-    if !assurance.is_valid() {
+    // The two assurances of envelope version 3: a decision on the local page (`local`) is
+    // admitted here by step H3 of the Ideas host-review specification, not before.
+    if !assurance.is_valid(3) {
         return Err(StoreError::invalid(
             "a decision's assurance must be the terminal's or the person page's",
         ));

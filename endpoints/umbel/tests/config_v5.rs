@@ -98,10 +98,10 @@ fn versions_1_to_4_read_as_version_5_with_auth_mode_none() {
         assert_eq!(config.limits, umbel::workspace::RateLimits::default());
         assert_eq!(config.usage, umbel::workspace::UsageConfig::default());
     }
-    // Version 6 (the records host specification) is read beside them and tested in
-    // `config_v6.rs`.
-    assert_eq!(umbel::CONFIG_VERSION, 6);
-    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6]);
+    // Versions 6 (the records host specification) and 7 (the Ideas host-review specification)
+    // are read beside them and tested in `config_v6.rs` and `config_v7.rs`.
+    assert_eq!(umbel::CONFIG_VERSION, 7);
+    assert_eq!(umbel::CONFIG_VERSIONS, [1, 2, 3, 4, 5, 6, 7]);
 }
 
 #[test]
@@ -177,11 +177,11 @@ fn a_refusal_names_its_key_in_details() {
 }
 
 #[test]
-fn another_version_is_unsupported_and_names_1_to_6() {
-    for version in [0, 7] {
+fn another_version_is_unsupported_and_names_1_to_7() {
+    for version in [0, 8] {
         let error = open(&format!("config_version = {version}\n")).unwrap_err();
         assert_eq!(error.code(), "WORKSPACE_CONFIG_UNSUPPORTED");
-        assert!(error.message().contains("1 to 6"), "{error}");
+        assert!(error.message().contains("1 to 7"), "{error}");
     }
 }
 

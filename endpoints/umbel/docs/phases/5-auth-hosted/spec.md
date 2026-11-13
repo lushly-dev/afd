@@ -1094,8 +1094,8 @@ sharing `state/`. Several machines are phase 6, and the shared-state traits (10.
   user verification, and every ID token it returns must prove it (7.2, step 3). *Amended 2026-11-12 (D181):* a
   phishing-resistant multi-factor login counts as user verification: a phishing-resistant `acr` with `amr` `mfa`,
   which is how a passkey login is reported, since WebAuthn tells a provider only that the authenticator verified the
-  person, not how. Password plus a security key touched without its PIN also passes; that consequence was not put
-  to the owner.
+  person, not how. Password plus a security key touched without its PIN also passes; that consequence was put to the
+  owner on 2026-11-12, who accepted it.
 - A `person.cli = "verified"` command at the CLI needs a namespaced `local_id` and that namespace's login, else
   `PERSON_VERIFICATION_UNAVAILABLE`.
 - No other path gives a person:
