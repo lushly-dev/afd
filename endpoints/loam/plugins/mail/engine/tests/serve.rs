@@ -260,7 +260,8 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
     );
     let (_, body) = request(&app, "/mcp", sent(Some(&agent)), batch).await;
     let text = body.to_string();
-    assert!(text.contains("COMMAND_NOT_FOUND"), "{text}");
+    // The server runs no batch at all: one command per call.
+    assert!(text.contains("ONE_COMMAND_PER_CALL"), "{text}");
     assert!(!text.contains("lmail_agent_"), "{text}");
     let tokens = Local(&setup.registry)
         .run("mail-token-list", json!({}), false, None)
@@ -662,7 +663,7 @@ async fn mcp_over_stdio_refuses_a_store_a_server_owns_and_names_it() {
     std::fs::write(server_file(&setup.home), r#"{"pid":1,"port":4321}"#).unwrap();
     let other = Engine::new(Some(setup.home.clone()));
     let registry = Arc::new(loam_mail::registry(&Arc::new(Engine::new(None))).unwrap());
-    let refused = loam_mail::serve::serve_stdio(&other, registry)
+    let refused = loam_mail::serve::serve_stdio(&Arc::new(other), registry)
         .await
         .unwrap_err();
     assert!(refused.starts_with("STORE_IN_USE"), "{refused}");

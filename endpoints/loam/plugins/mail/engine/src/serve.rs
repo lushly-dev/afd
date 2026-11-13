@@ -18,6 +18,7 @@
 use std::convert::Infallible;
 use std::path::PathBuf;
 use std::sync::Arc;
+use std::time::Duration;
 
 use afd::server::{HttpOptions, McpServer};
 use afd::{Actor, ActorKind, CommandError, CommandRegistry};
@@ -34,6 +35,7 @@ use tower::Service;
 use crate::engine::Engine;
 use crate::home::{Home, private_file};
 use crate::tokens;
+use crate::work::Worker;
 
 /// The largest request body either route reads.
 pub const MOST_BODY: usize = 1024 * 1024;
@@ -86,12 +88,23 @@ fn write_private(path: &std::path::Path, contents: &str) -> std::io::Result<()> 
 
 /// The MCP server over `registry`: its MCP-exposed commands, the crate's
 /// default tool strategy with the meta-tools, and over HTTP each agent's
-/// token's id as the actor's.
+/// token's id as the actor's. Each call runs within `call`.
 #[must_use]
-pub fn mcp_server(registry: Arc<CommandRegistry>) -> McpServer {
+pub fn mcp_server(registry: Arc<CommandRegistry>, call: Duration) -> McpServer {
+    let call_ms = milliseconds(call);
     McpServer::new(registry, crate::PROGRAM, env!("CARGO_PKG_VERSION"))
         .with_instructions(INSTRUCTIONS)
-        .with_context_hook(|request, context| async move {
+        .with_context_hook(move |request, context| async move {
+            // A batch or a pipeline runs many commands in one call, each
+            // within the call's limits, so together beyond them.
+            if request.tool == "afd-batch" || request.tool == "afd-pipe" {
+                return Err(CommandError::new(
+                    "ONE_COMMAND_PER_CALL",
+                    "this server runs one command per call",
+                )
+                .with_suggestion("Call each command on its own, with afd-call or its tool."));
+            }
+            let context = context.with_timeout(call_ms);
             // Over stdio there is no request: the process boundary is the
             // trust boundary, and there is one caller.
             let Some(parts) = request.http_parts() else {
@@ -109,6 +122,18 @@ pub fn mcp_server(registry: Arc<CommandRegistry>) -> McpServer {
                 ),
             }
         })
+}
+
+/// `duration` in whole milliseconds, as a command's deadline takes it.
+fn milliseconds(duration: Duration) -> u64 {
+    u64::try_from(duration.as_millis()).unwrap_or(u64::MAX)
+}
+
+/// What the command line's route runs a command with.
+#[derive(Clone)]
+struct CommandLineRoute {
+    registry: Arc<CommandRegistry>,
+    call_ms: u64,
 }
 
 /// What the layer in front of every route checks against.
@@ -242,7 +267,7 @@ pub struct Forwarded {
 /// The command line's route: runs a command on the registry with the `cli`
 /// interface, as the command line would itself.
 async fn command_line(
-    State(registry): State<Arc<CommandRegistry>>,
+    State(route): State<CommandLineRoute>,
     caller: Option<Extension<Caller>>,
     body: Bytes,
 ) -> Response {
@@ -262,11 +287,12 @@ async fn command_line(
             "Send {\"command\", \"input\", \"terminal\"} as JSON.",
         );
     };
-    let mut context = crate::cli::command_line_context(call.terminal);
+    let mut context = crate::cli::command_line_context(call.terminal).with_timeout(route.call_ms);
     if let Some(approval) = call.approval {
         context = context.with_approval(approval);
     }
-    let result = registry
+    let result = route
+        .registry
         .execute(&call.command, call.input, Some(context))
         .await;
     match serde_json::to_vec(&result) {
@@ -299,11 +325,13 @@ pub fn router(
     cli_token: &str,
 ) -> Result<Router, String> {
     let hosts = [format!("127.0.0.1:{port}"), format!("localhost:{port}")];
-    let service = mcp_server(Arc::clone(registry)).try_streamable_http_service(HttpOptions {
-        allowed_hosts: hosts.to_vec(),
-        allowed_origins: Vec::new(),
-        max_body_bytes: MOST_BODY,
-    })?;
+    let call = engine.limits().call;
+    let service =
+        mcp_server(Arc::clone(registry), call).try_streamable_http_service(HttpOptions {
+            allowed_hosts: hosts.to_vec(),
+            allowed_origins: Vec::new(),
+            max_body_bytes: MOST_BODY,
+        })?;
     let mcp = tower::service_fn(move |request: Request| {
         let mut service = service.clone();
         async move {
@@ -322,7 +350,10 @@ pub fn router(
     Ok(Router::new()
         .route_service(MCP_PATH, mcp)
         .route(CLI_PATH, post(command_line))
-        .with_state(Arc::clone(registry))
+        .with_state(CommandLineRoute {
+            registry: Arc::clone(registry),
+            call_ms: milliseconds(call),
+        })
         .layer(DefaultBodyLimit::max(MOST_BODY))
         .layer(from_fn_with_state(gate, check)))
 }
@@ -401,7 +432,7 @@ pub async fn serve(
         .map_err(|error| error.to_string())?
         .port();
     let cli_token = format!("{}{}", tokens::CLI_PREFIX, tokens::random_hex(32)?);
-    let router = router(&registry, engine, port, &cli_token)?;
+    let router = router(&registry, Arc::clone(&engine), port, &cli_token)?;
     let entries = Entries {
         files: vec![server_file(&home), cli_token_file(&home)],
     };
@@ -415,6 +446,7 @@ pub async fn serve(
     let entry = serde_json::to_string(&entry).map_err(|error| error.to_string())?;
     write_private(&server_file(&home), &entry)
         .map_err(|error| format!("could not write server.json: {error}"))?;
+    let worker = Worker::start(&engine);
     announce(&format!(
         "serving on http://127.0.0.1:{port}{MCP_PATH}; stop with Ctrl-C"
     ));
@@ -422,6 +454,7 @@ pub async fn serve(
         .with_graceful_shutdown(stop)
         .await
         .map_err(|error| error.to_string());
+    worker.stop().await;
     drop(entries);
     served
 }
@@ -439,7 +472,10 @@ pub fn running(home: &Home) -> Option<ServerEntry> {
 ///
 /// # Errors
 /// The refusal, or why the connection failed.
-pub async fn serve_stdio(engine: &Engine, registry: Arc<CommandRegistry>) -> Result<(), String> {
+pub async fn serve_stdio(
+    engine: &Arc<Engine>,
+    registry: Arc<CommandRegistry>,
+) -> Result<(), String> {
     if let Err(error) = engine.open_store() {
         let running = engine.home().and_then(running);
         return Err(match (error, running) {
@@ -450,5 +486,10 @@ pub async fn serve_stdio(engine: &Engine, registry: Arc<CommandRegistry>) -> Res
             (error, _) => crate::commands::store_failure(&error).message,
         });
     }
-    mcp_server(registry).serve_stdio().await
+    let worker = Worker::start(engine);
+    let served = mcp_server(registry, engine.limits().call)
+        .serve_stdio()
+        .await;
+    worker.stop().await;
+    served
 }

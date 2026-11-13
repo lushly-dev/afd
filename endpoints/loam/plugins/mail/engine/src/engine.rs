@@ -38,6 +38,28 @@ pub struct Engine {
     /// changes them, so that the layer in front of every route never waits
     /// for the store.
     agent_tokens: RwLock<Vec<TokenRow>>,
+    /// What a server carries on in the background.
+    work: crate::work::Work,
+    limits: Limits,
+}
+
+/// What a call to a running server may take: the limits Loam sets on a
+/// mount (the specification's 3.2).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Limits {
+    /// How long a call may run.
+    pub call: std::time::Duration,
+    /// The largest reply, in bytes.
+    pub reply: usize,
+}
+
+impl Default for Limits {
+    fn default() -> Self {
+        Self {
+            call: std::time::Duration::from_secs(60),
+            reply: 4 * 1024 * 1024,
+        }
+    }
 }
 
 impl fmt::Debug for Engine {
@@ -64,6 +86,8 @@ impl Engine {
             // person's keychain by accident.
             secrets: Arc::new(InMemory::default()),
             agent_tokens: RwLock::new(Vec::new()),
+            work: crate::work::Work::default(),
+            limits: Limits::default(),
         }
     }
 
@@ -93,6 +117,25 @@ impl Engine {
     pub fn with_sync_options(mut self, options: Options) -> Self {
         self.sync = options;
         self
+    }
+
+    /// Other limits for a call to a running server.
+    #[must_use]
+    pub fn with_limits(mut self, limits: Limits) -> Self {
+        self.limits = limits;
+        self
+    }
+
+    /// The limits of a call to a running server.
+    #[must_use]
+    pub fn limits(&self) -> Limits {
+        self.limits
+    }
+
+    /// What a server carries on in the background, if one runs.
+    #[must_use]
+    pub fn work(&self) -> &crate::work::Work {
+        &self.work
     }
 
     /// The data directory, when there is one.

@@ -296,7 +296,11 @@ impl CommandHandler for ThreadList {
 
 const LIST_BUDGET: u64 = 32 * 1024;
 const OPEN_BUDGET: u64 = 64 * 1024;
-const MOST_BUDGET: u64 = 4 * 1024 * 1024;
+/// The largest budget a read may be asked for. A call to a running server
+/// may return 4 MiB (the specification's 3.2), and over MCP a result goes
+/// out twice, as text and as structured content, with the text escaped: so
+/// a little under half of that.
+const MOST_BUDGET: u64 = 1792 * 1024;
 
 /// `mail-thread-list`: a mailbox's threads, newest first, paged by cursor.
 #[must_use]

@@ -216,10 +216,56 @@ directly at a terminal, with no server, may run for longer, printing its progres
   thread, so a long command does not stop the server answering others. The store is still one
   lock held for each command's work, so a `mail-sync` or `mail-rebuild` holds the others back
   until it ends.
-- **Left to the second pull request:** sync every five minutes in the background, `mail-sync`
-  and `mail-rebuild` as work the server carries on and `mail-status` reports, the 60 seconds and
-  4 MiB of a call, and `mail-account-remove`. Until then, a sync or a rebuild called on a running
-  server runs inside the call.
+- **Left to the second pull request** (now built; see below): sync every five minutes in the
+  background, `mail-sync` and `mail-rebuild` as work the server carries on and `mail-status`
+  reports, and the 60 seconds and 4 MiB of a call.
+
+**As step B5's second pull request built it.**
+
+- `loam-mail serve` and `loam-mail mcp` both run the server's work (`src/work.rs`) once they have
+  the store. One piece runs at a time, in this order:
+  - a rebuild, when one is asked for or a stop left one unfinished; until it ends, new mail waits
+    to be derived;
+  - a pass of sync over every account, at once and five minutes after each such pass ends;
+  - a pass asked for. Requests merge: two accounts asked for become one pass of every account.
+    Asking for one account's pass does not put off the next pass of every account.
+- On a server, `mail-sync` checks that the account it names is there, asks for a pass and returns
+  at once with `{"work", "queued", "running"}`. `follow` is refused on a server, which already
+  syncs. `mail-rebuild` marks the store as rebuilding, throwing away what is derived, then asks
+  for the work and returns at once. A rebuild asked for is therefore never lost: if the server
+  stops first, the next one carries it on. Lists and search are empty from that moment, also while
+  a pass that was already running finishes, which can take a few minutes. A rebuild asked for
+  while one runs is covered by it. One that fails and leaves the store rebuilding is tried again
+  five minutes later. A pass asked for and not begun is dropped at a stop; the next server syncs
+  as it starts.
+- `mail-status` gains `work`, which is `null` with no server.
+  - For sync: what runs (the account, when it began), what waits, when the next pass of every
+    account is due (`everyAccountDueAt`, in the past while one runs or waits), and how the last
+    pass ended.
+  - For a rebuild: what runs (the highest message id derived so far and the highest there is),
+    whether one waits or waits to be tried again, and how the last ended.
+  - An outcome is the command's own result, or its failure's code and message, in ids, counts
+    and the engine's words. A panic in the work is recorded as `COMMAND_EXECUTION_ERROR`, and the
+    work goes on.
+- A rebuild takes the store for one batch at a time, the same way at the command line, so that on
+  a server other commands run between its batches. While it runs, lists and search show what it
+  has derived so far.
+- **A call's limits.** Each command a call runs, on either route, has a 60-second deadline; one
+  that outlasts it is stopped and fails with the `afd` crate's `TIMEOUT`.
+  - The server refuses `afd-batch` and `afd-pipe` with `ONE_COMMAND_PER_CALL`, because they would
+    run several commands, each within the limits, in one call.
+  - A reply larger than 4 MiB fails with `REPLY_TOO_LARGE`, which says that a command that changes
+    something has made its change. Over MCP the reply's size counts the result twice: the `afd`
+    crate sends it as text and as structured content, and escapes the text.
+  - So a read's largest output budget is 1.75 MiB (`read.rs`), and a reply over the limit needs a
+    result that is mostly characters the escaping doubles.
+  - Neither limit applies to a command the command line runs itself. The largest budget does: one
+    maximum for every caller keeps the reads simple, so a person at a terminal reads a message's
+    text, or a file's bytes, 1.75 MiB at a time, where before it was 4 MiB.
+- When the server stops, its work stops between two steps of sync or two batches of a rebuild, and
+  carries on from there next time.
+- **Left to the third pull request:** `mail-account-remove`, and where the 174 seconds of a pass
+  with nothing new went ([5.2](#52-imap)).
 
 ### 3.3 Callers
 
@@ -474,9 +520,9 @@ too. Gmail, where a message is one message with several labels, is checked by st
   version newer than the program fails the start with `STORE_NEWER`.
 - A row in `envelope` records the parser's version. Raising it marks rows stale, and the engine
   recomputes them in the background, oldest last. Step B4 raised it to 2 with the evidence of
-  [6.1](#61-what-is-read). Until `serve` runs sync in the background (step B5), each pass of
-  `mail-sync` derives stale messages again for up to 30 seconds, newest first, and
-  `mail-status` counts what is left; `mail-rebuild` derives everything.
+  [6.1](#61-what-is-read). Each pass of sync, whether `mail-sync` runs it or a
+  server does in the background (step B5), derives stale messages again for up to 30 seconds,
+  newest first, and `mail-status` counts what is left; `mail-rebuild` derives everything.
 
 ### 4.4 Limits to meet
 
@@ -694,7 +740,7 @@ the last successful pass, and the last error.
 - An account is synced when its mailboxes are.
 
 `mail-sync` does not wait for any of this. Under `serve` it asks the background sync to run a
-pass now and returns the state. Run directly with no server, it runs one pass, until each
+pass now and returns at once; `mail-status` reports the pass ([3.2](#32-modes)). Run directly with no server, it runs one pass, until each
 mailbox has fetched what it can, and returns what the pass did, in counts; at a terminal it prints
 progress, ids and counts only. With `follow`, which only the command line may ask for, it keeps
 syncing until stopped, a pass every five minutes (step B3's interval; see [5.2](#52-imap)).
@@ -1143,16 +1189,16 @@ says otherwise.
 
 | Command | Phase | Class | Exposed to | Notes |
 | --- | --- | --- | --- | --- |
-| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome |
+| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome. Step B5: and the server's work ([3.2](#32-modes)) |
 | `mail-account-list` | B | Read | cli, mcp | |
 | `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's, with the other person's commands that remove something |
 | `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND` |
 | `mail-token-list` | B | Read | cli | Each token's id, name and when it was made; never the token, which the store does not have. A read, so no approval (step B5) |
-| `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)) |
+| `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)). On a server it asks for a pass and returns at once (step B5) |
 | `mail-thread-list`, `mail-thread-open`, `mail-message-open` | B | Read | cli, mcp | An output budget on each; lists are paged by cursor. Step B4: `mail-thread-list` takes a mailbox's id and gives its threads newest first; `mail-thread-open` a thread's messages oldest first, with each message's evidence; `mail-message-open` fetches a message's body when it is not held, whole when it is 1 MiB or less and in parts when it is larger (M20), trying each mailbox that shows it, and gives its recipients, evidence, links, files and a window of its visible text, with where the next window starts. The window is fitted to the budget as the budget measures the result; when even a small window does not fit, the HTML, then the hidden text, then half the links are left out and named in `leftOut`, and past that the call fails rather than give an empty window. A person at a terminal gets each command's largest budget |
 | `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first, and a file of a message held in parts, fetching that part alone when it is not held, up to 256 MiB; its bytes are then decoded on their own (a part of a forwarded message held whole is read from that message), its type read from them and the message derived again. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
 | `mail-search` | B | Read | cli, mcp | Step B4: the best matches first, paged by cursor up to the first 1 000 |
-| `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status`; until step B5's second pull request it runs inside the call |
+| `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status` (step B5) |
 | `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | |
 | `mail-sender-screen` | C | Local, undoable; a person | cli | No approval prompt ([7.3](#73-the-persons-decisions)) |
 | `mail-sender-suggest` | C | Local | cli, mcp | Changes no class |
@@ -1244,6 +1290,8 @@ Beside the crate's own codes:
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
 | `PART_NOT_FOUND` | A message has no part at the place named |
+| `REPLY_TOO_LARGE` | A reply larger than a call to a running server may return ([3.2](#32-modes)) |
+| `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
 | `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
@@ -1335,7 +1383,7 @@ file.
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
 | B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` and `mail-account-list`, the keychain, and the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)). The headers and text of a message over 1 MiB (M20) moved to B4, which builds the fetching of a part that opening a message or an attachment needs; such a message does not hold a mailbox back from "synced" ([5.7](#57-what-synced-means)) |
 | B4 | In three pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a message's body when it is opened. Third: a message over 1 MiB (M20): its structure, its text parts at sync, and a file of it fetched when it is opened |
-| B5 | In two pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), where the 174 seconds of a pass with nothing new go, a store that does not hold every command back during a rebuild, and `mail-account-remove` |
+| B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account, and `mail-account-remove` |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |
