@@ -329,7 +329,7 @@ H1 needs H0; H2 needs H1; H3 needs H2. The plugin's step C4 needs H3.
 | --- | --- | --- |
 | A login on the local page | The owner's choice, section 12 row 6 | `[person.local]` may gain `login = "<namespace>"`; a decision made with one records `verified` |
 | The relay's list for a hosted client without URL elicitation | Step A4, an AFD change | Section 5's list is the page it would point to |
-| Better Auth's user verification | The hosted instance | `uv_amr` and `acr_values` as phase 5 has them (`src/auth/mod.rs:56`) |
+| Better Auth's user verification | The hosted instance | `uv_amr` and `acr_values` as phase 5 has them (`src/auth/mod.rs`); since D181 (2026-11-12) a passkey login, `uv_amr = ["mfa"]` with `acr_values` `phr` or `phrh` only |
 
 ## 12. For the owner
 

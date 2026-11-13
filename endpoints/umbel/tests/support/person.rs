@@ -206,11 +206,34 @@ impl Page {
 
     /// Start with `setup`.
     pub async fn start_with(setup: Setup<'_>) -> Self {
+        Self::start_login(setup, None).await
+    }
+
+    /// Start with the default setup, the person login's `acr_values` and `uv_amr` replaced by
+    /// `verification` (such as `acr_values = ["phr"], uv_amr = ["mfa"]`).
+    pub async fn start_verified_by(verification: &str) -> Self {
+        Self::start_login(
+            Setup {
+                rest: REST,
+                ..Setup::default()
+            },
+            Some(verification),
+        )
+        .await
+    }
+
+    async fn start_login(setup: Setup<'_>, verification: Option<&str>) -> Self {
         let kit = TestIdp::start().await.unwrap();
         kit.identity_provider().register_client(
             KitClient::confidential("umbel-person-page", SECRET).redirect_uri(REDIRECT),
         );
-        let dir = super::workspace(&super::oauth::config(&kit, &setup));
+        let mut text = super::oauth::config(&kit, &setup);
+        if let Some(verification) = verification {
+            let configured = "acr_values = [\"phr\"], uv_amr = [\"pin\"]";
+            assert!(text.contains(configured));
+            text = text.replace(configured, verification);
+        }
+        let dir = super::workspace(&text);
         let clock = afd::fixed_clock(now_ms());
         follow(&kit, &clock);
         let seen = Seen::default();
