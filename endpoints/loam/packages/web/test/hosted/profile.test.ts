@@ -40,6 +40,8 @@ let host: DevHost;
 let browser: Browser;
 let coldStartMs = 0;
 const coldStarts: number[] = [];
+/** The start in flight, which `afterAll` closes if the loop throws or the hook times out. */
+let starting: DevHost | undefined;
 
 beforeAll(async () => {
 	const config = deploymentFile(
@@ -47,20 +49,23 @@ beforeAll(async () => {
 		deploymentEntry('tally', await packApp('tally'))
 	);
 	// Section 14's cold-start row: from an empty directory to the first `200` on `<base>`, the median of
-	// several starts, so one slow start on a busy runner does not decide it. The last one is kept.
+	// several starts, so one slow start on a busy runner does not decide it. Each has its own directory,
+	// certificate and child; the OS and module caches are warm after the first. The last one is kept.
 	for (let run = 1; run <= COLD_STARTS; run++) {
 		const started = performance.now();
-		const fresh = await startDevHost({ config, basePath: '/loam/' });
-		const status = (await hosted(fresh, '/loam/', { accept: HTML })).status;
+		starting = await startDevHost({ config, basePath: '/loam/' });
+		const status = (await hosted(starting, '/loam/', { accept: HTML })).status;
 		coldStarts.push(performance.now() - started);
-		if (run < COLD_STARTS || status !== 200) await fresh.close();
-		else host = fresh;
 		expect(status).toBe(200);
+		if (run < COLD_STARTS) await starting.close();
+		else host = starting;
+		starting = undefined;
 	}
 	coldStartMs = [...coldStarts].sort((a, b) => a - b)[Math.floor(COLD_STARTS / 2)] as number;
 	browser = await launchForDevHost(host);
-}, 120_000);
+}, 360_000);
 afterAll(async () => {
+	if (starting !== host) await starting?.close();
 	await browser?.close();
 	await host?.close();
 });
