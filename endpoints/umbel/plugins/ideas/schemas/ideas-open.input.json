@@ -1,0 +1,16 @@
+{
+	"type": "object",
+	"additionalProperties": false,
+	"required": ["id"],
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"id": {
+			"type": "string",
+			"description": "The idea's id",
+			"maxLength": 29
+		}
+	}
+}
