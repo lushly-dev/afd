@@ -551,14 +551,47 @@ async function replayPorts() {
 	return createFixturePorts(packages as never);
 }
 
-/** Replay the page's journal, and the entries that did not replay the same. A deployment may leave out checklist. */
+/**
+ * Replay the page's journal, and the entries that did not replay the same. A deployment may leave out
+ * checklist. `replayKernel` throws `REPLAY_DIVERGED` on any difference; its report is read from the error,
+ * so a failing test names each entry, its input and what differed, and lists every other entry about the
+ * same document, in `seq` order, rather than one line (#1045).
+ */
 export async function replayDifferences(site: DeploymentSite, entries: JournalEntry[]) {
-	const { report } = await replayKernel(entries, {
-		environment: createFixedEnvironment(),
-		deployment: site.projection,
-		ports: await replayPorts(),
-	});
-	return report.entries.filter(({ status }) => status !== 'same');
+	let reported: Array<{ seq: number; command: string; status: string }>;
+	try {
+		const { report } = await replayKernel(entries, {
+			environment: createFixedEnvironment(),
+			deployment: site.projection,
+			ports: await replayPorts(),
+		});
+		reported = report.entries;
+	} catch (error) {
+		const report = (error as { code?: string; details?: { report?: { entries?: unknown } } })
+			.details?.report;
+		if ((error as { code?: string }).code !== 'REPLAY_DIVERGED' || !report) throw error;
+		reported = report.entries as typeof reported;
+	}
+	const bySeq = new Map(entries.map((entry) => [entry.seq, entry]));
+	const documentOf = (entry: JournalEntry | undefined) =>
+		(entry?.input as { document?: unknown } | undefined)?.document;
+	return reported
+		.filter(({ status }) => status !== 'same')
+		.map((difference) => {
+			const entry = bySeq.get(difference.seq);
+			const document = documentOf(entry);
+			return {
+				...difference,
+				input: entry?.input,
+				...(document === undefined
+					? {}
+					: {
+							sameDocument: entries
+								.filter((other) => documentOf(other) === document)
+								.map((other) => `${other.seq} ${other.command} ${other.timestamp}`),
+						}),
+			};
+		});
 }
 
 /**
