@@ -216,7 +216,10 @@ assert.deepEqual(Object.keys(integrationPeers), [
 	'@lushly-dev/afd-core',
 	'@lushly-dev/afd-server',
 ]);
-assert.deepEqual(integration.peerDependencies, integrationPeers);
+// Its Specimen peer is `workspace:^`, which pack writes as the version it was built against (#1066).
+assert.equal(integrationPeers['@lushly-dev/specimen'], 'workspace:^');
+const packedPeers = { ...integrationPeers, '@lushly-dev/specimen': `^${specimenVersion}` };
+assert.deepEqual(integration.peerDependencies, packedPeers);
 const cli = packedManifest('@lushly-dev/specimen-cli');
 assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
@@ -537,7 +540,7 @@ const missing = await install(
 assert.match(missing.log, /ERR_PNPM_PEER_DEP_ISSUES/);
 for (const peer of ['@lushly-dev/specimen', '@lushly-dev/afd-core', '@lushly-dev/afd-server'])
 	assert(
-		missing.log.includes(`missing peer ${peer}@${integrationPeers[peer]}`),
+		missing.log.includes(`missing peer ${peer}@${packedPeers[peer]}`),
 		`expected missing ${peer}`
 	);
 passed('integration without peers is rejected (missing peer)');
@@ -568,10 +571,7 @@ for (const [peer, version] of Object.entries(incompatible)) {
 		overrides: false,
 	});
 	assert.match(result.log, /ERR_PNPM_PEER_DEP_ISSUES/);
-	assert(
-		result.log.includes(`unmet peer ${peer}@${integrationPeers[peer]}: found 3.0.0`),
-		result.log
-	);
+	assert(result.log.includes(`unmet peer ${peer}@${packedPeers[peer]}: found 3.0.0`), result.log);
 	passed(`integration with ${peer}@3.0.0 is rejected (unmet peer)`);
 }
 

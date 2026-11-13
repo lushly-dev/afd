@@ -131,7 +131,10 @@ export function versionSelected({
 		}
 		// A dependent that a release leaves outside its peer range is bumped by patch and its range
 		// narrowed (Changesets 3; Changesets 2 made it major). Narrowing a peer range breaks the
-		// dependent's consumers, so it ships only with a major of the dependent.
+		// dependent's consumers, so it ships only with a major of the dependent. A `workspace:^` peer is
+		// unchanged here and packs as the version it was built against: a preview line raises its floor
+		// that way without a major (#1066). So does a major of that peer: the dependent is patched and
+		// packs the new major as its floor, so add a major fragment for it by hand.
 		for (const [manifest, before] of manifests) {
 			const now = JSON.parse(readFileSync(join(candidate, manifest), 'utf8'));
 			const peers = Object.keys(before.peerDependencies ?? {}).filter(
