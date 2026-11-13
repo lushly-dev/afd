@@ -14,7 +14,18 @@ monorepo. Prepared on 2026-11-07 and released with the docs-check fix that lande
 
 ### Fixed
 
-- **Docs checks cover the whole repository** ([#779](https://github.com/lushly-dev/afd/issues/779)). `docs_check_changelog` reads staged code under any `src/` directory, in any of the common languages, against the CHANGELOG.md nearest it, so each package of a monorepo answers to its own; before, only `.py` under a top-level `src/` counted. `docs_check_agents` also sees new packages (`package.json`, `pyproject.toml`, `Cargo.toml`), skills and workflows, and command modules in any language. `docs_lint` lints a single file it is given, where it checked nothing, and skips `node_modules`, virtual environments and build output. In an npm repository the checks suggest its Changesets command rather than `changeset_create`, which refuses one. `docs-manager` 2.1.1 describes the checks as they now are.
+- **Docs checks cover the whole repository**
+  ([#779](https://github.com/lushly-dev/afd/issues/779)). `docs_check_changelog` reads staged
+  code under any `src/` directory, in any of the common languages, against the CHANGELOG.md
+  nearest it, so each package of a monorepo answers to its own; before, only `.py` under a
+  top-level `src/` counted. `docs_check_agents` also sees new packages (`package.json`,
+  `pyproject.toml`, `Cargo.toml`), skills and workflows, and command modules in any language.
+  `docs_lint` lints a single file it is given, where it checked nothing, and skips
+  `node_modules`, virtual environments and build output. In an npm repository the checks
+  suggest its Changesets command rather than `changeset_create`, which refuses one.
+  `docs_check_agents` now reports packages, skills and workflows only when they are added, and
+  labels an edited command module "Changed command"; in a monorepo these advisory checks can
+  flag more than before. `docs-manager` 2.1.1 describes the checks as they now are.
 - **Seeded skills** read correctly outside AFD. `security-auditor` defers to a repository lane
   that defines blockers by impact; `docs-manager` allows a root `CLAUDE.md` whose only line is
   `@AGENTS.md`; `plugin-builder`, `mcp-builder`, `security-auditor` and `botcore-config` link
@@ -23,8 +34,6 @@ monorepo. Prepared on 2026-11-07 and released with the docs-check fix that lande
   refreshes them.
 - **skill-manager** (4.1.1) no longer names AFD's `pnpm verify` as its example of a single source, so seeded
   copies don't cite a command a consuming repository lacks.
-- **README** names AFD as the repository Botcore is developed and released from, and its
-  badge reads the PyPI version ([#1057](https://github.com/lushly-dev/afd/pull/1057)).
 
 ## [0.6.0] - 2026-11-07
 

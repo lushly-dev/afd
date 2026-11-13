@@ -55,7 +55,8 @@ IMPORT_REASONS = {
         "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
     ),
     "CHANGELOG.md": (
-        "Record the 0.6.0 host adaptation, compatibility changes and budget modernization"
+        "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; "
+        "Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -132,7 +133,8 @@ IMPORT_REASONS = {
         "Rewrite for current models and merge the review skill into it"
     ),
     "src/botcore/skills/docs-manager/SKILL.md": (
-        "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer"
+        "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; "
+        "Describe the docs checks as they now are (lushly-dev/afd#779)"
     ),
     "src/botcore/skills/plugin-builder/SKILL.md": (
         "Rebase on the managed host and the real error() and discovery APIs"
@@ -181,7 +183,9 @@ IMPORT_REASONS = {
     "tests/test_skill_lint_sk008.py": ("Check references on skills without a references directory"),
     "tests/test_skill_list.py": ("Cover ownership read from metadata"),
     "pyproject.toml": (
-        "Set root version 0.6.0, provenance, the AFD bootstrap override and AFD project URLs"
+        "Set root version 0.6.1, provenance, the AFD bootstrap override and AFD project URLs;"
+        " pytest-asyncio's fixture loop scope set to function, its next default, so the tests"
+        " do not warn that it is unset"
     ),
     "docs/host-composition.md": (
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
@@ -191,6 +195,20 @@ IMPORT_REASONS = {
         "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
     ),
     "botcore-connectors/uv.lock": ("Refresh dependencies within declared constraints"),
+    "src/botcore/commands/docs.py": (
+        "Docs checks cover the whole repository: nearest changelog per package, structural "
+        "changes in any language, single-file and skip-aware lint, Changesets-aware "
+        "suggestions (lushly-dev/afd#779)"
+    ),
+    "tests/test_cli.py": (
+        "The init tests run in pytest's tmp_path through contextlib.chdir instead of Click's "
+        "isolated_filesystem, which Click deprecates for removal; otherwise imported exact "
+        "frozen staged-input bytes"
+    ),
+    "tests/test_docs.py": (
+        "Pin the workspace in the preflight suggestion test (lushly-dev/afd#779)"
+    ),
+    "tests/test_docs_extended.py": ("Cover whole-repository docs checks (lushly-dev/afd#779)"),
 }
 
 
