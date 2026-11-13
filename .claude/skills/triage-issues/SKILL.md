@@ -1,10 +1,8 @@
 ---
 name: triage-issues
 description: >
-  Triages the AFD backlog: classifies untriaged issues into status, priority,
-  execution, risk and needs labels so the software factory's cells can take
-  them. Use when triaging, labeling new issues, answering "what can the fleet
-  work on?" or before a factory run; `check` reports without writing.
+  Triages AFD issues into the software factory's labels (status, priority,
+  execution, needs). Use before a factory run; `check` only reports.
 argument-hint: check | limit:<n>
 ---
 
