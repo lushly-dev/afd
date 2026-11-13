@@ -21,6 +21,7 @@ import {
 	statusOf,
 } from './binding.js';
 import { isOwnerRole, rolesOf } from './roles.js';
+import { freshSessionHook, SESSION_METHOD_FIELD, sessionEndpoints } from './sessions.js';
 
 /** What the plugin and `createLoamAuthOptions`' organization hooks share. */
 export interface LoamProviderState {
@@ -92,6 +93,58 @@ export const memberOf = (adapter: BindingAdapter, organizationId: string, userId
 		],
 	});
 
+/**
+ * What main shows of the binding (2.3, 15): to anyone signed in, no organization bound yet
+ * (`IDENTITY_ORGANIZATION_UNKNOWN`); to an owner, a deployment slug that no longer names the bound organization
+ * (`IDENTITY_BINDING_MISMATCH`). Nothing for anyone else, who learns nothing of the binding.
+ */
+async function bindingWarning(
+	adapter: BindingAdapter,
+	state: LoamProviderState,
+	membership: Awaited<ReturnType<typeof membershipOf>>
+): Promise<{ warning?: 'IDENTITY_BINDING_MISMATCH' | 'IDENTITY_ORGANIZATION_UNKNOWN' }> {
+	const binding = await readBinding(adapter, state.workspace);
+	if (!binding) return { warning: 'IDENTITY_ORGANIZATION_UNKNOWN' };
+	if (!membership || !isOwnerRole(membership.role)) return {};
+	const status = await statusOf(adapter, binding, state.organization);
+	return status.warning ? { warning: status.warning } : {};
+}
+
+/**
+ * A disabled path with a parameter, as `/reset-password/:token`, as a pattern over the path under the base path:
+ * Better Auth matches `disabledPaths` as exact strings, so it blocks only the literal `:token` (the re-check of step
+ * 3's NEW-4). Each segment that starts `:` matches any one segment.
+ */
+export function disabledPattern(path: string): RegExp | undefined {
+	if (!path.includes('/:')) return undefined;
+	const source = path
+		.split('/')
+		.map((segment) =>
+			segment.startsWith(':') ? '[^/]+' : segment.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+		)
+		.join('/');
+	return new RegExp(`^${source}/?$`, 'i');
+}
+
+/** `/get-session`'s answer without `session.token`: the cookie is HttpOnly, so no page script gets the token (4.1). */
+async function withoutToken(returned: unknown): Promise<Record<string, unknown> | undefined> {
+	const body =
+		returned instanceof Response
+			? returned.status === 200
+				? ((await returned
+						.clone()
+						.json()
+						.catch(() => undefined)) as unknown)
+				: undefined
+			: returned instanceof APIError
+				? undefined
+				: returned;
+	const session = (body as { session?: Record<string, unknown> } | null | undefined)?.session;
+	if (!session || !('token' in session)) return undefined;
+	const { token: _token, ...kept } = session;
+	return { ...(body as Record<string, unknown>), session: kept };
+}
+
 /** The paths whose caller Loam checks before the organization plugin runs (7.5). */
 const ROLE_PATHS = new Set(['/organization/update-member-role', '/organization/remove-member']);
 
@@ -107,11 +160,36 @@ export function loamServerPlugin(state: LoamProviderState) {
 					boundAt: { type: 'date', required: true },
 				},
 			},
+			// How each session was made (2.6, D99), which the freshness rule of 5.2 and 5.8 reads.
+			session: {
+				fields: {
+					[SESSION_METHOD_FIELD]: {
+						type: 'string',
+						required: false,
+						input: false,
+						returned: false,
+					},
+				},
+			},
 		},
 		init(context: AuthContext) {
 			state.context = context;
 		},
+		/** A disabled path's every value, not only its template (NEW-4): answered as Better Auth answers one, 404. */
+		onRequest: (async (request: Request, context: AuthContext) => {
+			const patterns = (context.options.disabledPaths ?? []).flatMap(
+				(path) => disabledPattern(path) ?? []
+			);
+			if (patterns.length === 0) return;
+			const base = new URL(context.baseURL).pathname.replace(/\/$/, '');
+			const pathname = new URL(request.url).pathname;
+			const under = pathname.startsWith(base) ? pathname.slice(base.length) : pathname;
+			if (patterns.some((pattern) => pattern.test(under))) {
+				return { response: new Response('Not Found', { status: 404 }) };
+			}
+		}) as BetterAuthPlugin['onRequest'],
 		endpoints: {
+			...sessionEndpoints(() => state.context),
 			/**
 			 * `GET <path>/loam/whoami` (4.2): the session, read from the database since there is no cookie cache,
 			 * and the person's membership of the bound organization by its id, or `null` signed out. A session
@@ -121,10 +199,13 @@ export function loamServerPlugin(state: LoamProviderState) {
 				const found = await getSessionFromCtx(ctx);
 				if (!found || found.user.id.startsWith(AGENT_PREFIX)) return ctx.json(null);
 				const { session, user } = found;
+				const adapter = adapterOf(state);
+				const membership = await membershipOf(adapter, state.workspace, user.id);
 				return ctx.json({
 					session: { id: session.id, expiresAt: session.expiresAt },
 					user: { id: user.id, email: user.email, name: user.name, image: user.image ?? null },
-					membership: await membershipOf(adapterOf(state), state.workspace, user.id),
+					membership,
+					...(await bindingWarning(adapter, state, membership)),
 				});
 			}),
 			/**
@@ -146,7 +227,21 @@ export function loamServerPlugin(state: LoamProviderState) {
 			),
 		},
 		hooks: {
+			after: [
+				{
+					/**
+					 * `/get-session` answers the session without its token (NEW-3): the session cookie is HttpOnly, and
+					 * the page reads the person and the expiry, never the token, which is the credential itself.
+					 */
+					matcher: (ctx: { path?: string }) => ctx.path === '/get-session',
+					handler: createAuthMiddleware(async (ctx) => {
+						const answer = await withoutToken(ctx.context.returned);
+						if (answer) return ctx.json(answer);
+					}),
+				},
+			],
 			before: [
+				freshSessionHook(() => state.context),
 				{
 					/**
 					 * The provider's own role endpoints, called directly around Loam's commands (7.1, 7.5): only an

@@ -225,16 +225,30 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * carries a command's `scopes` (M6's metadata) and the engine two optional hooks that look a hidden command
  * up as a missing one; no authorization code. First paint 288,640 and 89,242 gzip, +74 and +35 over `main`
  * at `dd5d3616` (288,566 and 89,207), within 0c's allowance of 80 and 40; the kernel alone 114,444 (+93).
+ * Phase 3's step 3 (sign-in, the probe and sessions) raised the ceilings it passed under D115 (size limits do not
+ * gate the epic; 2026-11-13), each to its measurement plus a margin. First paint 294,515 and 91,544 gzip, +5,693
+ * and +2,234 over `main` at `f7ecbd43` (288,822 and 89,310), past step 3's allowance of 1,950 and 800: the probe
+ * and `DeferredAuthAdapter` in `identity.ts` (about 2,300), the signed-out main and the title bar's account
+ * button, and afd-auth's errors, listeners and session state, which `auth` shares and the `events` group pins
+ * into first paint (the last two not measured apart). `jsGzip` 91,000 to 92,000. `lateIdentityMinified` 16,000 to
+ * 24,000: the identity commands, `HUMAN_REQUIRED`, the follow-ups of step 2 and the Mock's session and passkey
+ * capabilities (22,629, from 7,304). New rows: `authMinified`, Better Auth's client with its passkey and
+ * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,489,
+ * set at 9,300; `accountMenuMinified`, 3,543, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
+ * (+153) are within their rows; `switcher` 11,317 is at its ceiling.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
-	jsGzip: 91_000,
+	jsGzip: 92_000,
 	cssMinified: 8_496,
 	kernelMinified: 114_444,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	lateIdentityMinified: 16_000,
+	lateIdentityMinified: 24_000,
+	authMinified: 72_000,
+	signInMinified: 9_300,
+	accountMenuMinified: 3_900,
 	urlMinified: 5_247,
 	appsMinified: 394_973,
 	surfacesMinified: 85_000,
@@ -318,7 +332,7 @@ async function measurePage() {
 	}
 	// One first paint for every deployment: nothing stage B reads is in it (phase 2 specification, 2.2).
 	const stageB = [...initial].filter((name) =>
-		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows|editor)-/.test(
+		/^assets\/(apps|validate\.generated|deployment|surfaces|late|url-sync|switcher|tooltip|sections|project-summary-rows|editor|auth|sign-in|account-menu)-/.test(
 			name
 		)
 	);
@@ -428,6 +442,19 @@ async function measurePage() {
 		...lateEditor,
 		...lateIdentity,
 	]);
+	// Phase 3's `auth` (13): Better Auth's client, `BetterAuthAdapter` and `SessionSync`, which stage B loads in
+	// `provider` mode only, after `late-identity` and before `apps`. A `local` shell never loads it, so it is charged
+	// here and left out of `afterLate`, which every deployment's later rows build on.
+	const auth = closure(/^assets\/auth-/, afterLate);
+	if (auth.size === 0) throw new Error('budget: the build has no `auth` chunk to measure');
+	const afterAuth = new Set([...afterLate, ...auth]);
+	// The sign-in dialog and the account menu, each loaded on a press in a `provider` deployment, whose rail may be
+	// empty, so no `surfaces` before them: charged after `auth`, with what they share with later chunks.
+	const signIn = closure(/^assets\/sign-in-/, afterAuth);
+	if (signIn.size === 0) throw new Error('budget: the build has no `sign-in` chunk to measure');
+	const accountMenu = closure(/^assets\/account-menu-/, afterAuth);
+	if (accountMenu.size === 0)
+		throw new Error('budget: the build has no `account-menu` chunk to measure');
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -514,6 +541,9 @@ async function measurePage() {
 		lateDocumentsMinified: sizeOf(lateDocuments),
 		lateEditorMinified: sizeOf(lateEditor),
 		lateIdentityMinified: sizeOf(lateIdentity),
+		authMinified: sizeOf(auth),
+		signInMinified: sizeOf(signIn),
+		accountMenuMinified: sizeOf(accountMenu),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -600,6 +630,9 @@ const ROWS = [
 	['lateDocumentsMinified', "The kernel's `late-documents` chunk and its imports, minified"],
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
+	['authMinified', "The `auth` chunk, Better Auth's client and `SessionSync`, minified"],
+	['signInMinified', 'The `sign-in` chunk, `loam-sign-in-dialog`, minified'],
+	['accountMenuMinified', 'The `account-menu` chunk, `loam-account-menu`, minified'],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

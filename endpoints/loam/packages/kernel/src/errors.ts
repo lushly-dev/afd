@@ -110,7 +110,16 @@ export type LoamKernelErrorCode =
 	| 'AGENT_CANNOT_SIGN_IN'
 	| 'SESSION_CHANGED'
 	| 'MEMBERSHIP_UNAVAILABLE'
-	| 'AGENT_NAME_RESERVED';
+	| 'AGENT_NAME_RESERVED'
+	| 'HUMAN_REQUIRED'
+	| 'REAUTH_REQUIRED'
+	| 'SESSION_NOT_FOUND'
+	| 'SIGN_IN_METHOD_UNAVAILABLE'
+	| 'PASSKEY_CANCELLED'
+	| 'PASSKEY_UNSUPPORTED'
+	| 'PASSKEY_NOT_FOUND'
+	| 'PASSKEY_LAST'
+	| 'IDENTITY_PROVIDER_UNAVAILABLE';
 
 /**
  * In a failure's `details`: the page decided this and not a command, as an import or a frame's deadline

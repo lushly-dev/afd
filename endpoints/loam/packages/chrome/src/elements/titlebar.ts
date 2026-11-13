@@ -68,7 +68,13 @@ const template = html<LoamTitlebar>`
 		`
 	)}
 	${when(
-		(x) => x.account !== '',
+		(x) => x.account !== '' && x.provider,
+		html<LoamTitlebar>`<button class="quiet account" type="button" aria-haspopup="menu" aria-expanded="false" @click="${(
+			x
+		) => dispatchAction(x, { action: 'account-menu' })}">${(x) => x.account}</button>`
+	)}
+	${when(
+		(x) => x.account !== '' && !x.provider,
 		html<LoamTitlebar>`
 			<span class="actor">${(x) => x.account}</span>
 			<button
@@ -160,6 +166,8 @@ export class LoamTitlebar extends FASTElement {
 	declare ariaShortcut: string;
 	/** The parts shown now, space-separated: `sidebar`, `inspector`, `panel`. */
 	declare shownParts: string;
+	/** A `provider` deployment: the account button opens the account menu (phase 3 specification, 5.1). */
+	declare provider: boolean;
 
 	constructor() {
 		super();
@@ -189,5 +197,6 @@ attr(LoamTitlebar.prototype, 'account');
 attr(LoamTitlebar.prototype, 'shortcut');
 attr({ attribute: 'key-shortcut' })(LoamTitlebar.prototype, 'ariaShortcut');
 attr({ attribute: 'shown-parts' })(LoamTitlebar.prototype, 'shownParts');
+attr({ mode: 'boolean' })(LoamTitlebar.prototype, 'provider');
 
 export const titlebarDefinition = { name: 'loam-titlebar', template, styles } as const;

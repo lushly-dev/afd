@@ -51,6 +51,11 @@ export interface LateScopeDeps {
 	settle?(name: string, call: CommandContext): Promise<void> | undefined;
 	/** The kernel's hearing of the adapter, built after this, which needs `applyScopeChange` (phase 3 specification, 4.4). */
 	session?(): SessionSettle | undefined;
+	/**
+	 * The shell commands whose whole effect is at the provider (phase 3 specification, 3.4): recorded, so a replay
+	 * answers each from its entry, and one it does not hold stops as `REPLAY_NOT_RECORDED`.
+	 */
+	recorded?: readonly string[];
 	/** The kernel's clock, which a session's expiry is read on (phase 3 specification, 4.4). */
 	clock?: { now(): number } | undefined;
 	/**
@@ -256,6 +261,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			const refused =
 				session?.refuse(call, name) ?? (waits ? undefined : lineZero(scope, call, name));
 			if (refused) return refused;
+			// The kernel's own mark, journaled with the entry: a replay answers it from the record (3.4).
+			if (deps.recorded?.includes(name))
+				(call as CommandContext & KernelFieldContext).replay = 'recorded';
 			// A person's or an agent's calls, and a replay's: a server's call has no active scope to move. A
 			// change of person by `session-settle` moves it there.
 			const mark = (call as { [CALL_MARK]?: string })[CALL_MARK];
@@ -278,7 +286,9 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// context's: `app-instance-refresh`, or a command a mounted instance owns.
 			if (
 				deps.internals?.replaying &&
-				(name === 'app-instance-refresh' || deps.apps().owners.get(name)?.recorded)
+				(name === 'app-instance-refresh' ||
+					deps.recorded?.includes(name) ||
+					deps.apps().owners.get(name)?.recorded)
 			) {
 				return kernelFailure(
 					'REPLAY_NOT_RECORDED',
@@ -352,8 +362,11 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// Status, deviation 18). A nested mutation is refused at the port, and nothing chained waits on itself.
 			const documents = owner === undefined ? undefined : deps.documents;
 			const chained = documents?.chained(name, input);
-			// An `auth-*` call settles inside itself (phase 3 specification, 4.4).
-			const auth = name.startsWith('auth-') ? session : undefined;
+			// An `auth-*` call settles inside itself (phase 3 specification, 4.4). A passkey autofill waits for as long as
+			// the page offers it, with no end the person sees, so the adapter's listener settles what it brings instead.
+			const asked = input as { method?: unknown; autoFill?: unknown } | null;
+			const autofill = asked?.method === 'passkey' && asked.autoFill === true;
+			const auth = name.startsWith('auth-') && !autofill ? session : undefined;
 			auth?.authStart();
 			let result: CommandResult | undefined;
 			try {

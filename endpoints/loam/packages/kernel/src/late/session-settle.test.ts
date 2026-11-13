@@ -25,6 +25,7 @@ import { createFixedEnvironment } from '../session.js';
 import { documentsDeployment, documentsPorts, replayKernel } from '../testing.js';
 import type { KernelEventV3, KernelPortsV1, LoamKernelV3 } from '../types.js';
 import { emptyEditorState } from './editor-state.js';
+import { HUMAN_COMMANDS, PROVIDER_COMMANDS } from './identity-commands.js';
 import {
 	emptyEditor,
 	MAX_TIMER_DELAY_MS,
@@ -40,7 +41,8 @@ const PROVIDER: IdentityV1 = {
 	mode: 'provider',
 	organization: 'acme',
 	path: 'api/auth',
-	methods: ['passkey'],
+	// Its people sign in with a password, which `auth-sign-in`'s wrapper refuses unless allowed (4.6, step 3).
+	methods: ['passkey', 'password'],
 };
 const members = (
 	entries: Record<string, 'owner' | 'admin' | 'member'>,
@@ -515,8 +517,13 @@ describe('P3-E4: the listener and the settles (4.4)', () => {
 		expect(made.kernel.agent.listCommands().some((row) => row.name === 'session-settle')).toBe(
 			false
 		);
-		const served = made.mcpOptions()?.commands.map((command) => command.name);
+		const served = made.mcpOptions()?.commands.map((command) => command.name) ?? [];
 		expect(served).not.toContain('session-settle');
+		// Nor any human command (3.4, I2), though the kernel registers step 3's.
+		const registered = made.kernel.listCommands().map((row) => row.name);
+		for (const name of PROVIDER_COMMANDS) expect(registered, name).toContain(name);
+		for (const name of HUMAN_COMMANDS) expect(served, name).not.toContain(name);
+		expect(served.length).toBeGreaterThan(0);
 		expect((await made.kernel.appPort('dual').call('session-settle', input)).success).toBe(false);
 	});
 
@@ -754,9 +761,20 @@ describe("P3-E4: the review of step 2's blockers (B1 to B4)", () => {
 		await signIn(made.kernel, 'bea@example.com');
 		made.auth._setUser(user(OLU));
 		made.auth._setUser(user(CARO));
-		await vi.waitFor(async () => expect(await settles(made)).toHaveLength(3));
-		const [, olu, caro] = (await settles(made)).map((entry) => entry.input);
-		expect(olu).toEqual({ person: OLU, role: 'owner', membershipDigest: 'd1', reason: 'tab' });
+		// Step 3 reads Bea's membership after her sign-in too (4.4, 7.6): the changes no command made are these two.
+		const tabs = async () =>
+			(await settles(made)).filter(
+				(entry) => (entry.input as SessionSettleInputV1).reason === 'tab'
+			);
+		await vi.waitFor(async () => expect(await tabs()).toHaveLength(2));
+		const [olu, caro] = (await tabs()).map((entry) => entry.input);
+		// What the kernel holds for Olu: their role, and the digest Bea's read after her sign-in left it with.
+		expect(olu).toEqual({
+			person: OLU,
+			role: 'owner',
+			membershipDigest: `for-${BEA}`,
+			reason: 'tab',
+		});
 		expect(caro).toEqual({
 			person: CARO,
 			role: 'member',
@@ -906,15 +924,21 @@ describe("P3-E4: the review of step 2's improvements (I1 to I5)", () => {
 });
 
 describe("P3-E4: the re-review of step 2's fixes", () => {
+	/** The session as a provider's refetch slides it: the same id, a later expiry. */
+	const slid = (made: { auth: { getSession(): { session: { id: string } | null } } }) => ({
+		id: made.auth.getSession().session?.id as string,
+		expiresAt: new Date(Date.now() + 5 * 3_600_000),
+	});
+
 	it("P3-E4: N1: an adapter event that leaves the person as they were, during the settle's read, does not drop the settle", async () => {
 		let slide = false;
 		const made = await providerWorkspace({
 			ports: {
 				...scopedPorts(),
 				readMembership: async () => {
-					// The provider's refetch slides Olu's expiry while it answers: the same person.
-					if (slide)
-						made.auth._setUser(user(OLU), { expiresAt: new Date(Date.now() + 5 * 3_600_000) });
+					// The provider's refetch slides Olu's expiry while it answers: the same person and session (step 3
+					// counts another session id as a change, so the slide keeps it, as Better Auth's does).
+					if (slide) made.auth._setUser(user(OLU), slid(made));
 					return { role: 'owner' as const, digest: 'd1' };
 				},
 			},
@@ -942,7 +966,7 @@ describe("P3-E4: the re-review of step 2's fixes", () => {
 			ports: {
 				...scopedPorts(),
 				readMembership: async () => {
-					made.auth._setUser(user(OLU), { expiresAt: new Date(Date.now() + 5 * 3_600_000) });
+					made.auth._setUser(user(OLU), slid(made));
 					return { role: 'owner' as const, digest: 'd1' };
 				},
 			},
@@ -1092,10 +1116,10 @@ describe("P3-E4: the re-check of step 2's fixes", () => {
 			ports: {
 				...scopedPorts(),
 				readMembership: async () => {
-					if (flip) {
-						made.auth._setUser(user(BEA));
-						made.auth._setUser(user(OLU));
-					}
+					// Before the flip, Olu's own: step 3 reads it after the sign-in (4.4, 7.6).
+					if (!flip) return { role: 'owner' as const, digest: 'd1' };
+					made.auth._setUser(user(BEA));
+					made.auth._setUser(user(OLU));
 					return { role: 'member' as const, digest: 'd-bea' };
 				},
 			},
@@ -1125,7 +1149,8 @@ describe("P3-E4: the re-check of step 2's fixes", () => {
 				schedule: timers.schedule,
 				readMembership: () => {
 					reads++;
-					if (reads === 1) {
+					// The first read is step 3's after the sign-in (4.4, 7.6); the second, the re-read before the command.
+					if (reads === 2) {
 						return new Promise((resolve) => {
 							answer = resolve as never;
 						});

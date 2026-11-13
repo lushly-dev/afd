@@ -73,4 +73,11 @@ export const SHELL_COMMAND_NAMES = [
 	'editor-move',
 	'editor-dirty-set',
 	'editor-selection-set',
+	// Phase 3's step 3 (4.6, 5.2): a person's sessions and passkeys, at the provider.
+	'session-list',
+	'session-revoke',
+	'account-passkey-list',
+	'account-passkey-add',
+	'account-passkey-rename',
+	'account-passkey-remove',
 ] as const;

@@ -32,6 +32,7 @@
 		"zod": "^4.6.6"
 	},
 	"devDependencies": {
+		"@better-auth/passkey": "1.7.18",
 		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/loam-app-checklist": "workspace:*",
 		"@lushly-dev/loam-app-hello": "workspace:*",
@@ -40,6 +41,7 @@
 		"@lushly-dev/loam-app-tasks": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
 		"@lushly-dev/loam-host": "workspace:*",
+		"@lushly-dev/loam-identity": "workspace:*",
 		"@lushly-dev/loam-sdk": "workspace:*",
 		"@lushly-dev/loam-testing": "workspace:*",
 		"@lushly-dev/specimen": "workspace:*",
@@ -50,6 +52,7 @@
 		"@vitest/browser-playwright": "^5.1.0",
 		"@vitest/coverage-v8": "^5.1.0",
 		"axe-core": "4.14.0",
+		"better-auth": "1.7.18",
 		"fake-indexeddb": "^6.2.7",
 		"playwright": "^1.64.1",
 		"rimraf": "^6.1.4",

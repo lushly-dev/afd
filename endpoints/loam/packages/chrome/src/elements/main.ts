@@ -6,11 +6,38 @@
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
-import { partHost } from './styles.js';
+import { dispatchAction } from './events.js';
+import { partHost, quietButton } from './styles.js';
+
+/** What a `provider` deployment's main shows in place of the landing (phase 3 specification, 2.1, 2.3). */
+const GATES = {
+	'sign-in': ['Sign in to %', 'This workspace is for the members of %.'],
+	'not-member': [
+		'You are not a member of %',
+		'Ask an owner of % to invite you. Your invitations will be listed in your account.',
+	],
+	binding: [
+		'This workspace is not set up',
+		'% is not bound on the server; an owner fixes it there.',
+	],
+} as const;
+const gate = (x: LoamMain, line: 0 | 1) =>
+	GATES[x.gate as keyof typeof GATES][line].replace('%', x.organization);
 
 const template = html<LoamMain>`
 	${when(
-		(x) => x.route !== 'not-found',
+		(x) => x.gate !== '',
+		// Written tight: a template's whitespace is first paint's bytes (13).
+		html<LoamMain>`<section class="landing" aria-labelledby="landing-heading"><h1 id="landing-heading">${(
+			x
+		) => gate(x, 0)}</h1><p>${(x) => gate(x, 1)}</p>${when(
+			(x) => x.gate === 'sign-in',
+			html<LoamMain>`<p><button class="quiet sign-in" type="button" @click="${(x) =>
+				dispatchAction(x, { action: 'sign-in' })}">Sign in</button></p>`
+		)}</section>`
+	)}
+	${when(
+		(x) => x.route !== 'not-found' && x.gate === '',
 		html<LoamMain>`
 			<section class="landing" aria-labelledby="landing-heading">
 				<h1 id="landing-heading">${(x) => x.landing}</h1>
@@ -18,11 +45,12 @@ const template = html<LoamMain>`
 					Press <kbd>${(x) => x.shortcut}</kbd> to open the command palette and run a shell
 					command.
 				</p>
+				${when((x) => x.notice !== '', html<LoamMain>`<p role="note">${(x) => x.notice}</p>`)}
 			</section>
 		`
 	)}
 	${when(
-		(x) => x.route === 'not-found',
+		(x) => x.route === 'not-found' && x.gate === '',
 		html<LoamMain>`
 			<section class="landing" aria-labelledby="landing-heading">
 				<h1 id="landing-heading">Nothing here</h1>
@@ -36,7 +64,11 @@ const template = html<LoamMain>`
 
 const styles = [
 	partHost,
+	quietButton,
 	css`
+		.sign-in {
+			border-color: var(--color-action-secondary-border);
+		}
 		:host {
 			display: block;
 			overflow: auto;
@@ -108,6 +140,15 @@ export class LoamMain extends FASTElement {
 	declare home: string;
 	declare landing: string;
 	declare busy: boolean;
+	/**
+	 * In a `provider` deployment, what main shows in place of the landing (phase 3 specification, 2.1, 2.3, 15):
+	 * `sign-in` signed out, `not-member` signed in with no membership, `binding` with no organization bound.
+	 */
+	declare gate: '' | keyof typeof GATES;
+	/** The bound organization's slug, as the deployment names it, for display. */
+	declare organization: string;
+	/** A line under the landing: an owner's binding notice (2.3). */
+	declare notice: string;
 
 	constructor() {
 		super();
@@ -116,6 +157,9 @@ export class LoamMain extends FASTElement {
 		this.shortcut = 'Ctrl+K';
 		this.home = './';
 		this.busy = false;
+		this.gate = '';
+		this.organization = '';
+		this.notice = '';
 	}
 
 	override connectedCallback(): void {
@@ -136,5 +180,8 @@ attr(LoamMain.prototype, 'shortcut');
 attr(LoamMain.prototype, 'home');
 attr(LoamMain.prototype, 'landing');
 attr({ mode: 'boolean' })(LoamMain.prototype, 'busy');
+attr(LoamMain.prototype, 'gate');
+attr(LoamMain.prototype, 'organization');
+attr(LoamMain.prototype, 'notice');
 
 export const mainDefinition = { name: 'loam-main', template, styles } as const;

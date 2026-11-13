@@ -42,6 +42,7 @@ export {
 	LoamShell,
 	MOCK_SIGN_IN_EMAIL,
 	type ShellApps,
+	type ShellIdentity,
 } from './elements/shell.js';
 export { LoamInspector, LoamSidebar, LoamSidePart } from './elements/side-part.js';
 export { LoamStatusItem } from './elements/status-item.js';

@@ -5,13 +5,20 @@
  * reader and the ports load in stage B, after it (phase 2 specification, 2.2).
  */
 
-import { mountShell, parseRoute, renderNotice } from '@lushly-dev/loam-chrome';
+import { mountShell, parseRoute, renderNotice, type ShellIdentity } from '@lushly-dev/loam-chrome';
 import type { AppsLoadV2 } from '@lushly-dev/loam-kernel';
 import { readBoot } from '@lushly-dev/loam-manifest';
 import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
+import { type ProviderIdentity, probeIdentity } from './identity.js';
 
 const CANNOT_START = 'Loam cannot start';
+
+/**
+ * `identity.path`'s pattern, as `projection.v3.json` has it: stage A reads `identity` unchecked (phase 3
+ * specification, 13), so the probe is sent only to a path that holds it, under the deployment's root.
+ */
+const AUTH_PATH = /^(?!\.\.?(\/|$))(?!.*\/\.\.?(\/|$))[A-Za-z0-9._~-]+(\/[A-Za-z0-9._~-]+)*$/;
 
 /**
  * The deployment's root: the entry is always `assets/index-*.js` under it, so this holds at any path the
@@ -55,9 +62,43 @@ async function boot(): Promise<void> {
 		document.documentElement.dataset.loamHost = 'failed';
 		return;
 	}
+	// A `provider` deployment's session probe, before stage A chooses a scope for its person (phase 3
+	// specification, 4.2); the `auth` chunk loads in stage B. `local` sends no probe.
+	const { identity } = read;
+	let provider: ProviderIdentity | undefined;
+	let shown: ShellIdentity | undefined;
+	if (identity?.mode === 'provider') {
+		// A path off the pattern sends nothing: signed out, and stage B refuses the projection (fail closed).
+		const authBase = AUTH_PATH.test(String(identity.path))
+			? new URL(identity.path, base).href
+			: undefined;
+		const held = await probeIdentity(
+			authBase && `${authBase}/loam/whoami`,
+			async (current, from) => {
+				if (!authBase) throw new Error('This deployment names no provider path Loam can use');
+				const { createProviderAdapter } = await import('./auth.js');
+				return createProviderAdapter(authBase, current(), from);
+			}
+		);
+		provider = held;
+		shown = {
+			organization: String(identity.organization ?? ''),
+			methods: Array.isArray(identity.methods) ? identity.methods.map(String) : ['passkey'],
+			standing() {
+				const last = held.last();
+				return {
+					member: last.membership !== null,
+					...(last.warning ? { warning: last.warning } : {}),
+				};
+			},
+		};
+	}
 	// The URL's project, by slug, for the first frame: the kernel enters it only if the actor may (6.3).
 	const { workspace, project } = parseRoute(location.href, base) as Partial<Record<string, string>>;
 	const host = await createHostKernel({
+		...(provider
+			? { auth: provider.adapter, membership: provider.membership, identityPorts: provider.ports }
+			: {}),
 		environment: mediaEnvironment(window),
 		boot: read,
 		appsLoader: () => loadApps(raw),
@@ -76,7 +117,13 @@ async function boot(): Promise<void> {
 		themeCss,
 		listsApps: read.apps.length > 0,
 		base,
+		...(shown ? { identity: shown } : {}),
 	});
+	// Stage B loads Better Auth's client in `provider` mode only (4.2).
+	if (provider)
+		void host.kernel.appsReady
+			.then(() => (provider as ProviderIdentity).adapter.load())
+			.catch(reportError);
 	document.documentElement.dataset.loamHost = 'web';
 }
 

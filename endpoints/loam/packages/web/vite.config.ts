@@ -41,7 +41,10 @@ export default defineConfig({
 							// one `events-` chunk with the helper and all four, and no `preload-helper-` chunk.
 							name: 'events',
 							includeDependenciesRecursively: false,
-							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js)/,
+							// Phase 3's step 3: afd-auth's modules that first paint's Mock and the `auth` chunk's adapter share,
+							// and FAST's `ref`, which the bundler would otherwise part into first-paint chunks of their own once
+							// the `sign-in`, `account-menu` and `auth` chunks exist (13, E10).
+							test: /(preload-helper|chrome[\\/]dist[\\/]elements[\\/](events|entry-styles|app-entry|notice-loader)\.js|packages[\\/]auth[\\/]dist[\\/](errors|listeners|session-state|types)\.js|fast-element[\\/]dist[\\/]esm[\\/]templating[\\/]ref\.js)/,
 						},
 					],
 				},
