@@ -103,6 +103,14 @@ fn host_code(message: &str) -> Option<&str> {
     (code.starts_with("RECORD_") || code.starts_with("STORE_")).then_some(code)
 }
 
+/// Whether the host refused a find's text for holding no token it indexes
+/// (`store/src/lane/query.rs:160`). The host answers `RECORD_QUERY_INVALID` for several rules,
+/// so the rule is read from its message.
+pub(crate) fn no_token(error: &HostError) -> bool {
+    matches!(error, HostError::Invalid(message)
+        if message.starts_with("RECORD_QUERY_INVALID") && message.contains("token"))
+}
+
 /// A host error, as the plugin answers it (section 12). The host's message is never passed on:
 /// only its code, in `details.host`.
 pub(crate) fn host(error: &HostError) -> Outcome {

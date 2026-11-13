@@ -7,7 +7,7 @@
 //! instructions paragraph and `ideas-guide`'s `start` tell it (section 11.2).
 
 use serde_json::{Value, json};
-use umbel_sdk::{Cx, HostError, Outcome, success};
+use umbel_sdk::{Cx, Outcome, success};
 use umbel_store::lane::{FindOrder, FindPage, RecordFind, TextQuery};
 
 use crate::find::statement_pointer;
@@ -58,7 +58,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         Ok(page) => page,
         // A question with no token the store indexes is near nothing: answered, not refused.
         // The same find without its text gives the host's `admitted`; its records are not shown.
-        Err(error) if no_token(&error) => {
+        Err(error) if fail::no_token(&error) => {
             let mut keyed = query.clone();
             keyed.text = None;
             keyed.order = FindOrder::Id;
@@ -82,6 +82,8 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let build = |kept: usize| {
         let shown = &page.items[..kept.min(page.items.len())];
         let flagged = shown.iter().filter(|r| !r.flags.is_empty()).count();
+        // A record that is not a wording's body is left out, so a page of only such records
+        // answers `found = 0` with no reasoning: the host found something, and it is not shown.
         let ideas: Vec<Value> = shown.iter().filter_map(wording_view).collect();
         let seeds: Vec<Value> = ideas
             .iter()
@@ -97,7 +99,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
             "admitted": page.admitted,
             "pending": pending,
         }));
-        if kept == 0 && page.items.is_empty() {
+        if page.items.is_empty() {
             outcome = outcome.with_reasoning(NOTHING_HELD);
         }
         fail::warn_flagged(outcome, flagged)
@@ -107,11 +109,4 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         budget::limited(build(kept), total - kept, "ideas")
     });
     Ok(fitted)
-}
-
-/// Whether the host refused the find's text for holding no token
-/// (`store/src/lane/query.rs:160`), the one refusal ask answers as `found = 0`.
-fn no_token(error: &HostError) -> bool {
-    matches!(error, HostError::Invalid(message)
-        if message.starts_with("RECORD_QUERY_INVALID") && message.contains("token"))
 }

@@ -168,15 +168,14 @@ fn unreachable() -> Pointer {
 /// (`store/src/lane/query.rs:60` and `:160`), so the field is read from its message; a message
 /// that names neither is passed on as the host's code.
 fn refused(error: &HostError) -> Outcome {
+    if fail::no_token(error) {
+        return fail::invalid("text", "holds no word the store indexes");
+    }
     if let HostError::Invalid(message) = error
         && message.starts_with("RECORD_QUERY_INVALID")
+        && message.contains("cursor")
     {
-        if message.contains("cursor") {
-            return fail::invalid("after", "is not a cursor this query's order gave");
-        }
-        if message.contains("token") {
-            return fail::invalid("text", "holds no word the store indexes");
-        }
+        return fail::invalid("after", "is not a cursor this query's order gave");
     }
     fail::host(error)
 }

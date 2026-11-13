@@ -270,7 +270,7 @@ async fn ask_returns_the_held_ideas_on_a_question_and_marks_the_seeds() {
     assert_eq!(d["cut"], false);
     assert_eq!(d["attention"]["seeds"], json!([kept[1]]));
     assert_eq!(d["pending"], json!({ "staged": 0, "unreviewed": 1 }));
-    assert!(d["admitted"].is_array());
+    assert_eq!(d["admitted"], json!(["unverified", "attested", "affirmed"]));
     let mut shown = ids(&asked);
     shown.sort();
     let mut expected = kept.clone();
@@ -319,8 +319,19 @@ async fn ask_returns_the_held_ideas_on_a_question_and_marks_the_seeds() {
     let blank = fx.agent("ideas-ask", json!({ "question": "?! ..." })).await;
     assert_eq!(data(&blank)["found"], 0, "{blank}");
     assert_eq!(data(&blank)["total"], 0);
-    assert!(data(&blank)["admitted"].is_array());
+    assert_eq!(
+        data(&blank)["admitted"],
+        json!(["unverified", "attested", "affirmed"])
+    );
     assert!(blank["reasoning"].is_string());
+    let blank_verified = fx
+        .agent(
+            "ideas-ask",
+            json!({ "question": "?! ...", "verifiedOnly": true }),
+        )
+        .await;
+    assert_eq!(data(&blank_verified)["found"], 0, "{blank_verified}");
+    assert_eq!(data(&blank_verified)["admitted"], json!(["affirmed"]));
 }
 
 #[tokio::test]
@@ -399,5 +410,33 @@ async fn ask_fits_the_output_budget() {
     assert_eq!(
         warning(&fitted, "RESULTS_LIMITED").unwrap()["details"]["omitted"],
         40 - found
+    );
+}
+
+#[tokio::test]
+async fn ask_cut_to_nothing_by_the_budget_warns_and_gives_no_reasoning() {
+    let fx = Fx::new();
+    let long = format!(
+        "Compost the beds every autumn. {}",
+        "Mulch them with straw. ".repeat(24)
+    );
+    fx.capture(&[long.trim()]).await;
+    let fitted = fx
+        .agent_with_budget(
+            "ideas-ask",
+            json!({ "question": "compost mulch straw" }),
+            900,
+        )
+        .await;
+    let d = data(&fitted);
+    assert_eq!(d["found"], 0, "{fitted}");
+    assert_eq!(d["total"], 1);
+    assert!(
+        fitted.get("reasoning").is_none_or(Value::is_null),
+        "{fitted}"
+    );
+    assert_eq!(
+        warning(&fitted, "RESULTS_LIMITED").unwrap()["details"]["omitted"],
+        1
     );
 }
