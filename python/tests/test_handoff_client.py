@@ -9,8 +9,6 @@ Tests cover:
 - DirectClient convenience methods
 """
 
-# afd-override: max-lines=500
-
 from __future__ import annotations
 
 import asyncio
