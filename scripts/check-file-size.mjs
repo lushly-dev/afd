@@ -1,24 +1,22 @@
 #!/usr/bin/env node
 /**
- * File Size Enforcement — Pre-commit
+ * File Size Guard — Pre-commit
  *
- * Checks TypeScript source files against line count thresholds. The pair matches
- * botcore.toml (file_size_warn / file_size_error), which Botcore's dev_check_size reads.
+ * A runaway guard, not a factoring rule: only a source file over 1,500 lines blocks a commit.
+ * The 500-line review threshold belongs to a periodic bloat sweep, which ranks
+ * oversized files by size and churn and splits them on purpose, a few at a time, so a feature
+ * never stops to split a file mid-change. The pair matches botcore.toml (file_size_warn /
+ * file_size_error), which Botcore's dev_check_size reads.
  * Runs on staged files. Exit code 1 = violations found.
  *
  * Thresholds:
- *   WARN:  500 lines (non-blocking)
- *   ERROR: 1000 lines (blocks commit)
- *
- * Escape hatch (lines 1-5 of file):
- *   // afd-override: max-lines=N
- *   Where N ≤ 1500 (hard cap). File must still be under N lines. Give an override headroom
- *   (round the current count up by a hundred or two) rather than pinning it one line above
- *   the file's size, or the next edit trips it.
+ *   WARN:  500 lines (non-blocking; the sweep's input)
+ *   ERROR: 1500 lines (blocks commit). There is no override: split a file that reaches it.
  *
  * Scope: .ts under packages/ and .js/.mjs under scripts/. Markdown, Python, Rust and C++
  *   are never size-checked by this script.
- * Skip patterns: *.stories.ts, *.test.ts, *.spec.ts, *.d.ts, generated files
+ * Skip patterns: *.stories.ts, *.test.ts, *.spec.ts, *.d.ts, and anything under a `_generated/`
+ *   or `generated/` directory
  * Skip directories: alfred/, python/, packages/rust/, and the imported upstream source in
  *   foundations/fast-af/, foundations/violet/, integrations/violet-afd/, endpoints/violet-cli/
  *   and endpoints/violet-server/
@@ -30,9 +28,7 @@ import { basename, extname, join, normalize, relative, resolve } from 'node:path
 // ─── Config ──────────────────────────────────────────────────────────────────
 
 const WARN_THRESHOLD = 500;
-const ERROR_THRESHOLD = 1000;
-const OVERRIDE_CAP = 1500;
-const OVERRIDE_PATTERN = /\/\/\s*afd-override:\s*max-lines=(\d+)/;
+const ERROR_THRESHOLD = 1500;
 
 // Skip patterns
 const SKIP_SUFFIXES = [
@@ -103,7 +99,6 @@ const files = args.length > 0 ? args : discoverFiles();
 
 let violations = 0;
 let warnings = 0;
-let overrides = 0;
 let checkedFiles = 0;
 
 function report(file, lineCount, rule, suggestion) {
@@ -147,19 +142,10 @@ function shouldSkip(filePath) {
 	// Skip node_modules anywhere in path
 	if (normalized.includes('/node_modules/') || normalized.includes('\\node_modules\\')) return true;
 
-	return false;
-}
+	// Generated output is sized by its generator, not by hand.
+	if (/(^|\/)_?generated\//.test(normalized)) return true;
 
-function parseOverride(lines) {
-	// Check first 5 lines for override comment
-	const head = lines.slice(0, 5);
-	for (const line of head) {
-		const match = line.match(OVERRIDE_PATTERN);
-		if (match) {
-			return parseInt(match[1], 10);
-		}
-	}
-	return null;
+	return false;
 }
 
 // ─── Main ────────────────────────────────────────────────────────────────────
@@ -178,49 +164,19 @@ for (const filePath of files) {
 	const lineCount = lines.length;
 	checkedFiles++;
 
-	const override = parseOverride(lines);
-
-	if (override !== null) {
-		overrides++;
-
-		// Validate override cap
-		if (override > OVERRIDE_CAP) {
-			report(
-				filePath,
-				lineCount,
-				`Override max-lines=${override} exceeds hard cap of ${OVERRIDE_CAP}`,
-				`Reduce the override to ≤${OVERRIDE_CAP} or refactor the file into smaller modules`
-			);
-			continue;
-		}
-
-		// Check against override threshold
-		if (lineCount > override) {
-			report(
-				filePath,
-				lineCount,
-				`File exceeds its own override limit of ${override} lines`,
-				`Refactor to stay under ${override} lines, or increase the override (max ${OVERRIDE_CAP})`
-			);
-		}
-		// Override file within limit — no warning even if above default thresholds
-		continue;
-	}
-
-	// No override — check against default thresholds
 	if (lineCount > ERROR_THRESHOLD) {
 		report(
 			filePath,
 			lineCount,
-			`File exceeds ${ERROR_THRESHOLD} lines (no override)`,
-			`Split by responsibility, or add // afd-override: max-lines=N (≤${OVERRIDE_CAP}, with headroom) in the first 5 lines with justification`
+			`File exceeds ${ERROR_THRESHOLD} lines`,
+			`Split it by responsibility: past this size it grew unchecked. Name the seam: what moves, and what stays`
 		);
 	} else if (lineCount > WARN_THRESHOLD) {
 		warn(
 			filePath,
 			lineCount,
-			`File approaching size limit (>${WARN_THRESHOLD} lines)`,
-			`Consider splitting. Will block at ${ERROR_THRESHOLD} lines.`
+			`Over the ${WARN_THRESHOLD}-line review threshold`,
+			`No action needed in this change: the bloat sweep ranks it. Blocks only past ${ERROR_THRESHOLD} lines.`
 		);
 	}
 }
@@ -231,15 +187,11 @@ if (checkedFiles > 0) {
 	if (warnings > 0) {
 		console.warn(`\n  ⚠ ${warnings} file size warning(s) (non-blocking)`);
 	}
-	if (overrides > 0) {
-		console.log(`  ℹ ${overrides} file(s) with afd-override`);
-	}
 }
 
 if (violations > 0) {
 	console.error(
 		`\n  ✘ ${violations} file size violation(s) across ${checkedFiles} file(s) checked`
 	);
-	console.error(`    Add // afd-override: max-lines=N for legitimate exceptions\n`);
 	process.exit(1);
 }
