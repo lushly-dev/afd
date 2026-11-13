@@ -25,8 +25,8 @@ use crate::auth::{
     DEFAULT_IP_REQUESTS_PER_MINUTE, DEFAULT_MAX_ASSERTION_AGE_S, DEFAULT_MAX_TOKEN_LIFETIME_S,
     DEFAULT_PERSON_MAX_AGE_S, DEFAULT_PERSON_PAGES_PER_HOUR, DEFAULT_READ_BYTES_PER_MINUTE,
     DEFAULT_SCOPE_PREFIX, DEFAULT_USAGE_RETENTION_DAYS, MAX_ASSERTION_AGE_S, MAX_CLOCK_SKEW_S,
-    MAX_PERSON_MAX_AGE_S, MAX_TOKEN_LIFETIME_S, SIGNING_ALGORITHMS, Scope, UV_AMR_METHODS,
-    is_alias, is_namespace, is_scope_prefix, split_namespaced,
+    MAX_PERSON_MAX_AGE_S, MAX_TOKEN_LIFETIME_S, SIGNING_ALGORITHMS, Scope, is_alias, is_namespace,
+    is_scope_prefix, split_namespaced,
 };
 
 /// The top-level tables configuration version 5 adds.
@@ -958,7 +958,7 @@ fn namespaces(auth: &Table) -> Result<Vec<NamespaceConfig>, WorkspaceError> {
 
 /// A namespace's `person` (7.2, owner decision 6): user verification is mandatory, so
 /// `acr_values` and `uv_amr` are required and non-empty, and `uv_amr` names only RFC 8176's
-/// user-verification methods.
+/// user-verification methods, or `mfa` when every class is phishing-resistant (D181).
 fn person_login(table: &Table, key: &str) -> Result<PersonLogin, WorkspaceError> {
     let reader = Reader::new(Some(table), key);
     let at = |name: &str| format!("{key}.{name}");
@@ -998,18 +998,10 @@ fn person_login(table: &Table, key: &str) -> Result<PersonLogin, WorkspaceError>
         &reader,
         "uv_amr",
         &at("uv_amr"),
-        "the RFC 8176 user-verification methods an ID token's amr must show (owner decision 6)",
+        "the RFC 8176 user-verification methods an ID token's amr must show (owner decision 6), or mfa with phishing-resistant classes only (D181)",
     )?;
-    for method in &uv_amr {
-        if !UV_AMR_METHODS.contains(&method.as_str()) {
-            return Err(WorkspaceError::config_invalid(
-                &at("uv_amr"),
-                format!(
-                    "names `{method}`, which is not an RFC 8176 user-verification method; use {}",
-                    UV_AMR_METHODS.join(", ")
-                ),
-            ));
-        }
+    if let Some(problem) = crate::auth::uv_amr_problem(&acr_values, &uv_amr) {
+        return Err(WorkspaceError::config_invalid(&at("uv_amr"), problem));
     }
     Ok(PersonLogin {
         issuer,

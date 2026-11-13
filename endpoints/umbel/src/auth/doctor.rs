@@ -1113,7 +1113,7 @@ fn person(inputs: &Inputs<'_>, probes: &[Probe]) -> Check {
     found.into_check(
         "auth.person",
         passed,
-        "Give each person login acr_values its provider lists in acr_values_supported and that require user verification, and uv_amr from RFC 8176 (pin, fpt, face, iris, retina, vbm); use a provider that publishes acr and amr in claims_supported.",
+        "Give each person login acr_values its provider lists in acr_values_supported and that require user verification, and uv_amr from RFC 8176 (pin, fpt, face, iris, retina, vbm), or mfa (a passkey login) where every class is phr or phrh; use a provider that publishes acr and amr in claims_supported.",
     )
 }
 

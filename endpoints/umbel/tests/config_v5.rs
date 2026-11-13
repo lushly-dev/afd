@@ -823,6 +823,43 @@ fn a_person_login_requires_user_verification() {
     );
     let error = invalid(&other, "auth.namespaces.partners.person.issuer");
     assert!(error.message().contains("own namespace"), "{error}");
+    // D181: mfa (a passkey login) only where every class is phishing-resistant.
+    for (acr, uv) in [
+        ("\"phr\", \"urn:x:uv\"", "\"mfa\""),
+        ("\"mfa\"", "\"mfa\""),
+        ("\"urn:x:uv\"", "\"pin\", \"mfa\""),
+    ] {
+        let error = invalid(
+            &login(&format!(
+                "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [{acr}], uv_amr = [{uv}] }}"
+            )),
+            "person.uv_amr",
+        );
+        assert!(error.message().contains("phishing-resistant"), "{error}");
+    }
+    for bare in ["hwk", "swk"] {
+        invalid(
+            &login(&format!(
+                "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [\"phr\"], uv_amr = [\"{bare}\"] }}"
+            )),
+            "person.uv_amr",
+        );
+    }
+    for (acr, uv) in [
+        ("\"phr\"", "\"mfa\""),
+        ("\"phr\", \"phrh\"", "\"pin\", \"mfa\""),
+        ("\"phrh\"", "\"mfa\""),
+    ] {
+        let workspace = open(&login(&format!(
+            "person = {{ issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", acr_values = [{acr}], uv_amr = [{uv}] }}"
+        )))
+        .unwrap();
+        let person = workspace.config().auth.namespaces[0]
+            .person
+            .clone()
+            .unwrap();
+        assert!(person.uv_amr.iter().any(|method| method == "mfa"));
+    }
     // Every RFC 8176 user-verification method is accepted.
     let all = login(
         "person = { issuer = \"corp-idp\", client_id = \"p\", client_secret_env = \"S\", subject_claim = \"oid\", max_age_s = 3600, acr_values = [\"phr\", \"urn:x:uv\"], uv_amr = [\"pin\", \"fpt\", \"face\", \"iris\", \"retina\", \"vbm\"] }",

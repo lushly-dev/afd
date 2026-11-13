@@ -348,6 +348,86 @@ async fn a_login_without_user_verification_is_insufficient() {
     }
 }
 
+/// Log in with `script`, approve, and assert that the call then ran once.
+async fn approved_login(page: &Page, script: ScriptedLogin) {
+    let ada = page.token("ada");
+    let prompt = begin(page, &ada, approve_input()).await;
+    let before = page.seen.runs("gate-approve");
+    page.script(script);
+    let logged = login(page, &page.client, &prompt.path()).await;
+    assert_eq!(logged.page.status, 200, "{}", logged.page.text);
+    let (login_id, csrf) = logged.form.clone().unwrap();
+    let decided = decide(
+        &page.client,
+        &prompt.id(),
+        &format!("login={login_id}&csrf={csrf}&decision=approve"),
+        Some(&logged.opened.cookie_header()),
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(decided.status, 200, "{}", decided.text);
+    assert!(decided.text.contains("You approved"), "{}", decided.text);
+    let ran = result(&retry(page, &page.client, &ada, approve_input(), &prompt.state).await);
+    assert_eq!(ran["success"], json!(true), "{ran}");
+    assert_eq!(page.seen.runs("gate-approve"), before + 1);
+}
+
+#[tokio::test]
+async fn a_passkey_login_is_user_verification_where_configured() {
+    // D181: mfa under a phishing-resistant class, as a passkey login with user verification
+    // reports it, with the key's kind or without it.
+    let page =
+        Page::start_verified_by("acr_values = [\"phr\", \"phrh\"], uv_amr = [\"pin\", \"mfa\"]")
+            .await;
+    for script in [
+        ScriptedLogin::user("ada").amr(["mfa", "hwk"]),
+        ScriptedLogin::user("ada").amr(["mfa", "swk"]),
+        ScriptedLogin::user("ada").acr(Some("phrh")).amr(["mfa"]),
+        ScriptedLogin::user("ada"),
+    ] {
+        approved_login(&page, script).await;
+    }
+    // Possession alone, or an unlisted class, is still not enough (on a fresh page, since a
+    // refusal is checked as nothing having run). The configuration cannot list a phishable class
+    // beside mfa, so the return's own rule (mfa only under phr or phrh) is unit-tested in
+    // src/person/oidc.rs.
+    let page =
+        Page::start_verified_by("acr_values = [\"phr\", \"phrh\"], uv_amr = [\"pin\", \"mfa\"]")
+            .await;
+    for script in [
+        ScriptedLogin::user("ada").amr(["hwk"]),
+        ScriptedLogin::user("ada").amr(["swk", "pwd"]),
+        ScriptedLogin::user("ada")
+            .acr(Some("mfa"))
+            .amr(["mfa", "hwk"]),
+    ] {
+        let shown = refused_login(&page, script).await;
+        assert_eq!(shown.status, 403);
+        assert!(
+            shown.text.contains("PERSON_VERIFICATION_INSUFFICIENT"),
+            "{}",
+            shown.text
+        );
+    }
+}
+
+#[tokio::test]
+async fn mfa_is_not_user_verification_where_not_configured() {
+    let page = Page::start().await;
+    for script in [
+        ScriptedLogin::user("ada").amr(["mfa", "hwk"]),
+        ScriptedLogin::user("ada").amr(["mfa", "swk"]),
+    ] {
+        let shown = refused_login(&page, script).await;
+        assert_eq!(shown.status, 403);
+        assert!(
+            shown.text.contains("PERSON_VERIFICATION_INSUFFICIENT"),
+            "{}",
+            shown.text
+        );
+    }
+}
+
 #[tokio::test]
 async fn a_stale_or_reused_login_is_refused() {
     let page = Page::start().await;

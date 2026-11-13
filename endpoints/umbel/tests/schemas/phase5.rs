@@ -120,6 +120,11 @@ fn the_version_5_config_schema_admits_what_the_host_admits() {
             c["limits"] = json!({ "calls_per_minute": 1 });
             c["principal"]["equivalents"] = json!({ "human:ada": "human:corp/U1" });
         }),
+        // D181: mfa, a passkey login, where every class is phishing-resistant.
+        edited(&base, |c| {
+            c["auth"]["namespaces"]["corp"]["person"]["acr_values"] = json!(["phr", "phrh"]);
+            c["auth"]["namespaces"]["corp"]["person"]["uv_amr"] = json!(["pin", "mfa"]);
+        }),
     ];
     for instance in &ok {
         if let Err(error) = validator.validate(instance) {
@@ -127,6 +132,38 @@ fn the_version_5_config_schema_admits_what_the_host_admits() {
         }
         assert!(opens(instance), "the host refused {instance}");
     }
+}
+
+#[test]
+fn the_version_6_config_schema_takes_mfa_only_with_phishing_resistant_classes() {
+    // D181, the same rule as version 5's schema and the host.
+    let validator = validator("workspace-config.v6");
+    let base = edited(&oauth(), |c| c["config_version"] = json!(6));
+    let person = |acr: Value, uv: Value| {
+        edited(&base, |c| {
+            c["auth"]["namespaces"]["corp"]["person"]["acr_values"] = acr.clone();
+            c["auth"]["namespaces"]["corp"]["person"]["uv_amr"] = uv.clone();
+        })
+    };
+    for instance in [
+        base.clone(),
+        person(json!(["phr", "phrh"]), json!(["pin", "mfa"])),
+        person(json!(["phrh"]), json!(["mfa"])),
+    ] {
+        if let Err(error) = validator.validate(&instance) {
+            panic!("the schema refused {instance}: {error}");
+        }
+        assert!(opens(&instance), "the host refused {instance}");
+    }
+    let refused = [
+        person(json!(["phr"]), json!(["hwk"])),
+        person(json!(["phr", "urn:x:uv"]), json!(["mfa"])),
+        person(json!(["urn:x:uv"]), json!(["pin", "mfa"])),
+    ];
+    for instance in &refused {
+        assert!(!opens(instance), "the host accepted {instance}");
+    }
+    assert_refuses(&validator, "workspace-config.v6 uv_amr", &refused);
 }
 
 #[test]
@@ -178,6 +215,13 @@ fn the_version_5_config_schema_refuses_what_the_host_refuses() {
         }),
         with(&|c| {
             c["auth"]["namespaces"]["corp"]["person"]["uv_amr"] = json!(["pwd"]);
+        }),
+        with(&|c| {
+            c["auth"]["namespaces"]["corp"]["person"]["uv_amr"] = json!(["hwk"]);
+        }),
+        with(&|c| {
+            c["auth"]["namespaces"]["corp"]["person"]["acr_values"] = json!(["phr", "urn:x:uv"]);
+            c["auth"]["namespaces"]["corp"]["person"]["uv_amr"] = json!(["mfa"]);
         }),
         with(&|c| {
             c["auth"]["namespaces"]["corp"]["person"]

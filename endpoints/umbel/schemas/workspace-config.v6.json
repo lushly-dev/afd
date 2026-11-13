@@ -1087,10 +1087,29 @@
 			}
 		},
 		"personLogin": {
-			"description": "The namespace's person login (section 7.2): an OIDC confidential client at an issuer of the namespace. User verification is mandatory (owner decision 6): acr_values names classes requiring it, and uv_amr the RFC 8176 methods an ID token's amr must show.",
+			"description": "The namespace's person login (section 7.2): an OIDC confidential client at an issuer of the namespace. User verification is mandatory (owner decision 6): acr_values names classes requiring it, and uv_amr the RFC 8176 methods an ID token's amr must show. uv_amr may also name mfa, a passkey login, but only when every acr_values class is phishing-resistant, phr or phrh (D181).",
 			"type": "object",
 			"additionalProperties": false,
 			"required": ["issuer", "client_id", "client_secret_env", "acr_values", "uv_amr"],
+			"if": {
+				"required": ["uv_amr"],
+				"properties": {
+					"uv_amr": {
+						"contains": {
+							"const": "mfa"
+						}
+					}
+				}
+			},
+			"then": {
+				"properties": {
+					"acr_values": {
+						"items": {
+							"enum": ["phr", "phrh"]
+						}
+					}
+				}
+			},
 			"properties": {
 				"issuer": {
 					"$ref": "#/$defs/alias"
@@ -1123,7 +1142,7 @@
 					"minItems": 1,
 					"uniqueItems": true,
 					"items": {
-						"enum": ["pin", "fpt", "face", "iris", "retina", "vbm"]
+						"enum": ["pin", "fpt", "face", "iris", "retina", "vbm", "mfa"]
 					}
 				}
 			}

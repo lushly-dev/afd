@@ -60,6 +60,53 @@ pub const UV_AMR_METHODS: &[&str] = &["pin", "fpt", "face", "iris", "retina", "v
 /// link reaches the person through the gateway, which could swap it for a look-alike origin and
 /// relay a phishable login in real time.
 pub const PHISHING_RESISTANT_ACR: &[&str] = &["phr", "phrh"];
+/// RFC 8176's `mfa`, which `uv_amr` may also name, but only for a login whose every
+/// `acr_values` class is phishing-resistant (D181, amending D115). A passkey login with user
+/// verification reports no one method, since WebAuthn tells the provider only that the
+/// authenticator verified the person. A phishing-resistant class with `mfa` is a key bound to
+/// the page's origin plus a second factor, which a scripted browser holding a stored password
+/// cannot produce.
+pub const MFA_AMR: &str = "mfa";
+
+/// Why `uv_amr` does not fit, with `acr_values`, a person login's rules (2.2, D115, D181), or
+/// `None` when it does: each method is one of [`UV_AMR_METHODS`], or [`MFA_AMR`] when every
+/// class in `acr_values` is one of [`PHISHING_RESISTANT_ACR`].
+#[must_use]
+pub fn uv_amr_problem(acr_values: &[String], uv_amr: &[String]) -> Option<String> {
+    if let Some(other) = uv_amr
+        .iter()
+        .find(|method| method.as_str() != MFA_AMR && !UV_AMR_METHODS.contains(&method.as_str()))
+    {
+        return Some(format!(
+            "names `{other}`, which is not an RFC 8176 user-verification method; use {}, or {MFA_AMR} with phishing-resistant classes only",
+            UV_AMR_METHODS.join(", ")
+        ));
+    }
+    if uv_amr.iter().any(|method| method == MFA_AMR) {
+        let phishable: Vec<&str> = acr_values
+            .iter()
+            .map(String::as_str)
+            .filter(|acr| !PHISHING_RESISTANT_ACR.contains(acr))
+            .collect();
+        if !phishable.is_empty() {
+            return Some(format!(
+                "names `{MFA_AMR}`, which proves user verification only with a phishing-resistant class, and acr_values also allows {}; ask only for {}",
+                phishable.join(", "),
+                PHISHING_RESISTANT_ACR.join(" or ")
+            ));
+        }
+    }
+    None
+}
+
+/// Whether an ID token's `amr` method `method` proves user verification for a login whose `acr`
+/// is `acr` and whose configuration names `uv_amr` (7.2 step 3, D181): a configured method, and
+/// `mfa` only with a phishing-resistant `acr`, whatever the configuration says.
+#[must_use]
+pub fn proves_user_verification(method: &str, acr: &str, uv_amr: &[String]) -> bool {
+    uv_amr.iter().any(|uv| uv == method)
+        && (method != MFA_AMR || PHISHING_RESISTANT_ACR.contains(&acr))
+}
 /// The JWS algorithms an issuer may list: AFD's `SigningAlgorithm` (step 0b's amendment). `none`,
 /// the `HS*` family, `ES512` and Ed448 are refused.
 pub const SIGNING_ALGORITHMS: &[&str] = &[
@@ -336,5 +383,38 @@ mod tests {
         assert_eq!(split_namespaced("Corp/U1"), None);
         assert_eq!(split_namespaced("corp/"), None);
         assert_eq!(split_namespaced("ada"), None);
+    }
+
+    #[test]
+    fn mfa_proves_user_verification_only_with_phishing_resistant_classes() {
+        let list = |items: &[&str]| {
+            items
+                .iter()
+                .map(|item| (*item).to_owned())
+                .collect::<Vec<_>>()
+        };
+        // D181: mfa with phishing-resistant classes only, alone or beside a D115 method.
+        assert_eq!(uv_amr_problem(&list(&["phr"]), &list(&["mfa"])), None);
+        assert_eq!(
+            uv_amr_problem(&list(&["phr", "phrh"]), &list(&["pin", "mfa"])),
+            None
+        );
+        let mixed = uv_amr_problem(&list(&["phr", "urn:x:uv"]), &list(&["mfa"])).unwrap();
+        assert!(mixed.contains("urn:x:uv"), "{mixed}");
+        assert!(uv_amr_problem(&list(&["mfa"]), &list(&["mfa"])).is_some());
+        // Possession alone is never user verification.
+        for method in ["hwk", "swk", "pwd", "otp"] {
+            assert!(uv_amr_problem(&list(&["phr"]), &list(&[method])).is_some());
+        }
+        // D115's methods are unchanged, whatever the class.
+        assert_eq!(uv_amr_problem(&list(&["urn:x:uv"]), &list(&["pin"])), None);
+
+        let uv = list(&["mfa"]);
+        assert!(proves_user_verification("mfa", "phr", &uv));
+        assert!(proves_user_verification("mfa", "phrh", &uv));
+        assert!(!proves_user_verification("mfa", "urn:x:uv", &uv));
+        assert!(!proves_user_verification("hwk", "phr", &uv));
+        assert!(!proves_user_verification("mfa", "phr", &list(&["pin"])));
+        assert!(proves_user_verification("pin", "urn:x:uv", &list(&["pin"])));
     }
 }
