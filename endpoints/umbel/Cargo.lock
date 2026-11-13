@@ -4170,6 +4170,7 @@ dependencies = [
  "tokio",
  "toml",
  "umbel",
+ "umbel-scan",
  "umbel-sdk",
  "umbel-store",
  "yaml-rust2",

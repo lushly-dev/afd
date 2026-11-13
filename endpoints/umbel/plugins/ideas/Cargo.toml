@@ -19,6 +19,9 @@ sha2 = "0.11"
 # The vocabulary pack's data files are TOML (section 5).
 toml = "1"
 umbel-sdk = { path = "../../sdk" }
+# The scan of a proposal's reason and reworded statement (section 4.3), as the host scans a
+# wording.
+umbel-scan = { path = "../../scan" }
 # The lane's types, `normalise`'s match digest and the canonical JSON the digests are taken over.
 umbel-store = { path = "../../store" }
 

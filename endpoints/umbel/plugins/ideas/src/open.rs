@@ -9,13 +9,13 @@ use umbel_store::lane::{FindOrder, LaneRecord, MAX_FIND_LIMIT, RecordFind};
 
 use crate::label::pass;
 use crate::pending::{key, pending};
-use crate::records::{IDEA_PREFIX, MAX_WORDINGS, PROPOSAL, WORDING, Wording, read, read_idea};
+use crate::records::{IDEA_PREFIX, MAX_WORDINGS, PROPOSAL, WORDING, Wording, read_idea};
 use crate::{Call, fail, ids, input};
 
 /// The most decisions shown.
 const DECISIONS: u32 = 10;
 
-/// A proposal as `ideas-open` shows it until step C3 gives `ideas-review-show`'s shape.
+/// A decided proposal as `ideas-open` lists it.
 fn proposal_view(record: &LaneRecord) -> Value {
     let body = &record.record.body;
     let pick = |name: &str| body.get(name).cloned().unwrap_or(Value::Null);
@@ -114,11 +114,13 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         return Err(fail::not_found(std::slice::from_ref(&id)));
     };
     let (standing, label) = pass(record.label.as_ref());
-    let staged = match &idea.staged {
-        Some(proposal) => read(cx, call, PROPOSAL, proposal)
-            .map_err(host)?
-            .filter(|record| record.record.body.get("state") == Some(&json!("staged")))
-            .map(|record| proposal_view(&record)),
+    // The open proposal on the idea, found by the proposal kind's keys (amendment C3-2), as
+    // ideas-review-show gives one.
+    let staged = match crate::review::staged_on(cx, call, &idea.id)
+        .map_err(host)?
+        .first()
+    {
+        Some(stored) => Some(crate::review::show::view(cx, call, stored).map_err(host)?),
         None => None,
     };
     let decisions = cx

@@ -32,3 +32,10 @@ description: How to keep a person's ideas with the ideas plugin - capture as the
 
 A seed is usable, but the person has not affirmed it. Say so when you rely on one. Only the
 person affirms, by confirming proposals; you never can.
+
+## Review
+
+Stage proposals with `ideas-review-stage`, in groups, each with a reason and honest confidence.
+On the review page the person reads any size in pages. At a terminal the preview must fit 6000
+characters, some 25 decisions, or `ideas-review-apply` refuses it: stage groups of that size
+when the person confirms at a terminal.

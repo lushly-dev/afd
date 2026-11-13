@@ -1,7 +1,6 @@
 {
 	"type": "object",
 	"additionalProperties": false,
-	"required": ["review"],
 	"properties": {
 		"space": {
 			"type": "string",
@@ -9,6 +8,7 @@
 		},
 		"review": {
 			"type": "string",
+			"description": "The review; absent, your newest open one",
 			"maxLength": 28
 		},
 		"proposals": {

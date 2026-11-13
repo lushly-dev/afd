@@ -211,3 +211,84 @@ pub(crate) fn warn_match_unavailable(outcome: Outcome, error: &HostError) -> Out
 pub(crate) fn flag_names(flags: &[umbel_store::memory::MemoryFlag]) -> Value {
     json!(flags.iter().map(|flag| flag.as_str()).collect::<Vec<_>>())
 }
+
+/// `NOT_FOUND` for a review: one named that does not exist or that the caller may not read, or
+/// none open when none was named.
+pub(crate) fn review_not_found(id: Option<&str>) -> Outcome {
+    let (message, details) = match id {
+        Some(id) => ("the review was not found", json!({ "review": id })),
+        None => ("you have no open review", json!({ "review": null })),
+    };
+    failure(
+        "NOT_FOUND",
+        message,
+        "Call ideas-guide for the open reviews, or stage proposals with ideas-review-stage to open one.",
+    )
+    .with_error_details(details)
+}
+
+/// `CONFLICT`: the part changed after its digest was taken (8.4 and 8.5, step 1).
+pub(crate) fn part_changed() -> Outcome {
+    failure(
+        "CONFLICT",
+        "the review changed after its digest was taken",
+        "The review changed after it was shown: call ideas-review-show for the new digest and ask the person again",
+    )
+    .with_error_details(json!({ "field": "digest" }))
+}
+
+/// `CONFLICT`: a proposal on the idea is staged in another open review (8.1).
+pub(crate) fn staged_elsewhere(index: usize, review: &str) -> Outcome {
+    failure(
+        "CONFLICT",
+        &format!("proposals[{index}] names an idea with a proposal staged in another review"),
+        "Unstage it there first, or stage into that review",
+    )
+    .with_error_details(json!({ "index": index, "review": review }))
+}
+
+/// `QUOTA_EXCEEDED`: a review past `review_max` staged, or a group past `part_max` (8.1, 8.3).
+pub(crate) fn review_full(max: u64, group: Option<&str>) -> Outcome {
+    let message = match group {
+        Some(_) => format!("the call would stage more than {max} proposals in one group"),
+        None => format!("the call would stage more than {max} proposals in the review"),
+    };
+    failure(
+        "QUOTA_EXCEEDED",
+        &message,
+        "Apply or unstage part of the review first, or open another with review: new",
+    )
+    .with_error_details(json!({ "max": max, "group": group }))
+}
+
+/// `QUOTA_EXCEEDED`: `"*"` on a review past `part_max` staged (8.3).
+pub(crate) fn whole_too_large(staged: usize, max: u64) -> Outcome {
+    failure(
+        "QUOTA_EXCEEDED",
+        &format!("the review holds {staged} staged proposals, more than {max} confirmed as one part"),
+        "Confirm the review a group at a time: ideas-review-show lists the parts with their digests.",
+    )
+    .with_error_details(json!({ "staged": staged, "max": max, "part": "*" }))
+}
+
+/// `FORBIDDEN`: `ideas-review-apply` reached without a person's proof the host would accept for
+/// a decision, refused before anything is written.
+pub(crate) fn not_decided_by_person() -> Outcome {
+    failure(
+        "FORBIDDEN",
+        "no person confirmed this call",
+        "Have the space's person confirm it on the review page or at a terminal",
+    )
+    .with_error_details(json!({ "host": "RECORD_DECISION_NOT_GATED" }))
+}
+
+/// `QUOTA_EXCEEDED`: a part whose preview is longer than a terminal shows, confirmed there
+/// (amendment C3-11).
+pub(crate) fn preview_too_long(chars: usize, max: usize) -> Outcome {
+    failure(
+        "QUOTA_EXCEEDED",
+        &format!("the part's preview is {chars} characters; a terminal shows {max}, so the person did not read it all"),
+        "Confirm a smaller group at a terminal: unstage some of it, or stage it again in smaller groups, and ask the person again; on the review page any size is read in pages.",
+    )
+    .with_error_details(json!({ "chars": chars, "max": max }))
+}

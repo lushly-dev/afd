@@ -4,16 +4,16 @@
 //! run against the real one, and this only shows how the plugin answers a host refusal.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::Path;
 use std::sync::{Arc, Mutex};
 
 use serde_json::Value;
 use umbel_sdk::umbel_store::lane::{
-    FindPage, LaneRecord, MatchPage, RecordFind, RecordMatch, Standing, StandingLabel,
+    Decision, FindPage, LaneRecord, MatchPage, RecordFind, RecordMatch, Standing, StandingLabel,
 };
 use umbel_sdk::umbel_store::{ContentHash, Envelope, Expect, Record, RecordMeta};
-use umbel_sdk::{CallContext, Cx, HostError, HostServices, Level, Plugin};
+use umbel_sdk::{CallContext, Cx, HostError, HostServices, Level, PersonDecision, Plugin};
 
 /// What the stub holds and answers.
 #[derive(Default)]
@@ -26,6 +26,12 @@ pub struct State {
     pub logs: Vec<String>,
     /// Draws so far.
     pub draws: u64,
+    /// The wordings that read affirmed.
+    pub affirmed: BTreeSet<String>,
+    /// Every `record_decide` the plugin made, in order: the wording's id and the decision.
+    pub decides: Vec<(String, Decision)>,
+    /// Run inside each `record_decide`, to change the store in the middle of a call.
+    pub on_decide: Option<fn(&mut State)>,
 }
 
 #[derive(Clone, Default)]
@@ -33,7 +39,7 @@ pub struct Stub {
     pub state: Arc<Mutex<State>>,
 }
 
-fn lane(kind: &str, id: &str, body: &Value) -> LaneRecord {
+fn lane(kind: &str, id: &str, body: &Value, affirmed: bool) -> LaneRecord {
     let envelope = Envelope::from_value(serde_json::json!({
         "version": 1, "origin": "agent-inferred", "space": "main", "plugin": "ideas",
         "agent": null, "principal": "human:ada", "session": null, "traceId": "t",
@@ -56,7 +62,11 @@ fn lane(kind: &str, id: &str, body: &Value) -> LaneRecord {
         created_at: "2026-01-01T00:00:00.000Z".to_owned(),
         flags: Vec::new(),
         label: (kind == "wording").then_some(StandingLabel {
-            standing: Standing::Unverified,
+            standing: if affirmed {
+                Standing::Affirmed
+            } else {
+                Standing::Unverified
+            },
             affirmed: None,
             source: None,
         }),
@@ -114,8 +124,19 @@ impl HostServices for Stub {
     ) -> Result<RecordMeta, HostError> {
         let mut state = self.state.lock().unwrap();
         let key = (kind.to_owned(), id.to_owned());
-        if expect == Expect::Absent && state.records.contains_key(&key) {
-            return Err(HostError::Conflict { current: None });
+        match &expect {
+            Expect::Absent if state.records.contains_key(&key) => {
+                return Err(HostError::Conflict { current: None });
+            }
+            Expect::Hash(hash)
+                if state
+                    .records
+                    .get(&key)
+                    .is_none_or(|body| ContentHash::of(body.to_string().as_bytes()) != *hash) =>
+            {
+                return Err(HostError::Conflict { current: None });
+            }
+            _ => {}
         }
         let hash = ContentHash::of(body.to_string().as_bytes());
         state.records.insert(key, body);
@@ -140,7 +161,7 @@ impl HostServices for Stub {
         Ok(state
             .records
             .get(&(kind.to_owned(), id.to_owned()))
-            .map(|body| lane(kind, id, body)))
+            .map(|body| lane(kind, id, body, state.affirmed.contains(id))))
     }
 
     fn record_find(&self, _space: &str, query: &RecordFind) -> Result<FindPage, HostError> {
@@ -162,7 +183,7 @@ impl HostServices for Stub {
             .records
             .iter()
             .filter(|((kind, _), body)| *kind == query.kind && passes(body))
-            .map(|((kind, id), body)| lane(kind, id, body))
+            .map(|((kind, id), body)| lane(kind, id, body, state.affirmed.contains(id)))
             .collect();
         let total = items.len() as u64;
         Ok(FindPage {
@@ -171,6 +192,41 @@ impl HostServices for Stub {
             total: query.total.then_some(total),
             admitted: vec![Standing::Unverified, Standing::Attested, Standing::Affirmed],
             cut: false,
+        })
+    }
+
+    fn record_decide(
+        &self,
+        _space: &str,
+        kind: &str,
+        id: &str,
+        decision: Decision,
+    ) -> Result<StandingLabel, HostError> {
+        let mut state = self.state.lock().unwrap();
+        if !state
+            .records
+            .contains_key(&(kind.to_owned(), id.to_owned()))
+        {
+            return Err(HostError::NotFound(id.to_owned()));
+        }
+        state.decides.push((id.to_owned(), decision));
+        if let Some(hook) = state.on_decide {
+            hook(&mut state);
+        }
+        let standing = match decision {
+            Decision::Affirm => {
+                state.affirmed.insert(id.to_owned());
+                Standing::Affirmed
+            }
+            Decision::Withdraw => {
+                state.affirmed.remove(id);
+                Standing::Unverified
+            }
+        };
+        Ok(StandingLabel {
+            standing,
+            affirmed: None,
+            source: None,
         })
     }
 
@@ -197,9 +253,79 @@ impl Stub {
             interface: "mcp".to_owned(),
             ..CallContext::default()
         };
+        self.run(call, input)
+    }
+
+    /// Call `command` as the space's person at a terminal: the host counts the caller a person.
+    pub fn person(&self, command: &str, input: Value) -> Value {
+        self.run(self.person_context(command), input)
+    }
+
+    /// Call `command` as the space's person deciding on the page at `level`, pulling `excluded`
+    /// out.
+    pub fn page(&self, command: &str, input: Value, level: &str, excluded: &[&str]) -> Value {
+        let mut call = self.person_context(command);
+        call.person = false;
+        call.interface = "mcp".to_owned();
+        call.person_decision = Some(PersonDecision {
+            surface: "mcp".to_owned(),
+            person: "local/ada".to_owned(),
+            namespace: String::new(),
+            auth_time: String::new(),
+            acr: String::new(),
+            level: level.to_owned(),
+            excluded: excluded.iter().map(|id| (*id).to_owned()).collect(),
+        });
+        self.run(call, input)
+    }
+
+    fn person_context(&self, command: &str) -> CallContext {
+        CallContext {
+            command: command.to_owned(),
+            trace_id: "t".to_owned(),
+            space: Some("main".to_owned()),
+            spaces: vec!["main".to_owned()],
+            actor_kind: "human".to_owned(),
+            actor_id: Some("ada".to_owned()),
+            on_behalf_of: Some("ada".to_owned()),
+            interface: "cli".to_owned(),
+            person: true,
+            ..CallContext::default()
+        }
+    }
+
+    fn run(&self, call: CallContext, input: Value) -> Value {
+        let command = call.command.clone();
         let mut cx = Cx::new(call, self.clone());
         umbel_plugin_ideas::plugin()
-            .handle(command, input, &mut cx)
+            .handle(&command, input, &mut cx)
             .into_value()
+    }
+
+    /// The decisions recorded so far, as `(wording id, "affirm" | "withdraw")`.
+    pub fn decided(&self) -> Vec<(String, &'static str)> {
+        self.state
+            .lock()
+            .unwrap()
+            .decides
+            .iter()
+            .map(|(id, decision)| {
+                let name = match decision {
+                    Decision::Affirm => "affirm",
+                    Decision::Withdraw => "withdraw",
+                };
+                (id.clone(), name)
+            })
+            .collect()
+    }
+
+    /// A record's body.
+    pub fn body(&self, kind: &str, id: &str) -> Option<Value> {
+        self.state
+            .lock()
+            .unwrap()
+            .records
+            .get(&(kind.to_owned(), id.to_owned()))
+            .cloned()
     }
 }

@@ -2,12 +2,12 @@
 //! the command is called with its input after resolving `${{ steps[i].… }}` references, and
 //! `success`, `data` and `error` are checked with the runner's matchers, as `packages/testing`'s
 //! evaluator does. `ideas-review-apply` and `ideas-import` run at the command line as the space's
-//! person, `ideas-export` as the operator, and every other command as the agent acting for her.
+//! person, `ideas-export` and `ideas-review-preview` (served off MCP) at the command line as the
+//! operator, and every other command as the agent acting for her.
 //!
 //! A scenario runs up to its first step whose command a later step of the specification serves
-//! (the review commands are C3's and C4's); the table below holds how far each file runs now, so
-//! a step that starts serving one is seen to. Scenario 21's three `ideas-ask` steps follow its
-//! review, so `tests/read.rs` runs them on a store affirmed by a restore until step C3 (C2-1).
+//! (`ideas-review-report` is C4's); the table below holds how far each file runs now, so a step
+//! that starts serving one is seen to. From step C3 every file runs in full.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -18,27 +18,21 @@ use serde_json::{Map, Value, json};
 use support::*;
 use yaml_rust2::{Yaml, YamlLoader};
 
-/// Each file, and how many of its steps run before the first command not served yet.
+/// Each file, and how many of its steps run before the first command not served yet: every
+/// step of every file, from step C3 (amendment C3-1 for scenario 22's stale digest).
 const SCENARIOS: [(&str, usize); 8] = [
-    ("01-capture-in-flow", 4),
-    ("02-keep-a-brainstorm", 2),
-    ("15-protect-affirmed", 1),
-    ("21-ask-a-question", 2),
-    ("22-review-a-batch", 3),
-    ("24-take-it-back", 1),
+    ("01-capture-in-flow", 7),
+    ("02-keep-a-brainstorm", 7),
+    ("15-protect-affirmed", 10),
+    ("21-ask-a-question", 9),
+    ("22-review-a-batch", 19),
+    ("24-take-it-back", 13),
     ("25-find-your-way", 4),
-    ("28-leave-with-everything", 1),
+    ("28-leave-with-everything", 5),
 ];
 
 /// Commands a later step serves.
-const NOT_YET: [&str; 6] = [
-    "ideas-review-stage",
-    "ideas-review-show",
-    "ideas-review-unstage",
-    "ideas-review-preview",
-    "ideas-review-apply",
-    "ideas-review-report",
-];
+const NOT_YET: [&str; 1] = ["ideas-review-report"];
 
 const MATCHERS: [&str; 10] = [
     "equals",
@@ -295,8 +289,8 @@ async fn run(name: &str) -> usize {
         }
         let input = resolve(step.get("input").unwrap_or(&json!({})), &outputs);
         let result = match command {
-            "ideas-import" => fx.person(command, input).await,
-            "ideas-export" => fx.operator(command, input).await,
+            "ideas-import" | "ideas-review-apply" => fx.person(command, input).await,
+            "ideas-export" | "ideas-review-preview" => fx.operator(command, input).await,
             _ => fx.agent(command, input).await,
         };
         let failed = evaluate(&result, &step["expect"]);
