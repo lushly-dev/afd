@@ -247,6 +247,19 @@ impl Log {
         }
     }
 
+    /// Removes the file under `id`, once nothing refers to it. Returns
+    /// whether there was a file.
+    ///
+    /// # Errors
+    /// When the file is there and cannot be removed.
+    pub fn remove(&self, id: BlobId) -> Result<bool, LogError> {
+        match fs::remove_file(self.path(id)) {
+            Ok(()) => Ok(true),
+            Err(error) if error.kind() == io::ErrorKind::NotFound => Ok(false),
+            Err(error) => Err(LogError::Io(error)),
+        }
+    }
+
     /// The bytes held under `id`, checked against it. At most `limit` bytes
     /// are produced, so a damaged or hostile file cannot fill memory.
     ///

@@ -1,0 +1,250 @@
+{
+	"afterOneExamine": {
+		"firstPass": {
+			"headersPerSecond": 18383.779339607372,
+			"seconds": 15.985885958,
+			"totals": {
+				"added": 1,
+				"bodies": 1,
+				"changed": 0,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 0,
+				"removed": 0,
+				"setAside": 0
+			}
+		},
+		"secondPass": {
+			"provider": {
+				"byMethod": {
+					"connect": {
+						"calls": 1,
+						"ms": 1330.0
+					},
+					"mailboxes": {
+						"calls": 1,
+						"ms": 233.0
+					},
+					"openSince": {
+						"calls": 36,
+						"ms": 10604.0
+					}
+				},
+				"engineSeconds": 0.5707855839999976,
+				"waitedSeconds": 12.167432999000003
+			},
+			"seconds": 12.738218583,
+			"totals": {
+				"added": 0,
+				"bodies": 0,
+				"changed": 0,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 0,
+				"removed": 0,
+				"setAside": 0
+			}
+		},
+		"storeQueries": {
+			"bodiesWanted": 1348,
+			"byQuery": {
+				"bodiesWanted": {
+					"mostMs": 258.0,
+					"totalMs": 276.0
+				},
+				"mailboxCounts": {
+					"mostMs": 164.0,
+					"totalMs": 177.0
+				},
+				"mailboxStatus": {
+					"mostMs": 248.0,
+					"totalMs": 269.0
+				},
+				"refetchWanted": {
+					"mostMs": 30.0,
+					"totalMs": 34.0
+				},
+				"shownIds": {
+					"mostMs": 154.0,
+					"totalMs": 160.0
+				},
+				"unreturnedTries": {
+					"mostMs": 3.0,
+					"totalMs": 3.0
+				}
+			},
+			"largestMailboxShown": 271168,
+			"refetchWanted": 0
+		},
+		"thirdPass": {
+			"provider": {
+				"byMethod": {
+					"connect": {
+						"calls": 1,
+						"ms": 1330.0
+					},
+					"mailboxes": {
+						"calls": 1,
+						"ms": 236.0
+					},
+					"openSince": {
+						"calls": 36,
+						"ms": 9848.0
+					}
+				},
+				"engineSeconds": 0.6688692069999984,
+				"waitedSeconds": 11.414541293000001
+			},
+			"seconds": 12.0834105,
+			"totals": {
+				"added": 0,
+				"bodies": 0,
+				"changed": 0,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 0,
+				"removed": 0,
+				"setAside": 0
+			}
+		}
+	},
+	"beforeOneExamine": {
+		"awaited": 13232,
+		"bodyBatchesServed": 20,
+		"firstPass": {
+			"headersPerSecond": 150.69923521792936,
+			"seconds": 1950.109432042,
+			"totals": {
+				"added": 293871,
+				"bodies": 741,
+				"changed": 0,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 13232,
+				"removed": 0,
+				"setAside": 0
+			}
+		},
+		"identity": {
+			"heldAsOneMessage": 0,
+			"heldAsSeveral": 152,
+			"messageIdsInMoreThanOneMailbox": 152,
+			"messagesInMoreThanOneMailbox": 0,
+			"messagesWithoutMessageId": 0,
+			"severalWithOneHeaderBlockAndOtherSizes": 2
+		},
+		"messagesShown": 293880,
+		"secondPass": {
+			"provider": {
+				"byMethod": {
+					"changes": {
+						"calls": 36,
+						"ms": 9765.0
+					},
+					"connect": {
+						"calls": 1,
+						"ms": 1317.0
+					},
+					"headers": {
+						"calls": 3,
+						"ms": 1149.0
+					},
+					"mailboxes": {
+						"calls": 1,
+						"ms": 226.0
+					},
+					"open": {
+						"calls": 41,
+						"ms": 13083.0
+					}
+				},
+				"engineSeconds": 0.4853798340000033,
+				"waitedSeconds": 25.540266540999998
+			},
+			"seconds": 26.025646375,
+			"totals": {
+				"added": 9,
+				"bodies": 0,
+				"changed": 1,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 0,
+				"removed": 0,
+				"setAside": 0
+			}
+		},
+		"storeQueries": {
+			"bodiesWanted": 1348,
+			"byQuery": {
+				"bodiesWanted": {
+					"mostMs": 83.0,
+					"totalMs": 96.0
+				},
+				"mailboxCounts": {
+					"mostMs": 54.0,
+					"totalMs": 61.0
+				},
+				"mailboxStatus": {
+					"mostMs": 113.0,
+					"totalMs": 126.0
+				},
+				"refetchWanted": {
+					"mostMs": 13.0,
+					"totalMs": 15.0
+				},
+				"shownIds": {
+					"mostMs": 30.0,
+					"totalMs": 33.0
+				},
+				"unreturnedTries": {
+					"mostMs": 2.0,
+					"totalMs": 2.0
+				}
+			},
+			"largestMailboxShown": 271167,
+			"refetchWanted": 0
+		},
+		"thirdPass": {
+			"provider": {
+				"byMethod": {
+					"changes": {
+						"calls": 36,
+						"ms": 10302.0
+					},
+					"connect": {
+						"calls": 1,
+						"ms": 1349.0
+					},
+					"mailboxes": {
+						"calls": 1,
+						"ms": 221.0
+					},
+					"open": {
+						"calls": 36,
+						"ms": 9949.0
+					}
+				},
+				"engineSeconds": 0.5051425450000053,
+				"waitedSeconds": 21.820218163999996
+			},
+			"seconds": 22.325360709,
+			"totals": {
+				"added": 0,
+				"bodies": 0,
+				"changed": 0,
+				"errors": 0,
+				"mailboxes": 36,
+				"notReturned": 0,
+				"removed": 0,
+				"setAside": 0
+			}
+		},
+		"unreturned": 0
+	},
+	"notes": [
+		"beforeOneExamine: a pass opened each mailbox, then asked what changed with a second EXAMINE carrying QRESYNC.",
+		"afterOneExamine: one EXAMINE carrying QRESYNC opens each mailbox and says what changed. Its first pass ran on the store the first run left, so it is a pass with nearly nothing new.",
+		"waitedSeconds is the time spent in calls to the provider; engineSeconds is the rest of the pass."
+	],
+	"run": "Step B5, passes of sync against the owner's iCloud account, 2026-11-13, reading only (EXAMINE and BODY.PEEK): where a pass with nothing new spends its time. Counts and milliseconds only."
+}

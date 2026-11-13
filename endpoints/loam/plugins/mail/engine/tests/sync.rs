@@ -946,7 +946,7 @@ fn a_message_the_engine_cannot_read_is_passed_over() {
 }
 
 #[test]
-fn a_generation_that_changes_between_two_openings_begins_the_mailbox_again() {
+fn a_generation_that_changed_since_the_last_pass_begins_the_mailbox_again() {
     let fixture = Fixture::new(true, true);
     populate(&fixture.server);
     fixture.pass().unwrap();
@@ -1379,4 +1379,113 @@ fn a_message_held_in_parts_lists_its_parts_as_a_whole_one_does_and_opens_each_fi
         .unwrap();
     assert_eq!(fixture.snapshot(), before);
     assert_eq!(parts(&fixture), opened);
+}
+
+#[test]
+fn a_pass_with_nothing_new_opens_each_mailbox_once_and_asks_nothing_more() {
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    fixture.pass().unwrap();
+    fixture.server.take_log();
+    let report = fixture.pass().unwrap();
+    assert!(report.mailboxes.iter().all(|mailbox| mailbox.added == 0));
+    let log = fixture.server.take_log();
+    assert_read_only(&log);
+    // One request a mailbox: QRESYNC's EXAMINE opens it and says what changed.
+    let examines: Vec<&String> = log
+        .iter()
+        .filter(|command| command.starts_with("EXAMINE"))
+        .collect();
+    assert_eq!(examines.len(), 6, "{log:?}");
+    assert!(
+        examines.iter().all(|command| command.contains("QRESYNC")),
+        "{log:?}"
+    );
+    assert!(
+        !log.iter().any(|command| command.starts_with("UID")),
+        "{log:?}"
+    );
+    // And what does change is still seen: a flag, a message gone, a new one.
+    {
+        let mut world = fixture.server.world();
+        world.set_flags("INBOX", 2, &["\\Seen"]);
+        world.expunge("INBOX", 3);
+        world.add("INBOX", message(9, "New", None, "new"), &[]);
+    }
+    let report = fixture.pass().unwrap();
+    let inbox = report
+        .mailboxes
+        .iter()
+        .find(|mailbox| mailbox.role == "inbox")
+        .unwrap();
+    assert_eq!(
+        (inbox.added, inbox.changed, inbox.removed),
+        (1, 1, 1),
+        "{inbox:?}"
+    );
+}
+
+#[test]
+fn a_mailbox_whose_changes_are_refused_lends_its_selection_to_no_other() {
+    let fixture = Fixture::with(
+        true,
+        true,
+        PASSWORD,
+        Options {
+            header_batch: 1,
+            ..Options::default()
+        },
+    );
+    {
+        // Two mailboxes alone, so that nothing else is opened between them.
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        world.mailbox("Sent Messages", &["\\Sent"]);
+        for n in 1..=3 {
+            world.add("INBOX", message(n, "Before", None, "x"), &["\\Seen"]);
+        }
+        world.add(
+            "Sent Messages",
+            message(10, "Sent before", None, "y"),
+            &["\\Seen"],
+        );
+    }
+    fixture.pass().unwrap();
+    {
+        let mut world = fixture.server.world();
+        // The inbox's new mail takes UIDs 4 and 5; so do messages in Sent.
+        world.add("INBOX", message(20, "Inbox one", None, "a"), &[]);
+        world.add("INBOX", message(21, "Inbox two", None, "b"), &[]);
+        for n in 0..4 {
+            world.add(
+                "Sent Messages",
+                message(30 + n, "Sent new", None, "c"),
+                &["\\Seen"],
+            );
+        }
+        // Sent opens, then its search for new mail is refused.
+        world.refuse_search_in = Some("Sent Messages".to_string());
+    }
+    fixture.later(1);
+    fixture.pass().unwrap();
+    let inbox = fixture.mailbox("INBOX");
+    let subjects: Vec<String> = fixture
+        .engine
+        .with_store(|store| store.list_threads(inbox.id, None, 100))
+        .unwrap()
+        .into_iter()
+        .map(|thread| thread.subject)
+        .collect();
+    assert!(
+        subjects.iter().any(|subject| subject == "Inbox one"),
+        "{subjects:?}"
+    );
+    assert!(
+        subjects.iter().any(|subject| subject == "Inbox two"),
+        "{subjects:?}"
+    );
+    assert!(
+        !subjects.iter().any(|subject| subject == "Sent new"),
+        "{subjects:?}"
+    );
 }

@@ -64,6 +64,7 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(commands::status(Arc::clone(engine)))?;
     registry.register(commands::account_add(Arc::clone(engine)))?;
     registry.register(commands::account_list(Arc::clone(engine)))?;
+    registry.register(commands::account_remove(Arc::clone(engine)))?;
     registry.register(read::thread_list(Arc::clone(engine)))?;
     registry.register(read::thread_open(Arc::clone(engine)))?;
     registry.register(read::message_open(Arc::clone(engine)))?;
@@ -88,7 +89,10 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     let gate = afd::create_approval_middleware(
         afd::ApprovalMiddlewareOptions::new(secret, registry.list())
             .with_ttl_ms(APPROVAL_TTL_MS)
-            .with_summarize(|command, input, _context| commands::approval_summary(command, input)),
+            .with_summarize({
+                let engine = Arc::clone(engine);
+                move |command, input, _context| commands::approval_summary(&engine, command, input)
+            }),
     )?;
     registry.add_middleware(gate);
     registry.add_middleware(reply_limit(Arc::clone(engine)));

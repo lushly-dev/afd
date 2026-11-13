@@ -265,6 +265,43 @@ impl Imap {
             .ok_or(ProviderError::Protocol("no mailbox is open"))
     }
 
+    /// The changes since a cursor whose next UID was `next`, given what left
+    /// and the flags that changed: the UIDs that arrived since, and the
+    /// cursor the next pass starts from.
+    async fn since(
+        &mut self,
+        examined: &Examined,
+        next: u32,
+        gone: Gone,
+        flags: Vec<FlagsSeen>,
+    ) -> Result<Since, ProviderError> {
+        let added = if examined.uid_next.is_some_and(|now| now <= next) {
+            Vec::new()
+        } else {
+            // `n:*` names the highest UID even when it is below `n`.
+            let mut uids: Vec<u32> = self
+                .search(&format!("UID {next}:*"))
+                .await?
+                .into_iter()
+                .filter(|uid| *uid >= next)
+                .collect();
+            uids.sort_unstable_by(|a, b| b.cmp(a));
+            uids.dedup();
+            uids
+        };
+        let next_now = examined.uid_next.unwrap_or_else(|| {
+            added
+                .first()
+                .map_or(next, |uid| uid.saturating_add(1).max(next))
+        });
+        Ok(Since::Changes(Changes {
+            added: added.iter().map(u32::to_string).collect(),
+            gone,
+            flags,
+            cursor: cursor(next_now, examined.modseq),
+        }))
+    }
+
     /// `EXAMINE` with `parameters` after the name, and what the server said.
     async fn examine(&mut self, key: &str, parameters: &str) -> Result<Reply, ProviderError> {
         let command = format!("EXAMINE {}{parameters}", quoted(key)?);
@@ -425,7 +462,9 @@ impl Provider for Imap {
         let (gone, flags) = match (modseq, examined.modseq) {
             (Some(modseq), Some(_)) if self.qresync => {
                 // Open the mailbox again, asking for what changed and what
-                // vanished since the cursor (RFC 7162, section 3.2.5).
+                // vanished since the cursor (RFC 7162, section 3.2.5). Sync
+                // asks this in the opening itself (`open_since`); this
+                // answers a caller that opened first, as the trait allows.
                 let parameters = format!(" (QRESYNC ({} {modseq}))", examined.validity);
                 let reply = self.examine(&examined.key, &parameters).await?;
                 let again = reply.examined(&examined.key)?;
@@ -473,31 +512,55 @@ impl Provider for Imap {
                 )
             }
         };
-        let added = if examined.uid_next.is_some_and(|now| now <= next) {
-            Vec::new()
-        } else {
-            // `n:*` names the highest UID even when it is below `n`.
-            let mut uids: Vec<u32> = self
-                .search(&format!("UID {next}:*"))
-                .await?
-                .into_iter()
-                .filter(|uid| *uid >= next)
-                .collect();
-            uids.sort_unstable_by(|a, b| b.cmp(a));
-            uids.dedup();
-            uids
+        self.since(&examined, next, gone, flags).await
+    }
+
+    async fn open_since(
+        &mut self,
+        mailbox: &str,
+        validity: &str,
+        cursor: &str,
+    ) -> Result<(Opened, Option<Since>), ProviderError> {
+        // With QRESYNC, one EXAMINE that names the generation and the
+        // mod-sequence the cursor holds opens the mailbox and reports what
+        // changed and what vanished since (RFC 7162, section 3.2.5), where
+        // opening and then asking takes two.
+        let known = validity.parse::<u32>().ok();
+        let (Some(known), Some((next, Some(modseq))), true) =
+            (known, parse_cursor(cursor), self.qresync)
+        else {
+            let opened = self.open(mailbox).await?;
+            if opened.validity != validity {
+                return Ok((opened, None));
+            }
+            let since = self.changes(cursor).await?;
+            return Ok((opened, Some(since)));
         };
-        let next_now = examined.uid_next.unwrap_or_else(|| {
-            added
-                .first()
-                .map_or(next, |uid| uid.saturating_add(1).max(next))
-        });
-        Ok(Since::Changes(Changes {
-            added: added.iter().map(u32::to_string).collect(),
-            gone,
-            flags,
-            cursor: cursor(next_now, examined.modseq),
-        }))
+        self.open = None;
+        let parameters = format!(" (QRESYNC ({known} {modseq}))");
+        let reply = self.examine(mailbox, &parameters).await?;
+        let examined = reply.examined(mailbox)?;
+        let opened = Opened {
+            validity: examined.validity.to_string(),
+        };
+        self.open = Some(examined.clone());
+        if examined.validity != known {
+            // The server ignores the parameters for another generation.
+            return Ok((opened, None));
+        }
+        if examined.modseq.is_none() {
+            // The mailbox keeps no mod-sequences now (`NOMODSEQ`): what
+            // changed is read in full, as without them.
+            let since = self.changes(cursor).await?;
+            return Ok((opened, Some(since)));
+        }
+        let mut vanished = Vec::new();
+        spell_out(&reply.vanished, next, &mut vanished)?;
+        let flags = reply.flags_below(next);
+        let since = self
+            .since(&examined, next, Gone::Named(vanished), flags)
+            .await?;
+        Ok((opened, Some(since)))
     }
 
     async fn flags(&mut self) -> Result<Vec<FlagsSeen>, ProviderError> {
