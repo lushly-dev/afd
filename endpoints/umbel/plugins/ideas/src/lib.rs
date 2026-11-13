@@ -10,8 +10,8 @@
 //!   writes; `ids`: ids drawn or derived from an idempotency key; `label`: the host's standing
 //!   label passed through; `bands`: a score's band.
 //! - `capture`, `match_`, `find`, `open`, `guide` and `archive`: the commands of step C1;
-//!   `ask`, step C2's; `review`, step C3's: stage, show, unstage, the unpaged preview, apply and
-//!   undo. `ideas-review-report` answers `NOT_IMPLEMENTED` until step C4.
+//!   `ask`, step C2's; `review`, steps C3's and C4's: stage, show, unstage, the preview (paged
+//!   with items on the person page), apply and undo, and the report.
 //!
 //! A statement, a reason or a question is never in a message, a suggestion, a detail or a log
 //! line. No code here uses a filesystem, clock, thread or network: the clock and the random
@@ -78,7 +78,7 @@ impl Plugin for Ideas {
             "ideas-review-unstage" => review::unstage::run(&input, cx, &call),
             "ideas-review-preview" => review::preview::run(&input, cx, &call),
             "ideas-review-apply" => review::apply::run(&input, cx, &call),
-            "ideas-review-report" => Err(fail::not_implemented(name)),
+            "ideas-review-report" => review::report::run(&input, cx, &call),
             other => Err(fail::unknown_command(other)),
         };
         result.unwrap_or_else(|refusal| refusal)

@@ -21,8 +21,10 @@ the space's person affirms it, inside a call they confirmed.
 | `ideas-export` | Every record of the space in pages, the last with a manifest | CLI |
 | `ideas-import` | Restores an archive, affirming again as the person at a terminal | CLI |
 
-The review commands are declared and answer `NOT_IMPLEMENTED` until steps C3 and C4 of the
-specification.
+The review commands are section 8's: an agent stages proposals with `ideas-review-stage`, and
+the person confirms a part with `ideas-review-apply`, reading it in pages on the local person
+page and unchecking what they disagree with, or at a terminal. `ideas-review-report` reads what
+the person decided.
 
 ## An instance
 

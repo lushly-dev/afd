@@ -5,9 +5,9 @@
 //! person, `ideas-export` and `ideas-review-preview` (served off MCP) at the command line as the
 //! operator, and every other command as the agent acting for her.
 //!
-//! A scenario runs up to its first step whose command a later step of the specification serves
-//! (`ideas-review-report` is C4's); the table below holds how far each file runs now, so a step
-//! that starts serving one is seen to. From step C3 every file runs in full.
+//! A scenario runs up to its first step whose command a later step of the specification serves;
+//! the table below holds how far each file runs now, so a step that starts serving one is seen
+//! to. From step C3 every file runs in full, and from step C4 every command is served.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -31,8 +31,8 @@ const SCENARIOS: [(&str, usize); 8] = [
     ("28-leave-with-everything", 5),
 ];
 
-/// Commands a later step serves.
-const NOT_YET: [&str; 1] = ["ideas-review-report"];
+/// Commands a later step serves: none from step C4.
+const NOT_YET: [&str; 0] = [];
 
 const MATCHERS: [&str; 10] = [
     "equals",

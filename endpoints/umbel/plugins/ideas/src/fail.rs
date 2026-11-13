@@ -68,15 +68,6 @@ pub(crate) fn key_reused(index: usize) -> Outcome {
     .with_error_details(json!({ "field": "idempotencyKey", "index": index }))
 }
 
-/// A command declared for a later step.
-pub(crate) fn not_implemented(command: &str) -> Outcome {
-    failure(
-        "NOT_IMPLEMENTED",
-        &format!("{command} is not served yet in this version of the ideas plugin"),
-        "Call ideas-guide for what this store serves now.",
-    )
-}
-
 /// A command the manifest does not declare.
 pub(crate) fn unknown_command(command: &str) -> Outcome {
     failure(
@@ -291,4 +282,15 @@ pub(crate) fn preview_too_long(chars: usize, max: usize) -> Outcome {
         "Confirm a smaller group at a terminal: unstage some of it, or stage it again in smaller groups, and ask the person again; on the review page any size is read in pages.",
     )
     .with_error_details(json!({ "chars": chars, "max": max }))
+}
+
+/// `VALIDATION_ERROR`: the page asked a paged preview for a page past the part's last
+/// (amendment C4-3). The person page then shows "could not be shown".
+pub(crate) fn page_past_last(asked: u32, pages: u32) -> Outcome {
+    failure(
+        "VALIDATION_ERROR",
+        &format!("page {asked} was asked of a preview of {pages} pages"),
+        "Open the review page from its first page again.",
+    )
+    .with_error_details(json!({ "field": "page", "page": asked, "pages": pages }))
 }

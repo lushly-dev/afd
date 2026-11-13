@@ -3,9 +3,11 @@
 //!
 //! - `stage`, `show` and `unstage`: 8.1 and 8.2.
 //! - `parts`: a review's parts, their order and their digests (8.3).
-//! - `preview`: what the person reads before a decision (8.4), unpaged in step C3.
+//! - `preview`: what the person reads before a decision (8.4): paged with items on the person
+//!   page, unpaged at a terminal.
 //! - `apply` and `undo`: 8.5 to 8.7. Only `apply` calls `record_decide`, and only for what a
 //!   confirmed part names.
+//! - `report`: what the person decided about the agents' proposals (8.8).
 //!
 //! This module holds what they share: the `review` and `proposal` bodies, their reads and
 //! compare-and-set writes, and the writes of an idea's state and a wording's role.
@@ -13,6 +15,7 @@
 pub(crate) mod apply;
 pub(crate) mod parts;
 pub(crate) mod preview;
+pub(crate) mod report;
 pub(crate) mod show;
 pub(crate) mod stage;
 mod undo;
