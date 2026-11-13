@@ -1,13 +1,13 @@
-import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
+import { execTool } from '../exec-tool.mjs';
 
 export const registryUrl = 'https://registry.npmjs.org';
 export const hash = (value) => createHash('sha256').update(value).digest('hex');
 export const json = (file) => JSON.parse(readFileSync(file, 'utf8'));
 export const run = (command, args, cwd) =>
-	execFileSync(command, args, {
+	execTool(command, args, {
 		cwd,
 		encoding: 'utf8',
 		stdio: ['ignore', 'pipe', 'pipe'],
@@ -30,7 +30,11 @@ export function repositoryEntry(root, file, { allowRepositoryMirror = true } = {
 		absolute = join(absolute, part);
 		status = lstatSync(absolute, { throwIfNoEntry: false });
 		if (!status?.isSymbolicLink()) continue;
-		const target = readlinkSync(absolute);
+		// Windows reports a link's target with backslashes; the tracked target uses '/'.
+		const target =
+			process.platform === 'win32'
+				? readlinkSync(absolute).replaceAll('\\', '/')
+				: readlinkSync(absolute);
 		if (
 			!allowRepositoryMirror ||
 			file !== '.codex/skills' ||

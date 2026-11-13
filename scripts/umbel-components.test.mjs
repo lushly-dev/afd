@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, resolve } from 'node:path';
 import test from 'node:test';
 import {
 	BINARY,
@@ -21,22 +21,25 @@ function scratch(t) {
 	return root;
 }
 
+// Candidates are absolute for the platform; on Windows a rooted path gains the drive.
+const at = (...parts) => join(resolve(parts[0]), ...parts.slice(1));
+
 test('an explicit binary is the only candidate', () => {
 	assert.deepEqual(binaryCandidates({ UMBEL_FIRST_PARTY: '/opt/umbel/umbel-first-party' }, '/r'), [
-		'/opt/umbel/umbel-first-party',
+		at('/opt/umbel/umbel-first-party'),
 	]);
 });
 
 test('release builds come before debug, the shared target before the checkout', () => {
 	assert.deepEqual(binaryCandidates({ CARGO_TARGET_DIR: '/cache/target' }, '/r'), [
-		`/cache/target/release/${BINARY}`,
-		`/r/endpoints/umbel/target/release/${BINARY}`,
-		`/cache/target/debug/${BINARY}`,
-		`/r/endpoints/umbel/target/debug/${BINARY}`,
+		at('/cache/target', 'release', BINARY),
+		at('/r', 'endpoints/umbel/target', 'release', BINARY),
+		at('/cache/target', 'debug', BINARY),
+		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
 	]);
 	assert.deepEqual(binaryCandidates({}, '/r'), [
-		`/r/endpoints/umbel/target/release/${BINARY}`,
-		`/r/endpoints/umbel/target/debug/${BINARY}`,
+		at('/r', 'endpoints/umbel/target', 'release', BINARY),
+		at('/r', 'endpoints/umbel/target', 'debug', BINARY),
 	]);
 });
 

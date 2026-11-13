@@ -15,6 +15,7 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
+import { execTool } from './exec-tool.mjs';
 import './view-state-package.test.mjs';
 
 const read = (path) => readFileSync(new URL(`../${path}`, import.meta.url), 'utf8');
@@ -24,7 +25,7 @@ function ensureBuilt(packageDirectory, requiredFiles) {
 	const distDirectory = join(repoRoot, packageDirectory, 'dist');
 	if (requiredFiles.every((file) => existsSync(join(distDirectory, file)))) return;
 
-	execFileSync('pnpm', ['--dir', packageDirectory, 'build'], {
+	execTool('pnpm', ['--dir', packageDirectory, 'build'], {
 		cwd: repoRoot,
 		stdio: 'inherit',
 	});
