@@ -16,7 +16,7 @@ import {
 	planSuites,
 	pnpmArgs,
 } from './affected.mjs';
-import { execTool } from './exec-tool.mjs';
+import { execTool } from './release/exec-tool.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
 
 const lockfile = ({ zod = '4.6.6', settings = 'autoInstallPeers: true', root = '2.5.14' } = {}) =>

@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { join } from 'node:path';
+import { win32 } from 'node:path';
 import test from 'node:test';
 import { execTool, tarCommand, toolCommand, windowsCommandLine } from './exec-tool.mjs';
 
@@ -49,7 +49,7 @@ test('tar is the Windows bsdtar on Windows and tar elsewhere', () => {
 	assert.equal(tarCommand('linux'), 'tar');
 	assert.equal(
 		tarCommand('win32', { SystemRoot: systemRoot }),
-		join(systemRoot, 'System32', 'tar.exe')
+		win32.join(systemRoot, 'System32', 'tar.exe')
 	);
 	assert.equal(tarCommand('win32', {}), 'tar.exe');
 });

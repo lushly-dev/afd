@@ -4,8 +4,8 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { execTool, tarCommand } from './exec-tool.mjs';
 import { loadInventory } from './release/control.mjs';
+import { execTool, tarCommand } from './release/exec-tool.mjs';
 import {
 	createPublishPlan,
 	main,

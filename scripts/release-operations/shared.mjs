@@ -1,7 +1,7 @@
 import { createHash } from 'node:crypto';
 import { lstatSync, readdirSync, readFileSync, readlinkSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
-import { execTool } from '../exec-tool.mjs';
+import { execTool } from '../release/exec-tool.mjs';
 
 export const registryUrl = 'https://registry.npmjs.org';
 export const hash = (value) => createHash('sha256').update(value).digest('hex');

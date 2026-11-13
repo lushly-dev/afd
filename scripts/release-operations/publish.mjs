@@ -10,7 +10,6 @@ import {
 } from 'node:fs';
 import { basename, dirname, join, resolve } from 'node:path';
 import semver from 'semver';
-import { tarCommand } from '../exec-tool.mjs';
 import {
 	assertAdmission,
 	assertChannelVersions,
@@ -19,6 +18,7 @@ import {
 	planRelease,
 	releaseChannel,
 } from '../release/control.mjs';
+import { tarCommand } from '../release/exec-tool.mjs';
 import { intentFile, readIntent } from './intent.mjs';
 import { dependencyOrder, readPublished, verifyPublished } from './prerequisites.mjs';
 import {

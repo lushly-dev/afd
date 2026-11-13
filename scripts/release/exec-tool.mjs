@@ -9,7 +9,7 @@
  */
 import { execFileSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
-import { extname, join } from 'node:path';
+import { win32 } from 'node:path';
 
 /** Commands Windows installs only as `.cmd` shims. */
 export const SHIMS = new Set(['pnpm', 'npm', 'npx', 'lefthook', 'changeset']);
@@ -17,7 +17,8 @@ const UNSAFE = /["%^&|<>\r\n]/;
 
 /** What to start and whether it needs cmd.exe, for a command on a platform. */
 export function toolCommand(command, platform = process.platform, exists = existsSync) {
-	if (platform !== 'win32' || extname(command) !== '') return { file: command, shell: false };
+	// Windows paths are parsed as Windows paths whatever platform asks.
+	if (platform !== 'win32' || win32.extname(command) !== '') return { file: command, shell: false };
 	if (/[\\/]/.test(command)) {
 		const shim = `${command}.cmd`;
 		return exists(shim) ? { file: shim, shell: true } : { file: command, shell: false };
@@ -48,5 +49,5 @@ export function execTool(command, args = [], options = {}) {
 export function tarCommand(platform = process.platform, environment = process.env) {
 	if (platform !== 'win32') return 'tar';
 	const root = environment.SystemRoot ?? environment.windir;
-	return root ? join(root, 'System32', 'tar.exe') : 'tar.exe';
+	return root ? win32.join(root, 'System32', 'tar.exe') : 'tar.exe';
 }
