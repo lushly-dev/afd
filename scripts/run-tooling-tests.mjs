@@ -43,8 +43,10 @@ export const testFiles = [
 	'scripts/affected.test.mjs',
 	'scripts/rust-sweep.test.mjs',
 	'scripts/umbel-components.test.mjs',
+	'scripts/ci-verdict.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
+	'scripts/release/exec-tool.test.mjs',
 ];
 
 /** Suites that test the release tooling with fixture repositories. */

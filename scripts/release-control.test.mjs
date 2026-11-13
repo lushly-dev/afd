@@ -14,10 +14,11 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { dirname, join } from 'node:path';
+import { basename, delimiter, dirname, join, sep } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
+import { execTool, tarCommand } from './release/exec-tool.mjs';
 import {
 	createPublishPlan,
 	formatIntent,
@@ -47,8 +48,10 @@ import {
 import { inWorktree } from './release-operations/version.mjs';
 
 const repository = dirname(dirname(fileURLToPath(import.meta.url)));
+// Windows reports a link's target with backslashes.
+const linkTarget = (path) => readlinkSync(path).replaceAll(sep, '/');
 const shell = (cwd, command, args) =>
-	execFileSync(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+	execTool(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const write = (root, file, contents) => {
 	mkdirSync(dirname(join(root, file)), { recursive: true });
 	writeFileSync(
@@ -538,13 +541,17 @@ test('default uploader invokes explicit bound tarball with approved registry/tag
 	const bin = join(f.base, 'bin'),
 		capture = join(f.base, 'npm-args.json');
 	mkdirSync(bin);
-	writeFileSync(
-		join(bin, 'npm'),
-		`#!${process.execPath}\nrequire('node:fs').writeFileSync(${JSON.stringify(capture)},JSON.stringify(process.argv.slice(2)));\n`
-	);
-	chmodSync(join(bin, 'npm'), 0o755);
+	// The fake must shadow the real npm on every platform, or this test publishes for real.
+	const record = `require('node:fs').writeFileSync(${JSON.stringify(capture)},JSON.stringify(process.argv.slice(2)));\n`;
+	if (process.platform === 'win32') {
+		writeFileSync(join(bin, 'npm.js'), record);
+		writeFileSync(join(bin, 'npm.cmd'), `@"${process.execPath}" "${join(bin, 'npm.js')}" %*\r\n`);
+	} else {
+		writeFileSync(join(bin, 'npm'), `#!${process.execPath}\n${record}`);
+		chmodSync(join(bin, 'npm'), 0o755);
+	}
 	const prior = process.env.PATH;
-	process.env.PATH = `${bin}:${prior}`;
+	process.env.PATH = `${bin}${delimiter}${prior}`;
 	try {
 		publishPlan({
 			root: f.root,
@@ -583,7 +590,13 @@ test('actual packed malicious identity is rejected before a publish plan can be 
 				registryEvidence: f.evidence,
 				artifactsDirectory: f.artifacts,
 				pack: (_directory, destination) =>
-					shell(f.root, 'tar', ['-czf', join(destination, 'evil.tgz'), '-C', staging, 'package']),
+					shell(f.root, tarCommand(), [
+						'-czf',
+						join(destination, 'evil.tgz'),
+						'-C',
+						staging,
+						'package',
+					]),
 			}),
 		/Packed identity changed/
 	);
@@ -696,7 +709,7 @@ test('plan binds exact intent bytes and API publication rejects missing or edite
 	const path = join(f.root, '.release/npm-intent.json'),
 		bytes = readFileSync(path);
 	assert.equal(plan.sourceRevision, shell(f.root, 'git', ['rev-parse', 'HEAD']).trim());
-	assert.equal(plan.artifacts[0].filename, plan.artifacts[0].file.split('/').at(-1));
+	assert.equal(plan.artifacts[0].filename, basename(plan.artifacts[0].file));
 	assert.equal(plan.intentDigest, createHash('sha256').update(bytes).digest('hex'));
 	rmSync(path);
 	assert.throws(
@@ -905,14 +918,14 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 		inventory: loadInventory(f.root),
 		invoke: (candidate) => {
 			assert.equal(lstatSync(join(candidate, '.codex/skills')).isSymbolicLink(), true);
-			assert.equal(readlinkSync(join(candidate, '.codex/skills')), '../.claude/skills');
+			assert.equal(linkTarget(join(candidate, '.codex/skills')), '../.claude/skills');
 			shell(candidate, process.execPath, [
 				join(repository, 'node_modules/@changesets/cli/bin.js'),
 				'version',
 			]);
 		},
 	});
-	assert.equal(readlinkSync(mirror), '../.claude/skills');
+	assert.equal(linkTarget(mirror), '../.claude/skills');
 	assert.equal(readFileSync(canonical, 'utf8'), canonicalBytes);
 	approve(f);
 	const plan = createPublishPlan({
@@ -922,7 +935,7 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 		artifactsDirectory: f.artifacts,
 		pack: (directory, destination) => {
 			const candidate = dirname(dirname(directory));
-			assert.equal(readlinkSync(join(candidate, '.codex/skills')), '../.claude/skills');
+			assert.equal(linkTarget(join(candidate, '.codex/skills')), '../.claude/skills');
 			assert.equal(
 				readFileSync(join(candidate, '.claude/skills/fixture/SKILL.md'), 'utf8'),
 				canonicalBytes
@@ -931,7 +944,7 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 		},
 	});
 	assert.equal(plan.artifacts[0].name, '@fixture/a');
-	assert.equal(readlinkSync(mirror), '../.claude/skills');
+	assert.equal(linkTarget(mirror), '../.claude/skills');
 	assert.equal(readFileSync(canonical, 'utf8'), canonicalBytes);
 	assert.equal(typeof sourceDigest(f.root), 'string');
 });
@@ -1207,7 +1220,7 @@ test('a tarball must hold every file its manifest promises, so an unbuilt releas
 			writeFileSync(join(root, file), text);
 		}
 		const file = join(base, `${name}.tgz`);
-		execFileSync('tar', ['-czf', file, '-C', join(base, name), 'package']);
+		execFileSync(tarCommand(), ['-czf', file, '-C', join(base, name), 'package']);
 		return file;
 	};
 	assert.throws(

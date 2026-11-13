@@ -16,6 +16,7 @@ import {
 	planSuites,
 	pnpmArgs,
 } from './affected.mjs';
+import { execTool } from './release/exec-tool.mjs';
 import { releaseTestFiles, selectToolingTests, testFiles } from './run-tooling-tests.mjs';
 
 const lockfile = ({ zod = '4.6.6', settings = 'autoInstallPeers: true', root = '2.5.14' } = {}) =>
@@ -568,9 +569,12 @@ jobs:
 
 test('every pull-request workflow has a local suite, bound to its gates', () => {
 	const root = join(import.meta.dirname, '..');
+	// ci.yml is `pnpm check` itself; ci-ok.yml runs nothing locally, it waits for the others.
+	const notSuites = new Set(['ci.yml', 'ci-ok.yml']);
 	const workflows = readdirSync(join(root, '.github/workflows')).filter(
 		(file) =>
-			file !== 'ci.yml' && readTrigger(readFileSync(join(root, '.github/workflows', file), 'utf8'))
+			!notSuites.has(file) &&
+			readTrigger(readFileSync(join(root, '.github/workflows', file), 'utf8'))
 	);
 	assert.deepEqual(SUITES.map((suite) => suite.workflow).sort(), workflows.sort());
 	for (const suite of SUITES) {
@@ -658,7 +662,7 @@ test('the check gate runs even where LEFTHOOK=0 turns the git hooks off', () => 
 	assert.deepEqual(environment, { PATH: '/bin', AFD_SCOPE: 'all' });
 	assert.equal(checkEnvironment(false, { AFD_SCOPE: 'affected' }).AFD_SCOPE, 'affected');
 	const lefthook = join(dirname(import.meta.dirname), 'node_modules/.bin/lefthook');
-	const silent = execFileSync(lefthook, ['run', 'check'], {
+	const silent = execTool(lefthook, ['run', 'check'], {
 		cwd: dirname(import.meta.dirname),
 		env: { ...process.env, LEFTHOOK: '0' },
 		encoding: 'utf8',

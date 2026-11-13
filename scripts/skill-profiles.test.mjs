@@ -88,7 +88,10 @@ test('complete-tree projections are deterministic and preserve aliases, override
 		await readFile(path.join(root, '.claude/skills/do-commit/SKILL.md'), 'utf8'),
 		'---\nname: do-commit\nsource: afd\n---\nPreserved workflow.\n'
 	);
-	assert.equal(await readlink(path.join(root, '.codex/skills')), '../.claude/skills');
+	assert.equal(
+		(await readlink(path.join(root, '.codex/skills'))).replaceAll(path.sep, '/'),
+		'../.claude/skills'
+	);
 });
 
 test('canonical edits and added resources produce check drift without writing', async (t) => {

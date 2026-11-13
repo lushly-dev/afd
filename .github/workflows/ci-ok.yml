@@ -1,0 +1,35 @@
+name: CI verdict
+
+# One check for every pull request: `ci-ok` passes when every workflow that ran on the head commit
+# passed (scripts/ci-verdict.mjs). AFD's workflows are path-filtered, so this is the check to
+# require on main and the one the software factory's lane reads. It waits for the others, so it
+# finishes last. Re-running a failed workflow does not re-run this one: re-run it afterwards.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  actions: read
+  contents: read
+
+# A newer push supersedes the verdict on the older head.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  ci-ok:
+    name: ci-ok
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          sparse-checkout: scripts/ci-verdict.mjs
+          sparse-checkout-cone-mode: false
+
+      - name: Wait for the head commit's workflows
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: node scripts/ci-verdict.mjs

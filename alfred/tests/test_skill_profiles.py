@@ -77,5 +77,5 @@ async def test_profile_drift_is_evidence_and_never_a_passing_lint(drifted_profil
     assert status.data['summary']['stale'] == 1
     lint = await host.execute('skill_lint')
     assert lint.success and lint.metadata.quality['status'] == 'failed'
-    assert lint.data['profile']['changed'] == [str(projection.relative_to(root))]
+    assert lint.data['profile']['changed'] == [projection.relative_to(root).as_posix()]
     assert projection.read_bytes() == before

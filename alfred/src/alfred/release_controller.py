@@ -31,8 +31,8 @@ def approved_root(root: Path) -> bool:
                      'scripts/release/inventory.json', 'scripts/release/fragments.mjs',
                      'scripts/release-control.mjs', 'package.json'):
             _inside(root, name)
-        inventory = json.loads((root / 'scripts/release/inventory.json').read_text())
-        manifest = json.loads((root / 'package.json').read_text())
+        inventory = json.loads((root / 'scripts/release/inventory.json').read_text(encoding='utf-8'))
+        manifest = json.loads((root / 'package.json').read_text(encoding='utf-8'))
         return inventory.get('schemaVersion') == 1 and isinstance(inventory.get('units'), list) and (
             manifest.get('scripts', {}).get('version-packages') == 'node scripts/release-control.mjs version'
         )
@@ -59,7 +59,7 @@ class ApprovedNpmController:
             raise ValueError('Select one release unit and a supported npm operation')
         if not isinstance(arguments, dict):
             raise ValueError('Release arguments must be an object')
-        inventory = json.loads(_inside(root, 'scripts/release/inventory.json').read_text())
+        inventory = json.loads(_inside(root, 'scripts/release/inventory.json').read_text(encoding='utf-8'))
         selected = [item for item in inventory['units'] if item.get('id') == unit]
         if len(selected) != 1 or selected[0].get('state') != 'admitted' or selected[0].get('protocol') != PROTOCOL:
             raise ValueError('Select exactly one admitted npm-changesets unit')
