@@ -37,8 +37,13 @@ Code paths are relative to `endpoints/umbel/`.
 - **Step C3** (review at a terminal) implemented 2026-11-12 on `lush/ideas-c3-review`, not merged; the amendments it
   needed are below. Every scenario now runs in full.
 - **Step C4** (review on the page) implemented 2026-11-13 on `lush/ideas-c4-review-page`, on step H3 of the review
-  host specification (merged, #1137), not merged; the amendments it needed are below.
-- **Not done:** everything in section [15](#15-implementation-plan) after step C4.
+  host specification (merged, #1137); merged (#1145). The amendments it needed are below.
+- **Step C5** (finding and first use): the repository's part implemented 2026-11-13 on `lush/ideas-c5-first-use`, not
+  merged: the skill, the README's local instance with 11.2's paragraph and 11.4's settings, `tests/instructions.rs`,
+  and a walk-through of the README on invented content (`first-party/tests/ideas_first_use.rs`). The amendments it
+  needed are below. **Its exit is not met**: it is met only when the owner has done his own first use (section
+  [17](#17-for-the-owner)), which is pending.
+- **Not done:** the owner's first use, which is step C5's exit.
 - **Follow-ups:** the [table at the end](#follow-ups). The answers to the follow-ups addressed to step A3 are in the
   [Ideas status](../../../../../docs/features/active/ideas/STATUS.md).
 
@@ -119,6 +124,18 @@ of each. None changes a decision row.
 | C4-12 | A stray `excluded` id end to end | The real page cannot send one: it maps the positions it rendered from the part to their ids, and a changed part is `CONFLICT` first. `tests/review_apply.rs` holds on the stub that one is refused with every record unchanged and nothing decided; `tests/review_page.rs` holds a part unchecked whole on the real page, every proposal `pulled` and the review closed |
 | C4-13 | The report's read stops at 20 000 proposals (`READ_CAP`) without saying so | The result gains `truncated`, true when the read reached the cap: the figures are then of the first 20 000 by id. A sentence (C4-5) ends only at `.`, `!` or `?` followed by white space or the statement's end, so "2.5" ends none; `medianLengthChange` is always a number with a fraction, or `null` |
 | C4-14 | The pack's `page_items` and `page_chars` place the page breaks (`layout`, `src/review/preview.rs`) but were outside the digest, so an operator editing `limits.toml` during a review could move a break under the same digest | The digest begins with `["page", page_items, page_chars]` (`src/review/parts.rs`, `Ideas::of`). A changed setting makes every open part `CONFLICT`, to be shown and confirmed again |
+
+### Amendments from step C5
+
+| # | Point | Decision |
+| --- | --- | --- |
+| C5-1 | 11.1's `first_class_tools` names `components-brief`, `context-bundle`, `knowledge-search` and `knowledge-open`, but the host refuses a first-class name no enabled plugin registers (`src/surfaces/mcp.rs:94`, "Name 1 to 8 registered commands") | The README's instance enables `memory` and `ideas` and lists `ideas-capture`, `ideas-ask`, `ideas-guide` and `memory-remember`. It says to add the other four, up to eight, when their plugins are enabled |
+| C5-2 | 11.2 says the paragraph starts with AFD's default for the hybrid strategy. That default names the server by the workspace's name (`umbel` when it has none) and, with the bootstrap commands on MCP, ends with "afd-help, afd-docs and afd-schema describe this server." (`packages/rust/src/server.rs:776` to `:810`) | The paragraph is 11.2's as written: it names the server Umbel and leaves out the bootstrap sentence. `tests/instructions.rs` reads the default from `initialize` on a workspace with no `mcp.instructions`, and holds that the paragraph starts with its sentences up to "afd-pipe to chain them.", the name aside. It also holds that the README's quoted paragraph, the README instance's `mcp.instructions` and 11.2's paragraph are one text, and that `ideas-guide`'s `start` is the rest of it |
+| C5-3 | Section 15 puts the owner's own local instance in C5's deliverable, and his first use in its exit. Both happen outside this repository, on his private content, which never goes into it | This step delivers the repository's part. `first-party/tests/ideas_first_use.rs` walks the README's instance as written on invented gardening content: the instructions and the four first-class tools over stdio, a fact to `memory-remember`, 68 ideas captured, `ideas-ask`, a review of 60 proposals staged in one call in four groups, `ideas-review-apply` with `"*"` refused with the page's address, three pages read on the local page with three items unchecked, the same call again (54 affirmed, one declined, one folded, one reworded, three pulled, all at level `local`), and `ideas-review-report` read. **C5's exit is met only when the owner has done his first use**: pending (section 17) |
+| C5-4 | Where the walk-through runs | In `first-party/tests/`, on the plugins `umbel-first-party` compiles in, as its `main` registers them: the README's instance enables `memory`, and the ideas crate may not depend on the memory plugin, even for its tests (D3, `tests/no_plugin_dependency.rs`). The host is built in process with the README's file, its page's bind moved to a free port; `person-page-serve` and `serve --stdio` are the host's `local_person_server` and the test kit's stdio pipe. `first-party`'s dev-dependencies gain `tokio` with `io-util` and `net`, and `toml`; `Cargo.lock` gains one line (`toml` in `umbel-first-party`'s list) and no crate |
+| C5-5 | 11.4's settings and the commands that serve them | The README's instance is configuration version 7 (`[person]` needs it), writes the local page's default bind (`127.0.0.1:7421`) out, and gives the two commands: `umbel-first-party serve --stdio --workspace ~/ideas` for the harness, and `umbel-first-party call person-page-serve '{"open": true}' --workspace ~/ideas` for the page. `tests/instructions.rs` holds 11.4's rows in it |
+| C5-6 | 11.3's skill and step C1's. C1's skill said to stage and how a terminal caps a part, but not `"*"`, the one link, the page, undo or ask | Rewritten under 11.3, 64 lines. The agent triages and stages everything in one call, in groups, confirms the whole review with `"*"` and gives the person one link; it never asks the person to confirm decisions one by one, in the conversation or at a terminal. Without the page, a terminal takes a group of some 25 a command (C3-11). It calls `ideas-guide` when it needs the vocabulary or a refusal names it, "not before every request" (phase 0.10). `tests/surfaces.rs` holds these phrases, and that it names no command the manifest lacks |
+| C5-7 | The follow-ups ask for staging 500 and applying 250 timed in a release build at C5's first use | Measured now on invented content in a release build, without waiting for the owner's: staging 500 took 2.5 s over stdio (`first-party/tests/ideas_first_use.rs`) and 3.3 s through the registry (`tests/review_apply.rs`); applying 250 took 2.1 s in one decision on the local page, and 3.3 s at a terminal as ten groups of 25 (0.23 to 0.37 s each), against 3.4 s and about 5 s in a debug build; macOS on `aarch64-apple-darwin`, Rust 1.98.0, one run each. The page's request limit (C4-7) is left to the owner's use |
 
 ## What this plugin serves
 
@@ -1059,7 +1076,8 @@ and enums only.
 | `tests/report.rs` | 8.8's figures on a fixture of 60 proposals with known outcomes |
 | `tests/archive.rs` | Section 10: export in pages; import into an empty second host restores every record and affirmation, `restored` added; the second host's export has the same manifest digest and counts; import again adds nothing; an import refused at its first affirmation leaves records unaffirmed, and run again as the person adds nothing and affirms |
 | `tests/journal.rs` | No statement, reason or question in the journal of any command, nor in an event |
-| `tests/instructions.rs` | 11.2's paragraph starts with AFD's default for the hybrid strategy |
+| `tests/instructions.rs` | 11.2's paragraph starts with AFD's default for the hybrid strategy; the README holds it, and 11.4's settings (C5-2, C5-5) |
+| `first-party/tests/ideas_first_use.rs` | The README's local instance walked as written, on invented content (C5-3); staging 500 and applying 250 timed (C5-7) |
 | `tests/surfaces.rs` | The three first-class suggestions; the preview, export and import off MCP; the skill served |
 | `tests/scenarios.rs` | 14.3 |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3) |
@@ -1124,6 +1142,11 @@ records host specification run beside these; B6's figures replace the pack's ban
 
 **The owner has not read this specification.** Each row is a choice he could reasonably want otherwise.
 
+**Step C5's exit waits on him.** It is met only when the owner has done his own first use: his local instance set up
+from the README, ideas captured and asked, a review of at least 50 proposals confirmed on the local page, and
+`ideas-review-report` read. That happens outside this repository, on his own content. **It is pending.** The repository's
+part is done (C5-3): the README's steps are walked on invented content by `first-party/tests/ideas_first_use.rs`.
+
 | # | Chosen here | The alternative, and its cost |
 | --- | --- | --- |
 | 1 | **No attested standing** (D174), as he chose on 2026-11-12 | Attested from synced own collections: half of an archive's ideas stand without review, but a word-for-word sentence is not proof he holds it today, and phase 0.4's check of what he would disown is not done |
@@ -1160,7 +1183,8 @@ records host specification run beside these; B6's figures replace the pack's ban
 | 2026-11-12 | Step C3 | An undo restores from the `effect` a proposal record holds. An import could write one the person never caused | Done after the step's review: an import clears every proposal's effect (C3-10) |
 | 2026-11-12 | Step C3, independent review | C3-4 refuses a call with no proof, not one by a human at a terminal who is not the space's person: their declines, folds and reword puts are written before `record_decide` refuses `RECORD_DECISION_NOT_THE_PERSON` | A host service that answers whether this call may decide, without deciding, asked before the first write |
 | 2026-11-12 | Step C3, for the owner | Two amendments change what this document decided, not only what it left open: C3-2 drops 4.2's `staged` member from use (the open proposal is found by keys), and C3-7 fixes 8.7's undo of a review (members that moved stay applied; an undo of an undo applies again through the ordinary checks) | The owner, with section 17 |
-| 2026-11-12 | Step C3 | Staging 500 proposals takes 3.4 s, and applying 250 took about 5 s, in a debug build (`tests/review_apply.rs`) | Measured again in a release build at C5's first use |
+| 2026-11-12 | Step C3 | Staging 500 proposals takes 3.4 s, and applying 250 took about 5 s, in a debug build (`tests/review_apply.rs`) | Done in step C5, in a release build on invented content: staging 500 took 2.5 s over stdio (`first-party/tests/ideas_first_use.rs`) and 3.3 s through the registry (`tests/review_apply.rs`); applying 250 took 2.1 s in one decision on the local page, and 3.3 s at a terminal as ten groups of 25 (0.23 to 0.37 s each), against 3.4 s and about 5 s in a debug build; macOS on `aarch64-apple-darwin`, Rust 1.98.0, one run each (C5-7) |
 | 2026-11-12 | Step C1 | 8.4's paged preview answers `items` beside `preview`, which the `returns` the host requires of a preview refuses (C1-3) | Done: step H2's A19, and step C4 declares it (C4-1) |
 | 2026-11-13 | Step C4 | `ideas-guide`'s `confirmAt.page` is `null` on a local instance with its page served: no host service tells a plugin the page's address (C4-8) | A host change: the local page's list address in what a plugin may read, if the owner wants the guide to name it |
-| 2026-11-13 | Step C4 | The page answers 30 requests a minute for a decision, and a page costs two, so the whole review of 500 (25 pages) cannot be read faster than about four seconds a page (C4-7) | Watch at C5's first use; a host change of `PAGE_REQUESTS_PER_MINUTE` if it gets in the way |
+| 2026-11-13 | Step C4 | The page answers 30 requests a minute for a decision, and a page costs two, so the whole review of 500 (25 pages) cannot be read faster than about four seconds a page (C4-7) | Watch at the owner's first use (still pending after step C5); a host change of `PAGE_REQUESTS_PER_MINUTE` if it gets in the way |
+| 2026-11-13 | Step C5 | The owner's own first use, which is C5's exit: his instance from the README, capture, ask, a review of at least 50 proposals confirmed on the local page, and the report read | The owner, outside this repository; pending |
