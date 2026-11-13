@@ -310,13 +310,13 @@ pub async fn run(ws: &mut Ws) -> usize {
         "MEMORY_AUTHORITY_TOO_LOW",
         "{superseded}"
     );
-    // A forget takes only the caller's own records: bo's counts it not found, and bo's agent's
-    // reads its authority first (step 4's amendment 4).
+    // Authority is checked before ownership (step 4's amendment 4). Neither bo's library
+    // actor nor bo's agent has person authority: only the operator's person is trusted through
+    // the library in phase 5 step 10. Both are refused before the store can count notFound.
     let forgot = ws
         .call(bo(), "memory-forget", json!({ "ids": [shared] }))
         .await;
-    assert_eq!(data(&forgot)["notFound"], json!([shared]), "{forgot}");
-    assert_eq!(data(&forgot)["erased"], 0);
+    assert_eq!(code(&forgot), "MEMORY_AUTHORITY_TOO_LOW", "{forgot}");
     let forgot = ws
         .call(bos_agent(), "memory-forget", json!({ "ids": [shared] }))
         .await;
@@ -324,10 +324,9 @@ pub async fn run(ws: &mut Ws) -> usize {
     let still = ws.call(ada(), "memory-show", json!({ "id": shared })).await;
     assert_eq!(data(&still)["state"], "live");
     assert_eq!(data(&still)["record"]["recordVersion"], 1, "{still}");
-    // bo, a person through the library and a sharing writer (3.2), may not invalidate a record of
-    // ada's person either: since phase 5's owner decision 10 (section 8.3) another principal's
-    // record changes only for a person the memory_write grant lists under `editors` (none here),
-    // and through the library only for the operator's person. Nothing changes.
+    // Bo's unverified library actor is below person authority, so an invalidation is refused
+    // at the same earlier check. The hosted editors suite separately proves that a person at
+    // a real terminal without an editors token gets MEMORY_NOT_OWNED. Nothing changes here.
     let by_bo = ws
         .call(
             bo(),
@@ -335,7 +334,7 @@ pub async fn run(ws: &mut Ws) -> usize {
             json!({ "id": shared, "reason": "wrong" }),
         )
         .await;
-    assert_eq!(code(&by_bo), "MEMORY_NOT_OWNED", "{by_bo}");
+    assert_eq!(code(&by_bo), "MEMORY_AUTHORITY_TOO_LOW", "{by_bo}");
     let history = ws
         .call(
             ada(),
