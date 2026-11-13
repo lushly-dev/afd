@@ -1,8 +1,8 @@
 /**
- * @fileoverview `loamServerPlugin` (phase 3 specification, 1, 2.3, 4.2 and 7.5): Better Auth endpoints and
- * hooks of Loam's own. Step 1 builds `whoami`, the binding and the hooks that keep the provider's own
- * organization endpoints within Loam's rules; `revoke-person`, recovery and invitation tokens are later
- * steps' (3 and 4).
+ * @fileoverview `loamServerPlugin` (phase 3 specification, 1, 2.3, 4.2, 5.6, 5.7 and 7.5): Better Auth endpoints and
+ * hooks of Loam's own: `whoami`, the binding and the hooks that keep the provider's own organization endpoints within
+ * Loam's rules (step 1); sessions and `revoke-person` (step 3); the join and recovery links, the account and the
+ * members (step 4).
  */
 
 import type { AuthContext, BetterAuthPlugin } from 'better-auth';
@@ -20,8 +20,25 @@ import {
 	readBinding,
 	statusOf,
 } from './binding.js';
+import { enrolmentEndpoints, JOIN_FIELDS, JOIN_MODEL } from './enrolment.js';
+import { memberEndpoints } from './members.js';
+import {
+	createRecoveryAnnouncer,
+	MARK_FIELDS,
+	MARK_MODEL,
+	NONCE_FIELDS,
+	NONCE_MODEL,
+	RECOVERY_FIELDS,
+	RECOVERY_MODEL,
+	recoveryEndpoints,
+} from './recovery.js';
 import { isOwnerRole, rolesOf } from './roles.js';
-import { freshSessionHook, SESSION_METHOD_FIELD, sessionEndpoints } from './sessions.js';
+import {
+	freshSessionHook,
+	SESSION_METHOD_FIELD,
+	SESSION_PROVIDER_FIELD,
+	sessionEndpoints,
+} from './sessions.js';
 
 /** What the plugin and `createLoamAuthOptions`' organization hooks share. */
 export interface LoamProviderState {
@@ -31,6 +48,16 @@ export interface LoamProviderState {
 	organization: string;
 	/** Better Auth's context, once the plugin's `init` has run. */
 	context?: AuthContext;
+	/** The shell's address, `<origin><base_path>`: the join and recovery links' root (5.6, 5.7). */
+	shell: string;
+	/** The deployment's mail sender: invitations, recovery links and announcements. */
+	mail: { send(message: { to: string; subject: string; text: string }): Promise<void> };
+	/** Whether the deployment allows passwords (D99). */
+	password: boolean;
+	/** The deployer's single sign-on providers, by id. */
+	oidc: readonly string[];
+	/** A recovery's announcement, held until its registration's transaction has committed (5.7). */
+	announcer?: ReturnType<typeof createRecoveryAnnouncer>;
 }
 
 /** No person's id may start with it (3.2): `whoami` answers such a session as none. */
@@ -148,10 +175,44 @@ async function withoutToken(returned: unknown): Promise<Record<string, unknown> 
 /** The paths whose caller Loam checks before the organization plugin runs (7.5). */
 const ROLE_PATHS = new Set(['/organization/update-member-role', '/organization/remove-member']);
 
+/** The bound organization's name, for the mail Loam sends; the deployment's slug before a binding exists. */
+async function organizationName(state: LoamProviderState): Promise<string> {
+	const adapter = adapterOf(state);
+	const binding = await readBinding(adapter, state.workspace);
+	const organization =
+		binding &&
+		(await adapter.findOne<{ name: string }>({
+			model: 'organization',
+			where: [{ field: 'id', value: binding.organizationId }],
+		}));
+	return organization?.name ?? state.organization;
+}
+
 export function loamServerPlugin(state: LoamProviderState) {
-	return {
+	const recovery = {
+		shell: state.shell,
+		password: state.password,
+		oidc: state.oidc,
+		send: (message: { to: string; subject: string; text: string }) => state.mail.send(message),
+		organizationName: () => organizationName(state),
+		context: () => state.context,
+	};
+	state.announcer ??= createRecoveryAnnouncer(recovery);
+	const announcer = state.announcer;
+	const plugin = {
 		id: 'loam',
 		schema: {
+			// The join links (5.6), the recovery links, the single sign-on ceremony's nonces and its `recovery` marks (5.7).
+			[JOIN_MODEL]: { modelName: 'loam_join', fields: { ...JOIN_FIELDS } },
+			[RECOVERY_MODEL]: { modelName: 'loam_recovery', fields: { ...RECOVERY_FIELDS } },
+			[NONCE_MODEL]: { modelName: 'loam_recovery_nonce', fields: { ...NONCE_FIELDS } },
+			[MARK_MODEL]: { modelName: 'loam_recovery_mark', fields: { ...MARK_FIELDS } },
+			// When the person last recovered their access (5.7): `account-get` reports it.
+			user: {
+				fields: {
+					recoveredAt: { type: 'date', required: false, input: false },
+				},
+			},
 			[BINDING_MODEL]: {
 				modelName: 'loam_binding',
 				fields: {
@@ -169,10 +230,27 @@ export function loamServerPlugin(state: LoamProviderState) {
 						input: false,
 						returned: false,
 					},
+					// The single sign-on provider an `oidc` session came from (5.7's ceremony).
+					[SESSION_PROVIDER_FIELD]: {
+						type: 'string',
+						required: false,
+						input: false,
+						returned: false,
+					},
 				},
 			},
 		},
 		init(context: AuthContext) {
+			// The join and the recovery commit with their passkey and session, or not at all (5.8): an adapter that cannot
+			// hold a transaction would leave half of one.
+			const config = (
+				context.adapter as { options?: { adapterConfig?: { transaction?: unknown } } }
+			).options?.adapterConfig;
+			if (config?.transaction === false) {
+				throw new Error(
+					"Loam's provider needs a database adapter with transactions: the join and recovery commit whole"
+				);
+			}
 			state.context = context;
 		},
 		/** A disabled path's every value, not only its template (NEW-4): answered as Better Auth answers one, 404. */
@@ -190,6 +268,9 @@ export function loamServerPlugin(state: LoamProviderState) {
 		}) as BetterAuthPlugin['onRequest'],
 		endpoints: {
 			...sessionEndpoints(() => state.context),
+			...enrolmentEndpoints({ password: state.password }),
+			...recoveryEndpoints(recovery),
+			...memberEndpoints({ workspace: state.workspace, oidc: state.oidc }),
 			/**
 			 * `GET <path>/loam/whoami` (4.2): the session, read from the database since there is no cookie cache,
 			 * and the person's membership of the bound organization by its id, or `null` signed out. A session
@@ -228,6 +309,7 @@ export function loamServerPlugin(state: LoamProviderState) {
 		},
 		hooks: {
 			after: [
+				announcer.hook,
 				{
 					/**
 					 * `/get-session` answers the session without its token (NEW-3): the session cookie is HttpOnly, and
@@ -289,4 +371,6 @@ export function loamServerPlugin(state: LoamProviderState) {
 			],
 		},
 	} satisfies BetterAuthPlugin;
+	// What `bootstrapOrganization` reads from a provider's options (5.6).
+	return Object.assign(plugin, { $state: state });
 }

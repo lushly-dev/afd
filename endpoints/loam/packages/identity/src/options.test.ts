@@ -273,6 +273,10 @@ describe('P3-E6: the organization hooks (7.1, 7.5), as units', () => {
 		const state: LoamProviderState = {
 			workspace: 'acme',
 			organization: 'acme',
+			shell: 'https://acme.example/',
+			mail: { send: async () => {} },
+			password: false,
+			oidc: [],
 			context: {
 				adapter,
 				internalAdapter: { deleteUserSessions: async (id: string) => void deleted.push(id) },
