@@ -552,7 +552,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let staged_count = staged.len();
     let parts = split(staged);
     let (listed_parts, whole) =
-        listed(cx, call, &parts, false, &mut Ideas::default()).map_err(host)?;
+        listed(cx, call, &parts, false, &mut Ideas::of(&pack.limits)).map_err(host)?;
     cx.log(
         Level::Info,
         &format!(

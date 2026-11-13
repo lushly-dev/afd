@@ -48,6 +48,10 @@ pub(crate) struct Matching {
     pub(crate) fused: BTreeMap<String, Bands>,
 }
 
+/// What a page needs beside an item's two statements: page 1's heading with its capped
+/// "Staged by" line, a reason of 200, the labels and a group's heading line.
+const PAGE_ROOM: u64 = 1300;
+
 /// `data/limits.toml`, each value within its ceiling.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub(crate) struct Limits {
@@ -330,6 +334,23 @@ fn limits(table: &Table) -> Result<Limits, Outcome> {
         page_chars,
         report_min,
     ] = values;
+    // A part at `part_max` fits the host's pages (amendment C4-11): by items, and with room on
+    // a page for the longest item (two statements, a reason, its labels) beside page 1's
+    // heading, whose "Staged by" line is capped.
+    if part_max.div_ceil(page_items) > u64::from(crate::review::preview::MAX_PAGES) {
+        return Err(fail::pack(
+            LIMITS,
+            "page_items",
+            "must let part_max fit in 200 pages",
+        ));
+    }
+    if page_chars < 2 * statement_chars + PAGE_ROOM {
+        return Err(fail::pack(
+            LIMITS,
+            "page_chars",
+            "must hold the longest item, twice statement_chars and 1300 more",
+        ));
+    }
     if ask_default > ask_max {
         return Err(fail::pack(
             LIMITS,

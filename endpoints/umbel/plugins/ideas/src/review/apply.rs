@@ -273,7 +273,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         .unwrap_or_default();
     let pack = Pack::read(cx)?;
     let (review, part, digest) = decision_input(input)?;
-    let items = confirmed(cx, call, &review, &part, &digest, pack.limits.part_max)?;
+    let items = confirmed(cx, call, &review, &part, &digest, &pack.limits)?;
     if let Some(stray) = excluded
         .iter()
         .find(|id| !items.iter().any(|s| &s.proposal.id == *id))

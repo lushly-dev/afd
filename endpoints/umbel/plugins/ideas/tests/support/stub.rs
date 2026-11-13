@@ -186,9 +186,24 @@ impl HostServices for Stub {
             .map(|((kind, id), body)| lane(kind, id, body, state.affirmed.contains(id)))
             .collect();
         let total = items.len() as u64;
+        // In id order, from after the cursor, which is the last id of the page before.
+        let rest: Vec<LaneRecord> = items
+            .into_iter()
+            .filter(|item| {
+                query
+                    .after
+                    .as_deref()
+                    .is_none_or(|after| item.record.id.as_str() > after)
+            })
+            .collect();
+        let more = rest.len() > query.limit as usize;
+        let page: Vec<LaneRecord> = rest.into_iter().take(query.limit as usize).collect();
+        let next = more
+            .then(|| page.last().map(|item| item.record.id.clone()))
+            .flatten();
         Ok(FindPage {
-            items: items.into_iter().take(query.limit as usize).collect(),
-            next: None,
+            items: page,
+            next,
             total: query.total.then_some(total),
             admitted: vec![Standing::Unverified, Standing::Attested, Standing::Affirmed],
             cut: false,
@@ -276,6 +291,23 @@ impl Stub {
             level: level.to_owned(),
             excluded: excluded.iter().map(|id| (*id).to_owned()).collect(),
         });
+        self.run(call, input)
+    }
+
+    /// Call `command` as the person page renders page `page` of a preview: the stdio caller
+    /// acting for `ada`, with `CallContext.preview_page` set.
+    pub fn paged(&self, command: &str, input: Value, page: u32) -> Value {
+        let call = CallContext {
+            command: command.to_owned(),
+            trace_id: "t".to_owned(),
+            space: Some("main".to_owned()),
+            spaces: vec!["main".to_owned()],
+            actor_kind: "agent".to_owned(),
+            actor_id: Some("gardener-bot".to_owned()),
+            on_behalf_of: Some("ada".to_owned()),
+            preview_page: Some(page),
+            ..CallContext::default()
+        };
         self.run(call, input)
     }
 

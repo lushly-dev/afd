@@ -171,7 +171,7 @@ tags = ["ideas", "review"]
 version = "1.0.0"
 expose = { mcp = false, agent = false, cli = true }
 journal = { mode = "digest", keep = ["space", "review", "part", "digest"] }
-returns = { type = "object", properties = { preview = { type = "string" } }, required = ["preview"], additionalProperties = false }
+returns = { type = "object", properties = { preview = { type = "string" }, page = { type = "integer" }, pages = { type = "integer" }, items = { type = "array" } }, required = ["preview"], additionalProperties = false }
 
 [[commands]]
 name = "ideas-review-apply"
