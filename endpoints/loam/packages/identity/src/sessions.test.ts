@@ -1,19 +1,27 @@
 /**
- * Sessions at the provider (phase 3 specification, 4.3, 4.6, 5.2 and 5.8), through a test-only auth host: a real
- * Better Auth 1.7.18 server from `createLoamAuthOptions`, called directly as a person could call it, around Loam's
- * commands. It proves the provider's rules, not the hosted lane (2.4).
+ * Sessions at the provider (phase 3 specification, 4.3, 4.6, 5.2 and 5.8), in this process through Better Auth's own
+ * handler, so coverage sees what the test-only auth host's child runs: a real Better Auth 1.7.18 provider from
+ * `createLoamAuthOptions`, called directly as a person could call it, around Loam's commands. The same endpoints over
+ * HTTP, behind the shell's origin, are E1's and E3's Chromium scenarios (`web/test/browser/identity`).
  */
 
 import { randomUUID } from 'node:crypto';
+import { DatabaseSync } from 'node:sqlite';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { deviceLabel, methodOfPath, sessionHandle } from './sessions.js';
-import { startTestAuthHost, type TestAuthHost } from './testing/index.js';
+import { createTestProvider } from './testing/provider.js';
 
+const ORIGIN = 'https://acme.example';
 const PASSWORD = 'correct horse battery staple';
-let host: TestAuthHost;
+const database = new DatabaseSync(':memory:');
+let provider: Awaited<ReturnType<typeof createTestProvider>>;
 
 beforeAll(async () => {
-	host = await startTestAuthHost({
+	provider = await createTestProvider({
+		baseURL: `${ORIGIN}/api/auth`,
+		secret: 'y'.repeat(32),
+		database,
+		workspace: 'acme',
 		organization: { slug: 'acme', name: 'Acme' },
 		people: [
 			{ email: 'olu@example.com', role: 'owner', password: PASSWORD },
@@ -22,9 +30,11 @@ beforeAll(async () => {
 			{ email: 'eli@example.com', role: 'member', password: PASSWORD },
 			{ email: 'fay@example.com', role: 'member', password: PASSWORD },
 		],
+		methods: ['passkey', 'password'],
+		send: async () => {},
 	});
 });
-afterAll(() => host?.close());
+afterAll(() => database.close());
 
 interface Answer {
 	status: number;
@@ -37,16 +47,18 @@ async function call(
 	path: string,
 	options: { cookie?: string; body?: unknown; agent?: string } = {}
 ): Promise<Answer> {
-	const response = await fetch(`${host.baseURL.replace(host.origin, host.listening)}${path}`, {
-		method: options.body === undefined ? 'GET' : 'POST',
-		headers: {
-			origin: host.origin,
-			...(options.agent ? { 'user-agent': options.agent } : {}),
-			...(options.cookie ? { cookie: options.cookie } : {}),
-			...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
-		},
-		...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
-	});
+	const response = await provider.auth.handler(
+		new Request(`${ORIGIN}/api/auth${path}`, {
+			method: options.body === undefined ? 'GET' : 'POST',
+			headers: {
+				origin: ORIGIN,
+				...(options.agent ? { 'user-agent': options.agent } : {}),
+				...(options.cookie ? { cookie: options.cookie } : {}),
+				...(options.body !== undefined ? { 'content-type': 'application/json' } : {}),
+			},
+			...(options.body !== undefined ? { body: JSON.stringify(options.body) } : {}),
+		})
+	);
 	const text = await response.text();
 	const cookie = response.headers
 		.getSetCookie()
@@ -73,8 +85,7 @@ async function signIn(email: string, agent?: string): Promise<string> {
 function rowOf(cookie: string): { id: string; token: string; loamMethod: string | null } {
 	const token =
 		decodeURIComponent(/session_token=([^;]+)/.exec(cookie)?.[1] ?? '').split('.')[0] ?? '';
-	return host
-		.db()
+	return database
 		.prepare('SELECT id, token, loamMethod FROM session WHERE token = ?')
 		.get(token) as {
 		id: string;
@@ -86,16 +97,14 @@ function rowOf(cookie: string): { id: string; token: string; loamMethod: string 
 /** Make a session older than `freshAge`, as if it was made six minutes ago. */
 function age(cookie: string, seconds = 360): void {
 	const { id } = rowOf(cookie);
-	host
-		.db({ writable: true })
+	database
 		.prepare('UPDATE session SET createdAt = ? WHERE id = ?')
 		.run(new Date(Date.now() - seconds * 1_000).toISOString(), id);
 }
 
 /** Give a person a passkey row, as a registration would have stored one. */
 function holdPasskey(email: string): void {
-	host
-		.db({ writable: true })
+	database
 		.prepare(
 			'INSERT INTO passkey (id, name, publicKey, userId, credentialID, counter, deviceType, backedUp, transports, createdAt) VALUES (?, ?, ?, ?, ?, 0, ?, 0, ?, ?)'
 		)
@@ -103,7 +112,7 @@ function holdPasskey(email: string): void {
 			randomUUID(),
 			'Laptop',
 			'AAAA',
-			host.people[email] as string,
+			provider.people[email] as string,
 			randomUUID(),
 			'singleDevice',
 			'internal',
@@ -249,19 +258,18 @@ describe('whoami: the binding notice (2.3, 15)', () => {
 		const owner = await signIn('olu@example.com');
 		const member = await signIn('bea@example.com');
 		expect((await call('/loam/whoami', { cookie: owner })).body?.warning).toBeUndefined();
-		const writable = host.db({ writable: true });
-		writable
+		database
 			.prepare('UPDATE organization SET slug = ? WHERE id = ?')
-			.run('acme-2', host.organizationId);
+			.run('acme-2', provider.organizationId);
 		try {
 			expect((await call('/loam/whoami', { cookie: owner })).body?.warning).toBe(
 				'IDENTITY_BINDING_MISMATCH'
 			);
 			expect((await call('/loam/whoami', { cookie: member })).body?.warning).toBeUndefined();
 		} finally {
-			writable
+			database
 				.prepare('UPDATE organization SET slug = ? WHERE id = ?')
-				.run('acme', host.organizationId);
+				.run('acme', provider.organizationId);
 		}
 	});
 });
