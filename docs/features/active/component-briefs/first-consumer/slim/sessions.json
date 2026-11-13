@@ -1,0 +1,2538 @@
+[
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 5,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		]
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 1,
+		"storyReads": 4,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		]
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 5,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		]
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 5,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		]
+	},
+	{
+		"task": "t1",
+		"arm": "a",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text",
+			"violet-text-area",
+			"violet-text-field"
+		]
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 0,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [37837]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 37837,
+				"tags": 7,
+				"declarations": 51598,
+				"sections": {
+					"attributes": 9630,
+					"events": 800,
+					"examples": 5372,
+					"form": 250,
+					"import": 203,
+					"library": 119,
+					"rules": 2174,
+					"slots": 1219,
+					"status": 56,
+					"summary": 836,
+					"tag": 118,
+					"usage": 4190,
+					"rule text": 11360
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": [],
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 12,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 54,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 1,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 0
+			},
+			"events": {
+				"offered": 8,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 21,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 0,
+				"named": 0
+			},
+			"roles": {
+				"offered": 0,
+				"named": 0
+			},
+			"form": {
+				"offered": 5,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 1,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [30613]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 30613,
+				"tags": 7,
+				"declarations": 51598,
+				"sections": {
+					"a11y": 1826,
+					"attributes": 7677,
+					"axe": 441,
+					"events": 800,
+					"examples": 5372,
+					"form": 250,
+					"gaps": 874,
+					"import": 203,
+					"library": 119,
+					"rules": 881,
+					"slots": 1219,
+					"status": 56,
+					"summary": 836,
+					"tag": 118,
+					"usage": 4190,
+					"rule text": 3930
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 12,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 54,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 1,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 0
+			},
+			"events": {
+				"offered": 8,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 21,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 9,
+				"named": 0
+			},
+			"roles": {
+				"offered": 0,
+				"named": 0
+			},
+			"form": {
+				"offered": 5,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [30613]
+			},
+			"components-list": {
+				"count": 1,
+				"bytes": [11894]
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 30613,
+				"tags": 7,
+				"declarations": 51598,
+				"sections": {
+					"a11y": 1826,
+					"attributes": 7677,
+					"axe": 441,
+					"events": 800,
+					"examples": 5372,
+					"form": 250,
+					"gaps": 874,
+					"import": 203,
+					"library": 119,
+					"rules": 881,
+					"slots": 1219,
+					"status": 56,
+					"summary": 836,
+					"tag": 118,
+					"usage": 4190,
+					"rule text": 3930
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 12,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 54,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 1,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 0
+			},
+			"events": {
+				"offered": 8,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 21,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 9,
+				"named": 0
+			},
+			"roles": {
+				"offered": 0,
+				"named": 0
+			},
+			"form": {
+				"offered": 5,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [30613]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 30613,
+				"tags": 7,
+				"declarations": 51598,
+				"sections": {
+					"a11y": 1826,
+					"attributes": 7677,
+					"axe": 441,
+					"events": 800,
+					"examples": 5372,
+					"form": 250,
+					"gaps": 874,
+					"import": 203,
+					"library": 119,
+					"rules": 881,
+					"slots": 1219,
+					"status": 56,
+					"summary": 836,
+					"tag": 118,
+					"usage": 4190,
+					"rule text": 3930
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 12,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 54,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 1,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 0
+			},
+			"events": {
+				"offered": 8,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 21,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 9,
+				"named": 0
+			},
+			"roles": {
+				"offered": 0,
+				"named": 0
+			},
+			"form": {
+				"offered": 5,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t1",
+		"arm": "c",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 1,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [30613]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 30613,
+				"tags": 7,
+				"declarations": 51598,
+				"sections": {
+					"a11y": 1826,
+					"attributes": 7677,
+					"axe": 441,
+					"events": 800,
+					"examples": 5372,
+					"form": 250,
+					"gaps": 874,
+					"import": 203,
+					"library": 119,
+					"rules": 881,
+					"slots": 1219,
+					"status": 56,
+					"summary": 836,
+					"tag": 118,
+					"usage": 4190,
+					"rule text": 3930
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"tags": [
+			"violet-button",
+			"violet-checkbox",
+			"violet-radio",
+			"violet-radio-group",
+			"violet-switch",
+			"violet-text-area",
+			"violet-text-field"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 12,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 54,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 1,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 0
+			},
+			"events": {
+				"offered": 8,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 21,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 9,
+				"named": 0
+			},
+			"roles": {
+				"offered": 0,
+				"named": 0
+			},
+			"form": {
+				"offered": 5,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 4,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 2,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 4,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 2,
+		"storyReads": 4,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		]
+	},
+	{
+		"task": "t2",
+		"arm": "a",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 4,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-teaching-tip"
+		]
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [37127]
+			},
+			"components-list": {
+				"count": 1,
+				"bytes": [11894]
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 37127,
+				"tags": 7,
+				"declarations": 26351,
+				"sections": {
+					"a11y": 2419,
+					"attributes": 4062,
+					"axe": 441,
+					"cssProperties": 3404,
+					"examples": 8478,
+					"gaps": 503,
+					"import": 203,
+					"library": 119,
+					"rules": 866,
+					"slots": 1393,
+					"status": 56,
+					"summary": 836,
+					"tag": 110,
+					"usage": 5014,
+					"events": 494,
+					"roles": 405,
+					"rule text": 6611
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": [],
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 6,
+				"named": 1
+			},
+			"remaining attributes": {
+				"offered": 20,
+				"named": 8
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"slots": {
+				"offered": 8,
+				"named": 0
+			},
+			"events": {
+				"offered": 4,
+				"named": 1
+			},
+			"cssProperties": {
+				"offered": 38,
+				"named": 0
+			},
+			"examples": {
+				"offered": 20,
+				"named": 0
+			},
+			"usage": {
+				"offered": 25,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 11,
+				"named": 0
+			},
+			"roles": {
+				"offered": 4,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [31011]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 31011,
+				"tags": 8,
+				"declarations": 29290,
+				"sections": {
+					"a11y": 2815,
+					"attributes": 3467,
+					"axe": 504,
+					"examples": 9706,
+					"gaps": 520,
+					"import": 232,
+					"library": 136,
+					"rules": 440,
+					"slots": 1587,
+					"status": 64,
+					"summary": 983,
+					"tag": 126,
+					"usage": 5639,
+					"events": 634,
+					"roles": 405,
+					"rule text": 1855
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 8
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 4,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 20,
+				"named": 12
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 2
+			},
+			"slots": {
+				"offered": 8,
+				"named": 6
+			},
+			"events": {
+				"offered": 5,
+				"named": 1
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 19,
+				"named": 0
+			},
+			"usage": {
+				"offered": 24,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 11,
+				"named": 0
+			},
+			"roles": {
+				"offered": 3,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [27719]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 27719,
+				"tags": 7,
+				"declarations": 26351,
+				"sections": {
+					"a11y": 2419,
+					"attributes": 3284,
+					"axe": 441,
+					"examples": 8478,
+					"gaps": 503,
+					"import": 203,
+					"library": 119,
+					"rules": 348,
+					"slots": 1393,
+					"status": 56,
+					"summary": 836,
+					"tag": 110,
+					"usage": 5014,
+					"events": 494,
+					"roles": 405,
+					"rule text": 1855
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 6,
+				"named": 1
+			},
+			"remaining attributes": {
+				"offered": 20,
+				"named": 8
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"slots": {
+				"offered": 8,
+				"named": 0
+			},
+			"events": {
+				"offered": 4,
+				"named": 1
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 20,
+				"named": 0
+			},
+			"usage": {
+				"offered": 25,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 11,
+				"named": 0
+			},
+			"roles": {
+				"offered": 4,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [34141]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 34141,
+				"tags": 9,
+				"declarations": 34605,
+				"sections": {
+					"a11y": 2815,
+					"attributes": 3924,
+					"axe": 567,
+					"examples": 11356,
+					"gaps": 599,
+					"import": 261,
+					"library": 153,
+					"rules": 532,
+					"slots": 1959,
+					"status": 72,
+					"summary": 983,
+					"tag": 147,
+					"usage": 5639,
+					"events": 867,
+					"roles": 405,
+					"rule text": 1855
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 9
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-popover",
+			"violet-teaching-tip",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 6,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 20,
+				"named": 11
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 2
+			},
+			"slots": {
+				"offered": 8,
+				"named": 5
+			},
+			"events": {
+				"offered": 4,
+				"named": 1
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 20,
+				"named": 0
+			},
+			"usage": {
+				"offered": 25,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 11,
+				"named": 0
+			},
+			"roles": {
+				"offered": 4,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t2",
+		"arm": "c",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [27719]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 27719,
+				"tags": 7,
+				"declarations": 26351,
+				"sections": {
+					"a11y": 2419,
+					"attributes": 3284,
+					"axe": 441,
+					"examples": 8478,
+					"gaps": 503,
+					"import": 203,
+					"library": 119,
+					"rules": 348,
+					"slots": 1393,
+					"status": 56,
+					"summary": 836,
+					"tag": 110,
+					"usage": 5014,
+					"events": 494,
+					"roles": 405,
+					"rule text": 1855
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 7
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"tags": [
+			"violet-button",
+			"violet-dialog",
+			"violet-icon",
+			"violet-icon-button",
+			"violet-menu",
+			"violet-menu-item",
+			"violet-tooltip"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 6,
+				"named": 1
+			},
+			"remaining attributes": {
+				"offered": 20,
+				"named": 8
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"slots": {
+				"offered": 8,
+				"named": 0
+			},
+			"events": {
+				"offered": 4,
+				"named": 1
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 20,
+				"named": 0
+			},
+			"usage": {
+				"offered": 25,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 11,
+				"named": 0
+			},
+			"roles": {
+				"offered": 4,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 1,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		]
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		]
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		]
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 6,
+		"storyReads": 1,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		]
+	},
+	{
+		"task": "t3",
+		"arm": "a",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 1,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [],
+		"briefInputs": [],
+		"unknown": [],
+		"shed": [],
+		"asked": [],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		]
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 1,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [28093]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 28093,
+				"tags": 11,
+				"declarations": 36047,
+				"sections": {
+					"a11y": 3164,
+					"attributes": 3556,
+					"axe": 693,
+					"examples": 7580,
+					"gaps": 385,
+					"import": 319,
+					"library": 187,
+					"rules": 405,
+					"slots": 1703,
+					"status": 88,
+					"summary": 944,
+					"tag": 190,
+					"usage": 4619,
+					"roles": 154,
+					"events": 830,
+					"rule text": 1108
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 11
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-file-explorer",
+			"violet-progress",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 1,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 27,
+				"named": 11
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 1
+			},
+			"slots": {
+				"offered": 7,
+				"named": 1
+			},
+			"events": {
+				"offered": 1,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 17,
+				"named": 0
+			},
+			"usage": {
+				"offered": 20,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 14,
+				"named": 0
+			},
+			"roles": {
+				"offered": 2,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 2,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [26206]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 26206,
+				"tags": 10,
+				"declarations": 34024,
+				"sections": {
+					"a11y": 2823,
+					"attributes": 3312,
+					"axe": 630,
+					"examples": 7067,
+					"gaps": 368,
+					"import": 290,
+					"library": 170,
+					"rules": 390,
+					"slots": 1703,
+					"status": 80,
+					"summary": 861,
+					"tag": 173,
+					"usage": 4197,
+					"roles": 154,
+					"events": 830,
+					"rule text": 1108
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 10
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-file-explorer",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 1,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 27,
+				"named": 12
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 2
+			},
+			"slots": {
+				"offered": 7,
+				"named": 1
+			},
+			"events": {
+				"offered": 1,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 17,
+				"named": 0
+			},
+			"usage": {
+				"offered": 20,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 14,
+				"named": 0
+			},
+			"roles": {
+				"offered": 2,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 3,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [39426]
+			},
+			"components-list": {
+				"count": 1,
+				"bytes": [11894]
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 39426,
+				"tags": 11,
+				"declarations": 32255,
+				"sections": {
+					"a11y": 3190,
+					"attributes": 3602,
+					"axe": 693,
+					"examples": 16718,
+					"gaps": 304,
+					"import": 319,
+					"library": 187,
+					"rules": 508,
+					"slots": 1844,
+					"status": 88,
+					"summary": 1051,
+					"tag": 182,
+					"usage": 6111,
+					"roles": 154,
+					"events": 549,
+					"rule text": 1699
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 11
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 37,
+				"named": 16
+			},
+			"finite values": {
+				"offered": 3,
+				"named": 2
+			},
+			"slots": {
+				"offered": 10,
+				"named": 1
+			},
+			"events": {
+				"offered": 5,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 23,
+				"named": 0
+			},
+			"usage": {
+				"offered": 30,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 16,
+				"named": 0
+			},
+			"roles": {
+				"offered": 2,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 4,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 1,
+		"storyReads": 3,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [35952]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 35952,
+				"tags": 12,
+				"declarations": 37480,
+				"sections": {
+					"a11y": 3384,
+					"attributes": 5091,
+					"axe": 756,
+					"gaps": 402,
+					"import": 348,
+					"library": 204,
+					"rules": 1299,
+					"slots": 1703,
+					"status": 96,
+					"summary": 1001,
+					"tag": 207,
+					"usage": 5076,
+					"roles": 154,
+					"cssProperties": 4264,
+					"events": 830,
+					"rule text": 8852
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 12
+			}
+		],
+		"unknown": [],
+		"shed": ["examples"],
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-file-explorer",
+			"violet-progress",
+			"violet-skeleton",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 1,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 27,
+				"named": 8
+			},
+			"finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"slots": {
+				"offered": 7,
+				"named": 1
+			},
+			"events": {
+				"offered": 1,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 32,
+				"named": 0
+			},
+			"examples": {
+				"offered": 0,
+				"named": 0
+			},
+			"usage": {
+				"offered": 20,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 14,
+				"named": 0
+			},
+			"roles": {
+				"offered": 2,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	},
+	{
+		"task": "t3",
+		"arm": "c",
+		"run": 5,
+		"model": "claude-sonnet-5-5",
+		"sourceReads": 0,
+		"storyReads": 2,
+		"packReads": 0,
+		"manifestReads": 0,
+		"calls": {
+			"components-brief": {
+				"count": 1,
+				"bytes": [39426]
+			},
+			"components-list": {
+				"count": 0,
+				"bytes": []
+			},
+			"components-open": {
+				"count": 0,
+				"bytes": []
+			}
+		},
+		"otherUmbel": [],
+		"textBriefs": 0,
+		"refusedBriefs": [],
+		"briefSizes": [
+			{
+				"bytes": 39426,
+				"tags": 11,
+				"declarations": 32255,
+				"sections": {
+					"a11y": 3190,
+					"attributes": 3602,
+					"axe": 693,
+					"examples": 16718,
+					"gaps": 304,
+					"import": 319,
+					"library": 187,
+					"rules": 508,
+					"slots": 1844,
+					"status": 88,
+					"summary": 1051,
+					"tag": 182,
+					"usage": 6111,
+					"roles": 154,
+					"events": 549,
+					"rule text": 1699
+				}
+			}
+		],
+		"briefInputs": [
+			{
+				"tags": 11
+			}
+		],
+		"unknown": [],
+		"shed": ["cssProperties", "piece:attributeRules"],
+		"asked": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"tags": [
+			"violet-badge",
+			"violet-breadcrumb",
+			"violet-breadcrumb-item",
+			"violet-button",
+			"violet-empty-state",
+			"violet-icon",
+			"violet-spinner",
+			"violet-tab",
+			"violet-tab-panel",
+			"violet-tabs",
+			"violet-text",
+			"violet-tree",
+			"violet-tree-item"
+		],
+		"used": {
+			"declared-only attributes with no finite values": {
+				"offered": 2,
+				"named": 0
+			},
+			"remaining attributes": {
+				"offered": 37,
+				"named": 17
+			},
+			"finite values": {
+				"offered": 3,
+				"named": 2
+			},
+			"slots": {
+				"offered": 10,
+				"named": 1
+			},
+			"events": {
+				"offered": 5,
+				"named": 0
+			},
+			"cssProperties": {
+				"offered": 0,
+				"named": 0
+			},
+			"examples": {
+				"offered": 23,
+				"named": 0
+			},
+			"usage": {
+				"offered": 30,
+				"named": 0
+			},
+			"a11y": {
+				"offered": 16,
+				"named": 0
+			},
+			"roles": {
+				"offered": 2,
+				"named": 0
+			},
+			"form": {
+				"offered": 0,
+				"named": 0
+			}
+		}
+	}
+]

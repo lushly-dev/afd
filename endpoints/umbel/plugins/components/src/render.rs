@@ -354,10 +354,12 @@ pub(crate) fn text(data: &Value) -> String {
         }
         let mut names = ids(item.get("sections"));
         names.extend(ids(item.get("pieces")));
-        let words = format!(
-            "left out to fit: {}; components-open returns them",
-            names.join(" ")
-        );
+        let why = if item["reason"] == "detail" {
+            "left out of a brief"
+        } else {
+            "left out to fit"
+        };
+        let words = format!("{why}: {}; components-open returns them", names.join(" "));
         header(&[&words], &mut out);
     }
     out

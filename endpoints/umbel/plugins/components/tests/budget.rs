@@ -27,6 +27,25 @@ const GROUPS: [&[&str]; 12] = [
     &["gaps", "rules"],
 ];
 
+/// Every section a brief served by default before step C5's follow-up: all but the long form. The
+/// shedding order is tested on it, so `cssProperties` and the attributes' rules take part.
+const ALL_BUT_DETAIL: [&str; 14] = [
+    "attributes",
+    "slots",
+    "events",
+    "commands",
+    "cssProperties",
+    "themes",
+    "form",
+    "roles",
+    "axe",
+    "a11y",
+    "usage",
+    "rules",
+    "examples",
+    "gaps",
+];
+
 const FLOOR: [&str; 6] = [
     "import",
     "library",
@@ -62,7 +81,7 @@ fn budget_omission(result: &Value) -> Option<&Value> {
 }
 
 /// How many of the order's steps an answer applied, checking that what it shed is exactly the
-/// first steps of the order.
+/// first steps of the order, less what the default brief left out before any step.
 fn steps_applied(result: &Value) -> usize {
     let Some(omission) = budget_omission(result) else {
         return 0;
@@ -71,11 +90,19 @@ fn steps_applied(result: &Value) -> usize {
         .into_iter()
         .chain(names(&omission["pieces"]))
         .collect();
+    let by_default: BTreeSet<String> = data(result)["omitted"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|o| o["reason"] == "detail")
+        .flat_map(|o| names(&o["sections"]))
+        .collect();
     (0..=GROUPS.len())
         .find(|k| {
             let prefix: BTreeSet<String> = GROUPS[..*k]
                 .iter()
                 .flat_map(|group| group.iter().map(|name| (*name).to_owned()))
+                .filter(|name| !by_default.contains(name))
                 .collect();
             prefix == shed
         })
@@ -94,7 +121,9 @@ async fn sections_and_pieces_are_shed_in_order_from_every_entry_at_once() {
     let mut last = 0;
     let mut target = 12_000;
     while target >= 1_024 {
-        let result = fx.brief(json!({ "tags": tags, "maxBytes": target })).await;
+        let result = fx
+            .brief(json!({ "tags": tags, "sections": ALL_BUT_DETAIL, "maxBytes": target }))
+            .await;
         if result["success"] == false {
             // Below the floors: every step was applied before this.
             assert_eq!(code(&result), "OUTPUT_BUDGET_EXCEEDED");
@@ -135,7 +164,9 @@ async fn omitted_names_the_sections_and_pieces_and_the_open_call_that_returns_th
     let fx = pack.host();
     let mut target = 12_000;
     loop {
-        let result = fx.brief(json!({ "tags": tags, "maxBytes": target })).await;
+        let result = fx
+            .brief(json!({ "tags": tags, "sections": ALL_BUT_DETAIL, "maxBytes": target }))
+            .await;
         if steps_applied(&result) == 4 {
             assert_eq!(
                 *budget_omission(&result).unwrap(),

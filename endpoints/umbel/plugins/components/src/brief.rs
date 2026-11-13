@@ -106,9 +106,30 @@ fn is_declared_only(item: &Value) -> bool {
     item.get("basis").and_then(Value::as_str) == Some("declared") && item.get("values").is_none()
 }
 
+/// An attribute without its rule ids, flagged again on what is left.
+fn attribute_without_rules(item: &Value) -> Value {
+    let Some(map) = item.as_object() else {
+        return item.clone();
+    };
+    if !map.contains_key("rules") {
+        return item.clone();
+    }
+    let mut map = map.clone();
+    map.remove("rules");
+    map.remove("flags");
+    scan::flag_item(&mut map);
+    Value::Object(map)
+}
+
 /// An entry's requested sections with the first `steps` of the order applied; a section left
-/// empty is left out.
-fn shed(entry: &Entry, names: &[&str], steps: usize) -> Vec<(&'static str, Section)> {
+/// empty is left out. Without `attribute_rules`, the rules the record's attributes name are left
+/// out of the attributes and of the `rules` section (section 5.4).
+fn shed(
+    entry: &Entry,
+    names: &[&str],
+    steps: usize,
+    attribute_rules: bool,
+) -> Vec<(&'static str, Section)> {
     let applied = &ORDER[..steps];
     let gone = |name: &str| {
         applied
@@ -124,17 +145,27 @@ fn shed(entry: &Entry, names: &[&str], steps: usize) -> Vec<(&'static str, Secti
                 ("events", Section::Items(items)) if applied.contains(&Step::EventDetail) => {
                     Section::Items(items.iter().map(event_without_detail).collect())
                 }
-                ("attributes", Section::Items(items))
-                    if applied.contains(&Step::DeclaredAttributes) =>
-                {
-                    Section::Items(
-                        items
-                            .iter()
-                            .filter(|item| !is_declared_only(item))
-                            .cloned()
-                            .collect(),
-                    )
-                }
+                ("attributes", Section::Items(items)) => Section::Items(
+                    items
+                        .iter()
+                        .filter(|item| {
+                            !applied.contains(&Step::DeclaredAttributes) || !is_declared_only(item)
+                        })
+                        .map(|item| {
+                            if attribute_rules {
+                                item.clone()
+                            } else {
+                                attribute_without_rules(item)
+                            }
+                        })
+                        .collect(),
+                ),
+                ("rules", Section::Ids(ids)) if !attribute_rules => Section::Ids(
+                    ids.iter()
+                        .filter(|id| !entry.attribute_rules.contains(*id))
+                        .cloned()
+                        .collect(),
+                ),
                 _ => section.clone(),
             };
             (section.list_len() != Some(0)).then_some((*name, section))
@@ -195,6 +226,13 @@ fn brief_form(mut component: Value, library: Option<&str>) -> Value {
             continue;
         };
         for item in items.iter_mut() {
+            if name == "attributes"
+                && let Some(map) = item.as_object_mut()
+                && map.get("property").is_some()
+                && map.get("property") == map.get("name")
+            {
+                map.remove("property");
+            }
             let own = item.get("basis").and_then(Value::as_str).map(str::to_owned);
             if let (Some(own), Some(values)) =
                 (own, item.get_mut("values").and_then(Value::as_array_mut))
@@ -243,6 +281,10 @@ struct Brief<'a> {
     names: Vec<&'static str>,
     /// Whether the rules' text is sent at all (not with `detail: "api"`).
     rule_text: bool,
+    /// Whether the rules the attributes name are served (`detail: "full"` and `sections`).
+    attribute_rules: bool,
+    /// Whether `detail: "brief"` chose the sections, so `omitted` names what it leaves out.
+    by_default: bool,
     known: HashSet<String>,
     versions: Map<String, Value>,
     text: bool,
@@ -282,7 +324,7 @@ impl Brief<'_> {
                 Asked::Entry { library, entry } => (*library, entry),
             };
             let library = &self.libraries[index];
-            let content = entry.serve(&shed(entry, &self.names, steps));
+            let content = entry.serve(&shed(entry, &self.names, steps, self.attribute_rules));
             let rule_flags = content
                 .rules
                 .iter()
@@ -332,7 +374,7 @@ impl Brief<'_> {
             .map(|(k, step)| {
                 let states: Vec<Vec<(&'static str, Section)>> = self
                     .entries(count)
-                    .map(|(_, entry)| shed(entry, &self.names, k))
+                    .map(|(_, entry)| shed(entry, &self.names, k, self.attribute_rules))
                     .collect();
                 let items_of = |name: &str| -> Vec<Value> {
                     states
@@ -384,11 +426,52 @@ impl Brief<'_> {
             .collect()
     }
 
-    fn omitted(effects: &[Effect], steps: usize, left_out: usize) -> Vec<Value> {
+    /// What the default brief leaves out of the first `count` requested tags that a full one
+    /// would serve, as an `omitted` entry (section 6.3); the long form is not named.
+    fn left_out_by_default(&self, count: usize) -> Option<Value> {
+        if !self.by_default {
+            return None;
+        }
+        let mut sections = Vec::new();
+        let mut pieces = Vec::new();
+        let mut open = Vec::new();
+        if self.entries(count).any(|(_, entry)| {
+            entry
+                .sections
+                .iter()
+                .any(|(name, _)| *name == "cssProperties")
+        }) {
+            sections.push("cssProperties");
+            open.push("cssProperties");
+        }
+        if self
+            .entries(count)
+            .any(|(_, entry)| !entry.attribute_rules.is_empty())
+        {
+            pieces.push("attributeRules");
+            open.push("rules");
+        }
+        (!open.is_empty()).then(|| {
+            json!({
+                "reason": "detail",
+                "sections": sections,
+                "pieces": pieces,
+                "open": { "command": "components-open", "sections": open },
+            })
+        })
+    }
+
+    fn omitted(
+        effects: &[Effect],
+        steps: usize,
+        left_out: usize,
+        by_default: Option<Value>,
+    ) -> Vec<Value> {
         let mut omitted = Vec::new();
         if left_out > 0 {
             omitted.push(json!({ "reason": "minimum-basis", "facts": left_out }));
         }
+        omitted.extend(by_default);
         let mut sections: Vec<&str> = Vec::new();
         let mut pieces: Vec<&str> = Vec::new();
         let mut open: Vec<&str> = Vec::new();
@@ -437,7 +520,12 @@ impl Brief<'_> {
         if let Some(rules) = assembled.rules {
             content["rules"] = Value::Array(rules);
         }
-        let omitted = Self::omitted(effects, steps, assembled.left_out);
+        let omitted = Self::omitted(
+            effects,
+            steps,
+            assembled.left_out,
+            self.left_out_by_default(count),
+        );
         let shed_count = omitted
             .iter()
             .filter(|o| o["reason"] == "budget")
@@ -483,25 +571,49 @@ impl Brief<'_> {
     }
 }
 
-/// The sections a call asks for, in the order of section 5.3, and whether rule text is sent.
-fn chosen_sections(input: &Value) -> (Vec<&'static str>, bool) {
+/// What `detail: "brief"`, the default, leaves out (section 6.1): the long form, and the CSS
+/// properties no page in step C5 named.
+const NOT_BRIEF: [&str; 2] = ["cssProperties", "detail"];
+
+/// What a call asks for: the sections, in the order of section 5.3, whether rule text is sent,
+/// and whether the rules the attributes name are served.
+struct Chosen {
+    names: Vec<&'static str>,
+    rule_text: bool,
+    attribute_rules: bool,
+}
+
+fn chosen_sections(input: &Value) -> Chosen {
     if let Some(names) = input.get("sections").and_then(Value::as_array) {
-        let chosen = SECTIONS
+        let names = SECTIONS
             .into_iter()
             .filter(|name| names.iter().any(|value| value.as_str() == Some(name)))
             .collect();
-        return (chosen, true);
+        return Chosen {
+            names,
+            rule_text: true,
+            attribute_rules: true,
+        };
     }
     match input.get("detail").and_then(Value::as_str) {
-        Some("api") => (API.to_vec(), false),
-        Some("full") => (SECTIONS.to_vec(), true),
-        _ => (
-            SECTIONS
+        Some("api") => Chosen {
+            names: API.to_vec(),
+            rule_text: false,
+            attribute_rules: false,
+        },
+        Some("full") => Chosen {
+            names: SECTIONS.to_vec(),
+            rule_text: true,
+            attribute_rules: true,
+        },
+        _ => Chosen {
+            names: SECTIONS
                 .into_iter()
-                .filter(|name| *name != "detail")
+                .filter(|name| !NOT_BRIEF.contains(name))
                 .collect(),
-            true,
-        ),
+            rule_text: true,
+            attribute_rules: false,
+        },
     }
 }
 
@@ -608,12 +720,22 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         }));
     }
 
-    let (names, rule_text) = chosen_sections(input);
+    let Chosen {
+        names,
+        rule_text,
+        attribute_rules,
+    } = chosen_sections(input);
     let brief = Brief {
         libraries: &libraries,
         asked,
         names,
         rule_text,
+        attribute_rules,
+        by_default: input.get("sections").is_none()
+            && !matches!(
+                input.get("detail").and_then(Value::as_str),
+                Some("api" | "full")
+            ),
         known: input
             .get("known")
             .and_then(Value::as_array)

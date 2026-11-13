@@ -39,8 +39,9 @@ usually a typo; an `ambiguous` one is in several libraries, so pass `library`.
 
 ## Fitting a budget
 
-A brief sheds sections to fit the call's output budget, the long form and examples first, and
-names them in `omitted`. A harness that injects `render: "text"` into a session passes `maxBytes`
+A brief leaves out the long form, CSS properties and the rules attributes name (an `omitted`
+entry with reason `detail` says where they are), and sheds more to fit the call's output budget,
+examples first, naming them in `omitted`. A harness that injects `render: "text"` into a session passes `maxBytes`
 to stay inside its own cap. `maxBytes` only lowers the budget.
 
 ## Refusals
