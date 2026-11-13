@@ -1,11 +1,11 @@
 import assert from 'node:assert/strict';
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
+import { execTool, tarCommand } from './release/exec-tool.mjs';
 import {
 	createPublishPlan,
 	main,
@@ -18,7 +18,7 @@ import {
 const repository = dirname(dirname(fileURLToPath(import.meta.url)));
 const changesets = join(repository, 'node_modules/@changesets/cli/bin.js');
 const shell = (cwd, command, args) =>
-	execFileSync(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+	execTool(command, args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 const write = (root, file, contents) => {
 	mkdirSync(dirname(join(root, file)), { recursive: true });
 	writeFileSync(
@@ -268,7 +268,9 @@ test('a prerelease plan publishes under its own tag and refuses another', (t) =>
 		'@fixture/p@2.2.0-preview.0',
 	]);
 	const packed = plan.artifacts.find((artifact) => artifact.name === '@fixture/d');
-	const manifest = JSON.parse(shell(f.root, 'tar', ['-xOzf', packed.file, 'package/package.json']));
+	const manifest = JSON.parse(
+		shell(f.root, tarCommand(), ['-xOzf', packed.file, 'package/package.json'])
+	);
 	assert.equal(manifest.dependencies['@fixture/p'], '^2.2.0-preview.0');
 });
 
