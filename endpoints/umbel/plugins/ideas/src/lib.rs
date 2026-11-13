@@ -9,8 +9,8 @@
 //! - `records`: the four declared kinds (`wording`, `idea`, `review`, `proposal`) and their
 //!   writes; `ids`: ids drawn or derived from an idempotency key; `label`: the host's standing
 //!   label passed through; `bands`: a score's band.
-//! - `capture`, `match_`, `find`, `open`, `guide` and `archive`: the commands of step C1.
-//!   The review commands and `ideas-ask` answer `NOT_IMPLEMENTED` until steps C2 and C3.
+//! - `capture`, `match_`, `find`, `open`, `guide` and `archive`: the commands of step C1;
+//!   `ask`, step C2's. The review commands answer `NOT_IMPLEMENTED` until steps C3 and C4.
 //!
 //! A statement, a reason or a question is never in a message, a suggestion, a detail or a log
 //! line. No code here uses a filesystem, clock, thread or network: the clock and the random
@@ -18,6 +18,7 @@
 #![forbid(unsafe_code)]
 
 mod archive;
+mod ask;
 mod bands;
 mod budget;
 mod capture;
@@ -69,8 +70,8 @@ impl Plugin for Ideas {
             "ideas-guide" => guide::run(cx, &call),
             "ideas-export" => archive::export(&input, cx, &call),
             "ideas-import" => archive::import(&input, cx, &call),
-            "ideas-ask"
-            | "ideas-review-stage"
+            "ideas-ask" => ask::run(&input, cx, &call),
+            "ideas-review-stage"
             | "ideas-review-show"
             | "ideas-review-unstage"
             | "ideas-review-preview"

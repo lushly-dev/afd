@@ -12,6 +12,7 @@ use support::*;
 const STATEMENT: &str = "Comfrey tea feeds tomatoes better than anything bought";
 const OTHER: &str = "Nettles make a sharper tea for leafy greens";
 const QUERY: &str = "comfrey tomatoes";
+const QUESTION: &str = "Does comfrey tea feed tomatoes?";
 const KEY: &str = "allotment-memo-1124";
 
 #[tokio::test]
@@ -38,6 +39,7 @@ async fn no_statement_query_or_key_is_journaled_logged_or_in_an_event() {
         &fx.agent("ideas-find", json!({ "text": QUERY, "order": "rank" }))
             .await,
     );
+    data(&fx.agent("ideas-ask", json!({ "question": QUESTION })).await);
     data(&fx.agent("ideas-open", json!({ "id": id })).await);
     data(&fx.agent("ideas-guide", json!({})).await);
     let exported = fx.operator("ideas-export", json!({})).await;
@@ -54,6 +56,7 @@ async fn no_statement_query_or_key_is_journaled_logged_or_in_an_event() {
             "Comfrey",
             "Nettles",
             QUERY,
+            QUESTION,
             KEY,
             "allotment-memo",
         ],

@@ -4,7 +4,7 @@ The `ideas` plugin of AFD Umbel: a store of a person's ideas, each a few sentenc
 for good, matched against what is held, and marked by whether the person affirmed it. The design
 is in the [plugin specification](../../docs/plugins/ideas/spec.md).
 
-Agents capture, match and find; the person confirms an agent's proposals in bulk. Each idea's
+Agents capture, match, ask and find; the person confirms an agent's proposals in bulk. Each idea's
 wording is a standing record of the host's record lane: the host computes its standing, and only
 the space's person affirms it, inside a call they confirmed.
 
@@ -14,14 +14,15 @@ the space's person affirms it, inside a call they confirmed.
 | --- | --- | --- |
 | `ideas-capture` | Saves one or many ideas, each with the nearest held ideas and their bands | MCP, CLI |
 | `ideas-match` | The nearest held ideas to statements or to held ideas, saving nothing | MCP, CLI |
+| `ideas-ask` | The held ideas that bear on a question, ranked, the seeds among them named | MCP, CLI |
 | `ideas-find` | Lists ideas by type, tags, standing, who said them, state and text | MCP, CLI |
 | `ideas-open` | One idea, its wordings, its standing and its decisions | MCP, CLI |
 | `ideas-guide` | The types, standings, bands, limits and counts | MCP, CLI |
 | `ideas-export` | Every record of the space in pages, the last with a manifest | CLI |
 | `ideas-import` | Restores an archive, affirming again as the person at a terminal | CLI |
 
-`ideas-ask` and the review commands are declared and answer `NOT_IMPLEMENTED` until steps C2 and
-C3 of the specification.
+The review commands are declared and answer `NOT_IMPLEMENTED` until steps C3 and C4 of the
+specification.
 
 ## An instance
 
