@@ -25,30 +25,47 @@ const HTML = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8';
 
 /**
  * Section 14's ceilings, enforced only in `loam.yml`'s `Hosted development profile` job (`CI=true`), the
- * place section 14 measures: the maximum of at least three `ubuntu-latest` samples, plus 25%, approved by
- * the coordinator 2026-11-10: samples of 301, 285 and 283 ms, all at 93 MB, so 377 ms and 117 MB.
+ * place section 14 measures. Resident memory: three `ubuntu-latest` samples of 93 MB, plus 25%, approved by
+ * the coordinator 2026-11-10. Cold start: the median of `COLD_STARTS`, against an interim 750 ms, the worst
+ * single start a runner has measured (585 ms) plus 25%, approved by the owner 2026-11-12 (#1062); about 20
+ * runs' medians then set the row.
  */
-const SECTION_14_CEILINGS = { coldStartMs: 377, residentMb: 117 };
+const SECTION_14_CEILINGS = { coldStartMs: 750, residentMb: 117 };
+/** Cold starts per run, each from its own empty directory; their median is section 14's sample (#1062). */
+const COLD_STARTS = 5;
 /** Elsewhere, a developer's machine under any load: the proposed bounds, with the measurement logged. */
 const LOCAL_BOUNDS = { coldStartMs: 3_000, residentMb: 300 };
 
 let host: DevHost;
 let browser: Browser;
 let coldStartMs = 0;
+const coldStarts: number[] = [];
+/** The start in flight, which `afterAll` closes if the loop throws or the hook times out. */
+let starting: DevHost | undefined;
 
 beforeAll(async () => {
 	const config = deploymentFile(
 		deploymentEntry('hello', await packApp('hello')),
 		deploymentEntry('tally', await packApp('tally'))
 	);
-	const started = performance.now();
-	host = await startDevHost({ config, basePath: '/loam/' });
-	// Section 14's cold-start row: from an empty directory to the first `200` on `<base>`.
-	expect((await hosted(host, '/loam/', { accept: HTML })).status).toBe(200);
-	coldStartMs = performance.now() - started;
+	// Section 14's cold-start row: from an empty directory to the first `200` on `<base>`, the median of
+	// several starts, so one slow start on a busy runner does not decide it. Each has its own directory,
+	// certificate and child; the OS and module caches are warm after the first. The last one is kept.
+	for (let run = 1; run <= COLD_STARTS; run++) {
+		const started = performance.now();
+		starting = await startDevHost({ config, basePath: '/loam/' });
+		const status = (await hosted(starting, '/loam/', { accept: HTML })).status;
+		coldStarts.push(performance.now() - started);
+		expect(status).toBe(200);
+		if (run < COLD_STARTS) await starting.close();
+		else host = starting;
+		starting = undefined;
+	}
+	coldStartMs = [...coldStarts].sort((a, b) => a - b)[Math.floor(COLD_STARTS / 2)] as number;
 	browser = await launchForDevHost(host);
-}, 120_000);
+}, 360_000);
 afterAll(async () => {
+	if (starting !== host) await starting?.close();
 	await browser?.close();
 	await host?.close();
 });
@@ -199,7 +216,7 @@ describe('P6-H1: one command, one process', () => {
 			) / 1024;
 		// The line `loam.yml`'s `Hosted development profile` job's samples are read from (section 14).
 		console.log(
-			`P6-H1 measurement: cold start ${Math.round(coldStartMs)} ms, resident ${Math.round(residentMb)} MB`
+			`P6-H1 measurement: cold start ${Math.round(coldStartMs)} ms (median of ${coldStarts.map(Math.round).join(', ')}), resident ${Math.round(residentMb)} MB`
 		);
 		const bounds = process.env.CI === 'true' ? SECTION_14_CEILINGS : LOCAL_BOUNDS;
 		expect(coldStartMs).toBeLessThanOrEqual(bounds.coldStartMs);
