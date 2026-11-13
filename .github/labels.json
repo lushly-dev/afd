@@ -1,0 +1,334 @@
+[
+	{
+		"name": "status:triage",
+		"color": "d876e3",
+		"description": "Needs initial review"
+	},
+	{
+		"name": "status:planned",
+		"color": "0E8A16",
+		"description": "Triaged: eligible for a factory cell or the owner lane"
+	},
+	{
+		"name": "status:in-progress",
+		"color": "5319e7",
+		"description": "Actively being worked"
+	},
+	{
+		"name": "status:deferred",
+		"color": "D93F0B",
+		"description": "Triaged: not eligible; one comment names the reason"
+	},
+	{
+		"name": "status:accepted",
+		"color": "6f42c1",
+		"description": "Triaged, in backlog",
+		"legacy": true
+	},
+	{
+		"name": "status:blocked",
+		"color": "b60205",
+		"description": "Waiting on dependency",
+		"legacy": true
+	},
+	{
+		"name": "status:needs-info",
+		"color": "fbca04",
+		"description": "Waiting on reporter",
+		"legacy": true
+	},
+	{
+		"name": "execution:bounded",
+		"color": "0E8A16",
+		"description": "Localized work, established pattern, strong test oracle"
+	},
+	{
+		"name": "execution:integrative",
+		"color": "1D76DB",
+		"description": "Cross-component work, diagnosis, or interacting constraints"
+	},
+	{
+		"name": "execution:deep",
+		"color": "5319E7",
+		"description": "High-consequence or ambiguous; plausible-but-wrong may pass checks"
+	},
+	{
+		"name": "execution:frontier",
+		"color": "B60205",
+		"description": "Deep issue promoted after a substantive failed attempt, or raised by the owner"
+	},
+	{
+		"name": "execution:expert-escalation",
+		"color": "000000",
+		"description": "Manual owner lane; always assigned"
+	},
+	{
+		"name": "priority:0",
+		"color": "B60205",
+		"description": "Critical: data loss, security exposure, or essential feature failure with no viable workaround"
+	},
+	{
+		"name": "priority:1",
+		"color": "D93F0B",
+		"description": "High: major impact on existing features or functionality"
+	},
+	{
+		"name": "priority:critical",
+		"color": "b60205",
+		"description": "Blocks release, security issue",
+		"legacy": true
+	},
+	{
+		"name": "priority:high",
+		"color": "d93f0b",
+		"description": "Important, schedule soon",
+		"legacy": true
+	},
+	{
+		"name": "priority:low",
+		"color": "0e8a16",
+		"description": "Nice to have, backlog",
+		"legacy": true
+	},
+	{
+		"name": "priority:medium",
+		"color": "fbca04",
+		"description": "Normal priority",
+		"legacy": true
+	},
+	{
+		"name": "risk:high",
+		"color": "D93F0B",
+		"description": "Wide blast radius: auth, wire contract, release, CI policy, gates"
+	},
+	{
+		"name": "risk:medium",
+		"color": "E99695",
+		"description": "Cross-cutting change to shared packages or contracts"
+	},
+	{
+		"name": "needs:approach",
+		"color": "5319E7",
+		"description": "Session must propose an approach before implementing"
+	},
+	{
+		"name": "needs:decision",
+		"color": "B60205",
+		"description": "Blocked on a product or architecture decision only the owner can make"
+	},
+	{
+		"name": "needs:operator",
+		"color": "B60205",
+		"description": "Requires credentials, consent, portal access, or external mutation"
+	},
+	{
+		"name": "needs:repro",
+		"color": "BFD4F2",
+		"description": "Bug without reliable repro; reproduce first"
+	},
+	{
+		"name": "needs:ux",
+		"color": "C2E0C6",
+		"description": "Wants the owner's UX or content review before merge"
+	},
+	{
+		"name": "blocked",
+		"color": "000000",
+		"description": "Blocked by another open issue or external dependency"
+	},
+	{
+		"name": "type:bug",
+		"color": "d73a4a",
+		"description": "Something isn't working"
+	},
+	{
+		"name": "type:chore",
+		"color": "c5def5",
+		"description": "Maintenance, refactoring, dependencies"
+	},
+	{
+		"name": "type:docs",
+		"color": "0075ca",
+		"description": "Documentation only"
+	},
+	{
+		"name": "type:enhancement",
+		"color": "84b6eb",
+		"description": "Improvement to existing feature"
+	},
+	{
+		"name": "type:feature",
+		"color": "a2eeef",
+		"description": "New capability request"
+	},
+	{
+		"name": "type:security",
+		"color": "b60205",
+		"description": "Security vulnerability"
+	},
+	{
+		"name": "area:adapters",
+		"color": "0e8a16",
+		"description": "@afd/adapters"
+	},
+	{
+		"name": "area:agent-tooling",
+		"color": "5319e7",
+		"description": "Skills, AGENTS.md, model routing and other agent guidance"
+	},
+	{
+		"name": "area:alfred",
+		"color": "0E8A16",
+		"description": "Alfred quality bot and AFDLinter"
+	},
+	{
+		"name": "area:auth",
+		"color": "0e8a16",
+		"description": "@afd/auth"
+	},
+	{
+		"name": "area:botcore",
+		"color": "0e8a16",
+		"description": "botcore and its plugins"
+	},
+	{
+		"name": "area:ci",
+		"color": "0E8A16",
+		"description": "CI, dependencies and quality gates"
+	},
+	{
+		"name": "area:cli",
+		"color": "0e8a16",
+		"description": "@afd/cli"
+	},
+	{
+		"name": "area:client",
+		"color": "0e8a16",
+		"description": "@afd/client"
+	},
+	{
+		"name": "area:core",
+		"color": "0e8a16",
+		"description": "@afd/core package"
+	},
+	{
+		"name": "area:cpp",
+		"color": "0E8A16",
+		"description": "afd-cpp library and C++ todo backend"
+	},
+	{
+		"name": "area:docs",
+		"color": "0E8A16",
+		"description": "Feature docs, proposals and skills"
+	},
+	{
+		"name": "area:dx",
+		"color": "bfd4f2",
+		"description": "Developer experience"
+	},
+	{
+		"name": "area:examples",
+		"color": "c2e0c6",
+		"description": "Todo example, demos"
+	},
+	{
+		"name": "area:fast-af",
+		"color": "0e8a16",
+		"description": "FAST-AF foundation and its integrations"
+	},
+	{
+		"name": "area:hosted",
+		"color": "0E8A16",
+		"description": "Hosted provider verification fixtures and receipts"
+	},
+	{
+		"name": "area:local-db",
+		"color": "0e8a16",
+		"description": "@afd/local-db"
+	},
+	{
+		"name": "area:loam",
+		"color": "0e8a16",
+		"description": "Loam endpoint"
+	},
+	{
+		"name": "area:server",
+		"color": "0e8a16",
+		"description": "@afd/server, MCP"
+	},
+	{
+		"name": "area:site",
+		"color": "0e8a16",
+		"description": "The afd.dev site"
+	},
+	{
+		"name": "area:spec",
+		"color": "0e8a16",
+		"description": "Wire spec, vectors and conformance"
+	},
+	{
+		"name": "area:specimen",
+		"color": "0e8a16",
+		"description": "Specimen foundation, CLI and integrations"
+	},
+	{
+		"name": "area:testing",
+		"color": "0e8a16",
+		"description": "@afd/testing"
+	},
+	{
+		"name": "area:umbel",
+		"color": "0e8a16",
+		"description": "Umbel endpoint"
+	},
+	{
+		"name": "area:view-state",
+		"color": "0e8a16",
+		"description": "@afd/view-state"
+	},
+	{
+		"name": "area:violet",
+		"color": "0e8a16",
+		"description": "Violet foundation, CLI, server and integration"
+	},
+	{
+		"name": "lang:python",
+		"color": "3572A5",
+		"description": "Python afd package"
+	},
+	{
+		"name": "lang:rust",
+		"color": "1D76DB",
+		"description": "Rust afd crate"
+	},
+	{
+		"name": "dependencies",
+		"color": "0366d6",
+		"description": "Dependency updates (Dependabot)"
+	},
+	{
+		"name": "duplicate",
+		"color": "cfd3d7",
+		"description": "This issue or pull request already exists"
+	},
+	{
+		"name": "good first issue",
+		"color": "7057ff",
+		"description": "Good for newcomers"
+	},
+	{
+		"name": "help wanted",
+		"color": "008672",
+		"description": "Extra attention is needed"
+	},
+	{
+		"name": "parity",
+		"color": "e99695",
+		"description": "Cross-language API parity"
+	},
+	{
+		"name": "wontfix",
+		"color": "ffffff",
+		"description": "This will not be worked on"
+	}
+]

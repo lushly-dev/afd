@@ -20,7 +20,7 @@ Jason's answers of 2026-11-12.
 | Lane host | Chosen from the connected machines, never hard-coded. AFD's first host is the Windows workstation | Host identity, process control, locks and hand-off must work on Windows and macOS |
 | Capacity | The workstation (Ryzen 9 7950X3D, 16 cores / 32 threads, 64 GB) has far more room than the Mac mini (M4, 10 cores, 24 GB) | Validation concurrency is a dial sized per host, not Lushly's fixed "one final at a time" |
 | Jobs | Keep every job; the build order is left to the implementer | The order in [Jobs](#jobs) is the build order |
-| Intake | AFD needs Lushly's triage | An AFD `do-triage` skill, a label file, and the label and claim rules in the plugin ([Intake](#intake)) |
+| Intake | AFD needs Lushly's triage | An AFD `triage-issues` skill, a label file, and the label and claim rules in the plugin ([Intake](#intake)) |
 
 ## Goal
 
@@ -161,11 +161,11 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
 | `lane-error` | The lane paused on its own trouble | Fix what the detail names, then `lane-resume`; sign-ins go to `owner-queue` |
-| `main-broken` | Coverage on `main` failed, or two branches failed the same check | If one merge is the cause, `lane-revert` it; file a `priority:p1` issue and start a cell on it; `lane-resume` |
+| `main-broken` | Coverage on `main` failed, or two branches failed the same check | If one merge is the cause, `lane-revert` it; file a `priority:1` issue and start a cell on it; `lane-resume` |
 | `merged-without-check` | A PR merged without the required check green | Check it; revert it if the check failed; otherwise `event-resolve` |
-| `owner-replied` | Jason replied on an issue in `owner-queue` | Run `do-triage` on it |
+| `owner-replied` | Jason replied on an issue in `owner-queue` | Run `triage-issues` on it |
 | `lane-stopped` | The lane process is gone; produced by `lane-status` and `lane-wait` from the lock's process check, since a dead lane cannot report itself | Read the log, `lane-start` |
-| `queue-empty` | Nothing queued, no cell active, owed coverage done | Run `do-triage`; start cells if work remains; otherwise finish |
+| `queue-empty` | Nothing queued, no cell active, owed coverage done | Run `triage-issues`; start cells if work remains; otherwise finish |
 
 A cell that ends its turn without enqueueing calls no command, so the lane cannot see it.
 The foreman learns it from T3 Code when `delegate_task` completes, and acts at once:
@@ -208,8 +208,8 @@ Everything Lushly hard-codes becomes configuration under `[tool.botcore.factory]
 | `coverage` | `pnpm check:all` | `pnpm validate:coverage` |
 | `install` | `pnpm install --frozen-lockfile` | Same |
 | `required_check` | A new aggregate check (see [AFD prerequisites](#afd-prerequisites)) | `ci-ok` |
-| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.yml`, `scripts/check-*.mjs`, `scripts/affected*`, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
-| `review_evidence` | The record `do-prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
+| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/issue-labels.mjs`, `scripts/affected*`, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
+| `review_evidence` | The record `prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
 | `receipt` | Optional. Confirms an existing validation of this head, so it is reused | `validate:final --verify` |
 | `ui_paths` | `endpoints/loam/**`, `foundations/specimen/**`, `foundations/fast-af/**`, `site/**` | Lushly's app paths |
 | `screens` | Capture changed stories and routes before and after, desktop and phone | Lushly's capture script |
@@ -268,10 +268,10 @@ host the lane validates several branches at once while still merging one at a ti
 
 ### Cells, foreman and skills
 
-- `do-prepare-pr` gains a **lane mode**: base sync, review (recording `review_evidence`),
+- `prepare-pr` gains a **lane mode**: base sync, review (recording `review_evidence`),
   docs and changeset, commit, then `lane-enqueue`. It never runs the full `pnpm verify`,
   pushes or opens the PR.
-- A new **`do-run-fleet`** skill is the foreman's procedure: start or pick up a run from
+- A new **`run-fleet`** skill is the foreman's procedure: start or pick up a run from
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
@@ -281,7 +281,7 @@ host the lane validates several branches at once while still merging one at a ti
   plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell
   on that plan, then `cell-attach` records its thread. The plan is the lane's choice, not
   the caller's, so the ceiling holds. A cell never claims.
-- The foreman runs `do-triage` at `queue-empty` and on `owner-replied`, so Jason's answers
+- The foreman runs `triage-issues` at `queue-empty` and on `owner-replied`, so Jason's answers
   turn into planned work without anyone remembering to.
 
 ### Intake
@@ -289,22 +289,29 @@ host the lane validates several branches at once while still merging one at a ti
 Lushly's foreman dispatches only issues that triage has planned. AFD gets the same three
 parts, the rules shared through the plugin:
 
-- **`.github/labels.yml`**, adapted from Lushly's: `status:*` (`triage`, `planned`,
-  `in-progress`, `deferred`, `blocked`), `priority:p0`/`p1`, one `execution:*` profile
-  (`bounded`, `integrative`, `deep`, `frontier`, `expert-escalation`), `risk:*`,
-  `needs:decision`/`operator`/`approach`/`repro`/`ux`, `type:*`, and `area:*` for AFD's
-  units (`core`, `server`, `client`, `cli`, `testing`, `auth`, `adapters`, `view-state`,
-  `local-db`, `python`, `rust`, `cpp`, `spec`, `botcore`, `umbel`, `loam`, `specimen`,
-  `violet`, `fast-af`, `site`, `ci`, `docs`). Lushly's `runs:local` and
-  `needs:local-validation` are left out until AFD has a cloud lane.
-- **`issue-check`** reads the label file's rules. `dispatchable` is in dispatch order:
-  `priority:p0`, then `priority:p1`, then the rest, oldest first; it leaves out
-  `execution:expert-escalation`, assigned issues, claimed issues and issues with an open PR.
-- **`do-triage`**, adapted from Lushly's: the seven questions in order (consequence,
-  can an agent finish it now, where it runs, what would catch a wrong choice, blast
-  radius, execution profile, whether Jason must be in the loop); writes limited to labels,
-  an assignee and one deferral comment; a report built from `issue-check`'s readback. When
-  Jason answers a deferred question in the issue, the next triage pass plans it.
+- **`.github/labels.json`**, adapted from Lushly's `labels.yml` (JSON, so the checker
+  needs no YAML dependency) and built on the labels AFD already had: `status:*`
+  (`triage`, `planned`, `in-progress`, `deferred`), AFD's existing `priority:0` and
+  `priority:1` as the two tiers, one `execution:*` profile (`bounded`, `integrative`,
+  `deep`, `frontier`, `expert-escalation`), `risk:*`,
+  `needs:decision`/`operator`/`approach`/`repro`/`ux`, `blocked`, `type:*`, and AFD's
+  existing `area:*` and `lang:*` labels plus `auth`, `botcore`, `fast-af`, `local-db`,
+  `loam`, `site`, `spec`, `specimen`, `umbel`, `view-state` and `violet`.
+  `status:accepted`, `status:blocked`, `status:needs-info` and the old priority names are
+  legacy: triage replaces them. Lushly's `runs:local` and `needs:local-validation` are
+  left out until AFD has a cloud lane.
+- **`scripts/issue-labels.mjs`** checks the rules (`check`), compares the file with
+  GitHub (`labels`) and lists what a cell may take (`dispatch`), ahead of the plugin.
+  `issue-check` will share its rules. `dispatchable` is in dispatch order:
+  `priority:0`, then `priority:1`, then the rest, oldest first; it leaves out
+  `execution:expert-escalation`, assigned issues, claimed issues, issues breaking a
+  rule and issues an open PR would close.
+- **`triage-issues`**, adapted from Lushly's: six questions in order (consequence,
+  can an agent finish it now, what would catch a wrong choice, blast radius, execution
+  profile, whether Jason must be in the loop; Lushly's "where it runs" waits for a cloud
+  lane); writes limited to labels, an assignee and one deferral comment; a report built
+  from the readback. When Jason answers a deferred question in the issue, the next triage
+  pass plans it.
 
 ### Experience review
 
@@ -399,7 +406,7 @@ number's change, so a dial change is judged against the run before it.
 
 ## Phases
 
-- [ ] **Phase 0: prerequisites.** Intake (the label file, `do-triage` and `issue-check`
+- [ ] **Phase 0: prerequisites.** Intake (the label file, `triage-issues` and `issue-check`
   ahead of the rest of the plugin), the aggregate required check, the pre-push hook that
   accepts the lane's record, and the workstation's symlinks, toolchain, SSH alias and pnpm
   store.
@@ -407,8 +414,8 @@ number's change, so a dial change is judged against the run before it.
   schemas and descriptions in the catalog, wrong-case refusals, confirmations); then
   `botcore-factory` with its two hosts and bounded output; the adapter; host probing and
   selection; the webhook wake; Windows and macOS process control; experience review; tests
-  against a fixture repository. `do-prepare-pr` lane
-  mode and `do-run-fleet` in AFD. Run one AFD fleet on the workstation and report the
+  against a fixture repository. `prepare-pr` lane
+  mode and `run-fleet` in AFD. Run one AFD fleet on the workstation and report the
   numbers.
 - [ ] **Phase 2: concurrency.** `lane.slots` above 1, the shared host lock, the
   re-validate-on-moved-main rule; measure against Phase 1.
@@ -494,7 +501,7 @@ botcore's host code. What changed:
 - **Experience review finishes:** pairs carry files, a digest page, `experience-accept`
   and `experience-reject`, `look` items, previews of open PRs that stop by themselves.
 - **Questions free their seat:** `cell-park`; `owner-replied` and `queue-empty` run
-  `do-triage`; `owner-queue` marks answered items.
+  `triage-issues`; `owner-queue` marks answered items.
 - **Reserve, then start:** `cell-register` before `delegate_task`, the plan assigned by the
   lane, `cell-attach` after; `canStartCell` returns `nextIssue`.
 - **Repairs are bounded:** the lane counts ejections; `cells.maxEjections`.

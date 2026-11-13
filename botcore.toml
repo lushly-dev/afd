@@ -50,6 +50,7 @@ skip = [
     "loam-design",
     "prepare-pr",
     "start-session",
+    "triage-issues",
 ]
 
 # Per-package overrides for Python and Rust subdirectories

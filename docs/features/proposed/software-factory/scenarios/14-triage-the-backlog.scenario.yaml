@@ -1,5 +1,5 @@
 # Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
-# do-triage itself is a skill that writes labels through gh; these steps show what it reads back.
+# triage-issues itself is a skill that writes labels through gh; these steps show what it reads back.
 name: Triage the backlog so the foreman takes the most urgent work first
 description: >-
   When issues arrive unlabelled or labelled against the rules, I want them listed with each broken
@@ -45,7 +45,7 @@ steps:
       success: false
       error:
         code: NOT_DISPATCHABLE
-        suggestion: { contains: do-triage }
+        suggestion: { contains: triage-issues }
   - description: The claimed issue leaves the dispatch list, and the expert lane never enters it
     command: issue-check
     expect:

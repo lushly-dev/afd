@@ -76,7 +76,8 @@
 				"end-session",
 				"loam-design",
 				"prepare-pr",
-				"start-session"
+				"start-session",
+				"triage-issues"
 			]
 		}
 	}
