@@ -123,7 +123,10 @@ async fn logged_in(page: &Page, prompt: &Asked) -> (String, String, String) {
 
 async fn rendered(page: &Page, prompt: &Asked, cookie: &str) -> u16 {
     page.client
-        .get(&format!("{}?page=1", prompt.path()), &[("cookie", cookie)])
+        .get(
+            &format!("{}?page=1", prompt.path()),
+            &[("cookie", cookie), ("sec-fetch-site", "same-origin")],
+        )
         .await
         .status
 }
@@ -153,6 +156,7 @@ async fn each_render_moves_the_expiry_from_the_last_page_shown() {
     page.clock.advance(500_000);
     page.host.check_person_logins().await;
     assert_eq!(rendered(&page, &prompt, &cookie).await, 200);
+    // Alive past ten minutes, the decision still needs a sign-in fresher than its lifetime.
     let approved = decide(
         &page.client,
         &prompt.id(),
@@ -161,7 +165,12 @@ async fn each_render_moves_the_expiry_from_the_last_page_shown() {
         Some(ORIGIN),
     )
     .await;
-    assert_eq!(approved.status, 200, "{}", approved.text);
+    assert_eq!(approved.status, 403, "{}", approved.text);
+    assert!(approved.text.contains("Sign in again"), "{}", approved.text);
+    // A fresh sign-in decides it.
+    let fresh =
+        support::person::decide_as(&page, &page.client, &prompt.path(), "ada", "approve").await;
+    assert_eq!(fresh.status, 200, "{}", fresh.text);
 }
 
 #[tokio::test]
@@ -196,4 +205,39 @@ async fn the_hosted_login_lives_until_its_decision_expires() {
     )
     .await;
     assert_eq!(approved.status, 200, "{}", approved.text);
+}
+
+#[tokio::test]
+async fn an_approval_later_than_decision_ttl_s_after_the_sign_in_is_refused() {
+    let page = served(3600).await;
+    let prompt = begin(&page).await;
+    let (cookie, login, _) = logged_in(&page, &prompt).await;
+    // Kept alive by a render, the decision outlives the sign-in's freshness.
+    page.clock.advance(3_000_000);
+    page.host.check_person_logins().await;
+    assert_eq!(rendered(&page, &prompt, &cookie).await, 200);
+    page.clock.advance(700_000);
+    page.host.check_person_logins().await;
+    let shown = page
+        .client
+        .get(
+            &format!("{}?page=1", prompt.path()),
+            &[
+                ("cookie", cookie.as_str()),
+                ("sec-fetch-site", "same-origin"),
+            ],
+        )
+        .await;
+    assert_eq!(shown.status, 200, "{}", shown.text);
+    let (_, csrf) = support::person::form(&shown.text).unwrap();
+    let late = decide(
+        &page.client,
+        &prompt.id(),
+        &format!("login={login}&csrf={csrf}&decision=approve"),
+        Some(&cookie),
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(late.status, 403, "{}", late.text);
+    assert!(late.text.contains("Sign in again"), "{}", late.text);
 }

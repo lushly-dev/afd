@@ -57,6 +57,12 @@ pub(crate) const KEEP_AFTER_EXPIRY_MS: i64 = 3_600_000;
 pub(crate) const MAX_LOGINS_PER_DECISION: i64 = 8;
 /// The most item ids one decision records as pulled out (`MAX_EXCLUDED`).
 pub(crate) const MAX_EXCLUDED: usize = 2000;
+/// The most logins to the list of pending decisions started and not yet returned at once: opening
+/// the list is unauthenticated, so the rows it can make are bounded.
+pub(crate) const MAX_LIVE_LIST_LOGINS: i64 = 64;
+/// How long a login lives before its browser returns from the provider; once verified, it lives
+/// as long as its decision.
+pub(crate) const LOGIN_START_TTL_MS: i64 = 600_000;
 /// The longest a decision lives after it began, however often its pages render.
 pub(crate) const MAX_DECISION_LIFE_MS: i64 =
     crate::workspace::PERSON_DECISION_TTL_MAX_S.saturating_mul(1000) as i64;
@@ -326,6 +332,11 @@ pub(crate) struct Choice {
     pub(crate) page: u32,
     pub(crate) action: Action,
     pub(crate) checked: Vec<usize>,
+    /// `sha256:<hex>` of the page the form was on, which its CSRF token binds: a move or an
+    /// approval is recorded only while it is still the page recorded under that number.
+    pub(crate) hash: String,
+    /// The longest an approval may come after its login's `auth_time` (`person.decision_ttl_s`).
+    pub(crate) max_age_ms: i64,
 }
 
 /// A form's action.
@@ -373,6 +384,9 @@ pub(crate) enum Decided {
     /// Nothing was recorded: the login is not a verified login of this decision in this browser,
     /// has expired or was used, or the decision is no longer pending and live.
     Refused,
+    /// Nothing was recorded: an approval came longer than `person.decision_ttl_s` after its
+    /// login's `auth_time`. A new login may approve.
+    Stale,
 }
 
 /// The person store (section 10.2). A networked backend for several machines implements the same
@@ -421,7 +435,18 @@ pub(crate) trait PersonStore: Send + Sync {
     ///
     /// # Errors
     /// A [`SharedError`].
-    fn start_list_login(&self, login: &NewListLogin, now_ms: i64) -> Result<(), SharedError>;
+    fn start_list_login(
+        &self,
+        login: &NewListLogin,
+        now_ms: i64,
+    ) -> Result<LoginStart, SharedError>;
+
+    /// Clear the pages and the choices recorded for `decision`: a page recorded before could not
+    /// be shown again.
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn clear_pages(&self, decision: &str) -> Result<(), SharedError>;
 
     /// Whether `login` is a verified, live login of `decision` in the browser whose cookie hashes
     /// to `browser_hash`, with the decision pending and live.
@@ -652,6 +677,32 @@ fn json_text(value: &impl serde::Serialize) -> Result<String, SharedError> {
     serde_json::to_string(value).map_err(|error| failed(&error))
 }
 
+/// Migrate a version 1 store to version 2 under the write lock, reading the version again inside
+/// it: of two processes that open a version 1 file at once, the second finds it migrated.
+fn migrate_from_1(connection: &Connection) -> rusqlite::Result<()> {
+    connection.execute_batch("BEGIN IMMEDIATE")?;
+    let migrated = (|| {
+        let version: i64 = connection.query_row("PRAGMA user_version", [], |row| row.get(0))?;
+        if version == 1 {
+            connection.execute_batch(&format!(
+                "ALTER TABLE decisions ADD COLUMN pages_total INTEGER;
+                 ALTER TABLE decisions ADD COLUMN pages TEXT NOT NULL DEFAULT '[]';
+                 ALTER TABLE decisions ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]';
+                 ALTER TABLE logins ADD COLUMN namespace TEXT;
+                 PRAGMA user_version = {SCHEMA_VERSION};"
+            ))?;
+        }
+        Ok(())
+    })();
+    match migrated {
+        Ok(()) => connection.execute_batch("COMMIT"),
+        Err(error) => {
+            let _ = connection.execute_batch("ROLLBACK");
+            Err(error)
+        }
+    }
+}
+
 impl SqlitePerson {
     /// The store at `path`, waiting up to `lock_timeout_ms` for another process's write. Nothing
     /// is opened until the first use.
@@ -758,17 +809,7 @@ impl SqlitePerson {
                 .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
                 .map_err(|error| unwritable(&error))?,
             // Version 1 had no pages and no list logins: its rows read as having rendered none.
-            1 => connection
-                .execute_batch(&format!(
-                    "BEGIN IMMEDIATE;
-                     ALTER TABLE decisions ADD COLUMN pages_total INTEGER;
-                     ALTER TABLE decisions ADD COLUMN pages TEXT NOT NULL DEFAULT '[]';
-                     ALTER TABLE decisions ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]';
-                     ALTER TABLE logins ADD COLUMN namespace TEXT;
-                     PRAGMA user_version = {SCHEMA_VERSION};
-                     COMMIT;"
-                ))
-                .map_err(|error| unwritable(&error))?,
+            1 => migrate_from_1(&connection).map_err(|error| unwritable(&error))?,
             SCHEMA_VERSION => {}
             other => {
                 return Err(unwritable(&format!(
@@ -987,9 +1028,13 @@ impl PersonStore for SqlitePerson {
     fn finish_login(&self, id: &str, verified: Option<&Verified>) -> Result<bool, SharedError> {
         self.with(|connection| {
             let changed = match verified {
+                // Verified, a decision's login lives as long as its decision; a list's keeps its own.
                 Some(verified) => connection.execute(
                     "UPDATE logins SET status = 'verified', auth_time_ms = ?2, acr = ?3,
-                         preview_hash = ?4, preview_ok = ?5
+                         preview_hash = ?4, preview_ok = ?5,
+                         expires_ms = COALESCE(
+                             (SELECT d.expires_ms FROM decisions d WHERE d.id = logins.decision),
+                             expires_ms)
                      WHERE id = ?1 AND status = 'returning'",
                     params![
                         id,
@@ -1009,11 +1054,26 @@ impl PersonStore for SqlitePerson {
         })
     }
 
-    fn start_list_login(&self, login: &NewListLogin, now_ms: i64) -> Result<(), SharedError> {
+    fn start_list_login(
+        &self,
+        login: &NewListLogin,
+        now_ms: i64,
+    ) -> Result<LoginStart, SharedError> {
         self.with(|connection| {
             let transaction = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| shared_error(&error))?;
+            let live: i64 = transaction
+                .query_row(
+                    "SELECT COUNT(*) FROM logins
+                     WHERE decision = '' AND status = 'started' AND expires_ms > ?1",
+                    params![now_ms],
+                    |row| row.get(0),
+                )
+                .map_err(|error| shared_error(&error))?;
+            if live >= MAX_LIVE_LIST_LOGINS {
+                return Ok(LoginStart::TooMany);
+            }
             let inserted = transaction
                 .execute(
                     "INSERT INTO logins (id, decision, verifier, nonce, browser_hash, created_ms, expires_ms, status, namespace)
@@ -1033,7 +1093,21 @@ impl PersonStore for SqlitePerson {
                 return Err(failed(&"a login id was already taken"));
             }
             purge(&transaction, now_ms)?;
-            transaction.commit().map_err(|error| shared_error(&error))
+            transaction.commit().map_err(|error| shared_error(&error))?;
+            Ok(LoginStart::Started)
+        })
+    }
+
+    fn clear_pages(&self, decision: &str) -> Result<(), SharedError> {
+        self.with(|connection| {
+            connection
+                .execute(
+                    "UPDATE decisions SET pages_total = NULL, pages = '[]', excluded = '[]'
+                     WHERE id = ?1 AND status = 'pending'",
+                    params![decision],
+                )
+                .map_err(|error| shared_error(&error))?;
+            Ok(())
         })
     }
 
@@ -1151,6 +1225,14 @@ impl PersonStore for SqlitePerson {
                 return Ok(Decided::Refused);
             }
             let total = row.pages_total.unwrap_or(0);
+            // A move or an approval comes from the page recorded under its number, as it was
+            // shown: a form from a tab that shows an older version of the page records nothing.
+            let current = row
+                .seen(choice.page)
+                .is_some_and(|seen| same_digest(&seen.hash, &choice.hash));
+            if choice.action != Action::Decline && !current {
+                return Ok(Decided::Changed);
+            }
             let (status, excluded, preview_hash) = match choice.action {
                 Action::Next | Action::Previous => {
                     let target = if choice.action == Action::Next {
@@ -1174,6 +1256,10 @@ impl PersonStore for SqlitePerson {
                     return Ok(Decided::Moved(target));
                 }
                 Action::Approve => {
+                    // The login is as fresh as the deployer's lifetime for a decision allows.
+                    if now_ms.saturating_sub(auth_time_ms) > choice.max_age_ms {
+                        return Ok(Decided::Stale);
+                    }
                     // Every page shown before Approve (section 2), and the choices of the page
                     // posted from, final.
                     if !row.every_page_seen() {
@@ -1312,7 +1398,13 @@ mod tests {
             page: 1,
             action,
             checked: Vec::new(),
+            hash: page_hash(1),
+            max_age_ms: i64::MAX,
         }
+    }
+
+    fn page_hash(page: u32) -> String {
+        format!("sha256:{}", format!("{page}").repeat(64))
     }
 
     const APPROVE: Action = Action::Approve;
@@ -1338,7 +1430,7 @@ mod tests {
                     login: login.to_owned(),
                     page,
                     pages,
-                    hash: format!("sha256:{}", format!("{page}").repeat(64)),
+                    hash: page_hash(page),
                     items: items.iter().map(|&id| id.to_owned()).collect(),
                     ttl_ms: 600_000,
                 },
@@ -1581,6 +1673,8 @@ mod tests {
                     page,
                     action,
                     checked: checked.to_vec(),
+                    hash: page_hash(page),
+                    max_age_ms: i64::MAX,
                 },
                 now,
             )
@@ -1822,5 +1916,163 @@ mod tests {
             .query_row("PRAGMA user_version", [], |row| row.get(0))
             .unwrap();
         assert_eq!(version, SCHEMA_VERSION);
+    }
+
+    #[test]
+    fn a_form_from_another_version_of_its_page_records_nothing() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 12_000_000;
+        ready(&store, "d1", "l1", now);
+        rendered_of(&store, "d1", "l1", 1, 1, &["a", "b"], now);
+        let stale = |action: Action| Choice {
+            page: 1,
+            action,
+            checked: vec![0],
+            hash: format!("sha256:{}", "e".repeat(64)),
+            max_age_ms: i64::MAX,
+        };
+        for action in [Action::Next, APPROVE] {
+            assert!(matches!(
+                store
+                    .decide("d1", "l1", &"ab".repeat(32), &stale(action), now)
+                    .unwrap(),
+                Decided::Changed
+            ));
+        }
+        assert!(store.decision("d1").unwrap().unwrap().excluded.is_empty());
+        // An approval later than the lifetime after the login's `auth_time` (1 ms) is stale.
+        let mut late = choice(APPROVE);
+        late.max_age_ms = now - 2;
+        assert!(matches!(
+            store
+                .decide("d1", "l1", &"ab".repeat(32), &late, now)
+                .unwrap(),
+            Decided::Stale
+        ));
+        // Decline needs neither.
+        assert!(matches!(
+            store
+                .decide("d1", "l1", &"ab".repeat(32), &stale(DECLINE), now)
+                .unwrap(),
+            Decided::Recorded(_)
+        ));
+    }
+
+    #[test]
+    fn cleared_pages_are_rendered_again_from_none() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 13_000_000;
+        ready(&store, "d1", "l1", now);
+        rendered(&store, "d1", "l1", 1, &["a"], now);
+        rendered(&store, "d1", "l1", 2, &["b"], now);
+        store.clear_pages("d1").unwrap();
+        let cleared = store.decision("d1").unwrap().unwrap();
+        assert!(cleared.pages.is_empty() && !cleared.every_page_seen());
+    }
+
+    #[test]
+    fn live_list_logins_are_capped() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 14_000_000;
+        let list = |index: i64, at: i64| NewListLogin {
+            id: format!("ll{index}"),
+            namespace: "corp".into(),
+            verifier: "v".into(),
+            nonce: "n".into(),
+            browser_hash: "ab".repeat(32),
+            created_ms: at,
+            expires_ms: at + 600_000,
+        };
+        for index in 0..MAX_LIVE_LIST_LOGINS {
+            assert_eq!(
+                store.start_list_login(&list(index, now), now).unwrap(),
+                LoginStart::Started
+            );
+        }
+        assert_eq!(
+            store.start_list_login(&list(999, now), now).unwrap(),
+            LoginStart::TooMany
+        );
+        // Once they expire, more may start.
+        let later = now + 600_000;
+        assert_eq!(
+            store.start_list_login(&list(1000, later), later).unwrap(),
+            LoginStart::Started
+        );
+    }
+
+    #[test]
+    fn a_login_lives_ten_minutes_until_verified_then_as_long_as_its_decision() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 15_000_000;
+        let mut long = decision("d1", now);
+        long.expires_ms = now + 3_600_000;
+        store.create(&long, now).unwrap();
+        let mut row = login("l1", "d1", now);
+        row.expires_ms = now + LOGIN_START_TTL_MS;
+        store.start_login(&row, now).unwrap();
+        store
+            .take_login("l1", &"ab".repeat(32), now)
+            .unwrap()
+            .unwrap();
+        store.finish_login("l1", Some(&verified(true))).unwrap();
+        assert!(
+            store
+                .verified_login("d1", "l1", &"ab".repeat(32), now + 3_000_000)
+                .unwrap()
+        );
+        // Unreturned, a login dies at ten minutes.
+        let mut row = login("l2", "d1", now);
+        row.expires_ms = now + LOGIN_START_TTL_MS;
+        store.start_login(&row, now).unwrap();
+        assert!(
+            store
+                .take_login("l2", &"ab".repeat(32), now + LOGIN_START_TTL_MS)
+                .unwrap()
+                .is_none()
+        );
+    }
+
+    #[test]
+    fn two_processes_migrating_a_version_1_store_at_once_both_open_it() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared").join("person.sqlite3");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE decisions (id TEXT PRIMARY KEY NOT NULL, for_json TEXT NOT NULL,
+                         command TEXT NOT NULL, input_digest TEXT NOT NULL, properties TEXT NOT NULL,
+                         spaces TEXT NOT NULL, chain TEXT NOT NULL, trace_id TEXT,
+                         created_ms INTEGER NOT NULL, expires_ms INTEGER NOT NULL, status TEXT NOT NULL,
+                         decided_ms INTEGER, auth_time_ms INTEGER, acr TEXT, preview_hash TEXT) WITHOUT ROWID;
+                     CREATE TABLE logins (id TEXT PRIMARY KEY NOT NULL, decision TEXT NOT NULL,
+                         verifier TEXT NOT NULL, nonce TEXT NOT NULL, browser_hash TEXT NOT NULL,
+                         created_ms INTEGER NOT NULL, expires_ms INTEGER NOT NULL, status TEXT NOT NULL,
+                         auth_time_ms INTEGER, acr TEXT, preview_hash TEXT,
+                         preview_ok INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
+                     PRAGMA journal_mode = WAL;
+                     PRAGMA user_version = 1;",
+                )
+                .unwrap();
+        }
+        let handles: Vec<_> = (0..4)
+            .map(|_| {
+                let path = path.clone();
+                std::thread::spawn(move || {
+                    SqlitePerson::new(&path, 5_000)
+                        .decision("none")
+                        .map(|found| found.is_none())
+                })
+            })
+            .collect();
+        for handle in handles {
+            assert!(handle.join().unwrap().unwrap());
+        }
     }
 }

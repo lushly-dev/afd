@@ -76,12 +76,14 @@ journal = { mode = "digest", keep = ["proposal"] }
 returns = { type = "object", properties = { preview = { type = "string" }, page = { type = "integer" }, pages = { type = "integer" }, items = { type = "array" } }, required = ["preview"], additionalProperties = false }
 "#;
 
-/// What the gate's commands saw, and how many pages the paged preview answers now (0 for 3), so
-/// a test can change the review while it is read.
+/// What the gate's commands saw, how many pages the paged preview answers now (0 for 3), and
+/// whether its page 2 fails, so a test can change the review while it is read.
 #[derive(Clone, Default)]
 pub struct Seen(
     pub Arc<Mutex<Vec<Value>>>,
     pub Arc<std::sync::atomic::AtomicU32>,
+    /// When set, the paged preview's page 2 fails.
+    pub Arc<std::sync::atomic::AtomicBool>,
 );
 
 impl Seen {
@@ -210,6 +212,12 @@ pub fn plugin_with(seen: &Seen, manifest: String) -> Raw {
                         0 => 3,
                         pages => pages,
                     };
+                    if page == Some(2) && seen.2.load(std::sync::atomic::Ordering::SeqCst) {
+                        return afd::failure(afd::CommandError::new(
+                            "PREVIEW_BROKEN",
+                            "page 2 broke",
+                        ));
+                    }
                     preview_of(
                         input["proposal"].as_str().unwrap_or_default(),
                         checking,

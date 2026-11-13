@@ -35,7 +35,8 @@ struct Browser {
     id: String,
     cookie: String,
     login: String,
-    csrf: String,
+    /// The CSRF token of the page last shown: it binds that page.
+    csrf: std::sync::Mutex<String>,
     first: Reply,
 }
 
@@ -49,7 +50,7 @@ async fn browse(page: &Page, prompt: &Asked) -> Browser {
         id: prompt.id(),
         cookie: logged.opened.cookie_header(),
         login,
-        csrf,
+        csrf: std::sync::Mutex::new(csrf),
         first: logged.page,
     }
 }
@@ -59,7 +60,8 @@ impl Browser {
     async fn post(&self, page: &Page, from: u32, action: &str, checked: &[usize]) -> Reply {
         let mut fields = format!(
             "login={}&csrf={}&page={from}&decision={action}",
-            self.login, self.csrf
+            self.login,
+            self.csrf()
         );
         for position in checked {
             fields.push_str(&format!("&k={position}"));
@@ -78,10 +80,23 @@ impl Browser {
     async fn get(&self, page: &Page, path: &str) -> Reply {
         let reply = page
             .client
-            .get(path, &[("cookie", self.cookie.as_str())])
+            .get(
+                path,
+                &[
+                    ("cookie", self.cookie.as_str()),
+                    ("sec-fetch-site", "same-origin"),
+                ],
+            )
             .await;
         assert_eq!(reply.status, 200, "{path}: {}", reply.text);
+        if let Some((_, csrf)) = support::person::form(&reply.text) {
+            *self.csrf.lock().unwrap() = csrf;
+        }
         reply
+    }
+
+    fn csrf(&self) -> String {
+        self.csrf.lock().unwrap().clone()
     }
 
     /// Follow a `303` to the page it names.
@@ -316,7 +331,7 @@ async fn a_position_past_the_page_is_refused_and_nothing_kept() {
         "&decision=next&page=0",
         "&decision=next&decision=next",
     ] {
-        let body = format!("login={}&csrf={}{fields}", browser.login, browser.csrf);
+        let body = format!("login={}&csrf={}{fields}", browser.login, browser.csrf());
         let refused = decide(
             &page.client,
             &browser.id,
@@ -339,7 +354,8 @@ async fn the_form_of_a_hundred_items_fits_in_4096_bytes() {
     assert!(browser.first.text.contains("value=\"99\" checked>"));
     let mut fields = format!(
         "login={}&csrf={}&decision=approve",
-        browser.login, browser.csrf
+        browser.login,
+        browser.csrf()
     );
     for position in 0..100 {
         fields.push_str(&format!("&k={position}"));
@@ -362,4 +378,96 @@ async fn the_form_of_a_hundred_items_fits_in_4096_bytes() {
             .get("excluded")
             .is_none()
     );
+}
+
+#[tokio::test]
+async fn a_form_from_a_tab_that_shows_an_older_page_records_nothing() {
+    let page = Page::start().await;
+    let prompt = begin(&page, "paged").await;
+    let tab_a = browse(&page, &prompt).await;
+    for (from, to) in [(1, 2), (2, 3)] {
+        let moved = tab_a.post(&page, from, "next", &[0, 1]).await;
+        tab_a.follow(&page, &moved, to).await;
+    }
+    // Tab A shows page 2 with every page seen, and keeps its form.
+    let shown = tab_a.get(&page, &format!("{}?page=2", prompt.path())).await;
+    assert!(offers(&shown.text, "approve"), "{}", shown.text);
+    let (_, old_csrf) = support::person::form(&shown.text).unwrap();
+    // The review changes, and tab B, with the same login, shows it again from page 1 to 3.
+    page.seen.1.store(4, std::sync::atomic::Ordering::SeqCst);
+    let restarted = tab_a.get(&page, &format!("{}?page=2", prompt.path())).await;
+    assert!(restarted.text.contains("The review changed"));
+    for number in 2..=4 {
+        tab_a
+            .get(&page, &format!("{}?page={number}", prompt.path()))
+            .await;
+    }
+    // Tab A's old form for page 2 names a page no longer shown: nothing is recorded.
+    let stale = decide(
+        &page.client,
+        &tab_a.id,
+        &format!(
+            "login={}&csrf={old_csrf}&page=2&decision=approve&k=0",
+            tab_a.login
+        ),
+        Some(&tab_a.cookie),
+        Some(ORIGIN),
+    )
+    .await;
+    assert_eq!(stale.status, 403, "{}", stale.text);
+    assert_eq!(page.seen.runs("gate-approve"), 0);
+}
+
+#[tokio::test]
+async fn a_recorded_page_that_cannot_be_shown_again_clears_the_review() {
+    let page = Page::start().await;
+    let prompt = begin(&page, "paged").await;
+    let browser = browse(&page, &prompt).await;
+    let moved = browser.post(&page, 1, "next", &[0]).await;
+    browser.follow(&page, &moved, 2).await;
+    // Page 2 fails now: what was seen no longer counts.
+    page.seen.2.store(true, std::sync::atomic::Ordering::SeqCst);
+    let failed = browser
+        .get(&page, &format!("{}?page=2", prompt.path()))
+        .await;
+    assert!(
+        failed.text.contains("The review changed"),
+        "{}",
+        failed.text
+    );
+    assert!(!offers(&failed.text, "approve"));
+    page.seen
+        .2
+        .store(false, std::sync::atomic::Ordering::SeqCst);
+    // Page 3 alone is not every page.
+    let third = browser
+        .get(&page, &format!("{}?page=3", prompt.path()))
+        .await;
+    assert!(!offers(&third.text, "approve"), "{}", third.text);
+}
+
+#[tokio::test]
+async fn a_cookie_renders_only_on_the_pages_own_requests() {
+    let page = Page::start().await;
+    let prompt = begin(&page, "paged").await;
+    let browser = browse(&page, &prompt).await;
+    for site in [None, Some("cross-site"), Some("same-site")] {
+        let mut headers = vec![("cookie", browser.cookie.as_str())];
+        if let Some(site) = site {
+            headers.push(("sec-fetch-site", site));
+        }
+        let fresh = page.client.get(&prompt.path(), &headers).await;
+        assert_eq!(fresh.status, 302, "{site:?}: {}", fresh.text);
+    }
+    let typed = page
+        .client
+        .get(
+            &prompt.path(),
+            &[
+                ("cookie", browser.cookie.as_str()),
+                ("sec-fetch-site", "none"),
+            ],
+        )
+        .await;
+    assert_eq!(typed.status, 200, "{}", typed.text);
 }

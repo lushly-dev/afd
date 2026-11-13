@@ -21,7 +21,9 @@
 //! URL's host (its own host check, 6.3); a post must come from the public URL's origin (`Origin`
 //! exactly, or `Origin: null` with `Sec-Fetch-Site: same-origin`, which a browser sends for a
 //! same-origin form under `Referrer-Policy: no-referrer`) and carry the form's CSRF token (an
-//! HMAC of the decision and login ids under `person.key`) and the login's cookie.
+//! HMAC under `person.key` of the decision and login ids, and of the page shown and its hash) and
+//! the login's cookie. A page renders for a login's cookie only on a request whose
+//! `Sec-Fetch-Site` is `same-origin` or `none`.
 //!
 //! **The login** (7.2, steps 2 and 3): a random login id, with the PKCE verifier and the `nonce`
 //! kept in its row, and a `__Host-` cookie (`Secure`, `HttpOnly`, `SameSite=Lax`, `Path=/`) per
@@ -54,8 +56,8 @@ use super::service::{
     random_secret, sha256_hex,
 };
 use crate::shared::person::{
-    Action, Choice, Decided, LoginStart, MAX_DECISION_LIFE_MS, MAX_LOGINS_PER_DECISION,
-    NewListLogin, NewLogin, Render, Rendered, Status, Verified,
+    Action, Choice, Decided, LOGIN_START_TTL_MS, LoginStart, MAX_DECISION_LIFE_MS,
+    MAX_LOGINS_PER_DECISION, NewListLogin, NewLogin, Render, Rendered, Status, Verified,
 };
 
 /// The page's Content Security Policy: nothing but its own style sheet and its own form target,
@@ -390,8 +392,21 @@ impl PersonPage {
         if decision.status != Status::Pending || !decision.live(now) {
             return self.not_found();
         }
-        // The browser's login of this decision, if it holds one that is verified and live.
-        for (login, value) in Self::login_cookies(headers) {
+        // The browser's login of this decision, if it holds one that is verified and live, on a
+        // request the browser says is the page's own or typed (fetch metadata, which no page can
+        // set): another site's link starts a fresh login instead of rendering a page.
+        let own = matches!(
+            headers
+                .get("sec-fetch-site")
+                .and_then(|value| value.to_str().ok()),
+            Some("same-origin" | "none")
+        );
+        let cookies = if own {
+            Self::login_cookies(headers)
+        } else {
+            Vec::new()
+        };
+        for (login, value) in cookies {
             let store = Arc::clone(&self.service.store);
             let (decision_id, login_id, hash) = (id.to_owned(), login.clone(), sha256_hex(&value));
             let verified = tokio::task::spawn_blocking(move || {
@@ -423,7 +438,8 @@ impl PersonPage {
         };
         let started = {
             let store = Arc::clone(&self.service.store);
-            // A login lives as long as its decision (section 4), which caps it.
+            // Ten minutes to come back from the provider; verified, as long as its decision
+            // (section 4).
             let row = NewLogin {
                 id: login.clone(),
                 decision: id.to_owned(),
@@ -431,7 +447,7 @@ impl PersonPage {
                 nonce: nonce.clone(),
                 browser_hash: sha256_hex(&browser),
                 created_ms: now,
-                expires_ms: i64::MAX,
+                expires_ms: now.saturating_add(LOGIN_START_TTL_MS),
             };
             tokio::task::spawn_blocking(move || store.start_login(&row, now)).await
         };
@@ -567,8 +583,16 @@ impl PersonPage {
             };
             tokio::task::spawn_blocking(move || store.start_list_login(&row, now)).await
         };
-        if !matches!(started, Ok(Ok(()))) {
-            return self.unavailable_now();
+        match started {
+            Ok(Ok(LoginStart::Started)) => {}
+            Ok(Ok(_)) => {
+                return self.message(
+                    StatusCode::TOO_MANY_REQUESTS,
+                    "Too many sign-ins",
+                    "Too many people are signing in to see their requests. Try again in a few minutes.",
+                );
+            }
+            _ => return self.unavailable_now(),
         }
         self.to_provider(
             &provider,
@@ -874,9 +898,28 @@ impl PersonPage {
         mut shown: PreviewPage,
     ) -> Response {
         let mut notice = None;
+        let mut decision = decision.clone();
         for _ in 0..2 {
             if !shown.ok {
-                return self.decision_page(decision, login, &shown, notice);
+                // A page recorded before that cannot be shown now is a review that changed: what
+                // was seen of it no longer counts toward Approve.
+                if decision.seen(shown.page).is_none() {
+                    return self.decision_page(&decision, login, &shown, notice);
+                }
+                let cleared = {
+                    let store = Arc::clone(&self.service.store);
+                    let id = decision.id.clone();
+                    tokio::task::spawn_blocking(move || store.clear_pages(&id)).await
+                };
+                if !matches!(cleared, Ok(Ok(()))) {
+                    return self.unavailable_now();
+                }
+                decision.pages.clear();
+                decision.pages_total = None;
+                decision.excluded.clear();
+                notice = Some("The review changed while you read it.");
+                shown = self.service.preview_page(&decision, 1).await;
+                continue;
             }
             let rendered = {
                 let store = Arc::clone(&self.service.store);
@@ -898,11 +941,14 @@ impl PersonPage {
                 }
                 Ok(Ok(Rendered::Changed)) => {
                     notice = Some("The review changed while you read it.");
-                    shown = self.service.preview_page(decision, 1).await;
+                    decision.pages.clear();
+                    decision.pages_total = None;
+                    decision.excluded.clear();
+                    shown = self.service.preview_page(&decision, 1).await;
                 }
                 Ok(Ok(Rendered::Duplicate)) => {
                     return self.decision_page(
-                        decision,
+                        &decision,
                         login,
                         &PreviewPage::unavailable(shown.page),
                         notice,
@@ -913,7 +959,16 @@ impl PersonPage {
             }
         }
         // It changed again as it was shown from the start: only Decline.
-        self.decision_page(decision, login, &PreviewPage::unavailable(1), notice)
+        self.decision_page(&decision, login, &PreviewPage::unavailable(1), notice)
+    }
+
+    /// The form's CSRF token: an HMAC of the decision, the login, and the page shown with its
+    /// hash, so a form posts only from the page as it was shown.
+    fn csrf(&self, decision: &str, login: &str, page: u32, hash: &str) -> String {
+        self.service.mac(
+            "umbel/person/csrf/2",
+            &[decision, login, &page.to_string(), hash],
+        )
     }
 
     fn decision_page(
@@ -923,9 +978,7 @@ impl PersonPage {
         shown: &PreviewPage,
         notice: Option<&str>,
     ) -> Response {
-        let csrf = self
-            .service
-            .mac("umbel/person/csrf/1", &[&decision.id, login]);
+        let csrf = self.csrf(&decision.id, login, shown.page, &shown.hash);
         let actor = decision.for_.actor.id.as_deref().unwrap_or("(none)");
         let client = decision
             .for_
@@ -1091,11 +1144,23 @@ impl PersonPage {
         ) else {
             return refused(self);
         };
-        let expected = self.service.mac("umbel/person/csrf/1", &[id, login]);
-        if !is_id(login) || !crate::shared::person::same_digest(csrf, &expected) {
-            log_refusal("csrf");
+        if !is_id(login) {
             return refused(self);
         }
+        // The token names the page shown: the page recorded under that number, or, for a
+        // Decline, the page that could not be shown.
+        let recorded = match self.service.decision(id).await {
+            Ok(Some(decision)) => decision.seen(page).map(|seen| seen.hash.clone()),
+            Ok(None) => None,
+            Err(_) => return self.unavailable_now(),
+        };
+        let unshown = PreviewPage::unavailable(page).hash;
+        let Some(shown_hash) = recorded.into_iter().chain([unshown]).find(|hash| {
+            crate::shared::person::same_digest(csrf, &self.csrf(id, login, page, hash))
+        }) else {
+            log_refusal("csrf");
+            return refused(self);
+        };
         let Some(cookie) = Self::cookie(&headers, &format!("{COOKIE_PREFIX}{login}")) else {
             log_refusal("cookie");
             return refused(self);
@@ -1108,6 +1173,8 @@ impl PersonPage {
                 page,
                 action,
                 checked,
+                hash: shown_hash,
+                max_age_ms: self.service.ttl_ms(),
             };
             tokio::task::spawn_blocking(move || store.decide(&id, &login, &hash, &choice, now))
                 .await
@@ -1135,6 +1202,14 @@ impl PersonPage {
             Ok(Ok(Decided::Refused)) => {
                 log_refusal("decide");
                 return refused(self);
+            }
+            Ok(Ok(Decided::Stale)) => {
+                log_refusal("stale");
+                return self.message(
+                    StatusCode::FORBIDDEN,
+                    "Sign in again",
+                    "Your sign-in is older than this request's lifetime, so nothing was recorded. Open the request's link again to sign in and decide.",
+                );
             }
             _ => return self.unavailable_now(),
         };

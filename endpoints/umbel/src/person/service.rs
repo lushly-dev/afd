@@ -1176,6 +1176,8 @@ mod tests {
                 page: 1,
                 action: crate::shared::person::Action::Approve,
                 checked: Vec::new(),
+                hash: format!("sha256:{}", "0".repeat(64)),
+                max_age_ms: i64::MAX,
             },
             now,
         ));
