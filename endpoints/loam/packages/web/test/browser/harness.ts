@@ -1,12 +1,26 @@
 import { execFile } from 'node:child_process';
+import { createHash, createPublicKey } from 'node:crypto';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
-import { createServer, type Server } from 'node:http';
+import {
+	createServer,
+	request as forward,
+	type IncomingMessage,
+	type Server,
+	type ServerResponse,
+} from 'node:http';
+import { createServer as createSecureServer } from 'node:https';
 import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { extname, join, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { promisify } from 'node:util';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
+import {
+	startTestAuthHost,
+	type TestAuthHost,
+	type TestAuthHostOptions,
+} from '@lushly-dev/loam-identity/testing';
 import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
 import {
 	type Browser,
@@ -62,14 +76,19 @@ async function serveDirectory(
 		relay?: () => MountRelay | undefined;
 		base?: string;
 		fallback?: boolean;
+		/** Serve over HTTPS on `https://localhost:<port>` with this certificate (phase 3 specification, 2.4). */
+		tls?: { cert: Buffer; key: Buffer };
+		/** Answer a request itself, as the auth proxy does; true when it did. */
+		handle?: (request: IncomingMessage, response: ServerResponse) => boolean;
 	} = {}
 ): Promise<{ origin: string; log: LoggedRequest[]; close: () => Promise<void> } & HeldRequests> {
 	const log: LoggedRequest[] = [];
 	let holding: RegExp | undefined;
 	const waiting: Array<() => void> = [];
 	const held: string[] = [];
-	const server: Server = createServer(async (request, response) => {
+	const listener = async (request: IncomingMessage, response: ServerResponse) => {
 		if (options.relay?.()?.handle(request, response)) return;
+		if (options.handle?.(request, response)) return;
 		const path = new URL(request.url ?? '/', 'http://localhost').pathname;
 		if (holding?.test(path)) {
 			held.push(path);
@@ -111,7 +130,10 @@ async function serveDirectory(
 			log.push({ path, bytes: 0, status: 404 });
 			response.writeHead(404).end();
 		}
-	});
+	};
+	const server: Server = options.tls
+		? (createSecureServer(options.tls, listener) as unknown as Server)
+		: createServer(listener);
 	await new Promise<void>((done) => server.listen(0, '127.0.0.1', done));
 	const address = server.address();
 	if (!address || typeof address === 'string') throw new Error('No loopback address');
@@ -120,7 +142,7 @@ async function serveDirectory(
 		for (const resume of waiting.splice(0)) resume();
 	};
 	return {
-		origin: `http://127.0.0.1:${address.port}`,
+		origin: options.tls ? `https://localhost:${address.port}` : `http://127.0.0.1:${address.port}`,
 		log,
 		held,
 		hold(pattern) {
@@ -190,7 +212,74 @@ export interface DeploymentSite extends HeldRequests {
 	sandbox?: { origin: string; log: LoggedRequest[] };
 	/** With `mounts: true`, the test-only relay at `mounts/<instance>/mcp`, and its log. */
 	relay?: MountRelay;
+	/**
+	 * With `authHost`, the test-only auth host behind `<base_path>api/auth/`, which proves no hosted lane (phase 3
+	 * specification, 2.4), and the site's certificate's public key hash, for `launchForDevHost`.
+	 */
+	authHost?: TestAuthHost;
+	spki?: string;
 	close: () => Promise<void>;
+}
+
+/** A certificate for `localhost`, made per run as 5.1's development profile makes its own (phase 3 specification, 2.4). */
+async function localhostCertificate(
+	directory: string
+): Promise<{ cert: Buffer; key: Buffer; spki: string }> {
+	const cert = join(directory, 'cert.pem');
+	const key = join(directory, 'key.pem');
+	await promisify(execFile)('openssl', [
+		'req',
+		'-x509',
+		'-newkey',
+		'ec',
+		'-pkeyopt',
+		'ec_paramgen_curve:P-256',
+		'-nodes',
+		'-keyout',
+		key,
+		'-out',
+		cert,
+		'-days',
+		'2',
+		'-subj',
+		'/CN=localhost',
+		'-addext',
+		'subjectAltName=DNS:localhost',
+	]);
+	const pem = await readFile(cert);
+	const der = createPublicKey(pem).export({ type: 'spki', format: 'der' });
+	return {
+		cert: pem,
+		key: await readFile(key),
+		spki: createHash('sha256').update(der).digest('base64'),
+	};
+}
+
+/** Forward `<path>/…` to the auth host, as the hosted lane's route will: the request as the browser sent it. */
+function authProxy(prefix: string, host: () => TestAuthHost | undefined) {
+	return (request: IncomingMessage, response: ServerResponse): boolean => {
+		const target = host();
+		const path = request.url ?? '/';
+		if (!target || !path.startsWith(prefix)) return false;
+		const upstream = new URL(target.listening);
+		const outgoing = forward(
+			{
+				host: upstream.hostname,
+				port: upstream.port,
+				method: request.method,
+				// The host answers at the same path, its `baseURL` being the site's origin and this prefix.
+				path,
+				headers: request.headers,
+			},
+			(answer) => {
+				response.writeHead(answer.statusCode ?? 502, answer.headers);
+				answer.pipe(response);
+			}
+		);
+		outgoing.on('error', () => response.writeHead(502).end());
+		request.pipe(outgoing);
+		return true;
+	};
 }
 
 /**
@@ -208,8 +297,17 @@ export async function serveDeployment(options: {
 	rewrite?: (projection: ProjectionV3) => unknown;
 	/** `site.base_path`, written into the file and served as the site's prefix (6.2). Default `/`. */
 	basePath?: string;
+	/**
+	 * A `provider` deployment's test-only auth host (phase 3 specification, 2.4): the site is served over HTTPS on
+	 * `https://localhost:<port>` with a certificate made for this run, and `<base_path>api/auth/*` is proxied to a
+	 * real Better Auth server with these people, so the page, the probe and the provider share an origin and cookies
+	 * carry `Secure`. `config` names `[identity]` itself. Open pages with `launchForDevHost({ spki })`.
+	 */
+	authHost?: Omit<TestAuthHostOptions, 'origin' | 'path'>;
 }): Promise<DeploymentSite> {
 	const directory = await mkdtemp(join(tmpdir(), 'loam-deployment-'));
+	const tls = options.authHost ? await localhostCertificate(directory) : undefined;
+	let authHost: TestAuthHost | undefined;
 	const config = join(directory, 'loam.deployment.toml');
 	const out = join(directory, 'site');
 	let shellOrigin = '';
@@ -239,9 +337,23 @@ export async function serveDeployment(options: {
 		relay: () => relay,
 		fallback: true,
 		...(options.basePath ? { base: options.basePath } : {}),
+		...(tls ? { tls: { cert: tls.cert, key: tls.key } } : {}),
+		...(tls ? { handle: authProxy(`${options.basePath ?? '/'}api/auth/`, () => authHost) } : {}),
 	});
 	shellOrigin = site.origin;
 	relay?.setOrigin(site.origin);
+	if (options.authHost) {
+		try {
+			authHost = await startTestAuthHost({
+				...options.authHost,
+				origin: site.origin,
+				path: `${options.basePath ?? '/'}api/auth`,
+			});
+		} catch (cause) {
+			await site.close();
+			throw cause;
+		}
+	}
 	return {
 		...site,
 		root: `${site.origin}${options.basePath ?? '/'}`,
@@ -249,8 +361,10 @@ export async function serveDeployment(options: {
 		projection: written.projection,
 		...(sandbox ? { sandbox: { origin: sandbox.origin, log: sandbox.log } } : {}),
 		...(relay ? { relay } : {}),
+		...(authHost ? { authHost, spki: tls?.spki as string } : {}),
 		async close() {
 			relay?.abort();
+			await authHost?.close();
 			await sandbox?.close();
 			await site.close();
 			await rm(directory, { recursive: true, force: true });
@@ -630,3 +744,64 @@ export function launchForDevHost(...hosts: Array<{ spki: string }>): Promise<Bro
 	const list = hosts.map(({ spki }) => spki).join(',');
 	return chromium.launch({ args: [`--ignore-certificate-errors-spki-list=${list}`] });
 }
+
+// ─── Passkeys (phase 3 specification, 2.4) ─────────────────────────────────────
+
+/**
+ * A virtual authenticator on `page`, through Chromium's DevTools `WebAuthn` domain: no real authenticator or platform
+ * prompt is involved, which every result recorded with it says. `userVerified: false` makes it answer without user
+ * verification, which the provider must refuse.
+ */
+export async function addVirtualAuthenticator(
+	page: Page,
+	options: { userVerified: boolean }
+): Promise<{
+	remove(): Promise<void>;
+	credentials(): Promise<unknown[]>;
+	add(credential: unknown): Promise<void>;
+}> {
+	const cdp = await page.context().newCDPSession(page);
+	await cdp.send('WebAuthn.enable');
+	const { authenticatorId } = await cdp.send('WebAuthn.addVirtualAuthenticator', {
+		options: {
+			protocol: 'ctap2',
+			transport: 'internal',
+			hasResidentKey: true,
+			hasUserVerification: true,
+			isUserVerified: options.userVerified,
+			automaticPresenceSimulation: true,
+		},
+	});
+	return {
+		async remove() {
+			await cdp.send('WebAuthn.removeVirtualAuthenticator', { authenticatorId });
+		},
+		async credentials() {
+			return (await cdp.send('WebAuthn.getCredentials', { authenticatorId })).credentials;
+		},
+		/** A credential another authenticator holds, with its private key, as `credentials()` gave it. */
+		async add(credential) {
+			await cdp.send('WebAuthn.addCredential', {
+				authenticatorId,
+				credential: credential as never,
+			});
+		},
+	};
+}
+
+/** A `provider` deployment file's `[identity]`, at version 3. */
+export const providerDeployment = (
+	methods: readonly string[] = ['passkey', 'password'],
+	...entries: string[]
+): string =>
+	[
+		'deployment_version = 3',
+		'',
+		'[identity]',
+		'mode = "provider"',
+		'organization = "acme"',
+		`methods = ${JSON.stringify(methods)}`,
+		'',
+		// Version 3 requires the table, so a deployment with no app names it empty.
+		...(entries.length === 0 ? ['[apps]', ''] : entries.map((entry) => `${entry}\n`)),
+	].join('\n');

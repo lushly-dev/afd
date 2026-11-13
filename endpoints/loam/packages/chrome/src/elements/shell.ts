@@ -78,6 +78,16 @@ interface SessionState {
 	user?: { name?: string; email?: string };
 }
 
+/** A `provider` deployment, as its host tells the chrome (phase 3 specification, 2.1, 4.2). */
+export interface ShellIdentity {
+	/** The bound organization's slug, for display. */
+	organization: string;
+	/** The ways in the deployment allows (D99). */
+	methods: readonly string[];
+	/** What the host last read of the person's membership and the binding (2.3). */
+	standing(): { member: boolean; warning?: string };
+}
+
 interface ShellFailure {
 	heading: string;
 	message: string;
@@ -107,6 +117,7 @@ const template = html<LoamShell>`
 			<loam-titlebar
 				data-part="titlebar"
 				account="${(x) => x.account}"
+				?provider="${(x) => x.identity !== null}"
 				shortcut="${(x) => x.shortcut}"
 				key-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
 				shown-parts="${(x) => x.shownParts}"
@@ -139,6 +150,9 @@ const template = html<LoamShell>`
 			<loam-main
 				data-part="main"
 				landing="${(x) => x.landing}"
+				gate="${(x) => x.gate}"
+				organization="${(x) => x.identity?.organization ?? ''}"
+				notice="${(x) => x.notice}"
 				?busy="${(x) => x.mainBusy}"
 				route="${(x) => x.route}"
 				shortcut="${(x) => x.shortcut}"
@@ -259,6 +273,12 @@ export class LoamShell extends FASTElement {
 
 	/** The kernel the chrome binds to; set it before or after connecting. */
 	kernel: LoamKernelV3 | null = null;
+	/** A `provider` deployment's identity; null in `local` mode, as phases 0 to 2 have it. */
+	identity: ShellIdentity | null = null;
+	/** What main shows in place of the landing in a `provider` deployment (2.1, 2.3). */
+	declare gate: '' | 'sign-in' | 'not-member' | 'binding';
+	/** An owner's binding notice under the landing (2.3). */
+	declare notice: string;
 	/**
 	 * Whether the boot records list an app, so the first frame reads `app-list` (phase 2 specification,
 	 * 2.2). `mountShell`'s `listsApps` sets it.
@@ -301,6 +321,8 @@ export class LoamShell extends FASTElement {
 		this.appearance = { ...appearance, resolved: 'light' };
 		this.presentation = presentLayout(this.layout, 'expanded', { width: 1280, rail: 48 });
 		this.account = '';
+		this.gate = '';
+		this.notice = '';
 		this.lastSeq = 0;
 		this.route = 'home';
 		this.panelMax = LAYOUT_DEFAULTS_V0.panel.default;
@@ -628,8 +650,27 @@ export class LoamShell extends FASTElement {
 		const result = await this.kernel?.call<SessionState>('auth-session-get');
 		if (!result?.success || generation !== this.#reads.session) return;
 		const session = result.data as SessionState;
+		const was = this.account;
 		this.account =
 			session.status === 'authenticated' ? (session.user?.name ?? session.user?.email ?? '') : '';
+		const identity = this.identity;
+		if (!identity) return;
+		// What main shows instead of its landing (2.1, 2.3): signed out, no organization bound, or no membership.
+		const { member, warning } = identity.standing();
+		this.gate = !this.account
+			? 'sign-in'
+			: warning === 'IDENTITY_ORGANIZATION_UNKNOWN'
+				? 'binding'
+				: member
+					? ''
+					: 'not-member';
+		this.notice =
+			warning === 'IDENTITY_BINDING_MISMATCH'
+				? `${identity.organization} no longer names the bound organization (IDENTITY_BINDING_MISMATCH); fix the binding on the server.`
+				: '';
+		// Signed out: the address no longer names what the last person had open, on a shared profile (16).
+		if (was && !this.account)
+			this.ownerDocument.defaultView?.history.replaceState(null, '', this.base);
 	}
 
 	#onEvent(event: KernelEventV3): void {
@@ -826,10 +867,23 @@ export class LoamShell extends FASTElement {
 				void this.#change(() => ({ panel: { maximized: detail.maximized } }));
 				break;
 			case 'sign-in':
-				void this.kernel?.call('auth-sign-in', {
-					method: 'credentials',
-					email: MOCK_SIGN_IN_EMAIL,
-				});
+				// A `provider` deployment's dialog, in a chunk of its own (phase 3 specification, 5.2); the Mock's
+				// address in `local` mode, as phases 0 to 2 have it.
+				if (this.identity) {
+					void import('../identity/sign-in.js')
+						.then(({ openSignIn }) => openSignIn(this))
+						.catch(reportError);
+				} else {
+					void this.kernel?.call('auth-sign-in', {
+						method: 'credentials',
+						email: MOCK_SIGN_IN_EMAIL,
+					});
+				}
+				break;
+			case 'account-menu':
+				void import('../identity/account-menu.js')
+					.then(({ openAccountMenu }) => openAccountMenu(this))
+					.catch(reportError);
 				break;
 			case 'sign-out':
 				void this.kernel?.call('auth-sign-out');
@@ -929,6 +983,8 @@ observable(LoamShell.prototype, 'layout');
 observable(LoamShell.prototype, 'appearance');
 observable(LoamShell.prototype, 'presentation');
 observable(LoamShell.prototype, 'account');
+observable(LoamShell.prototype, 'gate');
+observable(LoamShell.prototype, 'notice');
 observable(LoamShell.prototype, 'lastSeq');
 observable(LoamShell.prototype, 'route');
 observable(LoamShell.prototype, 'panelMax');
