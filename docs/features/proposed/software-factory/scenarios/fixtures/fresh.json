@@ -1,0 +1,51 @@
+{
+	"app": "factory",
+	"repository": "example-org/example-repo",
+	"thisMachine": "workstation",
+	"dials": {
+		"lane.host": null,
+		"lane.slots": 1,
+		"cells.max": 3,
+		"lane.queueTarget": 2,
+		"lane.queueMax": 10,
+		"plans.ceiling": 85,
+		"fable.ceiling": 50
+	},
+	"machines": [
+		{
+			"id": "workstation",
+			"name": "Workstation",
+			"reachable": true,
+			"cores": 16,
+			"memoryGb": 64,
+			"missing": [],
+			"suggestedSlots": 4
+		},
+		{
+			"id": "mini",
+			"name": "Mac mini",
+			"reachable": true,
+			"cores": 10,
+			"memoryGb": 24,
+			"missing": [],
+			"suggestedSlots": 1
+		},
+		{
+			"id": "laptop",
+			"name": "Laptop",
+			"reachable": true,
+			"cores": 10,
+			"memoryGb": 24,
+			"missing": ["gh sign-in"],
+			"suggestedSlots": 1
+		}
+	],
+	"plans": [
+		{ "id": "plan-a", "provider": "openai", "used": 10, "elapsed": 80 },
+		{ "id": "plan-b", "provider": "anthropic", "used": 40, "elapsed": 60 }
+	],
+	"lane": { "running": false, "paused": false },
+	"queue": [],
+	"cells": [],
+	"events": []
+}

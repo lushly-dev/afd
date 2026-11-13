@@ -1,0 +1,37 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Hand over a branch from another machine
+description: >-
+  When my cell runs on a machine that is not the lane host, to spend that machine's plans, I want
+  to read the lane's queue and hand my branch across, so that the lane validates it like any other.
+job: hand-off-from-another-machine
+tags: [handoff]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+  overrides:
+    thisMachine: laptop
+    dials: { lane.queueMax: 10 }
+steps:
+  - description: The lane's queue and seats are readable from this machine
+    command: lane-handoff
+    input: { status: true }
+    expect:
+      success: true
+      data:
+        queue: { length: 2 }
+        seatsTaken: 3
+  - description: Enqueueing locally is refused here, pointing to the hand-off
+    command: lane-enqueue
+    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    expect:
+      success: false
+      error:
+        code: NOT_LANE_HOST
+        suggestion: { contains: lane-handoff }
+  - description: The hand-off queues the branch on the lane host
+    command: lane-handoff
+    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    expect:
+      success: true
+      data:
+        position: 3

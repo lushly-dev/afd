@@ -1,0 +1,41 @@
+{
+	"app": "factory",
+	"issues": [
+		{
+			"number": 201,
+			"title": "Parser rejects empty input",
+			"labels": ["status:planned", "execution:bounded", "area:core"],
+			"assignees": [],
+			"openPrs": []
+		},
+		{
+			"number": 202,
+			"title": "Add CSV export",
+			"labels": ["status:triage"],
+			"assignees": [],
+			"openPrs": []
+		},
+		{
+			"number": 203,
+			"title": "Retry backoff is too short",
+			"labels": ["status:planned", "execution:bounded", "execution:deep"],
+			"assignees": [],
+			"openPrs": []
+		},
+		{
+			"number": 204,
+			"title": "Decide the plugin naming scheme",
+			"labels": ["status:deferred", "needs:decision"],
+			"assignees": ["owner"],
+			"openPrs": []
+		},
+		{
+			"number": 205,
+			"title": "Flaky timeout in client tests",
+			"labels": ["status:planned", "execution:integrative", "area:client"],
+			"assignees": [],
+			"openPrs": []
+		}
+	],
+	"claims": [{ "number": 205, "branch": "fix/client-timeout", "since": "2030-01-01T10:00:00Z" }]
+}

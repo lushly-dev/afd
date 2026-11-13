@@ -1,0 +1,38 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+# The lane's loop runs between commands, so the ejection is fixture state the loop would have written.
+name: Get an ejected branch back and return to the front
+description: >-
+  When the lane ejects my branch, I want the reason, the failing line and the log, and my repaired
+  branch to go to the front of the queue, so that one repair costs one more validation and no wait.
+job: return-an-ejected-branch
+tags: [slice]
+fixture:
+  file: fixtures/ejected.json
+  base: fresh.json
+steps:
+  - description: The foreman's wait returns the ejection with everything the cell needs
+    command: lane-wait
+    input: { timeoutMs: 1000 }
+    expect:
+      success: true
+      data:
+        event:
+          type: ejected
+          branch: fix/parser-empty-input
+          reason: final-failed
+          detail: { contains: parses empty input }
+          logPath: { contains: attempts/ }
+  - description: The repaired branch goes ahead of the branch that was already waiting
+    command: lane-enqueue
+    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    expect:
+      success: true
+      data:
+        position: 1
+  - description: The event was marked seen, so a second wait does not repeat it
+    command: lane-wait
+    input: { timeoutMs: 1 }
+    expect:
+      success: true
+      data:
+        event: { type: timeout }

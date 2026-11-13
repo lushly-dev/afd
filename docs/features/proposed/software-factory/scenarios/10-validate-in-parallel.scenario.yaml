@@ -1,0 +1,44 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Validate several branches at once on a larger host
+description: >-
+  When the lane host has room for more than one validation, I want to raise the slot count within
+  what the host can carry, so that a powerful machine is not limited to one validation at a time.
+job: validate-in-parallel
+tags: [concurrency]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: The host's suggested slot count is visible
+    command: lane-host-list
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: workstation, suggestedSlots: 4 }
+  - description: More slots than the host can carry are refused, naming the limit
+    command: dial-set
+    input: { key: lane.slots, value: 8 }
+    expect:
+      success: false
+      error:
+        code: DIAL_OUT_OF_RANGE
+        message: '4'
+  - description: A count within range is set
+    command: dial-set
+    input: { key: lane.slots, value: 3 }
+    expect:
+      success: true
+      data: { key: lane.slots, value: 3, default: 1 }
+  - description: The dial reads back
+    command: dial-get
+    input: { key: lane.slots }
+    expect:
+      success: true
+      data: { value: 3 }
+  - description: Status shows three slots
+    command: lane-status
+    expect:
+      success: true
+      data:
+        slots: { total: 3 }

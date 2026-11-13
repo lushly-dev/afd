@@ -1,0 +1,66 @@
+{
+	"dials": {
+		"lane.host": "workstation",
+		"lane.slots": 1,
+		"cells.max": 3,
+		"lane.queueTarget": 2,
+		"lane.queueMax": 2,
+		"plans.ceiling": 85,
+		"fable.ceiling": 50
+	},
+	"lane": {
+		"running": true,
+		"paused": false
+	},
+	"cells": [
+		{
+			"branch": "fix/parser-empty-input",
+			"issues": [101],
+			"thread": "thread-1",
+			"plan": "plan-a",
+			"route": "sol/high"
+		},
+		{
+			"branch": "feat/export-csv",
+			"issues": [102],
+			"thread": "thread-2",
+			"plan": "plan-b",
+			"route": "opus/high"
+		},
+		{
+			"branch": "fix/retry-backoff",
+			"issues": [103],
+			"thread": "thread-3",
+			"plan": "plan-a",
+			"route": "sol/high"
+		}
+	],
+	"queue": [
+		{
+			"branch": "feat/export-csv",
+			"head": "b2c3d4e"
+		},
+		{
+			"branch": "fix/retry-backoff",
+			"head": "c3d4e5f"
+		}
+	],
+	"worktrees": {
+		"fix/parser-empty-input": {
+			"clean": true,
+			"head": "a1b2c3d",
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": []
+		},
+		"fix/half-done": {
+			"clean": false,
+			"head": "f6a7b8c",
+			"uncommitted": ["src/parse.ts"],
+			"prequeue": {},
+			"gatePathsChanged": []
+		}
+	}
+}

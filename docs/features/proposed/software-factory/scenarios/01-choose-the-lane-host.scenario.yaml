@@ -1,0 +1,49 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Choose the lane host from the connected machines
+description: >-
+  When I set up a factory for a repository, I want to see which connected machines can host
+  its lane and pick one, so that validation runs where there is capacity and is never tied to
+  a machine named in code.
+job: choose-the-lane-host
+tags: [slice]
+fixture:
+  file: fixtures/fresh.json
+steps:
+  - description: The lane will not start before a host is chosen, and says how to choose one
+    command: lane-start
+    expect:
+      success: false
+      error:
+        code: HOST_NOT_SET
+        suggestion: { contains: lane-host-list }
+  - description: The connected machines are listed with capacity, readiness and a slot suggestion
+    command: lane-host-list
+    expect:
+      success: true
+      data:
+        machines:
+          - { id: workstation, reachable: true, cores: 16, memoryGb: 64, ready: true, suggestedSlots: 4 }
+          - { id: mini, reachable: true, ready: true, suggestedSlots: 1 }
+          - { id: laptop, reachable: true, ready: false, missing: [gh sign-in] }
+  - description: A machine that is not ready is refused, naming what it lacks
+    command: lane-host-set
+    input: { id: laptop }
+    expect:
+      success: false
+      error:
+        code: HOST_NOT_READY
+        message: gh sign-in
+  - description: A ready machine becomes the lane host
+    command: lane-host-set
+    input: { id: workstation }
+    expect:
+      success: true
+      data:
+        host: { id: workstation }
+  - description: Status confirms this machine is the lane host
+    command: lane-status
+    expect:
+      success: true
+      data:
+        host: { id: workstation, isLaneHost: true }
+        running: false

@@ -1,0 +1,27 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Stop starting cells when every plan is at its ceiling
+description: >-
+  When every plan has used more than the ceiling, I want to be told to start nothing and when
+  the next window resets, so that no cell is paused for days holding its issue.
+job: stop-at-the-ceiling
+
+fixture:
+  file: fixtures/at-ceiling.json
+  base: fresh.json
+steps:
+  - description: Both plans are marked above the ceiling
+    command: plan-list
+    expect:
+      success: true
+      data:
+        plans:
+          - { id: plan-a, aboveCeiling: true }
+          - { id: plan-b, aboveCeiling: true }
+  - description: Status says not to start a cell, why, and when room returns
+    command: lane-status
+    expect:
+      success: true
+      data:
+        canStartCell: false
+        reason: { contains: ceiling }
+        nextReset: '2030-01-08T00:00:00Z'

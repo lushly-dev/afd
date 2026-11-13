@@ -1,0 +1,49 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Step in as the operator
+description: >-
+  When I want to stop intake, take back a merge or forget a cell, I want one call for each, so
+  that I can steer the factory at any time without editing its state by hand.
+job: step-in-as-operator
+tags: [slice]
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: Pausing finishes the current branch and starts no other
+    command: lane-pause
+    input: { reason: Reviewing a broken release }
+    expect:
+      success: true
+      data: { paused: true }
+  - description: Status shows the pause
+    command: lane-status
+    expect:
+      success: true
+      data:
+        paused: true
+  - description: Resuming restarts intake
+    command: lane-resume
+    expect:
+      success: true
+      data: { paused: false }
+  - description: A merged PR is reverted through a PR of its own
+    command: lane-revert
+    input: { pr: 512, reason: Broke the release build }
+    expect:
+      success: true
+      data:
+        revertPr: { exists: true }
+  - description: Dropping a cell the lane does not know is refused
+    command: lane-drop
+    input: { branch: no-such-branch }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: lane-status }
+  - description: Dropping a registered cell forgets it and leaves its worktree alone
+    command: lane-drop
+    input: { branch: fix/parser-empty-input }
+    expect:
+      success: true
+      data: { dropped: true }

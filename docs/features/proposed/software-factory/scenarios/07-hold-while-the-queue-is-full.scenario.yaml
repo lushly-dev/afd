@@ -1,0 +1,19 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Hold a finished branch while the queue is full
+description: >-
+  When the queue is at its limit, I want enqueue to refuse with the queue length and what to do,
+  so that I report the branch ready to hand off instead of retrying in a loop.
+job: hold-while-the-queue-is-full
+fixture:
+  file: fixtures/running.json
+  base: fresh.json
+steps:
+  - description: The full queue refuses a new branch and says to report it ready
+    command: lane-enqueue
+    input: { branch: fix/parser-empty-input, title: Accept empty parser input, bodyFile: pr-body.md, reviewers: [review-code], issues: [101] }
+    expect:
+      success: false
+      error:
+        code: QUEUE_FULL
+        message: lane.queueMax
+        suggestion: { contains: ready to hand off }

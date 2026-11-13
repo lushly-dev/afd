@@ -1,0 +1,42 @@
+# Draft JTBD scenario for the Software Factory proposal. Commands and shapes are proposals; the data is invented.
+name: Start a cell on the plan with the most room
+description: >-
+  When the queue is short, I want to know whether to start another cell and on which plan,
+  so that allowance about to reset is spent first and no plan is drained early.
+job: start-a-cell-where-there-is-room
+tags: [slice]
+fixture:
+  file: fixtures/fresh.json
+  overrides:
+    dials: { lane.host: workstation }
+steps:
+  - description: Each plan shows its room (window elapsed minus share used)
+    command: plan-list
+    expect:
+      success: true
+      data:
+        plans:
+          - { id: plan-a, room: 70, aboveCeiling: false }
+          - { id: plan-b, room: 20, aboveCeiling: false }
+  - description: Status says a cell may start, on the plan with the most room
+    command: lane-status
+    expect:
+      success: true
+      data:
+        canStartCell: true
+        plan: { id: plan-a }
+  - description: The foreman registers the cell it started
+    command: cell-register
+    input: { branch: fix/parser-empty-input, issues: [101], thread: thread-1, plan: plan-a, route: sol/high }
+    expect:
+      success: true
+      data:
+        cell: { branch: fix/parser-empty-input, plan: plan-a }
+  - description: Registering the same branch twice is refused
+    command: cell-register
+    input: { branch: fix/parser-empty-input, issues: [101], thread: thread-9, plan: plan-b, route: opus/high }
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: lane-drop }
