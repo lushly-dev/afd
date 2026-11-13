@@ -1,28 +1,29 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # Hello declares hello.inspector-v2, stage visible, gating its inspector surface.
 name: Try an experiment
 description: >-
   When an app offers something new, I want to turn it on for myself and see what may change and
   when it ends, so that I opt in knowingly.
 job: opt-into-experiment
-tags: [slice]
+tags: [slice, loam-runner]
 steps:
   - description: Listed with what may change and when it ends, off
     command: experiment-list
-    input: {}
+    input: { experiment: hello.inspector-v2 }
     expect:
       success: true
       data:
         experiments:
-          - fullId: hello.inspector-v2
+          '0':
+            fullId: hello.inspector-v2
             changes: { contains: inspector }
             ends: '2027-03-01'
             on: false
+          '1': { notExists: true }
   - description: The inspector is held back
     command: app-get
     input: { instance: hello }

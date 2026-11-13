@@ -19,6 +19,7 @@
     - the coordinator's rulings R7 to R16.
 
     Every finding and its answer is in [Review 2026-11-13, second round](#review-2026-11-13-second-round).
+  - **Revised a third time** after a re-check of `faa0c1d9` ("approvable once fixed", F1 to F11 and four nits) and the coordinator's rulings on F2 to F11 ([Re-check 2026-11-13, third round](#re-check-2026-11-13-third-round)).
 
   The coordinator approves it under the owner's standing grant after a fresh re-check. The [questions for the owner](#questions-for-the-owner) are the owner's to answer, and the text is written to each recommendation. D116 to D127 are proposed here and in the [decision log](../../decisions.md), marked proposed.
 - **Last verified:** 2026-11-13, against `main` at `92980528`. Evidence read in the repository:
@@ -123,16 +124,30 @@ Terms follow the [architecture's glossary](../../architecture.md#12-glossary) an
 
 The jobs are written first, as the `afd` skill's `jobs-first.md` asks, one file per job in [`scenarios/`](scenarios/). Until the commands exist they are checked, not run; each becomes a test beside its code in the step that builds it. **P4-E16 starts from "every scenario passes".**
 
-**How a step names its caller and scope.** AFD's scenario format has no per-step actor or scope, so a step's `description` may open with directives that Loam's runner, `kernel/src/scenarios.test.ts`, reads and strips:
+**These files need Loam's runner.** Each is tagged `loam-runner`. AFD's scenario format has no per-step actor, scope or seed, and `afd scenario run --server` runs every step as `kind: 'test'` at workspace level, so these files pass only in `kernel/src/scenarios.test.ts`. A per-step actor and scope in AFD is a [follow-up](#follow-ups) across all four languages.
 
-| Directive | The step runs |
+**The step directives.** A step's `description` may open with directives, which the runner reads and strips. The grammar:
+
+| Rule | Detail |
 | --- | --- |
-| None | As the person at the palette interface, actor `kind: 'test'`: a human gesture (R7) |
-| `[agent]` | Through the agent interface, as `shell-agent` acting for the person |
-| `[caller: <instance>]` | Through that instance's port, the app active; `[caller: <instance>, inactive]` with another app active |
-| `[scope: <project slug>]` | In that project's scope; without it, at workspace level |
+| The form | `[` *directive* `]`, separated by single spaces, at the start of the description, before any other text |
+| The order | A caller directive first, if any, then `[scope: …]` |
+| The callers | **At most one** of `[agent]` (the agent interface, as `shell-agent` for the person) and `[caller: <instance>]` (that instance's port, with that app active). `[caller: <instance>, inactive]` is the port with the `console` app active instead, so the caller is neither the active app nor the active tab's owner. No caller directive: the person at the palette interface, actor `kind: 'test'`, a human gesture (R7) |
+| The scope | `[scope: <project id>]`, by the project's **id**, as the scope field carries it (D71). Without it, workspace level |
+| Errors | An unknown directive, two caller directives, or a scope before a caller fails the file |
 
-A runner that meets an unknown directive fails the file. This lets one file show an agent refused and a person allowed, which the first draft could not.
+**`project` in inputs is the project's id** (`prj_atlas`), as D71's scope carries it and as `autonomy-*` stores it, everywhere in this specification and its scenarios.
+
+**The seed.** Every file runs on one fresh seed, **`p4-base`**, which the runner's seed map (`kernel/scenarios/seeds.ts`) builds before each file. AFD's `fixture` field names a file the runner loads into a server, and a kernel seed is not one, so it isn't used. `p4-base` holds:
+
+- a `local` workspace, signed in as one person, who is therefore an owner;
+- projects `prj_atlas` (slug `atlas`) and `prj_beacon` (slug `beacon`), both created by that person;
+- the apps hello, tally, checklist and console, enabled for both projects;
+- tally's count at 3;
+- a checklist document `doc_checklist0000001` in `prj_atlas`;
+- hello's experiment `hello.inspector-v2`, `visible`, ending `2027-03-01`.
+
+**Lists.** AFD compares a YAML list in `data` whole, with matchers inside it taken literally, so the files assert a list by index (`'0': { … }`), and a single item by `'1': { notExists: true }`. Where a list's order is not fixed, the command takes a filter: `palette-search { kind }`, `experiment-list { experiment }`, `keybinding-list { command, target }`, `notification-list { kind, source, limit }`.
 
 **Phase 4 serves none of these commands to connected agents over MCP** (section 13). The agent jobs are served to the in-process agent interface only, which has no consumer before phase 5's copilot. Q5 says so.
 
@@ -207,16 +222,19 @@ Ranked; built and passing first.
 | The modal the chrome opens | E8 |
 | Two people in one file | E5 |
 
-**Checks:** run on 2026-11-13 at this revision.
+**Checks,** run on 2026-11-13 at the third revision:
 
 - **Validation:** `afd scenario validate` passed all 14 files, and the dry-run check found no errors.
-- **Coverage:** 76 steps. **19 of the 28 drafted commands are called directly.** The coverage report counts 23, because it also counts the existing commands it was not given: `palette-search`, `section-open`, `app-get` and tally's `tally-get`. N11's miscount came from that.
-- **Drafted commands no step calls, and why they stay:**
+- **Evaluation:** validation never evaluates an expectation, so two rewritten assertions were run through AFD's `evaluateResult`:
+  - `decline-confirmation` step 3 passes against a realistic `notification-list` result, and fails (`data.notifications.1`) when a second notification is present;
+  - `know-my-mode` step 2 passes against a realistic bulk `autonomy-get` result, and fails (`data.results.0.mode`) when the first mode is `act`.
+- **Coverage:** 75 steps; 18 of the 28 drafted commands are called directly. The rest:
   - `hello-greet` runs only as the inbox action;
   - `setting-list` and `autonomy-list` are the sections' reads (E1, E4);
   - `notification-read`, `notification-archive` and `confirmation-withdraw` are E6's and E8's;
-  - `popover-open`, `dialog-open` and `prompt-open` are the overlay kinds the architecture's row requires (E7).
-- **Error codes:** 8 of the 27 drafted codes are shown. Each of the rest is in an exit test's row.
+  - `popover-open`, `dialog-open` and `prompt-open` are E7's;
+  - `limit-usage-get` is E10's.
+- **Error codes:** every code in [section 16](#16-failure-modes-and-error-codes) has a unit test in the step that adds it, and each is named in an exit test's row (F11).
 
 ## 1. Units and repository placement
 
@@ -230,7 +248,7 @@ No new package.
 | `sdk` | `SettingsV1`, `NotificationsV1`, `ConfirmationsV1`, the widened `OverlaysV1`, `settingsChanged` |
 | `console` | Its schema form moves to `chrome/src/forms/` |
 | `testing` | `createAppTestKernel` takes `settings` and `experiments` seeds; the scenario runner's directives |
-| `apps/hello` | **The setting:** `hello.general.greeting`, at workspace and project level, and `hello.project.board`, project only.<br>**The experiment:** `hello.inspector-v2`, gating its inspector.<br>**The guest book:** `hello-greet { name }` and `hello-guests`.<br>**Notices:** one sticky toast, and one notification with an action |
+| `apps/hello` | **The setting:** `hello.general.greeting`, at workspace and project level, and `hello.project.board`, project only.<br>**The experiment:** `hello.inspector-v2`, gating its inspector.<br>**The guest book:** `hello-greet { name }` greets a visitor waiting at it, and `hello-guests` lists them.<br>**Notices:** one sticky toast, and one notification with an action |
 | `apps/tally` | `tally-reset` with a `confirm_prompt` |
 
 - **Unchanged:** the release inventory, the repository contract, `AGENTS.md` and `@lushly-dev/loam-host` (R1). No changesets.
@@ -308,12 +326,15 @@ export type SettingKeyV1 = { title: string /* 1 to 60 */; description?: string /
 | `project` | `member` | Any member who may enter the project, for a key of an app enabled for it | **`HUMAN_REQUIRED`** ([Q4](#q4-may-a-persons-agent-write-project-level-settings)) | `CALL_NOT_GRANTED` | Not served |
 | `workspace` | `owner` | An owner; anyone else gets `OWNER_REQUIRED` | `HUMAN_REQUIRED` | `CALL_NOT_GRANTED` | Not served |
 
-- **The hand-off.** Every `HUMAN_REQUIRED` from `setting-*`, `autonomy-set` or `experiment-*` carries `details: { route, section, key, level }`. For example, `route` is `~/settings/hello.general#greeting`, and the suggestion names the route.
+- **The hand-off (F2).** `setting-*`, `autonomy-set` and `experiment-*` refuse a non-human caller **in their own handlers**, not through phase 3's central `HUMAN_COMMANDS` check, so the refusal is theirs: `HUMAN_REQUIRED` with `details: { route, section, key, level }`, and a suggestion naming the route. For example, `route` is `~/settings/hello.general#greeting`.
+  - **For a setting,** `key` is the key.
+  - **For autonomy,** `section` is `loam.autonomy` and `key` is the row id the call would write (`workspace/-/tally/tally-reset`), or `cap`.
+  - **For an experiment,** `section` is `loam.experiments` and `key` is the experiment's `fullId`; `level` is `person` or `workspace`.
   - The agent can then tell its person exactly where to go.
   - Or it can push a notice whose `link` goes there (10.1).
 - **How this fits phase 3's frozen lists.**
-  - `autonomy-set`, `experiment-enable`, `experiment-disable`, `notification-act` and `palette-run` join `HUMAN_COMMANDS` whole.
-  - `setting-set` and `setting-reset` refuse in their handler, from `settingWriteRule`, as phase 3's 3.4 does for `project-update { access }`.
+  - `notification-act` and `palette-run` join `HUMAN_COMMANDS` whole.
+  - `setting-set`, `setting-reset`, `autonomy-set`, `experiment-enable` and `experiment-disable` refuse in their handlers, as phase 3's 3.4 does for `project-update { access }`, so that each gives its own hand-off.
   - The membership re-read gains `needsMembershipRead(command, input)` (A-P3-1).
 - **No app writes a setting.**
 - **Records carry who wrote them.** Every write records `updatedAt` and `updatedBy`, per key, in person records too. `updatedBy` is the person's id, or `agent:<id>` for an agent acting for them.
@@ -415,7 +436,7 @@ export interface SettingsV1 {
 - `title` and `description`;
 - `app`: the owning app's title.
 
-Choosing a row runs `section-open { section: 'settings', target }`. A project-only key is listed only while a project is active. The index is built in `late-settings`, never in first paint.
+`palette-search` gains an optional `kind: 'command' | 'document' | 'setting'` filter. Rows are ordered by score, then by name, so a result is deterministic. Choosing a setting row runs `section-open { section: 'settings', target }`. A project-only key is listed only while a project is active. The index is built in `late-settings`, never in first paint.
 
 ## 4. The autonomy section (D118)
 
@@ -456,9 +477,13 @@ export interface AutonomyRowV1 {
    - the workspace row for this command.
 
    So no project loosens past what the workspace allows. An owner who wants projects to go further sets `ceiling` higher.
+
+   **At write time (F8),** a project row is checked against the bound it will meet:
+   - **a general or instance project row** against the workspace's `ceiling`, else its general row's mode, and **when neither is set, the strictest default, `ask`**, since such a row covers commands of every kind;
+   - **a command project row** against those, the default for that command, and the workspace's rows for its instance and command.
 5. **The person's cap.** Lower the mode to it.
 
-**Orphan rows** are ignored, and flagged in `autonomy-list` and in an owner notice (10.2).
+**Orphan rows** are ignored, and flagged in `autonomy-list` and in a notice to the owners who may enter the row's project (all owners for a workspace row) (10.2).
 
 The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' | 'ceiling' | 'cap' }> }`, with only rows of projects the caller may enter.
 
@@ -480,7 +505,7 @@ The result is `{ mode, from, ceilings, cap, chain: Array<{ id; mode; as: 'mode' 
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `autonomy-get` | query | `{ command; instance?; project? }` or `{ commands: Array<{ command; instance? }> /* 1 to 50 */; project? }` | One result, or `{ results }` in the same order. **The project:** the input's when given, otherwise the call's scope. A project the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
-| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged |
+| `autonomy-list` | query | `{ level?; project? }` | `{ rows; ceiling; cap }`, only rows of projects the caller may enter, orphans flagged. A `project` the caller may not enter, or that does not exist, gives `PROJECT_NOT_FOUND` |
 | `autonomy-set` | mutation, human | `{ level: 'workspace' \| 'project'; project?; instance?; command?; mode?: AutonomyModeV1 \| null; ceiling? } \| { level: 'person'; cap }` | `{ row?; cap?; previous }` |
 
 ### 4.5 What phase 4 shows, and what phase 5 does
@@ -548,7 +573,7 @@ export interface ExperimentV1 {
 
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
-| `experiment-list` | query | `{ hidden?: true }` (`local` only) | `{ experiments: Array<{ fullId; owner; title; changes; ends; stage; on; by; workspace: boolean; changed; overdue }> }` |
+| `experiment-list` | query | `{ experiment?; hidden?: true }` (`hidden` in `local` only) | `{ experiments: Array<{ fullId; owner; title; changes; ends; stage; on; by; workspace: boolean; changed; overdue }> }` |
 | `experiment-check` | query | `{ experiment }` | `{ on; by }`. Unknown and `hidden` ids answer the same bytes |
 | `experiment-enable` | mutation, human; owner for `workspace` | `{ experiment; audience }` | `{ on; by }` |
 | `experiment-disable` | mutation, human; owner for `workspace` | `{ experiment; audience }` | `{ on; by }`, or `EDITOR_TAB_DIRTY` |
@@ -575,6 +600,7 @@ export interface ExperimentV1 {
 | An inactive app's port | The app's | `OVERLAY_OWNER_INACTIVE` | `OVERLAY_OWNER_INACTIVE` | `OVERLAY_OWNER_INACTIVE` | `OVERLAY_OWNER_INACTIVE` | `CALL_NOT_GRANTED` |
 | **The agent interface** | `agent:<id>`'s | **`HUMAN_REQUIRED`** | **`HUMAN_REQUIRED`** | **`HUMAN_REQUIRED`** | **`HUMAN_REQUIRED`** | **`HUMAN_REQUIRED`** |
 
+- **Agent toasts (F7)** count against the agent's push rate, 5 a minute (10.2), and **never evict a shell toast or a `danger` toast**: when the region is full of those, the agent's toast is refused `RATE_LIMITED` with `details: { limit: 5, retryAfterMs }`, rather than pushing one off screen.
 - **Why agents get toasts only.** An agent's refusal suggests a confirmation, by calling the command itself, or `notification-push`. So an agent never puts anything in the slot, and everything it asks waits in the inbox (R3).
 - **The kernel's own prompts** (7.1 to 7.3) are owned by `SHELL_OWNER` and carry `for: { command, caller }`, set by the kernel alone.
 - **The slot:** while it is held, `modal-open`, `prompt-open` and `palette-open` give `OVERLAY_MODAL_BUSY`, and nothing runs.
@@ -615,7 +641,12 @@ An anchor is `{ surface; anchor }`. `anchor` is a `data-loam-anchor` value insid
 | An app's own | A human gesture, or its owning app |
 | An agent's toast | A human gesture |
 
-Anything else may only cancel or dismiss. A confirm from it gives `HUMAN_REQUIRED`, and nothing runs.
+Anything else may only cancel or dismiss, with one exception (F6):
+
+- **A `SHELL_OWNER` overlay is closed only by a human gesture, or by the caller named in its `for.caller`** (an app cancelling the confirmation it raised in the slot). The agent interface, and any other port, get `HUMAN_REQUIRED` even for a cancel.
+- **When the raising caller cancels its own confirmation, the outcome is `withdrawn`,** which never opens the decline window.
+
+A confirm from anyone but a human gesture gives `HUMAN_REQUIRED`, and nothing runs.
 
 ### 6.6 Whose overlay it is
 
@@ -638,7 +669,7 @@ Anything else may only cancel or dismiss. A confirm from it gives `HUMAN_REQUIRE
 **`palette-run` is human only (R8):** `HUMAN_REQUIRED` from the agent interface, and `CALL_NOT_GRANTED` from a port.
 
 1. **`palette-run { command }`** opens a shell-owned prompt for the command's input and returns `{ prompt: OverlayRefV1 }`.
-2. **`palette-run { command, input }`** validates the input.
+2. **`palette-run { command, prompt, input }`** fills the open prompt `prompt` opened for the same `command`, and validates the input. A `prompt` that is not open, or was opened for another command, gives `OVERLAY_NOT_FOUND`, and nothing runs.
    - **On a failure,** the prompt stays open, showing the error.
    - **If the command declares `confirm_prompt`, its confirmation replaces the input prompt in the slot** (`reason: 'replaced'`, R15), showing the collected input. Confirm runs the command.
    - **Otherwise,** it runs the command through the palette interface.
@@ -666,16 +697,30 @@ Anything else may only cancel or dismiss. A confirm from it gives `HUMAN_REQUIRE
 | The active app's port, or the active tab owner's | The same, with the header "Tally asks to run Reset count" |
 | **An agent, or an inactive or background app** | **The call returns at once:** `CONFIRMATION_PENDING`, retryable, `details: { notification, expiresAt }`. A pending confirmation waits in the inbox (10.1), announced and never shown as a modal |
 
+**The order of a call (F9).** For a command with a `confirm_prompt`, from any caller:
+
+1. strict validation of the input;
+2. line 0;
+3. `decideAccess`, and the calling app's grants;
+4. the decline window (below);
+5. a pending confirmation, or the slot;
+6. the handler.
+
+So no confirmation is raised for invalid input, and a project the caller may not enter answers `PROJECT_NOT_FOUND` before any `CONFIRMATION_PENDING` could reveal it.
+
+**The confirmation's key (F4)** is (caller, command, input digest, scope). The repeat rule and the decline window both key on it, so an app's and an agent's identical calls, or the same call in two projects, never share one.
+
 **The pending path:**
 
 - **The header,** drawn by the shell: "Requested by <agent> for <person>, in <project>", or "Tally asks to run … in <project>". The app's `confirm_prompt` text sits beneath it, together with the input.
 - **Confirmed by a human gesture,** through `notification-act { answer: 'confirm' }` or the inbox's button:
   - the shell re-checks the requesting actor's access in the confirmation's scope (line 0 and `decideAccess`);
   - if access fails, the confirmation ends `declined`, with `reason: 'access'`;
-  - if access passes, **the shell runs the call itself, as approved**: the same actor, command, input and scope, journaled with the confirmation's id.
+  - the re-check is **the same chain as steps 2 and 3**: line 0, `decideAccess`, the app's grants, and whether the app is still enabled for the project and loaded;
+  - if it passes, **the shell runs the call itself, as approved, once**: the same actor, command, input and scope, journaled with the confirmation's id.
   - The outcome is stored on the confirmation.
 - **The caller reads its state and outcome** with `confirmation-get`: `{ state: 'pending' | 'confirmed' | 'declined' | 'expired' | 'withdrawn'; result?: CommandResult; expiresAt }`. A caller may read only confirmations it raised.
-- **Re-calling the same command, with the same input digest, while pending** returns the same `CONFIRMATION_PENDING`, so no duplicate is raised.
+- **A re-call on the same key until `expiresAt` (F5)** never raises a second confirmation. It returns the stored state: `CONFIRMATION_PENDING` while pending; the stored outcome once `confirmed` (the result of the one run); `CONFIRMATION_DECLINED` once declined. After `expiresAt`, a re-call raises a new one.
 - **`confirmation-withdraw { notification }`** by the caller ends it as `withdrawn`. So do:
   - an unload of the app (R14);
   - a change of person.
@@ -684,7 +729,7 @@ Anything else may only cancel or dismiss. A confirm from it gives `HUMAN_REQUIRE
 - **Expiry:** a pending confirmation expires after 10 minutes, ending as `expired`. A re-call after that raises a new one. **`CONFIRMATION_EXPIRED`** is what `confirmation-get`'s `result` holds for it.
 - **Limits:** at most 5 pending per caller. A sixth gives `RATE_LIMITED`, with `details: { limit: 5, retryAfterMs }`, the time until the earliest of them expires.
 - **Grouping (R16):** a confirmation carries `group?`, the agent's run, set by phase 5. Confirming or declining a whole group is phase 5's ([section 18](#18-out-of-scope-and-the-seams-reserved)).
-- **The decline window (R16):** after a decline, for 60 seconds, the same command with the same input digest, from the same caller, is refused with `CONFIRMATION_DECLINED` without asking. The inbox lists it as "Declined automatically". Only a human gesture is exempt (N8), so an active app's port, which carries a copied human actor, is held back too.
+- **The decline window (R16, F4):** after a decline, for 60 seconds, a call on the same key is refused with `CONFIRMATION_DECLINED` without asking. The inbox lists it as "Declined automatically". Only a human gesture is exempt (N8), so an active app's port, which carries a copied human actor, is held back too.
 - **Over MCP** no app command is served (D104).
 - **Replay** answers from the journal.
 
@@ -732,7 +777,7 @@ Phase 0's seven, plus `Mod+Alt+P` for the project switcher (#857). P4-E9 asserts
 
 ### 8.5 Commands
 
-`keybinding-list` returns `{ bindings: Array<KeybindingV1 & { source: 'shell' | 'app' | 'you'; app?: string; shadowed?: Array<{ source; command }>; active: boolean }> }`. `keybinding` joins the shell's domains.
+`keybinding-list { command?; target?; all?: boolean }` returns the bindings in force (with `all`, also the shadowed ones), ordered by keys: `{ bindings: Array<KeybindingV1 & { source: 'shell' | 'app' | 'you'; app?: string; shadowed?: Array<{ source; command }>; active: boolean }> }`. `keybinding` joins the shell's domains.
 
 ### 8.6 Chords inside a view
 
@@ -779,7 +824,7 @@ export interface NotificationV1 {
 
 - **Who can read it:** only its person and their agents. Reads are filtered by `decideAccess` on `scope`.
 - **Actions:**
-  - An action must be the source app's own palette command, never a human or owner command (`OVERLAY_ITEM_RESERVED`).
+  - An action must be the source app's own palette command: another app's is `NOTIFICATION_ACTION_FOREIGN`, and a human or owner command is `OVERLAY_ITEM_RESERVED`.
   - **An agent's notice carries no action** (`NOTIFICATION_ACTION_UNAVAILABLE`), but it may carry a `link`.
   - `notification-act` runs the action as the person and marks the notice `done` and read.
 - **Pending confirmations are protected (R10):**
@@ -795,7 +840,7 @@ export interface NotificationV1 {
 | Command | Kind | Input | Result data |
 | --- | --- | --- | --- |
 | `notification-push` | mutation | `{ title; body?; tone?; link?; action? }` | `{ notification }` |
-| `notification-list` | query | `{ cursor?; unread?; source?; kind?; limit?: 1..100, default 20; body?: boolean }` | `{ notifications; cursor; unread }`. `body` and a confirmation's `input` only with `body: true`. Budget 32 KiB |
+| `notification-list` | query | `{ cursor?; unread?; source?; kind?; limit?: 1..100, default 20; body?: boolean }` | `{ notifications; cursor; unread }`, newest first, ties by id. `body` and a confirmation's `input` only with `body: true`. Budget 32 KiB |
 | `notification-read` | mutation | `{ notification } \| { all: true; source? }` | `{ read }`. Pending confirmations are skipped unless the caller is a human gesture |
 | `notification-archive` | mutation | `{ notification } \| { all: true; source? }` | `{ archived }`, with the same protection |
 | `notification-act` | mutation, human | `{ notification; answer?: 'confirm' \| 'decline' }` | The action's result with `state: 'done'`, or `{ state }` |
@@ -809,7 +854,7 @@ export interface NotificationV1 {
   - phase 3's revoked session;
   - the experiment changes of 5.2;
   - a deferred unload;
-  - an orphan autonomy row, to owners;
+  - an orphan autonomy row, to the owners who may enter its project;
   - an app refused by a limit, to owners, once a window (11).
 - **`confirmation-get` and `confirmation-withdraw`** are callable by the agent interface and by the raising app's port. `confirmation` joins the shell's domains.
 
@@ -830,9 +875,11 @@ export interface NotificationV1 {
 - **Fail closed:** the defaults are enforced from boot.
 - **The bounds hold each other.** A write that breaks the quarter rule gives `VALIDATION_ERROR`. Its suggestion names the order: lower `inputBytes` before `journalEntryBytes`; raise `journalEntryBytes` before `inputBytes`.
 - **Replay stops at an unreplayable entry,** with `REPLAY_ENTRY_TRUNCATED`.
-- **Usage (person gap 15):** `limit-usage-get`, an owner's query, returns per instance:
-  - `storeBytes` used;
-  - the count of refusals by limit in the last hour.
+- **Usage (F3):**
+
+  | Command | Kind | Input | Result data |
+  | --- | --- | --- | --- |
+  | `limit-usage-get` | query, owner (`OWNER_REQUIRED` for others, `HUMAN_REQUIRED` from an agent, in its handler) | `{ instance? }` | `{ instances: Array<{ instance; storeBytes: { used; limit }; refusals: { messageBytes; inputBytes; callsPerSecond; storeBytes; journalEntryBytes } }> }`, ordered by instance. `refusals` counts each of this section's limits in the last hour |
 
   The shell notifies owners the first time an instance is refused in an hour. `limit` joins the shell's domains.
 - **Not answered:**
@@ -951,7 +998,9 @@ These are estimates, under D115.
 | `OVERLAY_ANCHOR_NOT_FOUND` | An anchor that cannot be resolved | No | Set `data-loam-anchor` on the invoker |
 | `OVERLAY_ELEMENT_VIEW` | `element` from a view | No | Use text, actions or a prompt |
 | `OVERLAY_LIMIT` | A fourth dialog | No | Close one first |
+| `OVERLAY_NOT_FOUND` | `palette-run` naming a prompt that is not open for that command | No | Open it again with `palette-run { command }` |
 | `OVERLAY_ITEM_RESERVED` | An action or menu item that is a human or owner command | No | Let the person run it from the palette |
+| `NOTIFICATION_ACTION_FOREIGN` | An action naming another app's command | No | Use one of this app's own commands as the action |
 | `NOTIFICATION_ACTION_UNAVAILABLE` | An agent's notice with an action | No | Push it with a `link` instead, or call the command for a confirmation |
 | `CONFIRMATION_PENDING` | A confirmation from an agent or a background app is waiting | Yes | Tell the person it is in their inbox; read it with `confirmation-get` |
 | `CONFIRMATION_DECLINED` | Declined, or declined within 60 s for the same input | No | Ask the person before trying again; do not repeat the call |
@@ -1001,16 +1050,16 @@ The phase exits when all of these hold:
 
 | # | Criterion | Place | Test |
 | --- | --- | --- | --- |
-| P4-E1 | **An app's setting is searchable from the palette and scoped per project** | Chromium; Units | Hello's `greeting` through the palette, the section, the grant and `settingsChanged`. A project-only key is hidden with no project. No `level` gives `VALIDATION_ERROR`. `expected` gives `SETTING_CONFLICT`. `updatedBy` reads `agent:shell-agent` for an agent's write. The `HUMAN_REQUIRED` hand-off's `details`. `writable` is computed for the caller |
+| P4-E1 | **An app's setting is searchable from the palette and scoped per project** | Chromium; Units | Hello's `greeting` through the palette, the section, the grant and `settingsChanged`. A project-only key is hidden with no project. No `level` gives `VALIDATION_ERROR`. `expected` gives `SETTING_CONFLICT`. `updatedBy` reads `agent:shell-agent` for an agent's write. The `HUMAN_REQUIRED` hand-off's `details` from each of `setting-*`, `autonomy-set` and `experiment-*` (F2). `writable` is computed for the caller. **The codes:** `SETTING_NOT_FOUND`, `SETTING_LEVEL_UNAVAILABLE`, `SETTING_PROJECT_REQUIRED`, `SETTING_TOO_LARGE`, `SETTING_NOT_OWNED`, `SETTING_USE_AUTONOMY`, `SETTING_MUTE_SHELL` |
 | P4-E2 | **Settings, experiments and autonomy grant nothing** | Units | Phase 3's E2 sweep on twin stores, with the first round's exemptions (`data` compared for every command but `setting-*`, `autonomy-*`, `experiment-*`, `confirmation-*`, `keybinding-list`, `limit-usage-get`, `appearance-get`, `palette-search` as a set, `app-list` and `app-get`; commands of an app gated in one twin exempt entirely). The type and the scan |
 | P4-E3 | **Appearance is taken over** | Units; Chromium | Phase 0's tests and `SESSION_50`. **`local` signed out:** the theme migrates on the first stage B, paints from `loam.settings` with no flash, and `appearance-set` persists. **`provider`:** migration only signed in; `.last` paints the signed-out page; a signed-out `appearance-set` writes `.last` only; two people keep their own. `view-state-*` on `loam.settings` is refused |
 | P4-E4 | **An autonomy level set on a project is inherited by its apps and overridden for one command** | Units; Chromium | The `autonomy-per-command` and `owner-ceiling` cases. **With no `ceiling`, a project row above the workspace's general mode is `AUTONOMY_ABOVE_CEILING`, and with no general row, above the default.** The cap. Agents get `HUMAN_REQUIRED`. Non-creators and a team-listed project's creator get `OWNER_REQUIRED`. A creator removed from the project gets `PROJECT_NOT_FOUND`. `autonomy-set` on a restricted project gives `PROJECT_NOT_FOUND`, byte-identical, before any owner check. `AUTONOMY_COMMAND_UNKNOWN`, and orphan flagging after a manifest drops a command. Mounted tools resolve `ask`. Bulk `autonomy-get` |
-| P4-E5 | **An experiment gates a surface until a person opts in, and a workspace owner can enable it for all** | Chromium; Units | Bea and Olu, through personal and workspace enablement, the opt-out, and `OWNER_REQUIRED`. The digest. **`experiment-settle` deletes a removed experiment's enablements at the manifest's apply, before any enable.** `app-get`'s `gates`. **R14:** Olu's own disable with a dirty tab of the gated app gives `EDITOR_TAB_DIRTY`; an owner's disable defers the unload until the tab is saved or discarded, with a notice; pending confirmations for its commands end `withdrawn`. The notices of 5.2 |
+| P4-E5 | **An experiment gates a surface until a person opts in, and a workspace owner can enable it for all** | Chromium; Units | Bea and Olu, through personal and workspace enablement, the opt-out, and `OWNER_REQUIRED`. The digest. **`experiment-settle` deletes a removed experiment's enablements at the manifest's apply, before any enable.** `app-get`'s `gates`. **R14:** Olu's own disable with a dirty tab of the gated app gives `EDITOR_TAB_DIRTY`; an owner's disable defers the unload until the tab is saved or discarded, with a notice; pending confirmations for its commands end `withdrawn`. The notices of 5.2. **The codes:** `EXPERIMENT_NOT_FOUND`, `EXPERIMENT_NOT_OWNED` |
 | P4-E6 | **The inbox** | Chromium; Units | A sticky toast lands and counts. `source` on each path. Actions run through `notification-act` and end `done`. **R10:** the agent's `notification-read` and `-archive`, single and `all`, skip and refuse a pending confirmation; confirmations do not count against the 500. `notification-archive { all: true, source }`. The agent rate is 5. `notification-list`'s default of 20 and `body`. Filtered by scope. An agent's notice has no action but may carry a link |
-| P4-E7 | **Every overlay kind follows the policy table** | Chromium; Units | The kinds × paths matrix of 6.1, including **the agent interface's `popover-open`, `dialog-open`, `modal-open`, `prompt-open` and `palette-run` giving `HUMAN_REQUIRED` while its `toast-show` succeeds as `agent:<id>`**. The `reason`s. A change of person closes everything. The agent's `overlay-dismiss { result: 'confirm' }` gives `HUMAN_REQUIRED` |
-| P4-E8 | **Prompts and confirmations** | Chromium; Units | **R7:** in `local` signed out, the close prompt's Save and Discard, a confirmation's Confirm and `palette-run` with input all succeed as human gestures. **R8:** `palette-run` from a port gives `CALL_NOT_GRANTED`; an agent's `editor-close` on a dirty tab gives `EDITOR_TAB_DIRTY` and opens no modal. **R9:** an agent's `tally-reset` returns `CONFIRMATION_PENDING` at once with `details`; a re-call while pending returns the same; `confirmation-get` moves `pending`, `confirmed` (with the result of the call the shell ran) or `declined`; access re-checked on confirm; `confirmation-withdraw` gives `withdrawn` with no window; expiry after 10 minutes on a fake clock, then a new one on re-call; `confirm: true` refused in input. **R15:** `palette-run` with input on a `confirm_prompt` command replaces the input prompt in the slot with the confirmation, showing the input. **R16:** the window keys on the input digest, so a different input still asks; an active app's port is held by the window; a human gesture is not. The three-button close |
+| P4-E7 | **Every overlay kind follows the policy table** | Chromium; Units | The kinds × paths matrix of 6.1, including **the agent interface's `popover-open`, `dialog-open`, `modal-open`, `prompt-open` and `palette-run` giving `HUMAN_REQUIRED` while its `toast-show` succeeds as `agent:<id>`**. The `reason`s. A change of person closes everything. The agent's `overlay-dismiss { result: 'confirm' }` gives `HUMAN_REQUIRED`. **F6:** the agent's and an unrelated port's `overlay-dismiss { result: 'cancel' }` on a shell prompt, a confirmation in the slot and the close prompt give `HUMAN_REQUIRED`; the raising app's cancel of its own confirmation ends `withdrawn`, with no window. **F7:** a sixth agent toast within a minute gives `RATE_LIMITED`; with the region full of shell and `danger` toasts, an agent toast evicts none of them. **The codes:** `OVERLAY_ANCHOR_NOT_FOUND`, `OVERLAY_ELEMENT_VIEW`, `OVERLAY_LIMIT`, and `OVERLAY_NOT_FOUND` from `palette-run` with a stale `prompt` |
+| P4-E8 | **Prompts and confirmations** | Chromium; Units | **R7:** in `local` signed out, the close prompt's Save and Discard, a confirmation's Confirm and `palette-run` with input all succeed as human gestures. **R8:** `palette-run` from a port gives `CALL_NOT_GRANTED`; an agent's `editor-close` on a dirty tab gives `EDITOR_TAB_DIRTY` and opens no modal. **R9:** an agent's `tally-reset` returns `CONFIRMATION_PENDING` at once with `details`; a re-call while pending returns the same; `confirmation-get` moves `pending`, `confirmed` (with the result of the call the shell ran) or `declined`; access re-checked on confirm; `confirmation-withdraw` gives `withdrawn` with no window; expiry after 10 minutes on a fake clock, then a new one on re-call; `confirm: true` refused in input. **R15:** `palette-run` with input on a `confirm_prompt` command replaces the input prompt in the slot with the confirmation, showing the input. **R16:** the window keys on the input digest, so a different input still asks; an active app's port is held by the window; a human gesture is not. **F4:** tally's and the agent's identical `tally-reset` calls, and the agent's in `prj_atlas` and `prj_beacon`, raise four separate confirmations. **F5:** after the person confirms, the agent's re-call returns the stored outcome and the count rises once. **F9:** a call with invalid input, or naming a project the caller may not enter, raises no confirmation (`VALIDATION_ERROR`, `PROJECT_NOT_FOUND`); when tally is disabled for the project, or loses a grant, between raising and confirming, the confirmation ends `declined` with `reason: 'access'` and nothing runs. The three-button close |
 | P4-E9 | **Keybindings** | Chromium; Units | `Mod+Alt+P` in Chromium. German and Cyrillic layouts. Sequences. A sequence starting on a reserved chord refused. Overrides with `source` and `shadowed`. F6 refused. The editor's warning. The rail order |
-| P4-E10 | **Limits** (#710, in part) | Chromium; Units | Each refusal with its `details`. The quarter rule and its order. A truncated entry stops replay with `REPLAY_ENTRY_TRUNCATED`. The defaults hold when `late-settings` fails. `limit-usage-get` and the owner notice |
+| P4-E10 | **Limits** (#710, in part) | Chromium; Units | Each refusal with its `details`. **The owner's half (F3):** with the default `inputBytes` (262,144), setting `journalEntryBytes` to 524,288 gives `VALIDATION_ERROR` naming the order; `limit-usage-get` reports each of section 11's limits for hello after its refusals, and an agent's call gives `HUMAN_REQUIRED`. A truncated entry stops replay with `REPLAY_ENTRY_TRUNCATED`. The defaults hold when `late-settings` fails. `limit-usage-get` and the owner notice |
 | P4-E11 | Withdrawn | | Menus are deferred (section 9) |
 | P4-E12 | **Budgets** | Budget; Chromium | Section 14 |
 | P4-E13 | **Accessibility and captures** | Chromium | Section 15; **the autonomy section's advisory notice** |
@@ -1074,7 +1123,7 @@ The question is who else may set a project's own level, which then stays within 
 
 ### Q3. The default autonomy
 
-Where nobody has set autonomy, the default decides what agents do. **It also bounds every project until an owner sets a ceiling (4.2).** Until phase 5, nothing enforces it (D98).
+Where nobody has set autonomy, the default decides what agents do. **It also bounds every project until an owner sets a workspace mode or a ceiling (4.2): a stricter default bounds every project's general row,** whose bound at write time is then `ask`. Until phase 5, nothing enforces it (D98).
 
 - **Act on reads, ask before changes, and ask before any tool of a mounted server (recommended).** A mounted server labels its own tools, and that label can't be trusted. **Owners can loosen this** by setting the workspace's mode and ceiling higher.
 - **Ask for everything.** The tradeoff: agents ask before every lookup, and people learn to click through.
@@ -1113,8 +1162,8 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revi
 - **A-P2-3 (step 10):** the 256 KiB instance-command input bound becomes `loam.limits.inputBytes`.
 - **A-P3-1 (step 1):**
   - `emphasis.sections` widened;
-  - `HUMAN_COMMANDS` gains `autonomy-set`, `experiment-enable`, `experiment-disable`, `notification-act` and `palette-run`;
-  - the `setting-*` cases are decided in the handler;
+  - `HUMAN_COMMANDS` gains `notification-act` and `palette-run`;
+  - `setting-*`, `autonomy-set`, `experiment-*` and `limit-usage-get` refuse non-human callers in their own handlers, with their own hand-off `details` (F2), as phase 3's 3.4 does for `project-update { access }`;
   - `needsMembershipRead` joins the re-read.
 - **A-P3-2 (step 1):** in `provider` mode, appearance is per person, with `loam.appearance.last` (3.6).
 
@@ -1136,13 +1185,13 @@ The fourteen jobs in [Jobs and scenarios](#jobs-and-scenarios) are a draft, revi
 | --- | --- |
 | D116 | Settings: a closed schema subset with no `pattern`; three levels; resolution person, project, workspace, default. One `settingWriteRule`, with `level` required. Workspace values are an owner's; project values a person's who may enter the project (agents per Q4). Writes record `updatedBy`, `agent:<id>` for agents, and take `expected`. `loam.settings` is not a view-state id. The grant reads only the app's own sections. A `HUMAN_REQUIRED` hands off `{ route, section, key, level }` |
 | D117 | Appearance, keybindings and the rail order are person settings. In `local`, appearance migrates on the first stage B and paints from `loam.settings`. In `provider`, it is per person, `loam.appearance.last` paints the signed-out page and stage A, and nothing migrates while signed out |
-| D118 | Autonomy rows at workspace or project level, narrowed to an instance and a command. A project row is bounded by the workspace's ceiling, or its general row, or the default, and by its rows for that app and command; then by the person's cap. The default follows Q3, with mounted tools at `ask`. Writes are human, check access first, and refuse unknown commands; orphans are flagged. Advisory in phase 4, with a notice; enforced by phase 5, which also adds the "within limits" field |
+| D118 | Autonomy rows at workspace or project level, narrowed to an instance and a command. A project row is bounded by the workspace's ceiling, or its general row, or the default, and by its rows for that app and command; then by the person's cap. At write time a general or instance project row with neither a workspace mode nor a ceiling is bounded by `ask`. The default follows Q3, with mounted tools at `ask`. Writes are human, refused in the handler with a hand-off, check access first, and refuse unknown commands; orphans are flagged to the owners who may enter the project. Advisory in phase 4, with a notice; enforced by phase 5, which also adds the "within limits" field |
 | D119 | Experiments: an author's stage, `changes` and `ends`; enablement per person and per workspace, tied to the `changes` digest; opt-out per Q2. `experiment-settle` deletes the enablements of removed experiments at the manifest's apply. Gates decide presence. An unload never loses a dirty tab. Changes are announced |
-| D120 | The inbox: per person, filtered by scope, `source` derived from the path. At most one action, the source's own palette command, never from an agent. Pending confirmations cannot be marked or archived by a non-human, and do not count against the quota. AFD's codes, with details |
-| D121 | The overlay manager complete. The agent interface opens toasts only; every other kind and `palette-run` give `HUMAN_REQUIRED`. A human gesture is a chrome or palette call with no `caller` and an actor that is not `agent`. Only a human gesture confirms |
-| D122 | `palette-run` is human-only, and its confirmation replaces the input prompt. `confirm_prompt` is enforced in process. Confirmations from an agent or a background app return `CONFIRMATION_PENDING` at once; the person confirms in the inbox, and the shell runs the call as approved after re-checking access; the caller reads the outcome with `confirmation-get`, or withdraws it. Withdrawal and expiry (`CONFIRMATION_EXPIRED`) never open the decline window. The window keys on command and input digest, and exempts only human gestures. `group` is phase 5's. The close prompt opens only for the person's own close |
+| D120 | The inbox: per person, filtered by scope, `source` derived from the path. At most one action, the source's own palette command (`NOTIFICATION_ACTION_FOREIGN` otherwise), never a human or owner command, never from an agent. Pending confirmations cannot be marked or archived by a non-human, and do not count against the quota. AFD's codes, with details |
+| D121 | The overlay manager complete. The agent interface opens toasts only, counted against its rate of 5 a minute and never evicting a shell or `danger` toast; every other kind and `palette-run` give `HUMAN_REQUIRED`. A human gesture is a chrome or palette call with no `caller` and an actor that is not `agent`. Only a human gesture confirms; a shell-owned overlay is closed only by a human gesture or its `for.caller`, whose cancel is `withdrawn` |
+| D122 | `palette-run` is human-only, fills the prompt it names, and its confirmation replaces the input prompt. `confirm_prompt` is enforced in process, after validation, line 0, access and grants and the decline window. Confirmations from an agent or a background app return `CONFIRMATION_PENDING` at once; the person confirms in the inbox, and the shell re-checks the same chain and runs the call once. A confirmation is keyed on (caller, command, input digest, scope); a re-call on that key before `expiresAt` returns its stored state and outcome. Withdrawal and expiry never open the decline window, which keys the same way and exempts only human gestures. `group` is phase 5's. The close prompt opens only for the person's own close |
 | D123 | Keybindings version 1: layout-aware; sequences that cannot start on a reserved chord; a closed `when`; human overrides, except for F6, Shift+F6 and Escape, with `source` and `shadowed`; `Mod+Alt+P`; no forwarding from views |
-| D124 | Limits per message, input, call rate, store and whole journal entry; the bounds hold each other, with the order named; failing closed; a replay stops at a truncated entry; owners read usage and are told of refusals. #710 is answered in part |
+| D124 | Limits per message, input, call rate, store and whole journal entry; the bounds hold each other, with the order named; failing closed; a replay stops at a truncated entry; owners read usage per limit with `limit-usage-get` and are told of refusals. #710 is answered in part |
 | D125 | Phase 4 runs nothing on the hosted server. Hosted `provider` deployments refuse shared writes and every autonomy write with `SHARED_RECORD_UNAVAILABLE`. Phase 5's shell commands over MCP bring them to the server, under section 13's seven obligations |
 | D126 | Phase 4's exit is local and starts from every scenario passing; it waits on phase 3's step 9 and nothing of phase 6 |
 | D127 | Menus are deferred to their own specification; `ui.menus` stays refused, naming it. The `menu` popover kind stays |
@@ -1288,6 +1337,32 @@ The second round:
 
 **Declined:** two, in part. Both are in the person walk's table: the `app check` warning on orphan rows (gap 7), and counting the members who override a workspace value (gap 18).
 
+### Re-check 2026-11-13, third round
+
+A re-check of `faa0c1d9` found the second revision "approvable once fixed". It found every earlier trust blocker closed, and both partial declines sound. It raised one blocker (F1), ten improvements (F2 to F11) and four nits, and the coordinator ruled on F2 to F11.
+
+| Finding | Answer |
+| --- | --- |
+| **F1:** ten scenarios assert lists that AFD compares whole | Every list is asserted by index, with `'1': { notExists: true }` for a single item, since AFD's validator refuses `length` beside index keys. Where order is not fixed, the command takes a filter: `palette-search { kind }`, `experiment-list { experiment }`, `keybinding-list { command, target }`, and `notification-list { kind, limit }`. Orders are stated (3.10, 8.5, 10.2). Two assertions were proved with `evaluateResult` (the Checks). AFD is unchanged; partial list matching and a step-level actor and scope are a [follow-up](#follow-ups) |
+| **F2:** the hand-off from phase 3's central check | `setting-*`, `autonomy-set`, `experiment-*` and `limit-usage-get` refuse in their handlers, with `key` defined for autonomy and experiments (3.2); A-P3-1 amended; E1 |
+| **F3:** the limit scenario | The owner's steps moved to E10, with `journalEntryBytes` at 524,288 against the default `inputBytes`; `limit-usage-get` has its commands-table row (11), and `refusals` names section 11's limits; the job is the app author's alone |
+| **F4:** the confirmation's key | (caller, command, input digest, scope), for both the repeat rule and the window (7.2); E8 |
+| **F5:** a retry after confirming | A re-call before `expiresAt` returns the stored state and outcome; a confirmed call runs once (7.2); E8 |
+| **F6:** an agent cancelling the person's prompts | A `SHELL_OWNER` overlay closes only by a human gesture or its `for.caller`; the agent gets `HUMAN_REQUIRED`; the raiser's cancel is `withdrawn` (6.5); E7 |
+| **F7:** agent toasts | Counted against the agent's rate of 5 a minute; they never evict a shell or `danger` toast (6.1); E7 |
+| **F8:** the write-time bound of a general project row | Bounded by the workspace mode or ceiling, else by `ask` (4.2); Q3 restated |
+| **F9:** the order of a call | Validation, line 0, access and grants, the window, pending or the slot, then the handler; the same chain, the app's enablement included, is re-checked on confirm (7.2); E8 |
+| **F10:** the directives, seeds, `project` and portability | A grammar table, with one caller directive at most, in a fixed order, and `inactive` defined; one seed, `p4-base`, in the runner's seed map, since AFD's `fixture` names a server file; `project` is the id everywhere; every file is tagged `loam-runner` (Jobs and scenarios) |
+| **F11:** the claim about error codes | Every code in section 16 has a unit test; the twelve the re-check named are in E1, E5 and E7 |
+| **Nit:** the orphan notice | Sent only to owners who may enter the row's project (4.2, 10.2) |
+| **Nit:** an action that is another app's command | `NOTIFICATION_ACTION_FOREIGN` (10.1, 16); a step in `inbox-action` |
+| **Nit:** the guest-book wording | "Ada is waiting at the guest book", and `hello-greet` greets a waiting visitor |
+| **Nit:** `autonomy-list` on a project the caller can't enter | `PROJECT_NOT_FOUND` (4.4) |
+| **Nit:** `palette-run`'s input and its prompt | `palette-run { command, prompt, input }` fills the named prompt; a stale one gives `OVERLAY_NOT_FOUND` (7.1) |
+| Q3's wording | "Until an owner sets a workspace mode or a ceiling", with the stricter default's bound on general rows |
+
+**Declined:** none.
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Status |
@@ -1302,4 +1377,5 @@ The second round:
 | 2026-11-13 | Second round (R16) | Confirm or decline a whole run's confirmations by `group` | Open; phase 5 |
 | 2026-11-13 | Second round (job list) | The limit field for D41's "approval within limits", and the untrusted labels | Open; phase 5 |
 | 2026-11-13 | Second round | Menus: a specification of their own, with a job | Open |
-| 2026-11-13 | Second round | A fresh re-check of this revision | Open |
+| 2026-11-13 | Third round (F1, F10) | AFD: partial list matching in the scenario evaluator, and a step-level actor and scope. Work across all four languages | Open; AFD |
+| 2026-11-13 | Third round | A fresh re-check of this revision | Open |

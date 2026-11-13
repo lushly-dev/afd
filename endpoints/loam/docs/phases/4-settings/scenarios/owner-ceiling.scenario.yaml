@@ -1,14 +1,14 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 name: Set a rule no project can loosen
 description: >-
   When one command is risky everywhere, I want to set a rule for it that no project can
   loosen, so that the workspace's limits hold whoever runs a project.
 job: owner-ceiling
+tags: [loam-runner]
 steps:
   - description: An owner lets projects go as far as act
     command: autonomy-set
@@ -22,7 +22,7 @@ steps:
       success: true
   - description: A project row past the owner's rule is refused, naming who sets it
     command: autonomy-set
-    input: { level: project, project: atlas, instance: tally, command: tally-reset, mode: act }
+    input: { level: project, project: prj_atlas, instance: tally, command: tally-reset, mode: act }
     expect:
       success: false
       error:
@@ -36,10 +36,10 @@ steps:
       error: { code: AUTONOMY_COMMAND_UNKNOWN }
   - description: The project acts on everything else, and still only suggests tally-reset
     command: autonomy-set
-    input: { level: project, project: atlas, mode: act }
+    input: { level: project, project: prj_atlas, mode: act }
     expect:
       success: true
-  - description: "[scope: atlas] The owner's rule holds in the project"
+  - description: "[scope: prj_atlas] The owner's rule holds in the project"
     command: autonomy-get
     input: { command: tally-reset, instance: tally }
     expect:

@@ -1,15 +1,15 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 name: Leave my person a notice
 description: >-
   When I am an agent and finish something my person should look at, I want to leave them a
   notice that says it came from me and links to the thing, so that they find it when they're
   back.
 job: agent-leaves-notice
+tags: [loam-runner]
 steps:
   - description: "[agent] A notice may not carry an action from an agent"
     command: notification-push
@@ -32,9 +32,10 @@ steps:
         notification: { source: 'agent:shell-agent' }
   - description: My person sees who left it
     command: notification-list
-    input: { unread: true }
+    input: { unread: true, limit: 1 }
     expect:
       success: true
       data:
         notifications:
-          - { source: 'agent:shell-agent', title: I filed the guest book summary }
+          '0': { source: 'agent:shell-agent', title: I filed the guest book summary }
+          '1': { notExists: true }

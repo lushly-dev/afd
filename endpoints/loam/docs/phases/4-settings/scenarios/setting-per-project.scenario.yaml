@@ -1,9 +1,8 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # Projects Atlas and Beacon exist; hello declares hello.general.greeting at workspace and
 # project level, default "Hello".
 name: Scope a setting per project
@@ -11,7 +10,7 @@ description: >-
   When a project needs an app to behave differently, I want to set that app's setting for the
   project alone, so that the other projects keep theirs.
 job: setting-per-project
-tags: [slice]
+tags: [slice, loam-runner]
 steps:
   - description: An owner sets the workspace's value, which every project inherits
     command: setting-set
@@ -19,19 +18,19 @@ steps:
     expect:
       success: true
       data: { value: Hello team, from: workspace }
-  - description: "[scope: atlas] Atlas sets its own"
+  - description: "[scope: prj_atlas] Atlas sets its own"
     command: setting-set
     input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
     expect:
       success: true
       data: { value: Hi Atlas, from: project }
-  - description: "[scope: beacon] Beacon keeps the workspace's"
+  - description: "[scope: prj_beacon] Beacon keeps the workspace's"
     command: setting-get
     input: { section: hello.general, key: greeting }
     expect:
       success: true
       data: { value: Hello team, from: workspace }
-  - description: "[scope: atlas] A write that names no level is refused, with the way forward"
+  - description: "[scope: prj_atlas] A write that names no level is refused, with the way forward"
     command: setting-set
     input: { section: hello.general, key: greeting, value: Hey }
     expect:
@@ -39,13 +38,13 @@ steps:
       error:
         code: VALIDATION_ERROR
         suggestion: { contains: level }
-  - description: "[scope: atlas] Atlas clears its value"
+  - description: "[scope: prj_atlas] Atlas clears its value"
     command: setting-reset
     input: { section: hello.general, key: greeting, level: project }
     expect:
       success: true
       data: { value: Hello team, from: workspace }
-  - description: "[scope: atlas] Atlas reads the workspace's again"
+  - description: "[scope: prj_atlas] Atlas reads the workspace's again"
     command: setting-get
     input: { section: hello.general, key: greeting }
     expect:

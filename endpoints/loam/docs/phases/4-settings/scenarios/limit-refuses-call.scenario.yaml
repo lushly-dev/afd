@@ -1,30 +1,17 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
-# The figures are in each error's details ({ limit, retryAfterMs }), which P4-E10 asserts. An
-# input over inputBytes needs 64 KiB, which a scenario cannot carry; P4-E10 shows it.
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# The figures are in the error's details ({ limit, retryAfterMs }), which P4-E10 asserts. The
+# owner's half of limits (the quarter rule, limit-usage-get) is P4-E10's too.
 name: Learn which limit my app hit, and what to change
 description: >-
-  When my app hits one of the shell's limits, I want to learn which one and what to change, so
-  that I fix my app instead of guessing.
+  When my app hits one of the shell's limits, I want to learn which one and when to try again,
+  so that I fix my app instead of guessing.
 job: limit-refuses-call
+tags: [loam-runner]
 steps:
-  - description: An owner lowers the input limit first, as the bounds require
-    command: setting-set
-    input: { section: loam.limits, key: inputBytes, value: 65536, level: workspace }
-    expect:
-      success: true
-  - description: An entry limit under four times the input limit is refused, naming the order
-    command: setting-set
-    input: { section: loam.limits, key: journalEntryBytes, value: 131072, level: workspace }
-    expect:
-      success: false
-      error:
-        code: VALIDATION_ERROR
-        suggestion: { contains: inputBytes }
   - description: "[caller: hello] Push 1 of the ten a minute allows"
     command: notification-push
     input: { title: Reminder 1 }
@@ -83,11 +70,9 @@ steps:
       error:
         code: RATE_LIMITED
         suggestion: { contains: fixed }
-  - description: The owner sees which app hit which limit
-    command: limit-usage-get
-    input: {}
+  - description: "[caller: hello] The ten that fitted are all there"
+    command: notification-list
+    input: { source: hello, unread: true }
     expect:
       success: true
-      data:
-        instances:
-          - { instance: hello, refusals: { pushes: 1 } }
+      data: { unread: 10 }

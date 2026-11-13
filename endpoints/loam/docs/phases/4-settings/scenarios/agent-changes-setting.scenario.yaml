@@ -1,9 +1,8 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # The hand-off's details ({ route, section, key, level }) are P4-E1's to assert; a scenario
 # reaches only the suggestion.
 name: Change my person's setting, and hand off what I may not
@@ -12,13 +11,14 @@ description: >-
   exact place for one every member reads, so that nothing everyone sees changes without a
   person.
 job: agent-changes-setting
+tags: [loam-runner]
 steps:
   - description: "[agent] I find the key and its levels"
     command: setting-schema-get
     input: { section: hello.general, key: greeting }
     expect:
       success: true
-  - description: "[agent] [scope: atlas] A project-level write is refused, with where the person can do it"
+  - description: "[agent] [scope: prj_atlas] A project-level write is refused, with where the person can do it"
     command: setting-set
     input: { section: hello.general, key: greeting, value: Hi Atlas, level: project }
     expect:

@@ -1,17 +1,16 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
-# tally's tally-reset declares a confirm_prompt. The 10-minute expiry is P4-E8's, since the
-# clock cannot move in a scenario.
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# tally's tally-reset declares a confirm_prompt; the seed's count is 3. The 10-minute expiry is
+# P4-E8's, since the clock cannot move in a scenario.
 name: Decline a confirmation
 description: >-
   When an agent or an app asks to run something I didn't intend, I want to decline it, have
   nothing run, and not be asked again at once, so that I can't be worn down into agreeing.
 job: decline-confirmation
-tags: [slice]
+tags: [slice, loam-runner]
 steps:
   - description: The count before
     command: tally-get
@@ -29,12 +28,14 @@ steps:
         suggestion: { contains: confirmation-get }
   - description: The confirmation waits in my inbox, naming who asked
     command: notification-list
-    input: { kind: confirmation }
+    input: { kind: confirmation, limit: 1 }
     expect:
       success: true
       data:
         notifications:
-          - confirmation: { command: tally-reset, caller: 'agent:shell-agent', state: pending }
+          '0':
+            confirmation: { command: tally-reset, caller: 'agent:shell-agent', state: pending }
+          '1': { notExists: true }
   - description: I decline it
     command: notification-act
     input: { notification: "${{ steps[2].data.notifications[0].id }}", answer: decline }

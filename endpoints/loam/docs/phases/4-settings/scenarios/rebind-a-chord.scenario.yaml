@@ -1,24 +1,25 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # Pressing keys is the chrome's; P4-E9 presses them on German and Cyrillic layouts.
 name: Open the project switcher from the keyboard, and make it mine
 description: >-
   When I switch projects many times a day, I want a chord for the switcher that works on my
   keyboard layout, and to change it if it clashes, so that I never reach for the mouse.
 job: rebind-a-chord
+tags: [loam-runner]
 steps:
   - description: The switcher has a chord, from the shell
     command: keybinding-list
-    input: {}
+    input: { command: section-open, target: switcher }
     expect:
       success: true
       data:
         bindings:
-          - { keys: Mod+Alt+P, command: section-open, source: shell }
+          '0': { keys: Mod+Alt+P, source: shell }
+          '1': { notExists: true }
   - description: I move it to a chord of my own
     command: setting-set
     input:
@@ -28,11 +29,15 @@ steps:
       level: person
     expect:
       success: true
-  - description: Mine is listed as mine
+  - description: Mine is the one in force, and the shell's is shadowed
     command: keybinding-list
-    input: {}
+    input: { command: section-open, target: switcher }
     expect:
       success: true
       data:
         bindings:
-          - { keys: Mod+Shift+O, command: section-open, source: you }
+          '0':
+            keys: Mod+Shift+O
+            source: you
+            shadowed: { '0': { source: shell } }
+          '1': { notExists: true }

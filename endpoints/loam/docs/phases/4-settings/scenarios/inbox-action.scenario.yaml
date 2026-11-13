@@ -1,17 +1,16 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
-# A notification's source is the instance whose port pushed it, 'agent:<id>' for the agent
-# interface, and 'shell' for the shell's own code (10.1). Hello's hello-greet adds a name to its
-# guest book.
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
+# A notification's source is derived from the path that pushed it (10.1). Hello's hello-greet
+# greets a visitor waiting at its guest book and marks them greeted.
 name: Act from the inbox
 description: >-
   When an app tells me something I need to act on, I want the notice to wait in my inbox with
   the action, so that I act when I'm ready.
 job: inbox-action
+tags: [loam-runner]
 steps:
   - description: "[caller: hello] An action that is a person's own command is refused at push"
     command: notification-push
@@ -23,11 +22,21 @@ steps:
       error:
         code: OVERLAY_ITEM_RESERVED
         suggestion: { contains: palette }
+  - description: "[caller: hello] An action that is another app's command is refused at push"
+    command: notification-push
+    input:
+      title: Add one to the tally
+      action: { command: tally-add, label: Add }
+    expect:
+      success: false
+      error:
+        code: NOTIFICATION_ACTION_FOREIGN
+        suggestion: { contains: own }
   - description: "[caller: hello] Hello leaves a notice with its own action"
     command: notification-push
     input:
-      title: A new visitor signed the guest book
-      action: { command: hello-greet, label: Greet them, input: { name: Ada } }
+      title: Ada is waiting at the guest book
+      action: { command: hello-greet, label: Greet Ada, input: { name: Ada } }
     expect:
       success: true
       data:
@@ -40,18 +49,19 @@ steps:
       data: { unread: 1 }
   - description: I run the action, as myself
     command: notification-act
-    input: { notification: "${{ steps[1].data.notification.id }}" }
+    input: { notification: "${{ steps[2].data.notification.id }}" }
     expect:
       success: true
       data: { state: done }
-  - description: The greeting ran
+  - description: Ada is greeted
     command: hello-guests
     input: {}
     expect:
       success: true
       data:
         guests:
-          - { name: Ada, greeted: true }
+          '0': { name: Ada, greeted: true }
+          '1': { notExists: true }
   - description: The notice is done and read
     command: notification-list
     input: { unread: true }

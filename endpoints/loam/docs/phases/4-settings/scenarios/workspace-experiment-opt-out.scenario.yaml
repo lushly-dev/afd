@@ -1,9 +1,8 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # The person here is an owner, as every actor is in a local deployment. P4-E5 shows the same
 # with two people, Bea an owner and Olu a member.
 name: Turn an experiment on for everyone, and let a person step out
@@ -11,7 +10,7 @@ description: >-
   When an experiment is ready for the whole team, I want an owner to turn it on for everyone and
   each person to be able to turn it off for themselves, so that nobody is held in it.
 job: workspace-experiment-opt-out
-tags: [slice]
+tags: [slice, loam-runner]
 steps:
   - description: An owner turns it on for the workspace
     command: experiment-enable
@@ -33,9 +32,10 @@ steps:
       data: { on: false }
   - description: It is still on for the workspace
     command: experiment-list
-    input: {}
+    input: { experiment: hello.inspector-v2 }
     expect:
       success: true
       data:
         experiments:
-          - { fullId: hello.inspector-v2, workspace: true, on: false }
+          '0': { fullId: hello.inspector-v2, workspace: true, on: false }
+          '1': { notExists: true }

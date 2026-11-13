@@ -1,16 +1,15 @@
-# Draft JTBD scenario for Loam's phase 4 specification. The commands and shapes are the
-# specification's drafts; the data is invented. A step's description may open with
-# directives Loam's runner reads (the specification's "Jobs and scenarios"): [scope: <project>],
-# [caller: <instance>] (through that app's port; add "inactive" for a background app) and
-# [agent] (the agent interface, as shell-agent). With none, the step is the person at the
-# palette, a human gesture (R7).
+# Draft JTBD scenario for Loam's phase 4 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p4-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and a single item by `'1': { notExists: true }`,
+# since AFD compares a YAML list whole.
 # tally declares tally-add and tally-reset, both mutations. No autonomy row exists at first.
 name: Narrow autonomy for one command
 description: >-
   When one command in a project is risky, I want agents to ask before it while the rest of the
   project acts, so that I'm interrupted only where it matters.
 job: autonomy-per-command
-tags: [slice]
+tags: [slice, loam-runner]
 steps:
   - description: An owner lets projects go as far as act, with ask as the workspace's own mode
     command: autonomy-set
@@ -19,27 +18,27 @@ steps:
       success: true
   - description: The project acts
     command: autonomy-set
-    input: { level: project, project: atlas, mode: act }
+    input: { level: project, project: prj_atlas, mode: act }
     expect:
       success: true
   - description: Except one command
     command: autonomy-set
-    input: { level: project, project: atlas, instance: tally, command: tally-reset, mode: ask }
+    input: { level: project, project: prj_atlas, instance: tally, command: tally-reset, mode: ask }
     expect:
       success: true
-  - description: "[scope: atlas] Another command inherits the project's mode"
+  - description: "[scope: prj_atlas] Another command inherits the project's mode"
     command: autonomy-get
     input: { command: tally-add, instance: tally }
     expect:
       success: true
       data: { mode: act }
-  - description: "[scope: atlas] The narrowed one asks"
+  - description: "[scope: prj_atlas] The narrowed one asks"
     command: autonomy-get
     input: { command: tally-reset, instance: tally }
     expect:
       success: true
       data: { mode: ask }
-  - description: "[scope: beacon] Another project has the workspace's mode"
+  - description: "[scope: prj_beacon] Another project has the workspace's mode"
     command: autonomy-get
     input: { command: tally-add, instance: tally }
     expect:
