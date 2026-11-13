@@ -313,6 +313,18 @@ pub(super) const MIGRATIONS: &[&str] = &[
     DROP TABLE refetch;
     ALTER TABLE refetch_parts RENAME TO refetch;
     ",
+    // 6: the tokens agents present to a running server (3.3, 3.4). Not derived. Only the
+    // token's SHA-256 is kept; the token itself is shown once, when it is made.
+    "
+    CREATE TABLE token (
+        -- Stable, made with the token: the actor's id, so a later token of the same name is
+        -- another caller.
+        id TEXT PRIMARY KEY,
+        name TEXT NOT NULL,
+        hash BLOB NOT NULL UNIQUE CHECK (length(hash) = 32),
+        created_at INTEGER NOT NULL
+    ) STRICT;
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one
