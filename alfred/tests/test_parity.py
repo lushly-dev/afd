@@ -396,7 +396,7 @@ def test_cpp_includes_are_followed_and_idioms_skipped(tmp_path):
         "}\n",
         encoding="utf-8",
     )
-    entries = parse_cpp_exports((include / "afd" / "afd.hpp").read_text(), include)
+    entries = parse_cpp_exports((include / "afd" / "afd.hpp").read_text(encoding="utf-8"), include)
     assert _cpp_names(entries) == ["Thing"]
 
 
@@ -937,22 +937,22 @@ async def test_parity_on_real_repo():
 
     # The parsers find the core surface in every language.
     for language, entries in (
-        ("typescript", parse_typescript_exports(ts_file.read_text(), ts_file.parent)),
+        ("typescript", parse_typescript_exports(ts_file.read_text(encoding="utf-8"), ts_file.parent)),
         (
             "python",
-            parse_python_exports((REPO_ROOT / "python/src/afd/__init__.py").read_text()),
+            parse_python_exports((REPO_ROOT / "python/src/afd/__init__.py").read_text(encoding="utf-8")),
         ),
         (
             "rust",
             parse_rust_exports(
-                (REPO_ROOT / "packages/rust/src/lib.rs").read_text(),
+                (REPO_ROOT / "packages/rust/src/lib.rs").read_text(encoding="utf-8"),
                 REPO_ROOT / "packages/rust/src",
             ),
         ),
         (
             "cpp",
             parse_cpp_exports(
-                (REPO_ROOT / "packages/cpp/include/afd/afd.hpp").read_text(),
+                (REPO_ROOT / "packages/cpp/include/afd/afd.hpp").read_text(encoding="utf-8"),
                 REPO_ROOT / "packages/cpp/include",
             ),
         ),
@@ -963,7 +963,7 @@ async def test_parity_on_real_repo():
 
     # Every language declares the contract version in spec/VERSION.
     contract = data["contract_version"]
-    assert contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text().strip()
+    assert contract["expected"] == (REPO_ROOT / "spec" / "VERSION").read_text(encoding="utf-8").strip()
     assert contract["missing"] == []
     assert contract["mismatched"] == []
     assert contract["gaps"] == 0

@@ -233,12 +233,12 @@ async def test_lint_flags_ambient_calls_in_python_rust_and_cpp_handlers(tmp_dir)
     )
     result = await alfred_lint(str(tmp_dir))
     assert result.data["passed"] is True
-    assert sorted((i["file"].rsplit("/", 1)[-1], i["line"], i["rule"]) for i in result.data["issues"]) == [
+    assert sorted((Path(i["file"]).name, i["line"], i["rule"]) for i in result.data["issues"]) == [
         ("todo.cpp", 3, "afd-no-ambient-time"),
         ("todo.py", 5, "afd-no-ambient-time"),
         ("todo.rs", 4, "afd-no-ambient-random"),
     ]
-    suggestions = {i["file"].rsplit("/", 1)[-1]: i["suggestion"] for i in result.data["issues"]}
+    suggestions = {Path(i["file"]).name: i["suggestion"] for i in result.data["issues"]}
     assert "context.clock.now()" in suggestions["todo.py"]
     assert "context.random().next()" in suggestions["todo.rs"]
     assert "context.clock->wall_ms()" in suggestions["todo.cpp"]
