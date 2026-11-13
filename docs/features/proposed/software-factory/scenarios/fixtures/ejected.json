@@ -12,7 +12,8 @@
 			"thread": "thread-1",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "ejected"
+			"state": "ejected",
+			"ejections": 1
 		},
 		{
 			"branch": "feat/export-csv",
@@ -20,7 +21,8 @@
 			"thread": "thread-2",
 			"plan": "plan-b",
 			"route": "opus/medium",
-			"state": "queued"
+			"state": "queued",
+			"ejections": 0
 		},
 		{
 			"branch": "fix/loosened-check",
@@ -28,7 +30,8 @@
 			"thread": "thread-3",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "ejected"
+			"state": "ejected",
+			"ejections": 1
 		},
 		{
 			"branch": "fix/type-slip",
@@ -36,7 +39,8 @@
 			"thread": "thread-4",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "working"
+			"state": "working",
+			"ejections": 0
 		}
 	],
 	"queue": [

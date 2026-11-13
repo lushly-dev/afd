@@ -20,39 +20,47 @@ steps:
         plans:
           - { id: plan-a, room: 70, aboveCeiling: false }
           - { id: plan-b, room: 20, aboveCeiling: false }
-  - description: Status says a cell may start, on the plan with the most room
+  - description: Status says a cell may start, on which plan, and with which issue
     command: lane-status
     expect:
       success: true
       data:
         canStartCell: true
         plan: { id: plan-a }
+        nextIssue: 101
   - description: A cell with two issues is refused while one issue per cell is the rule
     command: cell-register
-    input: { branch: fix/core-pair, issues: [101, 102], thread: thread-1, plan: plan-a, route: sol/high }
+    input: { branch: fix/core-pair, issues: [101, 102], route: sol/high }
     expect:
       success: false
       error:
         code: TOO_MANY_ISSUES
         suggestion: { contains: cells.issuesMax }
-  - description: Registering the cell claims its issue in the same call
+  - description: Registering before the cell starts claims its issue and assigns the plan
     command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [101], thread: thread-1, plan: plan-a, route: sol/high }
+    input: { branch: fix/parser-empty-input, issues: [101], route: sol/high }
     expect:
       success: true
       data:
         cell: { branch: fix/parser-empty-input, plan: plan-a, issues: [101] }
+  - description: Once delegate_task returns, its thread is attached to the cell
+    command: cell-attach
+    input: { branch: fix/parser-empty-input, thread: thread-1 }
+    expect:
+      success: true
+      data:
+        cell: { thread: thread-1 }
   - description: The same branch cannot be registered twice
     command: cell-register
-    input: { branch: fix/parser-empty-input, issues: [102], thread: thread-9, plan: plan-b, route: opus/medium }
+    input: { branch: fix/parser-empty-input, issues: [102], route: opus/medium }
     expect:
       success: false
       error:
         code: ALREADY_EXISTS
         suggestion: { contains: lane-drop }
-  - description: Another cell beyond cells.max is refused even if the foreman did not check first
+  - description: Another cell beyond cells.max is refused before anything is spent on it
     command: cell-register
-    input: { branch: fix/client-retry, issues: [103], thread: thread-2, plan: plan-a, route: sol/high }
+    input: { branch: fix/client-retry, issues: [103], route: sol/high }
     expect:
       success: false
       error:

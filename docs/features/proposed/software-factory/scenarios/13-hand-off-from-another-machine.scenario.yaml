@@ -25,14 +25,13 @@ fixture:
       wt/parser: { branch: fix/parser-empty-input, clean: true, head: a1b2c3d, review: { head: a1b2c3d }, prequeue: { lint: pass }, gatePathsChanged: [] }
       wt/remote-docs: { branch: fix/remote-docs, clean: true, head: 7c6b5a4, review: { head: 7c6b5a4 }, prequeue: { lint: pass }, gatePathsChanged: [] }
 steps:
-  - description: The lane's queue and seats are readable from this machine
-    command: lane-handoff
-    input: { status: true }
+  - description: The lane's queue and active cells are readable from this machine
+    command: lane-handoff-status
     expect:
       success: true
       data:
         queue: { length: 2 }
-        seatsTaken: 5
+        cellsActive: 5
   - description: Enqueueing locally is refused here, pointing to the hand-off
     command: lane-enqueue
     input: { worktree: wt/parser }
@@ -43,23 +42,23 @@ steps:
         suggestion: { contains: lane-handoff }
   - description: The hand-off queues the branch on the lane host
     command: lane-handoff
-    input: { worktree: wt/parser, title: Accept empty parser input, bodyFile: pr-body.md }
+    input: { worktree: wt/parser, title: Accept empty parser input, body_file: pr-body.md }
     expect:
       success: true
       data:
         state: queued
         position: 3
   - description: This machine hears about its own ejected branch
-    command: lane-handoff
-    input: { watch: true, consumer: laptop, timeoutMs: 1000 }
+    command: lane-handoff-watch
+    input: { consumer: laptop, timeout_ms: 1000 }
     expect:
       success: true
       data:
         events:
           - { id: ev-20, branch: fix/remote-docs, reason: final-failed }
   - description: The ejection's log and the lane's copy of the branch come back to the cell
-    command: lane-handoff
-    input: { sync: true, worktree: wt/remote-docs }
+    command: lane-handoff-sync
+    input: { worktree: wt/remote-docs }
     expect:
       success: true
       data:

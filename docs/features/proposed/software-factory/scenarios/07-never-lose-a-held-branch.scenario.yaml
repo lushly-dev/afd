@@ -13,7 +13,7 @@ fixture:
 steps:
   - description: The branch is accepted and held, not refused
     command: lane-enqueue
-    input: { worktree: wt/parser, title: Accept empty parser input, bodyFile: pr-body.md }
+    input: { worktree: wt/parser, title: Accept empty parser input, body_file: pr-body.md }
     expect:
       success: true
       data:

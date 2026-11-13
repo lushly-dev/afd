@@ -24,14 +24,14 @@ steps:
           - { number: 208, branch: fix/cli-help }
   - description: Registering a cell on the first dispatchable issue claims it
     command: cell-register
-    input: { branch: fix/server-timeout, issues: [206], thread: thread-1, plan: plan-a, route: sol/high }
+    input: { branch: fix/server-timeout, issues: [206], route: sol/high }
     expect:
       success: true
       data:
         cell: { issues: [206] }
   - description: An issue another cell holds is refused, naming the holder
     command: cell-register
-    input: { branch: fix/other-attempt, issues: [205], thread: thread-2, plan: plan-a, route: sol/high }
+    input: { branch: fix/other-attempt, issues: [205], route: sol/high }
     expect:
       success: false
       error:
@@ -40,7 +40,7 @@ steps:
         suggestion: { contains: issue-check }
   - description: An issue triage deferred cannot be taken
     command: cell-register
-    input: { branch: feat/naming, issues: [204], thread: thread-3, plan: plan-a, route: sol/high }
+    input: { branch: feat/naming, issues: [204], route: sol/high }
     expect:
       success: false
       error:

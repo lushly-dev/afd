@@ -11,6 +11,12 @@ fixture:
   overrides:
     requiredCheckOnMain: false
 steps:
+  - description: This machine publishes its own readiness record
+    command: lane-host-probe
+    expect:
+      success: true
+      data:
+        record: { id: workstation, cores: 16 }
   - description: The lane will not start before a host is chosen, and says how to choose one
     command: lane-start
     expect:

@@ -47,7 +47,7 @@ steps:
         slots: { total: 3 }
   - description: With little free memory left, a new cell is refused
     command: cell-register
-    input: { branch: fix/new-work, issues: [106], thread: thread-6, plan: plan-a, route: sol/high }
+    input: { branch: fix/new-work, issues: [106], route: sol/high }
     expect:
       success: false
       error:

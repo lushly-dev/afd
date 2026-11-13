@@ -35,7 +35,8 @@
 			"assignees": ["owner"],
 			"openPrs": [],
 			"createdAt": "2030-01-01T12:00:00Z",
-			"question": "Name plugins by domain or by package?"
+			"question": "Name plugins by domain or by package?",
+			"ownerReply": "By domain."
 		},
 		{
 			"number": 205,
@@ -78,6 +79,17 @@
 			"branch": "fix/cli-help",
 			"machine": "laptop",
 			"leaseUntil": "2030-01-02T07:00:00Z"
+		}
+	],
+	"cells": [
+		{
+			"branch": "fix/client-timeout",
+			"issues": [205],
+			"thread": "thread-7",
+			"plan": "plan-a",
+			"route": "sol/high",
+			"state": "working",
+			"ejections": 0
 		}
 	],
 	"events": [

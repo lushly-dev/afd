@@ -11,7 +11,7 @@ fixture:
 steps:
   - description: A worktree with uncommitted changes is refused, naming the files
     command: lane-enqueue
-    input: { worktree: wt/half-done, title: Half done, bodyFile: pr-body.md }
+    input: { worktree: wt/half-done, title: Half done, body_file: pr-body.md }
     expect:
       success: false
       error:
@@ -20,7 +20,7 @@ steps:
         suggestion: { contains: commit }
   - description: A head with no recorded review is refused, whatever the caller says
     command: lane-enqueue
-    input: { worktree: wt/unreviewed, title: Fix unreviewed, bodyFile: pr-body.md }
+    input: { worktree: wt/unreviewed, title: Fix unreviewed, body_file: pr-body.md }
     expect:
       success: false
       error:
@@ -28,7 +28,7 @@ steps:
         suggestion: { contains: do-prepare-pr }
   - description: A branch with no registered cell is refused
     command: lane-enqueue
-    input: { worktree: wt/stray, title: Stray, bodyFile: pr-body.md }
+    input: { worktree: wt/stray, title: Stray, body_file: pr-body.md }
     expect:
       success: false
       error:
@@ -36,7 +36,7 @@ steps:
         suggestion: { contains: cell-register }
   - description: A reviewed, committed branch passes the cheap checks and joins the queue
     command: lane-enqueue
-    input: { worktree: wt/parser, title: Accept empty parser input, bodyFile: pr-body.md }
+    input: { worktree: wt/parser, title: Accept empty parser input, body_file: pr-body.md }
     expect:
       success: true
       data:

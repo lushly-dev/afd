@@ -42,7 +42,8 @@
 			"thread": "thread-1",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "working"
+			"state": "working",
+			"ejections": 0
 		},
 		{
 			"branch": "fix/half-done",
@@ -50,7 +51,8 @@
 			"thread": "thread-2",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "working"
+			"state": "working",
+			"ejections": 0
 		},
 		{
 			"branch": "fix/unreviewed",
@@ -58,7 +60,8 @@
 			"thread": "thread-3",
 			"plan": "plan-b",
 			"route": "opus/medium",
-			"state": "working"
+			"state": "working",
+			"ejections": 0
 		},
 		{
 			"branch": "feat/export-csv",
@@ -66,7 +69,8 @@
 			"thread": "thread-4",
 			"plan": "plan-b",
 			"route": "opus/medium",
-			"state": "queued"
+			"state": "queued",
+			"ejections": 0
 		},
 		{
 			"branch": "fix/retry-backoff",
@@ -74,7 +78,8 @@
 			"thread": "thread-5",
 			"plan": "plan-a",
 			"route": "sol/high",
-			"state": "queued"
+			"state": "queued",
+			"ejections": 0
 		}
 	],
 	"queue": [

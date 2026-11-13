@@ -71,28 +71,44 @@ Intake ──► Cells ──► Queue ──► Lane (on the chosen host) ─�
 ### The plugin and its host
 
 `endpoints/botcore/plugins/botcore-factory`, entry point `factory`, implementing
-`BotCorePlugin` with AFD commands that return `CommandResult`. It is served through
-botcore's managed host (`create_host_cli` and `create_host_mcp_server`, the
-`trusted-local` profile), not the legacy `{name}-run` meta-tool, which takes Python source
-and truncates output by characters. Every command declares `host_context_safe` and a
-`CommandPolicy` whose effects decide who may call it:
+`BotCorePlugin` with AFD commands that return `CommandResult`, and declaring
+`host_context_safe`. It is served through botcore's managed host (`build_host`,
+`create_host_cli`, `create_host_mcp_server`, the `trusted-local` profile), not the legacy
+`{name}-run` meta-tool, which takes Python source and truncates output by characters.
 
-| Effect | Commands | Caller |
+**Who may call what.** botcore's host gates by profile, not by caller: under
+`trusted-local` every registered command is callable. So the separation is by host. One
+plugin builds two hosts:
+
+| Host | Commands | Used by |
 |---|---|---|
-| `inspect` | `lane-status`, `lane-host-list`, `plan-list`, `dial-get`, `lane-report`, `lane-wait`, `issue-check`, `owner-queue`, `pr-preview` | Anyone |
-| `queue` | `cell-register`, `lane-enqueue`, `lane-handoff` | Foreman and cells |
-| `operate` | `lane-start`, `lane-stop`, `lane-pause`, `lane-resume`, `lane-drop`, `lane-revert`, `lane-host-set`, `dial-set`, `gate-allow`, `event-resolve` | Foreman and Jason, never a cell |
+| `factory-cell` | `lane-status`, `issue-check`, `lane-enqueue`, the `lane-handoff` commands | Cells |
+| `factory` | Every command | The foreman and Jason |
 
-Command names below are AFD's kebab-case; the Python functions and arguments are their
-snake_case forms (`lane_status`, `timeout_ms`). The plugin registers a `factory` docs topic
-with the event table, so a model with no skill installed can learn the protocol.
+Each command's `CommandPolicy` uses botcore's existing effect names: `inspect` for reads,
+`subprocess` for anything that runs git or the adapter's commands (`lane-enqueue`,
+`issue-check`, `pr-preview`, `lane-host-probe`), `service` for the lane process and
+GitHub writes, `history-write` for state. botcore gains `PluginRegistry.add_policy`, so a
+plugin declares its own policies instead of each host passing them to `build_host`.
 
-Two things botcore's host lacks today, added in Phase 1: **confirmation** for the
-`operate` commands that cannot be undone (`lane-revert`, `lane-drop`, `lane-host-set`,
-`lane-stop` during a validation), using Python AFD's confirmations
-([MCP Confirmations](../../active/mcp-confirmations/mcp-confirmations.proposal.md)); and
-**bounded output**: every list takes `limit` and `cursor`, failure messages carry the first
-lines and a `logPath`, and no result relies on character truncation.
+**For a model with no skill installed.** Command names below are AFD's kebab-case; the
+Python functions and their inputs are snake_case (`lane_status`, `timeout_ms`), and the
+scenarios use the snake_case inputs. Three botcore changes in Phase 1: the host's catalog
+(`factory-start`) returns each command's input schema and one-line description, not only
+its policy; an input key in the wrong case is refused with a suggestion naming the right
+one; and the plugin registers a `factory` docs topic with the inputs, the events and the
+order of calls.
+
+**Confirmation.** Python AFD's confirmations live in its server factory, which botcore's
+host does not use; Phase 1 wires them into the host. Each command states its mode:
+agent acknowledgement for `lane-revert`, `lane-drop` and `lane-stop` (the foreman must be
+able to revert a broken merge on its own), and a person's confirmation only for
+`lane-host-set` with `recover`.
+
+**Bounded output.** Every list takes `limit` and `cursor`, failure messages carry the
+first lines and a `logPath`, and no result relies on character truncation. Cells call the
+host's CLI surface, which has no client time limit, so `lane-enqueue` can run the cheap
+checks (a monorepo typecheck included) in one call.
 
 ### Commands
 
@@ -101,16 +117,22 @@ follows approval. Every refusal carries a `suggestion` naming the way forward.
 
 | Command | Input | Result `data` | Refusals |
 |---|---|---|---|
-| `lane-status` | `limit?`, `cursor?` | `runId`, `host { id, isLaneHost }`, `running`, `paused` and `pauseReason`, `slots { total, busy }`, `queue[]`, `held[]`, active `cells[] { branch, issue, state, plan, route }`, `openEvents[]`, `waitingOnOwner` (count), `orphans[]`, `dials`, `canStartCell` with `plan`, or `reason` and `nextReset` | — |
+| `lane-status` | `limit?`, `cursor?` | `runId`, `host { id, isLaneHost }`, `running`, `paused` and `pauseReason`, `draining`, `slots { total, busy }`, `queue[]`, `held[]`, active `cells[] { branch, issue, state, plan, route, ejections }`, `openEvents[]`, `waitingOnOwner` (count), `orphans[]`, `dials`, `canStartCell` with `plan` and `nextIssue`, or `reason` and `nextReset` | — |
 | `lane-start` | — | `running` | `HOST_NOT_SET`, `NOT_LANE_HOST`, `LANE_LOCKED`, `REQUIRED_CHECK_MISSING`, `TOOLCHAIN_MISMATCH` |
 | `lane-stop` | `force?` | `running`; a running validation finishes first unless `force` | — |
 | `lane-run` | — | The loop in the foreground, for debugging the lane itself; no job uses it | As `lane-start` |
-| `lane-host-list` | — | `machines[] { id, name, reachable, cores, memoryGb, freeDiskGb, ready, missing[], suggestedSlots, measured }` | — |
-| `lane-host-set` | `id` | `host`, `previous` | `HOST_NOT_READY`, `LANE_BUSY`, `NOT_FOUND` |
-| `cell-register` | `branch`, `issues[]`, `thread`, `plan`, `route` | `cell`; claims the issues on GitHub | `ALREADY_EXISTS`, `ALREADY_CLAIMED`, `NOT_DISPATCHABLE`, `CELLS_FULL`, `PLAN_ABOVE_CEILING`, `HOST_LOADED`, `TOO_MANY_ISSUES` |
-| `lane-enqueue` | `worktree`; `title?` and `bodyFile?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }` | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR` |
-| `lane-handoff` | As `lane-enqueue`; or `status`, `sync` or `watch` | As `lane-enqueue`; `status`: `queue[]`, `seatsTaken`, this machine's `cells[]`; `sync`: the lane's copy of the branch and the ejection's log, fetched into the worktree; `watch`: as `lane-wait`, for this machine's cells | As `lane-enqueue` |
-| `lane-wait` | `consumer`, `timeoutMs?` (at most 300000 over MCP; unlimited from the CLI) | `events[] { id, type, branch?, reason?, detail?, logPath? }` not yet delivered to this consumer, or `{ events: [], timedOut: true }` | — |
+| `lane-host-probe` | — | `record`: this machine's cores, memory, free disk, toolchains, `gh` sign-in, checkout, `origin` fetch, adapter commands and (Windows) symlink support, published to `refs/factory/hosts/<id>` on `origin` | — |
+| `lane-host-list` | — | `machines[] { id, name, reachable, cores, memoryGb, freeDiskGb, ready, missing[], suggestedSlots, measured, probedAt }` from the published records; a record's age decides `reachable` | — |
+| `lane-host-set` | `id`; `drain?` or `recover?` | `host`, `previous`; with `drain`, `draining` (no new cells; the move happens at `queue-empty`); with `recover`, `rebuilt { queue, claims }` | `HOST_NOT_READY`, `LANE_BUSY`, `NOT_FOUND` |
+| `cell-register` | `issues[]`, `branch`, `route`, `thread?` | `cell` with the `plan` the lane assigned; claims the issues on GitHub. Called **before** `delegate_task`, so a refusal costs nothing | `ALREADY_EXISTS`, `ALREADY_CLAIMED`, `NOT_DISPATCHABLE`, `CELLS_FULL`, `PLAN_ABOVE_CEILING`, `HOST_LOADED`, `TOO_MANY_ISSUES` |
+| `cell-attach` | `branch`, `thread` | `cell`: the thread `delegate_task` returned | `NOT_FOUND` |
+| `cell-park` | `branch`, `question` | `parked`: the issue gets `needs:decision` and the question as one comment, the seat is freed, the worktree and a long lease are kept; it shows in `owner-queue` until triage plans it again | `NOT_FOUND` |
+| `lane-enqueue` | `worktree`; `title?` and `body_file?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }`; the head is also pushed to `refs/factory/queue/<branch>` on `origin`, so a replacement host can rebuild the queue | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR` |
+| `lane-handoff` | As `lane-enqueue` | As `lane-enqueue`, from a machine that is not the lane host | As `lane-enqueue` |
+| `lane-handoff-status` | — | `queue[]`, `cellsActive`, this machine's `cells[]` | — |
+| `lane-handoff-sync` | `worktree` | `head`, `logPath`: the lane's copy of the branch and the ejection's log, fetched into the worktree | `NOT_FOUND` |
+| `lane-handoff-watch` | `consumer`, `timeout_ms?` | As `lane-wait`, for this machine's cells | — |
+| `lane-wait` | `consumer`, `timeout_ms?` (at most 300000 over MCP; unlimited from the CLI) | `events[] { id, type, branch?, reason?, detail?, logPath? }` not yet delivered to this consumer, each with a compact `status` (`canStartCell`, `plan`, `nextIssue`, queue length, `waitingOnOwner`), or `{ events: [], timedOut: true }` | — |
 | `event-resolve` | `id`, `note` | `resolved` | `NOT_FOUND` |
 | `lane-pause`, `lane-resume` | `reason?` | `paused`; `lane-resume` resolves an open `lane-error` | — |
 | `lane-drop` | `branch`, `reason` | `dropped`, `released[]`: dequeues the branch, releases its claims (issue back to `status:planned` with one comment) and forgets the cell; the worktree is left | `NOT_FOUND` |
@@ -119,10 +141,12 @@ follows approval. Every refusal carries a `suggestion` naming the way forward.
 | `plan-list` | — | `plans[] { id, provider, used, elapsed, room, aboveCeiling, resetsAt }` | `PLANS_UNREADABLE` (the foreman then uses the configured order) |
 | `dial-get` | `key?` | `key`, `value`, `default`, or every dial | `NOT_FOUND` |
 | `dial-set` | `key`, `value` | `key`, `value`, `previous`, `default` | `DIAL_OUT_OF_RANGE`, `NOT_FOUND` |
-| `lane-report` | `run?`, `compare?` | `run`, `mergedPerHour`, `validationsPerMerge`, `productiveShare`, `staleRuns`, `reruns`, `foreman { wakes, wakesPerMerge }`, `byPlan[]`, `byRoute[]`, `prs[] { number, branch, route }`, `experiences[] { pr, pairs[] }`; with `compare`, `delta` for each number | `NOT_FOUND` |
+| `lane-report` | `run?`, `compare?` | `run`, `mergedPerHour`, `validationsPerMerge`, `productiveShare`, `staleRuns`, `reruns`, `foreman { wakes, wakesPerMerge }`, `byPlan[]`, `byRoute[]`, `prs[] { number, branch, route }`, `experiences[] { pr, state, pairs[] { story, width, before, after } }`, `digest` (one HTML page of the pairs); with `compare`, `delta` for each number | `NOT_FOUND` |
+| `experience-accept` | `pr` | `accepted`; a PR held by `experience.hold` merges | `NOT_FOUND` |
+| `experience-reject` | `pr`, `note` | `rejected`, and `revertPr` for a merged PR or `issue` filed for an open one | `NOT_FOUND` |
 | `issue-check` | `numbers?`, `limit?`, `cursor?` | `untriaged[]`, `violations[] { number, rule }`, `dispatchable[]` in dispatch order, `related[]`, `staleClaims[]` | `READ_FAILED` (never reported as "nothing to do") |
-| `owner-queue` | — | `items[] { kind, ref, question, since }`: `needs:decision` and `needs:operator` issues, lane errors that need his sign-in, cells blocked on him | `READ_FAILED` |
-| `pr-preview` | `pr` | `before { url }`, `after { url }`: the app served from `main` before the merge and from the PR's head | `NOT_FOUND`, `NO_PREVIEW` (the adapter has no `preview`) |
+| `owner-queue` | — | `items[] { kind, ref, question, since, answered }`: `decision` and `operator` issues, `sign-in` lane errors, `parked` cells, and `look` for UI PRs held by `experience.hold`; `answered` once he has replied, until triage acts | `READ_FAILED` |
+| `pr-preview` | `pr` | `before { url }`, `after { url }`, `stopAfter`: the app served from `main` and from the PR's head, for a merged PR or an open lane PR, stopped after `stopAfter` | `NOT_FOUND`, `NO_PREVIEW` (the adapter has no `preview`) |
 
 **Events.** `lane-wait` returns events this consumer has not seen; reading does not
 resolve them. An event stays in `openEvents` until the action that answers it happens
@@ -133,14 +157,26 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 | Event | Meaning | The foreman's action |
 |---|---|---|
 | `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
+| `ejection-limit` | A branch reached `cells.maxEjections` (counted by the lane, not an agent) | `cell-park` it with the diagnosis, or `lane-drop` it |
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
-| `cell-ended` | A cell ended its turn without enqueueing | Answer its question, put an access request in `owner-queue`, or `lane-drop` it |
 | `lane-error` | The lane paused on its own trouble | Fix what the detail names, then `lane-resume`; sign-ins go to `owner-queue` |
 | `main-broken` | Coverage on `main` failed, or two branches failed the same check | If one merge is the cause, `lane-revert` it; file a `priority:p1` issue and start a cell on it; `lane-resume` |
-| `merged-without-check` | A PR merged without the required check green | Check it; revert it if the check failed |
-| `lane-stopped` | The lane process ended unexpectedly | Read the log, `lane-start` |
-| `queue-empty` | Nothing queued, no cell active, owed coverage done | Start cells if work remains; otherwise finish |
+| `merged-without-check` | A PR merged without the required check green | Check it; revert it if the check failed; otherwise `event-resolve` |
+| `owner-replied` | Jason replied on an issue in `owner-queue` | Run `do-triage` on it |
+| `lane-stopped` | The lane process is gone; produced by `lane-status` and `lane-wait` from the lock's process check, since a dead lane cannot report itself | Read the log, `lane-start` |
+| `queue-empty` | Nothing queued, no cell active, owed coverage done | Run `do-triage`; start cells if work remains; otherwise finish |
+
+A cell that ends its turn without enqueueing calls no command, so the lane cannot see it.
+The foreman learns it from T3 Code when `delegate_task` completes, and acts at once:
+answer the cell's question, `cell-park` it for Jason, or `lane-drop` it.
+
+**Waking the foreman.** A model must not poll. The lane posts each event to a T3 Code
+scheduled task's webhook, which starts a **fresh foreman session** for that event; the
+event carries a compact status, so most wakes cost one or two calls and no session's
+context grows over a run. Until that is proven on this machine, the foreman leaves one
+background `lane_wait` through the CLI (no time limit) and T3 Code wakes it when that
+command exits, as Lushly's foreman does with `merge-lane wait`.
 
 ### State
 
@@ -187,20 +223,27 @@ exact head, never from anything the caller passes.
 
 ### Choosing the host
 
-- `lane-host-list` reads the connected machines from T3 Code's environment links and
-  reports for each: whether it answers; cores, memory and free disk; whether the
-  repository checkout is there and can fetch `origin`; the pinned toolchains; `gh` sign-in;
-  the adapter's commands; and, on Windows, whether symlinks can be created (AFD keeps
-  `.codex/skills` as a symlink). Anything missing is named in `missing[]`.
-- `lane-host-set` refuses a machine that is not ready, and refuses while anything is
-  queued or held, a cell is active or the lane runs (`LANE_BUSY`), so a move never strands
-  a branch. Moving the host is a variable change, not a code change.
+- A Python plugin cannot read T3 Code's environment links or measure another machine, so
+  each candidate machine runs `lane-host-probe` itself (the foreman can start it there
+  through T3 Code). The probe publishes a readiness record to `refs/factory/hosts/<id>` on
+  `origin`: cores, memory and free disk; whether the checkout is there and can fetch
+  `origin`; the pinned toolchains; `gh` sign-in; the adapter's commands; and, on Windows,
+  whether symlinks can be created (AFD keeps `.codex/skills` as a symlink).
+  `lane-host-list` reads the records; anything missing is named in `missing[]`, and a
+  record's age decides `reachable`.
+- `lane-host-set` refuses a machine that is not ready, and refuses an immediate move while
+  anything is queued or held, a cell is active or the lane runs (`LANE_BUSY`). A planned
+  move uses `drain`: no new cells, and the move happens at `queue-empty`. A host that has
+  gone offline is replaced with `recover`, which a person confirms: the new host rebuilds
+  the queue from `refs/factory/queue/*` and the claims from GitHub, so nothing depends on
+  the dead machine's disk. Moving the host is a variable change, not a code change.
 - `lane-start` refuses on any other machine, under another live lane's lock, when the
   toolchains do not match the repository's pins, and when `required_check` is not a
   required check on `main`: auto-merge is safe only while it is.
 - A lane host that restarts takes up where it stopped: the branch it was working on goes
-  back to the front, and if its PR merged meanwhile it is landed. `lane.autostart` registers
-  the lane with the OS scheduler (Task Scheduler on Windows, launchd on macOS).
+  back to the front, and if its PR merged meanwhile it is landed. `lane.autostart`, on by
+  default for the chosen host, registers the lane with the OS scheduler (Task Scheduler on
+  Windows, launchd on macOS).
 
 ### Capacity
 
@@ -220,7 +263,8 @@ host the lane validates several branches at once while still merging one at a ti
   covers every repository's lane on that machine.
 - **Cells count against the host too.** `cell-register` refuses with `HOST_LOADED` when
   free memory is below `host.minFreeGb`, and with `CELLS_FULL` at `cells.max`, so the limits
-  hold whether or not the foreman read `canStartCell` first.
+  hold whether or not the foreman read `canStartCell` first. A cell parked for Jason frees
+  its seat, so questions waiting on him never shrink the fleet.
 
 ### Cells, foreman and skills
 
@@ -233,8 +277,12 @@ host the lane validates several branches at once while still merging one at a ti
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
   wholly on one plan; only the foreman crosses providers. Routes come from
   [model routing](../../../operations/model-routing.md).
-- Starting a cell is one registration: the foreman calls `cell-register` once
-  `delegate_task` returns, which claims the issues. A cell never claims.
+- Starting a cell is reserve, then start: `cell-register` claims the issue and assigns the
+  plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell
+  on that plan, then `cell-attach` records its thread. The plan is the lane's choice, not
+  the caller's, so the ceiling holds. A cell never claims.
+- The foreman runs `do-triage` at `queue-empty` and on `owner-replied`, so Jason's answers
+  turn into planned work without anyone remembering to.
 
 ### Intake
 
@@ -264,12 +312,14 @@ Jason does not read code; what he judges is how a change looks and behaves.
 
 - A branch whose diff touches `ui_paths`, or whose issue carries `needs:ux`, gets
   before-and-after screens from the adapter's `screens` command after its validation passes:
-  before from `main`, after from the branch, at desktop and phone widths. The pairs go in
-  the PR body.
-- `lane-report` collects them in `experiences[]`; the foreman shows that digest at the end
-  of a run. `pr-preview` serves the app before and after one PR, for a local look.
-- Nothing waits on him by default: `experience.hold` makes UI PRs wait, green, until he has
-  looked.
+  before from `main`, after from the branch, at desktop and phone widths. The images are
+  files on the lane host; the PR body lists them (GitHub has no API for images in a body).
+- `lane-report` lists each pair with its `before` and `after` files and writes one HTML
+  `digest` per run; the foreman shows it when the run ends. `pr-preview` serves the app
+  before and after one PR, merged or open, and stops by itself after `stopAfter`.
+- Nothing waits on him by default. `experience.hold` makes UI PRs wait, green, as `look`
+  items in `owner-queue`; `experience-accept` merges one, `experience-reject` files an issue
+  with his note (or reverts it, if it already merged).
 
 ### Gate changes
 
@@ -332,8 +382,9 @@ Lushly's lane assumes macOS. The plugin must not:
 | `fable.ceiling` | 50% | Ordinary Fable routes against keeping Fable for hard cases |
 | `lane.coverageEvery` | 5 | Merges between coverage runs on `main` |
 | `claims.leaseHours` | 24 | How long a silent claim holds an issue |
+| `cells.maxEjections` | 3 | Repair attempts before a branch is parked or dropped |
 | `experience.hold` | off | Merging UI changes at once against seeing them first |
-| `lane.autostart` | off | Restarting the lane with the host |
+| `lane.autostart` | on | Restarting the lane with the host |
 | `logs.keepDays` | 30 | Disk against history |
 
 The lane host itself is the `FACTORY_LANE_HOST` variable, set by `lane-host-set`.
@@ -352,9 +403,11 @@ number's change, so a dial change is judged against the run before it.
   ahead of the rest of the plugin), the aggregate required check, the pre-push hook that
   accepts the lane's record, and the workstation's symlinks, toolchain, SSH alias and pnpm
   store.
-- [ ] **Phase 1: the plugin, one slot.** `botcore-factory` on botcore's managed host, with
-  confirmations and bounded output; the adapter; host selection; Windows and macOS process
-  control; experience review; tests against a fixture repository. `do-prepare-pr` lane
+- [ ] **Phase 1: the plugin, one slot.** botcore's host changes (`add_policy`, input
+  schemas and descriptions in the catalog, wrong-case refusals, confirmations); then
+  `botcore-factory` with its two hosts and bounded output; the adapter; host probing and
+  selection; the webhook wake; Windows and macOS process control; experience review; tests
+  against a fixture repository. `do-prepare-pr` lane
   mode and `do-run-fleet` in AFD. Run one AFD fleet on the workstation and report the
   numbers.
 - [ ] **Phase 2: concurrency.** `lane.slots` above 1, the shared host lock, the
@@ -387,7 +440,8 @@ what one AFD fleet on the workstation needs; the rest follow in the order listed
 | 13 | 04 | Stop starting cells when every plan is at its ceiling | |
 | 14 | 07 | Never lose a finished branch while the queue is full | |
 | 15 | 02 | Move the lane to another machine without stranding a branch | |
-| 16 | 13 | Hand over, repair and watch a branch from another machine | handoff |
+| 16 | 17 | Replace a lane host that went offline | |
+| 17 | 13 | Hand over, repair and watch a branch from another machine | handoff |
 
 ### What writing and walking them changed
 
@@ -423,6 +477,39 @@ reading, one as the calling agent against botcore's code. What changed:
 Declined: an `issue-release` command (`lane-drop` and lease expiry cover it) and a command
 to record Jason's decisions (he answers in the issue; triage reads it).
 
+A fourth reader walked the revision, covering all three seats and checking it against
+botcore's host code. What changed:
+
+- **Callers are separated by host, not effect.** botcore's effects are a fixed set and its
+  host gates by profile, not caller; the plugin builds a `factory-cell` host for cells and
+  a `factory` host for the foreman, uses existing effect names, and botcore gains
+  `add_policy`.
+- **The foreman is woken, never polls:** a fresh session per event through a T3 Code
+  webhook, each event carrying a compact status; `cell-ended` is the foreman's to see from
+  T3 Code, not a lane event.
+- **A dead host can be replaced:** queued heads are pushed to `refs/factory/queue/*`;
+  `lane-host-set` gains `drain` and `recover`; job 17 added.
+- **Host readiness comes from the hosts:** `lane-host-probe` publishes a record per
+  machine; `lane-host-list` reads them.
+- **Experience review finishes:** pairs carry files, a digest page, `experience-accept`
+  and `experience-reject`, `look` items, previews of open PRs that stop by themselves.
+- **Questions free their seat:** `cell-park`; `owner-replied` and `queue-empty` run
+  `do-triage`; `owner-queue` marks answered items.
+- **Reserve, then start:** `cell-register` before `delegate_task`, the plan assigned by the
+  lane, `cell-attach` after; `canStartCell` returns `nextIssue`.
+- **Repairs are bounded:** the lane counts ejections; `cells.maxEjections`.
+- **No skill needed:** the catalog carries input schemas, wrong-case keys are refused with
+  the right name, the scenarios use snake_case inputs, and the hand-off splits into four
+  commands.
+- **Confirmation modes per command:** agent acknowledgement for revert, drop and stop;
+  a person only for recovering a host.
+- **Smaller:** `lane-stopped` comes from the lock check, `lane.autostart` is on,
+  `seatsTaken` became `cellsActive`.
+
+Declined: an asynchronous pre-queue check. Cells call the host's CLI, which has no client
+time limit, and a refusal the cell sees at once is cheaper than one it hears about after
+ending its turn.
+
 ### What scenarios cannot show
 
 The lane's loop (validation, merging, CI waits, screens) runs between commands, so jobs
@@ -433,10 +520,10 @@ measurements above.
 
 ### Checks
 
-Run 2026-11-12 after the revision
+Run 2026-11-12 after the second revision
 ([jobs first](../../../../.claude/skills/afd/references/jobs-first.md)): `afd scenario
-validate` and the dry-run check pass all 16 files with fixtures resolved. The coverage
-report uses 22 of 23 drafted commands (all but `lane-run`, kept for debugging) and 18 of 24
+validate` and the dry-run check pass all 17 files with fixtures resolved. The coverage
+report uses 30 of 31 drafted commands (all but `lane-run`, kept for debugging) and 18 of 24
 error codes; no scenario calls an undrafted command.
 
 Six refusals have no scenario. Five depend on the environment, which a fixture cannot

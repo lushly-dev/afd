@@ -10,29 +10,35 @@ fixture:
   file: fixtures/backlog.json
   base: fresh.json
 steps:
-  - description: The queue lists the product question and the expired sign-in
+  - description: The queue lists the product question, marked answered, and the expired sign-in
     command: owner-queue
     expect:
       success: true
       data:
         items:
-          - { kind: decision, ref: '204', question: { contains: plugins } }
+          - { kind: decision, ref: '204', question: { contains: plugins }, answered: true }
           - { kind: sign-in, ref: ev-41 }
-  - description: Status counts what waits on the owner
+  - description: A cell that needs a product answer parks, freeing its seat
+    command: cell-park
+    input: { branch: fix/client-timeout, question: Should a timeout retry or fail at once? }
+    expect:
+      success: true
+      data: { parked: true }
+  - description: Status counts three items waiting on the owner and the seat is free
     command: lane-status
     expect:
       success: true
       data:
-        waitingOnOwner: 2
-        paused: true
+        waitingOnOwner: 3
+        cells: { length: 0 }
   - description: After the sign-in, resuming the lane clears that item
     command: lane-resume
     expect:
       success: true
       data: { paused: false }
-  - description: Only the product question remains
+  - description: The answered decision and the parked question remain, until triage plans them
     command: owner-queue
     expect:
       success: true
       data:
-        items: { length: 1 }
+        items: { length: 2 }

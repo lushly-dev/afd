@@ -12,7 +12,7 @@ fixture:
 steps:
   - description: A repair that edits a gate path is refused with the way forward
     command: lane-enqueue
-    input: { worktree: wt/loosened, title: Fix docs build, bodyFile: pr-body.md }
+    input: { worktree: wt/loosened, title: Fix docs build, body_file: pr-body.md }
     expect:
       success: false
       error:
