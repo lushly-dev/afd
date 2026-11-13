@@ -27,9 +27,11 @@ import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES, resolveScope } from './affected/scope.mjs';
 import { matchesFilters, readSuiteTrigger, SUITES } from './affected/suites.mjs';
 import { defaultTargets, sweep } from './rust-sweep.mjs';
+import { buildRecord, currentIdentity, recordPath, writeRecord } from './verify-record.mjs';
 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const windows = process.platform === 'win32';
+const git = (args) => execFileSync('git', args, { cwd: root, encoding: 'utf8' });
 
 export function parseArgs(argv, env = process.env) {
 	const options = {
@@ -223,6 +225,7 @@ function verify(scope, options) {
 			console.error(`[verify] rust-sweep: ${error.message}`);
 		}
 
+	const before = currentIdentity(git);
 	const results = [];
 	const record = (name, action) => {
 		const started = Date.now();
@@ -250,6 +253,18 @@ function verify(scope, options) {
 	}
 	if (results.some((result) => !result.ok))
 		throw Object.assign(new Error('verify failed'), { status: 1 });
+	// The record lets pre-push accept this exact commit without running its checks again.
+	const { record: passed, reason } = buildRecord({
+		before,
+		after: currentIdentity(git),
+		results,
+		scope: scope.mode,
+		defaultBase: options.bases === DEFAULT_BASES,
+	});
+	if (passed) {
+		writeRecord(recordPath(git, root), passed);
+		console.error(`[verify] recorded the pass for ${passed.head}; pre-push will accept it`);
+	} else console.error(`[verify] no record for pre-push: ${reason}`);
 }
 
 function main(argv) {

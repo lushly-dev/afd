@@ -44,6 +44,7 @@ export const testFiles = [
 	'scripts/rust-sweep.test.mjs',
 	'scripts/umbel-components.test.mjs',
 	'scripts/ci-verdict.test.mjs',
+	'scripts/verify-record.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
 	'scripts/release/exec-tool.test.mjs',
