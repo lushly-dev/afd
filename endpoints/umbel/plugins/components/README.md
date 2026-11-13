@@ -84,7 +84,15 @@ The launcher takes the newest release build under `$CARGO_TARGET_DIR` or `endpoi
 then a debug build; `UMBEL_FIRST_PARTY` names another binary. A project server in `.mcp.json` runs
 only after a person approves it in Claude Code; for Codex, add the same command with `codex mcp add`.
 `node scripts/umbel-components.mjs prepare` exports and prints what would be served, without
-serving. What it costs is recorded in the
+serving.
+
+Claude Code also runs a hook from `.claude/settings.json` (`scripts/components-brief-hook.mjs`):
+the first Write or Edit in a session whose new text uses a `violet-*` tag, outside `violet-elements`
+itself, is refused once, with a reason naming `components-brief` and the tags, so the agent briefs
+before it writes. A session that has called the tool is never refused, and any later write goes
+ahead, so a session without this server loses one refusal. Step C5 found that agents did not call
+the tool unless something named it: Claude Code defers MCP tools, and a hook's added context
+arrives only after the write. What it costs is recorded in the
 [Component Briefs status](../../../../docs/features/active/component-briefs/STATUS.md#step-c5-the-setup-and-its-cost).
 
 ## Limits
