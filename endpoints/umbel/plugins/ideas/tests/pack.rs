@@ -122,6 +122,39 @@ async fn each_limit_missing_or_past_its_ceiling_refuses() {
 }
 
 #[tokio::test]
+async fn limits_that_would_not_fit_a_part_on_the_review_page_refuse() {
+    // part_max 500 at 2 items a page is 250 pages, past the host's 200 (amendment C4-11).
+    refused(
+        "data/limits.toml",
+        Some(&with(LIMITS, "page_items", "2")),
+        "page_items",
+    )
+    .await;
+    // 3 items a page is 167 pages: served.
+    let mut fx = Fx::new();
+    fx.pack_override(
+        "main",
+        "data/limits.toml",
+        Some(&with(LIMITS, "page_items", "3")),
+    );
+    data(&fx.agent("ideas-guide", json!({})).await);
+    // A page too small for the longest item, beside page 1's heading.
+    refused(
+        "data/limits.toml",
+        Some(&with(LIMITS, "page_chars", "2499")),
+        "page_chars",
+    )
+    .await;
+    let mut fx = Fx::new();
+    fx.pack_override(
+        "main",
+        "data/limits.toml",
+        Some(&with(LIMITS, "page_chars", "2500")),
+    );
+    data(&fx.agent("ideas-guide", json!({})).await);
+}
+
+#[tokio::test]
 async fn each_matching_key_missing_or_out_of_range_refuses() {
     refused(
         "data/matching.toml",

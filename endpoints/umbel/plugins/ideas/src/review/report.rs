@@ -62,26 +62,41 @@ fn rank_band(offered: &Value, keep: &str) -> &'static str {
     }
 }
 
-/// How many sentences a statement holds: runs of text ended by `.`, `!` or `?`, or by its end.
+/// How many sentences a statement holds: runs that hold a letter or digit and are ended by `.`,
+/// `!` or `?` followed by white space or the statement's end, so a decimal such as "2.5" ends
+/// nothing (amendment C4-5).
 fn sentences(statement: &str) -> usize {
-    statement
-        .split(['.', '!', '?'])
-        .filter(|part| part.chars().any(char::is_alphanumeric))
-        .count()
+    let chars: Vec<char> = statement.chars().collect();
+    let mut count = 0;
+    let mut has_word = false;
+    for (index, c) in chars.iter().enumerate() {
+        if c.is_alphanumeric() {
+            has_word = true;
+        }
+        let ends = matches!(c, '.' | '!' | '?')
+            && chars.get(index + 1).is_none_or(|next| next.is_whitespace());
+        if ends && has_word {
+            count += 1;
+            has_word = false;
+        }
+    }
+    count
 }
 
-/// The median of `values`, the lower middle's and upper middle's mean for an even count.
+/// The median of `values` as a number with a fraction, the mean of the two middles for an even
+/// count; `null` when there are none.
 fn median(values: &mut [i64]) -> Value {
     if values.is_empty() {
         return Value::Null;
     }
     values.sort_unstable();
     let middle = values.len() / 2;
-    if values.len() % 2 == 1 {
-        json!(values[middle])
+    let median = if values.len() % 2 == 1 {
+        values[middle] as f64
     } else {
-        json!((values[middle - 1] + values[middle]) as f64 / 2.0)
-    }
+        (values[middle - 1] + values[middle]) as f64 / 2.0
+    };
+    json!(median)
 }
 
 /// A wording's statement and offered list, `None` when it cannot be read.
@@ -237,7 +252,10 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let host = |error: HostError| fail::host(&error);
     let pack = Pack::read(cx)?;
     let examples = input::boolean(input, "examples")?.unwrap_or(false);
-    let all: Vec<Proposal> = proposals(&find_all(cx, call, PROPOSAL, Vec::new()).map_err(host)?)
+    let found = find_all(cx, call, PROPOSAL, Vec::new()).map_err(host)?;
+    // The read stops at `READ_CAP` proposals: past it the figures are of the first, by id.
+    let truncated = found.len() >= super::READ_CAP;
+    let all: Vec<Proposal> = proposals(&found)
         .into_iter()
         .map(|stored| stored.proposal)
         .collect();
@@ -256,6 +274,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let pending = pending(cx, call).map_err(host)?;
     let report = json!({
         "proposals": all.len(),
+        "truncated": truncated,
         "decisions": decisions,
         "applied": applied,
         "pulled": pulled,

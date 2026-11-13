@@ -294,3 +294,13 @@ pub(crate) fn page_past_last(asked: u32, pages: u32) -> Outcome {
     )
     .with_error_details(json!({ "field": "page", "page": asked, "pages": pages }))
 }
+
+/// `QUOTA_EXCEEDED`: a part whose items need more pages than the host shows (amendment C4-11).
+pub(crate) fn too_many_pages(pages: u32, max: u32) -> Outcome {
+    failure(
+        "QUOTA_EXCEEDED",
+        &format!("the part needs {pages} pages; the review page shows at most {max}"),
+        "Confirm a smaller group: unstage some of it, or stage it again in smaller groups.",
+    )
+    .with_error_details(json!({ "pages": pages, "max": max }))
+}

@@ -29,6 +29,9 @@ const PAGE_ONE_LINES: [&str; 2] = [
 ];
 /// The widest page count a heading names: the host's 200 pages, at three digits.
 const WIDEST_PAGES: u32 = 999;
+/// The most pages the host shows of one decision (`MAX_PREVIEW_PAGES`,
+/// `src/person/service.rs:55`); `tests/review_page.rs` holds the two equal.
+pub(crate) const MAX_PAGES: u32 = 200;
 
 /// The input every decision names: review, part and digest.
 pub(crate) fn decision_input(input: &Value) -> Result<(String, String, String), Outcome> {
@@ -133,23 +136,49 @@ fn heading(review: &str, part: &str, items: &[Stored]) -> String {
     )
 }
 
-/// Who staged the part's proposals, from their envelopes.
+/// The most characters one name in the "Staged by" line keeps.
+const STAGER_CHARS: usize = 80;
+/// The most characters of the "Staged by" line's names, so page 1's heading always leaves room
+/// for an item (amendment C4-11).
+pub(crate) const STAGED_BY_CHARS: usize = 300;
+
+/// Who staged the part's proposals, from their envelopes: each name cut at
+/// [`STAGER_CHARS`], and past [`STAGED_BY_CHARS`] the rest counted, not named.
 fn staged_by(items: &[Stored]) -> String {
     let by: BTreeSet<String> = items
         .iter()
         .map(|s| {
             let agent = s.by["agent"]["id"].as_str();
             let principal = s.by["principal"].as_str().unwrap_or("unknown");
-            match agent {
+            let name = match agent {
                 Some(agent) => format!("{agent} for {principal}"),
                 None => principal.to_owned(),
+            };
+            if name.chars().count() > STAGER_CHARS {
+                let cut: String = name.chars().take(STAGER_CHARS - 1).collect();
+                format!("{cut}…")
+            } else {
+                name
             }
         })
         .collect();
-    format!(
-        "Staged by {}.",
-        by.into_iter().collect::<Vec<_>>().join(", ")
-    )
+    let mut named: Vec<String> = Vec::new();
+    let mut used = 0;
+    for name in &by {
+        let width = name.chars().count() + 2;
+        if !named.is_empty() && used + width > STAGED_BY_CHARS {
+            break;
+        }
+        used += width;
+        named.push(name.clone());
+    }
+    let rest = by.len() - named.len();
+    let more = if rest > 0 {
+        format!(" and {rest} more")
+    } else {
+        String::new()
+    };
+    format!("Staged by {}{more}.", named.join(", "))
 }
 
 /// The unpaged preview's text.
@@ -274,6 +303,9 @@ fn paged(
     let by = staged_by(items);
     let pages = layout(part, &part_heading, &by, &texts, limits);
     let count = u32::try_from(pages.len()).unwrap_or(u32::MAX);
+    if count > MAX_PAGES {
+        return Err(fail::too_many_pages(count, MAX_PAGES));
+    }
     let Some(page) = usize::try_from(asked)
         .ok()
         .and_then(|asked| asked.checked_sub(1))

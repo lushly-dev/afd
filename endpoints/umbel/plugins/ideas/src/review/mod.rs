@@ -38,7 +38,7 @@ pub(crate) const DECIDES: [&str; 5] = ["duplicate", "reword", "affirm", "decline
 /// The most times a compare-and-set write is tried.
 const CAS_TRIES: usize = 8;
 /// The most records one paged read of a kind returns: past `review_max` and `part_max`.
-const READ_CAP: usize = 20_000;
+pub(crate) const READ_CAP: usize = 20_000;
 
 /// The position of a decision in 8.3's order.
 pub(crate) fn rank(decide: &str) -> usize {

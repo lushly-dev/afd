@@ -599,7 +599,10 @@ fn what_the_person_pulled_out_on_the_page_is_pulled_not_applied() {
     let out = data(&staged);
     let pulled = out["proposals"][1].as_str().unwrap();
     let decision = json!({ "review": out["review"], "part": "*", "digest": out["digest"] });
-    // An id that is not of the part is the host's fault, and refused.
+    // An id that is not of the part is the host's fault, and refused before anything is
+    // written: every record is as it was, and nothing was decided. The real page cannot send
+    // one: it maps the positions it rendered from the part to their ids (amendment C4-12).
+    let before = stub.state.lock().unwrap().records.clone();
     let stray = stub.page(
         "ideas-review-apply",
         decision.clone(),
@@ -607,6 +610,9 @@ fn what_the_person_pulled_out_on_the_page_is_pulled_not_applied() {
         &["prp-000000000000000000000000"],
     );
     assert_eq!(code(&stray), "VALIDATION_ERROR");
+    assert_eq!(stray["error"]["details"]["field"], "excluded");
+    assert_eq!(stub.state.lock().unwrap().records, before);
+    assert!(stub.decided().is_empty());
     let applied = stub.page("ideas-review-apply", decision, "local", &[pulled]);
     let applied = data(&applied);
     assert_eq!(applied["level"], "local");

@@ -256,6 +256,8 @@ fn hidden(page: &str, name: &str) -> String {
 #[derive(Debug)]
 struct Shown {
     pages: usize,
+    /// The preview's heading, as the page shows it.
+    heading: String,
     items: Vec<String>,
     html: String,
 }
@@ -277,8 +279,14 @@ impl Shown {
                 unescape(&item[start..end])
             })
             .collect();
+        let heading = html
+            .split_once("<pre>")
+            .and_then(|(_, rest)| rest.split_once("</pre>"))
+            .map(|(heading, _)| unescape(heading))
+            .unwrap_or_default();
         Self {
             pages,
+            heading,
             items,
             html: html.to_owned(),
         }
@@ -392,11 +400,9 @@ async fn a_part_of_hundreds_is_read_in_pages_and_the_two_pulled_out_are_pulled()
     for (index, page) in shown.iter().enumerate() {
         assert_eq!(page.pages, 13);
         assert!(page.items.len() <= PAGE_ITEMS, "{page:?}");
-        let chars: usize = page
-            .items
-            .iter()
-            .map(|text| text.chars().filter(|c| *c != '\n').count())
-            .sum();
+        // The heading and every item, as the host counts a page (line ends not counted).
+        let count = |text: &str| text.chars().filter(|c| *c != '\n').count();
+        let chars = count(&page.heading) + page.items.iter().map(|t| count(t)).sum::<usize>();
         assert!(chars <= PAGE_CHARS, "page {}: {chars}", index + 1);
         assert!(
             page.html.contains(&format!("page {} of 13", index + 1)),
@@ -582,6 +588,127 @@ async fn a_review_changed_while_it_is_read_cannot_be_approved() {
     assert_eq!(
         data(&fx.agent("ideas-guide", json!({})).await)["pending"]["staged"],
         29
+    );
+}
+
+#[tokio::test]
+async fn a_label_changed_outside_the_part_while_it_is_read_cannot_be_approved() {
+    // The review's blocker (amendment C4-10): an item's text shows the standing of every wording
+    // it names, the kept idea's among them. A label that changes outside the part moves the
+    // page breaks; were it not under the digest, an item could slip back onto a page already
+    // seen, never shown, and be applied.
+    let local = Local::start().await;
+    let fx = &local.fx;
+    let ids = capture_all(fx, &beds(0, 30)).await;
+    // `frost`: fold bed 0 into bed 29, and affirm the rest; `keep`: affirm bed 29 itself.
+    let mut proposals: Vec<Value> = vec![json!({ "decide": "duplicate", "idea": ids[0],
+        "keep": ids[29], "group": "frost", "reason": "The same bed twice." })];
+    proposals.extend((1..29).map(|i| affirm(&ids[i], "frost")));
+    proposals.push(affirm(&ids[29], "keep"));
+    let staged = data(
+        &fx.agent("ideas-review-stage", json!({ "proposals": proposals }))
+            .await,
+    )
+    .clone();
+    let digest_of = |staged: &Value, part: &str| {
+        staged["parts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|p| p["part"] == part)
+            .unwrap()["digest"]
+            .clone()
+    };
+    let frost = json!({ "review": staged["review"], "part": "frost",
+                        "digest": digest_of(&staged, "frost") });
+    let id = decision_of(
+        &local.stdio("ideas-review-apply", frost.clone()).await,
+        local.bind,
+    );
+    // The person reads both pages of `frost`: Approve is offered on the second.
+    let first = local.open(&format!("/d/{id}"), "none").await;
+    assert_eq!(Shown::of(&first.text).pages, 2);
+    let form = format!("csrf={}&page=1&decision=next", hidden(&first.text, "csrf"));
+    let moved = local.post(&id, &form).await;
+    let second = local.open(&moved.header("location"), "same-origin").await;
+    assert!(second.text.contains("value=\"approve\""), "{}", second.text);
+    // Meanwhile `keep` is confirmed in a decision of its own: bed 29 becomes affirmed, which
+    // the fold's item in `frost` shows.
+    let keep = json!({ "review": staged["review"], "part": "keep",
+                       "digest": digest_of(&staged, "keep") });
+    let other = decision_of(
+        &local.stdio("ideas-review-apply", keep.clone()).await,
+        local.bind,
+    );
+    local.read_and_approve(&other, &[]).await;
+    assert_eq!(
+        data(&local.stdio("ideas-review-apply", keep).await)["applied"]["affirm"],
+        1
+    );
+    // `frost`'s digest moved: its page can no longer be shown, nor approved.
+    let again = local.open(&format!("/d/{id}?page=2"), "same-origin").await;
+    assert!(again.text.contains("could not be shown"), "{}", again.text);
+    assert!(!again.text.contains("value=\"approve\""));
+    let form = format!(
+        "csrf={}&page=2&decision=approve",
+        hidden(&second.text, "csrf")
+    );
+    let posted = local.post(&id, &form).await;
+    assert!(!posted.text.contains("You approved"), "{}", posted.text);
+    // Nothing of `frost` is applied: the call is still the person's to decide.
+    let refused = local.stdio("ideas-review-apply", frost).await;
+    assert_ne!(refused["success"], true, "{refused}");
+    assert_eq!(
+        data(&fx.agent("ideas-guide", json!({})).await)["pending"]["staged"],
+        29
+    );
+}
+
+#[tokio::test]
+async fn a_part_the_person_unchecks_whole_is_pulled_whole() {
+    let local = Local::start().await;
+    let fx = &local.fx;
+    let ids = capture_all(fx, &beds(0, 3)).await;
+    let proposals: Vec<Value> = ids.iter().map(|id| affirm(id, "beds")).collect();
+    let staged = data(
+        &fx.agent("ideas-review-stage", json!({ "proposals": proposals }))
+            .await,
+    )
+    .clone();
+    let input = json!({ "review": staged["review"], "part": "*", "digest": staged["digest"] });
+    let id = decision_of(
+        &local.stdio("ideas-review-apply", input.clone()).await,
+        local.bind,
+    );
+    let shown = local
+        .read_and_approve(&id, &["Bed 0 wants", "Bed 1 wants", "Bed 2 wants"])
+        .await;
+    assert_eq!(shown[0].items.len(), 3);
+    let applied = local.stdio("ideas-review-apply", input).await;
+    let out = data(&applied);
+    assert_eq!(
+        out["applied"],
+        json!({ "duplicate": 0, "reword": 0, "affirm": 0, "decline": 0, "undo": 0 })
+    );
+    assert_eq!(out["pulled"].as_array().unwrap().len(), 3);
+    for idea in &ids {
+        let opened = data(&fx.agent("ideas-open", json!({ "id": idea })).await).clone();
+        assert_eq!(opened["standing"], "seed");
+        assert_eq!(opened["decisions"][0]["state"], "pulled");
+        assert_eq!(opened["decisions"][0]["decided"]["level"], "local");
+    }
+    // Nothing is staged, so the review is closed.
+    let guide = data(&fx.agent("ideas-guide", json!({})).await).clone();
+    assert_eq!(guide["pending"], json!({ "staged": 0, "unreviewed": 3 }));
+    assert!(guide["reviews"].as_array().unwrap().is_empty());
+}
+
+#[test]
+fn the_page_cap_is_the_hosts() {
+    let host = include_str!("../../../src/person/service.rs");
+    assert!(
+        host.contains("pub(crate) const MAX_PREVIEW_PAGES: u32 = 200;"),
+        "the host's page cap moved: change the plugin's MAX_PAGES and the pack's check with it"
     );
 }
 
