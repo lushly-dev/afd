@@ -73,12 +73,16 @@ effects = ["inspect"]
 input_schema = { type = "object", properties = { space = { type = "string" }, proposal = { type = "string" } }, additionalProperties = false }
 expose = { mcp = false, agent = false, cli = true }
 journal = { mode = "digest", keep = ["proposal"] }
-returns = { type = "object", properties = { preview = { type = "string" } }, required = ["preview"], additionalProperties = false }
+returns = { type = "object", properties = { preview = { type = "string" }, page = { type = "integer" }, pages = { type = "integer" }, items = { type = "array" } }, required = ["preview"], additionalProperties = false }
 "#;
 
-/// What the gate's commands saw.
+/// What the gate's commands saw, and how many pages the paged preview answers now (0 for 3), so
+/// a test can change the review while it is read.
 #[derive(Clone, Default)]
-pub struct Seen(pub Arc<Mutex<Vec<Value>>>);
+pub struct Seen(
+    pub Arc<Mutex<Vec<Value>>>,
+    pub Arc<std::sync::atomic::AtomicU32>,
+);
 
 impl Seen {
     pub fn of(&self, command: &str) -> Vec<Value> {
@@ -96,9 +100,62 @@ impl Seen {
     }
 }
 
+/// The ids of page `page`'s items of the paged preview: two a page.
+pub fn item_ids(page: u32) -> [String; 2] {
+    [format!("bed-{page}-a"), format!("bed-{page}-b")]
+}
+
+/// The paged preview's page `page` of `pages` (the Ideas host-review specification, section 2):
+/// two items a page; `dup` repeats page 1's first id on page 2.
+fn paged(page: u32, pages: u32, dup: bool) -> afd::CommandResult<Value> {
+    let [first, second] = item_ids(page);
+    let first = if dup && page == 2 {
+        item_ids(1)[0].clone()
+    } else {
+        first
+    };
+    afd::success(json!({
+        "preview": format!("Garden review · page {page} of {pages}"),
+        "page": page,
+        "pages": pages,
+        "items": [
+            { "id": first, "text": format!("AFFIRM · Mulch bed {page} before the first frost.") },
+            { "id": second, "text": format!("RETIRE · Water bed {page} at noon.") },
+        ],
+    }))
+}
+
 /// The preview of proposal `proposal`; `checking` when the host runs it as the caller before it
-/// begins a decision (step 6), which carries `dev.umbel/person-check`.
-fn preview_of(proposal: &str, checking: bool) -> afd::CommandResult<Value> {
+/// begins a decision (step 6), which carries `dev.umbel/person-check`; `page` when the person page
+/// asks for one, which `dev.umbel/preview-page` carries.
+fn preview_of(
+    proposal: &str,
+    checking: bool,
+    page: Option<u32>,
+    pages: u32,
+) -> afd::CommandResult<Value> {
+    match (proposal, page) {
+        ("paged" | "paged-dup", Some(page)) if page <= pages => {
+            return paged(page, pages, proposal == "paged-dup");
+        }
+        ("paged" | "paged-dup", None) => {
+            return afd::success(json!({ "preview": format!("Garden review of {pages} pages") }));
+        }
+        ("hundred", Some(1)) => {
+            let items: Vec<Value> = (0..100)
+                .map(
+                    |index| json!({ "id": format!("bed-{index}"), "text": format!("Bed {index}") }),
+                )
+                .collect();
+            return afd::success(
+                json!({ "preview": "A hundred beds", "page": 1, "pages": 1, "items": items }),
+            );
+        }
+        ("long", Some(_)) => {
+            return afd::success(json!({ "preview": "x".repeat(6001) }));
+        }
+        _ => {}
+    }
     match proposal {
         "xss" => afd::success(json!({
             "preview": "<script>alert(1)</script>\"><img src=x onerror=alert(2)> & 'q'",
@@ -136,6 +193,7 @@ pub fn plugin_with(seen: &Seen, manifest: String) -> Raw {
                     "principal": context.extra.get("dev.umbel/principal"),
                     "mark": context.extra.get("dev.umbel/person-decision"),
                     "check": context.extra.get("dev.umbel/person-check"),
+                    "page": context.extra.get("dev.umbel/preview-page"),
                     "interface": format!("{:?}", context.interface),
                 }));
                 if name == "gate-preview" {
@@ -143,7 +201,21 @@ pub fn plugin_with(seen: &Seen, manifest: String) -> Raw {
                         .extra
                         .get("dev.umbel/person-check")
                         .is_some_and(|check| !check.is_null());
-                    preview_of(input["proposal"].as_str().unwrap_or_default(), checking)
+                    let page = context
+                        .extra
+                        .get("dev.umbel/preview-page")
+                        .and_then(|page| page["page"].as_u64())
+                        .map(|page| u32::try_from(page).unwrap());
+                    let pages = match seen.1.load(std::sync::atomic::Ordering::SeqCst) {
+                        0 => 3,
+                        pages => pages,
+                    };
+                    preview_of(
+                        input["proposal"].as_str().unwrap_or_default(),
+                        checking,
+                        page,
+                        pages,
+                    )
                 } else {
                     afd::success(json!({ "done": input["proposal"] }))
                 }
@@ -222,7 +294,29 @@ impl Page {
         .await
     }
 
+    /// Start with the default setup, its `umbel.toml` passed through `edit` (to raise its
+    /// version and add `[person]`, for one).
+    pub async fn start_edited(edit: impl FnOnce(String) -> String) -> Self {
+        Self::start_text(
+            Setup {
+                rest: REST,
+                ..Setup::default()
+            },
+            None,
+            edit,
+        )
+        .await
+    }
+
     async fn start_login(setup: Setup<'_>, verification: Option<&str>) -> Self {
+        Self::start_text(setup, verification, |text| text).await
+    }
+
+    async fn start_text(
+        setup: Setup<'_>,
+        verification: Option<&str>,
+        edit: impl FnOnce(String) -> String,
+    ) -> Self {
         let kit = TestIdp::start().await.unwrap();
         kit.identity_provider().register_client(
             KitClient::confidential("umbel-person-page", SECRET).redirect_uri(REDIRECT),
@@ -233,6 +327,7 @@ impl Page {
             assert!(text.contains(configured));
             text = text.replace(configured, verification);
         }
+        let text = edit(text);
         let dir = super::workspace(&text);
         let clock = afd::fixed_clock(now_ms());
         follow(&kit, &clock);

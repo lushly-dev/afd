@@ -43,6 +43,120 @@ const MAX_PROPERTY_CHARS: usize = 512;
 const MAX_PROPERTY_ITEMS: usize = 100;
 /// The longest text a `journal.show` property may hold (a rejection's reason, step 6).
 const MAX_SHOWN_CHARS: usize = 2000;
+/// The most pages a paged preview may answer (the Ideas host-review specification, section 2).
+pub(crate) const MAX_PREVIEW_PAGES: u32 = 200;
+/// The most items one page of a preview may answer.
+pub(crate) const MAX_PREVIEW_ITEMS: usize = 100;
+/// The most characters a page shows, its heading and every item's text together (D97's cap):
+/// a page that needs more cannot be shown, and is never cut.
+pub(crate) const MAX_PAGE_CHARS: usize = 6000;
+/// What a page shows when the preview cannot be shown.
+const UNAVAILABLE: &str = "The preview could not be shown, so this request can only be declined.";
+
+/// One page of a decision's preview as the page shows it (the Ideas host-review specification,
+/// section 2): its heading and items, sanitised, never cut. Nothing of it is stored but its hash
+/// and its items' ids.
+#[derive(Clone, Debug)]
+pub(crate) struct PreviewPage {
+    pub(crate) page: u32,
+    pub(crate) pages: u32,
+    pub(crate) heading: String,
+    /// Each item's id and text.
+    pub(crate) items: Vec<(String, String)>,
+    /// Whether the page could be shown: only a shown page counts toward Approve.
+    pub(crate) ok: bool,
+    /// `sha256:<hex>` of what it shows.
+    pub(crate) hash: String,
+}
+
+impl PreviewPage {
+    pub(crate) fn unavailable(page: u32) -> Self {
+        Self::shown(page, page, UNAVAILABLE.to_owned(), Vec::new(), false)
+    }
+
+    fn shown(
+        page: u32,
+        pages: u32,
+        heading: String,
+        items: Vec<(String, String)>,
+        ok: bool,
+    ) -> Self {
+        let hash = format!(
+            "sha256:{}",
+            sha256_hex(
+                &json!({ "page": page, "pages": pages, "heading": heading, "items": items })
+                    .to_string()
+            )
+        );
+        Self {
+            page,
+            pages,
+            heading,
+            items,
+            ok,
+            hash,
+        }
+    }
+}
+
+/// Whether `id` is an item id: 1 to 64 letters, digits, `.`, `_` and `-`.
+fn is_item_id(id: &str) -> bool {
+    (1..=64).contains(&id.len())
+        && id
+            .bytes()
+            .all(|byte| byte.is_ascii_alphanumeric() || matches!(byte, b'.' | b'_' | b'-'))
+}
+
+/// Page `asked` of a preview's answer `data` (section 2), sanitised: `None` when it is not
+/// exactly `{ preview }` or a paged answer for that page by the section's rules, or when it would
+/// not fit on the page uncut.
+pub(crate) fn preview_page_of(data: &Value, asked: u32) -> Option<PreviewPage> {
+    let data = data.as_object()?;
+    if data
+        .keys()
+        .any(|key| !matches!(key.as_str(), "preview" | "page" | "pages" | "items"))
+    {
+        return None;
+    }
+    let heading = clean(data.get("preview")?.as_str()?);
+    let number = |name: &str| -> Option<Option<u32>> {
+        match data.get(name) {
+            None => Some(None),
+            Some(value) => u32::try_from(value.as_u64()?).ok().map(Some),
+        }
+    };
+    let (page, pages) = match (number("page")?, number("pages")?) {
+        (Some(page), Some(pages)) => (page, pages),
+        (None, None) => (1, 1),
+        _ => return None,
+    };
+    if page < 1 || page > pages || pages > MAX_PREVIEW_PAGES || page != asked {
+        return None;
+    }
+    let mut items = Vec::new();
+    if let Some(listed) = data.get("items") {
+        let listed = listed.as_array()?;
+        if listed.len() > MAX_PREVIEW_ITEMS {
+            return None;
+        }
+        for item in listed {
+            let item = item.as_object()?;
+            if item.len() != 2 {
+                return None;
+            }
+            let id = item.get("id")?.as_str()?;
+            let text = item.get("text")?.as_str()?;
+            if !is_item_id(id) || items.iter().any(|(seen, _): &(String, String)| seen == id) {
+                return None;
+            }
+            items.push((id.to_owned(), clean(text)));
+        }
+    }
+    // The page is cut nowhere: what would not fit cannot be shown.
+    let shown = |text: &str| text.chars().filter(|c| *c != '\n').count();
+    let total = shown(&heading) + items.iter().map(|(_, text)| shown(text)).sum::<usize>();
+    (total <= MAX_PAGE_CHARS).then(|| PreviewPage::shown(page, pages, heading, items, true))
+}
 
 /// A command whose `person` names `verified` on some surface: what its decisions need.
 #[derive(Debug, Clone)]
@@ -500,9 +614,7 @@ impl PersonService {
                 .unwrap_or_default(),
             trace_id: request.context.trace_id.clone(),
             created_ms: now,
-            expires_ms: now.saturating_add(
-                i64::try_from(crate::auth::PERSON_DECISION_TTL_S * 1000).unwrap_or(0),
-            ),
+            expires_ms: now.saturating_add(self.ttl_ms()),
         };
         let store = Arc::clone(&self.store);
         let created = new.clone();
@@ -526,7 +638,28 @@ impl PersonService {
             auth_time_ms: None,
             acr: None,
             preview_hash: None,
+            pages_total: None,
+            pages: Vec::new(),
+            excluded: Vec::new(),
         })
+    }
+
+    /// `person.decision_ttl_s`, in milliseconds: a decision's lifetime, from its beginning and
+    /// from each page rendered (the Ideas host-review specification, section 4).
+    pub(crate) fn ttl_ms(&self) -> i64 {
+        i64::try_from(
+            self.workspace
+                .config()
+                .person
+                .decision_ttl_s
+                .saturating_mul(1000),
+        )
+        .unwrap_or(i64::MAX)
+    }
+
+    /// The namespaces whose person login the page serves, in order.
+    pub(crate) fn namespaces(&self) -> Vec<String> {
+        self.providers.keys().cloned().collect()
     }
 
     /// Run `spec`'s preview as the caller of `request`, under the call's own trace id, with
@@ -659,9 +792,7 @@ impl PersonService {
             auth_time: auth_time.clone(),
             acr: acr.clone(),
             at: at.clone(),
-            // Items pulled out on the page arrive with step H2 of the Ideas host-review
-            // specification.
-            excluded: Vec::new(),
+            excluded: decision.excluded.clone(),
         };
         let mut principal = principal?;
         principal.human_present = Some(HumanPresent {
@@ -713,14 +844,12 @@ impl PersonService {
         }
     }
 
-    /// The preview of `decision`, rendered now under the logged-in person's reader filter (7.2,
-    /// step 4; D97's sanitising and caps): its text, and whether it could be shown. Nothing of it
-    /// is stored.
-    pub(crate) async fn preview(&self, decision: &Decision) -> (String, bool) {
-        const UNAVAILABLE: &str =
-            "The preview could not be shown, so this request can only be declined.";
+    /// Page `page` of the preview of `decision`, rendered now under the logged-in person's reader
+    /// filter (7.2, step 4; D97's sanitising), with [`super::PREVIEW_PAGE_KEY`] asking for that
+    /// page (the Ideas host-review specification, section 2). Nothing of it is stored here.
+    pub(crate) async fn preview_page(&self, decision: &Decision, page: u32) -> PreviewPage {
         let Some(spec) = self.commands.get(&decision.command) else {
-            return (UNAVAILABLE.to_owned(), false);
+            return PreviewPage::unavailable(page);
         };
         let person = format!("{}/{}", decision.for_.namespace, decision.for_.subject);
         let mut context = CommandContext::new();
@@ -736,24 +865,22 @@ impl PersonService {
         context
             .extra
             .insert(crate::principal::CLAIM_GROUPS_KEY.to_owned(), json!([]));
+        context.extra.insert(
+            super::PREVIEW_PAGE_KEY.to_owned(),
+            json!({ "preview": spec.preview, "page": page }),
+        );
         context.trace_id = Some(crate::host::new_trace_id());
         let input = Value::Object(decision.properties.clone());
         let result = self
             .registry
             .execute(&spec.preview, input, Some(context))
             .await;
-        let text = result
+        result
             .data
             .as_ref()
             .filter(|_| result.success)
-            .and_then(Value::as_object)
-            .filter(|data| data.len() == 1)
-            .and_then(|data| data.get("preview"))
-            .and_then(Value::as_str);
-        match text {
-            Some(text) => (render(text), true),
-            None => (UNAVAILABLE.to_owned(), false),
-        }
+            .and_then(|data| preview_page_of(data, page))
+            .unwrap_or_else(|| PreviewPage::unavailable(page))
     }
 
     /// Seal the relay's `requestState` for decision `id` and `call` (7.3): XChaCha20-Poly1305
@@ -847,13 +974,10 @@ fn relay_aad(command: &str, digest: &str, binding: &str) -> Vec<u8> {
     aad
 }
 
-/// The preview as the page shows it (D97): control characters (but line ends and tabs), the line
-/// and paragraph separators and the bidirectional controls removed, at most 6000 characters, then
-/// how many lines were not shown.
-pub(crate) fn render(text: &str) -> String {
-    const MAX: usize = 6000;
-    let clean: String = text
-        .chars()
+/// `text` with control characters (but line ends and tabs), the line and paragraph separators
+/// and the bidirectional controls removed (D97).
+pub(crate) fn clean(text: &str) -> String {
+    text.chars()
         .filter(|c| {
             (*c == '\n' || *c == '\t' || !c.is_control())
                 && !matches!(
@@ -867,32 +991,7 @@ pub(crate) fn render(text: &str) -> String {
                         | '\u{2066}'..='\u{2069}'
                 )
         })
-        .collect();
-    let lines: Vec<&str> = clean.lines().collect();
-    let mut out = String::new();
-    let mut used = 0usize;
-    let mut shown = 0usize;
-    for line in &lines {
-        let length = line.chars().count();
-        if used + length > MAX {
-            if shown == 0 {
-                out.extend(line.chars().take(MAX));
-                out.push('\n');
-                shown = 1;
-            }
-            break;
-        }
-        out.push_str(line);
-        out.push('\n');
-        used += length;
-        shown += 1;
-    }
-    match lines.len() - shown {
-        0 => {}
-        1 => out.push_str("(1 line not shown)\n"),
-        hidden => out.push_str(&format!("({hidden} lines not shown)\n")),
-    }
-    out
+        .collect()
 }
 
 /// The plugin gate's ledger over the shared stores (`super::DecisionLedger`).
@@ -1057,7 +1156,29 @@ mod tests {
                 preview_ok: true,
             }),
         ));
-        ok(store.decide(&id, &"l".repeat(26), &"ab".repeat(32), true, now));
+        ok(store.render(
+            &crate::shared::person::Render {
+                decision: id.clone(),
+                login: "l".repeat(26),
+                page: 1,
+                pages: 1,
+                hash: format!("sha256:{}", "0".repeat(64)),
+                items: Vec::new(),
+                ttl_ms: 600_000,
+            },
+            now,
+        ));
+        ok(store.decide(
+            &id,
+            &"l".repeat(26),
+            &"ab".repeat(32),
+            &crate::shared::person::Choice {
+                page: 1,
+                action: crate::shared::person::Action::Approve,
+                checked: Vec::new(),
+            },
+            now,
+        ));
         // Another person, command or input: not admitted, and nothing spent.
         let mut bo = who.clone();
         bo.subject = "bo".into();
@@ -1110,9 +1231,47 @@ mod tests {
     }
 
     #[test]
-    fn the_rendered_preview_drops_controls_and_counts_what_it_cut() {
-        assert_eq!(render("a\u{1b}[31mb\u{202e}c\nd\u{2028}e"), "a[31mbc\nde\n");
-        let long: String = (0..200).map(|i| format!("{i:049}\n")).collect();
-        assert!(render(&long).ends_with("(78 lines not shown)\n"));
+    fn the_shown_preview_drops_controls() {
+        assert_eq!(clean("a\u{1b}[31mb\u{202e}c\nd\u{2028}e"), "a[31mbc\nde");
+    }
+
+    #[test]
+    fn a_preview_answers_one_page_by_section_2s_rules() {
+        // Exactly `{ preview }`: one page of one, with no items.
+        let one = preview_page_of(&json!({ "preview": "Mulch the beds" }), 1).unwrap();
+        assert_eq!((one.page, one.pages, one.items.len()), (1, 1, 0));
+        assert!(one.ok);
+        assert!(preview_page_of(&json!({ "preview": "Mulch the beds" }), 2).is_none());
+        let paged = json!({ "preview": "Review · page 2 of 3", "page": 2, "pages": 3, "items": [
+            { "id": "prp-1", "text": "AFFIRM · Mulch beds before the first frost." },
+            { "id": "prp-2", "text": "RETIRE · Water at noon." },
+        ] });
+        let two = preview_page_of(&paged, 2).unwrap();
+        assert_eq!(two.items[1].0, "prp-2");
+        assert_eq!(two.hash.len(), "sha256:".len() + 64);
+        // Another page than asked, or any rule broken: not shown.
+        assert!(preview_page_of(&paged, 1).is_none());
+        for bad in [
+            json!({ "preview": "x", "page": 1 }),
+            json!({ "preview": "x", "page": 0, "pages": 1 }),
+            json!({ "preview": "x", "page": 2, "pages": 1 }),
+            json!({ "preview": "x", "page": 1, "pages": 201 }),
+            json!({ "preview": "x", "extra": 1 }),
+            json!({ "preview": 3 }),
+            json!({ "preview": "x", "items": [{ "id": "a b", "text": "t" }] }),
+            json!({ "preview": "x", "items": [{ "id": "", "text": "t" }] }),
+            json!({ "preview": "x", "items": [{ "id": "a", "text": "t", "more": 1 }] }),
+            json!({ "preview": "x", "items": [{ "id": "a", "text": "t" }, { "id": "a", "text": "u" }] }),
+            json!({ "preview": "x", "items": [{ "id": "x".repeat(65), "text": "t" }] }),
+            json!({ "preview": "x", "items": (0..101).map(|i| json!({ "id": format!("i{i}"), "text": "t" })).collect::<Vec<_>>() }),
+        ] {
+            assert!(preview_page_of(&bad, 1).is_none(), "{bad}");
+        }
+        // The page is cut nowhere: 6000 characters fit, one more does not.
+        let full = json!({ "preview": "h", "items": [{ "id": "a", "text": "x".repeat(5999) }] });
+        assert!(preview_page_of(&full, 1).is_some());
+        let over = json!({ "preview": "hh", "items": [{ "id": "a", "text": "x".repeat(5999) }] });
+        assert!(preview_page_of(&over, 1).is_none());
+        assert!(preview_page_of(&json!({ "preview": "y".repeat(6001) }), 1).is_none());
     }
 }

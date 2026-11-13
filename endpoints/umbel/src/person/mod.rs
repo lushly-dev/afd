@@ -52,6 +52,13 @@ pub(crate) const PERSON_DECISION_KEY: &str = "dev.umbel/person-decision";
 /// host sets it (the context hook clears it on every MCP call).
 pub(crate) const PERSON_CHECK_KEY: &str = "dev.umbel/person-check";
 
+/// The `CommandContext.extra` key of the person page's own run of a gated command's
+/// `confirm_preview` to render one page of it (the Ideas host-review specification, section 2):
+/// `{ "preview", "page" }`. The plugin sees it as `CallContext::preview_page` ([`page_of`]). It
+/// carries no authority, and only the host sets it (the context hook clears it on every MCP
+/// call).
+pub(crate) const PREVIEW_PAGE_KEY: &str = "dev.umbel/preview-page";
+
 /// The CLI's decision expired before it was decided (section 10.5): retryable.
 #[cfg_attr(not(all(feature = "auth", feature = "cli")), allow(dead_code))]
 pub(crate) const PERSON_DECISION_EXPIRED: &str = "PERSON_DECISION_EXPIRED";
@@ -374,6 +381,17 @@ pub(crate) fn check_of(command: &str, context: &CommandContext) -> Option<umbel_
         command: gated.to_owned(),
         surface: surface.to_owned(),
     })
+}
+
+/// The page of its preview the person page asks `command` for, when this run is that page's
+/// rendering ([`PREVIEW_PAGE_KEY`]): `Some(n)` from 1; `None` otherwise, where the preview answers
+/// exactly `{ preview }`.
+pub(crate) fn page_of(command: &str, context: &CommandContext) -> Option<u32> {
+    let value = context.extra.get(PREVIEW_PAGE_KEY)?;
+    let preview = value.get("preview").and_then(Value::as_str)?;
+    let page = value.get("page").and_then(Value::as_u64)?;
+    let page = u32::try_from(page).ok().filter(|page| *page >= 1)?;
+    (preview == command).then_some(page)
 }
 
 /// What the plugin gate asks of the shared stores for a person-decided call: the decision, read
@@ -798,6 +816,26 @@ mod tests {
             for person in [terminal, at_page, over_mcp] {
                 assert!(proof("notes-review", person, &input(), &decided).is_none());
             }
+        }
+    }
+
+    #[test]
+    fn the_page_asked_for_is_named_only_to_the_preview_it_runs() {
+        let mut context = CommandContext::new();
+        assert!(page_of("gate-preview", &context).is_none());
+        context.extra.insert(
+            PREVIEW_PAGE_KEY.to_owned(),
+            serde_json::json!({ "preview": "gate-preview", "page": 3 }),
+        );
+        assert_eq!(page_of("gate-preview", &context), Some(3));
+        assert!(page_of("gate-approve", &context).is_none());
+        for value in [
+            serde_json::json!({ "preview": "gate-preview", "page": 0 }),
+            serde_json::json!({ "preview": "gate-preview", "page": "2" }),
+            Value::Null,
+        ] {
+            context.extra.insert(PREVIEW_PAGE_KEY.to_owned(), value);
+            assert!(page_of("gate-preview", &context).is_none());
         }
     }
 

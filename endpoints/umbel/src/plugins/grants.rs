@@ -390,6 +390,13 @@ impl CallServices {
         crate::person::check_of(self.command.as_deref()?, &self.context)
     }
 
+    /// The page of its preview the person page asks for, when this call is that page's rendering
+    /// (the Ideas host-review specification, section 2; [`crate::person::page_of`]), which
+    /// `CallContext.preview_page` carries.
+    pub fn preview_page(&self) -> Option<u32> {
+        crate::person::page_of(self.command.as_deref()?, &self.context)
+    }
+
     /// Whether the call's caller sees positions sealed (phase 5 section 9.3), which
     /// `CallContext.sealed_positions` carries to every compiled plugin's command.
     pub fn seals_positions(&self) -> bool {

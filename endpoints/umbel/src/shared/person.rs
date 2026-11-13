@@ -16,11 +16,20 @@
 //! `used`), in the same transaction that moves the decision from `pending`, so of two concurrent
 //! decisions on one login, or two logins on one decision, exactly one is recorded.
 //!
-//! **Lifetime.** A decision waits [`crate::auth::PERSON_DECISION_TTL_S`]; a login lives no longer
-//! than its decision. Rows are purged an hour after they expire (at most 64 per write), with
+//! **Pages** (the Ideas host-review specification, sections 2 and 3). A decision's row also holds
+//! each page of its preview the page rendered (its number, the SHA-256 of what it showed and the
+//! ids of its items), the number of pages they said there were, and the item ids the person
+//! unchecked. Ids only: an item's text is never stored. A page that renders with another number
+//! of pages, or a page seen before that renders with another hash, clears them all.
+//!
+//! **Lifetime.** A decision waits `person.decision_ttl_s` (600 seconds by default), and each page
+//! rendered moves its expiry to the render's time plus that, never more than
+//! [`crate::workspace::PERSON_DECISION_TTL_MAX_S`] after it began. A login for a decision lives as
+//! long as its decision, moved with it; a login for the list of pending decisions lives ten
+//! minutes. Rows are purged an hour after they expire (at most 64 per write), with
 //! `secure_delete` on. The file is WAL, mode 0600 in a 0700 `state/shared/`, schema `user_version`
-//! 1; it is opened on first use, and a lock wait past `store.lock_timeout_ms` is
-//! `WORKSPACE_SHARED_TIMEOUT`.
+//! 2 (version 1, without the pages, is migrated in place); it is opened on first use, and a lock
+//! wait past `store.lock_timeout_ms` is `WORKSPACE_SHARED_TIMEOUT`.
 
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
@@ -38,7 +47,7 @@ use crate::workspace::WorkspaceError;
 /// The store's name in errors and logs (`details.store`).
 pub(crate) const STORE: &str = "person";
 /// The schema version this host writes (`PRAGMA user_version`).
-const SCHEMA_VERSION: i64 = 1;
+const SCHEMA_VERSION: i64 = 2;
 /// The most expired rows one write purges, per table.
 const PURGE_BATCH: i64 = 64;
 /// How long a row is kept after it expires (section 10.2): one hour.
@@ -46,6 +55,23 @@ pub(crate) const KEEP_AFTER_EXPIRY_MS: i64 = 3_600_000;
 /// The most logins one decision may start: opening its link is unauthenticated, so the rows one
 /// decision id can make are bounded.
 pub(crate) const MAX_LOGINS_PER_DECISION: i64 = 8;
+/// The most item ids one decision records as pulled out (`MAX_EXCLUDED`).
+pub(crate) const MAX_EXCLUDED: usize = 2000;
+/// The longest a decision lives after it began, however often its pages render.
+pub(crate) const MAX_DECISION_LIFE_MS: i64 =
+    crate::workspace::PERSON_DECISION_TTL_MAX_S.saturating_mul(1000) as i64;
+
+/// One page of a decision's preview, as the page rendered it.
+#[derive(Clone, Debug, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct SeenPage {
+    /// Its number, from 1.
+    pub(crate) page: u32,
+    /// `sha256:<hex>` of what it showed.
+    pub(crate) hash: String,
+    /// Its items' ids, in the order shown.
+    pub(crate) items: Vec<String>,
+}
 
 /// A decision's status (`person-decision.v1`): a pending decision past `expires` is expired.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -111,6 +137,12 @@ pub(crate) struct Decision {
     pub(crate) auth_time_ms: Option<i64>,
     pub(crate) acr: Option<String>,
     pub(crate) preview_hash: Option<String>,
+    /// The number of pages the rendered pages said there were; `None` before the first.
+    pub(crate) pages_total: Option<u32>,
+    /// The pages rendered, by number.
+    pub(crate) pages: Vec<SeenPage>,
+    /// The item ids the person unchecked.
+    pub(crate) excluded: Vec<String>,
 }
 
 impl Decision {
@@ -119,10 +151,21 @@ impl Decision {
         now_ms < self.expires_ms
     }
 
+    /// Whether every page from 1 to the number of pages was rendered, each with that number.
+    pub(crate) fn every_page_seen(&self) -> bool {
+        self.pages_total.is_some_and(|total| {
+            (1..=total).all(|number| self.pages.iter().any(|seen| seen.page == number))
+        })
+    }
+
+    /// The page `number` as it was rendered.
+    pub(crate) fn seen(&self, number: u32) -> Option<&SeenPage> {
+        self.pages.iter().find(|seen| seen.page == number)
+    }
+
     /// The decision as `person-decision.v2.json` gives it: the fields of section 7.2, and the
     /// pages rendered and the items pulled out (the Ideas host-review specification, section
-    /// 3), never the page's own columns. No row holds a page or an item until step H2 of that
-    /// specification, so both are empty.
+    /// 3), never the page's own columns.
     #[cfg(test)]
     pub(crate) fn to_v2(&self) -> Value {
         use crate::person::iso;
@@ -142,8 +185,8 @@ impl Decision {
             "authTime": self.auth_time_ms.filter(|_| decided).map(iso),
             "acr": self.acr.as_ref().filter(|_| decided),
             "previewHash": self.preview_hash.as_ref().filter(|_| decided),
-            "pages": [],
-            "excluded": [],
+            "pages": self.pages,
+            "excluded": self.excluded,
         })
     }
 }
@@ -158,6 +201,19 @@ pub(crate) struct NewLogin {
     /// The `nonce`, kept server-side.
     pub(crate) nonce: String,
     /// The SHA-256 of the browser's cookie value, hex.
+    pub(crate) browser_hash: String,
+    pub(crate) created_ms: i64,
+    pub(crate) expires_ms: i64,
+}
+
+/// A login for the list of a person's pending decisions (section 5 of the Ideas host-review
+/// specification): no decision, the namespace whose login it is.
+#[derive(Clone, Debug)]
+pub(crate) struct NewListLogin {
+    pub(crate) id: String,
+    pub(crate) namespace: String,
+    pub(crate) verifier: String,
+    pub(crate) nonce: String,
     pub(crate) browser_hash: String,
     pub(crate) created_ms: i64,
     pub(crate) expires_ms: i64,
@@ -205,7 +261,10 @@ impl LoginStatus {
 #[derive(Clone)]
 pub(crate) struct Login {
     pub(crate) id: String,
+    /// Its decision; empty for a login to the list of pending decisions.
     pub(crate) decision: String,
+    /// The namespace of a login to the list; `None` for a decision's.
+    pub(crate) namespace: Option<String>,
     pub(crate) verifier: String,
     pub(crate) nonce: String,
     pub(crate) created_ms: i64,
@@ -225,10 +284,69 @@ impl std::fmt::Debug for Login {
 pub(crate) struct Verified {
     pub(crate) auth_time_ms: i64,
     pub(crate) acr: String,
-    /// `sha256:<hex>` of the preview the page rendered.
+    /// `sha256:<hex>` of the first page the login rendered.
     pub(crate) preview_hash: String,
-    /// Whether the preview could be shown: only then may the person approve.
+    /// Whether that page could be shown. Approve is gated on the decision's pages, not on this.
     pub(crate) preview_ok: bool,
+}
+
+/// A page the page rendered, to record against its decision.
+#[derive(Clone, Debug)]
+pub(crate) struct Render {
+    pub(crate) decision: String,
+    /// The login that rendered it, whose expiry moves with the decision's.
+    pub(crate) login: String,
+    pub(crate) page: u32,
+    pub(crate) pages: u32,
+    /// `sha256:<hex>` of what it showed.
+    pub(crate) hash: String,
+    pub(crate) items: Vec<String>,
+    /// `person.decision_ttl_s`, in milliseconds.
+    pub(crate) ttl_ms: i64,
+}
+
+/// What recording a render found.
+#[derive(Clone, Debug)]
+pub(crate) enum Rendered {
+    /// Recorded: the decision as it now stands.
+    Recorded(Box<Decision>),
+    /// The page said another number of pages, or a page seen before showed something else: the
+    /// pages and the choices were cleared, and the person starts again from page 1.
+    Changed,
+    /// An item id of the page is another page's: the page cannot be shown.
+    Duplicate,
+    /// The decision is no longer pending and live.
+    Gone,
+}
+
+/// What the person posted from a page: its number, the action, and the zero-based positions of
+/// the items left checked.
+#[derive(Clone, Debug)]
+pub(crate) struct Choice {
+    pub(crate) page: u32,
+    pub(crate) action: Action,
+    pub(crate) checked: Vec<usize>,
+}
+
+/// A form's action.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Action {
+    Next,
+    Previous,
+    Approve,
+    Decline,
+}
+
+impl Action {
+    pub(crate) fn parse(text: &str) -> Option<Self> {
+        Some(match text {
+            "next" => Self::Next,
+            "previous" => Self::Previous,
+            "approve" => Self::Approve,
+            "decline" => Self::Decline,
+            _ => return None,
+        })
+    }
 }
 
 /// What starting a login found.
@@ -241,14 +359,19 @@ pub(crate) enum LoginStart {
     TooMany,
 }
 
-/// What deciding found.
+/// What a posted page found.
 #[derive(Clone, Debug)]
 pub(crate) enum Decided {
-    /// Recorded: the decision as it now stands.
+    /// Recorded: the decision as it now stands, approved or declined.
     Recorded(Box<Decision>),
+    /// `next` or `previous`: the page's choices were kept; show the page with this number.
+    Moved(u32),
+    /// Nothing was recorded: the page posted from is not the one rendered (a position past its
+    /// items, a page not rendered, a move past the first or last page), or an approval came
+    /// before every page was rendered.
+    Changed,
     /// Nothing was recorded: the login is not a verified login of this decision in this browser,
-    /// has expired or was used, the decision is no longer pending and live, or an approval came
-    /// from a page that could not show the preview.
+    /// has expired or was used, or the decision is no longer pending and live.
     Refused,
 }
 
@@ -294,8 +417,35 @@ pub(crate) trait PersonStore: Send + Sync {
     /// A [`SharedError`].
     fn finish_login(&self, id: &str, verified: Option<&Verified>) -> Result<bool, SharedError>;
 
-    /// Record the person's decision through the verified login `login` of `decision`, from the
-    /// browser whose cookie hashes to `browser_hash`, atomically spending the login.
+    /// Start a login for the list of pending decisions.
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn start_list_login(&self, login: &NewListLogin, now_ms: i64) -> Result<(), SharedError>;
+
+    /// Whether `login` is a verified, live login of `decision` in the browser whose cookie hashes
+    /// to `browser_hash`, with the decision pending and live.
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn verified_login(
+        &self,
+        decision: &str,
+        login: &str,
+        browser_hash: &str,
+        now_ms: i64,
+    ) -> Result<bool, SharedError>;
+
+    /// Record a page rendered for a pending, live decision, and move its expiry and its login's.
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn render(&self, render: &Render, now_ms: i64) -> Result<Rendered, SharedError>;
+
+    /// What the person posted from a page, through the verified login `login` of `decision`,
+    /// from the browser whose cookie hashes to `browser_hash`: the page's choices kept on a move,
+    /// or the decision recorded on Approve or Decline, atomically spending the login. The
+    /// checked positions map to the ids of the page as it was rendered.
     ///
     /// # Errors
     /// A [`SharedError`].
@@ -304,9 +454,20 @@ pub(crate) trait PersonStore: Send + Sync {
         decision: &str,
         login: &str,
         browser_hash: &str,
-        approve: bool,
+        choice: &Choice,
         now_ms: i64,
     ) -> Result<Decided, SharedError>;
+
+    /// The pending, live decisions for the person `subject` of `namespace`, oldest first.
+    ///
+    /// # Errors
+    /// A [`SharedError`].
+    fn pending_for(
+        &self,
+        namespace: &str,
+        subject: &str,
+        now_ms: i64,
+    ) -> Result<Vec<Decision>, SharedError>;
 }
 
 /// The SQLite person store, opened on first use.
@@ -341,9 +502,12 @@ fn failed(error: &dyn std::fmt::Display) -> SharedError {
     }
 }
 
-const DECISION_COLUMNS: &str = "id, for_json, command, input_digest, properties, spaces, chain, trace_id, created_ms, expires_ms, status, decided_ms, auth_time_ms, acr, preview_hash";
+const DECISION_COLUMNS: &str = "id, for_json, command, input_digest, properties, spaces, chain, trace_id, created_ms, expires_ms, status, decided_ms, auth_time_ms, acr, preview_hash, pages_total, pages, excluded";
 
-fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(Decision, String, String)> {
+/// A decision row as read, before its JSON columns are checked.
+type RawDecision = (Decision, String, String, String, String);
+
+fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<RawDecision> {
     let for_json: String = row.get(1)?;
     let properties: String = row.get(4)?;
     let chain: String = row.get(6)?;
@@ -374,14 +538,17 @@ fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<(Decision, String, 
         auth_time_ms: row.get(12)?,
         acr: row.get(13)?,
         preview_hash: row.get(14)?,
+        pages_total: row.get(15)?,
+        pages: Vec::new(),
+        excluded: Vec::new(),
     };
-    Ok((decision, status, for_json))
+    Ok((decision, status, for_json, row.get(16)?, row.get(17)?))
 }
 
-/// A row read back: a status or `for` this host cannot read makes the row unusable, never a
-/// default that could match someone.
-fn checked(found: Option<(Decision, String, String)>) -> Result<Option<Decision>, SharedError> {
-    let Some((mut decision, status, for_json)) = found else {
+/// A row read back: a status, a `for`, pages or excluded ids this host cannot read make the row
+/// unusable, never a default that could match someone or include an item the person pulled out.
+fn checked(found: Option<RawDecision>) -> Result<Option<Decision>, SharedError> {
+    let Some((mut decision, status, for_json, pages, excluded)) = found else {
         return Ok(None);
     };
     let status =
@@ -389,8 +556,100 @@ fn checked(found: Option<(Decision, String, String)>) -> Result<Option<Decision>
     if serde_json::from_str::<DecisionFor>(&for_json).is_err() {
         return Err(failed(&"a person decision's `for` cannot be read"));
     }
+    decision.pages = serde_json::from_str(&pages)
+        .map_err(|_| failed(&"a person decision's pages cannot be read"))?;
+    decision.excluded = serde_json::from_str(&excluded)
+        .map_err(|_| failed(&"a person decision's excluded items cannot be read"))?;
     decision.status = status;
     Ok(Some(decision))
+}
+
+/// The ids pulled out once the person posted `checked` from page `number` of `decision`: the
+/// page's items at no checked position, beside what other pages pulled out. `None` when the page
+/// was not rendered, a position names no item of it or is repeated, or more than
+/// [`MAX_EXCLUDED`] would be pulled out.
+fn excluded_after(decision: &Decision, number: u32, checked: &[usize]) -> Option<Vec<String>> {
+    let seen = decision.seen(number)?;
+    let mut kept = vec![false; seen.items.len()];
+    for &position in checked {
+        let slot = kept.get_mut(position)?;
+        if *slot {
+            return None;
+        }
+        *slot = true;
+    }
+    let mut excluded: Vec<String> = decision
+        .excluded
+        .iter()
+        .filter(|id| !seen.items.contains(id))
+        .cloned()
+        .collect();
+    excluded.extend(
+        seen.items
+            .iter()
+            .zip(kept)
+            .filter(|(_, kept)| !kept)
+            .map(|(id, _)| id.clone()),
+    );
+    (excluded.len() <= MAX_EXCLUDED).then_some(excluded)
+}
+
+/// What a login row proves for a decision, when it is usable now: its `auth_time`, its `acr` and
+/// the hash of the first page it rendered.
+type Proof = (i64, String, String);
+
+/// The proof of `login` for `decision` in the browser whose cookie hashes to `browser_hash`, when
+/// it is a verified, live login of that decision.
+fn usable_login(
+    connection: &Connection,
+    decision: &str,
+    login: &str,
+    browser_hash: &str,
+    now_ms: i64,
+) -> Result<Option<Proof>, SharedError> {
+    type Row = (
+        String,
+        String,
+        i64,
+        String,
+        Option<i64>,
+        Option<String>,
+        Option<String>,
+    );
+    let found: Option<Row> = connection
+        .query_row(
+            "SELECT decision, browser_hash, expires_ms, status, auth_time_ms, acr, preview_hash
+             FROM logins WHERE id = ?1",
+            params![login],
+            |row| {
+                Ok((
+                    row.get(0)?,
+                    row.get(1)?,
+                    row.get(2)?,
+                    row.get(3)?,
+                    row.get(4)?,
+                    row.get(5)?,
+                    row.get(6)?,
+                ))
+            },
+        )
+        .optional()
+        .map_err(|error| shared_error(&error))?;
+    let Some((of, hash, expires_ms, status, Some(auth_time_ms), Some(acr), Some(preview_hash))) =
+        found
+    else {
+        return Ok(None);
+    };
+    let usable = !decision.is_empty()
+        && of == decision
+        && same_digest(&hash, browser_hash)
+        && now_ms < expires_ms
+        && LoginStatus::parse(&status) == Some(LoginStatus::Verified);
+    Ok(usable.then_some((auth_time_ms, acr, preview_hash)))
+}
+
+fn json_text(value: &impl serde::Serialize) -> Result<String, SharedError> {
+    serde_json::to_string(value).map_err(|error| failed(&error))
 }
 
 impl SqlitePerson {
@@ -465,7 +724,10 @@ impl SqlitePerson {
                      decided_ms INTEGER,
                      auth_time_ms INTEGER,
                      acr TEXT,
-                     preview_hash TEXT
+                     preview_hash TEXT,
+                     pages_total INTEGER,
+                     pages TEXT NOT NULL DEFAULT '[]',
+                     excluded TEXT NOT NULL DEFAULT '[]'
                  ) WITHOUT ROWID;
                  CREATE INDEX IF NOT EXISTS decisions_expires ON decisions (expires_ms);
                  CREATE TABLE IF NOT EXISTS logins (
@@ -480,7 +742,8 @@ impl SqlitePerson {
                      auth_time_ms INTEGER,
                      acr TEXT,
                      preview_hash TEXT,
-                     preview_ok INTEGER NOT NULL DEFAULT 0
+                     preview_ok INTEGER NOT NULL DEFAULT 0,
+                     namespace TEXT
                  ) WITHOUT ROWID;
                  CREATE INDEX IF NOT EXISTS logins_expires ON logins (expires_ms);
                  CREATE INDEX IF NOT EXISTS logins_decision ON logins (decision);
@@ -493,6 +756,18 @@ impl SqlitePerson {
         match version {
             0 => connection
                 .execute_batch(&format!("PRAGMA user_version = {SCHEMA_VERSION}"))
+                .map_err(|error| unwritable(&error))?,
+            // Version 1 had no pages and no list logins: its rows read as having rendered none.
+            1 => connection
+                .execute_batch(&format!(
+                    "BEGIN IMMEDIATE;
+                     ALTER TABLE decisions ADD COLUMN pages_total INTEGER;
+                     ALTER TABLE decisions ADD COLUMN pages TEXT NOT NULL DEFAULT '[]';
+                     ALTER TABLE decisions ADD COLUMN excluded TEXT NOT NULL DEFAULT '[]';
+                     ALTER TABLE logins ADD COLUMN namespace TEXT;
+                     PRAGMA user_version = {SCHEMA_VERSION};
+                     COMMIT;"
+                ))
                 .map_err(|error| unwritable(&error))?,
             SCHEMA_VERSION => {}
             other => {
@@ -577,7 +852,8 @@ impl PersonStore for SqlitePerson {
                 .execute(
                     &format!(
                         "INSERT INTO decisions ({DECISION_COLUMNS}) VALUES
-                         (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'pending', NULL, NULL, NULL, NULL)
+                         (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, 'pending', NULL, NULL, NULL, NULL,
+                          NULL, '[]', '[]')
                          ON CONFLICT (id) DO NOTHING"
                     ),
                     params![
@@ -686,7 +962,7 @@ impl PersonStore for SqlitePerson {
             }
             let login = transaction
                 .query_row(
-                    "SELECT id, decision, verifier, nonce, browser_hash, created_ms, expires_ms, status
+                    "SELECT id, decision, verifier, nonce, browser_hash, created_ms, expires_ms, status, namespace
                      FROM logins WHERE id = ?1",
                     params![id],
                     |row| {
@@ -694,6 +970,7 @@ impl PersonStore for SqlitePerson {
                         Ok(Login {
                             id: row.get(0)?,
                             decision: row.get(1)?,
+                            namespace: row.get(8)?,
                             verifier: row.get(2)?,
                             nonce: row.get(3)?,
                             created_ms: row.get(5)?,
@@ -732,61 +1009,191 @@ impl PersonStore for SqlitePerson {
         })
     }
 
+    fn start_list_login(&self, login: &NewListLogin, now_ms: i64) -> Result<(), SharedError> {
+        self.with(|connection| {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|error| shared_error(&error))?;
+            let inserted = transaction
+                .execute(
+                    "INSERT INTO logins (id, decision, verifier, nonce, browser_hash, created_ms, expires_ms, status, namespace)
+                     VALUES (?1, '', ?2, ?3, ?4, ?5, ?6, 'started', ?7) ON CONFLICT (id) DO NOTHING",
+                    params![
+                        login.id,
+                        login.verifier,
+                        login.nonce,
+                        login.browser_hash,
+                        login.created_ms,
+                        login.expires_ms,
+                        login.namespace,
+                    ],
+                )
+                .map_err(|error| shared_error(&error))?;
+            if inserted != 1 {
+                return Err(failed(&"a login id was already taken"));
+            }
+            purge(&transaction, now_ms)?;
+            transaction.commit().map_err(|error| shared_error(&error))
+        })
+    }
+
+    fn verified_login(
+        &self,
+        decision: &str,
+        login: &str,
+        browser_hash: &str,
+        now_ms: i64,
+    ) -> Result<bool, SharedError> {
+        self.with(|connection| {
+            if usable_login(connection, decision, login, browser_hash, now_ms)?.is_none() {
+                return Ok(false);
+            }
+            Ok(
+                read_decision(connection, decision)?.is_some_and(|decision| {
+                    decision.status == Status::Pending && decision.live(now_ms)
+                }),
+            )
+        })
+    }
+
+    fn render(&self, render: &Render, now_ms: i64) -> Result<Rendered, SharedError> {
+        self.with(|connection| {
+            let transaction = connection
+                .transaction_with_behavior(TransactionBehavior::Immediate)
+                .map_err(|error| shared_error(&error))?;
+            let Some(mut decision) = read_decision(&transaction, &render.decision)? else {
+                return Ok(Rendered::Gone);
+            };
+            if decision.status != Status::Pending || !decision.live(now_ms) {
+                return Ok(Rendered::Gone);
+            }
+            let changed = decision
+                .pages_total
+                .is_some_and(|total| total != render.pages)
+                || decision
+                    .seen(render.page)
+                    .is_some_and(|seen| !same_digest(&seen.hash, &render.hash));
+            if changed {
+                transaction
+                    .execute(
+                        "UPDATE decisions SET pages_total = NULL, pages = '[]', excluded = '[]'
+                         WHERE id = ?1",
+                        params![render.decision],
+                    )
+                    .map_err(|error| shared_error(&error))?;
+                transaction.commit().map_err(|error| shared_error(&error))?;
+                return Ok(Rendered::Changed);
+            }
+            let elsewhere = decision
+                .pages
+                .iter()
+                .filter(|seen| seen.page != render.page)
+                .any(|seen| seen.items.iter().any(|id| render.items.contains(id)));
+            if elsewhere {
+                return Ok(Rendered::Duplicate);
+            }
+            decision.pages.retain(|seen| seen.page != render.page);
+            decision.pages.push(SeenPage {
+                page: render.page,
+                hash: render.hash.clone(),
+                items: render.items.clone(),
+            });
+            decision.pages.sort_by_key(|seen| seen.page);
+            decision.pages_total = Some(render.pages);
+            // The lifetime runs from the last page shown, never past a day after it began.
+            let cap = decision.created_ms.saturating_add(MAX_DECISION_LIFE_MS);
+            decision.expires_ms = decision
+                .expires_ms
+                .max(now_ms.saturating_add(render.ttl_ms).min(cap));
+            transaction
+                .execute(
+                    "UPDATE decisions SET pages_total = ?2, pages = ?3, expires_ms = ?4 WHERE id = ?1",
+                    params![
+                        render.decision,
+                        render.pages,
+                        json_text(&decision.pages)?,
+                        decision.expires_ms
+                    ],
+                )
+                .map_err(|error| shared_error(&error))?;
+            transaction
+                .execute(
+                    "UPDATE logins SET expires_ms = MAX(expires_ms, ?3) WHERE id = ?1 AND decision = ?2",
+                    params![render.login, render.decision, decision.expires_ms],
+                )
+                .map_err(|error| shared_error(&error))?;
+            transaction.commit().map_err(|error| shared_error(&error))?;
+            Ok(Rendered::Recorded(Box::new(decision)))
+        })
+    }
+
     fn decide(
         &self,
         decision: &str,
         login: &str,
         browser_hash: &str,
-        approve: bool,
+        choice: &Choice,
         now_ms: i64,
     ) -> Result<Decided, SharedError> {
         self.with(|connection| {
             let transaction = connection
                 .transaction_with_behavior(TransactionBehavior::Immediate)
                 .map_err(|error| shared_error(&error))?;
-            type Row = (String, String, i64, String, Option<i64>, Option<String>, Option<String>, i64);
-            let found: Option<Row> = transaction
-                .query_row(
-                    "SELECT decision, browser_hash, expires_ms, status, auth_time_ms, acr, preview_hash, preview_ok
-                     FROM logins WHERE id = ?1",
-                    params![login],
-                    |row| {
-                        Ok((
-                            row.get(0)?,
-                            row.get(1)?,
-                            row.get(2)?,
-                            row.get(3)?,
-                            row.get(4)?,
-                            row.get(5)?,
-                            row.get(6)?,
-                            row.get(7)?,
-                        ))
-                    },
-                )
-                .optional()
-                .map_err(|error| shared_error(&error))?;
-            let Some((of, hash, expires_ms, status, auth_time_ms, acr, preview_hash, preview_ok)) =
-                found
+            let Some((auth_time_ms, acr, first_hash)) =
+                usable_login(&transaction, decision, login, browser_hash, now_ms)?
             else {
                 return Ok(Decided::Refused);
             };
-            let usable = of == decision
-                && same_digest(&hash, browser_hash)
-                && now_ms < expires_ms
-                && LoginStatus::parse(&status) == Some(LoginStatus::Verified)
-                && (!approve || preview_ok == 1);
-            let (Some(auth_time_ms), Some(acr), Some(preview_hash)) =
-                (auth_time_ms, acr, preview_hash)
-            else {
+            let Some(row) = read_decision(&transaction, decision)? else {
                 return Ok(Decided::Refused);
             };
-            if !usable {
+            if row.status != Status::Pending || !row.live(now_ms) {
                 return Ok(Decided::Refused);
             }
-            let status = if approve {
-                Status::Approved
-            } else {
-                Status::Declined
+            let total = row.pages_total.unwrap_or(0);
+            let (status, excluded, preview_hash) = match choice.action {
+                Action::Next | Action::Previous => {
+                    let target = if choice.action == Action::Next {
+                        choice.page.checked_add(1)
+                    } else {
+                        choice.page.checked_sub(1)
+                    };
+                    let Some(target) = target.filter(|target| (1..=total).contains(target)) else {
+                        return Ok(Decided::Changed);
+                    };
+                    let Some(excluded) = excluded_after(&row, choice.page, &choice.checked) else {
+                        return Ok(Decided::Changed);
+                    };
+                    transaction
+                        .execute(
+                            "UPDATE decisions SET excluded = ?2 WHERE id = ?1",
+                            params![decision, json_text(&excluded)?],
+                        )
+                        .map_err(|error| shared_error(&error))?;
+                    transaction.commit().map_err(|error| shared_error(&error))?;
+                    return Ok(Decided::Moved(target));
+                }
+                Action::Approve => {
+                    // Every page shown before Approve (section 2), and the choices of the page
+                    // posted from, final.
+                    if !row.every_page_seen() {
+                        return Ok(Decided::Changed);
+                    }
+                    let Some(excluded) = excluded_after(&row, choice.page, &choice.checked) else {
+                        return Ok(Decided::Changed);
+                    };
+                    let Some(seen) = row.seen(choice.page) else {
+                        return Ok(Decided::Changed);
+                    };
+                    (Status::Approved, excluded, seen.hash.clone())
+                }
+                Action::Decline => {
+                    // Decline is always offered: no page need have been shown, and nothing runs.
+                    let hash = row
+                        .seen(choice.page)
+                        .map_or(first_hash, |seen| seen.hash.clone());
+                    (Status::Declined, row.excluded.clone(), hash)
+                }
             };
             let spent = transaction
                 .execute(
@@ -797,7 +1204,7 @@ impl PersonStore for SqlitePerson {
             let recorded = transaction
                 .execute(
                     "UPDATE decisions SET status = ?2, decided_ms = ?3, auth_time_ms = ?4, acr = ?5,
-                         preview_hash = ?6
+                         preview_hash = ?6, excluded = ?7
                      WHERE id = ?1 AND status = 'pending' AND expires_ms > ?3",
                     params![
                         decision,
@@ -805,7 +1212,8 @@ impl PersonStore for SqlitePerson {
                         now_ms,
                         auth_time_ms,
                         acr,
-                        preview_hash
+                        preview_hash,
+                        json_text(&excluded)?
                     ],
                 )
                 .map_err(|error| shared_error(&error))?;
@@ -818,6 +1226,37 @@ impl PersonStore for SqlitePerson {
             Ok(decided.map_or(Decided::Refused, |decided| {
                 Decided::Recorded(Box::new(decided))
             }))
+        })
+    }
+
+    fn pending_for(
+        &self,
+        namespace: &str,
+        subject: &str,
+        now_ms: i64,
+    ) -> Result<Vec<Decision>, SharedError> {
+        self.with(|connection| {
+            let mut statement = connection
+                .prepare(&format!(
+                    "SELECT {DECISION_COLUMNS} FROM decisions
+                     WHERE status = 'pending' AND expires_ms > ?1 ORDER BY created_ms, id"
+                ))
+                .map_err(|error| shared_error(&error))?;
+            let rows = statement
+                .query_map(params![now_ms], decision_row)
+                .map_err(|error| shared_error(&error))?;
+            let mut found = Vec::new();
+            for row in rows {
+                // A row this host cannot read is no one's to list.
+                let Ok(Some(decision)) = checked(Some(row.map_err(|error| shared_error(&error))?))
+                else {
+                    continue;
+                };
+                if decision.for_.namespace == namespace && decision.for_.subject == subject {
+                    found.push(decision);
+                }
+            }
+            Ok(found)
         })
     }
 }
@@ -868,6 +1307,46 @@ mod tests {
         }
     }
 
+    fn choice(action: Action) -> Choice {
+        Choice {
+            page: 1,
+            action,
+            checked: Vec::new(),
+        }
+    }
+
+    const APPROVE: Action = Action::Approve;
+    const DECLINE: Action = Action::Decline;
+
+    fn rendered(store: &SqlitePerson, id: &str, login: &str, page: u32, items: &[&str], now: i64) {
+        rendered_of(store, id, login, page, 2, items, now);
+    }
+
+    fn rendered_of(
+        store: &SqlitePerson,
+        id: &str,
+        login: &str,
+        page: u32,
+        pages: u32,
+        items: &[&str],
+        now: i64,
+    ) -> Rendered {
+        store
+            .render(
+                &Render {
+                    decision: id.to_owned(),
+                    login: login.to_owned(),
+                    page,
+                    pages,
+                    hash: format!("sha256:{}", format!("{page}").repeat(64)),
+                    items: items.iter().map(|&id| id.to_owned()).collect(),
+                    ttl_ms: 600_000,
+                },
+                now,
+            )
+            .unwrap()
+    }
+
     fn verified(ok: bool) -> Verified {
         Verified {
             auth_time_ms: 1,
@@ -890,7 +1369,7 @@ mod tests {
         // Deciding before the login returned records nothing.
         assert!(matches!(
             store
-                .decide("d1", "l1", &"ab".repeat(32), true, now)
+                .decide("d1", "l1", &"ab".repeat(32), &choice(APPROVE), now)
                 .unwrap(),
             Decided::Refused
         ));
@@ -918,24 +1397,38 @@ mod tests {
         // Another browser, another decision, or after the login's expiry: nothing.
         assert!(matches!(
             store
-                .decide("d1", "l1", &"cd".repeat(32), true, now)
+                .decide("d1", "l1", &"cd".repeat(32), &choice(APPROVE), now)
                 .unwrap(),
             Decided::Refused
         ));
         assert!(matches!(
             store
-                .decide("d2", "l1", &"ab".repeat(32), true, now)
+                .decide("d2", "l1", &"ab".repeat(32), &choice(APPROVE), now)
                 .unwrap(),
             Decided::Refused
         ));
         assert!(matches!(
             store
-                .decide("d1", "l1", &"ab".repeat(32), true, now + 600_000)
+                .decide(
+                    "d1",
+                    "l1",
+                    &"ab".repeat(32),
+                    &choice(APPROVE),
+                    now + 600_000
+                )
                 .unwrap(),
             Decided::Refused
         ));
+        // Approve needs every page rendered.
+        assert!(matches!(
+            store
+                .decide("d1", "l1", &"ab".repeat(32), &choice(APPROVE), now)
+                .unwrap(),
+            Decided::Changed
+        ));
+        rendered_of(&store, "d1", "l1", 1, 1, &[], now);
         let Decided::Recorded(decided) = store
-            .decide("d1", "l1", &"ab".repeat(32), true, now)
+            .decide("d1", "l1", &"ab".repeat(32), &choice(APPROVE), now)
             .unwrap()
         else {
             panic!("not recorded");
@@ -944,7 +1437,7 @@ mod tests {
         // Once: neither the login nor the decision decides again.
         assert!(matches!(
             store
-                .decide("d1", "l1", &"ab".repeat(32), false, now)
+                .decide("d1", "l1", &"ab".repeat(32), &choice(DECLINE), now)
                 .unwrap(),
             Decided::Refused
         ));
@@ -1000,15 +1493,16 @@ mod tests {
             .unwrap()
             .unwrap();
         store.finish_login("l1", Some(&verified(false))).unwrap();
+        // No page was shown: nothing to approve.
         assert!(matches!(
             store
-                .decide("d1", "l1", &"ab".repeat(32), true, now)
+                .decide("d1", "l1", &"ab".repeat(32), &choice(APPROVE), now)
                 .unwrap(),
-            Decided::Refused
+            Decided::Changed
         ));
         // Declining needs no preview.
         let Decided::Recorded(decided) = store
-            .decide("d1", "l1", &"ab".repeat(32), false, now)
+            .decide("d1", "l1", &"ab".repeat(32), &choice(DECLINE), now)
             .unwrap()
         else {
             panic!("not recorded");
@@ -1059,5 +1553,274 @@ mod tests {
                 .mode();
             assert_eq!(mode & 0o777, 0o600);
         }
+    }
+
+    fn ready(store: &SqlitePerson, id: &str, login_id: &str, now: i64) {
+        store.create(&decision(id, now), now).unwrap();
+        store.start_login(&login(login_id, id, now), now).unwrap();
+        store
+            .take_login(login_id, &"ab".repeat(32), now)
+            .unwrap()
+            .unwrap();
+        store.finish_login(login_id, Some(&verified(true))).unwrap();
+    }
+
+    fn post(
+        store: &SqlitePerson,
+        page: u32,
+        action: Action,
+        checked: &[usize],
+        now: i64,
+    ) -> Decided {
+        store
+            .decide(
+                "d1",
+                "l1",
+                &"ab".repeat(32),
+                &Choice {
+                    page,
+                    action,
+                    checked: checked.to_vec(),
+                },
+                now,
+            )
+            .unwrap()
+    }
+
+    #[test]
+    fn pages_are_kept_and_items_pulled_out_by_position() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 7_000_000;
+        ready(&store, "d1", "l1", now);
+        assert!(
+            store
+                .verified_login("d1", "l1", &"ab".repeat(32), now)
+                .unwrap()
+        );
+        assert!(
+            !store
+                .verified_login("d1", "l1", &"cd".repeat(32), now)
+                .unwrap()
+        );
+        rendered(&store, "d1", "l1", 1, &["a", "b", "c"], now);
+        // Not every page seen: no approval, and nothing recorded.
+        assert!(matches!(
+            post(&store, 1, APPROVE, &[0, 1, 2], now),
+            Decided::Changed
+        ));
+        // A position past the page, or repeated: refused, nothing kept.
+        assert!(matches!(
+            post(&store, 1, Action::Next, &[3], now),
+            Decided::Changed
+        ));
+        assert!(matches!(
+            post(&store, 1, Action::Next, &[0, 0], now),
+            Decided::Changed
+        ));
+        // No page before the first.
+        assert!(matches!(
+            post(&store, 1, Action::Previous, &[], now),
+            Decided::Changed
+        ));
+        // Next keeps the page's choices: `b` unchecked.
+        assert!(matches!(
+            post(&store, 1, Action::Next, &[0, 2], now),
+            Decided::Moved(2)
+        ));
+        assert_eq!(store.decision("d1").unwrap().unwrap().excluded, ["b"]);
+        // No page past the last; an id of another page cannot be shown.
+        assert!(matches!(
+            rendered_of(&store, "d1", "l1", 2, 2, &["a"], now),
+            Rendered::Duplicate
+        ));
+        rendered(&store, "d1", "l1", 2, &["d"], now);
+        assert!(matches!(
+            post(&store, 2, Action::Next, &[0], now),
+            Decided::Changed
+        ));
+        // Approve from page 2 with `d` unchecked: final, beside page 1's.
+        let Decided::Recorded(decided) = post(&store, 2, APPROVE, &[], now) else {
+            panic!("not recorded");
+        };
+        assert_eq!(decided.status, Status::Approved);
+        assert_eq!(decided.excluded, ["b", "d"]);
+        assert_eq!(
+            decided.preview_hash.as_deref(),
+            Some(&*format!("sha256:{}", "2".repeat(64)))
+        );
+        let v2 = decided.to_v2();
+        assert_eq!(v2["excluded"], serde_json::json!(["b", "d"]));
+        assert_eq!(v2["pages"][0]["items"], serde_json::json!(["a", "b", "c"]));
+        assert_eq!(v2["pages"][1]["page"], 2);
+    }
+
+    #[test]
+    fn a_changed_review_clears_the_pages_and_the_choices() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 8_000_000;
+        ready(&store, "d1", "l1", now);
+        rendered(&store, "d1", "l1", 1, &["a", "b"], now);
+        assert!(matches!(
+            post(&store, 1, Action::Next, &[0], now),
+            Decided::Moved(2)
+        ));
+        // Another number of pages: cleared.
+        assert!(matches!(
+            rendered_of(&store, "d1", "l1", 2, 3, &["c"], now),
+            Rendered::Changed
+        ));
+        let cleared = store.decision("d1").unwrap().unwrap();
+        assert!(cleared.pages.is_empty() && cleared.excluded.is_empty());
+        assert_eq!(cleared.pages_total, None);
+        // A page seen before with another hash: cleared too.
+        rendered(&store, "d1", "l1", 1, &["a", "b"], now);
+        let changed = store
+            .render(
+                &Render {
+                    decision: "d1".into(),
+                    login: "l1".into(),
+                    page: 1,
+                    pages: 2,
+                    hash: format!("sha256:{}", "f".repeat(64)),
+                    items: vec!["a".into(), "b".into()],
+                    ttl_ms: 600_000,
+                },
+                now,
+            )
+            .unwrap();
+        assert!(matches!(changed, Rendered::Changed));
+        assert!(store.decision("d1").unwrap().unwrap().pages.is_empty());
+    }
+
+    #[test]
+    fn each_render_moves_the_expiry_never_past_a_day() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 10_000_000;
+        ready(&store, "d1", "l1", now);
+        let later = now + 500_000;
+        let Rendered::Recorded(moved) = rendered_of(&store, "d1", "l1", 1, 1, &[], later) else {
+            panic!("not recorded");
+        };
+        assert_eq!(moved.expires_ms, later + 600_000);
+        // The login moved with it.
+        assert!(
+            store
+                .verified_login("d1", "l1", &"ab".repeat(32), later + 599_000)
+                .unwrap()
+        );
+        // Rendered again and again, it never lives past a day from its beginning.
+        let mut at = later;
+        while at < now + MAX_DECISION_LIFE_MS {
+            at += 590_000;
+            if let Rendered::Recorded(decision) = rendered_of(&store, "d1", "l1", 1, 1, &[], at) {
+                assert!(decision.expires_ms <= now + MAX_DECISION_LIFE_MS);
+            }
+        }
+        assert_eq!(
+            store.decision("d1").unwrap().unwrap().expires_ms,
+            now + MAX_DECISION_LIFE_MS
+        );
+        assert!(matches!(
+            rendered_of(&store, "d1", "l1", 1, 1, &[], now + MAX_DECISION_LIFE_MS),
+            Rendered::Gone
+        ));
+    }
+
+    #[test]
+    fn the_pending_list_is_the_persons_own_live_decisions() {
+        let dir = tempfile::tempdir().unwrap();
+        let store = store(dir.path());
+        let now = 11_000_000;
+        store.create(&decision("d1", now), now).unwrap();
+        let mut other = decision("d2", now + 1);
+        other.for_.subject = "bo".into();
+        store.create(&other, now).unwrap();
+        let mut late = decision("d3", now + 2);
+        late.expires_ms = now + 10;
+        store.create(&late, now).unwrap();
+        let ids = |at: i64| -> Vec<String> {
+            store
+                .pending_for("corp", "ada", at)
+                .unwrap()
+                .into_iter()
+                .map(|decision| decision.id)
+                .collect()
+        };
+        assert_eq!(ids(now), ["d1", "d3"]);
+        assert_eq!(ids(now + 10), ["d1"]);
+        assert!(store.pending_for("else", "ada", now).unwrap().is_empty());
+        // A list login has no decision: it decides nothing.
+        store
+            .start_list_login(
+                &NewListLogin {
+                    id: "ll".into(),
+                    namespace: "corp".into(),
+                    verifier: "v".into(),
+                    nonce: "n".into(),
+                    browser_hash: "ab".repeat(32),
+                    created_ms: now,
+                    expires_ms: now + 600_000,
+                },
+                now,
+            )
+            .unwrap();
+        let taken = store
+            .take_login("ll", &"ab".repeat(32), now)
+            .unwrap()
+            .unwrap();
+        assert_eq!(taken.decision, "");
+        assert_eq!(taken.namespace.as_deref(), Some("corp"));
+        store.finish_login("ll", Some(&verified(true))).unwrap();
+        assert!(matches!(
+            store
+                .decide("", "ll", &"ab".repeat(32), &choice(DECLINE), now)
+                .unwrap(),
+            Decided::Refused
+        ));
+    }
+
+    #[test]
+    fn a_version_1_store_is_migrated_in_place() {
+        let dir = tempfile::tempdir().unwrap();
+        let path = dir.path().join("shared").join("person.sqlite3");
+        std::fs::create_dir_all(path.parent().unwrap()).unwrap();
+        {
+            let connection = Connection::open(&path).unwrap();
+            connection
+                .execute_batch(
+                    "CREATE TABLE decisions (id TEXT PRIMARY KEY NOT NULL, for_json TEXT NOT NULL,
+                         command TEXT NOT NULL, input_digest TEXT NOT NULL, properties TEXT NOT NULL,
+                         spaces TEXT NOT NULL, chain TEXT NOT NULL, trace_id TEXT,
+                         created_ms INTEGER NOT NULL, expires_ms INTEGER NOT NULL, status TEXT NOT NULL,
+                         decided_ms INTEGER, auth_time_ms INTEGER, acr TEXT, preview_hash TEXT) WITHOUT ROWID;
+                     CREATE TABLE logins (id TEXT PRIMARY KEY NOT NULL, decision TEXT NOT NULL,
+                         verifier TEXT NOT NULL, nonce TEXT NOT NULL, browser_hash TEXT NOT NULL,
+                         created_ms INTEGER NOT NULL, expires_ms INTEGER NOT NULL, status TEXT NOT NULL,
+                         auth_time_ms INTEGER, acr TEXT, preview_hash TEXT,
+                         preview_ok INTEGER NOT NULL DEFAULT 0) WITHOUT ROWID;
+                     PRAGMA user_version = 1;",
+                )
+                .unwrap();
+            let for_json = serde_json::to_string(&decision("d1", 0).for_).unwrap();
+            connection
+                .execute(
+                    "INSERT INTO decisions VALUES ('d1', ?1, 'gate-approve', 'x', '{}', '[]', '[]',
+                         NULL, 1, 2, 'pending', NULL, NULL, NULL, NULL)",
+                    params![for_json],
+                )
+                .unwrap();
+        }
+        let store = SqlitePerson::new(&path, 1_000);
+        let read = store.decision("d1").unwrap().unwrap();
+        assert!(read.pages.is_empty() && read.excluded.is_empty());
+        assert_eq!(read.pages_total, None);
+        let version: i64 = Connection::open(&path)
+            .unwrap()
+            .query_row("PRAGMA user_version", [], |row| row.get(0))
+            .unwrap();
+        assert_eq!(version, SCHEMA_VERSION);
     }
 }

@@ -240,7 +240,17 @@ fn the_preview_returns_a_closed_preview_string() {
         ))
     };
     parse(&with_returns(RETURNS)).unwrap();
+    // A paged answer's members beside `preview` (the Ideas host-review specification, section 2).
     for returns in [
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, page = { type = \"integer\" }, pages = { type = \"integer\" }, items = { type = \"array\", items = { type = \"object\" } } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"array\" } }, required = [\"preview\"], additionalProperties = false }",
+    ] {
+        parse(&with_returns(returns)).unwrap_or_else(|error| panic!("{returns}: {error}"));
+    }
+    for returns in [
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, page = { type = \"string\" } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"object\" } }, required = [\"preview\"], additionalProperties = false }",
+        "returns = { type = \"object\", properties = { preview = { type = \"string\" }, items = { type = \"array\" } }, required = [\"preview\", \"items\"], additionalProperties = false }",
         "",
         "returns = { type = \"object\" }",
         "returns = { type = \"object\", properties = { preview = { type = \"integer\" } }, required = [\"preview\"], additionalProperties = false }",

@@ -1447,4 +1447,9 @@ async fn the_hook_sets_the_person_decision_field_itself() {
         keys.contains(&"dev.umbel/person-check".to_owned()),
         "{keys:?}"
     );
+    // And the page of a preview the page asks for (the Ideas host-review specification, 2).
+    assert!(
+        keys.contains(&"dev.umbel/preview-page".to_owned()),
+        "{keys:?}"
+    );
 }

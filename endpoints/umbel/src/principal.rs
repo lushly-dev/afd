@@ -494,6 +494,11 @@ pub(crate) fn hook(
         context
             .extra
             .insert(crate::person::PERSON_CHECK_KEY.to_owned(), Value::Null);
+        // Nor the page of a preview the person page asks for (the Ideas host-review
+        // specification, section 2).
+        context
+            .extra
+            .insert(crate::person::PREVIEW_PAGE_KEY.to_owned(), Value::Null);
         // Which request's usage record this call belongs to (section 12.1): the host's own slot,
         // never anything a request brought.
         #[cfg(feature = "auth")]
