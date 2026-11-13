@@ -19,6 +19,7 @@
 
 mod archive;
 mod bands;
+mod budget;
 mod capture;
 mod fail;
 mod find;
@@ -120,18 +121,18 @@ impl Call {
     }
 }
 
-/// The caller's effective principal, as the host and the curator derive it: the person acted
-/// for, else the actor's own `<kind>:<id>`.
+/// The caller's effective principal, as the host derives it (`src/provenance.rs:245`) and the
+/// curator does: `human:<on_behalf_of>` when the actor acts for someone, else `<kind>:<id>`.
 fn principal(call: &umbel_sdk::CallContext) -> Option<String> {
     if let Some(person) = call.on_behalf_of.as_deref().filter(|p| !p.is_empty()) {
-        return Some(if person.contains(':') || person.contains('/') {
-            person.to_owned()
-        } else {
-            format!("human:{person}")
-        });
+        return Some(format!("human:{person}"));
     }
     let id = call.actor_id.as_deref().filter(|id| !id.is_empty())?;
-    Some(format!("{}:{id}", call.actor_kind))
+    matches!(
+        call.actor_kind.as_str(),
+        "human" | "agent" | "service" | "script"
+    )
+    .then(|| format!("{}:{id}", call.actor_kind))
 }
 
 /// Input helpers: a refusal names the field, never its value.

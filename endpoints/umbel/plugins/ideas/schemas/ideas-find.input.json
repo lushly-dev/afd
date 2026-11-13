@@ -21,7 +21,8 @@
 			"minItems": 1,
 			"maxItems": 8,
 			"items": {
-				"type": "string"
+				"type": "string",
+				"maxLength": 40
 			},
 			"description": "Any of these tags"
 		},
@@ -61,7 +62,8 @@
 		},
 		"after": {
 			"type": "string",
-			"description": "The next of the page before, for the same query"
+			"description": "The next of the page before, for the same query",
+			"maxLength": 2048
 		},
 		"total": {
 			"type": "boolean",

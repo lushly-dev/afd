@@ -9,7 +9,8 @@
 		},
 		"review": {
 			"type": "string",
-			"description": "The review; absent, your newest open one; new, another"
+			"description": "The review; absent, your newest open one; new, another",
+			"maxLength": 28
 		},
 		"name": {
 			"type": "string",

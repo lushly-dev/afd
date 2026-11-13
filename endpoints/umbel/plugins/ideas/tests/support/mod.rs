@@ -132,6 +132,21 @@ impl Fx {
         )
     }
 
+    /// The stdio agent over MCP, asking for an output budget of `ask` bytes.
+    pub async fn agent_with_budget(&self, command: &str, input: Value, ask: u64) -> Value {
+        let context = self
+            .host
+            .context(agent_for("gardener-bot", "ada"))
+            .with_interface(CommandInterface::Mcp)
+            .with_output_budget_ask(ask);
+        json_of(
+            self.host
+                .registry()
+                .execute(command, input, Some(context))
+                .await,
+        )
+    }
+
     /// The stdio agent acting for the space's person, over MCP.
     pub async fn agent(&self, command: &str, input: Value) -> Value {
         self.call(
@@ -254,6 +269,32 @@ impl Fx {
         }
         text
     }
+}
+
+/// A store whose ideas `statements` hold, the wordings at `affirm` affirmed by its person.
+/// Version 1 affirms only in a confirmed review (step C3) or a restore, so the ideas are
+/// captured in a first store, exported, marked affirmed as an archive of a store that had
+/// affirmed them would be, and imported by the person into a fresh store, which is answered
+/// with the ideas' ids.
+pub async fn affirmed_store(statements: &[&str], affirm: &[usize]) -> (Fx, Vec<String>) {
+    let first = Fx::new();
+    let ids = first.capture(statements).await;
+    let exported = first.operator("ideas-export", json!({})).await;
+    let mut items = data(&exported)["items"].as_array().unwrap().clone();
+    for item in &mut items {
+        let marked = affirm
+            .iter()
+            .any(|index| item["kind"] == "wording" && item["body"]["idea"] == ids[*index].as_str());
+        if marked {
+            item["affirmed"] = json!({ "at": "2025-12-31T09:00:00.000Z", "level": "terminal" });
+        }
+    }
+    let second = Fx::new();
+    let imported = second
+        .person("ideas-import", json!({ "items": items }))
+        .await;
+    assert_eq!(data(&imported)["affirmed"], affirm.len(), "{imported}");
+    (second, ids)
 }
 
 /// A scripted terminal: whether a person can answer, what they answer, and what was asked.

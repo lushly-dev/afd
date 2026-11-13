@@ -8,13 +8,16 @@
 			"description": "The space; default: the workspace's default space"
 		},
 		"review": {
-			"type": "string"
+			"type": "string",
+			"maxLength": 28
 		},
 		"part": {
-			"type": "string"
+			"type": "string",
+			"maxLength": 64
 		},
 		"digest": {
-			"type": "string"
+			"type": "string",
+			"maxLength": 71
 		}
 	}
 }

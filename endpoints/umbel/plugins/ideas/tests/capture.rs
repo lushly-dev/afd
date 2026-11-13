@@ -391,3 +391,32 @@ fn a_call_that_stopped_part_way_is_finished_by_the_same_key() {
     assert!(state.records.contains_key(&lost), "the wording is written");
     assert_eq!(state.records.len(), 4, "and nothing else");
 }
+
+#[tokio::test]
+async fn a_key_sent_again_with_other_ideas_is_refused_and_writes_nothing() {
+    let fx = Fx::new();
+    let first = fx
+        .agent(
+            "ideas-capture",
+            json!({ "ideas": [idea(BEDS)], "idempotencyKey": "chat-12" }),
+        )
+        .await;
+    data(&first);
+    let other = fx
+        .agent(
+            "ideas-capture",
+            json!({ "ideas": [idea(LIFTED)], "idempotencyKey": "chat-12" }),
+        )
+        .await;
+    assert_eq!(code(&other), "CONFLICT", "{other}");
+    assert_eq!(other["error"]["details"]["field"], "idempotencyKey");
+    assert_eq!(guide_totals(&fx).await["ideas"], 1);
+    // The same statement in other spacing is the same call.
+    let again = fx
+        .agent(
+            "ideas-capture",
+            json!({ "ideas": [idea(&format!("  {BEDS}"))], "idempotencyKey": "chat-12" }),
+        )
+        .await;
+    assert_eq!(data(&again)["replayed"], true);
+}

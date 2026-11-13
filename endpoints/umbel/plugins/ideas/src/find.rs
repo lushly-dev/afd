@@ -11,7 +11,7 @@ use crate::label::{standing_of, wording_view};
 use crate::pack::Pack;
 use crate::pending::{key, pending};
 use crate::records::WORDING;
-use crate::{Call, fail, input};
+use crate::{Call, budget, fail, input};
 
 const DEFAULT_LIMIT: u64 = 50;
 const MAX_LIMIT: u64 = 200;
@@ -102,31 +102,54 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         limit: u32::try_from(limit).unwrap_or(200),
         total,
     };
-    let page = cx
+    let mut page = cx
         .record_find(&call.space, &query)
         .map_err(|error| refused(&error))?;
-    let mut flagged = 0;
-    let ideas: Vec<Value> = page
-        .items
-        .iter()
-        .filter_map(|record| {
-            if !record.flags.is_empty() {
-                flagged += 1;
-            }
-            wording_view(record)
-        })
-        .collect();
     let pending = pending(cx, call).map_err(|error| fail::host(&error))?;
-    Ok(fail::warn_flagged(
-        success(json!({
-            "ideas": ideas,
-            "next": page.next,
-            "total": page.total,
-            "cut": page.cut,
-            "admitted": page.admitted,
-            "pending": pending,
-        })),
-        flagged,
+    let budget = cx.call().output_budget;
+    let build = |page: &umbel_store::lane::FindPage, kept: usize, next: Option<&str>| {
+        let shown = &page.items[..kept.min(page.items.len())];
+        let flagged = shown.iter().filter(|r| !r.flags.is_empty()).count();
+        let ideas: Vec<Value> = shown.iter().filter_map(wording_view).collect();
+        fail::warn_flagged(
+            success(json!({
+                "ideas": ideas,
+                "next": next,
+                "total": page.total,
+                "cut": page.cut,
+                "admitted": page.admitted,
+                "pending": pending,
+            })),
+            flagged,
+        )
+    };
+    let total = page.items.len();
+    let (kept, fitted) = budget::fit_count(total, budget, |kept| {
+        // A shortened page has a next page; its cursor is taken below.
+        budget::limited(
+            build(&page, kept, page.next.as_deref().or(Some(""))),
+            total - kept,
+            "ideas",
+        )
+    });
+    if kept == total {
+        return Ok(build(&page, kept, page.next.as_deref()));
+    }
+    if kept == 0 {
+        // Not one item fits: AFD's check refuses it.
+        return Ok(fitted);
+    }
+    // The page again with the limit that fits, for the host's cursor after its last item.
+    let mut shorter = query.clone();
+    shorter.limit = u32::try_from(kept).unwrap_or(1);
+    page = cx
+        .record_find(&call.space, &shorter)
+        .map_err(|error| refused(&error))?;
+    let kept = page.items.len();
+    Ok(budget::limited(
+        build(&page, kept, page.next.as_deref()),
+        total - kept,
+        "ideas",
     ))
 }
 
@@ -140,7 +163,10 @@ fn unreachable() -> Pointer {
     panic!("/statement is a pointer")
 }
 
-/// A find's refusal: the host's query refusals named by field.
+/// A find's refusal: the host's query refusals named by field. The host answers one code,
+/// `RECORD_QUERY_INVALID`, for a cursor of another order and for a text with no token
+/// (`store/src/lane/query.rs:60` and `:160`), so the field is read from its message; a message
+/// that names neither is passed on as the host's code.
 fn refused(error: &HostError) -> Outcome {
     if let HostError::Invalid(message) = error
         && message.starts_with("RECORD_QUERY_INVALID")

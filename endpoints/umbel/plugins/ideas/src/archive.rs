@@ -11,11 +11,14 @@ use umbel_sdk::{Cx, HostError, Level, Outcome, success};
 use umbel_store::lane::{Decision, FindOrder, LaneRecord, MAX_FIND_LIMIT, RecordFind};
 use umbel_store::{ContentHash, Origin, canonical_json};
 
-use crate::capture::statement_ok;
+use crate::capture::{MAX_TAGS, is_tag, statement_ok};
 use crate::pack::Pack;
 use crate::pending::pending;
-use crate::records::{IDEA, Idea, PROPOSAL, REVIEW, WORDING, Wording, origin_of, put_absent, read};
-use crate::{Call, fail, input};
+use crate::records::{
+    IDEA, IDEA_PREFIX, Idea, MAX_WORDINGS, PROPOSAL, PROPOSAL_PREFIX, REVIEW, REVIEW_PREFIX,
+    SEEN_MAX, WORDING, Wording, origin_of, put_absent, read,
+};
+use crate::{Call, budget, fail, ids, input};
 
 /// The kinds, in the archive's order.
 const KINDS: [&str; 4] = [IDEA, WORDING, REVIEW, PROPOSAL];
@@ -135,15 +138,69 @@ fn parse_cursor(after: &str) -> Option<(usize, Option<String>)> {
 pub(crate) fn export(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcome> {
     let host = |error: HostError| fail::host(&error);
     let limit = input::integer(input, "limit", 1, MAX_LIMIT)?.unwrap_or(DEFAULT_LIMIT);
-    let (mut kind, mut after) = match input::string(input, "after")? {
+    let start = match input::string(input, "after")? {
         Some(cursor) => parse_cursor(cursor)
             .ok_or_else(|| fail::invalid("after", "is not a cursor ideas-export gave"))?,
         None => (0, None),
     };
+    let (mut items, mut next) = fill(cx, call, start.clone(), limit).map_err(host)?;
+    let pending = pending(cx, call).map_err(host)?;
+    let manifest = match &next {
+        Some(_) => None,
+        None => Some(manifest(cx, call).map_err(host)?),
+    };
+    let build = |items: &[Value], next: Option<&str>, manifest: Option<&Value>| {
+        let mut data = json!({ "items": items });
+        match (next, manifest) {
+            (Some(next), _) => data["next"] = json!(next),
+            (None, Some(manifest)) => data["manifest"] = manifest.clone(),
+            (None, None) => {}
+        }
+        data["pending"] = pending.clone();
+        success(data)
+    };
+    let total = items.len();
+    let (kept, fitted) = budget::fit_count(total, cx.call().output_budget, |kept| {
+        if kept == total {
+            build(&items, next.as_deref(), manifest.as_ref())
+        } else {
+            // A shortened page has a next page instead of the manifest.
+            budget::limited(build(&items[..kept], Some(""), None), total - kept, "items")
+        }
+    });
+    let mut outcome = fitted;
+    if kept < total && kept > 0 {
+        // The page again with the limit that fits, for the cursor after its last item.
+        (items, next) = fill(cx, call, start, kept as u64).map_err(host)?;
+        outcome = budget::limited(
+            build(&items, next.as_deref(), None),
+            total - items.len(),
+            "items",
+        );
+    }
+    cx.log(
+        Level::Info,
+        &format!(
+            "ideas-export: {} item(s), last page {}",
+            items.len(),
+            next.is_none()
+        ),
+    );
+    Ok(outcome)
+}
+
+/// Up to `limit` items from `start`, and the cursor after them; `None` when nothing is left.
+fn fill(
+    cx: &Cx,
+    call: &Call,
+    start: (usize, Option<String>),
+    limit: u64,
+) -> Result<(Vec<Value>, Option<String>), HostError> {
+    let (mut kind, mut after) = start;
     let mut items = Vec::new();
     while (items.len() as u64) < limit && kind < KINDS.len() {
         let room = (limit - items.len() as u64).min(u64::from(MAX_FIND_LIMIT));
-        let page = page_of(cx, call, KINDS[kind], after.clone(), room as u32).map_err(host)?;
+        let page = page_of(cx, call, KINDS[kind], after.clone(), room as u32)?;
         items.extend(page.items.iter().map(|record| item(KINDS[kind], record)));
         match page.next {
             Some(next) if !page.items.is_empty() => after = Some(next),
@@ -154,21 +211,7 @@ pub(crate) fn export(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
         }
     }
     let next = (kind < KINDS.len()).then(|| format!("{kind}:{}", after.as_deref().unwrap_or("")));
-    let mut data = json!({ "items": items });
-    match &next {
-        Some(next) => data["next"] = json!(next),
-        None => data["manifest"] = manifest(cx, call).map_err(host)?,
-    }
-    cx.log(
-        Level::Info,
-        &format!(
-            "ideas-export: {} item(s), last page {}",
-            items.len(),
-            next.is_none()
-        ),
-    );
-    data["pending"] = pending(cx, call).map_err(host)?;
-    Ok(success(data))
+    Ok((items, next))
 }
 
 /// A checked archive item.
@@ -198,12 +241,36 @@ fn check_item(index: usize, value: &Value, pack: &Pack) -> Result<Item, Outcome>
         .cloned()
         .ok_or_else(|| bad("body", "must be an object"))?;
     let shaped = match kind {
-        IDEA => Idea::parse(&body).is_some_and(|idea| idea.id == id),
-        WORDING => Wording::parse(&body).is_some_and(|wording| {
-            crate::records::wording_id(&wording.idea, wording.n) == id
-                && statement_ok(&wording.statement, pack)
-        }),
-        _ => body.get("id").and_then(Value::as_str) == Some(id.as_str()),
+        IDEA => idea_shaped(&id, &body),
+        WORDING => wording_shaped(&id, &body, pack),
+        REVIEW => {
+            ids::is_id(&id, REVIEW_PREFIX)
+                && body.get("id").and_then(Value::as_str) == Some(id.as_str())
+                && matches!(
+                    body.get("state").and_then(Value::as_str),
+                    Some("open" | "closed")
+                )
+                && body
+                    .get("by")
+                    .and_then(Value::as_str)
+                    .is_some_and(|by| !by.is_empty())
+        }
+        _ => {
+            ids::is_id(&id, PROPOSAL_PREFIX)
+                && body.get("id").and_then(Value::as_str) == Some(id.as_str())
+                && body
+                    .get("review")
+                    .and_then(Value::as_str)
+                    .is_some_and(|review| ids::is_id(review, REVIEW_PREFIX))
+                && matches!(
+                    body.get("state").and_then(Value::as_str),
+                    Some("staged" | "unstaged" | "applied" | "pulled" | "skipped" | "undone")
+                )
+                && matches!(
+                    body.get("decide").and_then(Value::as_str),
+                    Some("affirm" | "decline" | "reword" | "duplicate" | "undo")
+                )
+        }
     };
     if !shaped {
         return Err(bad("body", "is not a body of its kind with this id"));
@@ -230,6 +297,59 @@ fn check_item(index: usize, value: &Value, pack: &Pack) -> Result<Item, Outcome>
         body,
         affirmed,
     })
+}
+
+/// An idea's body under 4.2: its id, state, counts within their caps, and the ids it names.
+fn idea_shaped(id: &str, body: &Value) -> bool {
+    let Some(idea) = Idea::parse(body) else {
+        return false;
+    };
+    ids::is_id(id, IDEA_PREFIX)
+        && idea.id == id
+        && matches!(idea.state.as_str(), "live" | "declined" | "folded")
+        && idea.held >= 1
+        && idea.wordings >= idea.held
+        && idea.wordings <= MAX_WORDINGS
+        && idea.sightings >= 1
+        && idea.seen.len() <= SEEN_MAX
+        && idea
+            .into
+            .as_deref()
+            .is_none_or(|into| ids::is_id(into, IDEA_PREFIX))
+        && idea
+            .staged
+            .as_deref()
+            .is_none_or(|staged| ids::is_id(staged, PROPOSAL_PREFIX))
+}
+
+/// A wording's body under 4.1: `<idea id>.<n>`, the statement rule, a type of the pack, the tag
+/// rule, and the role and `said` enums.
+fn wording_shaped(id: &str, body: &Value, pack: &Pack) -> bool {
+    let Some(wording) = Wording::parse(body) else {
+        return false;
+    };
+    let mut sorted = wording.tags.clone();
+    sorted.sort();
+    sorted.dedup();
+    ids::is_id(&wording.idea, IDEA_PREFIX)
+        && wording.n >= 1
+        && wording.n <= MAX_WORDINGS
+        && crate::records::wording_id(&wording.idea, wording.n) == id
+        && statement_ok(&wording.statement, pack)
+        && pack.has_type(&wording.kind)
+        && sorted == wording.tags
+        && wording.tags.len() <= MAX_TAGS
+        && wording.tags.iter().all(|tag| is_tag(tag))
+        && matches!(
+            wording.role.as_str(),
+            "held" | "superseded" | "declined" | "folded" | "withdrawn"
+        )
+        && matches!(wording.said.as_str(), "person" | "agent" | "unknown")
+        && body.get("said").and_then(Value::as_str).is_some()
+        && wording
+            .proposal
+            .as_deref()
+            .is_none_or(|proposal| ids::is_id(proposal, PROPOSAL_PREFIX))
 }
 
 fn counts() -> Map<String, Value> {
@@ -279,6 +399,8 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
     let mut differs: Vec<String> = Vec::new();
     let mut differs_count = 0u64;
     let mut affirmed = 0u64;
+    let mut unaffirmed: Vec<String> = Vec::new();
+    let mut unaffirmed_count = 0u64;
     for item in &items {
         let mut body = item.body.clone();
         if let (Some((at, level)), Some(map)) = (&item.affirmed, body.as_object_mut())
@@ -289,6 +411,8 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
                 json!({ "affirmedAt": at, "level": level }),
             );
         }
+        // What only an import writes: the archive's affirmation, kept in the body it puts.
+        let restored = body.get("restored").cloned();
         let origin = if item.kind == WORDING {
             origin_of(
                 body.get("said")
@@ -300,10 +424,19 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
         };
         let wrote =
             put_absent(cx, call, item.kind, &item.id, body, origin, &observed_at).map_err(host)?;
+        // An existing wording is affirmed only when an import wrote it with this affirmation:
+        // a run of this import that a refusal stopped. A seed the import did not write, or one
+        // that differs, is never affirmed by an archive's say-so (section 13).
+        let mut ours = wrote;
         if wrote {
             bump(&mut added, item.kind);
         } else {
             let existing = read(cx, call, item.kind, &item.id).map_err(host)?;
+            ours = item.affirmed.is_some()
+                && existing.as_ref().is_some_and(|existing| {
+                    existing.record.body.get("restored").cloned() == restored
+                        && without_restored(&existing.record.body) == without_restored(&item.body)
+                });
             if existing.is_some_and(|existing| {
                 without_restored(&existing.record.body) == without_restored(&item.body)
             }) {
@@ -316,9 +449,16 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
             }
         }
         if item.affirmed.is_some() {
-            cx.record_decide(&call.space, WORDING, &item.id, Decision::Affirm)
-                .map_err(host)?;
-            affirmed += 1;
+            if ours {
+                cx.record_decide(&call.space, WORDING, &item.id, Decision::Affirm)
+                    .map_err(host)?;
+                affirmed += 1;
+            } else {
+                unaffirmed_count += 1;
+                if unaffirmed.len() < DIFFERS_MAX {
+                    unaffirmed.push(item.id.clone());
+                }
+            }
         }
     }
     let matches = match (&given, verify) {
@@ -341,6 +481,7 @@ pub(crate) fn import(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Out
         "same": same,
         "differs": { "ids": differs, "count": differs_count },
         "affirmed": affirmed,
+        "unaffirmed": { "ids": unaffirmed, "count": unaffirmed_count },
         "matches": matches,
         "pending": pending,
     })))

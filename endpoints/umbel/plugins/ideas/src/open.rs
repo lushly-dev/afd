@@ -5,11 +5,11 @@
 
 use serde_json::{Value, json};
 use umbel_sdk::{Cx, Outcome, success};
-use umbel_store::lane::{FindOrder, LaneRecord, RecordFind};
+use umbel_store::lane::{FindOrder, LaneRecord, MAX_FIND_LIMIT, RecordFind};
 
 use crate::label::pass;
 use crate::pending::{key, pending};
-use crate::records::{IDEA_PREFIX, PROPOSAL, WORDING, Wording, read, read_idea, wording_id};
+use crate::records::{IDEA_PREFIX, MAX_WORDINGS, PROPOSAL, WORDING, Wording, read, read_idea};
 use crate::{Call, fail, ids, input};
 
 /// The most decisions shown.
@@ -53,13 +53,41 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
     let mut held: Option<(Wording, LaneRecord)> = None;
     let mut first: Option<Wording> = None;
     let mut flagged = 0;
-    for n in 1..=idea.wordings {
-        let Some(record) = read(cx, call, WORDING, &wording_id(&idea.id, n)).map_err(host)? else {
-            continue;
-        };
-        let Some(wording) = Wording::parse(&record.record.body) else {
-            continue;
-        };
+    // Every wording of the idea, by one find on the declared `/idea` key, in pages, then in `n`
+    // order (ids sort `.10` before `.2`).
+    let mut records: Vec<(u64, Wording, LaneRecord)> = Vec::new();
+    let mut after = None;
+    while (records.len() as u64) < MAX_WORDINGS {
+        let page = cx
+            .record_find(
+                &call.space,
+                &RecordFind {
+                    kind: WORDING.to_owned(),
+                    keys: vec![key("/idea", &[idea.id.as_str()])],
+                    standings: Vec::new(),
+                    verified_only: false,
+                    text: None,
+                    order: FindOrder::Id,
+                    after: after.clone(),
+                    limit: MAX_FIND_LIMIT,
+                    total: false,
+                },
+            )
+            .map_err(host)?;
+        for record in &page.items {
+            if let Some(wording) = Wording::parse(&record.record.body)
+                && wording.idea == idea.id
+            {
+                records.push((wording.n, wording, record.clone()));
+            }
+        }
+        match page.next {
+            Some(next) if !page.items.is_empty() => after = Some(next),
+            _ => break,
+        }
+    }
+    records.sort_by_key(|(n, _, _)| *n);
+    for (n, wording, record) in records {
         if !record.flags.is_empty() {
             flagged += 1;
         }

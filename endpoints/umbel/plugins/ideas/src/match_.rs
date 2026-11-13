@@ -15,7 +15,7 @@ use crate::label::pass;
 use crate::pack::{MAX_CANDIDATES_CEILING, Pack};
 use crate::pending::{key, pending};
 use crate::records::{IDEA_PREFIX, WORDING, Wording, read, read_idea, split_wording_id};
-use crate::{Call, fail, ids, input};
+use crate::{Call, budget, fail, ids, input};
 
 /// The most statements and ids one `ideas-match` takes together.
 const MAX_INPUTS: usize = 64;
@@ -239,15 +239,46 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         results.push(entry);
     }
     let pending = pending(cx, call).map_err(|error| fail::host(&error))?;
-    Ok(fail::warn_flagged(
-        success(json!({
-            "results": results,
-            "meaning": meaning_name(&page.meaning),
-            "bandsOn": reading.on,
-            "cut": cut,
-            "admitted": page.admitted,
-            "pending": pending,
-        })),
-        flagged,
-    ))
+    // Fitted to the budget by the most candidates each result keeps.
+    let most = results
+        .iter()
+        .map(|r| r["candidates"].as_array().map_or(0, Vec::len))
+        .max()
+        .unwrap_or(0);
+    let build = |each: usize| {
+        let shown: Vec<Value> = results
+            .iter()
+            .map(|result| {
+                let mut result = result.clone();
+                if let Some(list) = result["candidates"].as_array_mut() {
+                    list.truncate(each);
+                }
+                result
+            })
+            .collect();
+        let omitted: usize = results
+            .iter()
+            .map(|r| {
+                r["candidates"]
+                    .as_array()
+                    .map_or(0, |l| l.len().saturating_sub(each))
+            })
+            .sum();
+        budget::limited(
+            fail::warn_flagged(
+                success(json!({
+                    "results": shown,
+                    "meaning": meaning_name(&page.meaning),
+                    "bandsOn": reading.on,
+                    "cut": cut,
+                    "admitted": page.admitted,
+                    "pending": pending,
+                })),
+                flagged,
+            ),
+            omitted,
+            "candidates",
+        )
+    };
+    Ok(budget::fit_count(most, cx.call().output_budget, build).1)
 }

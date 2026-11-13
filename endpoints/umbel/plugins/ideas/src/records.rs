@@ -23,6 +23,12 @@ pub(crate) const PROPOSAL: &str = "proposal";
 
 /// The prefix of an idea's id.
 pub(crate) const IDEA_PREFIX: &str = "idea-";
+/// The prefix of a review's id.
+pub(crate) const REVIEW_PREFIX: &str = "rev-";
+/// The prefix of a proposal's id.
+pub(crate) const PROPOSAL_PREFIX: &str = "prp-";
+/// The most wordings an idea has: an archive past it is refused, and `ideas-open` reads no more.
+pub(crate) const MAX_WORDINGS: u64 = 1000;
 
 /// The most digests an idea's `seen` keeps.
 pub(crate) const SEEN_MAX: usize = 64;

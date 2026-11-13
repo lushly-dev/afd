@@ -74,17 +74,7 @@ async fn labels(fx: &Fx, id: &str, statement: &str, stranger: bool) -> Vec<(Stri
 
 #[tokio::test]
 async fn every_read_returns_the_hosts_label_unchanged() {
-    let fx = Fx::new();
-    let ids = fx.capture(&[SEED, MINE]).await;
-    // Affirm the second as its person, through an import of the store's own records.
-    let exported = fx.operator("ideas-export", json!({})).await;
-    let mut items = data(&exported)["items"].as_array().unwrap().clone();
-    for item in &mut items {
-        if item["kind"] == "wording" && item["body"]["idea"] == ids[1].as_str() {
-            item["affirmed"] = json!({ "at": "2025-12-31T09:00:00.000Z", "level": "terminal" });
-        }
-    }
-    data(&fx.person("ideas-import", json!({ "items": items })).await);
+    let (fx, ids) = affirmed_store(&[SEED, MINE], &[1]).await;
 
     let seed = labels(&fx, &ids[0], SEED, false).await;
     for (command, standing, label) in &seed {
@@ -120,16 +110,7 @@ async fn every_read_returns_the_hosts_label_unchanged() {
 
 #[tokio::test]
 async fn a_reader_who_is_not_the_person_sees_when_and_how_and_not_who() {
-    let fx = Fx::new();
-    let ids = fx.capture(&[MINE]).await;
-    let exported = fx.operator("ideas-export", json!({})).await;
-    let mut items = data(&exported)["items"].as_array().unwrap().clone();
-    for item in &mut items {
-        if item["kind"] == "wording" {
-            item["affirmed"] = json!({ "at": "2025-12-31T09:00:00.000Z", "level": "terminal" });
-        }
-    }
-    data(&fx.person("ideas-import", json!({ "items": items })).await);
+    let (fx, ids) = affirmed_store(&[MINE], &[0]).await;
     for (command, standing, label) in labels(&fx, &ids[0], MINE, true).await {
         assert_eq!(standing, "affirmed", "{command}");
         assert_eq!(

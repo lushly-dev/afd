@@ -38,7 +38,7 @@ Code paths are relative to `endpoints/umbel/`.
 
 ### Amendments from step C1
 
-Step C1 found these points this document had wrong against the code, or had left open, and took the smallest reading
+Step C1 and its independent review found these points this document had wrong against the code, or had left open, and took the smallest reading
 of each. None changes a decision row.
 
 | # | Point | Decision |
@@ -51,14 +51,19 @@ of each. None changes a decision row.
 | C1-6 | Section 2 lists `schemas/config.schema.json`; section 3 says the plugin declares no `[config]` | No configuration schema: the manifest names none |
 | C1-7 | The commands of later steps | All fourteen are declared now, with their schemas, as section 3 says; `ideas-ask` and the review commands answer `NOT_IMPLEMENTED` until steps C2 to C4, as the components plugin's step C1 did. `ideas-open`, `ideas-export` and `ideas-import` had no manifest lines: their descriptions are written here, `ideas-open` keeps `space` and `id` |
 | C1-8 | `umbel-scan` in section 2's dependencies | Not yet: nothing in C1 scans. Step C3 adds it for reasons and reworded statements |
-| C1-9 | 4.5 derives ids from the effective principal, which `CallContext` does not carry | Derived as the curator derives it (`plugins/curator/src/settings.rs:26`): the person acted for, else `<kind>:<id>`. An idea's `seen` keeps the SHA-256 of the principal, the command and the key, so another caller's same key is another key |
+| C1-9 | 4.5 derives ids from the effective principal, which `CallContext` does not carry | Derived as the host derives it (`src/provenance.rs:245`) and the curator does: `human:<on_behalf_of>` when the actor acts for someone, else `<kind>:<id>`. An idea's `seen` keeps the SHA-256 of the principal, the command and the key, so another caller's same key is another key |
 | C1-10 | 6.1 and 7.2 ask for `k` candidates without a text's own idea | The match asks the host for `k + 1` (at most 20) and drops the call's own ideas, so `k` candidates remain |
 | C1-11 | A candidate's members | Beside 7.1's: `declined` (its wording's role is `declined`), `identical`, `meaning` and `flags` (the host's scan). Every result gains `bandsOn` (6.4). A captured item carries its own `label` and `flags`, read back after the put; a wording a read returns carries `flags` |
 | C1-12 | 4.1's tags rule, "sorted, unique" | Given unsorted or repeated, tags are sorted and made unique, not refused. A statement must also have a match digest: one of whitespace only is refused, being identical to nothing |
 | C1-13 | Section 10 leaves `verify` and the shape of `added` open, and computes `matches` "over the archive's ids" when one import call holds one page | `added` and `same` are counts by kind (scenario 28 reads `added.idea`). `matches` compares the manifest's digest with the store's own over every record of the four kinds, as the export computes it, so the last page of a restore into an empty store matches. `verify` (default `true`) set `false` skips the comparison |
 | C1-14 | 14.1 runs the surfaces on `TestHost` | `TestHost` writes configuration version 2 (`src/plugins/check.rs:77`), which cannot allow a write grant the plugin requires, so every test uses its own workspace, as the memory plugin's do. Over MCP a command not exposed there answers `COMMAND_NOT_FOUND`, which `tests/surfaces.rs` holds |
 | C1-15 | `tests/capture.rs`' "a failed match still captures" and "a stage that failed part way finished by the same key" | A host cannot be made to refuse a match and accept the puts after it, nor to stop between two puts, so both call the handler on a stub of the host's services (`tests/support/stub.rs`): records in memory, a match that fails as the host's does. Every other test runs against the real host |
-| C1-16 | The scenario files sit under `docs/`, which `umbel.yml`'s path filters and its `Affected units` gate (`--except endpoints/umbel/docs/`) leave out | A change to the scenarios alone does not run their test. The gate's `--except` overrides any `--path` (`scripts/affected.mjs:102`), and `scripts/` is not a plugin step's to change: a follow-up below |
+| C1-16 | The scenario files sit under `docs/`, which `umbel.yml`'s path filters and its `Affected units` gate (`--except endpoints/umbel/docs/`) leave out | A change to the scenarios alone does not run their test. The gate's `--except` overrides any `--path` (`scripts/affected.mjs:102`); a second gate step in `umbel.yml` would do, but every gate must bind a local suite step in `scripts/affected/suites.mjs` (`scripts/affected.test.mjs:579`), which is not a plugin step's to change: a follow-up below |
+| C1-17 | Section 10 had the import affirm every wording the archive marks "whatever the put found", so an agent could export, mark its own seeds affirmed and have the person "restore" them over themselves, past review (section 13, threat 1). Found by step C1's review | An import affirms a wording only when it wrote it, or when the wording it finds carries the same `restored` (a run a refusal stopped). Every other marked wording is listed in `unaffirmed` (`{ ids, count }`) and stays as it was. Section 10 is corrected |
+| C1-18 | 4.1 and 4.2's rules for an archive's items | `ideas-import` checks each item under them before it writes anything: the `idea-`, `rev-` and `prp-` prefixes with 24 hexadecimal digits, `<idea id>.<n>` with `n` from 1, the role, `said`, state and `decide` enums, a type of the pack, the tag rule, and at most 1000 wordings an idea and 64 `seen`. `ideas-open` reads an idea's wordings by one find on the declared `/idea` key, at most 1000 |
+| C1-19 | 4.5 has a key sent again treated as a replay, whatever it carries | A key sent again whose item at an index has another match digest than the wording the first call wrote is refused, `CONFLICT` on `idempotencyKey`, before anything is written |
+| C1-20 | The output budgets of section 7 | `ideas-find`, `ideas-match` and `ideas-export` fit their answer to the call's budget as the memory plugin does (`plugins/memory/src/budget.rs`): fewer ideas, fewer candidates each, fewer items, with `RESULTS_LIMITED`. A shortened find or export page is read again at the limit that fits, so its `next` is the cursor after its last item |
+| C1-21 | The fields a journal keeps are ids and enums, but the host checks no pattern | Each kept string has a `maxLength`: 29 for an idea id, 28 for a review, 64 for a part, 71 for a digest, 40 for a tag, 2048 for a cursor; `ids` at most 64 |
 
 ## What this plugin serves
 
@@ -876,15 +881,13 @@ restoring these ideas as yours, and re-affirming the wordings the archive says y
 export's, 1 to 1000), `manifest` (on the last page), `verify` (bool). For each item: a put with `Expect::Absent`, of
 the archive's body, to which a wording the archive marks affirmed (and whose body has no `restored` yet) adds
 `restored: { "affirmedAt", "level" }` from the archive; that wording is then affirmed with `record_decide(Affirm)`
-inside this gated call. An existing record whose body equals the item's, both without `restored`, is `same`; another
+inside this gated call, **only when the import wrote that wording, or the wording it finds carries the same `restored`**, which only an import writes (amended by C1-17). An existing record whose body equals the item's, both without `restored`, is `same`; another
 is `differs`, and is not overwritten. With `manifest`, the store's own digest over the archive's ids
 is compared and returned as `matches`. Output: `added`, `same`, `differs` (ids, at most 100, and a count), `affirmed`,
 `matches`, `pending`. An import confirmed by no person (`--yes`, an agent variable) is refused by the host
 (`RECORD_DECISION_NOT_GATED` on the first affirmation, mapped to `FORBIDDEN`, suggestion "Run ideas-import at a
 terminal as the space's person"). **Such a refusal leaves the records written before it, unaffirmed**: step B3's
-review made a terminal with an agent variable give no proof (the records host specification's A37). Running the
-import again as the person adds nothing and makes the affirmations, since an existing equal record is `same` and an
-affirmation is made for every wording the archive marks whatever the put found.
+review made a terminal with an agent variable give no proof (the records host specification's A37). Running the import again as the person adds nothing and makes the affirmations, since an existing equal record is `same` and carries the `restored` the refused run wrote. A wording the import did not write and that carries no such `restored`, a seed already in the store or one that `differs`, is never affirmed by an archive: it is listed in `unaffirmed`.
 
 **Restoring into an empty instance** is shown by `tests/archive.rs` (section 14): export from one `TestHost`, import
 into a second with an empty workspace, export again, and the two manifests' `digest` and `counts` are equal. The
@@ -1098,4 +1101,4 @@ records host specification run beside these; B6's figures replace the pack's ban
 | 2026-11-12 | This specification | A host write quota on declared puts | The records host specification's follow-up, B4's review |
 | 2026-11-12 | This specification | Better Auth cannot report user verification before its 1.8; the hosted page refuses a login without it (`src/auth/mod.rs:56`) | The hosted exit (the plan's Q1) |
 | 2026-11-12 | Step C1 | A change to the scenario files alone runs no test: `umbel.yml`'s path filters and its gate leave `docs/` out (C1-16) | A CI change: a `--path` the gate's `--except` does not override |
-| 2026-11-12 | Step C1 | 8.4's paged preview answers `items` beside `preview`, which the `returns` the host requires of a preview refuses (C1-3) | Step H2 or C4 |
+| 2026-11-12 | Step C1 | 8.4's paged preview answers `items` beside `preview`, which the `returns` the host requires of a preview refuses (C1-3) | Step H2, in the review host specification's follow-ups |

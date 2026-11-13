@@ -203,3 +203,51 @@ async fn every_read_returns_pending() {
         }
     }
 }
+
+#[tokio::test]
+async fn find_and_match_fit_the_output_budget_and_page_on() {
+    let fx = Fx::new();
+    let statements: Vec<String> = (0..40)
+        .map(|n| {
+            format!("Bed {n} of the allotment wants compost and a mulch of straw every autumn.")
+        })
+        .collect();
+    let refs: Vec<&str> = statements.iter().map(String::as_str).collect();
+    fx.capture(&refs).await;
+    let fitted = fx
+        .agent_with_budget("ideas-find", json!({ "order": "id", "limit": 40 }), 4000)
+        .await;
+    let shown = ids(&fitted);
+    assert!(!shown.is_empty() && shown.len() < 40, "{}", shown.len());
+    assert!(fitted.to_string().len() <= 4200);
+    assert_eq!(
+        warning(&fitted, "RESULTS_LIMITED").unwrap()["details"]["omitted"],
+        40 - shown.len()
+    );
+    let next = data(&fitted)["next"].as_str().unwrap().to_owned();
+    let rest = fx
+        .agent(
+            "ideas-find",
+            json!({ "order": "id", "limit": 200, "after": next }),
+        )
+        .await;
+    assert_eq!(
+        shown.len() + ids(&rest).len(),
+        40,
+        "the next page starts after the last shown"
+    );
+
+    let matched = fx
+        .agent_with_budget(
+            "ideas-match",
+            json!({ "statements": ["Compost the allotment beds in autumn."], "k": 10 }),
+            2500,
+        )
+        .await;
+    let candidates = data(&matched)["results"][0]["candidates"]
+        .as_array()
+        .unwrap()
+        .len();
+    assert!(candidates < 10, "{candidates}");
+    assert!(warning(&matched, "RESULTS_LIMITED").is_some());
+}

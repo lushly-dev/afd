@@ -58,6 +58,16 @@ pub(crate) fn not_found(ids: &[String]) -> Outcome {
     .with_error_details(json!({ "ids": ids }))
 }
 
+/// `CONFLICT`: an idempotency key sent again with another statement at `index`.
+pub(crate) fn key_reused(index: usize) -> Outcome {
+    failure(
+        "CONFLICT",
+        "the idempotencyKey was sent before with other ideas",
+        "Use a new idempotencyKey for new ideas; send the same key only to repeat the same call.",
+    )
+    .with_error_details(json!({ "field": "idempotencyKey", "index": index }))
+}
+
 /// A command declared for a later step.
 pub(crate) fn not_implemented(command: &str) -> Outcome {
     failure(

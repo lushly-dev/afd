@@ -302,6 +302,20 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         found.insert(index, list);
     }
 
+    // A key sent again with other statements is not a replay: refused before anything is
+    // written, so the new statements are not lost behind the first call's answer.
+    if key.is_some() {
+        for &index in &distinct {
+            let stored = read(cx, call, WORDING, &wording_id(&own[&index], 1)).map_err(host)?;
+            let first = stored
+                .and_then(|record| Wording::parse(&record.record.body))
+                .and_then(|wording| match_digest(&wording.statement));
+            if first.is_some_and(|first| first != items[index].digest) {
+                return Err(fail::key_reused(index));
+            }
+        }
+    }
+
     // 4 and 5, in input order.
     let mut ended: BTreeMap<usize, Ended> = BTreeMap::new();
     for (position, &index) in distinct.iter().enumerate() {

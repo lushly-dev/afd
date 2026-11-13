@@ -47,22 +47,7 @@ async fn export_all(fx: &Fx, limit: u64) -> (Vec<Value>, Value) {
 
 /// A store with three ideas, the second's wording affirmed by its person.
 async fn first_store() -> Fx {
-    let fx = Fx::new();
-    fx.capture(&STATEMENTS).await;
-    let (mut items, _) = export_all(&fx, 500).await;
-    let wording = items
-        .iter_mut()
-        .find(|item| item["kind"] == "wording" && item["body"]["statement"] == STATEMENTS[1])
-        .unwrap();
-    wording["affirmed"] = json!({ "at": "2025-12-31T09:00:00.000Z", "level": "terminal" });
-    let imported = fx.person("ideas-import", json!({ "items": items })).await;
-    let d = data(&imported);
-    assert_eq!(
-        d["added"],
-        json!({ "idea": 0, "wording": 0, "review": 0, "proposal": 0 })
-    );
-    assert_eq!(d["affirmed"], 1);
-    fx
+    affirmed_store(&STATEMENTS, &[1]).await.0
 }
 
 #[tokio::test]
@@ -86,9 +71,11 @@ async fn export_in_pages_is_the_whole_in_order() {
     let affirmed: Vec<&Value> = whole.iter().filter(|i| !i["affirmed"].is_null()).collect();
     assert_eq!(affirmed.len(), 1);
     assert_eq!(affirmed[0]["affirmed"]["level"], "terminal");
-    // The first store's own wording was in the store before the archive marked it: no
-    // `restored`, since the put found it there.
-    assert!(affirmed[0]["body"].get("restored").is_none());
+    // The first store was itself restored, so its wording keeps the archive's affirmation.
+    assert_eq!(
+        affirmed[0]["body"]["restored"],
+        json!({ "affirmedAt": "2025-12-31T09:00:00.000Z", "level": "terminal" })
+    );
 }
 
 #[tokio::test]
@@ -120,7 +107,7 @@ async fn an_empty_store_restores_everything_and_exports_the_same() {
     let first_affirmed = items.iter().find(|i| !i["affirmed"].is_null()).unwrap();
     assert_eq!(
         wording["body"]["restored"],
-        json!({ "affirmedAt": first_affirmed["affirmed"]["at"], "level": "terminal" })
+        first_affirmed["body"]["restored"]
     );
     let opened = second
         .agent("ideas-open", json!({ "id": wording["body"]["idea"] }))
@@ -230,4 +217,88 @@ async fn an_item_that_is_not_its_kinds_body_refuses_the_whole_import() {
     assert_eq!(refused["error"]["details"]["field"], "items[0].body");
     let guide = fx.agent("ideas-guide", json!({})).await;
     assert_eq!(data(&guide)["totals"]["ideas"], 0);
+}
+
+#[tokio::test]
+async fn an_archive_never_affirms_a_wording_the_import_did_not_write() {
+    // An agent exports the store, marks its own seeds affirmed and asks the person to "restore"
+    // it into the same store: nothing is written, so nothing is affirmed (section 13).
+    let fx = Fx::new();
+    let ids = fx.capture(&STATEMENTS).await;
+    let exported = fx.operator("ideas-export", json!({})).await;
+    let mut items = data(&exported)["items"].as_array().unwrap().clone();
+    for item in &mut items {
+        if item["kind"] == "wording" {
+            item["affirmed"] = json!({ "at": "2025-12-31T09:00:00.000Z", "level": "terminal" });
+        }
+    }
+    // One wording also differs from what the store holds.
+    let changed = items
+        .iter_mut()
+        .find(|item| item["kind"] == "wording" && item["body"]["idea"] == ids[0].as_str())
+        .unwrap();
+    changed["body"]["tags"] = json!(["handles"]);
+    let imported = fx.person("ideas-import", json!({ "items": items })).await;
+    let d = data(&imported);
+    assert_eq!(d["affirmed"], 0, "{imported}");
+    assert_eq!(d["unaffirmed"]["count"], 3);
+    assert_eq!(d["differs"]["count"], 1);
+    assert_eq!(d["differs"]["ids"], json!([format!("{}.1", ids[0])]));
+    assert_eq!(d["same"]["wording"], 2);
+    let guide = fx.agent("ideas-guide", json!({})).await;
+    assert_eq!(data(&guide)["totals"]["affirmed"], 0);
+    assert_eq!(data(&guide)["totals"]["seeds"], 3);
+}
+
+#[tokio::test]
+async fn an_archive_item_out_of_shape_refuses_the_import() {
+    let fx = Fx::new();
+    fx.capture(&STATEMENTS[..1]).await;
+    let exported = fx.operator("ideas-export", json!({})).await;
+    let items = data(&exported)["items"].as_array().unwrap().clone();
+    let (idea, wording) = (items[0].clone(), items[1].clone());
+    let mut cases = Vec::new();
+    // An id without its prefix or with too few digits.
+    let mut bad = idea.clone();
+    bad["id"] = json!("thought-000000000000000000000000");
+    bad["body"]["id"] = bad["id"].clone();
+    cases.push((bad, "items[0].body"));
+    let mut bad = idea.clone();
+    bad["id"] = json!("idea-123");
+    bad["body"]["id"] = bad["id"].clone();
+    cases.push((bad, "items[0].body"));
+    // More wordings than an idea may have, a held past them, an unknown state.
+    for (member, value) in [
+        ("wordings", json!(1001)),
+        ("held", json!(3)),
+        ("state", json!("lost")),
+    ] {
+        let mut bad = idea.clone();
+        bad["body"][member] = value;
+        cases.push((bad, "items[0].body"));
+    }
+    // A wording with n 0, a type the pack lacks, unsorted tags, an unknown role or said.
+    for (member, value) in [
+        ("type", json!("note")),
+        ("tags", json!(["b", "a"])),
+        ("role", json!("lost")),
+        ("said", json!("someone")),
+    ] {
+        let mut bad = wording.clone();
+        bad["body"][member] = value;
+        cases.push((bad, "items[0].body"));
+    }
+    let mut bad = wording.clone();
+    bad["body"]["n"] = json!(0);
+    cases.push((bad, "items[0].body"));
+    // A review or proposal id of the wrong shape.
+    cases.push((
+        json!({ "kind": "review", "id": "review-1", "body": { "id": "review-1", "state": "open", "by": "human:ada" }, "affirmed": null }),
+        "items[0].body",
+    ));
+    for (item, field) in cases {
+        let refused = fx.person("ideas-import", json!({ "items": [item] })).await;
+        assert_eq!(code(&refused), "VALIDATION_ERROR", "{item}: {refused}");
+        assert_eq!(refused["error"]["details"]["field"], field, "{item}");
+    }
 }

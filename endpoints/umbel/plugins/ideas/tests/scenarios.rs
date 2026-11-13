@@ -199,6 +199,16 @@ fn run_matcher(actual: Option<&Value>, name: &str, expected: &Value) -> bool {
             .and_then(Value::as_f64)
             .zip(expected.as_f64())
             .is_some_and(|(a, e)| a <= e),
+        "between" => {
+            let bounds = expected.as_array().map(|b| (b.first(), b.get(1), b.len()));
+            match (actual.and_then(Value::as_f64), bounds) {
+                (Some(a), Some((Some(min), Some(max), 2))) => {
+                    min.as_f64().is_some_and(|min| a >= min)
+                        && max.as_f64().is_some_and(|max| a <= max)
+                }
+                _ => false,
+            }
+        }
         other => panic!("a matcher this reader does not run: {other}"),
     }
 }
