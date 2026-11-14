@@ -154,6 +154,11 @@ bind = "127.0.0.1:7421"
 public_origin = "https://garden-host.example-tailnet.ts.net:8443"
 ```
 
+Use the proxy's private-network serving only, never a mode that publishes the address to the
+internet (no public "funnel" exposure). The origin must serve this page alone, with nothing else
+mounted at another path on it. The proxy must pass the browser's `Host` on unchanged, port
+included, or set it to the bind, `127.0.0.1:7421`: a proxy that drops the port gets 421.
+
 The page then also accepts that origin's `Host` and a form posted from it, and the link the
 agent gives, the list `person-page-serve` prints, and `--open` name the public origin. The
 origin must be `https`, with no path, query or user information. `umbel doctor` warns while it
