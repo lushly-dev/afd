@@ -304,11 +304,46 @@ test('a plan refuses a package npm does not have, so the run stops before it cla
 	);
 	assert.equal(existsSync(plan), false);
 	// A placeholder makes the name exist; its version satisfies no range, so it changes nothing else.
+	write(f.root, '../evidence.json', placeheld(f.evidence));
+	run();
+	assert.equal(JSON.parse(readFileSync(plan, 'utf8')).distTag, 'preview');
+});
+
+/** Each name as the maintainer creates it: placeholder versions, `latest` on `0.0.0-bootstrap.0`. */
+const placeheld = (evidence, latest = {}) =>
+	evidence.map((entry) => ({
+		...entry,
+		versions: ['0.0.0-stage', '0.0.0-bootstrap.0'],
+		distTags: {
+			bootstrap: '0.0.0-bootstrap.0',
+			...(entry.name in latest
+				? latest[entry.name] && { latest: latest[entry.name] }
+				: { latest: '0.0.0-bootstrap.0' }),
+		},
+	}));
+
+// npm moves `latest` by itself only for a name without one, and a preview on `latest` is what a plain
+// install resolves; so a prerelease plan stops, before any claim, unless every `latest` is stable or a
+// placeholder.
+test('a prerelease plan refuses a name whose latest is missing or another prerelease', (t) => {
+	const f = fixture(t);
+	version(f, 'npm-prerelease');
+	const evidence = join(f.root, '..', 'evidence.json');
+	const plan = join(f.root, '..', 'plan.json');
+	const run = () =>
+		main(['plan', '--root', f.root, '--registry-evidence', evidence, '--plan', plan]);
 	write(
 		f.root,
 		'../evidence.json',
-		f.evidence.map((entry) => ({ ...entry, versions: ['0.0.0-stage', '0.0.0-bootstrap.0'] }))
+		placeheld(f.evidence, { '@fixture/d': '2.2.0-preview.0', '@fixture/h': null })
 	);
+	assert.throws(
+		run,
+		/needs npm's latest tag on a stable version or the 0\.0\.0 placeholder: @fixture\/d@2\.2\.0-preview\.0, @fixture\/h has none\. The maintainer moves it/
+	);
+	assert.equal(existsSync(plan), false);
+	// A stable `latest` stays where it is: the upload names only `preview`.
+	write(f.root, '../evidence.json', placeheld(f.evidence, { '@fixture/d': '2.1.0' }));
 	run();
 	assert.equal(JSON.parse(readFileSync(plan, 'utf8')).distTag, 'preview');
 });

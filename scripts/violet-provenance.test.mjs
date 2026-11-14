@@ -70,12 +70,13 @@ function beforeRelease(path, bytes) {
 	return Buffer.from(rest ? title + rest : title.replace(/\n\n$/, '\n'));
 }
 
-test('Violet provenance records are bound by hash and every unit stays quarantined', () => {
+test('Violet provenance records are bound by hash and every unit is admitted for the preview', () => {
 	for (const entry of Object.values(provenance.records))
 		assert.equal(sha(readFileSync(join(root, directory, entry.manifest))), entry.sha256);
 	assert.equal(upstream.revision, provenance.source_revision);
 	assert.equal(adaptations.source_revision, provenance.source_revision);
-	assert.equal(provenance.publication_state, 'quarantined');
+	// Handed over to AFD's release.yml on 2026-11-14 (violet-handoff.md), under the preview npm tag.
+	assert.equal(provenance.publication_state, 'preview');
 	const architecture = json('architecture.json');
 	for (const unit of provenance.units) {
 		const manifestPath = `${unit.path}/package.json`;
@@ -83,10 +84,11 @@ test('Violet provenance records are bound by hash and every unit stays quarantin
 			item.distributions.some((distribution) => distribution.name === unit.name)
 		);
 		assert.equal(owner?.id, 'violet-npm', unit.name);
-		assert.equal(owner.state, 'quarantined', unit.name);
+		assert.equal(owner.state, 'admitted', unit.name);
+		assert.deepEqual([owner.routes, owner.distTag], [['npm-prerelease'], 'preview'], unit.name);
 		assert.equal(owner.family, 'violet', unit.name);
 		assert.equal(owner.sourceRevision, provenance.source_revision, unit.name);
-		assert.match(owner.authority, /^github: lushly-dev\/violet\b/);
+		assert.equal(owner.authority, 'github: lushly-dev/afd', unit.name);
 		const declared = owner.distributions.find((distribution) => distribution.name === unit.name);
 		assert.equal(declared.manifest, manifestPath);
 		const manifest = json(manifestPath);
@@ -114,9 +116,12 @@ test('the native core has no AFD edge and the integration uses the workspace AFD
 	assert.equal(core.exports['./commands'], undefined);
 	const afd = json('integrations/violet-afd/package.json');
 	assert.equal(afd.dependencies['@lushly-dev/afd-core'], 'workspace:^2.2.0');
-	// Pre-1.0, widen the peer to the next minor before a fixed-group minor release, or
-	// Changesets major-bumps the integration and with it the whole group.
-	const peer = afd.peerDependencies['@lushly-dev/violet-core'];
+	// A workspace range packs as the core version it was built against, and Changesets never counts
+	// a release as leaving it; a plain range a fixed-group minor left would major-bump the
+	// integration, and with it the whole group.
+	const range = afd.peerDependencies['@lushly-dev/violet-core'];
+	assert.match(range, /^workspace:[~^]$/);
+	const peer = `${range.slice('workspace:'.length)}${core.version}`;
 	assert(semver.satisfies(core.version, peer));
 	const pendingMinor = readdirSync(join(root, '.changeset'))
 		.filter((name) => name.endsWith('.md') && name !== 'README.md')

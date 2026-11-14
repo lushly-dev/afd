@@ -81,12 +81,23 @@ export function tree(root, prefix = '', options = {}) {
 		return [[file, entryHash(input)]];
 	});
 }
+/** A name's published versions and its npm tags, which a prerelease plan reads for `latest`. */
 export function readRegistry(name) {
 	try {
 		const result = JSON.parse(
-			run('npm', ['view', name, 'versions', '--json', '--registry', registryUrl], process.cwd())
+			run(
+				'npm',
+				['view', name, 'versions', 'dist-tags', '--json', '--registry', registryUrl],
+				process.cwd()
+			)
 		);
-		return { registry: 'npm', name, versions: Array.isArray(result) ? result : [result] };
+		const { versions } = result;
+		return {
+			registry: 'npm',
+			name,
+			versions: Array.isArray(versions) ? versions : [versions],
+			distTags: result['dist-tags'] ?? {},
+		};
 	} catch (error) {
 		let response;
 		try {
@@ -94,7 +105,8 @@ export function readRegistry(name) {
 		} catch {
 			/* fail closed below */
 		}
-		if (response?.error?.code === 'E404') return { registry: 'npm', name, versions: [] };
+		if (response?.error?.code === 'E404')
+			return { registry: 'npm', name, versions: [], distTags: {} };
 		throw new Error(`Registry lookup failed for ${name}: ${error.message}`);
 	}
 }

@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/violet-afd",
-	"version": "0.2.0",
+	"version": "0.3.0-preview",
 	"license": "MIT",
 	"author": "Falkicon",
 	"repository": {
@@ -65,11 +65,11 @@
 		"zod": "^4.6.7"
 	},
 	"peerDependencies": {
-		"@lushly-dev/violet-core": "^0.2.0 || ^0.3.0"
+		"@lushly-dev/violet-core": "workspace:^"
 	},
 	"devDependencies": {
 		"@biomejs/biome": "^2.6.6",
-		"@lushly-dev/violet-core": "workspace:^0.2.0",
+		"@lushly-dev/violet-core": "workspace:^",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.6.6",
 		"@types/pg": "^8.23.1",

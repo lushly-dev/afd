@@ -1,10 +1,18 @@
 {
   "name": "@lushly-dev/violet-elements",
   "description": "Reusable Violet web components for FAST-AF",
-  "version": "0.1.0",
+  "version": "0.2.0-preview",
   "author": "Lushly Dev",
+  "homepage": "https://github.com/lushly-dev/afd/tree/main/foundations/fast-af/packages/violet-elements#readme",
   "license": "MIT",
-  "private": true,
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/lushly-dev/afd.git",
+    "directory": "foundations/fast-af/packages/violet-elements"
+  },
+  "bugs": {
+    "url": "https://github.com/lushly-dev/afd/issues"
+  },
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
@@ -42,7 +50,7 @@
     "tslib": "^2.6.3"
   },
   "peerDependencies": {
-    "@lushly-dev/fast-element": "workspace:*"
+    "@lushly-dev/fast-element": "workspace:^"
   },
   "files": [
     "dist",
