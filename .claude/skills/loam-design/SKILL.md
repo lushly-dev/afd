@@ -25,7 +25,7 @@ is `--` and the id with `.` replaced by `-` (`--color-surface-page`).
 |------|------------|
 | `endpoints/loam/docs/design.md` | **The design record.** Edit it with any rule change |
 | `endpoints/loam/packages/theme/src/tree/` | **The values.** `primitives.ts`, `components.ts`, `shell.ts`, `themes.ts` (dark, high contrast), `density.ts` (compact) |
-| `endpoints/loam/packages/theme/contract/tokens.json` | The contract, version 1: 127 ids (108 component, 19 shell). Regenerate with `theme:check --write` |
+| `endpoints/loam/packages/theme/contract/tokens.json` | The contract, version 1: 134 ids (115 component, 19 shell). The component ids cover `violet-elements`' token interface (`tokens/interface.json`, which that package owns). Regenerate with `theme:check --write` |
 | `endpoints/loam/packages/theme/src/pairs.ts` | The color pairs and their floors, checked by `theme`'s `test` |
 | `endpoints/loam/packages/theme/scripts/lint-tokens.mjs` | The token-only lint, `loam-lint-tokens` |
 | [references/tokens.md](references/tokens.md) | Every token family with its values per theme and density |

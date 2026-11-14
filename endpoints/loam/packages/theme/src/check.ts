@@ -10,12 +10,19 @@
  *   development dependency. Until step 5 of the phase 0 specification adds that constant, it is
  *   undefined and the comparison is skipped with a note.
  *
- * - With the component paths (2.4), the committed `violet-elements` export must equal the one
- *   the tree gives, byte for byte, and every literal fallback of a component id in
- *   `violet-elements/src` must equal its light value after normalization.
+ * - With the component paths (2.4), the tree must supply every id of `violet-elements`' token
+ *   interface (`tokens/interface.json`, which that package owns) with its property and type, the
+ *   committed `violet-elements` export must equal the one the tree gives, byte for byte, and every
+ *   literal fallback of a component id in `violet-elements/src` must equal its light value after
+ *   normalization.
  */
 import { readdir, readFile } from 'node:fs/promises';
-import { type ComponentExport, lightValuesByProperty, scanFallbacks } from './components.js';
+import {
+	type ComponentExport,
+	compareInterface,
+	lightValuesByProperty,
+	scanFallbacks,
+} from './components.js';
 import { buildOutputs, type Contract, type ResolvedTree, type ThemeOutputs } from './outputs.js';
 import { LAYOUT_DEFAULT_TOKENS, NODE_IDS } from './tree/index.js';
 
@@ -150,6 +157,8 @@ export function compareComponentExport(committedText: string, built: ThemeOutput
 
 /** The component export and the fallback source of `violet-elements` (2.4). */
 export interface ComponentPaths {
+	/** `tokens/interface.json`, every custom property the components read. */
+	interfacePath: URL;
 	/** `tokens/violet-theme.export.json`. */
 	exportPath: URL;
 	/** `src/`, whose `.ts` files are scanned for `var(--<component id>, <literal>)`. */
@@ -169,6 +178,14 @@ export async function sourceFiles(directory: URL): Promise<{ path: string; text:
 
 async function checkComponents(built: ThemeOutputs, paths: ComponentPaths): Promise<string[]> {
 	const errors: string[] = [];
+	try {
+		const tokenInterface: unknown = JSON.parse(await readFile(paths.interfacePath, 'utf8'));
+		errors.push(...compareInterface(tokenInterface, built.contract));
+	} catch (error) {
+		errors.push(
+			`violet-elements/tokens/interface.json cannot be read: ${(error as Error).message}`
+		);
+	}
 	try {
 		errors.push(...compareComponentExport(await readFile(paths.exportPath, 'utf8'), built));
 	} catch (error) {

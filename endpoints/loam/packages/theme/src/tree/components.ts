@@ -1,10 +1,12 @@
 /**
- * The 108 component ids of the token contract (2.1) with their light values, written on the
- * `loam` node. The ids and order are those of `violet-elements`' registry, `registryVersion`
- * 0.1.0. The values are that registry's light values (2.2), except `color.text.muted` and
- * `color.border.strong`, raised to meet the contrast floors (see the specification's version 1
- * values), and the field borders the design document changed: resting and invalid to 3:1, hover
- * one step stronger than rest.
+ * Loam's component ids (2.1) with their light values, written on the `loam` node: a value for
+ * every id of `violet-elements`' token interface (`tokens/interface.json`, which that package
+ * owns and `theme:check` compares the tree with), and Loam's own shared ids beside them, which
+ * the export carries too. The first 108 ids and their order are those of `violet-elements`'
+ * registry, `registryVersion` 0.1.0. The values are that registry's light values (2.2), except
+ * `color.text.muted` and `color.border.strong`, raised to meet the contrast floors (see the
+ * specification's version 1 values), and the field borders the design document changed: resting
+ * and invalid to 3:1, hover one step stronger than rest.
  */
 import { ref, type TreeToken } from './types.js';
 
@@ -144,4 +146,16 @@ export const COMPONENT_TOKENS: readonly TreeToken[] = [
 	{ id: 'duration.slow', value: '280ms' },
 	{ id: 'easing.standard', value: 'cubic-bezier(0.2, 0, 0, 1)' },
 	{ id: 'easing.emphasized', value: 'cubic-bezier(0.16, 1, 0.3, 1)' },
+	// Type families, which the components read through 'font.family.body'; 'font.family.mono' is
+	// reserved in the interface, and its value is the console's monospace stack.
+	{ id: 'font.family.body', value: '"Montserrat", "Segoe UI", sans-serif' },
+	{ id: 'font.family.mono', value: 'ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace' },
+	// Ids the components read before the interface listed them. Each takes its literal fallback in
+	// every theme, which is how they rendered before; better dark and high-contrast values are
+	// Loam's call (#659).
+	{ id: 'color.state.danger.foreground', value: c('red.700') },
+	{ id: 'color.state.success.foreground', value: '#245C36' },
+	{ id: 'color.surface.highlight', value: c('white') },
+	{ id: 'color.surface.pressed', value: c('oat.300') },
+	{ id: 'size.focus-ring.width', value: '2px' },
 ];

@@ -26,6 +26,9 @@ Violet is moving toward:
 - shared token-default style modules now cover the text-field/text-area family
 - checkbox now builds on the shared field-token defaults
 - direct Vitest coverage now verifies runtime theme install and scoped root behavior
+- `tokens/interface.json` publishes every custom property the components read, with its type, and a spec fails on drift
+- `font.family.body` and `font.family.mono` are interface tokens; no component hard-codes a typeface
+- a product installs its own complete theme set as data (`installVioletThemeSet`), with its own preset names, in place of the built-in default, which is AFD's, shared with Loam
 
 ## Next
 
@@ -37,8 +40,6 @@ Violet is moving toward:
 
 ## Later
 
-- expand the preset family beyond the current light/dark pair only if the semantic model stays coherent
 - expose AFD-friendly theme commands for inspect/apply/diff flows
-- split neutral Violet defaults from Lushly-branded overrides
 - support scoped token patching on `violet-theme` instead of only the base runtime theme
 - evaluate whether runtime theme output should also emit a plain CSS artifact for non-JS delivery

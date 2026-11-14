@@ -1,16 +1,32 @@
 export {
-  VIOLET_THEME_DEFAULT_PRESET,
   VIOLET_THEME_PRESET_ATTRIBUTE,
   VIOLET_THEME_ROOT_ATTRIBUTE,
+  createVioletThemeCss,
+  findVioletThemeSetGaps,
+  validateVioletThemeSet,
+  violetTokenProperty,
+  type VioletThemePreset,
+  type VioletThemeSet,
+  type VioletThemeToken,
+  type VioletTokenInterface,
+} from "./violet-theme-css";
+export {
+  VIOLET_THEME_DEFAULT_PRESET,
   applyVioletThemePreset,
   applyVioletThemeRoot,
+  getVioletThemeDefaultPreset,
   getVioletThemePreset,
+  getVioletThemePresets,
   installVioletTheme,
+  installVioletThemeSet,
   isVioletThemePreset,
   normalizeVioletThemePreset,
+  resetVioletThemeSet,
+  violetThemeBuiltInSet,
   violetThemeCssText,
   violetThemeDeclarations,
   violetThemeDeclarationsByPreset,
   violetThemePresets,
-} from "./generated/violet-theme.generated";
+  type VioletBuiltInThemePreset,
+} from "./violet-theme-runtime";
 export * from "./violet-theme";

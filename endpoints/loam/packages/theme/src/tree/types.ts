@@ -18,6 +18,7 @@ export const CONTRACT_TYPES = [
 	'duration',
 	'cubicBezier',
 	'fontWeight',
+	'fontFamily',
 	'number',
 	'typography',
 	'shadow',
@@ -25,7 +26,10 @@ export const CONTRACT_TYPES = [
 
 export type ContractType = (typeof CONTRACT_TYPES)[number];
 
-/** Whether the shared components or only `@lushly-dev/loam-chrome` read an id. */
+/**
+ * Whether an id is shared (the components' interface and Loam's other shared ids, exported to
+ * `violet-elements`) or read only by `@lushly-dev/loam-chrome`.
+ */
 export type ContractKind = 'component' | 'shell';
 
 /** A reference to another token. */

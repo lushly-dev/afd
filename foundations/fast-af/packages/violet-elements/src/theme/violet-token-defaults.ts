@@ -3,7 +3,7 @@ import { css, type ElementStyles } from "@lushly-dev/fast-element";
 export const violetActionTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #18181b);
-        font-family: "Montserrat", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body, "Montserrat", "Segoe UI", sans-serif);
 
         --_action-primary-background: var(--color-action-primary-background, #c84f3b);
         --_action-primary-text: var(--color-action-primary-text, #ffffff);
@@ -69,7 +69,7 @@ export const violetActionTokenDefaults: ElementStyles = css`
 export const violetFieldTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #18181b);
-        font-family: "Montserrat", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body, "Montserrat", "Segoe UI", sans-serif);
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);
@@ -150,7 +150,7 @@ export const violetFieldTokenDefaults: ElementStyles = css`
 export const violetSurfaceTokenDefaults: ElementStyles = css`
     :host {
         color: var(--color-text-primary, #18181b);
-        font-family: "Montserrat", "Segoe UI", sans-serif;
+        font-family: var(--font-family-body, "Montserrat", "Segoe UI", sans-serif);
 
         --_surface-card: var(--color-surface-card, #faf9f5);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);

@@ -19,9 +19,18 @@ export function inlinePadding(element: Element): number {
     return parseFloat(style.paddingInlineStart || "0") + parseFloat(style.paddingInlineEnd || "0");
 }
 
+/**
+ * The body font family the theme resolves at the document root (`--font-family-body`), or the
+ * generic `sans-serif` when no theme sets one. Autosize measures with it when there is no rendered
+ * cell to read a font from, so it never assumes a typeface the page does not use.
+ */
+function resolvedBodyFontFamily(): string {
+    return getComputedStyle(document.documentElement).getPropertyValue("--font-family-body").trim() || "sans-serif";
+}
+
 export function fontForElement(element: Element | null): string {
     if (!element) {
-        return '500 14px "IBM Plex Sans", "Segoe UI", sans-serif';
+        return `500 14px ${resolvedBodyFontFamily()}`;
     }
 
     const style = getComputedStyle(element);

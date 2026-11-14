@@ -57,6 +57,7 @@ try {
     "dist/index.js",
     "dist/button/violet-button.js",
     "dist/button/violet-button.d.ts",
+    "tokens/interface.json",
   ]) {
     check(files.includes(required), `tarball is missing ${required}`);
   }
@@ -96,6 +97,7 @@ try {
     [`${packageName}/custom-elements.json`]: "custom-elements.json",
     [`${packageName}/package.json`]: "package.json",
     [`${packageName}/tokens/theme-presets.jsonc`]: "tokens/theme-presets.jsonc",
+    [`${packageName}/tokens/interface.json`]: "tokens/interface.json",
   };
   for (const [specifier, expected] of Object.entries(mustResolve)) {
     const actual = resolveRuntime(specifier);

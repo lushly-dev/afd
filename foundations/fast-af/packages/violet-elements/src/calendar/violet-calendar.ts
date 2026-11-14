@@ -66,6 +66,7 @@ const styles = css`
         border-radius: var(--_radius-round);
         background: var(--_surface-card);
         color: inherit;
+        font: inherit;
         cursor: pointer;
         transition:
             border-color var(--_duration-fast) var(--_easing-standard),
