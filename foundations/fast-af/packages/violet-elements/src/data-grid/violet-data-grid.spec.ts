@@ -411,6 +411,27 @@ describe("violet-data-grid", () => {
         expect(headerCell?.getAttribute("part")?.split(" ")).toEqual(["header-cell", "selection-header-cell"]);
     });
 
+    it("names the single-selection column header from selection-label", async () => {
+        const grid = await renderGrid({ selectionMode: "single" });
+        const header = () => grid.shadowRoot?.querySelector("th.selection-header") as HTMLElement;
+        const hiddenName = () => header().querySelector(".visually-hidden")?.textContent?.trim();
+        expect(header().getAttribute("aria-label")).toBe("Selected row");
+
+        grid.setAttribute("selection-label", "Open");
+        await nextFrame();
+        expect(header().getAttribute("aria-label")).toBe("Open");
+        expect(hiddenName()).toBe("Open");
+
+        (grid as any).selectionMode = "multiple";
+        await nextFrame();
+        expect(header().getAttribute("aria-label")).toBe("Select rows");
+
+        (grid as any).selectionMode = "single";
+        grid.setAttribute("selection-label", "   ");
+        await nextFrame();
+        expect(header().getAttribute("aria-label")).toBe("Selected row");
+    });
+
     it("keeps the generic row label for multiple selection even with selection-label", async () => {
         const grid = await renderGrid();
         (grid as any).selectionMode = "multiple";
@@ -2507,6 +2528,113 @@ describe("violet-data-grid", () => {
     expect(
       getComputedStyle(grid.shadowRoot?.querySelector('[role="alert"]') as Element).display,
     ).not.toBe("none");
+  });
+
+  it("shows a column's editorHint inside the open editor and describes the editor with it", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = widgetColumns.map((column) =>
+      column.id === "dtm"
+        ? {
+            ...column,
+            editorHint: (row) =>
+              row.commonName === "Romanesco" ? "  Counted from transplant.  " : undefined,
+          }
+        : column,
+    );
+    const grid = await renderGrid({ columns });
+    const hint = () => grid.shadowRoot?.querySelector(".cell-editor-hint") as HTMLElement | null;
+
+    const editor = await openRenderedEditor(grid, "romanesco", "dtm");
+    expect(hint()?.textContent?.trim()).toBe("Counted from transplant.");
+    expect(hint()?.closest("td")?.getAttribute("data-column-id")).toBe("dtm");
+    expect(editor.getAttribute("aria-describedby")).toBe(hint()?.id);
+    expect(getComputedStyle(hint() as Element).position).toBe("absolute");
+
+    // An edit error replaces the hint while it shows.
+    editor.value = "eight days";
+    editor.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    editor.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Tab", bubbles: true, composed: true }),
+    );
+    await nextFrames(2);
+    const invalidEditor = grid.shadowRoot?.querySelector(
+      '.cell-editor[data-row-id="romanesco"][data-column-id="dtm"]',
+    ) as HTMLInputElement;
+    expect(invalidEditor.getAttribute("aria-errormessage")).toBeTruthy();
+    expect(invalidEditor.hasAttribute("aria-describedby")).toBe(false);
+    expect(hint()).toBeNull();
+
+    // Editing again clears the error and brings the hint back.
+    invalidEditor.value = "90";
+    invalidEditor.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    await nextFrames(2);
+    expect(invalidEditor.hasAttribute("aria-errormessage")).toBe(false);
+    expect(hint()?.textContent?.trim()).toBe("Counted from transplant.");
+    expect(invalidEditor.getAttribute("aria-describedby")).toBe(hint()?.id);
+
+    // A row the callback has no hint for renders none and gets no description.
+    invalidEditor.dispatchEvent(
+      new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }),
+    );
+    await nextFrames(2);
+    const plainEditor = await openRenderedEditor(grid, "black-currant", "dtm");
+    expect(hint()).toBeNull();
+    expect(plainEditor.hasAttribute("aria-describedby")).toBe(false);
+  });
+
+  it("describes select editors with the column's editorHint", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = [
+      {
+        id: "status",
+        label: "Status",
+        editable: true,
+        editor: "select",
+        value: (row) => row.status,
+        editorOptions: statusEditorOptions,
+        editorHint: () => "Changing the status reschedules tasks.",
+      },
+    ];
+    const grid = await renderGrid({ columns });
+    const editor = await openRenderedEditor(grid, "black-currant", "status");
+    const hint = grid.shadowRoot?.querySelector(".cell-editor-hint");
+
+    expect(editor.tagName).toBe("SELECT");
+    expect(hint?.textContent?.trim()).toBe("Changing the status reschedules tasks.");
+    expect(editor.getAttribute("aria-describedby")).toBe(hint?.id);
+  });
+
+  it("appends a column's describe text to the active-cell description but not to copied text", async () => {
+    const columns: VioletDataGridColumn<TestRow>[] = widgetColumns.map((column) =>
+      column.id === "commonName"
+        ? {
+            ...column,
+            describe: (row) => (row.tracked ? "linked to the catalog" : undefined),
+          }
+        : column,
+    );
+    const grid = await renderGrid({ columns });
+    const description = () =>
+      grid.shadowRoot?.getElementById(grid.activeCellLabelId)?.textContent?.trim();
+
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+    await nextFrame();
+    expect(description()).toBe(
+      "Active cell row 1, column Plant, value Black currant, linked to the catalog.",
+    );
+
+    grid.activeCell = { rowId: "romanesco", columnId: "commonName" };
+    await nextFrame();
+    expect(description()).toBe("Active cell row 2, column Plant, value Romanesco.");
+
+    grid.activeCell = { rowId: "black-currant", columnId: "commonName" };
+    grid.cellSelection = {
+      anchor: { rowId: "black-currant", columnId: "commonName" },
+      focus: { rowId: "black-currant", columnId: "commonName" },
+    };
+    const clipboardData = new DataTransfer();
+    grid.shadowRoot?.querySelector(".table-scroll")?.dispatchEvent(
+      new ClipboardEvent("copy", { bubbles: true, cancelable: true, composed: true, clipboardData }),
+    );
+    expect(clipboardData.getData("text/plain")).toBe("Black currant");
   });
 
   it("names select editors with the column and human-readable row label", async () => {
