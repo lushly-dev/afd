@@ -513,10 +513,13 @@ test('Botcore: the inventory admits lushly-botcore alone, on the AFD publisher',
 		]
 	);
 	const others = family.filter((unit) => unit !== botcore);
-	assert.equal(others.length, 5);
+	// The five imported distributions keep their upstream authority; a plugin authored in AFD
+	// since (botcore-factory) claims none. Every one of them is quarantined.
+	const imported = others.filter((unit) => unit.authority === 'github: lushly-dev/botcore');
+	assert.equal(imported.length, 5);
 	for (const unit of others) {
 		assert.equal(unit.state, 'quarantined', unit.id);
-		assert.equal(unit.authority, 'github: lushly-dev/botcore', unit.id);
+		if (!imported.includes(unit)) assert.match(unit.authority, /^none: /, unit.id);
 	}
 });
 

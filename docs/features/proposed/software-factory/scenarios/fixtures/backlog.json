@@ -55,7 +55,7 @@
 		{
 			"number": 207,
 			"labels": ["status:planned", "execution:expert-escalation"],
-			"assignees": [],
+			"assignees": ["owner"],
 			"openPrs": [],
 			"createdAt": "2030-01-01T08:00:00Z"
 		},

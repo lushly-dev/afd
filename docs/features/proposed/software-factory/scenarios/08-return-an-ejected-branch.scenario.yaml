@@ -31,6 +31,9 @@ steps:
         openEvents: { length: 1 }
         cells:
           - { branch: fix/parser-empty-input, ejections: 1 }
+          - { branch: feat/export-csv, ejections: 0 }
+          - { branch: fix/loosened-check, ejections: 1 }
+          - { branch: fix/type-slip, ejections: 0 }
   - description: The repaired branch goes ahead of the branch that was already waiting
     command: lane-enqueue
     input: { worktree: wt/parser }

@@ -242,13 +242,22 @@ def _validate_language_config(config: BotCoreConfig) -> None:
 def _validate_plugin_configs(
     config: BotCoreConfig,
     discovered_plugins: dict[str, Any],
+    *,
+    selection: bool = False,
 ) -> None:
-    """Validate plugin config sections and warn about orphans."""
+    """Validate plugin config sections and warn about orphans.
+
+    With every installed plugin (legacy discovery), a section no plugin reads is an orphan.
+    A host's explicit selection leaves the other sections alone: they configure plugins that
+    other hosts select, possibly installed in another environment, so they are not orphans.
+    """
     for name, plugin in discovered_plugins.items():
         schema = getattr(plugin, "config_schema", lambda: None)()
         if schema and name in config.plugins:
             config.plugins[name] = schema(**config.plugins[name])
 
+    if selection:
+        return
     for name in config.plugins:
         if name not in discovered_plugins:
             msg = f"Config section [tool.botcore.plugins.{name}] "
@@ -260,6 +269,8 @@ def load_config(
     workspace: Path | None = None,
     cli_overrides: dict[str, Any] | None = None,
     discovered_plugins: dict[str, Any] | None = None,
+    *,
+    selection: bool = False,
 ) -> BotCoreConfig:
     """Load and validate botcore configuration.
 
@@ -269,6 +280,8 @@ def load_config(
         workspace: Workspace root. Auto-detected if None.
         cli_overrides: Dict of CLI flag overrides (highest priority).
         discovered_plugins: Dict of name → plugin instances for config validation.
+        selection: True when discovered_plugins is a host's explicit selection rather than
+            every installed plugin; sections for unselected plugins then raise no warning.
 
     Returns:
         Validated BotCoreConfig.
@@ -286,7 +299,7 @@ def load_config(
     _validate_language_config(config)
 
     if discovered_plugins is not None:
-        _validate_plugin_configs(config, discovered_plugins)
+        _validate_plugin_configs(config, discovered_plugins, selection=selection)
 
     return config
 
