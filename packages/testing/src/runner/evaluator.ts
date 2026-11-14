@@ -162,33 +162,60 @@ function evaluateDataAssertions(
 
 	for (const [key, expectedValue] of Object.entries(expected)) {
 		const path = `${basePath}.${key}`;
-		const actualValue = getValueAtPath(actual, key);
-
-		if (isAssertionMatcher(expectedValue, path)) {
-			// Handle matcher objects like { contains: "foo" }
-			for (const result of evaluateMatcherAssertions(path, actualValue, expectedValue)) {
-				results.push(result);
-			}
-		} else if (
-			typeof expectedValue === 'object' &&
-			expectedValue !== null &&
-			!Array.isArray(expectedValue)
-		) {
-			// Nested object - recurse
-			const nested = evaluateDataAssertions(
-				actualValue,
-				expectedValue as Record<string, unknown>,
-				path
-			);
-			for (const result of nested) {
-				results.push(result);
-			}
-		} else {
-			// Simple equality check
-			results.push(evaluateAssertion(path, actualValue, expectedValue, 'equals'));
+		for (const result of evaluateValue(path, getValueAtPath(actual, key), expectedValue)) {
+			results.push(result);
 		}
 	}
 
+	return results;
+}
+
+/**
+ * Evaluate one expected value: a matcher, a nested object of field assertions, an array
+ * holding objects (matched item by item), or a literal compared with deep equality.
+ */
+function evaluateValue(path: string, actual: unknown, expected: unknown): AssertionResult[] {
+	if (isAssertionMatcher(expected, path)) {
+		// Handle matcher objects like { contains: "foo" }
+		return evaluateMatcherAssertions(path, actual, expected);
+	}
+	if (Array.isArray(expected) && expected.some(isObjectLike)) {
+		return evaluateArrayAssertions(path, actual, expected);
+	}
+	if (typeof expected === 'object' && expected !== null && !Array.isArray(expected)) {
+		// Nested object - recurse
+		return evaluateDataAssertions(actual, expected as Record<string, unknown>, path);
+	}
+	// Simple equality check
+	return [evaluateAssertion(path, actual, expected, 'equals')];
+}
+
+function isObjectLike(value: unknown): boolean {
+	return typeof value === 'object' && value !== null;
+}
+
+/**
+ * An expected array holding objects is matched item by item: the arrays must be the same
+ * length, and each item is evaluated like any expected value, so an object item checks only
+ * the fields it names and may use matchers. An array of plain values is compared whole, and
+ * `{ equals: [...] }` compares any array literally.
+ */
+function evaluateArrayAssertions(
+	path: string,
+	actual: unknown,
+	expected: unknown[]
+): AssertionResult[] {
+	const items = Array.isArray(actual) ? actual : [];
+	const results: AssertionResult[] = [];
+	if (!Array.isArray(actual) || actual.length !== expected.length) {
+		results.push(evaluateAssertion(path, actual, expected.length, 'length'));
+	}
+	const shared = Math.min(items.length, expected.length);
+	for (let index = 0; index < shared; index++) {
+		for (const result of evaluateValue(`${path}[${index}]`, items[index], expected[index])) {
+			results.push(result);
+		}
+	}
 	return results;
 }
 
