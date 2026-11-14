@@ -108,6 +108,8 @@ pub(super) struct Touched {
     rebuild_cursor: Option<i64>,
     threads: BTreeSet<i64>,
     places: BTreeSet<(i64, i64)>,
+    /// Addresses whose sender row is computed again ([`super::senders`]).
+    pub(super) senders: BTreeSet<String>,
     pub(super) documents: Vec<Document>,
 }
 
@@ -117,6 +119,7 @@ impl Touched {
             rebuild_cursor,
             threads: BTreeSet::new(),
             places: BTreeSet::new(),
+            senders: BTreeSet::new(),
             documents: Vec::new(),
         }
     }
@@ -160,29 +163,34 @@ pub(super) fn derive_header(
     header: &HeaderFields,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
-    let (first_seen, received): (i64, Option<i64>) = transaction.one(
+    let (first_seen, received_at): (i64, Option<i64>) = transaction.one(
         "SELECT first_seen_at, received_at FROM message WHERE id = ?1",
         [message],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     // A sender writes the Date header, and can write one in the future to
     // stay on top of a list.
+    let received = received_at.unwrap_or(first_seen);
     let date = match header.sent_at {
         Some(sent) if sent <= first_seen.saturating_add(DATE_SLACK_MS) => sent,
-        _ => received.unwrap_or(first_seen),
+        _ => received,
     };
 
     // The message joins every thread that it names or that names it (5.6).
     // When that is more than one, they were one thread all along.
     let mut found: BTreeSet<i64> = BTreeSet::new();
-    let had: Option<i64> = transaction
+    let had: Option<(i64, String)> = transaction
         .one(
-            "SELECT thread_id FROM envelope WHERE message_id = ?1",
+            "SELECT thread_id, sender_address FROM envelope WHERE message_id = ?1",
             [message],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()?;
-    found.extend(had);
+    if let Some((thread, sender)) = had {
+        found.insert(thread);
+        // A derivation that reads the sender otherwise moves the message.
+        touched.senders.insert(sender);
+    }
     for key in &header.keys {
         let named: Option<i64> = transaction
             .one(
@@ -214,9 +222,10 @@ pub(super) fn derive_header(
         "INSERT INTO envelope
              (message_id, parser, thread_id, date, sent_at, sender_address, sender_name,
               subject, unparsed, list_id, unsubscribe, precedence, auto_submitted, reply_to,
-              reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head)
+              reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head,
+              message_key, answers_key, received)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                 ?18, ?19, ?20)
+                 ?18, ?19, ?20, ?21, ?22, ?23)
          ON CONFLICT (message_id) DO UPDATE SET
              parser = excluded.parser, thread_id = excluded.thread_id, date = excluded.date,
              sent_at = excluded.sent_at, sender_address = excluded.sender_address,
@@ -226,7 +235,9 @@ pub(super) fn derive_header(
              auto_submitted = excluded.auto_submitted, reply_to = excluded.reply_to,
              reply_to_differs = excluded.reply_to_differs, auth_server = excluded.auth_server,
              auth_spf = excluded.auth_spf, auth_dkim = excluded.auth_dkim,
-             auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head",
+             auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head,
+             message_key = excluded.message_key, answers_key = excluded.answers_key,
+             received = excluded.received",
         params![
             message,
             PARSER_VERSION,
@@ -247,9 +258,13 @@ pub(super) fn derive_header(
             authentication.spf,
             authentication.dkim,
             authentication.dmarc,
-            header.template_head.as_slice()
+            header.template_head.as_slice(),
+            header.message_key.as_ref().map(<[u8; 16]>::as_slice),
+            header.answers_key.as_ref().map(<[u8; 16]>::as_slice),
+            received
         ],
     )?;
+    super::senders::derive_recipients(transaction, message, header, touched)?;
     touched.threads.insert(thread);
     let mut shown = transaction.prepare_cached(
         "SELECT DISTINCT mailbox_id FROM observation WHERE message_id = ?1 AND ended_at IS NULL",
@@ -479,7 +494,7 @@ pub(super) fn settle(
     for (mailbox, thread) in &touched.places {
         compute_place(transaction, *mailbox, *thread)?;
     }
-    Ok(())
+    super::senders::settle_senders(transaction, &touched.senders, now)
 }
 
 fn compute_thread(transaction: &Transaction<'_>, thread: i64) -> Result<(), StoreError> {
@@ -889,6 +904,8 @@ impl Store {
         transaction.execute_batch(
             "DELETE FROM part;
              DELETE FROM link;
+             DELETE FROM recipient;
+             DELETE FROM sender;
              DELETE FROM thread_place;
              DELETE FROM thread;
              DELETE FROM thread_key;

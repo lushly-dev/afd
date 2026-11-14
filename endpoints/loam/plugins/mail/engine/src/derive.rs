@@ -18,7 +18,11 @@ use sha2::{Digest, Sha256};
 ///
 /// 2: the evidence of the specification's section 6.1, and the visible text
 /// in place of the plain part.
-pub const PARSER_VERSION: u32 = 2;
+///
+/// 3: what a sender's history needs (the specification's 7.1): the key of
+/// the message's own Message-ID and of the one it answers, its recipients,
+/// and when the provider received it.
+pub const PARSER_VERSION: u32 = 3;
 
 /// The key of a Message-ID in the thread table: the first 16 bytes of its
 /// SHA-256.
@@ -62,6 +66,14 @@ pub struct HeaderFields {
     /// The keys of the message's own Message-ID and of every id its
     /// References and In-Reply-To name, each once.
     pub keys: Vec<ThreadKey>,
+    /// The key of the message's own Message-ID, when it has one.
+    pub message_key: Option<ThreadKey>,
+    /// The key of the message it answers: the first id `In-Reply-To` names,
+    /// or else the last of `References`.
+    pub answers_key: Option<ThreadKey>,
+    /// The addresses it was sent to (`To`, `Cc` and `Bcc`), in lower case,
+    /// each once, at most [`RECIPIENTS_LIMIT`] of each kind.
+    pub recipients: Vec<String>,
     /// The list it came through: the id inside `List-Id`, in lower case.
     pub list_id: String,
     /// How it can be unsubscribed from: 0 not at all, 1 a
@@ -186,6 +198,13 @@ pub fn body_fields(whole: &[u8]) -> BodyFields {
     }
 }
 
+/// The key of a Message-ID as a header names it, or `None` when it is
+/// blank.
+fn key_of(id: &str) -> Option<ThreadKey> {
+    let id = id.trim();
+    (!id.is_empty()).then(|| thread_key(id))
+}
+
 /// The key of one Message-ID.
 #[must_use]
 pub fn thread_key(message_id: &str) -> ThreadKey {
@@ -286,6 +305,29 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
         let skip = named.len().saturating_sub(REFERENCES_LIMIT);
         named.iter().skip(skip).for_each(&mut add);
     }
+    let message_key = message.message_id().and_then(key_of);
+    let answers_key = message
+        .in_reply_to()
+        .and_then(|named| named.iter().find_map(key_of))
+        .or_else(|| {
+            message
+                .references()
+                .and_then(|named| named.iter().rev().find_map(key_of))
+        });
+    let mut recipients: Vec<String> = Vec::new();
+    for found in [message.to(), message.cc(), message.bcc()] {
+        let Some(list) = found else { continue };
+        for address in list
+            .mailboxes()
+            .take(RECIPIENTS_LIMIT)
+            .filter_map(|mailbox| mailbox.address())
+        {
+            let address = one_line(&address.to_lowercase(), SENDER_LIMIT);
+            if !address.is_empty() && !recipients.contains(&address) {
+                recipients.push(address);
+            }
+        }
+    }
     Some(HeaderFields {
         sent_at: message
             .date()
@@ -304,6 +346,9 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
             .map(|subject| one_line(subject, SUBJECT_LIMIT))
             .unwrap_or_default(),
         keys,
+        message_key,
+        answers_key,
+        recipients,
         list_id,
         unsubscribe,
         precedence: token(raw("Precedence")),
@@ -468,7 +513,7 @@ pub struct Recipients {
 }
 
 /// The most recipients of one kind read.
-const RECIPIENTS_LIMIT: usize = 100;
+pub const RECIPIENTS_LIMIT: usize = 100;
 
 /// Who a message is addressed to. This never fails or panics.
 #[must_use]
@@ -1649,6 +1694,33 @@ mod tests {
         let fields = body_fields(whole.as_bytes());
         let places: Vec<&str> = fields.parts.iter().map(|p| p.place.as_str()).collect();
         assert_eq!(places, vec!["1", "2", "2.1"]);
+    }
+
+    #[test]
+    fn a_header_names_its_own_id_the_one_it_answers_and_its_recipients() {
+        let fields = header_fields(
+            b"From: a@example.com\r\n\
+              To: B <B@Example.com>, c@example.com\r\n\
+              Cc: b@example.com\r\n\
+              Bcc: d@example.com\r\n\
+              Message-ID: <own@example.com>\r\n\
+              In-Reply-To: <parent@example.com>\r\n\
+              References: <root@example.com> <parent@example.com>\r\n\r\n",
+        );
+        assert_eq!(fields.message_key, Some(thread_key("own@example.com")));
+        assert_eq!(fields.answers_key, Some(thread_key("parent@example.com")));
+        assert_eq!(
+            fields.recipients,
+            ["b@example.com", "c@example.com", "d@example.com"]
+        );
+        // Without In-Reply-To, the last id of References.
+        let fields = header_fields(
+            b"From: a@example.com\r\n\
+              References: <root@example.com> <near@example.com>\r\n\r\n",
+        );
+        assert_eq!(fields.message_key, None);
+        assert_eq!(fields.answers_key, Some(thread_key("near@example.com")));
+        assert!(fields.recipients.is_empty());
     }
 
     #[test]

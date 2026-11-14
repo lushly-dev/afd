@@ -1,0 +1,134 @@
+{
+	"step": "C1",
+	"date": "2026-11-14",
+	"what": "Step C1's report on the owner's iCloud account (the specification's 6.3 and 7.1): Q2 as the engine computes it beside the census's figure, and how many stream stories each grouping gives. Run by `engine/tests/live_screening.rs` on a copy of the store step B7 synced, made while B7's server ran: the database with SQLite's online backup, the log and the index as APFS clones. The copy was brought to schema 7 and every message derived again by the new derivation. Counts and milliseconds only: no address, subject, name, list id or text.",
+	"machine": "the owner's Mac (Apple silicon, macOS), release build, Rust 1.98.0",
+	"upgrade": {
+		"migrationMs": 7948,
+		"derivedAgain": 293988,
+		"derivedAgainSeconds": 320,
+		"note": "Opening the store runs migration 7 (new columns, the received date copied from `message`, four indexes, two tables) in 8 seconds. Every row is then stale (parser 2) and is derived again: 293 988 messages in 320 seconds alone, about 920 a second. Under `serve` a pass spends at most 30 seconds on it, so about 15 passes, some 75 minutes; until then the sender rows fill as the newest mail is derived first."
+	},
+	"databaseBytes": {
+		"before": 1515569152,
+		"after": 1810993152,
+		"afterVacuum": 1439932416,
+		"note": "Deriving every message again rewrites its rows, and the `link` table, which is most of the database, grew from 960 MiB packed to 1 236 MiB; `VACUUM` returns it, and the vacuumed copy is smaller than the store before the step. What step C1 adds: `recipient` (575 414 rows; 41 MiB as derived, 20 MiB packed), indexes of 12, 10, 8 and 4 MiB (`envelope_sender`, `envelope_sender_bulk`, `envelope_message_key`, `observation_mailbox`) and `sender` with its two indexes, under 1 MiB."
+	},
+	"senders": {
+		"rows": 3410,
+		"writtenTo": 626,
+		"writtenToNeverHeardFrom": 327,
+		"answered": 312,
+		"withBulkMail": 1221,
+		"registrableDomains": 1828,
+		"fiveLargestByMessages": [272217, 1276, 413, 295, 287],
+		"personsMessages": 2844,
+		"listFiftyP95Ms": 0.04,
+		"showLargestP95Ms": 418.76,
+		"showNote": "Showing the sender of 272 217 messages counts them by mailbox and by list: about 0.42 seconds. Most senders have a few hundred messages or fewer."
+	},
+	"q2": {
+		"census": {
+			"whole": 0.984,
+			"withoutTheLargestMailbox": 0.609
+		},
+		"rule": "Of inbound messages from senders the person never wrote to, the share with a list or bulk header or a template key seen at least five times (the specification's 7.2, rules 3 and 4). Written to: a message a sent mailbox has shown names the sender among its recipients.",
+		"everyMessage": {
+			"messages": 293988,
+			"inbound": 289952,
+			"fromStrangers": 284722,
+			"decidedByHeader": 277914,
+			"decidedByTemplateAlone": 1921,
+			"decided": 279835,
+			"q2": 0.983,
+			"withoutTemplateKey": 1362,
+			"streamStories": {
+				"byKey": {
+					"groups": 4543,
+					"messagesInStories": 274986,
+					"stories": 344,
+					"ungrouped": 274
+				},
+				"byKeyAndShape": {
+					"groups": 5261,
+					"messagesInStories": 273999,
+					"stories": 270,
+					"ungrouped": 274
+				},
+				"bySender": {
+					"groups": 1481,
+					"messagesInStories": 278253,
+					"stories": 459,
+					"ungrouped": 0
+				}
+			}
+		},
+		"asTheCensusCounted": {
+			"messages": 292624,
+			"inbound": 288588,
+			"fromStrangers": 283360,
+			"decidedByHeader": 276648,
+			"decidedByTemplateAlone": 1921,
+			"decided": 278569,
+			"q2": 0.983,
+			"withoutTemplateKey": 0,
+			"streamStories": {
+				"byKey": {
+					"groups": 4532,
+					"messagesInStories": 274009,
+					"stories": 343,
+					"ungrouped": 0
+				},
+				"byKeyAndShape": {
+					"groups": 5250,
+					"messagesInStories": 273022,
+					"stories": 269,
+					"ungrouped": 0
+				},
+				"bySender": {
+					"groups": 1399,
+					"messagesInStories": 277088,
+					"stories": 444,
+					"ungrouped": 0
+				}
+			}
+		},
+		"withoutTheLargestMailbox": {
+			"messages": 21384,
+			"inbound": 17348,
+			"fromStrangers": 12120,
+			"decidedByHeader": 5408,
+			"decidedByTemplateAlone": 1921,
+			"decided": 7329,
+			"q2": 0.605,
+			"withoutTemplateKey": 0,
+			"streamStories": {
+				"byKey": {
+					"groups": 4367,
+					"messagesInStories": 2885,
+					"stories": 269,
+					"ungrouped": 0
+				},
+				"byKeyAndShape": {
+					"groups": 5085,
+					"messagesInStories": 1898,
+					"stories": 195,
+					"ungrouped": 0
+				},
+				"bySender": {
+					"groups": 1234,
+					"messagesInStories": 5964,
+					"stories": 370,
+					"ungrouped": 0
+				}
+			}
+		},
+		"reportMs": 2092
+	},
+	"groupingsNote": "Stream stories are made of the bulk mail from strangers (rule 3). A story needs five messages. `byKey` groups by list id, or else by sender and template key; `byKeyAndShape` adds the body's shape; `bySender`, not one of section 8's groupings, groups by list id or else by sender alone. Without the largest mailbox, 7 329 bulk messages fall into 4 367 groups by key: a template key holds the subject's shape, so mail whose subject changes with each issue makes a group of one each time. By key 39% of that bulk mail is in a story, by key and shape 26%, by sender 81%. Which grouping makes stories is step C2's.",
+	"privacy": {
+		"content": "counts and milliseconds only",
+		"liveStoreFilesOpenToOthers": "48 index files the B7 server (built before the program set its mask to 077) wrote since step B7, inside directories only the owner can enter; closed to others again on 2026-11-14. The server that writes them is that build until it is restarted with a newer one"
+	}
+}
