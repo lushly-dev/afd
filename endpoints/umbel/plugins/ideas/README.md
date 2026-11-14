@@ -139,18 +139,38 @@ binary's own argument parser.
 
 ### Reading the page from another computer
 
-The page answers only on loopback: it checks that a request's `Host` is `127.0.0.1:<port>`, and
-that a form's `Origin` is the page's own. A browser on another computer, through a proxy on a
-LAN or tailnet address, fails those checks, and "Next page" is refused. The supported route is
-an SSH tunnel from the computer you browse on to the one that serves the page:
+The page listens only on loopback: it checks that a request's `Host` is `127.0.0.1:<port>`, and
+that a form's `Origin` is the page's own. A browser on another computer, through a plain HTTP
+proxy on a LAN or tailnet address, fails those checks, and "Next page" is refused.
+
+**On a private network you control, name the page's public origin.** Put a TLS-terminating
+HTTPS proxy on the serving computer itself, reachable only on that private network (a tailnet's
+own HTTPS proxy, for one), forwarding to `http://127.0.0.1:7421`, and tell the page its address:
+
+```toml
+[person.local]
+enabled = true
+bind = "127.0.0.1:7421"
+public_origin = "https://garden-host.example-tailnet.ts.net:8443"
+```
+
+The page then also accepts that origin's `Host` and a form posted from it, and the link the
+agent gives, the list `person-page-serve` prints, and `--open` name the public origin. The
+origin must be `https`, with no path, query or user information. `umbel doctor` warns while it
+is set: anyone who can reach that origin can approve the person's decisions with no sign-in, so
+never expose it beyond a private network you control, and keep the proxy on the computer that
+serves the page.
+
+**Otherwise, an SSH tunnel** from the computer you browse on to the one that serves the page:
 
 ```sh
 ssh -L 7421:127.0.0.1:7421 <the serving computer>
 ```
 
 Then open the link the agent gives, unchanged. The browser sees `127.0.0.1:7421`, a loopback
-address and a secure context, so both checks pass. Do not serve the page on a network address:
-it has no sign-in, and whoever reaches it can approve the person's decisions.
+address and a secure context, so both checks pass. Either way, do not serve the page on a
+network address itself: it has no sign-in, and whoever reaches it can approve the person's
+decisions.
 
 ### The paragraph for the server's instructions
 
