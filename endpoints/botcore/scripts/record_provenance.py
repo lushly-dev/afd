@@ -58,7 +58,8 @@ IMPORT_REASONS = {
         "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; "
         "Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record "
         "the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, "
-        "catalog input schemas and argument refusals"
+        "catalog input schemas and argument refusals; Record that a host does not warn about "
+        "unselected plugin sections"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -86,7 +87,8 @@ IMPORT_REASONS = {
     "src/botcore/host.py": (
         "Map broken-link failures and typed infrastructure verdicts correctly; merge "
         "plugin-declared policies that a host may only narrow, carry input schemas and "
-        "one-line descriptions in the catalog, refuse wrong argument names"
+        "one-line descriptions in the catalog, refuse wrong argument names; load config as "
+        "an explicit plugin selection"
     ),
     "src/botcore/plugin.py": ("Let a plugin declare its command policies (add_policy)"),
     "src/botcore/host_surfaces.py": (
@@ -173,7 +175,8 @@ IMPORT_REASONS = {
     ),
     "src/botcore/config.py": (
         "Accept the legacy version stamp, reject unknowns, add listing_budget; add the "
-        "[sweep] section (SweepConfig)"
+        "[sweep] section (SweepConfig); do not warn about plugin sections a host's explicit "
+        "selection leaves out"
     ),
     "tests/test_config.py": (
         "Test the legacy stamp, unknown-field rejection and listing_budget; test the "
@@ -202,7 +205,8 @@ IMPORT_REASONS = {
     ),
     "docs/host-composition.md": (
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher; "
-        "describe plugin-declared policies, catalog input schemas and argument refusals"
+        "describe plugin-declared policies, catalog input schemas and argument refusals; "
+        "say a host leaves unselected plugin sections alone"
     ),
     "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (
