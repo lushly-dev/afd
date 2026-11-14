@@ -19,6 +19,8 @@ steps:
       data:
         machines:
           - { id: workstation, measured: true, suggestedSlots: 4 }
+          - { id: mini }
+          - { id: laptop }
   - description: More slots than the host can carry are refused, naming the limit
     command: dial-set
     input: { key: lane.slots, value: 8 }

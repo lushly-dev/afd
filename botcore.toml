@@ -71,12 +71,18 @@ trend_issue = 1098
 
 # The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
 # docs/features/proposed/software-factory). Botcore reads a plugin's settings under
-# [plugins.<entry point>]. Commands are argument lists, run in the cell's worktree. The lane's
-# other keys (validate, coverage, install, required_check, ...) arrive with the commands that run
-# them. review_evidence waits for prepare-pr's lane mode, which records the reviewed head; until
-# then lane-enqueue refuses here with NOT_CONFIGURED.
+# [plugins.<entry point>]. Commands are argument lists, run in a worktree (the cell's, or one of
+# the lane's slots). review_evidence waits for prepare-pr's lane mode, which records the
+# reviewed head; until then lane-enqueue refuses here with NOT_CONFIGURED.
 [plugins.factory]
 labels = ".github/labels.json"
+install = ["pnpm", "install", "--frozen-lockfile"]
+# pnpm verify writes the record pre-push accepts for the exact commit, so the lane's push runs
+# no checks twice (scripts/verify-record.mjs).
+validate = ["pnpm", "verify"]
+coverage = ["pnpm", "check:all"]
+required_check = "ci-ok"
+ignore_branches = ["changeset-release/*"]
 # The cheap stages of pnpm check, run before a branch joins the queue.
 prequeue = [
     { name = "lint", run = ["pnpm", "lint"] },

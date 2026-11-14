@@ -14,7 +14,7 @@ from collections.abc import Callable
 from afd import CommandResult, success
 from botcore.host import CommandPolicy
 
-from botcore_factory import cells, events, intake, queue, status
+from botcore_factory import cells, events, intake, lane_process, queue, status
 from botcore_factory.runtime import Factory, guarded, paginate
 
 GITHUB = ("gh",)
@@ -24,7 +24,8 @@ GIT = ("gh", "git")
 #: GitHub writes, ``history-write`` for the lane's state, ``inspect`` for local reads.
 POLICIES: dict[str, CommandPolicy] = {
     "issue_check": CommandPolicy(("subprocess",), capabilities=GITHUB),
-    "lane_status": CommandPolicy(("subprocess",), capabilities=GITHUB),
+    # Reads GitHub; notices a dead lane (lane-stopped), which writes the lane state.
+    "lane_status": CommandPolicy(("subprocess", "history-write"), capabilities=GITHUB),
     "cell_register": CommandPolicy(("subprocess", "service", "history-write"), GITHUB),
     "dial_get": CommandPolicy(("inspect",)),
     "dial_set": CommandPolicy(
@@ -51,12 +52,19 @@ POLICIES: dict[str, CommandPolicy] = {
 }
 
 
-def make_commands(get: Callable[[], Factory]) -> list[Callable]:
-    """The commands of one host; ``get`` returns that host's Factory."""
+def executor() -> Callable:
+    """Run a command body in a thread, turning refusals and outside failures into errors."""
 
-    async def run(body: Callable[[], CommandResult]) -> CommandResult:
+    async def execute(body: Callable[[], CommandResult]) -> CommandResult:
         # gh and git block; a thread keeps an MCP host's event loop free meanwhile.
         return await asyncio.to_thread(guarded, body)
+
+    return execute
+
+
+def make_commands(get: Callable[[], Factory]) -> list[Callable]:
+    """The commands of one host; ``get`` returns that host's Factory."""
+    run = executor()
 
     async def issue_check(
         numbers: list[int] | None = None, limit: int | None = None, cursor: str | None = None
@@ -113,7 +121,13 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
             limit: The most entries in each list (1 to 500, default 100).
             cursor: The nextCursor of the previous page.
         """
-        return await run(lambda: success(status.lane_status(get(), limit, cursor)))
+
+        def body() -> CommandResult:
+            factory = get()
+            lane_process.check_lane(factory)
+            return success(status.lane_status(factory, limit, cursor))
+
+        return await run(body)
 
     async def dial_get(key: str | None = None) -> CommandResult:
         """Read one dial's value and default, or every dial.
@@ -163,6 +177,7 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
 
         def body() -> CommandResult:
             factory = get()
+            lane_process.check_lane(factory)
             return success(
                 events.lane_wait(
                     factory, consumer, timeout_ms, lambda: status.compact_status(factory)

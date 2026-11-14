@@ -9,24 +9,17 @@ for ``gh`` and ``git`` without calling them.
 
 from __future__ import annotations
 
-import contextlib
 import json
-import os
-import shutil
-import socket
-import subprocess
-import sys
-from collections.abc import Callable, Sequence
-from datetime import UTC, datetime
+from collections.abc import Sequence
 from pathlib import Path
 
-from botcore_factory.claims import parse_time
+from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
+from botcore_factory.real_system import LocalMachine, OsProcesses, SystemClock, T3Plans
 from botcore_factory.world import (
     Comment,
-    Completed,
     HostRecord,
     Issue,
-    Plan,
+    MergeOutcome,
     PullRequest,
     World,
     WorldError,
@@ -34,64 +27,19 @@ from botcore_factory.world import (
 
 READ_LIMIT = 2000  # Issues or PRs per read; a read that reaches it may be cut short.
 ISSUE_FIELDS = "number,title,state,labels,assignees,createdAt"
-GIB = 1024**3
-Run = Callable[..., str]
-
-
-def resolve_program(program: str) -> str:
-    """The program's full path, so Windows starts ``gh.exe`` without a shell."""
-    found = shutil.which(program)
-    if not found:
-        raise WorldError(f"{program} is not on PATH")
-    return found
-
-
-def run_process(
-    args: Sequence[str],
-    *,
-    cwd: str | None = None,
-    stdin: str | None = None,
-    timeout: float | None = 60,
-) -> Completed:
-    """Run an argument list and capture its output. Never a shell."""
-    argv = [resolve_program(args[0]), *args[1:]]
-    try:
-        done = subprocess.run(  # noqa: S603 - an argument list, resolved program, no shell
-            argv,
-            cwd=cwd,
-            input=stdin,
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-            timeout=timeout,
-            check=False,
-        )
-    except (OSError, subprocess.TimeoutExpired) as exc:
-        raise WorldError(f"{args[0]} could not run: {exc}") from exc
-    return Completed(tuple(args), done.returncode, done.stdout, done.stderr)
-
-
-def make_runner(cwd: str) -> Run:
-    """A ``run(args, stdin=None)`` returning stdout, raising WorldError on a nonzero exit."""
-
-    def run(args: Sequence[str], stdin: str | None = None) -> str:
-        done = run_process(args, cwd=cwd, stdin=stdin)
-        if done.returncode != 0:
-            detail = (done.stderr or done.stdout).strip().splitlines()
-            raise WorldError(
-                f"{' '.join(args[:3])} failed: {detail[0] if detail else done.returncode}"
-            )
-        return done.stdout
-
-    return run
-
-
-def _json(text: str, what: str):
-    try:
-        return json.loads(text)
-    except ValueError as exc:
-        raise WorldError(f"{what} returned something that is not JSON") from exc
+__all__ = [
+    "CliGit",
+    "GhGitHub",
+    "LocalMachine",
+    "OsProcesses",
+    "Run",
+    "SystemClock",
+    "T3Plans",
+    "make_runner",
+    "real_world",
+    "resolve_program",
+    "run_process",
+]
 
 
 def _issue(raw: dict) -> Issue:
@@ -114,12 +62,14 @@ class GhGitHub:
 
     def repository(self) -> str:
         if self._repository is None:
-            data = _json(self.run(["gh", "repo", "view", "--json", "nameWithOwner"]), "gh repo")
+            data = parse_json(
+                self.run(["gh", "repo", "view", "--json", "nameWithOwner"]), "gh repo"
+            )
             self._repository = data["nameWithOwner"]
         return self._repository
 
     def list_issues(self) -> list[Issue]:
-        rows = _json(
+        rows = parse_json(
             self.run(
                 [
                     "gh",
@@ -141,10 +91,12 @@ class GhGitHub:
 
     def get_issue(self, number: int) -> Issue:
         raw = self.run(["gh", "issue", "view", str(number), "--json", ISSUE_FIELDS])
-        return _issue(_json(raw, "gh issue view"))
+        return _issue(parse_json(raw, "gh issue view"))
 
     def comments(self, number: int) -> list[Comment]:
-        data = _json(self.run(["gh", "issue", "view", str(number), "--json", "comments"]), "gh")
+        data = parse_json(
+            self.run(["gh", "issue", "view", str(number), "--json", "comments"]), "gh"
+        )
         return [
             Comment(
                 str(item.get("id", "")),
@@ -168,7 +120,7 @@ class GhGitHub:
         return Comment(url.rsplit("#issuecomment-", 1)[-1], body, "", "")
 
     def open_pull_requests(self) -> list[PullRequest]:
-        rows = _json(
+        rows = parse_json(
             self.run(
                 [
                     "gh",
@@ -206,12 +158,75 @@ class GhGitHub:
     def set_variable(self, name: str, value: str) -> None:
         self.run(["gh", "variable", "set", name, "--body", value])
 
+    def signed_in(self) -> bool:
+        try:
+            self.run(["gh", "auth", "status"])
+        except WorldError:
+            return False
+        return True
+
+    def required_checks(self, branch: str) -> list[str]:
+        """Required status checks from branch protection and from rulesets, together."""
+        repository = self.repository()
+        checks: set[str] = set()
+        try:
+            raw = self.run(
+                [
+                    "gh",
+                    "api",
+                    f"repos/{repository}/branches/{branch}/protection/required_status_checks",
+                ]
+            )
+            checks |= set(parse_json(raw, "gh api").get("contexts") or [])
+        except WorldError as exc:
+            if "404" not in str(exc) and "not protected" not in str(exc).lower():
+                raise
+        rules = parse_json(
+            self.run(["gh", "api", f"repos/{repository}/rules/branches/{branch}"]), "gh"
+        )
+        for rule in rules:
+            if rule.get("type") == "required_status_checks":
+                for check in (rule.get("parameters") or {}).get("required_status_checks", []):
+                    checks.add(check.get("context", ""))
+        return sorted(name for name in checks if name)
+
+    def open_pr(self, branch: str, title: str, body: str) -> int:
+        found = parse_json(
+            self.run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "number"]),
+            "gh pr list",
+        )
+        if found:
+            return int(found[0]["number"])
+        url = self.run(
+            ["gh", "pr", "create", "--head", branch, "--title", title, "--body-file", "-"], body
+        ).strip()
+        return int(url.rstrip("/").rsplit("/", 1)[-1])
+
+    def check_status(self, pr: int, name: str) -> str:
+        # gh exits nonzero while checks fail or are pending; its JSON still says which.
+        out = self.run(["gh", "pr", "checks", str(pr), "--json", "name,bucket"], None, False)
+        for check in parse_json(out.strip() or "[]", "gh pr checks"):
+            if check.get("name") == name:
+                bucket = check.get("bucket", "")
+                return {"pass": "success", "fail": "failure", "cancel": "failure"}.get(
+                    bucket, "pending"
+                )
+        return "missing"
+
+    def merge_pr(self, pr: int, head: str) -> None:
+        self.run(["gh", "pr", "merge", str(pr), "--squash", "--match-head-commit", head])
+
+    def pr_state(self, pr: int) -> str:
+        data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "state"]), "gh pr")
+        return str(data.get("state", "OPEN"))
+
 
 class CliGit:
     """git in the target checkout. Host records are fetched from origin's refs/factory/hosts."""
 
-    def __init__(self, run: Run) -> None:
+    def __init__(self, run: Run, target: str = ".") -> None:
         self.run = run
+        self.target = target
 
     def host_records(self) -> list[HostRecord]:
         self.run(
@@ -225,23 +240,13 @@ class CliGit:
             ]
         )
         refs = self.run(["git", "for-each-ref", "--format=%(refname)", "refs/factory/hosts"])
-        records = []
-        for ref in refs.split():
-            raw = _json(self.run(["git", "show", f"{ref}:host.json"]), f"git show {ref}")
-            records.append(
-                HostRecord(
-                    id=raw.get("id") or ref.rsplit("/", 1)[-1],
-                    name=raw.get("name", ""),
-                    cores=raw.get("cores"),
-                    memory_gb=raw.get("memoryGb"),
-                    free_disk_gb=raw.get("freeDiskGb"),
-                    missing=tuple(raw.get("missing", [])),
-                    measured=bool(raw.get("measured", False)),
-                    suggested_slots=int(raw.get("suggestedSlots", 1)),
-                    probed_at=raw.get("probedAt"),
-                )
+        return [
+            HostRecord.read(
+                parse_json(self.run(["git", "show", f"{ref}:host.json"]), f"git show {ref}"),
+                ref.rsplit("/", 1)[-1],
             )
-        return records
+            for ref in refs.split()
+        ]
 
     def head(self, worktree: str) -> str:
         return self.run(["git", "-C", worktree, "rev-parse", "HEAD"]).strip()
@@ -278,208 +283,103 @@ class CliGit:
             ]
         )
 
+    def queue_refs(self) -> list[dict]:
+        out = self.run(["git", "ls-remote", "origin", "refs/factory/queue/*"])
+        refs = []
+        for line in out.splitlines():
+            if "\t" in line:
+                head, ref = line.split("\t", 1)
+                refs.append({"branch": ref.removeprefix("refs/factory/queue/"), "head": head})
+        return refs
 
-class SystemClock:
-    def now(self) -> datetime:
-        return datetime.now(UTC)
-
-
-class LocalMachine:
-    """This machine. Its id is its own name, which a recreated T3 Code environment keeps."""
-
-    def __init__(self, run: Run | None = None) -> None:
-        self.run = run or make_runner(os.getcwd())
-
-    def id(self) -> str:
-        if sys.platform == "win32" and os.environ.get("COMPUTERNAME"):
-            return os.environ["COMPUTERNAME"]
-        if sys.platform == "darwin":
-            return self.run(["scutil", "--get", "LocalHostName"]).strip()
-        return socket.gethostname().split(".")[0]
-
-    def cores(self) -> int:
-        return os.cpu_count() or 1
-
-    def memory_gb(self) -> float:
-        return self._memory()[0] / GIB
-
-    def free_memory_gb(self) -> float:
-        return self._memory()[1] / GIB
-
-    def free_disk_gb(self, path: str) -> float:
-        return shutil.disk_usage(path).free / GIB
-
-    def _memory(self) -> tuple[int, int]:
-        """Total and available bytes."""
-        if sys.platform == "win32":
-            return _windows_memory()
-        if sys.platform == "darwin":
-            total = int(self.run(["sysctl", "-n", "hw.memsize"]).strip())
-            return total, _darwin_available(self.run(["vm_stat"]))
-        info = dict(
-            line.split(":", 1)
-            for line in Path("/proc/meminfo").read_text().splitlines()
-            if ":" in line
+    def publish_host_record(self, record: HostRecord) -> None:
+        """A one-file commit on refs/factory/hosts/<id>, made without touching the checkout."""
+        body = json.dumps(record.describe(), indent=2, sort_keys=True) + "\n"
+        blob = self.run(["git", "hash-object", "-w", "--stdin"], body).strip()
+        tree = self.run(["git", "mktree"], f"100644 blob {blob}\thost.json\n").strip()
+        commit = self.run(
+            [
+                "git",
+                "-c",
+                "user.name=botcore-factory",
+                "-c",
+                "user.email=factory@localhost",
+                "commit-tree",
+                tree,
+                "-m",
+                f"Readiness of {record.id}",
+            ]
+        ).strip()
+        self.run(
+            [
+                "git",
+                "push",
+                "--force",
+                "--quiet",
+                "origin",
+                f"{commit}:refs/factory/hosts/{record.id}",
+            ]
         )
-        kib = lambda key: int(info[key].split()[0]) * 1024  # noqa: E731
-        return kib("MemTotal"), kib("MemAvailable")
 
-
-def _windows_memory() -> tuple[int, int]:
-    import ctypes
-
-    class MemoryStatus(ctypes.Structure):
-        _fields_ = [
-            ("dwLength", ctypes.c_ulong),
-            ("dwMemoryLoad", ctypes.c_ulong),
-            ("ullTotalPhys", ctypes.c_ulonglong),
-            ("ullAvailPhys", ctypes.c_ulonglong),
-            ("ullTotalPageFile", ctypes.c_ulonglong),
-            ("ullAvailPageFile", ctypes.c_ulonglong),
-            ("ullTotalVirtual", ctypes.c_ulonglong),
-            ("ullAvailVirtual", ctypes.c_ulonglong),
-            ("ullAvailExtendedVirtual", ctypes.c_ulonglong),
-        ]
-
-    status = MemoryStatus()
-    status.dwLength = ctypes.sizeof(MemoryStatus)
-    if not _kernel32().GlobalMemoryStatusEx(ctypes.byref(status)):
-        raise WorldError("GlobalMemoryStatusEx failed")
-    return status.ullTotalPhys, status.ullAvailPhys
-
-
-def _darwin_available(vm_stat: str) -> int:
-    lines = vm_stat.splitlines()
-    page = int(lines[0].split("page size of")[1].split()[0]) if lines else 4096
-    pages = {}
-    for line in lines[1:]:
-        if ":" in line:
-            key, value = line.split(":", 1)
-            pages[key.strip()] = int(value.strip().rstrip(".") or 0)
-    free = sum(pages.get(key, 0) for key in ("Pages free", "Pages inactive", "Pages speculative"))
-    return free * page
-
-
-class T3Plans:
-    """Plans from T3 Code's provider caches: each weekly usage window is one plan.
-
-    A cache (``~/.t3/caches/<provider>.json``) lists ``usageLimits.windows`` with the share used
-    and when the window resets; the share elapsed follows from the window's length and the clock.
-    """
-
-    def __init__(self, clock, caches: Path | None = None) -> None:
-        self.clock = clock
-        self.caches = caches or Path.home() / ".t3" / "caches"
-
-    def read(self) -> list[Plan]:
+    def origin_reachable(self) -> bool:
         try:
-            files = sorted(self.caches.glob("*.json"))
-        except OSError as exc:
-            raise WorldError(f"Cannot list T3 Code's caches: {exc}") from exc
-        plans = []
-        now = self.clock.now()
-        for path in files:
-            try:
-                usage = json.loads(path.read_text(encoding="utf-8")).get("usageLimits") or {}
-            except (OSError, ValueError, AttributeError):
-                continue  # One unreadable provider cache does not hide the others.
-            for window in usage.get("windows") or []:
-                if window.get("kind") != "weekly" or not window.get("resetsAt"):
-                    continue
-                length = float(window.get("windowDurationMins") or 10080) * 60
-                left = (parse_time(window["resetsAt"]) - now).total_seconds()
-                elapsed = min(100.0, max(0.0, 100 * (length - left) / length))
-                plans.append(
-                    Plan(
-                        f"{path.stem}:{window['id']}",
-                        path.stem,
-                        float(window.get("usedPercent", 0)),
-                        round(elapsed, 1),
-                        window["resetsAt"],
-                    )
-                )
-        if not plans:
-            raise WorldError(f"No weekly plan windows in T3 Code's caches ({self.caches})")
-        return plans
-
-
-class OsProcesses:
-    def alive(self, pid: int, started_at: float | None = None) -> bool:
-        if not _exists(pid):
+            self.run(["git", "ls-remote", "--heads", "origin"])
+        except WorldError:
             return False
-        if started_at is None:
-            return True
-        actual = self.start_time(pid)
-        return actual is None or abs(actual - started_at) < 2
-
-    def start_time(self, pid: int) -> float | None:
-        with contextlib.suppress(OSError, ValueError, IndexError, AttributeError):
-            if sys.platform == "win32":
-                return _windows_start_time(pid)
-            if Path(f"/proc/{pid}/stat").exists():
-                fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
-                boot = next(
-                    float(line.split()[1])
-                    for line in Path("/proc/stat").read_text().splitlines()
-                    if line.startswith("btime")
-                )
-                return boot + int(fields[19]) / os.sysconf("SC_CLK_TCK")
-        return None
-
-    def run(
-        self,
-        args: Sequence[str],
-        cwd: str,
-        timeout: float | None = None,
-        *,
-        label: str | None = None,
-    ) -> Completed:
-        return run_process(args, cwd=cwd, timeout=timeout)
-
-
-def _kernel32():
-    import ctypes
-
-    return ctypes.WinDLL("kernel32", use_last_error=True)
-
-
-def _exists(pid: int) -> bool:
-    if sys.platform == "win32":
-        import ctypes
-
-        kernel32 = _kernel32()
-        handle = kernel32.OpenProcess(0x1000, False, pid)  # PROCESS_QUERY_LIMITED_INFORMATION
-        if not handle:
-            return ctypes.get_last_error() == 5  # Access denied: it exists.
-        try:
-            code = ctypes.c_ulong()
-            kernel32.GetExitCodeProcess(handle, ctypes.byref(code))
-            return code.value == 259  # STILL_ACTIVE
-        finally:
-            kernel32.CloseHandle(handle)
-    try:
-        os.kill(pid, 0)
-    except ProcessLookupError:
-        return False
-    except PermissionError:
         return True
-    return True
 
-
-def _windows_start_time(pid: int) -> float | None:
-    import ctypes
-
-    kernel32 = _kernel32()
-    handle = kernel32.OpenProcess(0x1000, False, pid)
-    if not handle:
-        return None
-    try:
-        times = [ctypes.c_ulonglong() for _ in range(4)]
-        if not kernel32.GetProcessTimes(handle, *map(ctypes.byref, times)):
+    def read_file(self, worktree: str, path: str) -> str | None:
+        try:
+            return (Path(worktree) / path).read_text(encoding="utf-8")
+        except OSError:
             return None
-        return times[0].value / 1e7 - 11644473600  # FILETIME (100 ns since 1601) to epoch.
-    finally:
-        kernel32.CloseHandle(handle)
+
+    def fetch_main(self) -> str:
+        self.run(["git", "fetch", "--quiet", "--no-tags", "origin"])
+        return self.run(["git", "rev-parse", "origin/HEAD"]).strip()
+
+    def _slot_path(self, slot: str) -> str:
+        common = self.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
+        return str(Path(common.strip()) / "factory" / "slots" / slot)
+
+    def prepare_slot(self, slot: str, branch: str, head: str) -> str:
+        path = self._slot_path(slot)
+        if branch != "main":
+            self.run(
+                [
+                    "git",
+                    "fetch",
+                    "--quiet",
+                    "origin",
+                    f"+refs/factory/queue/{branch}:refs/factory/queue/{branch}",
+                ]
+            )
+        if not Path(path).exists():
+            self.run(["git", "worktree", "add", "--force", "--detach", path, head])
+        else:
+            self.run(["git", "-C", path, "reset", "--hard", "--quiet"])
+            self.run(["git", "-C", path, "checkout", "--force", "--detach", "--quiet", head])
+        self.run(["git", "-C", path, "clean", "-fd", "--quiet"])
+        return path
+
+    def merge_main(self, path: str, main: str) -> MergeOutcome:
+        identity = ["-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost"]
+        # A conflict exits nonzero; the unmerged paths say so, and the merge is aborted.
+        self.run(["git", "-C", path, *identity, "merge", "--no-edit", "--quiet", main], None, False)
+        conflicts = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
+        files = tuple(line for line in conflicts.splitlines() if line.strip())
+        if files:
+            self.run(["git", "-C", path, "merge", "--abort"])
+            return MergeOutcome(False, conflicts=files)
+        return MergeOutcome(True, head=self.head(path))
+
+    def tree(self, path: str) -> str:
+        return self.run(["git", "-C", path, "rev-parse", "HEAD^{tree}"]).strip()
+
+    def push_branch(self, path: str, branch: str) -> str:
+        head = self.head(path)
+        self.run(["git", "-C", path, "push", "--quiet", "origin", f"HEAD:refs/heads/{branch}"])
+        return head
 
 
 def real_world(target: Path, *, caches: Path | None = None) -> World:
@@ -488,7 +388,7 @@ def real_world(target: Path, *, caches: Path | None = None) -> World:
     clock = SystemClock()
     return World(
         github=GhGitHub(run),
-        git=CliGit(run),
+        git=CliGit(run, str(target)),
         clock=clock,
         machine=LocalMachine(run),
         plans=T3Plans(clock, caches),

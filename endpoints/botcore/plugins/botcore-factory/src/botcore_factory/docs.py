@@ -24,9 +24,24 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 
 ## Events
 
-`ejected` (answered by a re-enqueue or `lane_drop`), `ejection-limit` (the same), `lane-error`
-(`lane_resume`), `queue-room` (`cell_register`), and the lane loop's others. Any open event can
-be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
+`ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
+`ci-failed`, `merge-failed`; with `detail`, `lines` and `logPath`; answered by a re-enqueue or
+`lane_drop`), `ejection-limit` (at `cells.maxEjections`; the same), `lane-error` (the lane's own
+trouble: it paused and ejected nothing; `lane_resume`), `queue-room` (`cell_register`),
+`merged`, `merged-without-check`, `main-broken` (coverage on main failed; `suspects` are the PRs
+since the last green run; the lane paused), `queue-empty` (a drained move happens here) and
+`lane-stopped` (the lane process is gone; `lane_start`). Any open event can be answered with
+`event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
+
+## The lane
+
+`lane_host_probe()` on each machine publishes its readiness; `lane_host_list()` reads them;
+`lane_host_set(id)` chooses the host. On the host, `lane_start()` starts the lane detached. It
+queues held branches when there is room, validates in `lane.slots` slots (each merges origin's
+head in and runs the adapter's `validate`), merges serially in queue order (re-validating when
+main moved since the validation started), pushes, opens the PR, waits for `required_check` and
+squash-merges bound to the validated head. Coverage runs on main every `lane.coverageEvery`
+merges and at once after a merge touching `gate_paths`. The lane never edits code.
 
 ## Commands
 
@@ -68,6 +83,22 @@ be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists 
   back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND`.
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, aboveCeiling, resetsAt}`.
   Refuses `PLANS_UNREADABLE`.
+- `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
+  `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `TOOLCHAIN_MISMATCH`
+  (`packageManager` exactly, `engines.node` at least).
+- `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
+  goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`.
+- `lane_run(steps?)` -> the loop in the foreground, for debugging the lane itself.
+- `lane_host_probe()` -> `record {id, name, cores, memoryGb, freeDiskGb, missing[], measured,
+  suggestedSlots, probedAt}`, published to `refs/factory/hosts/<id>` on origin.
+- `lane_host_list()` -> `machines[]` (the records, with `reachable`: probed in the last 24
+  hours, and `ready`: reachable and missing nothing).
+- `lane_host_set(id, drain?, recover?)` -> `host`, `previous`; with `drain`, `draining` and
+  `moveTo`; with `recover`, `rebuilt {queue, claims}` from origin's queue refs and GitHub's
+  claims (a person confirms recovery). Refuses `NOT_FOUND`, `HOST_NOT_READY`, `LANE_BUSY`.
+- `lane_report(run?, compare?)` -> `run`, `mergedPerHour`, `validationsPerMerge`,
+  `productiveShare`, `staleRuns`, `reruns`, `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
+  `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.
 - `dial_set(key, value)` -> `key`, `value`, `previous`, `default`. Refuses `NOT_FOUND`,
   `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`) and

@@ -13,9 +13,22 @@ from __future__ import annotations
 import re
 import time
 
+from botcore_factory.records import make
 from botcore_factory.runtime import Factory, Refusal
 
-EVENT_FIELDS = ("id", "type", "branch", "reason", "detail", "logPath", "needsOwner", "at", "open")
+EVENT_FIELDS = (
+    "id",
+    "type",
+    "branch",
+    "reason",
+    "detail",
+    "lines",
+    "logPath",
+    "suspects",
+    "needsOwner",
+    "at",
+    "open",
+)
 #: Which action answers which event type (event-resolve answers any of them).
 ANSWERED_BY = {
     "ejected": ("lane-enqueue", "lane-drop"),
@@ -87,6 +100,11 @@ def lane_wait(factory: Factory, consumer: str, timeout_ms: int | None, status) -
                     event.setdefault("deliveredTo", []).append(consumer)
                 delivered = [view(event) for event in pending]
             if delivered:
+                at = _now(factory)
+                run_id = factory.store.read()["lane"].get("runId")
+                factory.store.append_record(
+                    make("wake", at, run_id, consumer=consumer, events=len(delivered))
+                )
                 compact = status()
                 return {"events": [{**event, "status": compact} for event in delivered]}
         remaining = None if deadline is None else deadline - time.monotonic()

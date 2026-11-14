@@ -185,8 +185,9 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
                 f"A cell is already registered for {branch}",
                 f"Register under another branch name, or lane-drop {branch} first",
             )
-        backlog = _check_issues(factory, issues)
+        # The host's limits first: a loaded host refuses before anything is read from GitHub.
         choice = _check_capacity(factory, state)
+        backlog = _check_issues(factory, issues)
         world = factory.world
         now = world.clock.now()
         hours = dials.value(state["dials"], "claims.leaseHours")

@@ -17,15 +17,24 @@ kind                    required fields                                     writ
                         profile, state (queued | held), firstEnqueuedAt
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
 ``validation-started``  branch, attempt, head, base, slot                   the lane loop
-``validated``           branch, attempt, outcome (passed | failed),         the lane loop
-                        checksRun, testsRun, minutes; optional flaky,
-                        mainMovedRerun, logPath
+``validated``           branch, attempt, outcome (passed | failed), head,   the lane loop
+                        base, tree, command, minutes: the lane's own record
+                        of a validation, for every repository; optional
+                        checksRun, testsRun (when the adapter reports
+                        them), flaky, logPath
+``rerun``               branch, attempt, reason (main-moved | restart)      the lane loop
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed); optional head,
                         logPath
-``merged``              branch, attempt, pr, checksRun                      the lane loop
+``merged``              branch, attempt, pr; optional checksRun,            the lane loop
+                        withoutCheck
 ``dropped``             branch, reason                                      lane-drop
+``coverage``            main, outcome (passed | failed), minutes;           the lane loop
+                        optional logPath, after (the PRs since the last)
+``run-started``         host                                                lane-start, lane-run
+``run-stopped``         reason (stopped | forced | died)                    the lane, lane-stop
+``wake``                consumer, events (a lane-wait that returned some)   lane-wait
 ======================  ==================================================  =====================
 
 Optional on any record: ``holdReason`` (``queue-full``; time held for the owner is told apart
@@ -53,11 +62,36 @@ REQUIRED: dict[str, tuple[str, ...]] = {
     ),
     "queued": ("branch", "attempt"),
     "validation-started": ("branch", "attempt", "head", "base", "slot"),
-    "validated": ("branch", "attempt", "outcome", "checksRun", "testsRun", "minutes"),
+    "validated": (
+        "branch",
+        "attempt",
+        "outcome",
+        "head",
+        "base",
+        "tree",
+        "command",
+        "minutes",
+    ),
+    "rerun": ("branch", "attempt", "reason"),
     "ejected": ("branch", "attempt", "cause"),
-    "merged": ("branch", "attempt", "pr", "checksRun"),
+    "merged": ("branch", "attempt", "pr"),
     "dropped": ("branch", "reason"),
+    "coverage": ("main", "outcome", "minutes"),
+    "run-started": ("host",),
+    "run-stopped": ("reason",),
+    "wake": ("consumer", "events"),
 }
+#: Why the lane ejects a branch (the proposal's list).
+EJECT_CAUSES = (
+    "conflict",
+    "entry-invalid",
+    "final-failed",
+    "push-failed",
+    "pr-failed",
+    "ci-failed",
+    "merge-failed",
+    "coverage-failed",
+)
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})
 #: When each kind happened, as the field an attempt row carries it in.
@@ -120,6 +154,10 @@ def attempts(records: list[dict]) -> list[dict]:
             row.setdefault("outcome", "dropped")
             row["droppedAt"] = record["at"]
             continue
+        if kind == "rerun" and (branch, record.get("attempt")) in rows:
+            row = rows[(branch, record["attempt"])]
+            row["reruns"] = row.get("reruns", 0) + 1
+            continue
         if kind not in _TIMES or "attempt" not in record:
             continue
         key = (branch, record["attempt"])
@@ -144,7 +182,7 @@ def _fold(row: dict, kind: str, record: dict) -> None:
         row["state"] = "validating"
     elif kind == "validated":
         row["state"] = "validated"
-        for name in ("checksRun", "testsRun", "minutes", "flaky", "mainMovedRerun", "logPath"):
+        for name in ("checksRun", "testsRun", "minutes", "flaky", "logPath", "tree", "base"):
             if name in record:
                 row[name] = record[name]
         row["validation"] = record["outcome"]
@@ -154,7 +192,8 @@ def _fold(row: dict, kind: str, record: dict) -> None:
             row["cause"] = record["cause"]
             row["logPath"] = record.get("logPath", row.get("logPath"))
         else:
-            row["pr"], row["checksRun"] = record["pr"], record["checksRun"]
+            row["pr"] = record["pr"]
+            row["withoutCheck"] = bool(record.get("withoutCheck"))
     row.setdefault("state", None)
 
 

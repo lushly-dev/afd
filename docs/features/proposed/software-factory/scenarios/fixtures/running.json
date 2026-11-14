@@ -168,5 +168,49 @@
 				}
 			]
 		}
+	],
+	"issues": [
+		{
+			"number": 101,
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T09:00:00Z"
+		},
+		{
+			"number": 102,
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T10:00:00Z"
+		},
+		{
+			"number": 103,
+			"labels": ["status:in-progress", "execution:bounded", "area:client"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T11:00:00Z"
+		},
+		{
+			"number": 104,
+			"labels": ["status:in-progress", "execution:bounded", "area:core"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T12:00:00Z"
+		},
+		{
+			"number": 105,
+			"labels": ["status:in-progress", "execution:bounded", "area:client"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T13:00:00Z"
+		},
+		{
+			"number": 106,
+			"labels": ["status:planned", "execution:bounded", "area:server"],
+			"assignees": [],
+			"openPrs": [],
+			"createdAt": "2030-01-01T14:00:00Z"
+		}
 	]
 }

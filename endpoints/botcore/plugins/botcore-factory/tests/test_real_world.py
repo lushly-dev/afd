@@ -37,10 +37,10 @@ class FakeRun:
         self.fail = fail or {}
         self.calls: list[tuple[list[str], str | None]] = []
 
-    def __call__(self, args, stdin=None):
+    def __call__(self, args, stdin=None, check=True):
         self.calls.append((list(args), stdin))
         key = " ".join(args[:3])
-        if key in self.fail:
+        if key in self.fail and check:
             raise WorldError(self.fail[key])
         return self.answers.get(key, "")
 
@@ -294,3 +294,154 @@ def test_no_plan_windows_is_unreadable(tmp_path):
 def test_the_real_world_is_assembled_for_a_target(tmp_path):
     world = real_world(tmp_path, caches=tmp_path)
     assert isinstance(world, World) and isinstance(world.plans, T3Plans)
+
+
+def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
+    rules = json.dumps(
+        [
+            {
+                "type": "required_status_checks",
+                "parameters": {"required_status_checks": [{"context": "ci-ok"}]},
+            }
+        ]
+    )
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/rules/branches/main": rules,
+            "gh pr list": "[]",
+            "gh pr create": "https://github.com/o/r/pull/612\n",
+            "gh pr checks": json.dumps([{"name": "ci-ok", "bucket": "pending"}]),
+            "gh pr view": json.dumps({"state": "MERGED"}),
+        },
+        fail={"gh api repos/o/r/branches/main/protection/required_status_checks": "HTTP 404"},
+    )
+    github = GhGitHub(run)
+    assert github.signed_in() is True
+    assert github.required_checks("main") == ["ci-ok"]
+    assert github.open_pr("fix/a", "Fix a", "Body") == 612
+    assert github.check_status(612, "ci-ok") == "pending"
+    assert github.check_status(612, "other") == "missing"
+    github.merge_pr(612, "abc")
+    assert github.pr_state(612) == "MERGED"
+    calls = [args for args, _ in run.calls]
+    assert [
+        "gh",
+        "pr",
+        "create",
+        "--head",
+        "fix/a",
+        "--title",
+        "Fix a",
+        "--body-file",
+        "-",
+    ] in calls
+    assert ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"] in calls
+    assert GhGitHub(FakeRun(fail={"gh auth status": "not logged in"})).signed_in() is False
+
+
+def test_an_open_pr_for_the_branch_is_reused():
+    run = FakeRun({"gh pr list": json.dumps([{"number": 77}])})
+    assert GhGitHub(run).open_pr("fix/a", "t", "b") == 77
+    assert all(args[:3] != ["gh", "pr", "create"] for args, _ in run.calls)
+
+
+def test_git_lists_queue_refs_and_publishes_a_host_record_without_the_checkout():
+    run = FakeRun(
+        {
+            "git ls-remote origin": (
+                "abc\trefs/factory/queue/fix/a\ndef\trefs/factory/queue/fix/b\n"
+            ),
+            "git hash-object -w": "blob1\n",
+            "git mktree": "tree1\n",
+            "git -c user.name=botcore-factory": "commit1\n",
+        }
+    )
+    git = CliGit(run)
+    assert git.queue_refs() == [
+        {"branch": "fix/a", "head": "abc"},
+        {"branch": "fix/b", "head": "def"},
+    ]
+    from botcore_factory.world import HostRecord
+
+    git.publish_host_record(HostRecord(id="workstation", cores=16))
+    calls = run.calls
+    assert json.loads(calls[1][1])["id"] == "workstation"
+    assert calls[2][1] == "100644 blob blob1\thost.json\n"
+    assert calls[-1][0] == [
+        "git",
+        "push",
+        "--force",
+        "--quiet",
+        "origin",
+        "commit1:refs/factory/hosts/workstation",
+    ]
+
+
+def test_git_prepares_a_slot_merges_main_and_reports_a_conflict(tmp_path):
+    run = FakeRun(
+        {
+            "git rev-parse --path-format=absolute": str(tmp_path / ".git") + "\n",
+            "git -C " + str(tmp_path / ".git" / "factory" / "slots" / "1"): "",
+        }
+    )
+    git = CliGit(run, str(tmp_path))
+    path = git.prepare_slot("1", "fix/a", "abc")
+    assert path == str(tmp_path / ".git" / "factory" / "slots" / "1")
+    calls = [args for args, _ in run.calls]
+    assert [
+        "git",
+        "fetch",
+        "--quiet",
+        "origin",
+        "+refs/factory/queue/fix/a:refs/factory/queue/fix/a",
+    ] in calls
+    assert ["git", "worktree", "add", "--force", "--detach", path, "abc"] in calls
+
+    class Conflicted(FakeRun):
+        def __call__(self, args, stdin=None, check=True):
+            self.calls.append((list(args), stdin))
+            if args[3:5] == ["diff", "--name-only"]:
+                return "src/a.ts\n"
+            return ""
+
+    conflicted = Conflicted()
+    outcome = CliGit(conflicted).merge_main("slot", "main1")
+    assert (outcome.clean, outcome.conflicts) == (False, ("src/a.ts",))
+    assert ["git", "-C", "slot", "merge", "--abort"] in [args for args, _ in conflicted.calls]
+
+
+def test_background_runs_are_polled_and_the_detached_lane_terminated(tmp_path):
+    processes = OsProcesses()
+    log = tmp_path / "logs" / "run.log"
+    handle = processes.start(
+        [sys.executable, "-c", "print('FAIL x')"], str(tmp_path), str(log), label="validate"
+    )
+    import time
+
+    deadline = time.monotonic() + 30
+    done = None
+    while done is None and time.monotonic() < deadline:
+        done = processes.poll(handle)
+        time.sleep(0.05)
+    assert done is not None and done.returncode == 0 and "FAIL x" in done.stdout
+    sleeper = processes.start_detached(
+        [sys.executable, "-c", "import time; time.sleep(60)"],
+        str(tmp_path),
+        str(tmp_path / "d.log"),
+    )
+    assert processes.alive(sleeper)
+    processes.terminate(sleeper)
+    deadline = time.monotonic() + 10
+    while processes.alive(sleeper) and time.monotonic() < deadline:
+        time.sleep(0.05)
+    assert not processes.alive(sleeper)
+
+
+def test_this_machine_s_programs_symlinks_and_versions():
+    machine = LocalMachine()
+    assert machine.has_program(sys.executable) is True
+    assert machine.has_program("botcore-factory-no-such-program") is False
+    assert isinstance(machine.symlinks(), bool)
+    assert machine.tool_version(sys.executable).count(".") == 2
+    assert machine.tool_version("botcore-factory-no-such-program") is None

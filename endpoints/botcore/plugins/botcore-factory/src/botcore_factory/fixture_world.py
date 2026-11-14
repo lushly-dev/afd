@@ -15,23 +15,19 @@ from __future__ import annotations
 import copy
 import json
 import os
-from collections.abc import Sequence
-from datetime import datetime
 from pathlib import Path
 
 from botcore_factory import records
-from botcore_factory.claims import Claim, claim_body, parse_time
-from botcore_factory.world import (
-    LANE_HOST_VARIABLE,
-    Comment,
-    Completed,
-    HostRecord,
-    Issue,
-    Plan,
-    PullRequest,
-    World,
-    WorldError,
+from botcore_factory.claims import Claim, claim_body
+from botcore_factory.fixture_parts import (
+    FixtureClock,
+    FixtureGit,
+    FixtureGitHub,
+    FixtureMachine,
+    FixturePlans,
+    FixtureProcesses,
 )
+from botcore_factory.world import World, WorldError
 
 #: Fixture keys the world answers for; the rest of a fixture is the lane's own state.
 WORLD_KEYS = frozenset(
@@ -52,6 +48,14 @@ WORLD_KEYS = frozenset(
         "pullRequests",
         "variables",
         "plansUnreadable",
+        "toolchains",
+        "requiredChecks",
+        "outcomes",
+        "main",
+        "prs",
+        "nextPr",
+        "pushed",
+        "checkouts",
     }
 )
 STATE_KEYS = frozenset(
@@ -72,7 +76,6 @@ STATE_KEYS = frozenset(
     }
 )
 IGNORED_KEYS = frozenset({"$schema", "app", "description", "version"})
-DEFAULT_NOW = "2030-01-01T00:00:00Z"
 
 
 def deep_merge(base: dict, override: dict) -> dict:
@@ -158,7 +161,30 @@ def open_run(world_path: Path, state_base: Path, fixture: dict) -> tuple[World, 
                     cause=worktree["ejectedFor"],
                 )
             )
+    if state_part.get("lane", {}).get("running"):
+        _seed_running_lane(world_path, store)
     return world, store
+
+
+#: The pid a fixture's running lane has: alive in the fixture world, holding the host lock.
+FIXTURE_LANE_PID = 4_000_000
+
+
+def _seed_running_lane(world_path: Path, store) -> None:
+    """A fixture that says the lane runs gets a live lane process holding the host lock."""
+    fixture = FixtureWorld(world_path)
+    processes = fixture.data.setdefault("processes", {})
+    processes.setdefault("alive", []).append(FIXTURE_LANE_PID)
+    fixture.save()
+    lock = store.root.parent / "lane.lock"
+    lock.parent.mkdir(parents=True, exist_ok=True)
+    repository = fixture.data.get("repository") or "example-org/example-repo"
+    lock.write_text(
+        json.dumps({"pid": FIXTURE_LANE_PID, "startedAt": None, "repository": repository}),
+        encoding="utf-8",
+    )
+    with store.update("fixture lane") as state:
+        state["lane"]["pid"] = FIXTURE_LANE_PID
 
 
 class FixtureWorld:
@@ -209,248 +235,3 @@ def _write(path: Path, data: dict) -> None:
     temporary = path.with_name(f"{path.name}.{os.getpid()}.tmp")
     temporary.write_text(json.dumps(data, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     os.replace(temporary, path)
-
-
-def _issue(data: dict) -> Issue:
-    return Issue(
-        number=data["number"],
-        title=data.get("title", f"Issue {data['number']}"),
-        labels=tuple(data.get("labels", [])),
-        assignees=tuple(data.get("assignees", [])),
-        created_at=data.get("createdAt", ""),
-        state=data.get("state", "OPEN"),
-    )
-
-
-class FixtureGitHub:
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def repository(self) -> str:
-        return self.store.data.get("repository") or "example-org/example-repo"
-
-    def list_issues(self) -> list[Issue]:
-        return [
-            _issue(issue)
-            for issue in self.store.data.get("issues", [])
-            if issue.get("state", "OPEN") == "OPEN"
-        ]
-
-    def get_issue(self, number: int) -> Issue:
-        return _issue(self.store.issue_data(number))
-
-    def comments(self, number: int) -> list[Comment]:
-        return [
-            Comment(c["id"], c["body"], c.get("author", ""), c.get("createdAt", ""))
-            for c in self.store.issue_data(number).get("comments", [])
-        ]
-
-    def edit_labels(self, number: int, add: Sequence[str] = (), remove: Sequence[str] = ()) -> None:
-        issue = self.store.issue_data(number)
-        labels = [label for label in issue.get("labels", []) if label not in set(remove)]
-        labels += [label for label in add if label not in labels]
-        issue["labels"] = labels
-        self.store.save()
-
-    def add_comment(self, number: int, body: str) -> Comment:
-        issue = self.store.issue_data(number)
-        comments = issue.setdefault("comments", [])
-        comment = {
-            "id": f"{number}-{len(comments) + 1}",
-            "body": body,
-            "author": "factory",
-            "createdAt": FixtureClock(self.store).stamp(),
-        }
-        comments.append(comment)
-        self.store.save()
-        return Comment(comment["id"], body, "factory", comment["createdAt"])
-
-    def open_pull_requests(self) -> list[PullRequest]:
-        closes: dict[int, set[int]] = {}
-        for issue in self.store.data.get("issues", []):
-            for pr in issue.get("openPrs", []):
-                number = pr if isinstance(pr, int) else pr["number"]
-                closes.setdefault(number, set()).add(issue["number"])
-        listed = {pr["number"]: pr for pr in self.store.data.get("pullRequests", [])}
-        for number, pr in listed.items():
-            closes.setdefault(number, set()).update(pr.get("closes", []))
-        return [
-            PullRequest(number, listed.get(number, {}).get("branch", ""), tuple(sorted(issues)))
-            for number, issues in sorted(closes.items())
-        ]
-
-    def get_variable(self, name: str) -> str | None:
-        if name == LANE_HOST_VARIABLE:
-            return self.store.data.get("laneHost")
-        return self.store.data.get("variables", {}).get(name)
-
-    def set_variable(self, name: str, value: str) -> None:
-        if name == LANE_HOST_VARIABLE:
-            self.store.data["laneHost"] = value
-        else:
-            self.store.data.setdefault("variables", {})[name] = value
-        self.store.save()
-
-
-class FixtureGit:
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def host_records(self) -> list[HostRecord]:
-        records = []
-        for raw in self.store.data.get("machines", []):
-            records.append(
-                HostRecord(
-                    id=raw["id"],
-                    name=raw.get("name", raw["id"]),
-                    cores=raw.get("cores"),
-                    memory_gb=raw.get("memoryGb"),
-                    free_disk_gb=raw.get("freeDiskGb"),
-                    missing=tuple(raw.get("missing", [])),
-                    measured=bool(raw.get("measured", False)),
-                    suggested_slots=int(raw.get("suggestedSlots", 1)),
-                    probed_at=raw.get("probedAt"),
-                    extra={k: v for k, v in raw.items() if k == "reachable"},
-                )
-            )
-        return records
-
-    def _worktree(self, worktree: str) -> dict:
-        found = self.store.data.get("worktrees", {}).get(worktree)
-        if found is None:
-            raise WorldError(f"No worktree {worktree}")
-        return found
-
-    def head(self, worktree: str) -> str:
-        return self._worktree(worktree).get("head", "")
-
-    def branch(self, worktree: str) -> str | None:
-        return self._worktree(worktree).get("branch")
-
-    def uncommitted(self, worktree: str) -> list[str]:
-        found = self._worktree(worktree)
-        if found.get("uncommitted"):
-            return list(found["uncommitted"])
-        clean = found.get("clean", not found.get("dirty", False))
-        return [] if clean else ["(uncommitted changes)"]
-
-    def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
-        """The fixture names the gate paths a branch changed (``gatePathsChanged``) and, when it
-        matters, the rest (``changed``); ``since`` is not modelled."""
-        found = self._worktree(worktree)
-        return [*found.get("gatePathsChanged", []), *found.get("changed", [])]
-
-    def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
-        self._worktree(worktree)
-        refs = [
-            ref for ref in self.store.data.get("originQueueRefs", []) if ref["branch"] != branch
-        ]
-        self.store.data["originQueueRefs"] = [*refs, {"branch": branch, "head": head}]
-        self.store.save()
-
-
-class FixtureClock:
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def now(self) -> datetime:
-        return parse_time(self.store.data.get("now") or DEFAULT_NOW)
-
-    def stamp(self) -> str:
-        return self.now().isoformat().replace("+00:00", "Z")
-
-
-class FixtureMachine:
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def id(self) -> str:
-        return self.store.data.get("thisMachine") or "workstation"
-
-    def cores(self) -> int:
-        return int(self.store.this_machine().get("cores", 1))
-
-    def memory_gb(self) -> float:
-        return float(self.store.this_machine().get("memoryGb", 0))
-
-    def free_memory_gb(self) -> float:
-        host = self.store.data.get("host", {})
-        if "freeMemoryGb" not in host:
-            raise WorldError("The fixture does not say how much memory is free (host.freeMemoryGb)")
-        return float(host["freeMemoryGb"])
-
-    def free_disk_gb(self, path: str) -> float:
-        return float(self.store.this_machine().get("freeDiskGb", 0))
-
-
-class FixturePlans:
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def read(self) -> list[Plan]:
-        if self.store.data.get("plansUnreadable"):
-            raise WorldError("The fixture's plans are unreadable")
-        return [
-            Plan(
-                raw["id"],
-                raw.get("provider", ""),
-                float(raw["used"]),
-                float(raw["elapsed"]),
-                raw.get("resetsAt"),
-            )
-            for raw in self.store.data.get("plans", [])
-        ]
-
-
-class FixtureProcesses:
-    """Only this process, and pids the fixture lists as alive, are running."""
-
-    def __init__(self, store: FixtureWorld) -> None:
-        self.store = store
-
-    def alive(self, pid: int, started_at: float | None = None) -> bool:
-        return pid == os.getpid() or pid in self.store.data.get("processes", {}).get("alive", [])
-
-    def start_time(self, pid: int) -> float | None:
-        return None
-
-    def run(
-        self,
-        args: Sequence[str],
-        cwd: str,
-        timeout: float | None = None,
-        *,
-        label: str | None = None,
-    ) -> Completed:
-        worktree = self.store.data.get("worktrees", {}).get(cwd)
-        if worktree is not None and label:
-            return _worktree_run(tuple(args), worktree, label)
-        commands = self.store.data.get("processes", {}).get("results", {})
-        key = " ".join(args)
-        if key not in commands:
-            raise WorldError(f"The fixture has no result for: {key}")
-        result = commands[key]
-        return Completed(
-            tuple(args),
-            result.get("returncode", 0),
-            result.get("stdout", ""),
-            result.get("stderr", ""),
-        )
-
-
-def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Completed:
-    """Answer a labelled run in a fixture worktree: its review record or a prequeue stage."""
-    if label == "review-evidence":
-        review = worktree.get("review")
-        reviewed = bool(review) and review.get("head") == worktree.get("head")
-        return Completed(args, 0 if reviewed else 1, "", "" if reviewed else "no review record")
-    if label.startswith("prequeue:"):
-        stage = label.split(":", 1)[1]
-        results = worktree.get("prequeue", {})
-        if stage not in results:
-            raise WorldError(f"The fixture worktree has no result for the {stage} stage")
-        outcome = str(results[stage])
-        if outcome == "pass":
-            return Completed(args, 0, "", "")
-        return Completed(args, 1, outcome.removeprefix("fail").lstrip(": ").strip(), "")
-    raise WorldError(f"The fixture cannot answer a {label} run")

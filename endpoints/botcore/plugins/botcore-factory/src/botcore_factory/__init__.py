@@ -22,6 +22,7 @@ from botcore_factory.adapter import FactoryConfig
 from botcore_factory.commands import POLICIES, make_commands
 from botcore_factory.docs import DOCS
 from botcore_factory.hosts import CELL_COMMANDS, build_factory_host
+from botcore_factory.lane_commands import LANE_POLICIES, make_lane_commands
 from botcore_factory.runtime import Factory, bind, current_bindings
 
 if TYPE_CHECKING:
@@ -79,6 +80,7 @@ class FactoryPlugin:
         self._config = config if isinstance(config, FactoryConfig) else FactoryConfig(**config)
 
     def register(self, registry: PluginRegistry) -> None:
-        registry.add_commands(make_commands(_HostFactory(self._config).get))
-        registry.add_policies(POLICIES)
+        get = _HostFactory(self._config).get
+        registry.add_commands([*make_commands(get), *make_lane_commands(get)])
+        registry.add_policies({**POLICIES, **LANE_POLICIES})
         registry.add_docs("factory", DOCS)

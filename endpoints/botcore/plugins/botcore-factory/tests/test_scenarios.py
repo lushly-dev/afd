@@ -24,6 +24,8 @@ from conftest import REPO_ROOT, SCENARIOS
 RUNNER = Path(__file__).resolve().parents[1] / "scenarios" / "run.mjs"
 
 JOBS = [
+    "01-run-where-there-is-capacity",
+    "02-move-the-host-safely",
     "03-start-a-cell-where-there-is-room",
     "04-stop-at-the-ceiling",
     "05-hand-over-a-reviewed-branch",
@@ -31,7 +33,10 @@ JOBS = [
     "07-never-lose-a-held-branch",
     "08-return-an-ejected-branch",
     "09-no-loosened-gate-in-a-repair",
+    "10-merge-more-in-parallel",
+    "12-finish-and-judge-the-dials",
     "14-triage-the-backlog",
+    "17-replace-an-offline-host",
 ]
 
 

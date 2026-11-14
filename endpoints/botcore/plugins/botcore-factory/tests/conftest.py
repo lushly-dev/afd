@@ -10,13 +10,16 @@ from __future__ import annotations
 import dataclasses
 import json
 import shutil
+import tomllib
 from pathlib import Path
 
 import pytest
 from botcore.context import ExecutionContext
 
-from botcore_factory.fixture_world import FixtureWorld, load_fixture, open_run
+from botcore_factory.adapter import FactoryConfig
+from botcore_factory.fixture_world import FixtureWorld, deep_merge, load_fixture, open_run
 from botcore_factory.hosts import build_factory_host
+from botcore_factory.runtime import Factory
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 SCENARIOS = REPO_ROOT / "docs/features/proposed/software-factory/scenarios"
@@ -65,6 +68,22 @@ class Run:
             world=world,
             state_base=self.state_base,
         )
+
+    def factory(self, target: Path | None = None) -> Factory:
+        """A Factory over the current world file, as a host's commands get one."""
+        root = target or self.target
+        config = tomllib.loads((root / "botcore.toml").read_text(encoding="utf-8"))
+        return Factory(
+            FixtureWorld(self.world_path).world(),
+            FactoryConfig(**config["plugins"]["factory"]),
+            root,
+            self.state_base,
+        )
+
+    def change_world(self, **changes) -> None:
+        """Merge changes into the world file (outcomes, now, prs...), as the outside changes."""
+        data = deep_merge(self.world_data(), changes)
+        self.world_path.write_text(json.dumps(data), encoding="utf-8")
 
     async def call(self, command: str, host=None, **arguments):
         return await (host or self.host()).execute(command, arguments)
