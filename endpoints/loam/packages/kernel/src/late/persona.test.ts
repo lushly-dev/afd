@@ -171,7 +171,11 @@ describe('P3-E2: the persona commands (6.3)', () => {
 		});
 		expect(set.data).toEqual({ persona: made.id, previous: DEFAULT_PERSONA });
 		expect(set.undoCommand).toBe('persona-set');
-		expect(set.undoArgs).toEqual({ persona: DEFAULT_PERSONA });
+		// The undo switches back and restores the appearance the switch replaced (6.3, amended in step 5).
+		expect(set.undoArgs).toEqual({
+			persona: DEFAULT_PERSONA,
+			appearance: { density: 'comfortable', theme: 'system' },
+		});
 		expect((await kernel.call('appearance-get')).data).toMatchObject({
 			density: 'compact',
 			theme: 'dark',
@@ -183,10 +187,49 @@ describe('P3-E2: the persona commands (6.3)', () => {
 		expect(event?.mainChanged).toBeUndefined();
 		expect((await kernel.call('scope-get')).data).toMatchObject({ scope: scopes.atlas });
 		expect((await kernel.call<{ active: string }>('app-list')).data?.active).toBe('tasks');
-		// Setting it again changes nothing that is announced.
-		events.length = 0;
+		// Undone: default again, and the appearance as it was.
+		const undone = await kernel.call('persona-set', set.undoArgs);
+		expect(undone.success).toBe(true);
+		expect((await kernel.call('appearance-get')).data).toMatchObject({
+			density: 'comfortable',
+			theme: 'system',
+		});
+		expect((await kernel.call<{ active: string }>('persona-list')).data?.active).toBe(
+			DEFAULT_PERSONA
+		);
+	});
+
+	it('P3-E2: choosing the active persona again changes nothing, its appearance included', async () => {
+		const { kernel } = await workspace();
+		const made = await create(kernel);
 		await kernel.call('persona-set', { persona: made.id });
+		await kernel.call('appearance-set', { density: 'comfortable' });
+		const events: KernelEventV3[] = [];
+		kernel.subscribe((event) => events.push(event));
+		const again = await kernel.call('persona-set', { persona: made.id });
+		expect(again.data).toEqual({ persona: made.id, previous: made.id });
+		expect(again.undoCommand).toBeUndefined();
 		expect(events[0]?.personaChanged).toBeUndefined();
+		expect((await kernel.call('appearance-get')).data).toMatchObject({ density: 'comfortable' });
+	});
+
+	it("P3-E2: persona-create answers another person's id as a malformed one; only the caller's own is told apart", async () => {
+		const { kernel } = await workspace();
+		await signIn(kernel, 'bea@example.com');
+		const beas = await create(kernel);
+		const own = await kernel.call('persona-create', { title: 'Again', id: beas.id });
+		expect(own.error).toMatchObject({
+			code: 'PERSONA_INVALID',
+			message: 'You already have a persona with this id',
+		});
+		await signIn(kernel, 'olu@example.com');
+		const foreign = await kernel.call('persona-create', { title: 'Mine', id: beas.id });
+		const malformed = await kernel.call('persona-create', { title: 'Mine', id: 'per_x' });
+		expect(foreign.error?.code).toBe('PERSONA_INVALID');
+		expect(foreign.error?.message.replace(beas.id, '<id>')).toBe(
+			malformed.error?.message.replace('per_x', '<id>')
+		);
+		expect(foreign.error?.suggestion).toBe(malformed.error?.suggestion);
 	});
 
 	it('P3-E2: persona-remove makes the active one default in the same call; its undo brings it back by id', async () => {
@@ -247,6 +290,44 @@ describe('P3-E2: the persona context field (6.2)', () => {
 		await kernel.call('project-list');
 		const lists = (await journal.read()).filter((entry) => entry.command === 'project-list');
 		expect(lists.map(personaOf)).toEqual([undefined, made.id, made.id, undefined]);
+	});
+
+	it("P3-E2: a signed-in person's agent journals that person's persona, never another's", async () => {
+		const { kernel, journal } = await workspace();
+		// The signed-out person's persona, then Bea's.
+		const local = await create(kernel, { title: 'Signed out' });
+		await kernel.call('persona-set', { persona: local.id });
+		await signIn(kernel, 'bea@example.com');
+		const beas = await create(kernel, { title: 'Bea' });
+		await kernel.call('persona-set', { persona: beas.id });
+		await kernel.agent.call('project-list');
+		const entry = (await journal.read()).filter((held) => held.command === 'project-list').at(-1);
+		expect((entry?.actor as { onBehalfOf?: string } | undefined)?.onBehalfOf).toBe(BEA);
+		expect(personaOf(entry)).toBe(beas.id);
+	});
+
+	it("P3-E2: a change of person reads the persona again, so another tab's switch is not missed", async () => {
+		const store = new MemoryAdapter();
+		const one = await workspace({ store });
+		const two = await workspace({ store });
+		await signIn(one.kernel, 'bea@example.com');
+		const x = await create(one.kernel, { title: 'X' });
+		const y = await create(one.kernel, { title: 'Y' });
+		await one.kernel.call('persona-set', { persona: x.id });
+		await one.kernel.flush();
+		// Tab 2 switches Bea to Y.
+		await signIn(two.kernel, 'bea@example.com');
+		await two.kernel.call('persona-set', { persona: y.id });
+		await two.kernel.flush();
+		// Tab 1 signs out and in again: its calls carry Y.
+		await one.kernel.call('auth-sign-out');
+		await signIn(one.kernel, 'bea@example.com');
+		await one.kernel.call('project-list');
+		const entry = (await one.journal.read())
+			.filter((held) => held.command === 'project-list')
+			.at(-1);
+		expect(personaOf(entry)).toBe(y.id);
+		expect((await one.kernel.call<{ active: string }>('persona-list')).data?.active).toBe(y.id);
 	});
 
 	it("P3-E2: a local sign-out carries the signed-out person's persona, read then", async () => {

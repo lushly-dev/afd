@@ -8,9 +8,9 @@
  * `loading` one has `aria-busy="true"`. A `dimmed` one (7.1) is `aria-disabled`, stays in the Tab order,
  * describes itself with its `tip`, and a press does nothing but show that tip. Its tooltip is the rail's
  * `loam-tooltip`, which reads `tip` (7.5). `loam-section-entry` is the same shape for a section (7.2).
- * An `emphasized` entry, an app the active persona puts first, has a mark beside its icon, a system color in
- * forced colors, and says so in its description unless it is dimmed, which says why (phase 3 specification,
- * 6.2 and 14).
+ * An `emphasized` entry, an app the active persona puts first, has a mark beside its icon, drawn in the entry's
+ * own color in forced colors too, and says so in its description, after why it is dimmed when it is (phase 3
+ * specification, 6.2 and 14).
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
@@ -29,7 +29,8 @@ const template = html<LoamAppEntry>`
 		aria-current="${(x) => (x.current ? 'page' : null)}"
 		aria-busy="${(x) => (x.state === 'loading' ? 'true' : null)}"
 		aria-disabled="${(x) => (x.dimmed ? 'true' : null)}"
-		aria-describedby="${(x) => (x.dimmed ? 'why' : x.emphasized ? 'emphasis' : null)}"
+		aria-describedby="${(x) =>
+			[x.dimmed && 'why', x.emphasized && 'emphasis'].filter(Boolean).join(' ') || null}"
 		@click="${(x) => x.press()}"
 	>
 		<span class="icon">
@@ -106,12 +107,21 @@ const styles = css`
 			color: GrayText;
 			border-color: GrayText;
 		}
+		/*
+		 * The entry's own system color, named per state: under forced-color-adjust: none, Chromium resolves
+		 * currentColor to the author color, not the forced one (the step 5 review's I3).
+		 */
 		:host([emphasized]) .icon::after {
 			forced-color-adjust: none;
 			background: ButtonText;
 		}
+		:host([emphasized]) .entry:not([aria-disabled]):hover .icon::after,
+		:host([emphasized]) .entry:not([aria-disabled]):active .icon::after,
 		:host([emphasized]) .entry[aria-current='page'] .icon::after {
 			background: HighlightText;
+		}
+		:host([emphasized]) .entry[aria-disabled] .icon::after {
+			background: GrayText;
 		}
 		.entry:hover:focus-visible,
 		.entry[aria-current='page']:focus-visible {

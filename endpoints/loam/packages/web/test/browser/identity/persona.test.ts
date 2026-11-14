@@ -147,43 +147,154 @@ describe('P3-E2: persona changes emphasis, never what anyone may do', () => {
 		for (const entry of later) expect(entry.context?.persona, entry.command).toBe(made.data.id);
 	});
 
-	it('P3-E2: the emphasized mark is not color alone: forced colors draw it in a system color, and its description says so', async () => {
+	it("P3-E2: the emphasized mark is not color alone: in forced colors it takes the entry's own system color, resting, hovered and dimmed, and the description says so", async () => {
 		const shell = await openShell(browser, site.root);
 		opened.push(shell);
 		const { page } = shell;
+		// No project: tasks, a project-only app, is dimmed; hello is not.
 		const made = (await kernelCall(page, 'persona-create', {
 			title: 'Greeter',
-			emphasis: { apps: ['hello'] },
+			emphasis: { apps: ['hello', 'tasks'] },
 		})) as { data: { id: string } };
 		await kernelCall(page, 'persona-set', { persona: made.data.id });
 		await settle(page);
 		await surfacesIdle(page);
-		const mark = () =>
-			page.evaluate(() => {
+		const mark = (instance: string) =>
+			page.evaluate((instance) => {
 				const entry = document
 					.querySelector('loam-shell')
 					?.shadowRoot?.querySelector('loam-rail')
-					?.shadowRoot?.querySelector('loam-app-entry[instance="hello"]');
+					?.shadowRoot?.querySelector(`loam-app-entry[instance="${instance}"]`);
 				const icon = entry?.shadowRoot?.querySelector('.icon') as Element;
 				const style = getComputedStyle(icon, '::after');
-				const button = entry?.shadowRoot?.querySelector('button');
-				const described = button?.getAttribute('aria-describedby');
+				const button = entry?.shadowRoot?.querySelector('button') as HTMLElement;
+				const described = button.getAttribute('aria-describedby') ?? '';
 				return {
 					emphasized: entry?.hasAttribute('emphasized'),
+					dimmed: button.getAttribute('aria-disabled') === 'true',
 					width: Number.parseFloat(style.width),
 					background: style.backgroundColor,
-					description: described ? entry?.shadowRoot?.getElementById(described)?.textContent : null,
+					color: getComputedStyle(button).color,
+					description: described
+						.split(' ')
+						.filter(Boolean)
+						.map((id) => entry?.shadowRoot?.getElementById(id)?.textContent?.trim())
+						.join(' '),
 				};
-			});
-		const seen = await mark();
-		expect(seen.emphasized).toBe(true);
-		expect(seen.width).toBeGreaterThan(0);
-		expect(seen.description).toBe('Emphasized by your persona');
-		await page.emulateMedia({ forcedColors: 'active' });
-		const forced = await mark();
-		expect(forced.width).toBeGreaterThan(0);
-		expect(forced.background).not.toBe('rgba(0, 0, 0, 0)');
-		await page.emulateMedia({ forcedColors: 'none' });
+			}, instance);
+		const hello = await mark('hello');
+		expect(hello).toMatchObject({ emphasized: true, dimmed: false });
+		expect(hello.width).toBeGreaterThan(0);
+		expect(hello.description).toBe('Emphasized by your persona');
+		// Dimmed and emphasized: both are said, why first.
+		const tasks = await mark('tasks');
+		expect(tasks).toMatchObject({ emphasized: true, dimmed: true });
+		expect(tasks.description).toBe('Choose a project to open Tasks Emphasized by your persona');
+		// Under axe with both entries emphasized and one dimmed, before forced colors, whose switch back transitions.
 		expect(await axe(page)).toEqual([]);
+		await page.emulateMedia({ forcedColors: 'active' });
+		// What each system color resolves to in this page, read raw.
+		const system = (name: string) =>
+			page.evaluate((name) => {
+				const probe = document.createElement('span');
+				probe.style.setProperty('forced-color-adjust', 'none');
+				probe.style.setProperty('background-color', name);
+				document.body.append(probe);
+				const color = getComputedStyle(probe).backgroundColor;
+				probe.remove();
+				return color;
+			}, name);
+		const [buttonText, highlightText, grayText] = [
+			await system('ButtonText'),
+			await system('HighlightText'),
+			await system('GrayText'),
+		];
+		// The mark is in the entry's own system color in each state, as its forced-colors rules draw the entry.
+		const resting = await mark('hello');
+		expect(resting.width).toBeGreaterThan(0);
+		expect(resting.background).toBe(buttonText);
+		expect((await mark('tasks')).background).toBe(grayText);
+		await page.locator('loam-rail loam-app-entry[instance="hello"] button').hover();
+		expect((await mark('hello')).background).toBe(highlightText);
+		expect(new Set([buttonText, highlightText, grayText]).size).toBe(3);
+		await page.mouse.move(640, 500);
+		await page.emulateMedia({ forcedColors: 'none' });
+	});
+
+	it("P3-E2: a change of person never shows the leaving person's persona in the title bar or the rail", async () => {
+		const shell = await openShell(browser, site.root);
+		opened.push(shell);
+		const { page } = shell;
+		await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'bea@example.com',
+			password: 'x',
+		});
+		const made = (await kernelCall(page, 'persona-create', {
+			title: 'Reviewer',
+			emphasis: { apps: ['hello'] },
+		})) as { data: { id: string } };
+		await kernelCall(page, 'persona-set', { persona: made.data.id });
+		await settle(page);
+		await page.waitForFunction(() =>
+			document
+				.querySelector('loam-shell')
+				?.shadowRoot?.querySelector('loam-titlebar')
+				?.shadowRoot?.textContent?.includes('Reviewer')
+		);
+		// From the moment the change of person is heard, every frame: neither Bea's title nor her emphasis.
+		await page.evaluate(() => {
+			const shell = document.querySelector('loam-shell') as unknown as {
+				kernel: {
+					subscribe(listener: (event: { command: string; success: boolean }) => void): void;
+				};
+				shadowRoot: ShadowRoot;
+			};
+			const seen: string[] = [];
+			(window as unknown as { seen: string[] }).seen = seen;
+			// The next person's persona answers late, as it does in `provider` mode behind the membership read after a
+			// sign-in (4.4): the window in which the last person's could still show.
+			const kernel = shell.kernel as unknown as {
+				call(name: string, ...rest: unknown[]): Promise<unknown>;
+			};
+			const call = kernel.call.bind(kernel);
+			kernel.call = async (name: string, ...rest: unknown[]) => {
+				if (name === 'persona-list') await new Promise((resolve) => setTimeout(resolve, 400));
+				return call(name, ...rest);
+			};
+			let heard = false;
+			let frames = 0;
+			shell.kernel.subscribe((event) => {
+				if (event.command === 'auth-sign-in' && event.success) heard = true;
+			});
+			const until = performance.now() + 3_000;
+			// From the frame after the change is heard: the event's own frame paints after the shell's updates.
+			const look = () => {
+				if (heard && frames++ > 0) {
+					const bar =
+						shell.shadowRoot.querySelector('loam-titlebar')?.shadowRoot?.textContent ?? '';
+					if (bar.includes('Reviewer')) seen.push('title');
+					const rail = shell.shadowRoot.querySelector('loam-rail')?.shadowRoot;
+					if (rail?.querySelector('loam-app-entry[emphasized]')) seen.push('emphasis');
+				}
+				if (performance.now() < until) requestAnimationFrame(look);
+			};
+			requestAnimationFrame(look);
+		});
+		await kernelCall(page, 'auth-sign-in', {
+			method: 'credentials',
+			email: 'olu@example.com',
+			password: 'x',
+		});
+		await settle(page);
+		await page.waitForTimeout(500);
+		expect(await page.evaluate(() => (window as unknown as { seen: string[] }).seen)).toEqual([]);
+		// Olu has no persona: the title bar names Olu alone.
+		const bar = await page.evaluate(
+			() =>
+				document.querySelector('loam-shell')?.shadowRoot?.querySelector('loam-titlebar')?.shadowRoot
+					?.textContent ?? ''
+		);
+		expect(bar).not.toContain('Reviewer');
 	});
 });

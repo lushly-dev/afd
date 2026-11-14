@@ -673,12 +673,16 @@ export async function createKernelParts(
 		}
 		const traceId = `${traceBase}-${++calls}`;
 		const owned = apps.contextOf(name, input);
-		// The call's person's persona, for the journal alone: no decision reads it (6.2). No read of the session
-		// while no one has one, and a read that fails is no persona: the chain answers for the session itself.
+		// The call's person's persona, for the journal alone: no decision reads it (6.2). The person is the one the
+		// chain will decide for: a copied actor's, else the session's, since the agent interface's actor gains its
+		// `onBehalfOf` only in the chain (the step 5 review's B1). No read of the session while no one has a persona,
+		// and a read that fails is no persona: the chain answers for the session itself.
 		let persona: string | undefined;
 		try {
 			if (personas.size > 0)
-				persona = personas.get(personOf({ actor: actor ?? sessionActor(options.auth, clock) }));
+				persona = personas.get(
+					personKey(actor) ?? personOf({ actor: sessionActor(options.auth, clock) })
+				);
 		} catch {}
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
 		// the active scope at this moment. No registry or connection holds it (3.2).

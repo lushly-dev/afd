@@ -702,6 +702,15 @@ export class LoamShell extends FASTElement {
 	#onEvent(event: KernelEventV3): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
+		// A change of person: nothing of the leaving person's persona shows while the next one's is read (6.1; the
+		// step 5 review's I2).
+		if (
+			event.actorChanged ||
+			(event.success && event.mutation && event.command.startsWith('auth-'))
+		) {
+			this.persona = '';
+			this.rail.emphasis = [];
+		}
 		this.rail.heard(event);
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
 		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));

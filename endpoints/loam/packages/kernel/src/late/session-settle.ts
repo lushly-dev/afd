@@ -681,7 +681,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	/** A person's active persona, read; a read that fails is `default`, never a failed settle. */
 	async function personaOf(person: string) {
 		try {
-			await deps.persona?.hear(person);
+			await deps.persona?.hear(person, true);
 			return await deps.persona?.recordOf(person);
 		} catch (cause) {
 			report(cause);

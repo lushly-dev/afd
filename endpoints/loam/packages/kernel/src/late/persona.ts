@@ -111,8 +111,13 @@ export function createPersona(deps: PersonaDeps) {
 		return row?.person === person ? row : undefined;
 	}
 
-	/** Read `loam.persona~<person>` once into the kernel's map; a record naming no persona of theirs is `default`. */
-	function hear(person: string): Promise<void> {
+	/**
+	 * Read `loam.persona~<person>` into the kernel's map, once per person until `fresh` asks again; a record naming no
+	 * persona of theirs is `default`. A change of person reads it fresh, so another tab's switch is not missed (the
+	 * step 5 review's I1).
+	 */
+	function hear(person: string, fresh = false): Promise<void> {
+		if (fresh) read.delete(person);
 		let reading = read.get(person);
 		if (!reading) {
 			reading = (async () => {
@@ -324,6 +329,14 @@ export function createPersona(deps: PersonaDeps) {
 				);
 			}
 			const id = input.id ?? newId(context);
+			// The caller's own persona may say so; anyone else's answers as a malformed id does, so no one learns
+			// that an id is held (6.1; the step 5 review's N1).
+			if (await own(person, id)) {
+				return invalid(
+					'You already have a persona with this id',
+					'Leave the id out to make a new one, or change it with persona-update'
+				);
+			}
 			if (!/^per_[a-z0-9]{16}$/.test(id) || (await store.get(PERSONA_TABLE, id))) {
 				return invalid(
 					`'${id}' cannot be a new persona's id`,
@@ -461,7 +474,17 @@ export function createPersona(deps: PersonaDeps) {
 		},
 	});
 
-	const personaSet = kit.define<typeof refInput, { persona: string; previous: string }>({
+	const setInput = z.strictObject({
+		persona: ref,
+		// What a switch's undo restores: the density and theme the switch replaced (6.3, amended in step 5).
+		appearance: z.optional(
+			z.strictObject({
+				density: z.optional(z.enum(deps.densities as [string, ...string[]])),
+				theme: z.optional(z.enum(deps.themes as [string, ...string[]])),
+			})
+		),
+	});
+	const personaSet = kit.define<typeof setInput, { persona: string; previous: string }>({
 		name: 'persona-set',
 		title: 'Switch persona',
 		description:
@@ -470,30 +493,53 @@ export function createPersona(deps: PersonaDeps) {
 		mutation: true,
 		undoable: true,
 		executionTime: 'fast',
-		input: refInput,
-		jsonSchema: REF_INPUT_JSON,
+		input: setInput,
+		jsonSchema: {
+			type: 'object',
+			properties: {
+				persona: REF_JSON,
+				appearance: {
+					type: 'object',
+					properties: {
+						density: { type: 'string', enum: [...deps.densities] },
+						theme: { type: 'string', enum: [...deps.themes] },
+					},
+					additionalProperties: false,
+				},
+			},
+			required: ['persona'],
+			additionalProperties: false,
+		},
 		async handler(input, context) {
 			const person = kit.personOf(context);
 			const held = input.persona === DEFAULT_PERSONA ? undefined : await own(person, input.persona);
 			if (input.persona !== DEFAULT_PERSONA && !held) return notFound();
 			const previous = await activeOf(person);
-			// A persona's density and theme, through `appearance-set`'s own code, in this call (6.2).
+			// Choosing the active persona again changes nothing, its appearance included (the step 5 review's I4).
+			if (previous === input.persona) return kit.success({ persona: input.persona, previous });
+			// A persona's density and theme, through `appearance-set`'s own code, in this call (6.2); `appearance`, which
+			// an undo passes, is what the switch it undoes replaced, and wins.
 			const { density, theme } = held?.defaults ?? {};
 			const patch = {
 				...(density !== undefined ? { density } : {}),
 				...(theme !== undefined ? { theme } : {}),
+				...input.appearance,
 			};
+			let replaced: Record<string, unknown> | undefined;
 			if (Object.keys(patch).length > 0) {
 				const applied = await deps.appearance(patch, context);
 				if (!applied.success) return applied as CommandResult<never>;
+				replaced = applied.undoArgs;
 			}
-			if (previous !== input.persona) {
-				await activate(person, input.persona, kit.callNow(context));
-				deps.scope.note(context.traceId, { personaChanged: true });
-			}
+			await activate(person, input.persona, kit.callNow(context));
+			deps.scope.note(context.traceId, { personaChanged: true });
+			// The undo switches back and restores the appearance this switch replaced (6.3, amended in step 5).
 			return kit.success(
 				{ persona: input.persona, previous },
-				{ undoCommand: 'persona-set', undoArgs: { persona: previous } }
+				{
+					undoCommand: 'persona-set',
+					undoArgs: { persona: previous, ...(replaced ? { appearance: replaced } : {}) },
+				}
 			);
 		},
 	});
