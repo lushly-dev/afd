@@ -169,7 +169,9 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 		await expect
 			.poll(() => link(again.page).locator('h1').textContent())
 			.toBe('This link does not work');
-		expect([...invitee.errors, ...again.errors]).toEqual([]);
+		expect(invitee.errors).toEqual([]);
+		// The refused check is a 404, which the browser logs as a failed resource; nothing else.
+		expect(again.errors.filter((error) => !/status of 404/.test(error))).toEqual([]);
 		expect([...invitee.violations, ...again.violations]).toEqual([]);
 	});
 
@@ -274,11 +276,12 @@ describe('P3-E18: recovery, through a test-only auth host', () => {
 		const page = await open();
 		await shadow(page.page, 'loam-main .sign-in').click();
 		const dialog = shadow(page.page, 'loam-sign-in-dialog');
-		await dialog.getByRole('button', { name: "Can't sign in?" }).click();
+		await dialog.getByRole('button', { name: "Can't sign in?", exact: true }).click();
 		await dialog.locator('#recover-email').fill('cy@example.com');
 		await dialog.getByRole('button', { name: 'Email me a link' }).click();
+		// The provider answers 1,000 ms after the request, whatever it found (5.7).
 		await expect
-			.poll(() => dialog.locator('.message').textContent())
+			.poll(() => dialog.locator('.message').textContent(), { timeout: 5_000 })
 			.toContain('If cy@example.com has an account, a link to restore your access is on its way');
 		const url = await mailedLink('cy@example.com');
 		const recovering = await openLink(url);

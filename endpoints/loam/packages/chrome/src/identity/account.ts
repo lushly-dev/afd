@@ -12,7 +12,6 @@
  * destructive action is confirmed in a native modal dialog with its consequence in words, as the sign-in dialog is.
  */
 
-import { css, FASTElement } from '@lushly-dev/fast-element';
 import type {
 	AccountV1,
 	LoamKernelV3,
@@ -21,239 +20,24 @@ import type {
 	OwnInvitationV1,
 } from '@lushly-dev/loam-kernel';
 import type { LoamShell } from '../elements/shell.js';
+import {
+	AccountElement,
+	type Answer,
+	askName,
+	button,
+	confirmIn,
+	dateText,
+	defineOnce,
+	el,
+	ROLE_NAMES,
+} from './account-parts.js';
 
-interface Answer<T = unknown> {
-	success: boolean;
-	data?: T;
-	error?: { code?: string; message?: string; suggestion?: string };
-}
-
-type Child = Node | string;
-
-/** An element whose text is always text. */
-function el(
-	tag: string,
-	attributes: Record<string, string> = {},
-	...children: Child[]
-): HTMLElement {
-	const element = document.createElement(tag);
-	for (const [name, value] of Object.entries(attributes)) element.setAttribute(name, value);
-	element.append(...children);
-	return element;
-}
-
-const button = (label: string, run: () => unknown, attributes: Record<string, string> = {}) => {
-	const made = el('button', { type: 'button', class: 'action', ...attributes }, label);
-	made.addEventListener('click', () => void run());
-	return made;
-};
-
-const dateText = (value: string | number | null | undefined): string => {
-	if (value === null || value === undefined) return '';
-	try {
-		return new Intl.DateTimeFormat(undefined, { dateStyle: 'medium', timeStyle: 'short' }).format(
-			new Date(value)
-		);
-	} catch {
-		return '';
-	}
-};
-
-const ROLE_NAMES: Record<string, string> = { owner: 'Owner', admin: 'Admin', member: 'Member' };
-
-const styles = css`
-	:host {
-		display: block;
-		color: var(--color-text-primary);
-		font-size: var(--type-body-md-size);
-		line-height: var(--type-body-md-line);
-	}
-	.section {
-		display: grid;
-		gap: var(--space-stack-md);
-		max-inline-size: calc(var(--shell-size-main-min) * 2);
-	}
-	h1 {
-		margin: 0;
-		font-size: var(--type-title-md-size);
-		line-height: var(--type-title-md-line);
-		font-weight: var(--type-title-md-weight);
-	}
-	h2 {
-		margin: 0;
-		font-size: var(--type-title-sm-size);
-		line-height: var(--type-title-sm-line);
-		font-weight: var(--type-title-sm-weight);
-	}
-	p {
-		margin: 0;
-	}
-	[role='tablist'] {
-		display: flex;
-		flex-wrap: wrap;
-		gap: var(--space-inline-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
-	}
-	[role='tab'] {
-		display: inline-flex;
-		align-items: center;
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
-		border-block-end: 2px solid transparent;
-		color: var(--color-text-secondary);
-		text-decoration: none;
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
-	}
-	[role='tab'][aria-selected='true'] {
-		border-block-end-color: var(--color-focus-ring);
-		color: var(--color-text-primary);
-		font-weight: var(--weight-semibold);
-	}
-	[role='tabpanel'] {
-		display: grid;
-		gap: var(--space-stack-md);
-	}
-	table {
-		border-collapse: collapse;
-		inline-size: 100%;
-	}
-	caption {
-		text-align: start;
-		padding-block-end: var(--space-stack-xs);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
-		color: var(--color-text-secondary);
-	}
-	th,
-	td {
-		padding: var(--size-space-sm);
-		border-block-end: 1px solid var(--color-border-subtle);
-		text-align: start;
-		vertical-align: middle;
-	}
-	th {
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
-		color: var(--color-text-secondary);
-	}
-	form,
-	.row {
-		display: flex;
-		flex-wrap: wrap;
-		align-items: end;
-		gap: var(--space-inline-sm);
-	}
-	label {
-		display: grid;
-		gap: var(--space-stack-xs);
-		font-size: var(--type-label-sm-size);
-		line-height: var(--type-label-sm-line);
-		font-weight: var(--type-label-sm-weight);
-	}
-	input,
-	select {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-sm);
-		border: 1px solid var(--color-field-border);
-		border-radius: var(--radius-md);
-		background: var(--color-field-background);
-		color: var(--color-text-primary);
-		font: inherit;
-	}
-	.action {
-		min-block-size: var(--size-target-natural);
-		padding-inline: var(--size-space-md);
-		border: 1px solid var(--color-action-secondary-border);
-		border-radius: var(--radius-md);
-		background: var(--color-action-secondary-background);
-		color: var(--color-action-secondary-text);
-		font: inherit;
-		cursor: pointer;
-	}
-	.action.primary {
-		border-color: var(--color-action-primary-background);
-		background: var(--color-action-primary-background);
-		color: var(--color-action-primary-text);
-	}
-	.action[aria-disabled='true'] {
-		cursor: not-allowed;
-		opacity: 0.6;
-	}
-	[role='tab']:focus-visible,
-	.action:focus-visible,
-	input:focus-visible,
-	select:focus-visible,
-	h1:focus-visible,
-	a:focus-visible {
-		outline: var(--shell-size-focus) solid var(--color-focus-ring);
-		outline-offset: var(--size-space-xs);
-	}
-	h1:focus:not(:focus-visible) {
-		outline: none;
-	}
-	.note {
-		color: var(--color-text-secondary);
-	}
-	.status:empty {
-		display: none;
-	}
-	dialog {
-		box-sizing: border-box;
-		inline-size: min(92vw, var(--shell-size-main-min));
-		padding: var(--space-layout-md);
-		border: 1px solid var(--color-border-strong);
-		border-radius: var(--radius-lg);
-		background: var(--color-surface-floating);
-		box-shadow: var(--shadow-floating);
-		color: var(--color-text-primary);
-	}
-	dialog .row {
-		justify-content: end;
-		margin-block-start: var(--space-stack-md);
-	}
-	@media (forced-colors: active) {
-		[role='tab'][aria-selected='true'] {
-			border-block-end-color: Highlight;
-		}
-		.action[aria-disabled='true'] {
-			color: GrayText;
-		}
-	}
-`;
-
-/** A destructive action, confirmed in a native modal dialog with its consequence in words (14). */
-function confirmIn(
-	root: ShadowRoot,
-	title: string,
-	consequence: string,
-	confirm: string
-): Promise<boolean> {
-	return new Promise((resolve) => {
-		const heading = el('h2', { id: 'confirm-title' }, title);
-		const yes = button(confirm, () => close(true), { class: 'action primary' });
-		const no = button('Cancel', () => close(false));
-		const dialog = el(
-			'dialog',
-			{ 'aria-labelledby': 'confirm-title' },
-			heading,
-			el('p', {}, consequence),
-			el('div', { class: 'row' }, no, yes)
-		) as HTMLDialogElement;
-		const close = (answer: boolean) => {
-			dialog.close();
-			dialog.remove();
-			resolve(answer);
-		};
-		dialog.addEventListener('cancel', () => close(false));
-		root.append(dialog);
-		dialog.showModal();
-		no.focus();
-	});
-}
+export {
+	type LinkPageOptions,
+	type LinkProviderV1,
+	LoamLinkPage,
+	mountLinkPage,
+} from './link-pages.js';
 
 const TABS = ['profile', 'passkeys', 'sessions', 'members'] as const;
 type Tab = (typeof TABS)[number];
@@ -265,7 +49,7 @@ const TAB_NAMES: Record<Tab, string> = {
 };
 
 /** `loam-account-section` (5.1): the person's account, at workspace level. */
-export class LoamAccountSection extends FASTElement {
+export class LoamAccountSection extends AccountElement {
 	kernel: LoamKernelV3 | null = null;
 	/** The deployment's root, for the tabs' addresses. */
 	base = '';
@@ -277,8 +61,7 @@ export class LoamAccountSection extends FASTElement {
 	#panel: HTMLElement | undefined;
 	#reads = 0;
 
-	override connectedCallback(): void {
-		super.connectedCallback();
+	connectedCallback(): void {
 		const root = this.shadowRoot as ShadowRoot;
 		if (root.querySelector('.section')) return;
 		const heading = el('h1', { tabindex: '-1', id: 'account-heading' }, 'Account');
@@ -319,6 +102,8 @@ export class LoamAccountSection extends FASTElement {
 	async show(tab: string): Promise<void> {
 		this.tab = (this.tabs as readonly string[]).includes(tab) ? (tab as Tab) : 'profile';
 		const list = this.shadowRoot?.querySelector('[role="tablist"]');
+		// A tab pressed keeps focus: the list is rebuilt, so the selected tab takes it again.
+		const onTab = this.shadowRoot?.activeElement?.getAttribute('role') === 'tab';
 		list?.replaceChildren(
 			...this.tabs.map((each) => {
 				const link = el(
@@ -344,6 +129,7 @@ export class LoamAccountSection extends FASTElement {
 			})
 		);
 		this.#panel?.setAttribute('aria-labelledby', `tab-${this.tab}`);
+		if (onTab) this.shadowRoot?.querySelector<HTMLElement>(`#tab-${this.tab}`)?.focus();
 		await this.read();
 	}
 
@@ -467,7 +253,7 @@ export class LoamAccountSection extends FASTElement {
 		const rows = read.data.passkeys.map((passkey) => {
 			const label = passkey.name ?? 'Passkey';
 			const rename = button(`Rename ${label}`, async () => {
-				const next = this.ownerDocument.defaultView?.prompt?.(`A new name for ${label}`, label);
+				const next = await askName(this.shadowRoot as ShadowRoot, `Rename ${label}`, label);
 				if (!next) return;
 				const answer = (await kernel.call('account-passkey-rename', {
 					passkey: passkey.id,
@@ -767,14 +553,10 @@ export class LoamAccountSection extends FASTElement {
 	}
 }
 
-const sectionDefinition = {
-	name: 'loam-account-section',
-	styles,
-	shadowOptions: { mode: 'open' as const },
-};
+const SECTION = 'loam-account-section';
 
 /** `loam-account-invitations` (5.3): a signed-in person who is no member, and their invitations to accept. */
-export class LoamAccountInvitations extends FASTElement {
+export class LoamAccountInvitations extends AccountElement {
 	kernel: LoamKernelV3 | null = null;
 	/** After an invitation is accepted: the shell reads the session and membership again. */
 	accepted: (() => void) | undefined;
@@ -835,27 +617,12 @@ export class LoamAccountInvitations extends FASTElement {
 	}
 }
 
-const invitationsDefinition = {
-	name: 'loam-account-invitations',
-	styles,
-	shadowOptions: { mode: 'open' as const },
-};
+const INVITATIONS = 'loam-account-invitations';
 
-/**
- * Defined once. FAST's `define` settles later: an element made before it would not be upgraded, and its fields would
- * then replace what was set on it.
- */
-let defined: Promise<unknown> | undefined;
-function define(): Promise<unknown> {
-	defined ??= Promise.all([
-		customElements.get(sectionDefinition.name)
-			? undefined
-			: LoamAccountSection.define(sectionDefinition),
-		customElements.get(invitationsDefinition.name)
-			? undefined
-			: LoamAccountInvitations.define(invitationsDefinition),
-	]);
-	return defined;
+/** Both elements, defined once. */
+function define(): void {
+	defineOnce(SECTION, LoamAccountSection);
+	defineOnce(INVITATIONS, LoamAccountInvitations);
 }
 
 /** Follow the state: show, update or remove the account section in main (5.1). */
@@ -864,17 +631,18 @@ export async function syncAccount(shell: LoamShell): Promise<void> {
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!kernel || !main) return;
 	const state = await shell.readState();
-	const held = main.querySelector<LoamAccountSection>(sectionDefinition.name);
+	const held = main.querySelector<LoamAccountSection>(SECTION);
 	if (state.section !== 'account' || state.active !== null) {
 		if (!held) return;
 		held.remove();
 		if (main.dataset.section === 'account') delete main.dataset.section;
 		return;
 	}
-	await define();
+	define();
 	let section = held;
+	const entering = !section;
 	if (!section) {
-		section = shell.ownerDocument.createElement(sectionDefinition.name) as LoamAccountSection;
+		section = shell.ownerDocument.createElement(SECTION) as LoamAccountSection;
 		section.kernel = kernel;
 		section.base = shell.base;
 		section.workspace = state.workspace.id;
@@ -883,17 +651,18 @@ export async function syncAccount(shell: LoamShell): Promise<void> {
 		main.append(section);
 	}
 	await section.show(state.path);
-	section.focusHeading();
+	// Focus goes to the heading as the section opens, never as a tab changes, where it stays on the tab (14).
+	if (entering) section.focusHeading();
 }
 
 /** Show the person's invitations under main's "not a member" notice (5.3, E7). */
 export async function showInvitations(shell: LoamShell, accepted: () => void): Promise<void> {
 	const main = shell.shadowRoot?.querySelector<HTMLElement>('loam-main');
 	if (!main || !shell.kernel) return;
-	await define();
-	let panel = main.querySelector<LoamAccountInvitations>(invitationsDefinition.name);
+	define();
+	let panel = main.querySelector<LoamAccountInvitations>(INVITATIONS);
 	if (!panel) {
-		panel = shell.ownerDocument.createElement(invitationsDefinition.name) as LoamAccountInvitations;
+		panel = shell.ownerDocument.createElement(INVITATIONS) as LoamAccountInvitations;
 		main.append(panel);
 	}
 	panel.kernel = shell.kernel as LoamKernelV3;
@@ -902,252 +671,4 @@ export async function showInvitations(shell: LoamShell, accepted: () => void): P
 		accepted();
 	};
 	void panel.read();
-}
-
-/** The join or recovery page's element: its styles, and a shadow root the page is built in. */
-export class LoamLinkPage extends FASTElement {}
-const linkPageDefinition = {
-	name: 'loam-link-page',
-	styles: [
-		styles,
-		css`
-			:host {
-				padding: var(--space-layout-md);
-				background: var(--color-surface-page);
-				min-block-size: 100dvh;
-			}
-			.section {
-				margin-inline: auto;
-			}
-		`,
-	],
-	shadowOptions: { mode: 'open' as const },
-};
-
-/** What a join or recovery page asks of the provider (5.6, 5.7): given by the host, which holds its client. */
-export interface LinkProviderV1 {
-	checkJoin(
-		invitation: string,
-		token: string
-	): Promise<
-		Answer<{
-			organization: { name: string };
-			role: string;
-			email: string;
-			expiresAt: string;
-			password: boolean;
-		}>
-	>;
-	checkRecover(token: string): Promise<Answer<{ expiresAt: string; password: boolean }>>;
-	/** The single sign-on ceremony's return (5.7). */
-	completeOidc(): Promise<Answer>;
-	/** Register a passkey: with a `join:`/`recover:` context, signing in; with none, for the session's person. */
-	registerPasskey(context?: string): Promise<Answer>;
-	setPassword(kind: 'join' | 'recover', fields: Record<string, string>): Promise<Answer>;
-	signOut(): Promise<void>;
-}
-
-export interface LinkPageOptions {
-	themeCss: string;
-	/** The deployment's root: where "Open Loam" goes. */
-	base: string;
-	/** `location.search`'s parameters. */
-	query: URLSearchParams;
-	kind: 'join' | 'recover';
-	provider: LinkProviderV1;
-}
-
-/**
- * The join or recovery page (5.6, 5.7, 14): one heading, one primary action, the link's expiry in words. With a
- * session present it stops and says "Sign out first"; a join for an email that has an account says to sign in and
- * accept the invitation there.
- */
-export async function mountLinkPage(target: HTMLElement, options: LinkPageOptions): Promise<void> {
-	// The theme, as the shell's notice applies it, then the page's own element and styles.
-	const theme = new CSSStyleSheet();
-	theme.replaceSync(options.themeCss);
-	document.adoptedStyleSheets = [...document.adoptedStyleSheets, theme];
-	if (!customElements.get(linkPageDefinition.name)) await LoamLinkPage.define(linkPageDefinition);
-	const host = document.createElement(linkPageDefinition.name);
-	target.replaceChildren(host);
-	const root = host.shadowRoot as ShadowRoot;
-	const status = el('p', { class: 'status', role: 'status', 'aria-live': 'polite' });
-	const heading = el('h1', { tabindex: '-1' });
-	const body = el('div', { class: 'section' });
-	const page = el(
-		'main',
-		{ class: 'section', 'aria-labelledby': 'link-heading' },
-		heading,
-		body,
-		status
-	);
-	heading.id = 'link-heading';
-	root.append(page);
-	const home = () => el('p', {}, el('a', { href: options.base }, 'Open Loam'));
-	const words = (answer: Answer) =>
-		[answer.error?.message ?? 'That did not work', answer.error?.suggestion]
-			.filter(Boolean)
-			.join('. ');
-	const stop = (title: string, text: string, ...more: Node[]) => {
-		heading.textContent = title;
-		body.replaceChildren(el('p', {}, text), ...more);
-		heading.focus();
-	};
-	const signOutFirst = () =>
-		stop(
-			'Sign out first',
-			'This link creates a sign-in for its own account, so no one may be signed in in this browser.',
-			el(
-				'div',
-				{ class: 'row' },
-				button(
-					'Sign out',
-					async () => {
-						await options.provider.signOut();
-						location.reload();
-					},
-					{ class: 'action primary' }
-				)
-			)
-		);
-	const done = (title: string, text: string) => stop(title, text, home());
-	const { query, provider } = options;
-
-	if (options.kind === 'recover' && query.get('via') === 'oidc') {
-		// The single sign-on ceremony's return (5.7): complete it, then register a passkey with that session.
-		const completed = await provider.completeOidc();
-		if (!completed.success)
-			return stop('Your access could not be restored', words(completed), home());
-		heading.textContent = 'Create a new passkey';
-		body.replaceChildren(
-			el(
-				'p',
-				{},
-				'Your single sign-on confirmed it is you, and your other sessions are signed out. Create a passkey to sign in from now on.'
-			),
-			el(
-				'div',
-				{ class: 'row' },
-				button(
-					'Create a passkey',
-					async () => {
-						const made = await provider.registerPasskey();
-						if (made.success) done('Your access is restored', 'Your new passkey is ready.');
-						else status.textContent = words(made);
-					},
-					{ class: 'action primary' }
-				)
-			)
-		);
-		heading.focus();
-		return;
-	}
-
-	const token = query.get('token') ?? '';
-	const invitation = query.get('invitation') ?? '';
-	const checked =
-		options.kind === 'join'
-			? await provider.checkJoin(invitation, token)
-			: await provider.checkRecover(token);
-	if (!checked.success || !checked.data) {
-		const code = checked.error?.code;
-		if (code === 'SIGN_OUT_FIRST') return signOutFirst();
-		if (code === 'ACCOUNT_EXISTS') {
-			return stop(
-				'You already have an account',
-				'Sign in, then accept the invitation in your account.',
-				home()
-			);
-		}
-		return stop('This link does not work', words(checked), home());
-	}
-	const data = checked.data as {
-		organization?: { name: string };
-		role?: string;
-		email?: string;
-		expiresAt: string;
-		password: boolean;
-	};
-	const expires = el('p', {}, `This link expires at ${dateText(data.expiresAt)}.`);
-	const context = options.kind === 'join' ? `join:${invitation}.${token}` : `recover:${token}`;
-	const passkey = button(
-		'Create a passkey',
-		async () => {
-			const made = await provider.registerPasskey(context);
-			if (made.success) {
-				return options.kind === 'join'
-					? done(
-							`Welcome to ${data.organization?.name ?? 'the workspace'}`,
-							'Your account and passkey are ready.'
-						)
-					: done(
-							'Your access is restored',
-							'Your new passkey is ready, and your other sessions are signed out.'
-						);
-			}
-			if (made.error?.code === 'SIGN_OUT_FIRST') return signOutFirst();
-			status.textContent = words(made);
-		},
-		{ class: 'action primary' }
-	);
-	const parts: Node[] = [];
-	if (options.kind === 'join') {
-		heading.textContent = `Join ${data.organization?.name ?? ''}`;
-		parts.push(
-			el(
-				'p',
-				{},
-				`You are invited as ${ROLE_NAMES[data.role ?? ''] ?? data.role} with ${data.email}.`
-			)
-		);
-	} else {
-		heading.textContent = 'Restore your access';
-		parts.push(
-			el(
-				'p',
-				{},
-				'Create a new passkey for your account. Every other session of yours is signed out.'
-			)
-		);
-	}
-	parts.push(expires, el('div', { class: 'row' }, passkey));
-	if (data.password) {
-		const field = el('input', {
-			id: 'link-password',
-			type: 'password',
-			autocomplete: 'new-password',
-			minlength: '8',
-			maxlength: '128',
-			required: '',
-		}) as HTMLInputElement;
-		const form = el(
-			'form',
-			{ 'aria-label': options.kind === 'join' ? 'Set a password instead' : 'Set a new password' },
-			el(
-				'label',
-				{ for: 'link-password' },
-				options.kind === 'join' ? 'Or set a password' : 'Or set a new password',
-				field
-			),
-			el(
-				'button',
-				{ type: 'submit', class: 'action' },
-				options.kind === 'join' ? 'Join with a password' : 'Set a new password'
-			)
-		);
-		form.addEventListener('submit', async (event) => {
-			event.preventDefault();
-			const fields: Record<string, string> =
-				options.kind === 'join'
-					? { invitation, token, password: field.value }
-					: { token, password: field.value };
-			const set = await provider.setPassword(options.kind, fields);
-			if (set.success)
-				done(options.kind === 'join' ? 'Welcome' : 'Your access is restored', 'You are signed in.');
-			else status.textContent = words(set);
-		});
-		parts.push(form);
-	}
-	body.replaceChildren(...parts);
-	passkey.focus();
 }

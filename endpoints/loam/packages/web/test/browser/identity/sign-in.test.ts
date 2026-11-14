@@ -119,7 +119,7 @@ async function signInWithPassword(page: Page, email: string): Promise<void> {
 	const dialog = shadow(page, 'loam-sign-in-dialog');
 	await dialog.locator('#email').fill(email);
 	await dialog.locator('#password').fill(PASSWORD);
-	await dialog.locator('button[type="submit"]').click();
+	await dialog.getByRole('button', { name: 'Sign in with a password' }).click();
 	await page.waitForFunction(
 		() => (document.querySelector('loam-shell') as unknown as { account: string }).account !== ''
 	);
