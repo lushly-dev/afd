@@ -158,7 +158,7 @@ One directory holds everything: the platform's application-data directory for `l
 mode `0700` and its files with `0600`. The program sets its file mode mask to `077`, so the files
 a library creates with the default mode, such as the search index's, are the owner's alone too.
 Where the engine runs inside another program, which keeps its own mask, the index's files may be
-open to others, and its directory and the data directory, both `0700`, keep them from reaching
+open to others, and its directory and the data directory, both `0700`, keep others from reaching
 them.
 
 | Entry | Holds |
@@ -964,9 +964,10 @@ engine computes it beside the census's figure, and how many stream stories each 
   and refuses a reply nested deeper than 32, which a message within the 20 levels above keeps
   under. The request fails with an error of its own, not as a dropped connection, and the
   connection is closed: the message is held as a structure that broke the depth limit, marked
-  `unparsed` and shown with its headers alone, and its structure is not asked for again. Any
-  other request refused that way is narrowed and passed over as one the engine cannot read
-  ([5.2](#52-imap)).
+  `unparsed` and shown with its headers alone, and its structure is not asked for again. A
+  request for a batch of messages refused that way is narrowed and passed over as one the engine
+  cannot read ([5.2](#52-imap)); any other, such as opening the mailbox, names no message, and
+  the mailbox stops for that pass with the error.
 - HTML handed to a caller for display is cleaned with `ammonia`: no script, no form, no frame,
   and every remote reference reported so the caller decides whether to load it. The engine
   loads none. As step B4 built it, a relative address is removed (a message has no page to
@@ -1460,7 +1461,7 @@ file.
 | B4 | In three pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a message's body when it is opened. Third: a message over 1 MiB (M20): its structure, its text parts at sync, and a file of it fetched when it is opened |
 | B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account (they did not come back; the pass now asks one request a mailbox, [5.2](#52-imap)), and `mail-account-remove` ([3.5](#35-commands-only-a-person-may-run)) |
 | B6 | Gmail sync through the API, with the scripted API |
-| B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
+| B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |
 | C2 | Screening classes, the person's decisions and agents' suggestions, stream stories |
 | C3 | Bursts, tried on the period the owner names |

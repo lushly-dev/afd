@@ -305,6 +305,10 @@ pub async fn sync_account(
                     }
                 }
                 Err(Failure::Mailbox(error)) => {
+                    // A reply refused for its nesting closed the connection.
+                    if error == ProviderError::TooDeep {
+                        connection.drop_connection();
+                    }
                     let message = error.to_string();
                     engine.with_store(|store| store.set_error(plan.row.id, &message))?;
                     plan.report.error = Some(message);
@@ -351,10 +355,13 @@ impl From<StoreError> for Failure {
 }
 
 impl Failure {
-    /// A failure of a request for a batch.
+    /// A failure of a request for a batch of messages, which alone is
+    /// narrowed to its messages.
     fn of_batch(error: ProviderError) -> Self {
         match Self::from(error) {
-            Self::Again(error) => Self::Batch(error),
+            Self::Again(error) | Self::Mailbox(error @ ProviderError::TooDeep) => {
+                Self::Batch(error)
+            }
             other => other,
         }
     }
@@ -368,9 +375,12 @@ impl From<ProviderError> for Failure {
             }
             ProviderError::Refused(_) => Self::Mailbox(error),
             ProviderError::Unavailable(_) | ProviderError::Protocol(_) => Self::Again(error),
-            // Another request would get the same reply: the batch is
-            // narrowed, and a message that keeps failing is passed over.
-            ProviderError::TooDeep => Self::Batch(error),
+            // Another request would get the same reply. For a batch of
+            // messages the batch is narrowed and a message that keeps
+            // failing is passed over ([`Failure::of_batch`]); any other
+            // request, such as opening the mailbox, names no message, and
+            // the mailbox stops for this pass.
+            ProviderError::TooDeep => Self::Mailbox(error),
         }
     }
 }

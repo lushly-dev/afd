@@ -78,6 +78,8 @@ pub struct World {
     pub stall: bool,
     /// Answer `NO` to a search while this mailbox is open.
     pub refuse_search_in: Option<String>,
+    /// Answer the opening of this mailbox with a reply nested 2 000 deep.
+    pub nest_examine_of: Option<String>,
     /// Give a mailbox a new `UIDVALIDITY` when it is opened with QRESYNC, as
     /// if it changed between two openings.
     pub renumber_on_qresync: Option<String>,
@@ -98,6 +100,7 @@ impl World {
             down: false,
             stall: false,
             refuse_search_in: None,
+            nest_examine_of: None,
             renumber_on_qresync: None,
             connections: 0,
         }
@@ -423,6 +426,11 @@ fn examine(
     {
         world.renumber_on_qresync = None;
         world.renumber(name);
+    }
+    if world.nest_examine_of.as_deref() == Some(name.as_str()) {
+        session.open = None;
+        text(out, format!("* FLAGS {}\r\n", "(".repeat(2_000)));
+        return;
     }
     let Some(mailbox) = world.mailboxes.iter().find(|mailbox| &mailbox.name == name) else {
         session.open = None;
