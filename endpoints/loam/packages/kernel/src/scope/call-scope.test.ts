@@ -129,6 +129,18 @@ const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'account-passkey-add': { name: 'Laptop' },
 	'account-passkey-rename': { passkey: 'none', name: 'x' },
 	'account-passkey-remove': { passkey: 'none' },
+	// Step 4 (5.1, 5.3, 7.2): at the provider, which a local workspace has none of.
+	'account-get': {},
+	'account-update': { name: 'Bea' },
+	'account-invitation-list': {},
+	'account-invitation-accept': { invitation: 'none' },
+	'account-invitation-reject': { invitation: 'none' },
+	'member-list': {},
+	'member-invite': { email: 'new@example.com', role: 'member' },
+	'member-invitation-list': {},
+	'member-invitation-cancel': { invitation: 'none' },
+	'member-remove': { member: 'none' },
+	'member-role-set': { member: 'none', role: 'member' },
 };
 
 /**

@@ -186,6 +186,18 @@ describe("Step 4's re-check: every organization route the provider serves, again
 			id: string;
 		}[];
 		expect(mine.map((row) => row.id)).toContain(id);
+		// Loam's own list, with the organization's slug and name (5.3), is the invitee's alone too.
+		expect((await dee.call('/loam/invitations')).body).toEqual({
+			invitations: [
+				{
+					id,
+					organization: { slug: 'acme', name: 'Acme' },
+					role: 'member',
+					expiresAt: expect.any(String),
+				},
+			],
+		});
+		expect((await bea.call('/loam/invitations')).body).toEqual({ invitations: [] });
 		expect(
 			(await dee.call('/organization/accept-invitation', { body: { invitationId: id } })).status
 		).toBe(200);

@@ -14,6 +14,11 @@ import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/de
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import type { LoamKernelErrorCode } from '../errors.js';
 import type { DocumentKit } from './document-kit.js';
+import {
+	type LoamAuthAdapter,
+	MEMBER_PROVIDER_COMMANDS,
+	OWNER_COMMANDS,
+} from './member-commands.js';
 
 /**
  * Human commands (3.4's second and third rows): an agent never changes or lists a person's credentials,
@@ -53,6 +58,8 @@ export const PROVIDER_COMMANDS: readonly string[] = Object.freeze([
 	'account-passkey-add',
 	'account-passkey-rename',
 	'account-passkey-remove',
+	// Step 4's account and member commands (3.4).
+	...MEMBER_PROVIDER_COMMANDS,
 ]);
 
 /** `SessionRowV1` (4.6): a session by its handle, never its token, dates as ISO strings. */
@@ -349,11 +356,20 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 			try {
 				const rows = await find(input.passkey);
 				if (!Array.isArray(rows)) return rows;
-				// `PASSKEY_LAST` (5.2): the last passkey, with no other method the deployment allows. Recovery is step
-				// 4's, so until it is built no person has a recovery path, and `recovery` reads `none`.
+				// `PASSKEY_LAST` (5.2, 5.7): the last passkey of a person with no way back in, whose account's `recovery`
+				// is `none` (an unverified email and no single sign-on) and whose deployment allows no other method.
 				const identity = deps.identity;
 				const methods = identity?.mode === 'provider' ? identity.methods : ['passkey'];
-				if (rows.length === 1 && methods.every((method) => method === 'passkey')) {
+				const account = (auth as LoamAuthAdapter).account;
+				const recovery =
+					rows.length === 1 && identity?.mode === 'provider' && account
+						? (await account.get()).recovery
+						: 'none';
+				if (
+					rows.length === 1 &&
+					recovery === 'none' &&
+					methods.every((method) => method === 'passkey')
+				) {
 					return kit.kernelFailure(
 						'PASSKEY_LAST',
 						'This is your only passkey, and you would have no other way to sign in',
@@ -429,12 +445,15 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 			} as ZodCommandDefinition;
 		},
 		/**
-		 * `HUMAN_REQUIRED` (3.4, 15): a human command on any interface but the palette's, which the chrome and the
-		 * person's own calls use, journaled: the agent interface, and an MCP server should one ever serve it. The owner
-		 * commands join the list with step 4, which builds them and `OWNER_COMMANDS`.
+		 * `HUMAN_REQUIRED` (3.4, 15): a human or an owner command on any interface but the palette's, which the chrome
+		 * and the person's own calls use, journaled: the agent interface, and an MCP server should one ever serve it.
 		 */
 		humanRequired(call: CommandContext, name: string): CommandResult<never> | undefined {
-			if (call.interface === 'palette' || !HUMAN_COMMANDS.includes(name)) return undefined;
+			if (
+				call.interface === 'palette' ||
+				!(HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name))
+			)
+				return undefined;
 			return kit.kernelFailure(
 				'HUMAN_REQUIRED',
 				`'${name}' changes or lists what only the person may, so an agent cannot run it`,

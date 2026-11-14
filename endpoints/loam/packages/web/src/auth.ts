@@ -12,10 +12,13 @@ import {
 	type AuthSessionState,
 	BetterAuthAdapter,
 	type BetterAuthAdapterOptions,
+	type OrganizationAccess,
+	type OrganizationInvitation,
 	type PasskeyRow,
 	type SessionRow,
 	SessionSync,
 } from '@lushly-dev/afd-auth';
+import type { LoamAccountAccessV1 } from '@lushly-dev/loam-kernel';
 import { createAuthClient } from 'better-auth/client';
 import { organizationClient } from 'better-auth/client/plugins';
 import type { ProviderIdentity } from './identity.js';
@@ -65,10 +68,11 @@ const passkeyRow = (row: PasskeyAnswer): PasskeyRow => ({
 	...(typeof row.backedUp === 'boolean' ? { backedUp: row.backedUp } : {}),
 });
 
-/** Loam's session capability (4.6): `loamServerPlugin`'s endpoints, handles and never tokens, no fresh session to list. */
-function loamSessions(authBase: string): NonNullable<AuthAdapter['sessions']> {
-	const request = async (path: string, body?: unknown) => {
-		const response = await fetch(`${authBase}/loam/${path}`, {
+/** A request to the provider, its code kept on a refusal (15). `path` is under `authBase`. */
+const requester =
+	(authBase: string) =>
+	async (path: string, body?: unknown): Promise<Record<string, unknown>> => {
+		const response = await fetch(`${authBase}${path}`, {
 			method: body === undefined ? 'GET' : 'POST',
 			credentials: 'same-origin',
 			headers: body === undefined ? {} : { 'content-type': 'application/json' },
@@ -78,6 +82,11 @@ function loamSessions(authBase: string): NonNullable<AuthAdapter['sessions']> {
 		if (!response.ok) throw refusal(json?.code as string | undefined, json?.message as string);
 		return json ?? {};
 	};
+
+/** Loam's session capability (4.6): `loamServerPlugin`'s endpoints, handles and never tokens, no fresh session to list. */
+function loamSessions(authBase: string): NonNullable<AuthAdapter['sessions']> {
+	const loam = requester(authBase);
+	const request = (path: string, body?: unknown) => loam(`/loam/${path}`, body);
 	return {
 		async listSessions() {
 			const { sessions } = (await request('sessions')) as {
@@ -96,6 +105,73 @@ function loamSessions(authBase: string): NonNullable<AuthAdapter['sessions']> {
 		},
 		// Loam's provider answers how many it revoked, which `session-revoke` reports.
 		revokeSession: (target) => request('revoke-person', { target }) as unknown as Promise<void>,
+	};
+}
+
+/** Loam's account capability (5.1, 5.3, 5.4, 7.2): `loamServerPlugin`'s reads and Better Auth's `update-user`. */
+function loamAccount(authBase: string): LoamAccountAccessV1 {
+	const request = requester(authBase);
+	return {
+		get: async () => (await request('/loam/account')) as never,
+		async update(changes) {
+			await request('/update-user', changes);
+		},
+		async members({ limit, offset }) {
+			const query = new URLSearchParams();
+			if (limit !== undefined) query.set('limit', String(limit));
+			if (offset !== undefined) query.set('offset', String(offset));
+			return (await request(`/loam/members?${query}`)) as never;
+		},
+		invitations: async () =>
+			((await request('/loam/invitations')) as { invitations: never[] }).invitations,
+	};
+}
+
+/**
+ * The organization capability over Better Auth's routes (7.2), each naming the bound organization by id, never the
+ * session's active one (2.3), and keeping the provider's codes, which the kernel maps (15).
+ */
+function loamOrganization(authBase: string): OrganizationAccess {
+	const request = requester(authBase);
+	const invitation = (row: Record<string, unknown>): OrganizationInvitation => ({
+		id: row.id as string,
+		organizationId: row.organizationId as string,
+		email: row.email as string,
+		role: row.role as string,
+		status: row.status as OrganizationInvitation['status'],
+		expiresAt: new Date(row.expiresAt as string),
+	});
+	const unsupported = async (): Promise<never> => {
+		throw refusal('IDENTITY_PROVIDER_UNAVAILABLE', 'Loam reads its members through member-list');
+	};
+	return {
+		membership: unsupported,
+		listMembers: unsupported,
+		leave: unsupported,
+		invite: async (organizationId, { email, role }) =>
+			invitation(await request('/organization/invite-member', { organizationId, email, role })),
+		listInvitations: async (organizationId) =>
+			(
+				(await request(
+					`/organization/list-invitations?organizationId=${encodeURIComponent(organizationId)}`
+				)) as unknown as Record<string, unknown>[]
+			).map(invitation),
+		async cancelInvitation(_organizationId, invitationId) {
+			await request('/organization/cancel-invitation', { invitationId });
+		},
+		async removeMember(organizationId, memberId) {
+			await request('/organization/remove-member', { organizationId, memberIdOrEmail: memberId });
+		},
+		async setRole(organizationId, memberId, role) {
+			await request('/organization/update-member-role', { organizationId, memberId, role });
+		},
+		listOwnInvitations: unsupported,
+		async acceptInvitation(invitationId) {
+			await request('/organization/accept-invitation', { invitationId });
+		},
+		async rejectInvitation(invitationId) {
+			await request('/organization/reject-invitation', { invitationId });
+		},
 	};
 }
 
@@ -155,6 +231,8 @@ export function createProviderAdapter(
 	const real = Object.assign(adapter, {
 		sessions: loamSessions(authBase),
 		passkeys: loamPasskeys(client),
+		organization: loamOrganization(authBase),
+		account: loamAccount(authBase),
 	});
 	// Created here, and only in `provider` mode: the Mock's sessions are per page (4.2).
 	const sync = new SessionSync({ channelName: 'loam-session' });
@@ -182,4 +260,91 @@ export function createProviderAdapter(
 		if (visible()) refresh();
 	}, REFRESH_EVERY_MS);
 	return real;
+}
+
+interface LinkAnswer {
+	success: boolean;
+	data?: never;
+	error?: { code?: string; message?: string };
+}
+
+/** A provider request as a link page's answer: its data, or its code and message (15). */
+async function answer(run: () => Promise<Record<string, unknown>>): Promise<LinkAnswer> {
+	try {
+		return { success: true, data: (await run()) as never };
+	} catch (cause) {
+		const { code, message } = (cause ?? {}) as { code?: string; message?: string };
+		return {
+			success: false,
+			error: { ...(code ? { code } : {}), ...(message ? { message } : {}) },
+		};
+	}
+}
+
+/**
+ * What the join and recovery pages ask of the provider (phase 3 specification, 5.6, 5.7): each page's check, a passkey
+ * registered with its `join:`/`recover:` context and signed in, or for the session's person after single sign-on
+ * recovery, and a password set instead where the deployment allows passwords.
+ */
+export function createLinkProvider(authBase: string) {
+	const request = requester(authBase);
+	const client = createAuthClient({
+		baseURL: authBase,
+		fetchOptions: { credentials: 'same-origin' },
+		plugins: [passkeyClient()],
+	}) as unknown as BetterAuthClient;
+	const passkey = client.passkey as NonNullable<BetterAuthClient['passkey']>;
+	const query = (fields: Record<string, string>) => new URLSearchParams(fields).toString();
+	return {
+		checkJoin: (invitation: string, token: string) =>
+			answer(() => request(`/loam/join/check?${query({ invitation, token })}`)),
+		checkRecover: (token: string) =>
+			answer(() => request(`/loam/recover/check?${query({ token })}`)),
+		completeOidc: () => answer(() => request('/loam/recover/oidc/complete', {})),
+		registerPasskey: (context?: string) =>
+			answer(async () => {
+				if (typeof globalThis.PublicKeyCredential !== 'function') {
+					throw refusal('PASSKEY_UNSUPPORTED', 'This browser cannot create a passkey');
+				}
+				const made = await answered(
+					() =>
+						(
+							passkey.addPasskey as unknown as (options: {
+								context?: string;
+								createSession?: boolean;
+							}) => Answer<Record<string, unknown>>
+						)(context ? { context, createSession: true } : {}) as Answer<Record<string, unknown>>
+				);
+				return made ?? {};
+			}),
+		setPassword: (kind: 'join' | 'recover', fields: Record<string, string>) =>
+			answer(() =>
+				request(kind === 'join' ? '/loam/join/password' : '/loam/recover/password', fields)
+			),
+		signOut: async () => {
+			await request('/sign-out', {}).catch(() => undefined);
+		},
+	};
+}
+
+/** Recovery's request (5.7): the answer is the same whatever the provider found. */
+export async function requestRecovery(authBase: string, email: string): Promise<void> {
+	await requester(authBase)('/loam/recover/request', { email });
+}
+
+/**
+ * The single sign-on recovery ceremony's start (5.7): any session in this browser signed out and the nonce set, then
+ * the deployer's sign-in, which returns to the recovery page.
+ */
+export async function recoverWithProvider(authBase: string, provider: string): Promise<void> {
+	const request = requester(authBase);
+	const started = (await request('/loam/recover/oidc/start', { provider })) as {
+		callbackURL: string;
+	};
+	const social = (await request('/sign-in/social', {
+		provider,
+		callbackURL: started.callbackURL,
+		errorCallbackURL: started.callbackURL,
+	})) as { url?: string };
+	if (social.url) location.assign(social.url);
 }

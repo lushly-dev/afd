@@ -498,17 +498,18 @@ describe.each(['auto', 'legacy'] as const)('P2-E5: the scope over MCP (%s)', (mo
 		kernel.subscribe((event) => heard.push(event));
 		const client = await connect(await serve(workspace), mode);
 		const project = shared.data?.id as string;
-		// The server's call is for the page's person (3.1), so it cannot take them out of the project.
+		// The server's call is an agent's for the page's person (3.1), so it changes no one's access to the project:
+		// phase 3's 3.4 makes any agent's `project-update` with `access` HUMAN_REQUIRED (amended in phase 3's step 4).
 		const out = await client.call(
 			'project-update',
 			{ project, access: { mode: 'restricted', members: ['local'] } },
 			{ 'dev.loam/scope': { workspace: 'personal', project } }
 		);
-		expect(out.error?.code, JSON.stringify(out)).toBe('PROJECT_MEMBER_SELF_REQUIRED');
+		expect(out.error?.code, JSON.stringify(out)).toBe('HUMAN_REQUIRED');
 		expect(heard).toEqual([]);
 		const updated = await client.call(
 			'project-update',
-			{ project, access: { mode: 'restricted', members: ['mock-user-person@example.com'] } },
+			{ project, name: 'Shared, renamed' },
 			{ 'dev.loam/scope': { workspace: 'personal', project } }
 		);
 		expect(updated.success, JSON.stringify(updated)).toBe(true);

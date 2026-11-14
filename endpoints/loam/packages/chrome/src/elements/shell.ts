@@ -86,6 +86,12 @@ export interface ShellIdentity {
 	methods: readonly string[];
 	/** What the host last read of the person's membership and the binding (2.3). */
 	standing(): { member: boolean; warning?: string };
+	/**
+	 * Recovery's request (5.7): a link to that account's verified email, answered the same whatever it found. And the
+	 * single sign-on ceremony's start with the provider `id`, which leaves the page for the deployer's sign-in.
+	 */
+	recover?(email: string): Promise<void>;
+	recoverWith?(provider: string): Promise<void>;
 }
 
 interface ShellFailure {
@@ -883,6 +889,17 @@ export class LoamShell extends FASTElement {
 			case 'account-menu':
 				void import('../identity/account-menu.js')
 					.then(({ openAccountMenu }) => openAccountMenu(this))
+					.catch(reportError);
+				break;
+			case 'invitations':
+				// A person who is no member, and their invitations (phase 3 specification, 5.3), from the `account` chunk.
+				void import('../identity/account.js')
+					.then(({ showInvitations }) =>
+						showInvitations(this, () => {
+							// The next call waits for the membership the acceptance brought (4.4); then main shows it.
+							void this.kernel?.call('account-get').then(() => this.#readSession());
+						})
+					)
 					.catch(reportError);
 				break;
 			case 'sign-out':

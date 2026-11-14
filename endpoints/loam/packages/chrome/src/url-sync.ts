@@ -86,6 +86,8 @@ export function routeOf(state: MainStateV1): RouteV1 | undefined {
 	const rest = state.path === '' ? [] : state.path.split('/');
 	if (state.active !== null) return { kind: 'app', ...at, instance: state.active, rest };
 	// A project's home is the projects section in it, with no path (4.3).
+	// The account section is the workspace's, whatever project is active (phase 3 specification, 5.1).
+	if (state.section === 'account') return { kind: 'section', workspace, section: 'account', rest };
 	if (state.section !== null && !(slug && state.section === 'projects' && !state.path)) {
 		return { kind: 'section', ...at, section: state.section, rest };
 	}
@@ -103,6 +105,8 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 	let sections = false;
 	/** Whether the documents section has been shown, so the editor area's chunk follows every later state. */
 	let editor = false;
+	/** Whether the account section has been shown, so the `account` chunk follows every later state (5.1). */
+	let account = false;
 	const queued = (task: () => Promise<void>): Promise<void> => {
 		queue = queue.then(task).catch(reportError);
 		return queue;
@@ -291,6 +295,18 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 						(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 						if (main) delete main.dataset.section;
 					}
+					reportError(cause);
+				}
+			);
+		}
+		// The account section, from the `account` chunk, loaded once it shows (phase 3 specification, 5.1, 13).
+		if (account || (state.section === 'account' && state.active === null)) {
+			account = true;
+			void import('./identity/account.js').then(
+				({ syncAccount }) => syncAccount(host as unknown as LoamShell),
+				(cause) => {
+					account = false;
+					(host as unknown as LoamShell).landing = COULD_NOT_LOAD;
 					reportError(cause);
 				}
 			);

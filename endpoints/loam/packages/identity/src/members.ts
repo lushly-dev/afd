@@ -57,6 +57,8 @@ const notMember = () =>
  *   their membership of the workspace; how they sign in; how they could recover (5.7); when they last did.
  * - `GET <path>/loam/members?limit=&offset=`: the bound organization's people (7.2), to a member of it: name, image
  *   and role, and each one's email only when the caller is an owner (D96).
+ * - `GET <path>/loam/invitations`: the person's own pending invitations, to their verified email (5.3), with each
+ *   organization's slug and name, which Better Auth's own list does not carry.
  */
 export function memberEndpoints(deps: MembersDeps) {
 	return {
@@ -125,6 +127,41 @@ export function memberEndpoints(deps: MembersDeps) {
 					recovery,
 					recoveredAt: user.recoveredAt ?? null,
 				});
+			}
+		),
+		loamInvitations: createAuthEndpoint(
+			'/loam/invitations',
+			{ method: 'GET', use: [sessionMiddleware] },
+			async (ctx) => {
+				const adapter = ctx.context.adapter as unknown as Reads;
+				const { user } = ctx.context.session;
+				// Only to a verified address: an invitation is accepted only by one (5.3).
+				if (user.emailVerified !== true) return ctx.json({ invitations: [] });
+				const rows = await adapter.findMany<{
+					id: string;
+					organizationId: string;
+					email: string;
+					role: string;
+					status: string;
+					expiresAt: Date;
+				}>({ model: 'invitation', where: [{ field: 'email', value: user.email.toLowerCase() }] });
+				const now = Date.now();
+				const invitations = [];
+				for (const row of rows) {
+					if (row.status !== 'pending' || new Date(row.expiresAt).getTime() <= now) continue;
+					const organization = await adapter.findOne<{ slug: string; name: string }>({
+						model: 'organization',
+						where: [{ field: 'id', value: row.organizationId }],
+					});
+					if (!organization) continue;
+					invitations.push({
+						id: row.id,
+						organization: { slug: organization.slug, name: organization.name },
+						role: loamRole(row.role),
+						expiresAt: new Date(row.expiresAt).toISOString(),
+					});
+				}
+				return ctx.json({ invitations });
 			}
 		),
 		loamMembers: createAuthEndpoint(

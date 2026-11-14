@@ -24,7 +24,7 @@ const WORKSPACE = /^(?!(apps|assets|mounts|sandbox|p)$)[a-z0-9][a-z0-9-]{0,62}$/
 const PROJECT = /^[a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?$/;
 /** An instance id, less `p`, which reads as a project's segment (4.2). */
 const INSTANCE = /^(?!p$)[a-z][a-z0-9]{0,31}$/;
-const SECTION = /^(projects|documents)$/;
+const SECTION = /^(projects|documents|account)$/;
 const NOT_FOUND: RouteV1 = { kind: 'not-found' };
 
 /**
@@ -72,7 +72,8 @@ export function parseRoute(url: string, base: string): RouteV1 {
 	const scoped = project === undefined ? {} : { project };
 	if (head === '~') {
 		const [section = '', ...tail] = rest;
-		return SECTION.test(section)
+		// The account section is the workspace's (phase 3 specification, 5.1): never under a project.
+		return SECTION.test(section) && !(project && section === 'account')
 			? { kind: 'section', workspace, ...scoped, section, rest: tail }
 			: NOT_FOUND;
 	}

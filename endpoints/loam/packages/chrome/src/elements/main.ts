@@ -12,10 +12,7 @@ import { partHost, quietButton } from './styles.js';
 /** What a `provider` deployment's main shows in place of the landing (phase 3 specification, 2.1, 2.3). */
 const GATES = {
 	'sign-in': ['Sign in to %', 'This workspace is for the members of %.'],
-	'not-member': [
-		'You are not a member of %',
-		'Ask an owner of % to invite you. Your invitations will be listed in your account.',
-	],
+	'not-member': ['You are not a member of %', 'Ask an owner of % to invite you.'],
 	binding: [
 		'This workspace is not set up',
 		'% is not bound on the server; an owner fixes it there.',
