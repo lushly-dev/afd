@@ -5,9 +5,10 @@
 //! enabled, on `person.local.bind`, a loopback address, over plain HTTP, with section 6.3's rules
 //! (`crate::person::page`): the list of the local person's pending decisions at `/d/`, each
 //! decision's pages at `/d/<id>`, and their form. It prints the list's address on standard error
-//! and, with `--open`, opens it in the browser. Decisions live in `state/shared/person.sqlite3`,
-//! which every process of the workspace shares, so the stdio server that began a decision and
-//! this process need not be one.
+//! and, with `--open`, opens it in the browser; with `person.local.public_origin` set, that
+//! address is at the public origin a proxy on this machine serves the page at (A48). Decisions
+//! live in `state/shared/person.sqlite3`, which every process of the workspace shares, so the
+//! stdio server that began a decision and this process need not be one.
 //!
 //! **Who runs it.** The operator, at the command line: it is registered for the CLI alone, it is
 //! an `inspect` command, and any caller that is not the CLI's is refused. It needs a build with
@@ -130,10 +131,17 @@ impl CommandHandler for Handler {
                 Ok(listener) => listener,
                 Err(error) => return afd::failure(bind_failed(bind, &error)),
             };
-            let list = format!("http://{bind}/d/");
-            eprintln!(
-                "The local person page lists the requests waiting for you at {list}\nAnything on this machine can open it. Stop it with Ctrl-C."
-            );
+            // Behind a proxy on this machine, the list at its public origin (A48).
+            let list = format!("{}/d/", service.links());
+            if service.public_origin().is_some() {
+                eprintln!(
+                    "The local person page lists the requests waiting for you at {list}, served by a proxy on this machine from http://{bind}\nAnything on this machine, and anything that reaches that address, can open it. Stop it with Ctrl-C."
+                );
+            } else {
+                eprintln!(
+                    "The local person page lists the requests waiting for you at {list}\nAnything on this machine can open it. Stop it with Ctrl-C."
+                );
+            }
             if input.get("open").and_then(Value::as_bool) == Some(true) {
                 open_browser(&list);
             }
