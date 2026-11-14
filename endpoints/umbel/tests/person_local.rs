@@ -47,6 +47,12 @@ async fn a_stdio_call_is_refused_with_the_page_then_runs_once_as_local() {
             .unwrap()
             .contains("umbel person page-serve")
     );
+    assert!(
+        error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("in a browser on this machine")
+    );
     // The host ran the preview as the caller before it began; the command did not run.
     assert_eq!(local.seen.runs("gate-approve"), 0);
     assert!(
@@ -288,6 +294,15 @@ async fn the_page_refuses_another_host_origin_or_token() {
             .await;
         assert_eq!(posted.status, 421, "{host}");
     }
+    // Without person.local.public_origin, a proxy's origin is nobody's (A46 to A50).
+    let proxied = Client::plain(local.bind).with_host("garden-host.example-tailnet.ts.net:8443");
+    assert_eq!(
+        proxied
+            .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+            .await
+            .status,
+        421
+    );
     // A page another site linked to is not rendered, so it records no page.
     let foreign = local
         .page
@@ -296,11 +311,20 @@ async fn the_page_refuses_another_host_origin_or_token() {
     assert_eq!(foreign.status, 403);
     // The form's token, from the page as it was shown.
     let shown = local.open(&format!("/d/{id}")).await;
+    assert!(
+        !shown.text.contains("It is also served at"),
+        "{}",
+        shown.text
+    );
     let csrf = hidden(&shown.text, "csrf");
     let approve = format!("csrf={csrf}&page=1&decision=approve");
     // Another origin, no origin, `null` from another site, and a login field: nothing recorded.
-    let refusals: [(&str, Vec<(&str, &str)>); 4] = [
+    let refusals: [(&str, Vec<(&str, &str)>); 5] = [
         ("another origin", vec![("origin", "http://garden.example")]),
+        (
+            "a proxy's origin",
+            vec![("origin", "https://garden-host.example-tailnet.ts.net:8443")],
+        ),
         ("an https origin", vec![("origin", "https://127.0.0.1")]),
         ("no origin", vec![]),
         (
@@ -350,6 +374,319 @@ async fn the_page_refuses_another_host_origin_or_token() {
     assert_eq!(ran["success"], true, "{ran}");
     // There is no sign-in to return to.
     assert_eq!(local.open("/d/return").await.status, 404);
+}
+
+/// The public origin a TLS-terminating proxy on this machine serves the page at (A46 to A50).
+const PUBLIC: &str = "https://garden-host.example-tailnet.ts.net:8443";
+const PUBLIC_HOST: &str = "garden-host.example-tailnet.ts.net:8443";
+
+#[tokio::test]
+async fn behind_a_proxy_the_page_admits_its_public_origin_and_hands_it_out() {
+    let local = Local::start_public(PUBLIC).await;
+    let first = local
+        .call("gate-approve", json!({ "proposal": "p-1" }))
+        .await;
+    let id = decision_of(&first);
+    let (_, error) = refused(&first);
+    // The links the host hands out name the public origin.
+    assert_eq!(error["details"]["url"], format!("{PUBLIC}/d/{id}"));
+    assert_eq!(error["details"]["list"], format!("{PUBLIC}/d/"));
+    assert!(
+        error["message"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("{PUBLIC}/d/{id}")),
+        "{error}"
+    );
+    let other = decision_of(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-2" }))
+            .await,
+    );
+
+    // A `Host` naming the public origin is served, in any case, as is the bind's; another host,
+    // the public host on another port (443 included), or with no port, is not.
+    let public = Client::plain(local.bind).with_host(PUBLIC_HOST);
+    let shown = public
+        .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+        .await;
+    assert_eq!(shown.status, 200, "{}", shown.text);
+    assert!(
+        shown
+            .text
+            .contains(&format!("It is also served at {PUBLIC}")),
+        "{}",
+        shown.text
+    );
+    assert!(shown.headers.get("set-cookie").is_none());
+    let upper = Client::plain(local.bind).with_host("Garden-Host.example-tailnet.ts.net:8443");
+    assert_eq!(
+        upper.get("/d/", &[("sec-fetch-site", "none")]).await.status,
+        200
+    );
+    assert_eq!(local.open("/d/").await.status, 200);
+    for host in [
+        "weeds.example-tailnet.ts.net:8443",
+        "garden-host.example-tailnet.ts.net",
+        "garden-host.example-tailnet.ts.net:443",
+        "garden-host.example-tailnet.ts.net:8444",
+        "garden-host.example-tailnet.ts.net.weeds.example:8443",
+    ] {
+        let client = Client::plain(local.bind).with_host(host);
+        let answer = client
+            .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+            .await;
+        assert_eq!(answer.status, 421, "{host}");
+    }
+
+    // The suggestion names the origin the browser must reach (A48).
+    assert!(
+        error["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains(&format!("in a browser that reaches {PUBLIC}")),
+        "{error}"
+    );
+    // A post from another origin, or from the public host over plain HTTP, records nothing.
+    let csrf = hidden(&shown.text, "csrf");
+    let approve = format!("csrf={csrf}&page=1&decision=approve");
+    let post = |body: String, headers: Vec<(&'static str, &'static str)>| {
+        let mut all = vec![("content-type", FORM)];
+        all.extend(headers);
+        public.send(public.request("POST", &format!("/d/{id}"), &all, body))
+    };
+    for origin in [
+        "https://weeds.example-tailnet.ts.net:8443",
+        "http://garden-host.example-tailnet.ts.net:8443",
+        "https://garden-host.example-tailnet.ts.net",
+        "https://garden-host.example-tailnet.ts.net:8443/",
+    ] {
+        let posted = post(approve.clone(), vec![("origin", origin)]).await;
+        assert_eq!(posted.status, 403, "{origin}");
+    }
+    // `null`, as a browser posts under the page's `Referrer-Policy: no-referrer`, from a sibling
+    // or another site; and the public origin with a forged token or another decision's.
+    for (why, body, headers) in [
+        (
+            "null from the same site",
+            approve.clone(),
+            vec![("origin", "null"), ("sec-fetch-site", "same-site")],
+        ),
+        (
+            "null from another site",
+            approve.clone(),
+            vec![("origin", "null"), ("sec-fetch-site", "cross-site")],
+        ),
+        (
+            "a forged token",
+            "csrf=forged&page=1&decision=approve".to_owned(),
+            vec![("origin", PUBLIC)],
+        ),
+    ] {
+        assert_eq!(post(body, headers).await.status, 403, "{why}");
+    }
+    let other_shown = public
+        .get(&format!("/d/{other}"), &[("sec-fetch-site", "none")])
+        .await;
+    let other_csrf = hidden(&other_shown.text, "csrf");
+    assert_eq!(
+        post(
+            format!("csrf={other_csrf}&page=1&decision=approve"),
+            vec![("origin", PUBLIC)]
+        )
+        .await
+        .status,
+        403,
+        "another decision's token"
+    );
+    assert_eq!(
+        decision_of(
+            &local
+                .call("gate-approve", json!({ "proposal": "p-1" }))
+                .await
+        ),
+        id,
+        "nothing was recorded"
+    );
+    // The public origin with the bind's `Host`, as a proxy that writes the bind sends it.
+    let posted = local.post_with(&id, &approve, &[("origin", PUBLIC)]).await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    let ran = local
+        .call("gate-approve", json!({ "proposal": "p-1" }))
+        .await;
+    assert_eq!(ran["success"], true, "{ran}");
+    // The public origin with its own `Host`, as a proxy that passes it on sends it.
+    let shown = public
+        .get(&format!("/d/{other}"), &[("sec-fetch-site", "none")])
+        .await;
+    let csrf = hidden(&shown.text, "csrf");
+    let posted = public
+        .send(public.request(
+            "POST",
+            &format!("/d/{other}"),
+            &[("content-type", FORM), ("origin", PUBLIC)],
+            format!("csrf={csrf}&page=1&decision=decline"),
+        ))
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    assert!(posted.text.contains("You declined this request"));
+    assert!(posted.headers.get("set-cookie").is_none());
+    // `Origin: null` with `Sec-Fetch-Site: same-origin` through the proxy, as a browser posts the
+    // page's own form.
+    let third = decision_of(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-3" }))
+            .await,
+    );
+    let shown = public
+        .get(&format!("/d/{third}"), &[("sec-fetch-site", "none")])
+        .await;
+    let csrf = hidden(&shown.text, "csrf");
+    let posted = public
+        .send(public.request(
+            "POST",
+            &format!("/d/{third}"),
+            &[
+                ("content-type", FORM),
+                ("origin", "null"),
+                ("sec-fetch-site", "same-origin"),
+            ],
+            format!("csrf={csrf}&page=1&decision=approve"),
+        ))
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+    let ran = local
+        .call("gate-approve", json!({ "proposal": "p-3" }))
+        .await;
+    assert_eq!(ran["success"], true, "{ran}");
+}
+
+#[tokio::test]
+async fn behind_a_proxy_on_the_default_port_either_host_spelling_is_served() {
+    let local = Local::start_public("https://garden-host.example-tailnet.ts.net:443/").await;
+    let id = decision_of(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-1" }))
+            .await,
+    );
+    let (_, error) = refused(
+        &local
+            .call("gate-approve", json!({ "proposal": "p-1" }))
+            .await,
+    );
+    // Kept as a browser writes the origin: no `:443`, no trailing `/`.
+    assert_eq!(
+        error["details"]["url"],
+        format!("https://garden-host.example-tailnet.ts.net/d/{id}")
+    );
+    for host in [
+        "garden-host.example-tailnet.ts.net",
+        "garden-host.example-tailnet.ts.net:443",
+    ] {
+        let client = Client::plain(local.bind).with_host(host);
+        let answer = client
+            .get(&format!("/d/{id}"), &[("sec-fetch-site", "none")])
+            .await;
+        assert_eq!(answer.status, 200, "{host}: {}", answer.text);
+    }
+    let shown = local.open(&format!("/d/{id}")).await;
+    let csrf = hidden(&shown.text, "csrf");
+    let posted = local
+        .post_with(
+            &id,
+            &format!("csrf={csrf}&page=1&decision=approve"),
+            &[("origin", "https://garden-host.example-tailnet.ts.net")],
+        )
+        .await;
+    assert_eq!(posted.status, 200, "{}", posted.text);
+}
+
+#[tokio::test]
+async fn a_public_origin_is_refused_unless_an_https_origin() {
+    let bind: SocketAddr = "127.0.0.1:7421".parse().unwrap();
+    for origin in [
+        "http://garden-host.example-tailnet.ts.net:8443",
+        "https://garden-host.example-tailnet.ts.net:8443/d/",
+        "https://garden-host.example-tailnet.ts.net:8443/?bed=3",
+        "https://garden-host.example-tailnet.ts.net:8443/#bed",
+        "https://gardener@garden-host.example-tailnet.ts.net:8443",
+        "https://gardener:seeds@garden-host.example-tailnet.ts.net",
+        "https://Garden-Host.example-tailnet.ts.net",
+        "https://garden-host.example-tailnet.ts.net:08443",
+        "garden-host.example-tailnet.ts.net:8443",
+        "https://xn--a.example",
+        "https://[::ffff:1.2.3.4]:8443",
+    ] {
+        let text = config(bind, "").replace(
+            "enabled = true\n",
+            &format!("enabled = true\npublic_origin = \"{origin}\"\n"),
+        );
+        let dir = support::workspace(&text);
+        let error = HostBuilder::open(dir.path())
+            .err()
+            .unwrap_or_else(|| panic!("{origin} was accepted"));
+        assert_eq!(error.code(), "WORKSPACE_CONFIG_INVALID", "{origin}");
+        assert!(
+            error.message().contains("person.local.public_origin"),
+            "{origin}: {}",
+            error.message()
+        );
+    }
+}
+
+#[tokio::test]
+async fn the_doctor_warns_of_a_public_origin() {
+    let local = Local::start_public(PUBLIC).await;
+    let report = umbel::doctor::run(local.dir.path());
+    let check = report
+        .checks
+        .iter()
+        .find(|check| check.id == "person.local")
+        .unwrap();
+    assert_eq!(
+        serde_json::to_value(check.status).unwrap(),
+        json!("warn"),
+        "{}",
+        check.message
+    );
+    assert!(
+        check.message.contains(&format!(
+            "person.local.public_origin is {PUBLIC}: anyone who can reach that origin can confirm"
+        )) && check
+            .message
+            .contains("an agent can start umbel person page-serve itself"),
+        "{}",
+        check.message
+    );
+    // Set while the page is not enabled, it has no effect, and the doctor says so.
+    let dir = support::workspace(
+        "config_version = 7\n\n[person.local]\npublic_origin = \"https://garden-host.example-tailnet.ts.net:8443\"\n",
+    );
+    let report = umbel::doctor::run(dir.path());
+    let check = report
+        .checks
+        .iter()
+        .find(|check| check.id == "person.local")
+        .unwrap();
+    assert_eq!(serde_json::to_value(check.status).unwrap(), json!("warn"));
+    assert!(
+        check.message.contains("so the key has no effect"),
+        "{}",
+        check.message
+    );
+    // Without it, the warning names no public origin.
+    let plain = Local::start().await;
+    let report = umbel::doctor::run(plain.dir.path());
+    let check = report
+        .checks
+        .iter()
+        .find(|check| check.id == "person.local")
+        .unwrap();
+    assert!(
+        !check.message.contains("public_origin"),
+        "{}",
+        check.message
+    );
 }
 
 /// The follow-up of step H1's review: an event's envelope is version 3 at most, and a `local`
