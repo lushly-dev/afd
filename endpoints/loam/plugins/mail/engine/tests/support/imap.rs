@@ -47,6 +47,9 @@ pub struct Mailbox {
     /// UIDs a `FETCH` breaks on: the server answers with bytes no IMAP
     /// reader can parse.
     pub poison: HashSet<u32>,
+    /// UIDs a `FETCH` of the whole message or of a part breaks on, as
+    /// [`Mailbox::poison`]; their headers are returned.
+    pub poison_body: HashSet<u32>,
     /// UIDs whose `BODYSTRUCTURE` nests 2 000 deep, as a server's might for
     /// a message built to.
     pub nested: HashSet<u32>,
@@ -112,6 +115,7 @@ impl World {
             never_return: HashSet::new(),
             never_return_body: HashSet::new(),
             poison: HashSet::new(),
+            poison_body: HashSet::new(),
             nested: HashSet::new(),
         });
     }
@@ -549,7 +553,10 @@ fn fetch(
         {
             continue;
         }
-        if items.contains("BODY.PEEK") && mailbox.poison.contains(uid) {
+        let body_asked = items.contains("BODY.PEEK[]") || !places.is_empty();
+        if (items.contains("BODY.PEEK") && mailbox.poison.contains(uid))
+            || (body_asked && mailbox.poison_body.contains(uid))
+        {
             out.push(Chunk::Bytes(b"* 1 FETCH (UID ((( broken\r\n".to_vec()));
             out.push(Chunk::Drop);
             return;

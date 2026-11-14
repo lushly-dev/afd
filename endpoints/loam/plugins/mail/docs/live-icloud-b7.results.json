@@ -14,7 +14,10 @@
 		"mailboxErrors": 0,
 		"listed": 307164,
 		"headers": 293932,
+		"messages": 293929,
+		"countingNote": "mail-status counts a message once in each mailbox that shows it: 3 messages are shown in two mailboxes, so 293 932 headers and 292 581 bodies by mailbox are 293 929 messages and 292 578 bodies held (292 038 whole, 540 in parts).",
 		"largestMailbox": {
+			"role": "none",
 			"listed": 284445,
 			"headers": 271213,
 			"bodies": 271213,
@@ -38,7 +41,7 @@
 		"structureRefusedByNestingLimit": 0,
 		"unparsed": 0,
 		"bodyMissingAfterThreeTries": 1,
-		"bodyMissingNote": "One message of 2.8 MiB in the archive mailbox. A read-only probe on a new connection: iCloud lists it and returns its header, and closes the connection when asked for its BODYSTRUCTURE or its whole body. The engine narrowed the failure to that message, counted three tries and went on (5.4)."
+		"bodyMissingNote": "One message of 2.8 MiB in the mailbox whose role is archive, not the largest mailbox; it is the 541st message over 1 MiB. A read-only probe on a new connection: iCloud lists it and returns its header, and closes the connection when asked for its BODYSTRUCTURE or its whole body. The engine narrowed the failure to that message, counted three tries and went on (5.4)."
 	},
 	"aPassWithNothingNew": {
 		"seconds": 12.9,
@@ -66,7 +69,7 @@
 			{ "messages": 400, "returned": 397, "seconds": 15.27, "kiB": 4041 }
 		],
 		"serverBodiesPerMinuteDuringProbe": 806,
-		"conclusion": "10 to 12 messages a second at 50 a request, 22 to 26 at 400; the server's own rate did not drop while the probe ran, so the wait is per request, not the line. The default body batch is now 400, still at most 8 MiB."
+		"conclusion": "A straight line through the eight requests gives about 2.8 s for each request and 36 ms for each message in it, so 50 a request read 10 to 12 messages a second and 400 read 22 to 26. The server's own rate did not drop while the probe ran on a second connection, so the line was not the limit. The default body batch is now 400, still at most 8 MiB."
 	},
 	"limits": {
 		"what": "The specification's 4.4 on the synced store, over MCP with an agent's token, 100 calls each.",
@@ -88,7 +91,9 @@
 			"heldBytes": 7058514896
 		},
 		"importStoreSide": "not measured here: a first sync waits on iCloud, and the engine used under 2% of a core",
+		"readsDuringAFirstSync": "not measured: the reads above ran on the synced store. The store is held while a batch is derived and indexed, which at 400 a batch is eight times longer than at 50",
 		"largestTables": {
+			"linkBytes": 1108627456,
 			"linkMiB": 1057,
 			"envelopeMiB": 172,
 			"links": 7151309,
@@ -115,6 +120,6 @@
 	"privacy": {
 		"passwordInJournalOrDatabase": 0,
 		"journalEntries": 5,
-		"filesOthersCouldRead": "the index directory and its files were created with the default mode, inside the data directory only the owner can enter; the index now makes its directory the owner's alone"
+		"filesOthersCouldRead": "65 before the change: the index directory and its files, created with the default mode inside the data directory only the owner can enter. The index now makes its directory 0700 and the program sets its file mode mask to 077; the run's store was closed to match, and none is left"
 	}
 }

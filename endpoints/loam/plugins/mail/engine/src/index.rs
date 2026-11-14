@@ -105,20 +105,8 @@ impl fmt::Debug for Index {
 /// others read them; the directory stops them from reaching the files, as
 /// the data directory does for the store's.
 fn owners_directory(directory: &Path) -> std::io::Result<()> {
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
-        std::fs::DirBuilder::new()
-            .recursive(true)
-            .mode(0o700)
-            .create(directory)?;
-        if directory.metadata()?.permissions().mode() & 0o077 != 0 {
-            std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))?;
-        }
-    }
-    #[cfg(not(unix))]
-    std::fs::create_dir_all(directory)?;
-    Ok(())
+    crate::home::create_private_dir(directory)?;
+    crate::home::make_private_dir(directory)
 }
 
 impl Index {

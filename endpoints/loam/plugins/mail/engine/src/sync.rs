@@ -63,8 +63,9 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             header_batch: 250,
-            // Measured on iCloud (B7): 50 at a time read 10 to 12 a second, 400
-            // read 22 to 26; the wait is per request, not the line.
+            // Measured on iCloud (B7): about 2.8 s a request and 36 ms a
+            // message, so 50 at a time read 10 to 12 a second and 400 read
+            // 22 to 26.
             body_batch: 400,
             body_batch_bytes: 8 * 1024 * 1024,
             whole_limit: WHOLE_LIMIT,
@@ -196,8 +197,10 @@ struct Plan {
     /// Failures of this mailbox's steps that a new connection did not mend.
     open_failures: u32,
     /// How many more requests ask for a single message, after a batch that
-    /// kept failing.
+    /// kept failing: as many as that batch asked for.
     single: usize,
+    /// How many messages the latest request asked for.
+    asked: usize,
     report: MailboxReport,
 }
 
@@ -270,10 +273,10 @@ pub async fn sync_account(
                     }
                     plan.batch_failures += 1;
                     if plan.single == 0 && plan.batch_failures >= SPLIT_AFTER {
-                        plan.single = match plan.stage {
-                            Stage::Bodies { .. } => options.body_batch,
-                            _ => options.header_batch,
-                        };
+                        // The message that fails is among those the batch
+                        // asked for; the messages after them are asked for
+                        // in batches again.
+                        plan.single = plan.asked.max(1);
                         plan.batch_failures = 0;
                     } else if plan.single > 0 && plan.batch_failures >= PASS_OVER_AFTER {
                         pass_over(engine, plan, clock)?;
@@ -494,6 +497,7 @@ async fn mailboxes(
             batch_failures: 0,
             open_failures: 0,
             single: 0,
+            asked: 0,
         })
         .collect();
     // The inbox and the sent mailbox first (5.3); the rest in the order they
@@ -761,6 +765,7 @@ async fn headers(
     let mailbox = plan.row.id;
     let take = queue.len().min(limit);
     let batch: Vec<String> = queue.iter().take(take).cloned().collect();
+    plan.asked = take;
     let provider = connection.provider().await?;
     let returned = provider.headers(&batch).await.map_err(Failure::of_batch)?;
     let now = clock.now();
@@ -877,6 +882,7 @@ async fn bodies(
     }
     let batch: Vec<(String, MessageId, u64)> = queue.iter().take(take).cloned().collect();
     let ids: Vec<String> = batch.iter().map(|(id, ..)| id.clone()).collect();
+    plan.asked = take;
     let provider = connection.provider().await?;
     let fetched = provider.messages(&ids).await.map_err(Failure::of_batch)?;
     let messages: HashMap<&str, MessageId> = batch
@@ -952,6 +958,7 @@ async fn in_parts(
     let Some((id, message, _)) = queue.front().cloned() else {
         return Ok(());
     };
+    plan.asked = 1;
     let provider = connection.provider().await?;
     let structure = match provider.structure(&id).await {
         Ok(structure) => structure,
