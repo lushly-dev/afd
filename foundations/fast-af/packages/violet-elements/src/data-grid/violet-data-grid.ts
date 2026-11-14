@@ -512,7 +512,7 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                       `,
                     )}
                     ${when(
-                      (x) => x.editing && !x.editingError && Boolean(x.editingHint),
+                      (x) => x.editing && Boolean(x.editingHint),
                       html<VioletPresentedCell>`
                           <span class="cell-editor-hint" id="${(x) => x.editingHintId}"
                           >${(x) => x.editingHint}</span>
@@ -844,7 +844,8 @@ export class VioletDataGrid extends FASTElement {
     /**
      * Optional verb phrase naming what a single-selection radio does, such as "Open". The radio's
      * accessible name becomes "<selection-label> <row label>" ("Open First bed") instead of
-     * "Select row <row label>". Ignored outside `selection-mode="single"`.
+     * "Select row <row label>", and the selection column header takes it as its name ("Open")
+     * instead of "Selected row". Ignored outside `selection-mode="single"`.
      */
   public declare selectionLabel: string | null;
 
@@ -2588,7 +2589,7 @@ export class VioletDataGrid extends FASTElement {
         );
         const active = this.isActiveCell(cell.rowId, cell.columnId);
         const editing = this.isEditingCell(cell.rowId, cell.columnId);
-        const editingHint = editing
+        const editingHint = editing && !this.editingError
           ? this.columnAccessoryText(cell.columnId, cell.rowData, "editorHint")
           : "";
 

@@ -8868,12 +8868,12 @@
         {
           "kind": "variable",
           "name": "inputCellEditorTemplate",
-          "default": "html<VioletDataGridCellTemplateModel>` <input class=\"cell-editor\" data-cell-editor=\"${(x) => x.editor}\" data-row-id=\"${(x) => x.rowId}\" data-column-id=\"${(x) => x.columnId}\" aria-label=\"${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}\" aria-invalid=\"${(x) => (x.editingError ? \"true\" : \"false\")}\" aria-errormessage=\"${(x) => (x.editingError ? x.editingErrorId : null)}\" aria-describedby=\"${(x) => (x.editingHint && !x.editingError ? x.editingHintId : null)}\" inputmode=\"${(x) => (x.editor === \"number\" ? \"decimal\" : null)}\" type=\"text\" /> `"
+          "default": "html<VioletDataGridCellTemplateModel>` <input class=\"cell-editor\" data-cell-editor=\"${(x) => x.editor}\" data-row-id=\"${(x) => x.rowId}\" data-column-id=\"${(x) => x.columnId}\" aria-label=\"${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}\" aria-invalid=\"${(x) => (x.editingError ? \"true\" : \"false\")}\" aria-errormessage=\"${(x) => (x.editingError ? x.editingErrorId : null)}\" aria-describedby=\"${(x) => (x.editingHint ? x.editingHintId : null)}\" inputmode=\"${(x) => (x.editor === \"number\" ? \"decimal\" : null)}\" type=\"text\" /> `"
         },
         {
           "kind": "variable",
           "name": "selectCellEditorTemplate",
-          "default": "html<VioletDataGridCellTemplateModel>` <select class=\"cell-editor\" data-cell-editor=\"select\" data-row-id=\"${(x) => x.rowId}\" data-column-id=\"${(x) => x.columnId}\" aria-label=\"${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}\" aria-invalid=\"${(x) => (x.editingError ? \"true\" : \"false\")}\" aria-errormessage=\"${(x) => (x.editingError ? x.editingErrorId : null)}\" aria-describedby=\"${(x) => (x.editingHint && !x.editingError ? x.editingHintId : null)}\" :value=\"${(x) => x.editValue}\" > ${repeat( (x) => x.editorOptions, html<{ label: string; value: string }>` <option value=\"${(x) => x.value}\">${(x) => x.label}</option> `, )} </select> `"
+          "default": "html<VioletDataGridCellTemplateModel>` <select class=\"cell-editor\" data-cell-editor=\"select\" data-row-id=\"${(x) => x.rowId}\" data-column-id=\"${(x) => x.columnId}\" aria-label=\"${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}\" aria-invalid=\"${(x) => (x.editingError ? \"true\" : \"false\")}\" aria-errormessage=\"${(x) => (x.editingError ? x.editingErrorId : null)}\" aria-describedby=\"${(x) => (x.editingHint ? x.editingHintId : null)}\" :value=\"${(x) => x.editValue}\" > ${repeat( (x) => x.editorOptions, html<{ label: string; value: string }>` <option value=\"${(x) => x.value}\">${(x) => x.label}</option> `, )} </select> `"
         }
       ],
       "exports": [
@@ -19132,7 +19132,7 @@
                 "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\". Ignored outside `selection-mode=\"single\"`.",
+              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\", and the selection column header takes it as its name (\"Open\")\ninstead of \"Selected row\". Ignored outside `selection-mode=\"single\"`.",
               "attribute": "selection-label",
               "reflects": true
             },
@@ -19759,7 +19759,7 @@
             },
             {
               "name": "selection-label",
-              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\". Ignored outside `selection-mode=\"single\"`.",
+              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\", and the selection column header takes it as its name (\"Open\")\ninstead of \"Selected row\". Ignored outside `selection-mode=\"single\"`.",
               "type": {
                 "text": "string | null"
               },
@@ -19877,6 +19877,12 @@
             },
             {
               "kind": "field",
+              "name": "#handleDocumentPointerEnd",
+              "privacy": "private",
+              "readonly": true
+            },
+            {
+              "kind": "field",
               "name": "#handleViewportChange",
               "privacy": "private",
               "readonly": true
@@ -19899,6 +19905,16 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#pressedInside",
+              "privacy": "private",
+              "type": {
+                "text": "boolean"
+              },
+              "default": "false",
+              "description": "The pointer pressed inside the picker and has not been released yet. Pressing a\nnon-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus\nto the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus\nleaving the picker; the focus-out close ignores that while the press lasts."
             },
             {
               "kind": "method",
@@ -20147,7 +20163,7 @@
                   }
                 }
               ],
-              "description": "Closes the popup when focus moves to something outside the picker, such as Tab past its last\ncontrol, so the open panel never covers the next field. Focus moving between the input, the\ntoggle and the calendar keeps it open, and so does focus leaving the window (no\n`relatedTarget`); a pointer press outside is handled by the document listener."
+              "description": "Closes the popup when focus moves to something outside the picker, such as Tab past its last\ncontrol, so the open panel never covers the next field. Focus moving between the input, the\ntoggle and the calendar keeps it open, and so does focus leaving the window (no\n`relatedTarget`) and a press inside the picker that hands focus to a focusable ancestor;\na pointer press outside is handled by the document listener."
             },
             {
               "kind": "method",

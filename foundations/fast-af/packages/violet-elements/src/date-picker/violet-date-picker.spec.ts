@@ -375,6 +375,94 @@ describe("violet-date-picker", () => {
             expect(picker.open).toBe(false);
         });
 
+        describe("inside a focusable ancestor", () => {
+            // Pressing a non-focusable part of the panel moves focus to the nearest focusable
+            // ancestor, which is outside the picker; that is not focus leaving it.
+            async function renderInside(host: HTMLElement): Promise<VioletDatePicker> {
+                document.body.innerHTML = "";
+                const picker = document.createElement("violet-date-picker") as VioletDatePicker;
+                picker.label = "Planting date";
+                picker.value = "2026-03-23";
+                picker.min = "2026-03-10";
+                picker.max = "2026-03-28";
+                host.prepend(picker);
+                document.body.append(host);
+                await customElements.whenDefined("violet-date-picker");
+                await nextFrame();
+                return picker;
+            }
+
+            async function openAndExpectCalendarFocus(picker: VioletDatePicker): Promise<void> {
+                picker.show();
+                await vi.waitFor(() => {
+                    expect(getCalendar(picker).shadowRoot?.activeElement?.getAttribute("data-date")).toBe("2026-03-23");
+                });
+            }
+
+            function heading(picker: VioletDatePicker): HTMLElement {
+                const element = getCalendar(picker).shadowRoot?.querySelector<HTMLElement>(".heading");
+                if (!element) {
+                    throw new Error("Expected the calendar heading to render.");
+                }
+                return element;
+            }
+
+            async function expectPressesKeepItOpen(picker: VioletDatePicker): Promise<void> {
+                await openAndExpectCalendarFocus(picker);
+
+                await userEvent.click(heading(picker));
+                await nextFrame();
+                expect(picker.open).toBe(true);
+
+                const disabledDay = calendarDay(picker, "2026-03-05");
+                expect(disabledDay.disabled).toBe(true);
+                await userEvent.click(disabledDay, { force: true });
+                await nextFrame();
+                expect(picker.open).toBe(true);
+                expect(picker.value).toBe("2026-03-23");
+            }
+
+            it("stays open for presses on the heading and a disabled day in a tabindex=-1 wrapper", async () => {
+                const wrapper = document.createElement("div");
+                wrapper.tabIndex = -1;
+                const picker = await renderInside(wrapper);
+
+                await expectPressesKeepItOpen(picker);
+            });
+
+            it("stays open for presses on the heading and a disabled day in a scrolling violet-dialog", async () => {
+                await import("../dialog/violet-dialog");
+                const dialog = document.createElement("violet-dialog") as HTMLElement & {
+                    show(): void;
+                    bodyScrollable: boolean;
+                };
+                const tall = document.createElement("div");
+                tall.style.blockSize = "2000px";
+                dialog.append(tall);
+                const picker = await renderInside(dialog);
+                await customElements.whenDefined("violet-dialog");
+                dialog.show();
+                await vi.waitFor(() => expect(dialog.bodyScrollable).toBe(true));
+
+                await expectPressesKeepItOpen(picker);
+            });
+
+            it("still closes on Shift+Tab onto a focusable ancestor", async () => {
+                const wrapper = document.createElement("div");
+                wrapper.tabIndex = 0;
+                wrapper.setAttribute("aria-label", "Form");
+                const picker = await renderInside(wrapper);
+                await openAndExpectCalendarFocus(picker);
+
+                getInput(picker).focus();
+                await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+                await nextFrame();
+
+                expect(document.activeElement).toBe(wrapper);
+                expect(picker.open).toBe(false);
+            });
+        });
+
         it("stays open when focus leaves the window rather than moving elsewhere on the page", async () => {
             const picker = await renderDatePicker();
             picker.show();

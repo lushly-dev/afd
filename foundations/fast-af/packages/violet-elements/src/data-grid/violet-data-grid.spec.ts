@@ -2563,6 +2563,14 @@ describe("violet-data-grid", () => {
     expect(invalidEditor.hasAttribute("aria-describedby")).toBe(false);
     expect(hint()).toBeNull();
 
+    // Editing again clears the error and brings the hint back.
+    invalidEditor.value = "90";
+    invalidEditor.dispatchEvent(new Event("input", { bubbles: true, composed: true }));
+    await nextFrames(2);
+    expect(invalidEditor.hasAttribute("aria-errormessage")).toBe(false);
+    expect(hint()?.textContent?.trim()).toBe("Counted from transplant.");
+    expect(invalidEditor.getAttribute("aria-describedby")).toBe(hint()?.id);
+
     // A row the callback has no hint for renders none and gets no description.
     invalidEditor.dispatchEvent(
       new KeyboardEvent("keydown", { key: "Escape", bubbles: true, composed: true }),
