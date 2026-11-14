@@ -887,8 +887,8 @@ fn auth_checks(
 /// person page is not enabled; warns when it is, naming what it does not prove. It has no
 /// sign-in: an agent with a shell can start `umbel person page-serve` itself and post the form,
 /// so turning it on relaxes what an agent variable withholds at a terminal. With
-/// `person.local.public_origin` set, it also says that whatever reaches that origin can confirm
-/// (A49).
+/// `person.local.public_origin` set, it also says that whatever reaches that origin can confirm,
+/// and, while the page is not enabled, that the key has no effect (A49).
 fn person_local(config: Option<&crate::workspace::Config>) -> Check {
     const ID: &str = "person.local";
     let Some(config) = config else {
@@ -923,6 +923,11 @@ fn person_local(config: Option<&crate::workspace::Config>) -> Check {
                 "person.local.public_origin is {origin}: anyone who can reach that origin can confirm the local person's decisions with no login, so it must be reachable only on a private network you control, through a proxy on this same machine"
             ));
         }
+    } else if let Some(origin) = &local.public_origin {
+        // Set, but nothing serves it: the key has no effect (A49).
+        parts.insert(0, format!(
+            "person.local.public_origin is {origin}, but the local person page is not enabled, so the key has no effect"
+        ));
     }
     if parts.is_empty() {
         return Check::pass(ID, "The local person page is not enabled");

@@ -260,10 +260,25 @@ fn public_origin(text: &str) -> Result<String, String> {
             }
         },
     };
-    Ok(match port {
+    let normalized = match port {
         Some(port) => format!("https://{host}:{port}"),
         None => format!("https://{host}"),
-    })
+    };
+    // A browser's own reading of it must be the same origin, byte for byte: a host the URL
+    // standard refuses or rewrites (invalid punycode, an IPv4-mapped IPv6 address) is refused.
+    // Only a build with the `auth` feature, which the local page needs, has the parser.
+    #[cfg(feature = "auth")]
+    {
+        let serialized = url::Url::parse(&normalized)
+            .ok()
+            .map(|url| url.origin().ascii_serialization());
+        if serialized.as_deref() != Some(normalized.as_str()) {
+            return Err(format!(
+                "`{text}` is not an origin a browser writes the same way: write it as a browser's Origin header does"
+            ));
+        }
+    }
+    Ok(normalized)
 }
 
 /// `verified_levels` of the space table `entry` (section 6.5): the default before version 7 or
@@ -360,6 +375,18 @@ mod tests {
         ] {
             assert!(public_origin(&refused).is_err(), "{refused}");
         }
+    }
+
+    #[test]
+    #[cfg(feature = "auth")]
+    fn a_public_origin_a_browser_would_rewrite_is_refused() {
+        for refused in ["https://xn--a.example", "https://[::ffff:1.2.3.4]:8443"] {
+            assert!(public_origin(refused).is_err(), "{refused}");
+        }
+        assert_eq!(
+            public_origin("https://[::1]:8443").unwrap(),
+            "https://[::1]:8443"
+        );
     }
 
     #[test]

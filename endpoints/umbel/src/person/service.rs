@@ -1064,7 +1064,12 @@ impl PersonService {
             let live = decision.live(now);
             match decision.status {
                 Status::Pending if live => {
-                    return Err(super::local_required(command, &decision.id, self.links()));
+                    return Err(super::local_required(
+                        command,
+                        &decision.id,
+                        self.links(),
+                        self.public_origin(),
+                    ));
                 }
                 Status::Approved if live => {
                     if !self
@@ -1131,7 +1136,12 @@ impl PersonService {
                 surface: Surface::Mcp,
             })
             .await?;
-        Err(super::local_required(command, &begun.id, self.links()))
+        Err(super::local_required(
+            command,
+            &begun.id,
+            self.links(),
+            self.public_origin(),
+        ))
     }
 }
 
