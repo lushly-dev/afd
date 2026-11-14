@@ -7,6 +7,7 @@ import { fileURLToPath } from 'node:url';
 import { loadInventory } from './release/control.mjs';
 import { execTool, tarCommand } from './release/exec-tool.mjs';
 import {
+	assertLatestNotPrerelease,
 	createPublishPlan,
 	main,
 	readIntent,
@@ -14,6 +15,7 @@ import {
 	selectRelease,
 	versionSelected,
 } from './release-control.mjs';
+import { registryMiss, registryView } from './release-operations/shared.mjs';
 
 const repository = dirname(dirname(fileURLToPath(import.meta.url)));
 const changesets = join(repository, 'node_modules/@changesets/cli/bin.js');
@@ -342,6 +344,10 @@ test('a prerelease plan refuses a name whose latest is missing or another prerel
 		/needs npm's latest tag on a stable version or the 0\.0\.0 placeholder: @fixture\/d@2\.2\.0-preview\.0, @fixture\/h has none\. The maintainer moves it/
 	);
 	assert.equal(existsSync(plan), false);
+	// A tag that is not a version is refused too, rather than read as stable.
+	write(f.root, '../evidence.json', placeheld(f.evidence, { '@fixture/d': 'garbage' }));
+	assert.throws(run, /placeholder: @fixture\/d@garbage \(invalid\)\. The maintainer moves it/);
+	assert.equal(existsSync(plan), false);
 	// A stable `latest` stays where it is: the upload names only `preview`.
 	write(f.root, '../evidence.json', placeheld(f.evidence, { '@fixture/d': '2.1.0' }));
 	run();
@@ -371,4 +377,68 @@ test("an admitted package's peer on a workspace package in preview is a workspac
 				.map(([name, range]) => `${entry.name} -> ${name}@${range}`)
 		);
 	assert.deepEqual(loose, []);
+});
+
+test('only a prerelease plan reads latest; the main route publishes onto it', () => {
+	const evidence = [
+		{
+			registry: 'npm',
+			name: '@fixture/m',
+			versions: ['1.0.0'],
+			distTags: { latest: '1.1.0-preview.0' },
+		},
+	];
+	const plan = (route) => ({
+		route,
+		distTag: route === 'npm-main' ? 'latest' : 'preview',
+		artifacts: [{ name: '@fixture/m' }],
+	});
+	assert.doesNotThrow(() => assertLatestNotPrerelease(plan('npm-main'), evidence));
+	assert.throws(
+		() => assertLatestNotPrerelease(plan('npm-prerelease'), evidence),
+		/@fixture\/m@1\.1\.0-preview\.0\. The maintainer/
+	);
+	// A placeholder and a stable version both pass.
+	for (const latest of ['0.0.0-bootstrap.0', '2.0.0'])
+		assert.doesNotThrow(() =>
+			assertLatestNotPrerelease(plan('npm-prerelease'), [{ ...evidence[0], distTags: { latest } }])
+		);
+});
+
+test("registry evidence reads npm view's versions and dist-tags, and a 404 as an absent name", () => {
+	assert.deepEqual(
+		registryView(
+			'@x/a',
+			JSON.stringify({
+				versions: ['1.0.0', '1.1.0-preview.0'],
+				'dist-tags': { latest: '1.0.0', preview: '1.1.0-preview.0' },
+			})
+		),
+		{
+			registry: 'npm',
+			name: '@x/a',
+			versions: ['1.0.0', '1.1.0-preview.0'],
+			distTags: { latest: '1.0.0', preview: '1.1.0-preview.0' },
+		}
+	);
+	// One published version prints as a string, and a missing dist-tags field reads as none.
+	assert.deepEqual(registryView('@x/b', JSON.stringify({ versions: '0.0.0-bootstrap.0' })), {
+		registry: 'npm',
+		name: '@x/b',
+		versions: ['0.0.0-bootstrap.0'],
+		distTags: {},
+	});
+	assert.throws(() => registryView('@x/c', '["1.0.0"]'), /Unexpected registry view for @x\/c/);
+	assert.deepEqual(
+		registryMiss('@x/d', JSON.stringify({ error: { code: 'E404', summary: 'Not found' } })),
+		{
+			registry: 'npm',
+			name: '@x/d',
+			versions: [],
+			distTags: {},
+		}
+	);
+	// Any other failure is not evidence: the caller fails closed.
+	assert.equal(registryMiss('@x/e', JSON.stringify({ error: { code: 'E500' } })), null);
+	assert.equal(registryMiss('@x/f', 'npm error network'), null);
 });

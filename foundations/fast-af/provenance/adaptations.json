@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9f35f8da50262284edfbb8898d7ed5441542a54a5b67c13915aae441b98e0a53",
+      "current_import_sha256": "c769a18bf470348de6c567ee0e704864e9ecbbc0b2f6ed55ff5a9d8b63347a69",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -141,11 +141,11 @@
       "upstream_sha256": "7eb5336d69ebeb2c4e65a7d05adacc95d3a045ef4cce9169197699df28646dff",
       "staged_path": "packages/element/packages/fast-element/README.md",
       "staged_sha256": "7eb5336d69ebeb2c4e65a7d05adacc95d3a045ef4cce9169197699df28646dff",
-      "current_import_sha256": "7eb5336d69ebeb2c4e65a7d05adacc95d3a045ef4cce9169197699df28646dff",
+      "current_import_sha256": "c9fd1628ff3b265e55e7c5c35738b7e66fc4303a87e225656e912f7f3dcd8a09",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/SIZES.md",
