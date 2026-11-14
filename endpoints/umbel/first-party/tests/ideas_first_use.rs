@@ -111,11 +111,14 @@ impl Instance {
         command_result(&response)
     }
 
-    /// `ideas-review-apply` over stdio, with AFD's own acknowledgement.
+    /// `ideas-review-apply` over stdio through `afd-call`, as the README's agent reaches it (the
+    /// instance does not list it first-class), with AFD's own acknowledgement beside the input.
     async fn apply(&mut self, input: &Value) -> Value {
-        let mut arguments = input.clone();
-        arguments["confirm"] = json!(true);
-        self.call("ideas-review-apply", arguments).await
+        self.call(
+            "afd-call",
+            json!({ "command": "ideas-review-apply", "input": input, "confirm": true }),
+        )
+        .await
     }
 
     async fn capture(&mut self, statements: &[String]) -> Vec<String> {
@@ -424,8 +427,42 @@ async fn the_readme_local_instance_walks_from_capture_to_the_report() {
     let staged = data(&staged).clone();
     assert_eq!(staged["staged"], 60);
 
-    // The whole review, one link: refused with the page's address, nothing applied.
+    // The README's step 3 (amendment F-2). Without `confirm: true`, AFD refuses first, by
+    // either route, with no page address: nothing reaches the host's confirmation.
     let input = json!({ "review": staged["review"], "part": "*", "digest": staged["digest"] });
+    let routes = [
+        (
+            "afd-call",
+            json!({ "command": "ideas-review-apply", "input": input }),
+            "repeat the afd-call with confirm: true",
+        ),
+        (
+            "ideas-review-apply",
+            input.clone(),
+            "repeat the call with confirm: true",
+        ),
+    ];
+    for (tool, arguments, suggestion) in routes {
+        let unconfirmed = garden.call(tool, arguments).await;
+        assert_eq!(
+            unconfirmed["error"]["code"], "CONFIRMATION_REQUIRED",
+            "{unconfirmed}"
+        );
+        assert!(
+            unconfirmed["error"]["details"]["url"].is_null(),
+            "{unconfirmed}"
+        );
+        assert!(
+            unconfirmed["error"]["suggestion"]
+                .as_str()
+                .unwrap()
+                .contains(suggestion),
+            "{unconfirmed}"
+        );
+    }
+
+    // With `confirm: true`, the whole review, one link: refused with the page's address,
+    // nothing applied.
     let begun = garden.apply(&input).await;
     let decision = decision_of(&begun, garden.bind);
 
@@ -502,4 +539,160 @@ async fn staging_500_and_applying_250_on_the_page_are_timed() {
     let applying = started.elapsed();
     assert_eq!(data(&applied)["applied"]["affirm"], 250, "{applied}");
     eprintln!("staged 500 in {staging:?}; applied 250 in one decision in {applying:?}");
+}
+
+/// Every `umbel-first-party` command in the README's `sh` blocks, split into words as a shell
+/// would: `~/` is `home`, and `"$input"` (the export loop's) is `{}`. A command ends at the end
+/// of its line or at the `)` that closes a `$(...)`.
+fn readme_commands(home: &std::path::Path) -> Vec<Vec<String>> {
+    let mut commands = Vec::new();
+    for block in README.split("```sh\n").skip(1) {
+        let block = block.split_once("```").unwrap().0;
+        for line in block.lines() {
+            let mut rest = line;
+            while let Some(at) = rest.find("umbel-first-party ") {
+                rest = &rest[at + "umbel-first-party ".len()..];
+                let (words, end) = shell_words(rest, home);
+                commands.push(words);
+                rest = &rest[end..];
+            }
+        }
+    }
+    commands
+}
+
+/// The words of `text` up to an unquoted `)` or its end, and where they stopped.
+fn shell_words(text: &str, home: &std::path::Path) -> (Vec<String>, usize) {
+    let home = format!("{}/", home.display());
+    let mut words = Vec::new();
+    let mut word: Option<String> = None;
+    let mut chars = text.char_indices().peekable();
+    while let Some((at, c)) = chars.next() {
+        match c {
+            ')' => return (finish(words, word), at),
+            ' ' | '\t' => {
+                if let Some(done) = word.take() {
+                    words.push(done);
+                }
+            }
+            '\'' => {
+                let current = word.get_or_insert_with(String::new);
+                for (_, q) in chars.by_ref() {
+                    if q == '\'' {
+                        break;
+                    }
+                    current.push(q);
+                }
+            }
+            '"' => {
+                let mut quoted = String::new();
+                for (_, q) in chars.by_ref() {
+                    if q == '"' {
+                        break;
+                    }
+                    quoted.push(q);
+                }
+                let quoted = match quoted.as_str() {
+                    "$input" => "{}".to_owned(),
+                    other => {
+                        assert!(
+                            !other.contains('$'),
+                            "a variable the test does not know: {other}"
+                        );
+                        quoted
+                    }
+                };
+                word.get_or_insert_with(String::new).push_str(&quoted);
+            }
+            '~' if word.is_none() && chars.peek().is_some_and(|(_, next)| *next == '/') => {
+                chars.next();
+                word = Some(home.clone());
+            }
+            '$' | '`' | '|' | ';' | '&' | '>' | '<' => {
+                panic!("a shell construct the test does not read, in: {text}")
+            }
+            other => word.get_or_insert_with(String::new).push(other),
+        }
+    }
+    (finish(words, word), text.len())
+}
+
+fn finish(mut words: Vec<String>, word: Option<String>) -> Vec<String> {
+    words.extend(word);
+    words
+}
+
+/// The owner's first use (amendment F-1): the README put `--workspace` after `call`'s input,
+/// which the command line refuses as input, and called a bare `umbel ideas-export`. Every
+/// `umbel-first-party` command in the README's `sh` blocks is run through the real binary on a
+/// home with no `ideas` workspace: a command whose words parse reaches the workspace and is
+/// refused `WORKSPACE_NOT_FOUND`, before anything serves or opens; one that does not is refused
+/// `INVALID_INPUT`. The export, the one command that returns, is then run on the README's
+/// instance, and its one page is the last: no `next`, and the manifest.
+#[test]
+fn every_readme_command_parses_as_written() {
+    let bin = env!("CARGO_BIN_EXE_umbel-first-party");
+    let run = |words: &[String]| {
+        let output = std::process::Command::new(bin)
+            .args(words)
+            .env_remove("UMBEL_WORKSPACE")
+            .env_remove("UMBEL_LOG")
+            .env_remove("UMBEL_HTTP_BIND")
+            .stdin(std::process::Stdio::null())
+            .output()
+            .unwrap();
+        let text = format!(
+            "{}{}",
+            String::from_utf8_lossy(&output.stdout),
+            String::from_utf8_lossy(&output.stderr)
+        );
+        (output.status.success(), text)
+    };
+
+    let empty = tempfile::tempdir().unwrap();
+    let commands = readme_commands(empty.path());
+    assert!(commands.len() >= 3, "{commands:?}");
+    let mut verbs = Vec::new();
+    for words in &commands {
+        let (_, text) = run(words);
+        assert!(
+            text.contains("WORKSPACE_NOT_FOUND") && !text.contains("INVALID_INPUT"),
+            "the README's `umbel-first-party {}` does not parse: {text}",
+            words.join(" ")
+        );
+        verbs.push(
+            words
+                .iter()
+                .find(|w| !w.starts_with('-') && !w.contains('/'))
+                .cloned(),
+        );
+    }
+    for verb in ["serve", "call"] {
+        assert!(
+            verbs.iter().any(|v| v.as_deref() == Some(verb)),
+            "{verbs:?}"
+        );
+    }
+
+    // The export on the README's instance.
+    let home = tempfile::tempdir().unwrap();
+    let workspace = home.path().join("ideas");
+    std::fs::create_dir_all(&workspace).unwrap();
+    std::fs::write(workspace.join("umbel.toml"), readme_instance()).unwrap();
+    let export = readme_commands(home.path())
+        .into_iter()
+        .find(|words| words.iter().any(|w| w == "ideas-export"))
+        .expect("the README exports with umbel-first-party");
+    let (ok, text) = run(&export);
+    assert!(ok, "{text}");
+    // stdout's result first, then whatever the host wrote to stderr.
+    let page: Value = serde_json::Deserializer::from_str(&text)
+        .into_iter()
+        .next()
+        .unwrap()
+        .unwrap();
+    assert_eq!(page["success"], true, "{page}");
+    // The loop's `.data.next // empty`: absent on the last page, which holds the manifest.
+    assert!(page["data"].get("next").is_none(), "{page}");
+    assert!(page["data"]["manifest"].is_object(), "{page}");
 }

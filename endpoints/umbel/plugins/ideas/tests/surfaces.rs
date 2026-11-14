@@ -135,6 +135,12 @@ fn the_skill_reviews_in_bulk_on_the_page_and_does_not_send_the_agent_to_the_guid
         "Send the same call again",
         "not before every request",
         "stage an `undo`",
+        // The owner's first use (amendment F-2): the first call is AFD's refusal, with no
+        // address; only the call repeated with `confirm: true` returns the page's.
+        "Repeat it with `confirm: true`",
+        "beside `command`\n   and `input`, not inside `input`",
+        "`error.details.url`",
+        "Send the same call again, with `confirm: true`",
     ] {
         assert!(text.contains(needed), "the skill lacks: {needed}");
     }

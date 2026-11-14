@@ -12,7 +12,8 @@ description: How to keep a person's ideas with the ideas plugin - capture as the
 - After a brainstorm, send all its ideas in one call. Mark each with `said`: `person` when the
   person said these words, `agent` when you did. It is a claim and decides nothing.
 - Send `idempotencyKey` so a call sent twice writes once.
-- Facts about the person, or how to work with them, go to `memory-remember` instead.
+- Facts about the person, or how to work with them, are not ideas: keep them with
+  `memory-remember` where the instance has it.
 
 ## Read what comes back
 
@@ -40,14 +41,22 @@ one by one in the conversation or at a terminal.
    with `ideas-review-stage` in one call, up to 500, in named groups (a group a theme), each
    proposal with a one-line reason and honest confidence: affirm what the person said, decline
    what says nothing, reword what is two ideas or unclear, fold a duplicate into the better one.
+   An `affirm`, `decline` or `reword` names the held wording's `version`; a `duplicate` names
+   `idea` and `keep`. `ideas-match` refuses more inputs than its answer fits, and names how many
+   fit: send that many a call.
 2. Tell the person in a sentence or two what waits: how many, in which groups.
 3. Call `ideas-review-apply` with part `"*"` and the digest from staging or `ideas-review-show`.
    The groups are the page's headings. Only past 500 proposals confirm a group at a time.
-4. The host refuses the call with the page's address. Give the person that one link. They read
-   every page, uncheck what they disagree with, and approve once.
-5. Send the same call again. What they unchecked is pulled, recorded as their disagreement;
-   the rest is applied. If the part changed meanwhile, show it again and send the new digest.
-6. When the person says a decision was wrong, stage an `undo` of it and confirm it the same way.
+4. The first call is refused `CONFIRMATION_REQUIRED` with no address: the command needs your
+   acknowledgement. Repeat it with `confirm: true`. Through `afd-call` that sits beside `command`
+   and `input`, not inside `input`; through the command's own tool, among its arguments.
+5. The call with `confirm: true` is refused again, now with the page's address in
+   `error.details.url`. Give the person that one link. They read every page,
+   uncheck what they disagree with, and approve once.
+6. Send the same call again, with `confirm: true`. What they unchecked is pulled, recorded as
+   their disagreement; the rest is applied. If the part changed meanwhile, show it again and send
+   the new digest.
+7. When the person says a decision was wrong, stage an `undo` of it and confirm it the same way.
 
 `ideas-review-report` says how reviews went: what was declined and pulled, and how often your
 confidence held. Read it to stage better next time.

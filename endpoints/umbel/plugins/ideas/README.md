@@ -102,24 +102,55 @@ Give the agent's harness the server over stdio, and keep the page served in a te
 person reviews:
 
 ```sh
-umbel-first-party serve --stdio --workspace ~/ideas
-umbel-first-party call person-page-serve '{"open": true}' --workspace ~/ideas
+umbel-first-party --workspace ~/ideas serve --stdio
+umbel-first-party --workspace ~/ideas call person-page-serve '{"open": true}'
 ```
+
+`--workspace` goes before the verb. After `call <command>`, every word is the command's input, so
+a `--workspace` there is refused with `INVALID_INPUT`.
 
 Then:
 
 1. The person talks; the agent captures with `ideas-capture`, and answers in their voice only
    after `ideas-ask`.
-2. When seeds have piled up, the agent stages a review with `ideas-review-stage`, in groups, and
-   calls `ideas-review-apply` with part `"*"` and the digest. The host refuses it with the page's
-   address, which the agent gives the person.
-3. The person reads every page in the browser, unchecks what they disagree with, and approves on
-   the last page. The agent sends the same call again: what was unchecked is pulled, the rest
-   applied at level `local`.
-4. `ideas-review-report` says how the reviews went: what was declined and pulled, how often a
+2. When seeds have piled up, the agent stages a review with `ideas-review-stage`, in groups. Each
+   `affirm`, `decline` and `reword` names the held wording's `version`; a `duplicate` names
+   `idea` and `keep`.
+3. The agent calls `ideas-review-apply` with part `"*"` and the digest. Over MCP that takes two
+   refusals before the page:
+   - The first call is refused by AFD, `CONFIRMATION_REQUIRED` with no page address, because
+     the command needs an acknowledgement. Its suggestion says how to send one. Through
+     `afd-call`, `confirm: true` goes beside `command` and `input`, not inside `input`:
+     `{ "command": "ideas-review-apply", "input": { "review": "...", "part": "*", "digest": "..." }, "confirm": true }`.
+     Through the command's own tool, when `first_class_tools` lists it, `confirm: true` goes
+     among its arguments. A harness that shows a confirmation form instead has the same effect
+     when the form is accepted.
+   - The call with `confirm: true` is refused by the host, `CONFIRMATION_REQUIRED` again, now
+     with the page's address in `error.details.url`. The agent gives the person that link.
+4. The person reads every page in the browser, unchecks what they disagree with, and approves on
+   the last page. The agent sends the same call again, with `confirm: true`: what was unchecked
+   is pulled, the rest applied at level `local`.
+5. `ideas-review-report` says how the reviews went: what was declined and pulled, how often a
    folded duplicate was among capture's candidates, and the common rewordings.
 
-`tests/ideas_first_use.rs` in `first-party` walks these steps on this file as written.
+`tests/ideas_first_use.rs` in `first-party` walks these steps on this file as written, over
+`afd-call`, and runs every `umbel-first-party` command in this README's `sh` blocks through the
+binary's own argument parser.
+
+### Reading the page from another computer
+
+The page answers only on loopback: it checks that a request's `Host` is `127.0.0.1:<port>`, and
+that a form's `Origin` is the page's own. A browser on another computer, through a proxy on a
+LAN or tailnet address, fails those checks, and "Next page" is refused. The supported route is
+an SSH tunnel from the computer you browse on to the one that serves the page:
+
+```sh
+ssh -L 7421:127.0.0.1:7421 <the serving computer>
+```
+
+Then open the link the agent gives, unchanged. The browser sees `127.0.0.1:7421`, a loopback
+address and a secure context, so both checks pass. Do not serve the page on a network address:
+it has no sign-in, and whoever reaches it can approve the person's decisions.
 
 ### The paragraph for the server's instructions
 
@@ -149,7 +180,8 @@ before every request.
 after=""
 n=0
 while :; do
-  page=$(umbel ideas-export ${after:+--after "$after"})
+  input=$(jq -nc --arg after "$after" 'if $after == "" then {} else { after: $after } end')
+  page=$(umbel-first-party --workspace ~/ideas call ideas-export "$input")
   n=$((n + 1))
   printf '%s\n' "$page" > "ideas-archive-$n.json"
   after=$(printf '%s' "$page" | jq -r '.data.next // empty')

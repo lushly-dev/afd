@@ -304,3 +304,18 @@ pub(crate) fn too_many_pages(pages: u32, max: u32) -> Outcome {
     )
     .with_error_details(json!({ "pages": pages, "max": max }))
 }
+
+/// `OUTPUT_BUDGET_EXCEEDED`: an `ideas-match` whose answer cannot keep one candidate for each
+/// input inside the call's output budget (amendment F-3). Refused rather than every list emptied.
+pub(crate) fn match_too_large(inputs: usize, fit: usize, budget: Option<u64>) -> Outcome {
+    failure(
+        "OUTPUT_BUDGET_EXCEEDED",
+        &format!(
+            "{inputs} statements and ids cannot each keep a candidate inside the output budget"
+        ),
+        &format!(
+            "Send at most {fit} statements and ids a call, in several calls; or ask for a larger output budget with _meta[\"dev.afd/outputBudget\"]."
+        ),
+    )
+    .with_error_details(json!({ "inputs": inputs, "fit": fit, "limitBytes": budget }))
+}
