@@ -79,6 +79,7 @@ Made on 2026-11-02, in answer to this record's first version.
 | The release (2026-11-04) | "Approved release. Let's mark it as preview" | [The preview release](#the-preview-release): `2.2.0-preview.0` under the npm tag `preview`. The owner sets up the publisher with computer use |
 | `fast-element`, which the plugin needs and npm does not have (2026-11-04) | Publish it too | In the same prerelease, `3.0.1-preview.0`. `violet-elements` stays quarantined |
 | What a plain `npm install` gets once the preview is out (2026-11-04) | The preview | The owner points `latest` at it after the release; `release.yml` never moves `latest` |
+| What a plain `npm install` gets, revisited (2026-11-14, [#1192](https://github.com/lushly-dev/afd/issues/1192)) | Never a prerelease | Reverses the row above: `latest` goes back to `0.0.0-bootstrap.0` on the nine names by a one-time retag, and a prerelease plan refuses a name whose `latest` is on a prerelease ([platform release controls](../../../operations/platform-releases.md#npm-workflow)) |
 | Which release goes first, the preview or AFD 2.3.0 ([#559](https://github.com/lushly-dev/afd/pull/559)) (2026-11-04) | "Whatever you recommend" | The preview: the workflow tries the prerelease route first. #559 returns after the preview publishes |
 
 ## Native helpers and types

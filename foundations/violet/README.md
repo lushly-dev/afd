@@ -4,11 +4,11 @@ Violet's native token engine and web runtime, imported from [lushly-dev/violet](
 
 | Unit | Layer | Path | Contract |
 | --- | --- | --- | --- |
-| `@lushly-dev/violet-core` 0.2.0 | foundation | [`packages/core`](./packages/core/README.md) | Data contracts, storage, inheritance resolution, export, CSS validators. Requires only `zod`; SQLite and Neon drivers are optional. No AFD dependency, peer or type reference. |
-| `@lushly-dev/violet-runtime` 0.2.0 | foundation | [`packages/runtime`](./packages/runtime/README.md) | Browser SDK for token loading and theme switching. Adapted for Loam (D50): a preloaded token source in place of a token server, and a high-contrast theme for `ThemeManager.useSystemPreference`. |
-| `@lushly-dev/violet-afd` 0.2.0 | integration | [`integrations/violet-afd`](../../integrations/violet-afd/README.md) | The command registry, commands, `CommandResult` types and demo seed. Peer `@lushly-dev/violet-core`; depends on `@lushly-dev/afd-core` `^2.2.0` (the workspace AFD core). |
-| `@lushly-dev/violet-cli` 0.2.0 | endpoint | [`endpoints/violet-cli`](../../endpoints/violet-cli/README.md) | `violet` binary. |
-| `@lushly-dev/violet-server` 0.2.0 | endpoint | [`endpoints/violet-server`](../../endpoints/violet-server/README.md) | `violet-mcp` binary, MCP server and local REST API (`.`, `./server`, `./api`). |
+| `@lushly-dev/violet-core` 0.3.0-preview | foundation | [`packages/core`](./packages/core/README.md) | Data contracts, storage, inheritance resolution, export, CSS validators. Requires only `zod`; SQLite and Neon drivers are optional. No AFD dependency, peer or type reference. |
+| `@lushly-dev/violet-runtime` 0.3.0-preview | foundation | [`packages/runtime`](./packages/runtime/README.md) | Browser SDK for token loading and theme switching. Adapted for Loam (D50): a preloaded token source in place of a token server, and a high-contrast theme for `ThemeManager.useSystemPreference`. |
+| `@lushly-dev/violet-afd` 0.3.0-preview | integration | [`integrations/violet-afd`](../../integrations/violet-afd/README.md) | The command registry, commands, `CommandResult` types and demo seed. Peer `@lushly-dev/violet-core`; depends on `@lushly-dev/afd-core` `^2.2.0` (the workspace AFD core). |
+| `@lushly-dev/violet-cli` 0.3.0-preview | endpoint | [`endpoints/violet-cli`](../../endpoints/violet-cli/README.md) | `violet` binary. |
+| `@lushly-dev/violet-server` 0.3.0-preview | endpoint | [`endpoints/violet-server`](../../endpoints/violet-server/README.md) | `violet-mcp` binary, MCP server and local REST API (`.`, `./server`, `./api`). |
 
 The Violet API, web, Figma applications, the test workspace and the patched FAST archives stay in the Violet repository until Phase 4.
 
@@ -25,4 +25,4 @@ The Violet API, web, Figma applications, the test workspace and the patched FAST
 
 ## Release
 
-All five distributions are one quarantined `violet-npm` unit in [`scripts/release/inventory.json`](../../scripts/release/inventory.json), fixed like the upstream Changesets group. Violet's own repository keeps sole publishing authority; nothing here publishes.
+All five distributions are one `violet-npm` unit in [`scripts/release/inventory.json`](../../scripts/release/inventory.json), fixed like the upstream Changesets group. Since the owner's approval on 2026-11-14 it is admitted on the `npm-prerelease` route: AFD's `release.yml` publishes it under the npm tag `preview` (`npm install @lushly-dev/violet-core@preview`); once the maintainer has created each name with its `0.0.0-bootstrap.0` placeholder, `latest` stays on that placeholder. The manifests are at the seed `0.3.0-preview`, so the first preview is `0.3.0-preview.0`. The [handoff record](../../docs/features/active/platform-monorepo/violet-handoff.md) moves publishing from the Violet repository, which never published, and lists the owner's steps.

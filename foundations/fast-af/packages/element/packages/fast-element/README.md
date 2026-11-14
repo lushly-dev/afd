@@ -9,10 +9,10 @@ The `fast-element` library is a lightweight means to easily build performant, me
 
 ### From NPM
 
-To install the latest `fast-element` library using `npm`:
+To install the `fast-element` preview using `npm` (it is published under the `preview` tag, never `latest`):
 
 ```shell
-npm install --save @lushly-dev/fast-element
+npm install --save @lushly-dev/fast-element@preview
 ```
 
 Within your JavaScript or TypeScript code, you can then import library APIs like this:

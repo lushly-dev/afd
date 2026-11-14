@@ -1210,7 +1210,7 @@ importers:
         specifier: ^2.6.6
         version: 2.6.6
       '@lushly-dev/violet-core':
-        specifier: workspace:^0.2.0
+        specifier: workspace:^
         version: link:../../foundations/violet/packages/core
       '@types/better-sqlite3':
         specifier: ^9.6.0

@@ -3,7 +3,7 @@
 Command-line interface for Violet Design, a hierarchical design token platform.
 
 ```bash
-npm install --save-dev @lushly-dev/violet-cli
+npm install --save-dev @lushly-dev/violet-cli@preview
 npx --no -- violet --help
 ```
 
