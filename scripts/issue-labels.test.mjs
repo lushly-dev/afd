@@ -111,7 +111,10 @@ describe('issueViolations', () => {
 		[['status:triage', 'priority:0'], /priority:0 unassigned/],
 		[['status:triage', 'risk:high', 'risk:medium'], /both risk:high and risk:medium/],
 		[['status:planned'], /status:planned without an execution profile/],
-		[['status:planned', 'execution:bounded', 'execution:deep'], /several execution profiles/],
+		[
+			['status:planned', 'execution:bounded', 'execution:deep'],
+			/several execution profiles \(execution:bounded, execution:deep\): keep one execution profile/,
+		],
 		[['status:deferred', 'blocked', 'execution:deep'], /status:deferred keeps execution:deep/],
 		[['status:planned', 'execution:expert-escalation'], /expert-escalation unassigned/],
 		[['status:deferred', 'needs:decision'], /needs:decision unassigned/],

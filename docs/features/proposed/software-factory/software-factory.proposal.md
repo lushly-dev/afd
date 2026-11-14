@@ -87,10 +87,10 @@ plugin builds two hosts:
 | `factory-cell` | `lane-status`, `issue-check`, `lane-enqueue`, the `lane-handoff` commands | Cells |
 | `factory` | Every command | The foreman and Jason |
 
-Each command's `CommandPolicy` uses botcore's existing effect names: `inspect` for reads,
-`subprocess` for anything that runs git or the adapter's commands (`lane-enqueue`,
-`issue-check`, `pr-preview`, `lane-host-probe`), `service` for the lane process and
-GitHub writes, `history-write` for state. botcore gains `PluginRegistry.add_policy`, so a
+Each command's `CommandPolicy` uses botcore's existing effect names: `inspect` for reads of
+the lane's own state, `subprocess` for anything that runs git, `gh` or the adapter's commands
+(`lane-enqueue`, `issue-check`, `lane-status`, `pr-preview`, `lane-host-probe`), `service`
+for the lane process and GitHub writes, `history-write` for state. botcore gains `PluginRegistry.add_policy`, so a
 plugin declares its own policies instead of each host passing them to `build_host`.
 
 **For a model with no skill installed.** Command names below are AFD's kebab-case; the
@@ -202,8 +202,9 @@ command exits, as Lushly's foreman does with `merge-lane wait`.
 
 ### The repository adapter
 
-Everything Lushly hard-codes becomes configuration under `[tool.botcore.factory]` (or
-`botcore.toml`), so each repository states its own contract:
+Everything Lushly hard-codes becomes configuration under `[plugins.factory]` in `botcore.toml`
+(`[tool.botcore.plugins.factory]` in `pyproject.toml`, where botcore reads a plugin's settings),
+so each repository states its own contract:
 
 | Key | AFD | Lushly (when it migrates) |
 |---|---|---|
