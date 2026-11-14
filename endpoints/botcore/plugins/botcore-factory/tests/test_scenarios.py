@@ -23,7 +23,16 @@ from conftest import REPO_ROOT, SCENARIOS
 
 RUNNER = Path(__file__).resolve().parents[1] / "scenarios" / "run.mjs"
 
-JOBS = ["14-triage-the-backlog"]
+JOBS = [
+    "03-start-a-cell-where-there-is-room",
+    "04-stop-at-the-ceiling",
+    "05-hand-over-a-reviewed-branch",
+    "06-refuse-early-on-cheap-checks",
+    "07-never-lose-a-held-branch",
+    "08-return-an-ejected-branch",
+    "09-no-loosened-gate-in-a-repair",
+    "14-triage-the-backlog",
+]
 
 
 def run_jobs(names: list[str]) -> dict:

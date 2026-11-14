@@ -1,8 +1,10 @@
 """Cells: registering one claims its issues on GitHub and assigns it a plan.
 
 Registration is reserve, then start: the foreman calls ``cell-register`` before
-``delegate_task``, so a refusal costs nothing. Every limit is checked before anything is
-written, under the state lock, so two registrations cannot both take the last seat or issue.
+``delegate_task``, so a refusal costs nothing, then ``cell-attach`` with the thread. Every limit
+is checked before anything is written, under the state lock, so two registrations cannot both
+take the last seat or issue. ``lane-drop`` releases the claims and forgets the cell;
+``gate-allow`` records a diagnosis that lets a repair edit a gate.
 """
 
 from __future__ import annotations
@@ -10,8 +12,9 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import timedelta
 
-from botcore_factory import dials
-from botcore_factory.claims import Claim, claim_body, format_time
+from botcore_factory import dials, records
+from botcore_factory.claims import Claim, claim_body, format_time, release_body
+from botcore_factory.events import answer, emit
 from botcore_factory.intake import not_dispatchable_reasons, read_backlog
 from botcore_factory.labels import IN_PROGRESS, PLANNED
 from botcore_factory.runtime import Factory, Refusal
@@ -182,7 +185,7 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
                 f"A cell is already registered for {branch}",
                 f"Register under another branch name, or lane-drop {branch} first",
             )
-        _check_issues(factory, issues)
+        backlog = _check_issues(factory, issues)
         choice = _check_capacity(factory, state)
         world = factory.world
         now = world.clock.now()
@@ -202,20 +205,113 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
             "machine": claim.machine,
         }
         state["cells"].append(cell)
-        for event in state["events"]:
-            if event.get("type") == "queue-room" and event.get("open", True):
-                event["open"] = False
-                event["resolvedBy"] = f"cell-register {branch}"
-        factory.store.log(
-            {
-                "kind": "cell-registered",
-                "branch": branch,
-                "issues": list(issues),
-                "plan": choice.plan.id,
-                "route": route,
-            }
+        answer(state, "cell-register", format_time(now))
+        profiles = [
+            label.removeprefix("execution:")
+            for issue in backlog.issues
+            for label in issue.labels
+            if label.startswith("execution:")
+        ]
+        factory.store.append_record(
+            records.make(
+                "cell-registered",
+                format_time(now),
+                state["lane"].get("runId"),
+                branch=branch,
+                issues=list(issues),
+                plan=choice.plan.id,
+                route=route,
+                profile=profiles[0] if profiles else "unknown",
+            )
         )
     return cell
+
+
+def find(state: dict, branch: str) -> dict:
+    cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
+    if cell is None:
+        raise Refusal(
+            "NOT_FOUND",
+            f"No cell is registered for {branch}",
+            "lane-status lists the cells; register one with cell-register",
+        )
+    return cell
+
+
+def attach(factory: Factory, branch: str, thread: str) -> dict:
+    """Record the T3 Code thread delegate_task returned for a registered cell."""
+    if not thread.strip():
+        raise Refusal(
+            "VALIDATION_ERROR", "thread is empty", "Pass the thread delegate_task returned"
+        )
+    with factory.store.update(f"cell-attach {branch}") as state:
+        cell = find(state, branch)
+        cell["thread"] = thread
+        if cell.get("state") == "registered":
+            cell["state"] = "working"
+    return cell
+
+
+def gate_allow(factory: Factory, branch: str, reason: str) -> dict:
+    """Record that a diagnosis found the repair's gate edit to be the right one.
+
+    Only the foreman calls it (the factory host), after a diagnosis on the stronger route;
+    there is no caller-supplied bypass on lane-enqueue itself.
+    """
+    if not reason.strip():
+        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say what the diagnosis found")
+    with factory.store.update(f"gate-allow {branch}") as state:
+        cell = find(state, branch)
+        cell["gateAllowed"] = {"reason": reason, "at": format_time(factory.world.clock.now())}
+    return {"allowed": True, "branch": branch}
+
+
+def drop(factory: Factory, branch: str, reason: str) -> dict:
+    """Dequeue the branch, release its claims and forget the cell; its worktree is left alone.
+
+    Each issue goes back to ``status:planned`` with one release comment. A drop that frees the
+    last seat opens a ``queue-room`` event; the ejections it answers are closed.
+    """
+    if not reason.strip():
+        raise Refusal("VALIDATION_ERROR", "reason is empty", "Say why the cell is dropped")
+    with factory.store.update(f"lane-drop {branch}") as state:
+        cell = find(state, branch)
+        was_full = len(seated(state)) >= dials.value(state["dials"], "cells.max")
+        held_seat = cell in seated(state)
+        released = _release(factory, cell, reason)
+        now = format_time(factory.world.clock.now())
+        state["cells"].remove(cell)
+        for listing in (state["queue"], state["held"]):
+            listing[:] = [entry for entry in listing if entry.get("branch") != branch]
+        answered = answer(state, "lane-drop", now, branch=branch)
+        if was_full and held_seat:
+            emit(
+                state, now, "queue-room", branch=branch, detail=f"A seat is free: {branch} dropped"
+            )
+        factory.store.append_record(
+            records.make("dropped", now, state["lane"].get("runId"), branch=branch, reason=reason)
+        )
+    return {"dropped": True, "released": released, "answered": answered}
+
+
+def _release(factory: Factory, cell: dict, reason: str) -> list[int]:
+    """Put each issue the cell claimed back to status:planned, with one release comment."""
+    released: list[int] = []
+    github = factory.world.github
+    for number in cell.get("issues", []):
+        try:
+            github.edit_labels(number, add=[PLANNED], remove=[IN_PROGRESS])
+            github.add_comment(number, release_body(cell["branch"], reason))
+        except WorldError as exc:
+            raise Refusal(
+                "WRITE_FAILED",
+                f"Releasing #{number} from {cell['branch']} failed: {exc}. Released before it: "
+                f"{', '.join(f'#{n}' for n in released) or 'none'}",
+                "The cell was kept. Check `gh auth status`, then lane-drop again",
+                released=released,
+            ) from exc
+        released.append(number)
+    return released
 
 
 def _claim(factory: Factory, issues: list[int], claim: Claim) -> None:

@@ -12,6 +12,8 @@ State lives on the lane host in the per-user application data directory (``platf
   included where the platform reports it) is stale and is broken. No ``flock``: the same code
   runs on Windows and macOS.
 - ``log.jsonl`` is append-only: every change, one JSON line each, never rewritten.
+- ``records.jsonl`` is append-only too: the measurement records (``records``) every number of
+  the lane's report and the improvement loop is computed from.
 
 Claims are not here: they live on GitHub (see ``claims``).
 """
@@ -164,19 +166,39 @@ class StateStore:
 
     def log(self, record: dict) -> None:
         """Append one record to the log; the log is never rewritten."""
-        line = json.dumps({"at": self._now(), **record}, sort_keys=True)
+        self._append(self.log_path, {"at": self._now(), **record})
+
+    def read_log(self) -> list[dict]:
+        return self._read_lines(self.log_path)
+
+    @property
+    def records_path(self) -> Path:
+        return self.root / "records.jsonl"
+
+    def append_record(self, record: dict) -> None:
+        """Append one measurement record (see ``records``); records are never rewritten."""
+        self._append(self.records_path, record)
+
+    def read_records(self) -> list[dict]:
+        return self._read_lines(self.records_path)
+
+    def _append(self, path: Path, record: dict) -> None:
+        line = json.dumps(record, sort_keys=True)
         self.root.mkdir(parents=True, exist_ok=True)
-        with self.log_path.open("a", encoding="utf-8") as handle:
+        with path.open("a", encoding="utf-8") as handle:
             handle.write(line + "\n")
             handle.flush()
             os.fsync(handle.fileno())
 
-    def read_log(self) -> list[dict]:
+    def _read_lines(self, path: Path) -> list[dict]:
         try:
-            lines = self.log_path.read_text(encoding="utf-8").splitlines()
+            lines = path.read_text(encoding="utf-8").splitlines()
         except FileNotFoundError:
             return []
-        return [json.loads(line) for line in lines if line.strip()]
+        try:
+            return [json.loads(line) for line in lines if line.strip()]
+        except ValueError as exc:
+            raise StateError(f"{path} has a line that is not JSON: {exc}") from exc
 
     def _now(self) -> str:
         return self.clock.now().isoformat().replace("+00:00", "Z")

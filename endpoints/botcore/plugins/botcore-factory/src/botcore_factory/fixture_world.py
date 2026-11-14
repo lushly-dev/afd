@@ -19,6 +19,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from pathlib import Path
 
+from botcore_factory import records
 from botcore_factory.claims import Claim, claim_body, parse_time
 from botcore_factory.world import (
     LANE_HOST_VARIABLE,
@@ -121,6 +122,43 @@ def normalize_world(data: dict) -> dict:
         for index, comment in enumerate(comments, 1):
             comment.setdefault("id", f"{issue['number']}-{index}")
     return data
+
+
+def open_run(world_path: Path, state_base: Path, fixture: dict) -> tuple[World, object]:
+    """Start a scenario run: write its world and seed its lane state from a merged fixture.
+
+    The lane-state part replaces the empty state. A fixture worktree's ``ejectedFor`` (the cause
+    the lane ejected that branch for) becomes the ``ejected`` record the lane would have
+    written. Returns the world and the run's StateStore.
+    """
+    from botcore_factory.state import LANE_DEFAULTS, StateStore
+
+    world_part, state_part = split_fixture(fixture)
+    world = FixtureWorld.create(world_path, world_part).world()
+    store = StateStore.for_repository(
+        world.github.repository(), world.processes, world.clock, base=state_base
+    )
+    with store.update("fixture") as state:
+        state.update(state_part)
+        state["lane"] = {**LANE_DEFAULTS, **state_part.get("lane", {})}
+    cells = {cell["branch"]: cell for cell in state_part.get("cells", [])}
+    at = world.clock.now().isoformat().replace("+00:00", "Z")
+    for worktree in world_part.get("worktrees", {}).values():
+        if worktree.get("ejectedFor"):
+            branch = worktree["branch"]
+            attempt = max(1, cells.get(branch, {}).get("ejections", 1))
+            run_id = state_part.get("lane", {}).get("runId")
+            store.append_record(
+                records.make(
+                    "ejected",
+                    at,
+                    run_id,
+                    branch=branch,
+                    attempt=attempt,
+                    cause=worktree["ejectedFor"],
+                )
+            )
+    return world, store
 
 
 class FixtureWorld:
@@ -289,8 +327,26 @@ class FixtureGit:
     def branch(self, worktree: str) -> str | None:
         return self._worktree(worktree).get("branch")
 
-    def is_clean(self, worktree: str) -> bool:
-        return not self._worktree(worktree).get("dirty", False)
+    def uncommitted(self, worktree: str) -> list[str]:
+        found = self._worktree(worktree)
+        if found.get("uncommitted"):
+            return list(found["uncommitted"])
+        clean = found.get("clean", not found.get("dirty", False))
+        return [] if clean else ["(uncommitted changes)"]
+
+    def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
+        """The fixture names the gate paths a branch changed (``gatePathsChanged``) and, when it
+        matters, the rest (``changed``); ``since`` is not modelled."""
+        found = self._worktree(worktree)
+        return [*found.get("gatePathsChanged", []), *found.get("changed", [])]
+
+    def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
+        self._worktree(worktree)
+        refs = [
+            ref for ref in self.store.data.get("originQueueRefs", []) if ref["branch"] != branch
+        ]
+        self.store.data["originQueueRefs"] = [*refs, {"branch": branch, "head": head}]
+        self.store.save()
 
 
 class FixtureClock:
@@ -358,7 +414,17 @@ class FixtureProcesses:
     def start_time(self, pid: int) -> float | None:
         return None
 
-    def run(self, args: Sequence[str], cwd: str, timeout: float | None = None) -> Completed:
+    def run(
+        self,
+        args: Sequence[str],
+        cwd: str,
+        timeout: float | None = None,
+        *,
+        label: str | None = None,
+    ) -> Completed:
+        worktree = self.store.data.get("worktrees", {}).get(cwd)
+        if worktree is not None and label:
+            return _worktree_run(tuple(args), worktree, label)
         commands = self.store.data.get("processes", {}).get("results", {})
         key = " ".join(args)
         if key not in commands:
@@ -370,3 +436,21 @@ class FixtureProcesses:
             result.get("stdout", ""),
             result.get("stderr", ""),
         )
+
+
+def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Completed:
+    """Answer a labelled run in a fixture worktree: its review record or a prequeue stage."""
+    if label == "review-evidence":
+        review = worktree.get("review")
+        reviewed = bool(review) and review.get("head") == worktree.get("head")
+        return Completed(args, 0 if reviewed else 1, "", "" if reviewed else "no review record")
+    if label.startswith("prequeue:"):
+        stage = label.split(":", 1)[1]
+        results = worktree.get("prequeue", {})
+        if stage not in results:
+            raise WorldError(f"The fixture worktree has no result for the {stage} stage")
+        outcome = str(results[stage])
+        if outcome == "pass":
+            return Completed(args, 0, "", "")
+        return Completed(args, 1, outcome.removeprefix("fail").lstrip(": ").strip(), "")
+    raise WorldError(f"The fixture cannot answer a {label} run")

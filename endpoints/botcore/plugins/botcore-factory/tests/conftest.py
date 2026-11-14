@@ -1,25 +1,35 @@
 """Shared fixtures: scenario fixtures as fixture worlds, and factory hosts over them.
 
 Nothing here reaches GitHub, git remotes or T3 Code: every host is built over a FixtureWorld.
-The target repository is AFD's own checkout, so hosts read AFD's adapter block and labels.
+The target repository is the example repository the job fixtures describe: the adapter in
+``scenarios/repository/botcore.toml`` with AFD's own ``.github/labels.json``, as run.mjs builds it.
 """
 
 from __future__ import annotations
 
 import dataclasses
 import json
+import shutil
 from pathlib import Path
 
 import pytest
 from botcore.context import ExecutionContext
 
-from botcore_factory.fixture_world import FixtureWorld, load_fixture, split_fixture
+from botcore_factory.fixture_world import FixtureWorld, load_fixture, open_run
 from botcore_factory.hosts import build_factory_host
-from botcore_factory.state import LANE_DEFAULTS, StateStore
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
 SCENARIOS = REPO_ROOT / "docs/features/proposed/software-factory/scenarios"
 FIXTURES = SCENARIOS / "fixtures"
+EXAMPLE = Path(__file__).resolve().parents[1] / "scenarios" / "repository"
+
+
+def example_repository(directory: Path) -> Path:
+    """The example repository: its adapter, and AFD's label definitions."""
+    (directory / ".github").mkdir(parents=True, exist_ok=True)
+    shutil.copyfile(EXAMPLE / "botcore.toml", directory / "botcore.toml")
+    shutil.copyfile(REPO_ROOT / ".github/labels.json", directory / ".github/labels.json")
+    return directory
 
 
 def fixture(name: str = "fresh", base: str | None = "fresh.json", **overrides) -> dict:
@@ -31,31 +41,29 @@ def fixture(name: str = "fresh", base: str | None = "fresh.json", **overrides) -
 class Run:
     """One scenario run's world file and lane state, and hosts built over them."""
 
-    def __init__(self, directory: Path, data: dict) -> None:
+    def __init__(self, directory: Path, data: dict, target: Path) -> None:
         self.directory = directory
+        self.target = target
         self.world_path = directory / "world.json"
         self.state_base = directory / "state"
-        world_part, state_part = split_fixture(data)
-        self.fixture_world = FixtureWorld.create(self.world_path, world_part)
-        self.world = self.fixture_world.world()
-        self.store = StateStore.for_repository(
-            self.world.github.repository(),
-            self.world.processes,
-            self.world.clock,
-            base=self.state_base,
-        )
-        with self.store.update("seed") as state:
-            state.update(state_part)
-            state["lane"] = {**LANE_DEFAULTS, **state_part.get("lane", {})}
+        self.world, self.store = open_run(self.world_path, self.state_base, data)
 
     def host(
-        self, name: str = "factory", *, target: Path = REPO_ROOT, profile="trusted-local", **replace
+        self,
+        name: str = "factory",
+        *,
+        target: Path | None = None,
+        profile="trusted-local",
+        **replace,
     ):
         world = FixtureWorld(self.world_path).world()
         if replace:
             world = dataclasses.replace(world, **replace)
         return build_factory_host(
-            name, ExecutionContext(target, profile=profile), world=world, state_base=self.state_base
+            name,
+            ExecutionContext(target or self.target, profile=profile),
+            world=world,
+            state_base=self.state_base,
         )
 
     async def call(self, command: str, host=None, **arguments):
@@ -77,13 +85,18 @@ class Run:
         )
 
 
+@pytest.fixture(scope="session")
+def example_repo(tmp_path_factory) -> Path:
+    return example_repository(tmp_path_factory.mktemp("example-repo"))
+
+
 @pytest.fixture
-def make_run(tmp_path):
+def make_run(tmp_path, example_repo):
     counter = iter(range(1000))
 
     def make(name: str = "fresh", base: str | None = "fresh.json", **overrides) -> Run:
         directory = tmp_path / f"run-{next(counter)}"
         directory.mkdir()
-        return Run(directory, fixture(name, base, **overrides))
+        return Run(directory, fixture(name, base, **overrides), example_repo)
 
     return make

@@ -143,7 +143,19 @@ class Git(Protocol):
 
     def branch(self, worktree: str) -> str | None: ...
 
-    def is_clean(self, worktree: str) -> bool: ...
+    def uncommitted(self, worktree: str) -> list[str]:
+        """The paths with uncommitted changes (tracked or untracked); empty when clean."""
+        ...
+
+    def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
+        """The paths the worktree's HEAD changed since ``since`` (a commit), or since it left
+        origin's default branch when ``since`` is None."""
+        ...
+
+    def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
+        """Push ``head`` to ``refs/factory/queue/<branch>`` on origin, so a replacement host can
+        rebuild the queue."""
+        ...
 
 
 @runtime_checkable
@@ -188,8 +200,19 @@ class Processes(Protocol):
         """The process's start as epoch seconds, or None where the platform cannot say."""
         ...
 
-    def run(self, args: Sequence[str], cwd: str, timeout: float | None = None) -> Completed:
-        """Run an argument list (never a shell string) and wait for it."""
+    def run(
+        self,
+        args: Sequence[str],
+        cwd: str,
+        timeout: float | None = None,
+        *,
+        label: str | None = None,
+    ) -> Completed:
+        """Run an argument list (never a shell string) and wait for it.
+
+        ``label`` says what the run is for (``prequeue:lint``, ``review-evidence``), so a fixture
+        world can answer it; the real world ignores it.
+        """
         ...
 
 

@@ -164,7 +164,7 @@ def test_git_reads_host_records_from_origin_refs_and_worktrees():
         {
             "git for-each-ref --format=%(refname)": "refs/factory/hosts/workstation\n",
             "git show refs/factory/hosts/workstation:host.json": json.dumps(record),
-            "git -C wt": "",
+            "git -C wt": " M src/a.ts\n?? new.ts\nR  old.ts -> moved.ts\n",
         }
     )
     git = CliGit(run)
@@ -183,8 +183,30 @@ def test_git_reads_host_records_from_origin_refs_and_worktrees():
         "origin",
         "+refs/factory/hosts/*:refs/factory/hosts/*",
     ]
-    assert git.is_clean("wt")
+    assert git.uncommitted("wt") == ["src/a.ts", "new.ts", "moved.ts"]
     assert CliGit(FakeRun(fail={"git -C wt": "detached"})).branch("wt") is None
+
+
+def test_git_diffs_and_pushes_the_queue_ref_as_argument_lists():
+    run = FakeRun({"git -C wt": "lefthook.yml\nsrc/a.ts\n"})
+    git = CliGit(run)
+    assert git.changed_files("wt", "abc123") == ["lefthook.yml", "src/a.ts"]
+    git.changed_files("wt")
+    git.push_queue_ref("wt", "fix/a", "abc123")
+    assert [args for args, _ in run.calls] == [
+        ["git", "-C", "wt", "diff", "--name-only", "abc123...HEAD"],
+        ["git", "-C", "wt", "diff", "--name-only", "origin/HEAD...HEAD"],
+        [
+            "git",
+            "-C",
+            "wt",
+            "push",
+            "--force",
+            "--quiet",
+            "origin",
+            "abc123:refs/factory/queue/fix/a",
+        ],
+    ]
 
 
 def test_the_system_clock_is_utc():

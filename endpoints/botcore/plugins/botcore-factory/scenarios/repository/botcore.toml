@@ -1,0 +1,22 @@
+# The example repository the software-factory job fixtures describe (example-org/example-repo).
+# run.mjs and the plugin's tests copy this adapter into a run directory beside AFD's own
+# .github/labels.json, which the fixtures' labels come from. Its two prequeue stages are the
+# ones the fixtures' worktrees report; the fixture world answers them, and the review evidence,
+# from each worktree's data, so nothing here is run.
+[plugins.factory]
+labels = ".github/labels.json"
+prequeue = [
+    { name = "lint", run = ["pnpm", "lint"] },
+    { name = "typecheck", run = ["pnpm", "typecheck"] },
+]
+review_evidence = ["node", "scripts/review-record.mjs", "--verify", "{head}"]
+gate_paths = [
+    "lefthook.yml",
+    ".github/workflows/**",
+    ".github/labels.json",
+    "scripts/check-*.mjs",
+    "scripts/affected*",
+    "biome.json",
+    "package.json",
+    "botcore.toml",
+]
