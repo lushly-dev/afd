@@ -123,3 +123,51 @@ async fn too_many_or_none_refuses() {
         .await;
     assert_eq!(code(&k), "VALIDATION_ERROR");
 }
+
+/// The owner's first use (amendment F-3): 64 ids in one call answered every result with no
+/// candidates and `cut: false`, while groups of four worked. Fitting every result to the same
+/// number of candidates had fitted them all to none. A match that cannot keep one candidate each
+/// is now refused with the number of inputs that fit, never emptied.
+#[tokio::test]
+async fn a_match_too_large_for_its_budget_is_refused_never_emptied() {
+    let fx = Fx::new();
+    let statements: Vec<String> = (0..64)
+        .map(|n| {
+            format!(
+                "Bed {n} of the allotment wants a barrow of compost and a mulch of straw before the first frost of autumn. The straw keeps the clay from capping in the winter rain, and by spring the worms have pulled most of the compost down into the top spade of soil."
+            )
+        })
+        .collect();
+    let refs: Vec<&str> = statements.iter().map(String::as_str).collect();
+    let held = fx.capture(&refs).await;
+    assert_eq!(held.len(), 64);
+
+    let matched = fx.agent("ideas-match", json!({ "ids": held })).await;
+    assert_eq!(code(&matched), "OUTPUT_BUDGET_EXCEEDED", "{matched}");
+    let details = &matched["error"]["details"];
+    assert_eq!(details["inputs"], 64);
+    let fit = usize::try_from(details["fit"].as_u64().unwrap()).unwrap();
+    assert!((1..64).contains(&fit), "{details}");
+    let suggestion = matched["error"]["suggestion"].as_str().unwrap();
+    assert!(
+        suggestion.contains(&format!("at most {fit}")),
+        "{suggestion}"
+    );
+
+    // The number it names fits, every result with a candidate.
+    let fitted = fx.agent("ideas-match", json!({ "ids": held[..fit] })).await;
+    let results = data(&fitted)["results"].as_array().unwrap().clone();
+    assert_eq!(results.len(), fit);
+    for result in &results {
+        assert!(
+            !result["candidates"].as_array().unwrap().is_empty(),
+            "{result}"
+        );
+    }
+
+    // Statements too: the same refusal, never a page of empty lists.
+    let matched = fx
+        .agent("ideas-match", json!({ "statements": statements }))
+        .await;
+    assert_eq!(code(&matched), "OUTPUT_BUDGET_EXCEEDED", "{matched}");
+}
