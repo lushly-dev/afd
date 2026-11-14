@@ -32,20 +32,26 @@ Recorded 2026-11-14. State: **admitted in the inventory; owner steps pending**. 
 - Updates both provenance envelopes' `publisher_authority` and `publication_state` and records each edited imported file.
 - Makes a prerelease plan refuse to run while any of its names lacks `latest`, or has `latest` on a prerelease other than the `0.0.0` placeholder ([platform release controls](../../../operations/platform-releases.md#npm-workflow)).
 
-**Ordering.** `handoff.mjs` admits the unit at `enable-new`, after `disable-old`. Here admission merges first, as for Botcore: it grants nothing, because npm has none of the six names and a plan refuses a name npm does not have. The old route must be disabled before the names exist, since an existing name is what would let either route upload.
+**Ordering.** `handoff.mjs` admits the unit at `enable-new`, after `disable-old`, and this change keeps that order: it merges only after the owner steps 1 to 4 below. Merged earlier, it would grant no upload, since a plan refuses a name npm does not have, but `release.yml` would fold the Violet units into the open Specimen release PR ([#1053](https://github.com/lushly-dev/afd/pull/1053)), and Specimen's preview and the main route would then wait on the six names. Admission is also no protection against the old route: Violet's `release.yml` publishes with `NODE_AUTH_TOKEN: secrets.NPM_TOKEN`, and an npm token with publish rights on the `@lushly-dev` scope can create new names. Until step 1 is done, merging violet#135 would publish 0.3.0 from the Violet repository, onto `latest`.
 
 ## Owner steps, in order
 
+0. **Independently, at any time:** the Specimen-only release PR [#1053](https://github.com/lushly-dev/afd/pull/1053) may be merged on its own; nothing below depends on it. If it is still open when this change merges, `release.yml` regenerates it with the Violet units.
 1. **Disable the old route.**
    - Close [lushly-dev/violet#135](https://github.com/lushly-dev/violet/pull/135) unmerged, and #142 with it.
    - Remove `.github/workflows/release.yml` from `lushly-dev/violet` (or at least `gh workflow disable release.yml --repo lushly-dev/violet`), and record in its README and `AGENTS.md` that AFD publishes the packages.
-   - Find the `NPM_TOKEN` the workflow names, at the organization level if not in the repository, and revoke the npm token behind it unless something else uses it.
+   - Find the `NPM_TOKEN` the workflow names: it is not a repository secret, so check the organization's Actions secrets. On npmjs.com, check the scope of the token behind it (account settings, access tokens). If it can publish to `@lushly-dev`, find anything else that uses it, then revoke it, and confirm that no remaining npm token can publish any of the six names (an automation or granular token with write access to the scope or to those packages).
    - Re-read npm (still 404 for the six names) and Violet's runs (none queued or in progress).
 2. **Create the six names, with `latest` on a placeholder.** For each of `violet-core`, `violet-runtime`, `violet-afd`, `violet-cli`, `violet-server` and `violet-elements`, as for Specimen on 2026-11-07: publish a public, deprecated `0.0.0-bootstrap.0` from an empty package (`npm publish --access public --tag bootstrap`, then `npm deprecate @lushly-dev/<name>@0.0.0-bootstrap.0 "<message>"`). npm puts `latest` on a new name's first version, so it holds `bootstrap` and `latest`; check with `npm view @lushly-dev/<name> dist-tags`.
-3. **Add each name's trusted publisher:** GitHub Actions, `lushly-dev/afd`, workflow `release.yml`, no environment, dist-tag management off.
+3. **Protect the route, then add each name's trusted publisher.** npm matches a trusted publisher on repository and workflow file (and environment, when one is named), not on the git ref. With no environment, anyone who can push a branch to `lushly-dev/afd` could edit `release.yml` there and upload any of these names without the release guard; the nine names published earlier have the same exposure today. So, as in the [Botcore record](./botcore-handoff.md#owner-steps-in-order):
+   - Create a GitHub environment for npm publishing in `lushly-dev/afd` whose deployment rule allows only `main`, have `release.yml`'s publishing jobs (`release`, `recover`) declare it, and name it in every trusted publisher, the nine existing ones included. The workflow change and the settings are tracked in [#783](https://github.com/lushly-dev/afd/issues/783).
+   - Add each name's trusted publisher: GitHub Actions, `lushly-dev/afd`, workflow `release.yml`, that environment, dist-tag management off.
+   - Once a name's publisher is linked, set its publishing access to "require two-factor authentication and disallow tokens", so only the trusted publisher and an interactive 2FA session can publish it.
+   If the owner links publishers before the environment exists, record that the exposure is accepted until #783 is closed.
 4. **Move `latest` back to the placeholder** on the nine names published earlier (the [one-time retag](../../../operations/platform-releases.md#npm-workflow)); until then a prerelease plan refuses them.
-5. **Merge this change, then review and merge the version PR** `chore: release packages` that `release.yml` opens. Close and reopen it if it starts no checks.
-6. **Verify:** each version at `https://registry.npmjs.org/<name>`, `preview` on the new versions and `latest` still `0.0.0-bootstrap.0`, the tags and GitHub prereleases, and a clean install of `@lushly-dev/violet-elements@preview` with `@lushly-dev/fast-element@preview` and of `@lushly-dev/violet-core@preview`.
+5. **Merge this change.**
+6. **Review and merge the version PR** `chore: release packages` that `release.yml` then opens or regenerates (#1053 if it is still open). Close and reopen it if it starts no checks.
+7. **Verify:** each version at `https://registry.npmjs.org/<name>`, `preview` on the new versions and `latest` still `0.0.0-bootstrap.0`, the tags and GitHub prereleases, and a clean install of `@lushly-dev/violet-elements@preview` with `@lushly-dev/fast-element@preview` and of `@lushly-dev/violet-core@preview`.
 
 ## Failure and restoration
 

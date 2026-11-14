@@ -62,6 +62,8 @@ export function assertLatestNotPrerelease(plan, registryEvidence) {
 	const misplaced = plan.artifacts.flatMap(({ name }) => {
 		const latest = registryEvidence.find((entry) => entry.name === name)?.distTags?.latest;
 		if (!latest) return [`${name} has none`];
+		// A tag that is not a version fails closed: `semver.prerelease` reads it as stable.
+		if (typeof latest !== 'string' || !semver.valid(latest)) return [`${name}@${latest} (invalid)`];
 		return semver.prerelease(latest) && !placeholder(latest) ? [`${name}@${latest}`] : [];
 	});
 	if (misplaced.length)

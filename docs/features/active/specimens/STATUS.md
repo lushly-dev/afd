@@ -4,7 +4,7 @@ Read this before the implementation plan. This ledger records verified progress,
 
 ## Where the epic stands
 
-Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. On 2026-11-04 the owner approved the release as a preview, and since 2026-11-08 it is [on npm](t08-cutover.md#the-preview-release): Specimen's four units at `2.2.0-preview.1`, the FAST-AF plugin at `0.1.0-preview.1` and `fast-element` at `3.0.1-preview.1`, with the prebuilt native hosts. `latest` and `preview` both point at them, so a plain install gets the preview, and AFD's stories pass the settled accessibility check. Lushly's move, [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), started on 2026-11-09 in Lushly's repository.
+Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. On 2026-11-04 the owner approved the release as a preview, and since 2026-11-08 it is [on npm](t08-cutover.md#the-preview-release): Specimen's four units at `2.2.0-preview.1`, the FAST-AF plugin at `0.1.0-preview.1` and `fast-element` at `3.0.1-preview.1`, with the prebuilt native hosts. `preview` points at the newest build. `latest` was moved onto them by hand after `.1`; since 2026-11-14 a prerelease never becomes `latest` ([#1192](https://github.com/lushly-dev/afd/issues/1192)), so once the maintainer's one-time retag is done, `latest` is back on the `0.0.0-bootstrap.0` placeholder and installs name `@preview`. AFD's stories pass the settled accessibility check. Lushly's move, [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), started on 2026-11-09 in Lushly's repository.
 
 ### What is done
 
@@ -31,7 +31,7 @@ Specimen works end to end on AFD's own FAST-AF stories, which run only on Specim
 - **The FAST-AF plugin's distribution:** publish it with Specimen. It is public now, and `fast-element`, which it needs, publishes with it.
 - **A settled accessibility check:** add it, separately from the check that matches Storybook's timing, and fix the 3 stories with `color-contrast` failures on disabled text that it finds. [Done](t08-cutover.md#the-settled-accessibility-check) for AFD's 2, both fixed in the components; Lushly's 1 is in Lushly's repository.
 
-**Still the owner's:** merging each release PR. The publishers, the preview's release and `latest` are done ([the record](t08-cutover.md#the-preview-release)). A fix to a preview unit needs a changeset, and its release PR publishes the next preview build.
+**Still the owner's:** merging each release PR. The publishers and the preview's release are done ([the record](t08-cutover.md#the-preview-release)); moving `latest` back to the placeholder on the nine names is the maintainer's one-time retag in [platform release controls](../../../operations/platform-releases.md#npm-workflow), and until it is done a prerelease plan refuses to run. A fix to a preview unit needs a changeset, and its release PR publishes the next preview build.
 
 The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple"), after asking on 2026-11-03 for the page to be styled. It groups stories by component, filters them and has its own small stylesheet, which no story's frame loads. [The FAST-AF README](../../../../foundations/fast-af/README.md) has the commands to build and serve it.
 
