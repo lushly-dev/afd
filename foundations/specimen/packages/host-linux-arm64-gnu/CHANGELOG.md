@@ -1,5 +1,9 @@
 # @lushly-dev/specimen-host-linux-arm64-gnu
 
+## 2.2.0-preview.5
+
+No changes in this release.
+
 ## 2.2.0-preview.4
 
 No changes in this release.
