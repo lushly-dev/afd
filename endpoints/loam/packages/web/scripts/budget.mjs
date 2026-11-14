@@ -261,7 +261,9 @@ export const CEILINGS = Object.freeze({
 	urlMinified: 5_247,
 	appsMinified: 394_973,
 	surfacesMinified: 85_000,
-	viewMinified: 25_105,
+	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
+	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
+	viewMinified: 25_900,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
