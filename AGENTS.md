@@ -40,3 +40,10 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
+
+When asking the user questions at the end of a turn:
+
+1. Number each question.
+2. Begin each question with a 1–3 word summary for quick reference.
+3. Provide a recommendation, the reason for it, and your confidence in the recommendation.
+4. Place all open questions at the end of the response so they are easy to find.
