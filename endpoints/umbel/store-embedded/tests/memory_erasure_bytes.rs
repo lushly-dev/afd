@@ -225,6 +225,7 @@ fn forget(m: &dyn MemoryStore, ids: Vec<String>) -> WalState {
     let receipt = m
         .forget(Forget {
             owner: ADA.into(),
+            equivalents: Vec::new(),
             selector: ForgetSelector::Ids(ids),
             at: T0 + 2000,
             trace_id: Some("t-forget".into()),
@@ -502,6 +503,7 @@ fn a_forget_leaves_no_whole_token_as_an_index_separator() {
         let receipt = m
             .forget(Forget {
                 owner: ADA.into(),
+                equivalents: Vec::new(),
                 selector: ForgetSelector::Ids(
                     chunk.iter().map(|n| samples::memory_id(*n)).collect(),
                 ),
@@ -645,6 +647,7 @@ fn forget_cost_on_a_few_thousand_records() {
         let receipt = m
             .forget(Forget {
                 owner: ADA.into(),
+                equivalents: Vec::new(),
                 selector: ForgetSelector::Ids(vec![samples::memory_id(k)]),
                 at: T0 + 1,
                 trace_id: None,

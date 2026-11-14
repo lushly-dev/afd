@@ -473,6 +473,33 @@ async fn person_gate(
 ) -> Result<Option<crate::person::HeldMark>, CommandError> {
     use crate::plugins::Assurance;
     let person = entry.person.unwrap_or_default();
+    // Step 10's library settlement applies to compiled memory confirmation alone. It is the
+    // embedder's word for the operator, never a terminal mark or a person-page decision; the
+    // memory service still checks ownership and records `embedder` assurance.
+    if name == "memory-confirm"
+        && entry.kind == PluginKind::Compiled
+        && entry.memory_writer
+        && !entry.pipeline
+        && person.cli == Assurance::Terminal
+        && crate::authority::embedder_human(context)
+    {
+        return if crate::authority::embedder_person(context, config) {
+            Ok(None)
+        } else {
+            Err(CommandError::new(
+                "MEMORY_CONFIRM_NOT_ALLOWED",
+                "the library may confirm memory only for the operator's person",
+            )
+            .with_suggestion("Confirm as the operator through the library, or use the person page for your own record.")
+            .with_retryable(false))
+        };
+    }
+    // The CLI interface counts only on the host's own command line (sealed, phase 5 step 10); a
+    // library context that sets it without the seal remains the library's. Only the explicit
+    // operator-memory-confirmation exception above admits one.
+    let interface = context.interface.filter(|interface| {
+        *interface != CommandInterface::Cli || crate::authority::is_cli(context)
+    });
     if context.interface == Some(CommandInterface::Mcp)
         && person.mcp == Some(Assurance::Verified)
         && let Some(local) = local
@@ -492,7 +519,7 @@ async fn person_gate(
         held.fill(mark);
         return Ok(Some(held));
     }
-    match context.interface {
+    match interface {
         Some(CommandInterface::Cli) if person.cli == Assurance::Verified => crate::person::admit(
             config,
             name,
@@ -528,7 +555,7 @@ async fn person_gate(
 /// marked it after the prompt was answered. A batch, MCP, an in-process agent and the library
 /// never carry the mark.
 pub(crate) fn confirmed_by_a_person(command: &str, context: &CommandContext) -> bool {
-    context.interface == Some(CommandInterface::Cli)
+    crate::authority::is_cli(context)
         && context
             .extra
             .get(HUMAN_CONFIRMED_KEY)
@@ -613,11 +640,26 @@ fn sanitize(
         .clone()
         .filter(|_| success)
         .unwrap_or(Value::Null);
-    if !authority.is_null() || !confirmation.is_null() {
-        metadata.extra.insert(
-            AUTHORITY_KEY.to_owned(),
-            json!({ "authority": authority, "confirmation": confirmation }),
-        );
+    // The erased principal's notice of a `memory-erase` (phase 5 section 8.4), from the erase the
+    // host performed, and only then. The record kind `memory-erase-notice` is that notice's alone: a
+    // result naming it for a call in which the host erased nothing loses the record, so no plugin
+    // can put a look-alike notice in anyone's stream (step 10's review).
+    let erasure = record.erasure.clone().filter(|_| success);
+    let notice_kind = metadata
+        .extra
+        .get(RECORD_KEY)
+        .and_then(|record| record.get("kind"))
+        .and_then(Value::as_str)
+        == Some("memory-erase-notice");
+    if notice_kind && erasure.is_none() {
+        metadata.extra.remove(RECORD_KEY);
+    }
+    if !authority.is_null() || !confirmation.is_null() || erasure.is_some() {
+        let mut host = json!({ "authority": authority, "confirmation": confirmation });
+        if let Some(erasure) = erasure {
+            host["erasure"] = erasure;
+        }
+        metadata.extra.insert(AUTHORITY_KEY.to_owned(), host);
     }
     if success && record.memory.count > 0 {
         metadata.extra.insert(

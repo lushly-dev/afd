@@ -52,6 +52,7 @@ fn forget(
 ) -> Result<ForgetReceipt, String> {
     m.forget(Forget {
         owner: owner.to_owned(),
+        equivalents: Vec::new(),
         selector,
         at: NOW,
         trace_id: Some("t-forget".into()),

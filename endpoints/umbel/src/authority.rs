@@ -27,6 +27,7 @@ use umbel_store::Authority;
 
 use crate::middleware::HUMAN_CONFIRMED_KEY;
 use crate::principal::{Authentication, Principal, Transport};
+use crate::workspace::Config;
 
 /// `CommandContext.extra` key: the command the CLI ran, set when a person is at the terminal
 /// (stdin and stderr are terminals, the input is not `@-`, neither `--yes` nor `--approve`, no
@@ -58,10 +59,10 @@ impl Prompts {
     }
 }
 
-/// The command a CLI call's human-present mark names, when the call is a human's at the CLI
-/// (interface, transport and authentication all the CLI's).
+/// The command a CLI call's human-present mark names, when the call is a human's at the host's
+/// own command line (sealed, [`is_cli`]; interface, transport and authentication all the CLI's).
 pub(crate) fn cli_mark(context: &CommandContext) -> Option<&str> {
-    if context.interface != Some(CommandInterface::Cli) {
+    if !is_cli(context) {
         return None;
     }
     let principal = Principal::from_context(context)?;
@@ -75,7 +76,7 @@ pub(crate) fn cli_mark(context: &CommandContext) -> Option<&str> {
 }
 
 /// A human through the library: the embedder vouches for the person behind every call.
-fn embedder_human(context: &CommandContext) -> bool {
+pub(crate) fn embedder_human(context: &CommandContext) -> bool {
     Principal::from_context(context).is_some_and(|principal| {
         principal.actor.kind == ActorKind::Human
             && principal.transport == Transport::Library
@@ -83,29 +84,115 @@ fn embedder_human(context: &CommandContext) -> bool {
     })
 }
 
-/// A human actor at the CLI, whatever the marks.
+/// Whether `principal` is the operator's person: `human:<principal.local_id>`, or a legacy
+/// principal `[principal.equivalents]` maps to it.
+pub(crate) fn is_operators_person(config: &Config, principal: &str) -> bool {
+    let operator = format!("human:{}", config.principal.local_id);
+    crate::access::identities(config, Some(&operator))
+        .iter()
+        .any(|identity| identity == principal)
+}
+
+/// A human through the library whom the library's word makes a person: only the operator's
+/// person (phase 5 step 10, the owner's settlement of 2026-11-09, extended to D86 on
+/// 2026-11-10). Any other library human is the embedder's unchecked word, and no person.
+pub(crate) fn embedder_person(context: &CommandContext, config: &Config) -> bool {
+    embedder_human(context)
+        && Principal::from_context(context)
+            .and_then(|principal| crate::provenance::effective_principal(&principal.actor))
+            .is_some_and(|principal| is_operators_person(config, &principal))
+}
+
+/// A human actor at the host's own command line ([`is_cli`]), whatever the marks.
 fn cli_human(context: &CommandContext) -> bool {
-    context.interface == Some(CommandInterface::Cli)
+    is_cli(context)
         && Principal::from_context(context).is_some_and(|principal| {
             principal.actor.kind == ActorKind::Human && principal.transport == Transport::Cli
         })
 }
 
 /// Whether the caller "has authority `person`" for the checks of sections 6.3 and 8.7: the
-/// terminal check alone. A human through the library, or a human at the CLI whose
-/// human-present mark covers `command`.
+/// terminal check alone. The operator's person through the library (step 10), or a human at the
+/// host's own command line whose human-present mark covers `command`.
 pub(crate) fn caller_is_person(
     context: &CommandContext,
+    config: &Config,
     command: Option<&str>,
     prompts: &Prompts,
 ) -> bool {
-    if embedder_human(context) {
+    if embedder_person(context, config) {
         return true;
     }
     match (cli_mark(context), command) {
         (Some(marked), Some(command)) => prompts.covers(marked, command),
         _ => false,
     }
+}
+
+/// Whether the caller is a person at the CLI's terminal for `command`: the host's own command line
+/// ([`seal_cli`]), a human there whose human-present mark covers it (the terminal check alone,
+/// never the library).
+pub(crate) fn terminal_person(
+    context: &CommandContext,
+    command: Option<&str>,
+    prompts: &Prompts,
+) -> bool {
+    match (cli_mark(context), command) {
+        (Some(marked), Some(command)) => prompts.covers(marked, command),
+        _ => false,
+    }
+}
+
+/// `CommandContext.extra` key: the seal of a context the host's own command line built
+/// ([`seal_cli`]). Only the host computes it, from a key drawn in this process that never leaves
+/// it; no surface returns a context's `extra` (a plugin sees `CallContext`), and it is no declared
+/// context field, so no journal keeps it. An embedding application that writes `interface: cli`,
+/// the CLI's principal and its marks into a library context cannot make it, and is treated as the
+/// library (phase 5 step 10). Contexts derived from a sealed one (a batch item, a pipeline step)
+/// keep it, as they keep the CLI's other fields.
+pub(crate) const CLI_SEAL_KEY: &str = "dev.umbel/cli-seal";
+
+/// This process's seal: the hex SHA-256 of a label and 32 bytes from the operating system, drawn
+/// once. `None` when the operating system gave none, so nothing is sealed and no context is the
+/// CLI's.
+fn cli_seal() -> Option<&'static str> {
+    static SEAL: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    SEAL.get_or_init(|| {
+        use sha2::{Digest, Sha256};
+        let mut key = [0_u8; 32];
+        getrandom::fill(&mut key).ok()?;
+        let mut digest = Sha256::new();
+        digest.update(b"umbel-cli-seal-v1\0");
+        digest.update(key);
+        Some(
+            digest
+                .finalize()
+                .iter()
+                .map(|b| format!("{b:02x}"))
+                .collect(),
+        )
+    })
+    .as_deref()
+}
+
+/// Seal `context`, which the host's own command line built, as the CLI's.
+#[cfg_attr(not(feature = "cli"), allow(dead_code))]
+pub(crate) fn seal_cli(context: &mut CommandContext) {
+    if let Some(seal) = cli_seal() {
+        context
+            .extra
+            .insert(CLI_SEAL_KEY.to_owned(), Value::String(seal.to_owned()));
+    }
+}
+
+/// Whether `context` is the host's own command line's: the CLI interface **and** this process's
+/// seal. A context that sets the CLI interface without the seal is the library's, whatever its
+/// principal and marks say; every check that trusts the CLI asks this.
+pub(crate) fn is_cli(context: &CommandContext) -> bool {
+    context.interface == Some(CommandInterface::Cli)
+        && cli_seal().is_some_and(|seal| {
+            context.extra.get(CLI_SEAL_KEY).and_then(Value::as_str) == Some(seal)
+        })
 }
 
 /// Whether a remember at the CLI reaches `person` (D86): the human-present mark and the
@@ -151,18 +238,20 @@ pub(crate) fn record_authority(context: &CommandContext, gated: bool) -> Authori
 pub(crate) fn write_authority(
     path: MemoryPath,
     context: &CommandContext,
+    config: &Config,
     command: Option<&str>,
     prompts: &Prompts,
 ) -> Authority {
     let human = Principal::from_context(context)
         .is_some_and(|principal| principal.actor.kind == ActorKind::Human);
+    // The library's word makes a person only of the operator's person (step 10, extending the
+    // 2026-11-09 settlement to D86); any other library human writes as an agent does.
+    let embedder = embedder_person(context, config);
     match path {
         MemoryPath::Import => Authority::Import,
-        MemoryPath::Capture if human && (cli_human(context) || embedder_human(context)) => {
-            Authority::Transcript
-        }
+        MemoryPath::Capture if human && (cli_human(context) || embedder) => Authority::Transcript,
         MemoryPath::Capture => Authority::Agent,
-        MemoryPath::Remember if embedder_human(context) => Authority::Person,
+        MemoryPath::Remember if embedder => Authority::Person,
         MemoryPath::Remember if cli_human(context) => {
             if answered_authority_prompt(context, command, prompts) {
                 Authority::Person
@@ -201,7 +290,27 @@ mod tests {
             Authentication::Process,
         )
         .apply(&mut context);
+        seal_cli(&mut context);
         context
+    }
+
+    /// Mode `none`, the operator `ada`.
+    fn config() -> Config {
+        crate::workspace::ConfigFile::parse("config_version = 4\n[principal]\nlocal_id = \"ada\"\n")
+            .and_then(|file| file.into_config(std::path::Path::new("/w")))
+            .expect("a valid configuration")
+    }
+
+    /// A library context of the human `id`.
+    fn library_of(id: &str) -> CommandContext {
+        let mut library = CommandContext::new();
+        Principal::new(
+            Actor::new(ActorKind::Human).with_id(id),
+            Transport::Library,
+            Authentication::Embedder,
+        )
+        .apply(&mut library);
+        library
     }
 
     fn marked(
@@ -238,8 +347,10 @@ mod tests {
     #[test]
     fn the_table_of_section_3_3() {
         let p = prompts();
-        let remember =
-            |c: &CommandContext, cmd: &str| write_authority(MemoryPath::Remember, c, Some(cmd), &p);
+        let config = config();
+        let remember = |c: &CommandContext, cmd: &str| {
+            write_authority(MemoryPath::Remember, c, &config, Some(cmd), &p)
+        };
         let yes = marked(cli(ActorKind::Human), "mem-remember", Some("mem-remember"));
         assert_eq!(remember(&yes, "mem-remember"), Authority::Person);
         // Present but not answered, a mark naming another command, no prompt: tool.
@@ -261,21 +372,38 @@ mod tests {
         let mut mcp = yes.clone();
         mcp.interface = Some(CommandInterface::Mcp);
         assert_eq!(remember(&mcp, "mem-remember"), Authority::Agent);
-        // The library's human is the embedder's person.
-        let mut library = CommandContext::new();
-        Principal::new(
-            Actor::new(ActorKind::Human).with_id("ada"),
-            Transport::Library,
-            Authentication::Embedder,
-        )
-        .apply(&mut library);
+        // The marks with the CLI interface but without the host's seal: the library's, not the
+        // terminal (step 10).
+        let mut unsealed = yes.clone();
+        unsealed.extra.remove(CLI_SEAL_KEY);
+        assert!(!is_cli(&unsealed));
+        assert_eq!(remember(&unsealed, "mem-remember"), Authority::Agent);
+        let mut forged = yes.clone();
+        forged
+            .extra
+            .insert(CLI_SEAL_KEY.to_owned(), Value::from("0".repeat(64)));
+        assert_eq!(remember(&forged, "mem-remember"), Authority::Agent);
+        // The library's human is a person only when it is the operator's (step 10's extension of
+        // the 2026-11-09 settlement to D86); any other library human writes as an agent.
+        let library = library_of("ada");
         assert_eq!(remember(&library, "mem-remember"), Authority::Person);
-        let capture = |c: &CommandContext| write_authority(MemoryPath::Capture, c, None, &p);
+        let other = library_of("bo");
+        assert_eq!(remember(&other, "mem-remember"), Authority::Agent);
+        let capture =
+            |c: &CommandContext| write_authority(MemoryPath::Capture, c, &config, None, &p);
         assert_eq!(capture(&cli(ActorKind::Human)), Authority::Transcript);
         assert_eq!(capture(&library), Authority::Transcript);
+        assert_eq!(capture(&other), Authority::Agent);
+        assert_eq!(capture(&unsealed), Authority::Agent);
         assert_eq!(capture(&cli(ActorKind::Agent)), Authority::Agent);
         assert_eq!(
-            write_authority(MemoryPath::Import, &cli(ActorKind::Agent), None, &p),
+            write_authority(
+                MemoryPath::Import,
+                &cli(ActorKind::Agent),
+                &config,
+                None,
+                &p
+            ),
             Authority::Import
         );
     }
@@ -283,15 +411,22 @@ mod tests {
     #[test]
     fn a_callers_authority_is_the_terminal_check_alone() {
         let p = prompts();
+        let config = config();
+        let person = |c: &CommandContext, cmd: Option<&str>| caller_is_person(c, &config, cmd, &p);
         let present = marked(cli(ActorKind::Human), "mem-forget", None);
-        assert!(caller_is_person(&present, Some("mem-forget"), &p));
-        assert!(!caller_is_person(&present, Some("mem-other"), &p));
-        assert!(!caller_is_person(&present, None, &p));
-        assert!(!caller_is_person(
-            &cli(ActorKind::Human),
-            Some("mem-forget"),
-            &p
-        ));
+        assert!(person(&present, Some("mem-forget")));
+        assert!(!person(&present, Some("mem-other")));
+        assert!(!person(&present, None));
+        assert!(!person(&cli(ActorKind::Human), Some("mem-forget")));
+        // Without the seal, the same context is no terminal.
+        let mut unsealed = present.clone();
+        unsealed.extra.remove(CLI_SEAL_KEY);
+        assert!(!person(&unsealed, Some("mem-forget")));
+        assert!(!terminal_person(&unsealed, Some("mem-forget"), &p));
+        assert!(terminal_person(&present, Some("mem-forget"), &p));
+        // The library: the operator's person only.
+        assert!(person(&library_of("ada"), Some("mem-forget")));
+        assert!(!person(&library_of("bo"), Some("mem-forget")));
     }
 
     #[test]

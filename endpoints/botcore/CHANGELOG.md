@@ -7,6 +7,19 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+What a plugin served through the managed host needs: its own command policies, a catalog a model can call from, and refusals that name the fix. `docs/host-composition.md` describes all three.
+
+### Added
+
+- **Plugins declare their command policies.** `PluginRegistry.add_policy(name, policy)` and `add_policies({...})` declare the `CommandPolicy` of each command a plugin registers, so a host no longer passes every one to `build_host(policies=...)`. `build_host` refuses a policy for a command the declaring plugin did not register. An explicit host policy for the same command may only narrow the plugin's: effects among the plugin's, every confined path kept, no always-present effect left out; anything else refuses construction. The plugin's per-argument effects still decide each call, and a call whose effects fall outside the host's set is `EFFECT_DENIED`.
+- **The catalog carries what a model needs.** `CommandHost.catalog()`, and so the managed CLI `catalog` and MCP `start`, gives each command a one-line `description` (the docstring's first line) and an `input_schema` derived with Pydantic from the handler's signature and type hints: required inputs, defaults, `Literal` enums, optional, list and dict types, and per-input descriptions from Google-style `Args:` or Sphinx `:param` docstrings, each capped at 200 characters. `DirectClient.list_commands()` reports the same one-line descriptions instead of whole docstrings.
+
+### Changed
+
+- **Wrong arguments are refused with the way forward.** On the CLI, MCP and DirectClient surfaces alike, an argument the handler does not take, or a missing required one, is refused before binding with `VALIDATION_ERROR` (was `INVALID_TARGET_OR_INPUT`). Its details list `expectedFields`, `unexpectedFields` and `missingFields`, and its `suggestedFields` and suggestion name the input a wrong key most likely meant: the same name in another case convention (`timeoutMs` for `timeout_ms`), else the closest name.
+- Effects a call computes beyond its policy's declared set are `EFFECT_DENIED` (was `INVALID_TARGET_OR_INPUT`).
+- A host no longer warns about a `[plugins.<name>]` section for a plugin it did not select: that section configures another host's plugin, which may be installed in another environment. `load_config(..., selection=True)` says the plugins passed are a host's selection; legacy discovery of every installed plugin still warns about a section no installed plugin reads.
+
 ## [0.7.0] - 2026-11-13
 
 The bloat sweep, shared with Lushly: a skill and the `[sweep]` section it reads. A `[sweep]` section in `botcore.toml` needs this release, since earlier ones refuse unknown keys.

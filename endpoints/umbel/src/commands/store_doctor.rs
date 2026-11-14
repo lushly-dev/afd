@@ -92,11 +92,11 @@ pub(crate) fn checks(workspace: &Workspace, stores: &Hub) -> [Check; 3] {
     [version, access, lag]
 }
 
-/// The seven memory checks of phase 3 section 5.3, in order: `stores.memory`,
-/// `stores.memory_keys`, `stores.memory_modes`, `stores.memory_backup`, `stores.principals`,
-/// `stores.sweep` and `stores.capture`. A space whose memory nothing has written is left as it
-/// is: opening its memory store creates nothing.
-pub(crate) fn memory_checks(workspace: &Workspace, stores: &Hub, now: i64) -> [Check; 7] {
+/// The memory checks, in order: phase 3 section 5.3's `stores.memory`, `stores.memory_keys`,
+/// `stores.memory_modes`, `stores.memory_backup`, `stores.principals`, `stores.sweep` and
+/// `stores.capture`, and phase 5 section 8.4's `stores.memory_erase`. A space whose memory nothing
+/// has written is left as it is: opening its memory store creates nothing.
+pub(crate) fn memory_checks(workspace: &Workspace, stores: &Hub, now: i64) -> [Check; 8] {
     let mut provisioned = Vec::new();
     let mut opens = Vec::new();
     let mut keys = Vec::new();
@@ -173,7 +173,77 @@ pub(crate) fn memory_checks(workspace: &Workspace, stores: &Hub, now: i64) -> [C
         principals_check(workspace),
         sweep_check(&provisioned, now),
         capture_check(hook_state_file().as_deref()),
+        memory_erase_check(workspace.config()),
     ]
+}
+
+/// `stores.memory_erase` (phase 5 section 8.4, owner decision 9): warns for each instance whose
+/// `erasers` can name two people while `erase_approvals` is 1, so one eraser could erase alone
+/// where two are available. Two people: two `principal:` entries or static group members that are
+/// not one person through `[principal.equivalents]`, or a group that takes members from a token's
+/// claim, which can name any number. A group's `*` names no eraser (the host admits only named
+/// holders), and is reported too.
+pub(crate) fn memory_erase_check(config: &crate::workspace::Config) -> Check {
+    let person = |principal: &str| {
+        config
+            .principal
+            .equivalents
+            .get(principal)
+            .cloned()
+            .unwrap_or_else(|| principal.to_owned())
+    };
+    let mut alone = Vec::new();
+    let mut starred = Vec::new();
+    for instance in &config.plugins.instances {
+        let Some(policy) = &instance.memory_write else {
+            continue;
+        };
+        let mut people = std::collections::BTreeSet::new();
+        let mut open = false;
+        for token in &policy.erasers {
+            if let Some(principal) = token.strip_prefix("principal:") {
+                people.insert(person(principal));
+            } else if let Some(id) = token.strip_prefix("group:")
+                && let Some(group) = config.access.groups.iter().find(|group| group.id == id)
+            {
+                open |= group.claim.is_some();
+                for member in &group.members {
+                    if member == "*" {
+                        starred.push(format!("{} (group:{id})", instance.id));
+                    } else {
+                        people.insert(person(member));
+                    }
+                }
+            }
+        }
+        if policy.erase_approvals < 2 && (open || people.len() >= 2) {
+            alone.push(instance.id.clone());
+        }
+    }
+    if alone.is_empty() && starred.is_empty() {
+        return Check::pass(
+            "stores.memory_erase",
+            "no memory_write grant lets one eraser erase alone where two are available",
+        );
+    }
+    let mut message = Vec::new();
+    if !alone.is_empty() {
+        message.push(format!(
+            "{} list erasers who can be two people with erase_approvals = 1: one eraser erases alone",
+            alone.join(", ")
+        ));
+    }
+    if !starred.is_empty() {
+        message.push(format!(
+            "erasers name a group whose members include \"*\", which names no eraser: {}",
+            starred.join(", ")
+        ));
+    }
+    Check::warn(
+        "stores.memory_erase",
+        message.join("; "),
+        "Set erase_approvals = 2 under the memory_write grant, so a second eraser, another person, approves each erase; name erasers by principal or by named group members.",
+    )
 }
 
 /// `stores.memory_modes`: no group or other bits on the memory files, on Unix.
@@ -411,5 +481,57 @@ mod tests {
             warned.message
         );
         let _ = std::fs::remove_dir_all(&dir);
+    }
+
+    fn config(policy: &str, groups: &str) -> crate::workspace::Config {
+        let text = format!(
+            "config_version = 5\ndefault_space = \"main\"\n[principal]\nlocal_id = \"ada\"\n[spaces.main]\n{groups}\n[plugins]\nenabled = [\"memory\"]\n[plugins.memory]\nsource = \"compiled:memory\"\n[plugins.memory.grants.memory_write]\nallow = [\"main\"]\n{policy}\n"
+        );
+        crate::workspace::ConfigFile::parse(&text)
+            .and_then(|file| file.into_config(std::path::Path::new("/w")))
+            .expect("a valid configuration")
+    }
+
+    #[test]
+    fn the_erase_check_warns_where_one_eraser_could_erase_alone() {
+        use crate::doctor::CheckStatus::{Pass, Warn};
+        let status =
+            |policy: &str, groups: &str| memory_erase_check(&config(policy, groups)).status;
+        // No erasers, or one person, or two with the two-person rule: nothing to say.
+        assert_eq!(status("", ""), Pass);
+        assert_eq!(status("erasers = [\"principal:human:corp/ada\"]", ""), Pass);
+        assert_eq!(
+            status(
+                "erasers = [\"principal:human:corp/ada\", \"principal:human:corp/bo\"]\nerase_approvals = 2",
+                ""
+            ),
+            Pass
+        );
+        // Two people with one approval: warned, by principals or by a group's members.
+        assert_eq!(
+            status(
+                "erasers = [\"principal:human:corp/ada\", \"principal:human:corp/bo\"]",
+                ""
+            ),
+            Warn
+        );
+        assert_eq!(
+            status(
+                "erasers = [\"group:admins\"]",
+                "[access.groups.admins]\nmembers = [\"human:corp/ada\", \"human:corp/bo\"]"
+            ),
+            Warn
+        );
+        // A group of everyone names no eraser, and is said so.
+        let starred = memory_erase_check(&config(
+            "erasers = [\"group:everyone\"]",
+            "[access.groups.everyone]\nmembers = [\"*\"]",
+        ));
+        assert_eq!(starred.status, Warn);
+        assert!(
+            starred.message.contains("names no eraser"),
+            "{}",
+            starred.message
+        );
     }
 }

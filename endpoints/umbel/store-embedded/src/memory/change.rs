@@ -118,7 +118,7 @@ impl SqliteMemoryStore {
                 let key = keys.require(&rec.id)?;
                 let current = rec.current(&tx, &self.space, key)?;
                 let prior = current.authority()?;
-                if rec.owner != req.by {
+                if rec.owner != req.by && !req.equivalents.contains(&rec.owner) {
                     return Err(StoreError::invalid(
                         "memory-confirm: a person confirms only their own records",
                     )

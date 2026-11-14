@@ -52,7 +52,15 @@ impl Sql {
             }
         }
         if let Some(principal) = &scope.principal {
-            self.push(" AND r.owner = ").bind(principal);
+            if scope.equivalents.is_empty() {
+                self.push(" AND r.owner = ").bind(principal);
+            } else {
+                // The principal and the legacy principals it stands for (phase 5 section 4.6).
+                self.push(" AND r.owner IN ").bind_list(
+                    std::iter::once(principal.as_str())
+                        .chain(scope.equivalents.iter().map(String::as_str)),
+                );
+            }
         }
         if let Some(agent) = &scope.agent {
             self.push(" AND r.agent_id = ").bind(agent);

@@ -190,6 +190,25 @@ export const SUITES = [
 		],
 	},
 	{
+		workflow: 'botcore-factory.yml',
+		tools: ['uv'],
+		remote: 'Python 3.11',
+		steps: [
+			{ run: 'pnpm -F "@lushly-dev/afd-testing..." build' },
+			{ cwd: 'endpoints/botcore/plugins/botcore-factory', run: 'uv lock --check' },
+			{ cwd: 'endpoints/botcore/plugins/botcore-factory', run: 'uv sync --frozen --extra dev' },
+			{
+				cwd: 'endpoints/botcore/plugins/botcore-factory',
+				run: 'uv run --frozen ruff check src tests',
+			},
+			{
+				cwd: 'endpoints/botcore/plugins/botcore-factory',
+				run: 'uv run --frozen ruff format --check src tests',
+			},
+			{ cwd: 'endpoints/botcore/plugins/botcore-factory', run: 'uv run --frozen pytest -q' },
+		],
+	},
+	{
 		workflow: 'health.yml',
 		tools: ['uv'],
 		remote: 'Python 3.11',

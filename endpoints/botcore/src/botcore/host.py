@@ -17,6 +17,7 @@ from afd.direct import CommandInfo
 from afd.server.middleware import compose_middleware
 
 from botcore.context import ExecutionContext, use_context
+from botcore.host_inputs import check_arguments, describe_inputs, summary
 
 VERDICTS = {"passed", "failed", "skipped", "unavailable", "error"}
 EFFECTS = {
@@ -49,9 +50,13 @@ class CommandPolicy:
     output_scope: str | None = None
     possible_effects: tuple[str, ...] = ()
 
+    def declared(self) -> tuple[str, ...]:
+        """Every effect a call may have: the static effects, or possible_effects."""
+        return tuple(self.possible_effects if callable(self.effects) else self.effects)
+
     def describe(self) -> dict:
         return {
-            "effects": list(self.possible_effects if callable(self.effects) else self.effects),
+            "effects": list(self.declared()),
             "effects_depend_on_arguments": callable(self.effects),
             "capabilities": list(self.capabilities),
             "paths": list(self.paths),
@@ -128,7 +133,7 @@ class CommandHost:
     def register(self, name: str, handler: Callable, policy: CommandPolicy) -> None:
         if name in self._commands:
             raise ValueError(f"Duplicate command: {name}")
-        declared = policy.possible_effects if callable(policy.effects) else policy.effects
+        declared = policy.declared()
         if (callable(policy.effects) and not declared) or set(declared) - EFFECTS:
             raise ValueError(f"Declare known effects for {name}")
         self._commands[name] = handler
@@ -142,17 +147,26 @@ class CommandHost:
 
     def list_commands(self) -> list[CommandInfo]:
         return [
-            CommandInfo(name, self._commands[name].__doc__ or "")
-            for name in self.list_command_names()
+            CommandInfo(name, summary(self._commands[name])) for name in self.list_command_names()
         ]
 
     def get_command(self, name: str):
         return None  # The shared dispatcher binds the actual Python signature.
 
     def catalog(self) -> list[dict]:
-        return [
-            {"name": name, **self._policies[name].describe()} for name in self.list_command_names()
-        ]
+        """Each command's one-line description, input JSON Schema and policy."""
+        rows = []
+        for name in self.list_command_names():
+            description, input_schema = describe_inputs(self._commands[name])
+            rows.append(
+                {
+                    "name": name,
+                    "description": description,
+                    "input_schema": input_schema,
+                    **self._policies[name].describe(),
+                }
+            )
+        return rows
 
     def direct_client(self) -> DirectClient:
         return DirectClient(self)
@@ -169,6 +183,9 @@ class CommandHost:
         policy = self._policies[name]
         handler = self._commands[name]
         kwargs = dict(args or {})
+        refusal = check_arguments(name, handler, kwargs)
+        if refusal is not None:
+            return refusal
         try:
             bound = inspect.signature(handler).bind(**kwargs)
             bound.apply_defaults()
@@ -177,9 +194,14 @@ class CommandHost:
                 if callable(policy.effects)
                 else (policy.effects)
             )
-            declared = policy.possible_effects if callable(policy.effects) else policy.effects
+            declared = policy.declared()
             if set(effects) - set(declared):
-                raise ValueError("Command effects exceed its declared catalog capabilities")
+                return error(
+                    "EFFECT_DENIED",
+                    f"{name} with these arguments requires: {', '.join(effects)}; "
+                    f"this host admits: {', '.join(declared)}",
+                    suggestion="Use arguments whose effects the host catalog lists",
+                )
             if self.context.profile != "trusted-local" and set(effects) - {"inspect"}:
                 return error(
                     "EFFECT_DENIED",
@@ -273,6 +295,57 @@ CORE_POLICIES = {
 }
 
 
+def narrow_policy(name: str, plugin: CommandPolicy, host: CommandPolicy) -> CommandPolicy:
+    """Apply an explicit host policy to a plugin-declared one, which it may only narrow.
+
+    The host may admit a subset of the plugin's possible effects and confine more path
+    arguments. It may not add an effect, stop confining a path, or leave out an effect
+    the command always has. The plugin's per-argument effects still apply, so a call
+    whose effects fall outside the host's set is denied. The host's capabilities,
+    quality and output scope replace the plugin's where the host sets them.
+    """
+    plugin_effects, host_effects = set(plugin.declared()), set(host.declared())
+    always = set() if callable(plugin.effects) else plugin_effects
+    problems = [
+        f"{problem}: {', '.join(sorted(names))}"
+        for problem, names in (
+            ("adds effects the plugin does not declare", host_effects - plugin_effects),
+            ("leaves out effects the command always has", always - host_effects),
+            ("stops confining path arguments", set(plugin.paths) - set(host.paths)),
+        )
+        if names
+    ]
+    if problems:
+        raise ValueError(
+            f"Host policy for {name} {'; '.join(problems)}; "
+            "a host policy may only narrow the plugin's"
+        )
+
+    def per_call(arguments: dict) -> tuple[str, ...]:
+        extra = host.effects(arguments) if callable(host.effects) else host.effects
+        return tuple(sorted({*plugin.effects(arguments), *extra}))
+
+    dynamic = callable(plugin.effects)  # A static plugin set equals the host's here.
+    return CommandPolicy(
+        per_call if dynamic else plugin.effects,
+        host.capabilities or plugin.capabilities,
+        host.paths,
+        host.quality or plugin.quality,
+        host.output_scope or plugin.output_scope,
+        tuple(sorted(host_effects)) if dynamic else (),
+    )
+
+
+def _refuse_foreign_policies(plugin_name: str, registry, commands: set, policies: set) -> None:
+    registered = {command.__name__ for command in registry.commands} - commands
+    foreign = set(registry.policies) - policies - registered
+    if foreign:
+        raise ValueError(
+            f"Plugin {plugin_name} declares policies for commands it does not register: "
+            f"{', '.join(sorted(foreign))}"
+        )
+
+
 def build_host(
     name: str,
     context: ExecutionContext,
@@ -282,7 +355,12 @@ def build_host(
     policies: dict[str, CommandPolicy] | None = None,
     core_commands: tuple[str, ...] = tuple(CORE_POLICIES),
 ) -> CommandHost:
-    """Explicit plugins only. Unadapted plugin commands fail catalog construction."""
+    """Explicit plugins only. Unadapted plugin commands fail catalog construction.
+
+    A command's policy comes from its plugin (PluginRegistry.add_policy) or from
+    `policies`. Where both declare one, the host's may only narrow the plugin's
+    (narrow_policy); a conflict that would widen effects refuses construction.
+    """
     from botcore import commands
     from botcore.config import load_config
     from botcore.plugin import PluginRegistry, discover_plugins
@@ -291,7 +369,7 @@ def build_host(
     selected = discover_plugins(plugins)
     registry = PluginRegistry(cli_name=name, mcp_name=name)
     with use_context(context):
-        config = load_config(workspace=context.target, discovered_plugins=selected)
+        config = load_config(workspace=context.target, discovered_plugins=selected, selection=True)
         for plugin_name in sorted(selected):
             plugin = selected[plugin_name]
             if getattr(plugin, "host_context_safe", False) is not True:
@@ -301,11 +379,20 @@ def build_host(
             configure = getattr(plugin, "configure", None)
             if callable(configure) and plugin_name in config.plugins:
                 configure(config.plugins[plugin_name])
+            before = {command.__name__ for command in registry.commands}, set(registry.policies)
             plugin.register(registry)
+            _refuse_foreign_policies(plugin_name, registry, *before)
     host = CommandHost(name, context)
     host.docs = build_docs(registry)
     host.middleware = registry.middleware
-    command_policies = {**CORE_POLICIES, **(policies or {})}
+    explicit = policies or {}
+    command_policies = {**CORE_POLICIES, **explicit}
+    for command_name, declared in registry.policies.items():
+        command_policies[command_name] = (
+            narrow_policy(command_name, declared, explicit[command_name])
+            if command_name in explicit
+            else declared
+        )
     handlers = [getattr(commands, command_name) for command_name in core_commands]
     for handler in [*handlers, *registry.commands, *extra_commands]:
         command_name = handler.__name__
