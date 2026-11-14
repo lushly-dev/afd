@@ -63,7 +63,9 @@ impl Default for Options {
     fn default() -> Self {
         Self {
             header_batch: 250,
-            body_batch: 50,
+            // Measured on iCloud (B7): 50 at a time read 10 to 12 a second, 400
+            // read 22 to 26; the wait is per request, not the line.
+            body_batch: 400,
             body_batch_bytes: 8 * 1024 * 1024,
             whole_limit: WHOLE_LIMIT,
             retries: 5,

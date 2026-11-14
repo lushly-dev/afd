@@ -74,9 +74,10 @@ tokio-rustls = { version = "0.26", default-features = false, features = ["ring",
 zstd = { version = "0.14", default-features = false }
 
 # Making a batch of the log's files durable with one flush: a plain `fsync` per file and one
-# `F_FULLFSYNC` on macOS, `syncfs` on Linux. `std` offers only the full flush per file.
+# `F_FULLFSYNC` on macOS, `syncfs` on Linux. `std` offers only the full flush per file. Also the
+# terminal's hidden password entry, and the program's file mode mask.
 [target.'cfg(unix)'.dependencies]
-rustix = { version = "1", features = ["fs", "termios"] }
+rustix = { version = "1", features = ["fs", "process", "termios"] }
 
 # Account sign-ins in the macOS keychain (the specification's section 3.1). `keyring-core` with
 # the Apple store alone, as the `keyring` crate advises an application that knows its platforms.

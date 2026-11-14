@@ -100,6 +100,27 @@ impl fmt::Debug for Index {
     }
 }
 
+/// Makes `directory`, or keeps it, as one only its owner can enter. The
+/// index creates its files with the process's default mode, which may let
+/// others read them; the directory stops them from reaching the files, as
+/// the data directory does for the store's.
+fn owners_directory(directory: &Path) -> std::io::Result<()> {
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::{DirBuilderExt, PermissionsExt};
+        std::fs::DirBuilder::new()
+            .recursive(true)
+            .mode(0o700)
+            .create(directory)?;
+        if directory.metadata()?.permissions().mode() & 0o077 != 0 {
+            std::fs::set_permissions(directory, std::fs::Permissions::from_mode(0o700))?;
+        }
+    }
+    #[cfg(not(unix))]
+    std::fs::create_dir_all(directory)?;
+    Ok(())
+}
+
 impl Index {
     /// Opens the index in `directory`, creating it when it is not there.
     ///
@@ -107,7 +128,7 @@ impl Index {
     /// When the directory cannot be made, or holds something that is not
     /// this index.
     pub fn open(directory: &Path) -> Result<Self, IndexError> {
-        std::fs::create_dir_all(directory)?;
+        owners_directory(directory)?;
         let mut schema = Schema::builder();
         let fields = Fields {
             message: schema.add_i64_field("message", INDEXED | STORED | FAST),
@@ -288,5 +309,28 @@ impl Index {
                 "the index writer is missing".to_string(),
             ))
         })
+    }
+}
+
+#[cfg(all(test, unix))]
+mod tests {
+    #![allow(clippy::unwrap_used)]
+
+    use std::os::unix::fs::PermissionsExt;
+
+    use super::Index;
+
+    #[test]
+    fn its_directory_is_the_owners_alone_new_or_found_open() {
+        let parent = tempfile::tempdir().unwrap();
+        let mode = |path: &std::path::Path| path.metadata().unwrap().permissions().mode() & 0o777;
+        let made = parent.path().join("made");
+        drop(Index::open(&made).unwrap());
+        assert_eq!(mode(&made), 0o700);
+        let found = parent.path().join("found");
+        std::fs::create_dir(&found).unwrap();
+        std::fs::set_permissions(&found, std::fs::Permissions::from_mode(0o755)).unwrap();
+        drop(Index::open(&found).unwrap());
+        assert_eq!(mode(&found), 0o700);
     }
 }
