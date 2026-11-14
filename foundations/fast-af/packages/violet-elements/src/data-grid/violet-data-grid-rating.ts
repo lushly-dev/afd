@@ -24,7 +24,7 @@ const styles = css`
         min-inline-size: 0;
         max-inline-size: 100%;
         color: var(--_rating-filled);
-        font-family: var(--violet-data-grid-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-subtle: var(--color-surface-subtle, #f0efe6);

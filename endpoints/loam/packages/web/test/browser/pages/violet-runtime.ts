@@ -20,6 +20,7 @@ const PROBES: Record<string, string> = {
 	duration: 'transition-duration',
 	cubicBezier: 'transition-timing-function',
 	fontWeight: 'font-weight',
+	fontFamily: 'font-family',
 	number: 'z-index',
 	shadow: 'box-shadow',
 };

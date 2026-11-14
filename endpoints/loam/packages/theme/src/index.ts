@@ -19,6 +19,7 @@ export {
 export {
 	COMPONENT_EXPORT_SOURCE,
 	type ComponentExport,
+	compareInterface,
 	type Fallback,
 	type FallbackMismatch,
 	findFallbacks,
@@ -27,6 +28,7 @@ export {
 	normalizeLiteral,
 	renderComponentExport,
 	scanFallbacks,
+	type TokenInterface,
 } from './components.js';
 export { composite, contrastRatio, parseColor, type Rgba } from './contrast.js';
 export {

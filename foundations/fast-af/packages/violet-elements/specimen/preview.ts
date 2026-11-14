@@ -2,7 +2,7 @@ import { setCustomElementsManifest } from "@lushly-dev/specimen/preview";
 import type { Preview } from "@lushly-dev/specimen/types";
 
 import customElementsManifest from "../custom-elements.json";
-import { applyVioletThemePreset, installVioletTheme } from "../src/theme";
+import { applyVioletThemePreset, installVioletTheme, loadVioletBuiltInTheme } from "../src/theme";
 
 type VioletThemePreset = Parameters<typeof applyVioletThemePreset>[1];
 
@@ -10,6 +10,8 @@ type VioletThemePreset = Parameters<typeof applyVioletThemePreset>[1];
 // its toolbar and addons read.
 setCustomElementsManifest(customElementsManifest);
 installVioletTheme();
+// The runtime loads the built-in set's values with a dynamic import; stories start once they apply.
+await loadVioletBuiltInTheme();
 
 function applyTheme(preset: VioletThemePreset): void {
   applyVioletThemePreset(document, preset);

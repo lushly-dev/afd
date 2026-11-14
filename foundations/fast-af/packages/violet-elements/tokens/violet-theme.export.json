@@ -120,6 +120,10 @@
 				"value": "rgba(220, 38, 38, 0.34)"
 			},
 			{
+				"id": "color.state.danger.foreground",
+				"value": "#B42318"
+			},
+			{
 				"id": "color.state.danger.text",
 				"value": "#B42318"
 			},
@@ -130,6 +134,10 @@
 			{
 				"id": "color.state.success.border",
 				"value": "rgba(22, 101, 52, 0.28)"
+			},
+			{
+				"id": "color.state.success.foreground",
+				"value": "#245C36"
 			},
 			{
 				"id": "color.state.success.text",
@@ -156,8 +164,16 @@
 				"value": "#F0EFE6"
 			},
 			{
+				"id": "color.surface.highlight",
+				"value": "#FFFFFF"
+			},
+			{
 				"id": "color.surface.page",
 				"value": "#FFFEFA"
+			},
+			{
+				"id": "color.surface.pressed",
+				"value": "#E7E4D8"
 			},
 			{
 				"id": "color.surface.selected",
@@ -200,6 +216,14 @@
 				"value": "cubic-bezier(0.2, 0, 0, 1)"
 			},
 			{
+				"id": "font.family.body",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
+				"id": "font.family.mono",
+				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
+			},
+			{
 				"id": "radius.lg",
 				"value": "6px"
 			},
@@ -226,6 +250,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 2px 5px rgba(28, 26, 13, 0.22), 0 18px 34px rgba(28, 26, 13, 0.08)"
+			},
+			{
+				"id": "size.focus-ring.width",
+				"value": "2px"
 			},
 			{
 				"id": "size.font.lg",
@@ -554,6 +582,10 @@
 				"value": "rgba(252, 165, 165, 0.24)"
 			},
 			{
+				"id": "color.state.danger.foreground",
+				"value": "#B42318"
+			},
+			{
 				"id": "color.state.danger.text",
 				"value": "#F5C7C2"
 			},
@@ -564,6 +596,10 @@
 			{
 				"id": "color.state.success.border",
 				"value": "rgba(134, 239, 172, 0.24)"
+			},
+			{
+				"id": "color.state.success.foreground",
+				"value": "#245C36"
 			},
 			{
 				"id": "color.state.success.text",
@@ -590,8 +626,16 @@
 				"value": "#20231D"
 			},
 			{
+				"id": "color.surface.highlight",
+				"value": "#FFFFFF"
+			},
+			{
 				"id": "color.surface.page",
 				"value": "#161713"
+			},
+			{
+				"id": "color.surface.pressed",
+				"value": "#E7E4D8"
 			},
 			{
 				"id": "color.surface.selected",
@@ -634,6 +678,14 @@
 				"value": "cubic-bezier(0.2, 0, 0, 1)"
 			},
 			{
+				"id": "font.family.body",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
+				"id": "font.family.mono",
+				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
+			},
+			{
 				"id": "radius.lg",
 				"value": "6px"
 			},
@@ -660,6 +712,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 8px 18px rgba(0, 0, 0, 0.34), 0 24px 48px rgba(0, 0, 0, 0.28)"
+			},
+			{
+				"id": "size.focus-ring.width",
+				"value": "2px"
 			},
 			{
 				"id": "size.font.lg",
@@ -988,6 +1044,10 @@
 				"value": "#A30000"
 			},
 			{
+				"id": "color.state.danger.foreground",
+				"value": "#B42318"
+			},
+			{
 				"id": "color.state.danger.text",
 				"value": "#A30000"
 			},
@@ -998,6 +1058,10 @@
 			{
 				"id": "color.state.success.border",
 				"value": "#0B5A1E"
+			},
+			{
+				"id": "color.state.success.foreground",
+				"value": "#245C36"
 			},
 			{
 				"id": "color.state.success.text",
@@ -1024,8 +1088,16 @@
 				"value": "#FFFFFF"
 			},
 			{
+				"id": "color.surface.highlight",
+				"value": "#FFFFFF"
+			},
+			{
 				"id": "color.surface.page",
 				"value": "#FFFFFF"
+			},
+			{
+				"id": "color.surface.pressed",
+				"value": "#E7E4D8"
 			},
 			{
 				"id": "color.surface.selected",
@@ -1068,6 +1140,14 @@
 				"value": "cubic-bezier(0.2, 0, 0, 1)"
 			},
 			{
+				"id": "font.family.body",
+				"value": "\"Montserrat\", \"Segoe UI\", sans-serif"
+			},
+			{
+				"id": "font.family.mono",
+				"value": "ui-monospace, \"SFMono-Regular\", Menlo, Consolas, monospace"
+			},
+			{
 				"id": "radius.lg",
 				"value": "6px"
 			},
@@ -1094,6 +1174,10 @@
 			{
 				"id": "shadow.floating",
 				"value": "0 0 0 2px #000000"
+			},
+			{
+				"id": "size.focus-ring.width",
+				"value": "2px"
 			},
 			{
 				"id": "size.font.lg",

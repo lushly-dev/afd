@@ -87,10 +87,11 @@ the ids `<step>.size`, `<step>.line` and `<step>.weight` (for example
   components' registry; no component reads it, and the chrome does not use
   it.
 - Density does not change type.
-- **Family.** Contract version 1 has no font-family id. Until it has one,
-  `loam-shell` declares the shared components' stack once,
-  `"Montserrat", "Segoe UI", sans-serif`, and no other Loam element sets a
-  family.
+- **Family.** `font.family.body` is the shared components' typeface,
+  `"Montserrat", "Segoe UI", sans-serif`, read through `violet-elements`'
+  token interface. `loam-shell` still declares the same stack as a literal,
+  and no other Loam element sets a family. `font.family.mono` is reserved for
+  monospace text.
 - **Color.** `color.text.primary` for content, `color.text.secondary` for
   supporting text, `color.text.muted` for metadata and placeholders.
 
@@ -556,7 +557,7 @@ a fixture in `packages/chrome/specimens/chrome.specimens.ts`, or for what apps a
 
 | Question | Where it is settled |
 | --- | --- |
-| A font-family id, and a focus-width id components outside the chrome can read | Contract version 2; a follow-up in the specification. Phase 0 has no Loam package outside the chrome that draws focus |
+| A focus-width id components outside the chrome can read (the font-family id exists: `font.family.body`) | A follow-up in the specification. Phase 0 has no Loam package outside the chrome that draws focus |
 
 ## History
 

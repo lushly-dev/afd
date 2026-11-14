@@ -53,8 +53,8 @@ describe("Loam's Violet tree", () => {
 	it('resolves, less ref.*, to exactly the contract in every node', () => {
 		const contractIds = Object.keys(committed.tokens).sort();
 		for (const nodeId of NODE_IDS) expect([...tokens(nodeId).keys()].sort()).toEqual(contractIds);
-		expect(Object.keys(committed.tokens)).toHaveLength(108 + SHELL_TOKENS.length);
-		expect(COMPONENT_TOKENS).toHaveLength(108);
+		expect(Object.keys(committed.tokens)).toHaveLength(115 + SHELL_TOKENS.length);
+		expect(COMPONENT_TOKENS).toHaveLength(115);
 		for (const id of contractIds) expect(id.startsWith('ref.')).toBe(false);
 	});
 

@@ -5,7 +5,8 @@
  *   node scripts/theme.mjs build            write dist/loam-theme.css, dist/loam-theme.json and
  *                                           dist/contract.json (theme:build)
  *   node scripts/theme.mjs check [--write]  compare the committed contract, the kernel's
- *                                           LAYOUT_DEFAULTS_V0, violet-elements' component export
+ *                                           LAYOUT_DEFAULTS_V0, violet-elements' token interface,
+ *                                           its component export
  *                                           and its literal fallbacks with the tree (theme:check);
  *                                           --write rewrites contract/tokens.json first
  *   node scripts/theme.mjs export-components [--fallbacks]
@@ -34,6 +35,7 @@ const violetElements = new URL(
 	packageRoot
 );
 const components = {
+	interfacePath: new URL('tokens/interface.json', violetElements),
 	exportPath: new URL('tokens/violet-theme.export.json', violetElements),
 	sourceDirectory: new URL('src/', violetElements),
 };

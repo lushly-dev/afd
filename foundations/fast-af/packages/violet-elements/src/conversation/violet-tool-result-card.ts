@@ -41,6 +41,7 @@ const styles = css`
         align-items: center;
         gap: var(--_space-sm);
         padding: var(--_space-sm) var(--_space-md);
+        font-family: inherit;
         font-size: var(--_result-font-size);
         line-height: var(--_result-line-height);
         color: var(--_text-secondary, #414651);

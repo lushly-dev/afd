@@ -1,13 +1,7 @@
 import { FASTElement, attr, css, html } from "@lushly-dev/fast-element";
 
-import {
-    VIOLET_THEME_DEFAULT_PRESET,
-    applyVioletThemePreset,
-    applyVioletThemeRoot,
-    installVioletTheme,
-    normalizeVioletThemePreset,
-    type VioletThemePreset,
-} from "./generated/violet-theme.generated";
+import { VIOLET_THEME_PRESET_ATTRIBUTE, VIOLET_THEME_ROOT_ATTRIBUTE, type VioletThemePreset } from "./violet-theme-css";
+import { getVioletThemeDefaultPreset, getVioletThemePresets, installVioletTheme, isVioletThemePreset } from "./violet-theme-runtime";
 
 const styles = css`
     :host {
@@ -27,7 +21,8 @@ const template = html<VioletTheme>`
  */
 export class VioletTheme extends FASTElement {
     /**
-     * Selects which Violet runtime theme preset this scoped host should expose.
+     * Selects which preset of the installed Violet theme set this scoped host exposes. Any name the
+     * set has works; the built-in set has light, dark and high-contrast.
      */
     @attr
     declare public preset: VioletThemePreset;
@@ -36,10 +31,8 @@ export class VioletTheme extends FASTElement {
         super.connectedCallback();
         const rootNode = this.getRootNode();
         installVioletTheme(rootNode instanceof ShadowRoot ? rootNode : this.ownerDocument);
-        applyVioletThemeRoot(
-            this,
-            normalizeVioletThemePreset(this.getAttribute("preset") ?? this.preset ?? VIOLET_THEME_DEFAULT_PRESET),
-        );
+        this.setAttribute(VIOLET_THEME_ROOT_ATTRIBUTE, "");
+        this.applyPreset();
     }
 
     public presetChanged(): void {
@@ -47,10 +40,21 @@ export class VioletTheme extends FASTElement {
             return;
         }
 
-        applyVioletThemePreset(
-            this,
-            normalizeVioletThemePreset(this.getAttribute("preset") ?? this.preset ?? VIOLET_THEME_DEFAULT_PRESET),
-        );
+        this.applyPreset();
+    }
+
+    /**
+     * Writes the preset as given: a name the installed set lacks is kept, not mapped to the default,
+     * so it applies as soon as a set that has it is installed, and a warning names the known ones.
+     */
+    private applyPreset(): void {
+        const preset = this.getAttribute("preset") || this.preset || getVioletThemeDefaultPreset();
+        if (!isVioletThemePreset(preset)) {
+            console.warn(
+                `violet-theme: the preset '${preset}' is not in the installed theme set (${getVioletThemePresets().join(", ")})`,
+            );
+        }
+        this.setAttribute(VIOLET_THEME_PRESET_ATTRIBUTE, preset);
     }
 }
 
