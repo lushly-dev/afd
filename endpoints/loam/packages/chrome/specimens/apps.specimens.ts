@@ -676,8 +676,8 @@ const section =
 							: {
 									success: false,
 									error: {
-										code: 'PROJECT_SLUG_TAKEN',
-										message: "A project already has the slug 'atlas'",
+										code: 'PROJECT_SLUG_UNAVAILABLE',
+										message: "That slug can't be used. Choose another",
 										suggestion: 'Choose another slug; a slug cannot change once created',
 									},
 								},

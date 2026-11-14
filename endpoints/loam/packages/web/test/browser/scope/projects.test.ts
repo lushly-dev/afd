@@ -202,13 +202,13 @@ describe('P2-E9: the projects section', () => {
 		const slug = section(page).locator('violet-text-field[invalid]');
 		await expect.poll(() => slug.count()).toBe(1);
 		expect(await slug.locator('[part="supporting-text"]').textContent()).toContain(
-			"Error: A project already has the slug 'atlas'"
+			"Error: That slug can't be used. Choose another"
 		);
 		expect(await slug.locator('[part="label"]').textContent()).toBe('Slug');
 		expect((await focused(page)).tag).toBe('input');
 		const refused = (await journal(page)).at(-1);
 		expect(refused).toMatchObject({ command: 'project-create', success: false });
-		expect(refused?.error?.code).toBe('PROJECT_SLUG_TAKEN');
+		expect(refused?.error?.code).toBe('PROJECT_SLUG_UNAVAILABLE');
 		await section(page).locator('violet-button', { hasText: 'Cancel' }).click();
 		await expect.poll(async () => (await focusedName(page)).text).toBe('New project');
 
