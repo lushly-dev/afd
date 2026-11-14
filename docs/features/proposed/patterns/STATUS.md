@@ -2,7 +2,7 @@
 
 Read this before the [proposal](patterns.proposal.md). It records exactly what is done and what is
 not, so an agent never has to scan the code to learn what is current. It follows the shape of the
-[Component Briefs status](../../active/component-briefs/STATUS.md).
+[Component Briefs status](../../complete/component-briefs/STATUS.md).
 
 ## How to keep this file
 

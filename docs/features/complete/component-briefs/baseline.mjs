@@ -2,8 +2,8 @@
 // Component Briefs, step 0.1: what an agent reads today to learn FAST-AF's components, in bytes
 // and calls, for a fixed set of pages. Reads the repository and writes nothing.
 //
-//   node docs/features/active/component-briefs/baseline.mjs          Markdown tables
-//   node docs/features/active/component-briefs/baseline.mjs --json   the same numbers as JSON
+//   node docs/features/complete/component-briefs/baseline.mjs          Markdown tables
+//   node docs/features/complete/component-briefs/baseline.mjs --json   the same numbers as JSON
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join, relative, resolve } from 'node:path';
 
