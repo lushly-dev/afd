@@ -80,4 +80,10 @@ export const SHELL_COMMAND_NAMES = [
 	'account-passkey-add',
 	'account-passkey-rename',
 	'account-passkey-remove',
+	// Step 5 (6.3): a person's personas.
+	'persona-list',
+	'persona-create',
+	'persona-update',
+	'persona-remove',
+	'persona-set',
 ] as const;

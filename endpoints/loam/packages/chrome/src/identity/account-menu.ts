@@ -2,7 +2,9 @@
  * @fileoverview `loam-account-menu`, the `account-menu` chunk (phase 3 specification, 5.1 and 14), loaded when a
  * `provider` deployment's account button is pressed: the person's name and email, and "Sign out". A menu button's
  * menu (APG): focus moves to its first item, the arrows move between items, Escape or a press outside closes it
- * and focus returns to the button. Step 4 adds "Account" and step 5 the persona switch.
+ * and focus returns to the button. Step 4 adds "Account". The persona switch (phase 3 specification, 6.3 and 14)
+ * is a group of `menuitemradio`, `default` first, the active one `aria-checked`; choosing one runs `persona-set`,
+ * whose announcement is the shell's.
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
@@ -16,6 +18,7 @@ const template = html<LoamAccountMenu>`
 			<span class="name">${(x) => x.name}</span>
 			<span class="email">${(x) => x.email}</span>
 		</p>
+		<div class="personas" role="group" aria-label="Persona"></div>
 		<button class="item" role="menuitem" type="button" tabindex="-1" @click="${(x) => x.signOut()}">
 			Sign out
 		</button>
@@ -66,6 +69,22 @@ const styles = css`
 		text-align: start;
 		cursor: pointer;
 	}
+	.personas {
+		display: grid;
+		border-block-end: 1px solid var(--color-border-subtle);
+	}
+	.personas:empty {
+		display: none;
+	}
+	.item[role='menuitemradio'] {
+		border-inline-start: var(--size-space-xs) solid transparent;
+	}
+	.item[aria-checked='true'] {
+		background: var(--color-control-selected-background);
+		color: var(--color-control-selected-foreground);
+		border-inline-start-color: var(--color-control-selected-foreground);
+		font-weight: var(--weight-semibold);
+	}
 	.item:hover {
 		background: var(--color-action-secondary-hover);
 	}
@@ -80,6 +99,11 @@ const styles = css`
 		.item:focus-visible {
 			outline-color: Highlight;
 		}
+		.item[aria-checked='true'] {
+			border-inline-start-color: HighlightText;
+			background: Highlight;
+			color: HighlightText;
+		}
 	}
 `;
 
@@ -91,6 +115,9 @@ export class LoamAccountMenu extends FASTElement {
 	declare name: string;
 	declare email: string;
 	kernel: LoamKernelV3 | null = null;
+	/** The person's personas, `default` first, and the active one's id (6.3). */
+	personas: { id: string; title: string }[] = [];
+	active = 'default';
 	/** The account button: `aria-expanded` while open, and where focus returns. */
 	button: HTMLElement | null = null;
 	#outside = (event: Event) => {
@@ -108,10 +135,30 @@ export class LoamAccountMenu extends FASTElement {
 	}
 
 	#items(): HTMLElement[] {
-		return [...this.menu.querySelectorAll<HTMLElement>('[role="menuitem"]')];
+		return [...this.menu.querySelectorAll<HTMLElement>('[role^="menuitem"]')];
+	}
+
+	/** The persona switch: one `menuitemradio` each, built here, so this chunk imports no `repeat` (13). */
+	#fillPersonas(): void {
+		const group = this.menu.querySelector('.personas') as HTMLElement;
+		group.replaceChildren(
+			...this.personas.map((persona) => {
+				const item = this.ownerDocument.createElement('button');
+				item.className = 'item';
+				item.type = 'button';
+				item.tabIndex = -1;
+				item.setAttribute('role', 'menuitemradio');
+				item.setAttribute('aria-checked', String(persona.id === this.active));
+				item.dataset.persona = persona.id;
+				item.textContent = persona.title;
+				item.addEventListener('click', () => void this.choose(persona.id));
+				return item;
+			})
+		);
 	}
 
 	open(): void {
+		this.#fillPersonas();
 		this.button?.setAttribute('aria-expanded', 'true');
 		this.ownerDocument.addEventListener('pointerdown', this.#outside, true);
 		this.#items()[0]?.focus();
@@ -139,6 +186,12 @@ export class LoamAccountMenu extends FASTElement {
 			items[next]?.focus();
 		} else return true;
 		return event.key === 'Tab';
+	}
+
+	/** Switch persona; the shell announces it and reorders the rail (6.3). */
+	async choose(persona: string): Promise<void> {
+		this.close();
+		if (persona !== this.active) await this.kernel?.call('persona-set', { persona });
 	}
 
 	async signOut(): Promise<void> {
@@ -170,6 +223,13 @@ export async function openAccountMenu(shell: LoamShell): Promise<LoamAccountMenu
 		| undefined;
 	menu.name = session?.data?.user?.name ?? shell.account;
 	menu.email = session?.data?.user?.email ?? '';
+	const listed = (await shell.kernel?.call('persona-list')) as
+		| { success: boolean; data?: { personas: { id: string; title: string }[]; active: string } }
+		| undefined;
+	if (listed?.success && listed.data) {
+		menu.personas = listed.data.personas;
+		menu.active = listed.data.active;
+	}
 	bar.append(menu);
 	menu.open();
 	return menu;
