@@ -54,6 +54,13 @@
 //! page do. The headers, the escaping and the request limit are the hosted page's. These checks
 //! stop another web site, not a process on this machine: the page proves that something here
 //! posted its form, and records `local` (6.5).
+//!
+//! **Behind a proxy** (A46 to A50): with `person.local.public_origin` set, a TLS-terminating proxy
+//! on this machine serves the page at that `https` origin. A request may then name that origin's
+//! host and port as its `Host` as well as the bind, and a post's `Origin` may be that origin as
+//! well as `http://<bind>`, each accepted on its own, since a proxy may or may not rewrite
+//! `Host`. Every link and redirect the page writes is relative and it sets no cookie, so the page
+//! works unchanged under either origin; the links the host hands out name the public origin.
 
 use std::sync::Arc;
 
@@ -116,6 +123,20 @@ pub(crate) struct PersonPage {
     /// On the local page, its bind as a `Host` header must name it (section 6.3); `None` on the
     /// hosted page.
     local: Option<String>,
+    /// On the local page, `person.local.public_origin` when set (A47): a request may name it as
+    /// well as the bind.
+    public: Option<PublicOrigin>,
+}
+
+/// The local page's origin behind a proxy on this machine.
+#[derive(Clone)]
+struct PublicOrigin {
+    /// Its host, lowercase.
+    host: String,
+    /// Its port, when not 443.
+    port: Option<u16>,
+    /// `https://<host>[:<port>]`, as a browser's `Origin` writes it.
+    origin: String,
 }
 
 impl std::fmt::Debug for PersonPage {
@@ -186,6 +207,17 @@ impl PersonPage {
         if service.is_local() && local.is_none() {
             return None;
         }
+        let public = match service.public_origin().filter(|_| local.is_some()) {
+            None => None,
+            Some(origin) => {
+                let url = reqwest::Url::parse(origin).ok()?;
+                Some(PublicOrigin {
+                    host: url.host_str()?.to_ascii_lowercase(),
+                    port: url.port(),
+                    origin: origin.to_owned(),
+                })
+            }
+        };
         let origin = match (&local, port) {
             (Some(bind), _) => format!("http://{bind}"),
             (None, Some(port)) => format!("https://{host}:{port}"),
@@ -199,6 +231,7 @@ impl PersonPage {
             origin,
             limit,
             local,
+            public,
         })
     }
 
@@ -245,44 +278,34 @@ impl PersonPage {
             return false;
         };
         if let Some(bind) = &self.local {
-            return value == bind;
+            // Behind a proxy on this machine (A47), the public origin's host too: the proxy may
+            // pass the browser's `Host` on or write the bind's.
+            return value == bind
+                || self
+                    .public
+                    .as_ref()
+                    .is_some_and(|public| names(value, &public.host, public.port));
         }
-        let (host, port) = if let Some(rest) = value.strip_prefix('[') {
-            let Some((inner, after)) = rest.split_once(']') else {
-                return false;
-            };
-            let host = format!("[{inner}]");
-            match after {
-                "" => (host, None),
-                after => match after
-                    .strip_prefix(':')
-                    .and_then(|port| port.parse::<u16>().ok())
-                {
-                    Some(port) => (host, Some(port)),
-                    None => return false,
-                },
-            }
-        } else {
-            match value.split_once(':') {
-                None => (value.to_owned(), None),
-                Some((host, port)) => match port.parse::<u16>() {
-                    Ok(port) => (host.to_owned(), Some(port)),
-                    Err(_) => return false,
-                },
-            }
-        };
-        // Without a port in the public URL, the default port's: none, or 443.
-        host.eq_ignore_ascii_case(&self.host) && port.unwrap_or(443) == self.port.unwrap_or(443)
+        names(value, &self.host, self.port)
     }
 
-    /// Whether a post comes from the public URL's origin.
+    /// Whether a post comes from the public URL's origin, or on the local page from its bind's
+    /// or its public origin (A47).
     fn origin_ok(&self, headers: &HeaderMap) -> bool {
         let mut values = headers.get_all(header::ORIGIN).iter();
         let (Some(origin), None) = (values.next(), values.next()) else {
             return false;
         };
         match origin.to_str() {
-            Ok(origin) if origin == self.origin => true,
+            Ok(origin)
+                if origin == self.origin
+                    || self
+                        .public
+                        .as_ref()
+                        .is_some_and(|public| public.origin == origin) =>
+            {
+                true
+            }
             // A browser serialises a same-origin form post's origin as `null` under the page's
             // own `Referrer-Policy: no-referrer` (Fetch, "append a request `Origin` header"); its
             // fetch metadata, which no page can set, says where the post came from.
@@ -293,6 +316,18 @@ impl PersonPage {
                     == Some("same-origin")
             }
             _ => false,
+        }
+    }
+
+    /// What the local page says of itself: [`NO_SIGN_IN`], and behind a proxy, that whatever
+    /// reaches its public origin can do the same (A47).
+    fn no_sign_in(&self) -> String {
+        match &self.public {
+            None => NO_SIGN_IN.to_owned(),
+            Some(public) => format!(
+                "{NO_SIGN_IN} It is also served at {}, so anything that reaches that address can do the same.",
+                escape(&public.origin)
+            ),
         }
     }
 
@@ -1010,8 +1045,9 @@ impl PersonPage {
         };
         let intro = if self.local.is_some() {
             format!(
-                "<p>Requests waiting for <b>{subject}</b> on this machine. {NO_SIGN_IN} Open a request to review it.</p>",
+                "<p>Requests waiting for <b>{subject}</b> on this machine. {no_sign_in} Open a request to review it.</p>",
                 subject = escape(subject),
+                no_sign_in = self.no_sign_in(),
             )
         } else {
             format!(
@@ -1191,8 +1227,9 @@ impl PersonPage {
         let (who, login_field) = if self.local.is_some() {
             (
                 format!(
-                    "<p>For <b>{person}</b> on this machine. {NO_SIGN_IN} Decide this request yourself and approve it only if you asked for it.</p>",
+                    "<p>For <b>{person}</b> on this machine. {no_sign_in} Decide this request yourself and approve it only if you asked for it.</p>",
                     person = escape(&decision.for_.subject),
+                    no_sign_in = self.no_sign_in(),
                 ),
                 String::new(),
             )
@@ -1411,6 +1448,37 @@ impl PersonPage {
         }
         response
     }
+}
+
+/// Whether the `Host` header's `value` names `expected`, case-insensitively, and `expected_port`;
+/// a port not written is 443's, on either side.
+fn names(value: &str, expected: &str, expected_port: Option<u16>) -> bool {
+    let (host, port) = if let Some(rest) = value.strip_prefix('[') {
+        let Some((inner, after)) = rest.split_once(']') else {
+            return false;
+        };
+        let host = format!("[{inner}]");
+        match after {
+            "" => (host, None),
+            after => match after
+                .strip_prefix(':')
+                .and_then(|port| port.parse::<u16>().ok())
+            {
+                Some(port) => (host, Some(port)),
+                None => return false,
+            },
+        }
+    } else {
+        match value.split_once(':') {
+            None => (value.to_owned(), None),
+            Some((host, port)) => match port.parse::<u16>() {
+                Ok(port) => (host.to_owned(), Some(port)),
+                Err(_) => return false,
+            },
+        }
+    };
+    // Without a port in the public URL, the default port's: none, or 443.
+    host.eq_ignore_ascii_case(expected) && port.unwrap_or(443) == expected_port.unwrap_or(443)
 }
 
 fn log_refusal(code: &str) {

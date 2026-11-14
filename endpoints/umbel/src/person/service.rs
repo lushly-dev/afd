@@ -221,6 +221,9 @@ pub(crate) struct PersonService {
     /// The base of the page's URLs: `http.public_url` in mode `oauth`, `http.person.public_url`
     /// (an origin) in mode `gateway`, `http://<person.local.bind>` on the local page.
     page_url: String,
+    /// On the local page, `person.local.public_origin` when set: the origin a proxy on this
+    /// machine serves the page at, which the links handed out name (A48). `None` otherwise.
+    public_origin: Option<String>,
     /// Whether this is the local page's service: no provider, no login, decisions for the local
     /// person only.
     local: bool,
@@ -415,6 +418,7 @@ impl PersonService {
             person_key: workspace.person_key()?,
             relay_key: workspace.relay_key()?,
             page_url,
+            public_origin: config.person.local.public_origin.clone().filter(|_| local),
             local,
         })))
     }
@@ -456,9 +460,21 @@ impl PersonService {
     }
 
     /// The person page's URL of decision `id` (7.2, step 1): `<http.public_url>/d/<id>` in mode
-    /// `oauth`, `<http.person.public_url>/d/<id>` in mode `gateway`.
+    /// `oauth`, `<http.person.public_url>/d/<id>` in mode `gateway`, and on the local page under
+    /// [`Self::links`].
     pub(crate) fn url(&self, id: &str) -> String {
-        format!("{}/d/{id}", self.page_url)
+        format!("{}/d/{id}", self.links())
+    }
+
+    /// The base of the links the host hands out: [`Self::page_url`], or on the local page its
+    /// `person.local.public_origin` when set (A48).
+    pub(crate) fn links(&self) -> &str {
+        self.public_origin.as_deref().unwrap_or(&self.page_url)
+    }
+
+    /// The local page's `person.local.public_origin`, when set.
+    pub(crate) fn public_origin(&self) -> Option<&str> {
+        self.public_origin.as_deref()
     }
 
     /// The URL the provider sends a login back to: the page's base, then `/d/return`.
@@ -1048,7 +1064,7 @@ impl PersonService {
             let live = decision.live(now);
             match decision.status {
                 Status::Pending if live => {
-                    return Err(super::local_required(command, &decision.id, &self.page_url));
+                    return Err(super::local_required(command, &decision.id, self.links()));
                 }
                 Status::Approved if live => {
                     if !self
@@ -1115,7 +1131,7 @@ impl PersonService {
                 surface: Surface::Mcp,
             })
             .await?;
-        Err(super::local_required(command, &begun.id, &self.page_url))
+        Err(super::local_required(command, &begun.id, self.links()))
     }
 }
 

@@ -48,6 +48,9 @@ Code paths are relative to `endpoints/umbel/`.
   the handler, `attested` and `gate_proof`'s local arms, `umbel person page-serve` with 6.3's rules,
   `verified_levels` in the 6.6 clause, and the doctor's `person.local`. It resolves the follow-ups
   addressed to H3.
+- **A public origin behind a proxy** (2026-11-14), on the branch `lush/ideas-page-public-origin`, amended below
+  ([A46 to A50](#amendments-for-a-public-origin-behind-a-proxy)): `person.local.public_origin`, the host option the
+  plugin's first use asked for (its F-4). Not reviewed independently.
 - **Not done:** nothing of steps H0 to H3. **Follow-ups:** the [table at the end](#follow-ups).
 
 ## What this specification serves
@@ -215,6 +218,7 @@ bind = "127.0.0.1:7421"
 | --- | --- | --- |
 | `person.local.enabled` | bool, `false` | Only with `auth.mode = "none"`, else `WORKSPACE_CONFIG_INVALID` |
 | `person.local.bind` | socket address, `127.0.0.1:7421` | A loopback address, as `check_bind` holds `http.bind` (`hosted.rs:1603`) |
+| `person.local.public_origin` | `https` origin, not set | Added by [A46](#amendments-for-a-public-origin-behind-a-proxy): the page's origin behind a TLS-terminating proxy on this machine |
 
 ### 6.2 How a call reaches the gate today, and what changes
 
@@ -439,6 +443,21 @@ the person store keeps schema version 2.
 | A44 | The gate spent a decision before it knew it could hand the mark over | The local arm reserves the call's slot first (`LocalMarks::reserve`, then `HeldMark::fill`); a call with no trace, or one whose trace another call in flight holds, is refused before anything is spent |
 | A45 | A memory confirmation under a local mark was refused by the store with a message that did not name `local`, and the doctor did not name a space that admits `local` | `svc_memory_confirm` refuses it first, naming level `local`; the doctor's `person.local` warns, page or no page, for each space whose `verified_levels` lists `local`. `person_local.rs` adds a race of two calls after one approval, mode `gateway` refused, the binds `[::]` and `[::ffff:127.0.0.1]` refused and `[::1]` served, memory confirmation end to end, and a pipeline whose step needs its own decision: the local registration is not `HostVerified`, so AFD admits it as a step, and the step meets the gate as a call of its own |
 
+### Amendments for a public origin behind a proxy
+
+The plugin's first use (its specification's F-4) found that the local page cannot be used from another of the
+deployer's own computers through a proxy: the page answers only a `Host` that is the bind and a post whose `Origin` is
+`http://<bind>`, and the links the host hands out name `127.0.0.1`. The SSH tunnel stays the way without a proxy. This
+adds one optional key; without it nothing changes. Mode `oauth`, mode `gateway` and `[http.person]` are untouched.
+
+| # | Point | Decision |
+| --- | --- | --- |
+| A46 | 6.1 has no way to name the origin a proxy serves the page at | `person.local.public_origin`, optional, not set by default, e.g. `"https://garden-host.example-tailnet.ts.net:8443"`: an origin a TLS-terminating proxy on this same machine (a private-network HTTPS proxy, say) forwards to the loopback bind. Checked at open, each refusal a `WORKSPACE_CONFIG_INVALID` naming the key (`public_origin`, `src/workspace/person.rs`): the scheme is `https`; no user information, query or fragment; no path but `/`; the host in its canonical form, lowercase (`check_canonical_host`, as `http.person.public_url`'s); a port written with no leading zero. It is kept as a browser's `Origin` writes it: a trailing `/` and an explicit `:443` are dropped. `person.local.bind` stays loopback, as 6.1 already requires. The schema `workspace-config.v7.json` gains the key with a pattern; the host's rules are the stricter |
+| A47 | 6.3's `Host` and `Origin` rules name the bind only | With the key set, the local page (`PersonPage.public`, `src/person/page.rs`) also admits a `Host` naming the public origin's host, case-insensitively, and port, a port not written being 443 on either side; and a post whose `Origin` is exactly the public origin. The two are accepted independently, since a proxy may or may not rewrite `Host`: `Origin` public with `Host` the bind passes. The bind's `Host` and `Origin`, and `null` with `Sec-Fetch-Site: same-origin`, are unchanged. Every link, form action and redirect the page writes is relative (`/d/...`), and the local page sets no cookie (6.3), so the page works unchanged under either origin; there is no `Secure` cookie to break plain HTTP on the bind. The page's own notice adds that it is also served at the public origin, so anything that reaches that address can do what anything on this machine can |
+| A48 | Section 7's `CONFIRMATION_REQUIRED` and `person-page-serve` name `http://<bind>` | The links the host hands out use the public origin when set (`PersonService::links`, `src/person/service.rs`): the error's `url` and `list` and its message, `PersonService::url` (the CLI's and the relay's link, which today reach only a hosted page: the local page is not served to the CLI, 6.2), and the list `umbel person page-serve` prints, opens with `--open` and answers. It still binds `person.local.bind`, and says so. The suggestion's wording ("in a browser on this machine") is unchanged |
+| A49 | 6.5 and the doctor assume only this machine reaches the page | The doctor's `person.local`, while the page is enabled and the key is set, adds to its warning that anyone who can reach that origin can confirm the local person's decisions with no login, so it must be reachable only on a private network the deployer controls, through a proxy on this same machine. It stays a warning, not a failure, and its other wording is unchanged. A `local` decision still records `local`: what reaches the page through the proxy is no better proven than what reaches the bind |
+| A50 | Whether the key needs configuration version 8 | No: added to version 7 additively, as D188 adds keys, since it is optional with today's behaviour as its default and nothing outside this repository reads version 7. `config_version` stays 7, and `umbel init` writes no new key. Tests: `tests/person_local.rs` (the public `Host` and `Origin` admitted, others refused, `Origin` public with `Host` the bind, the default port's two spellings, the links handed out, the refusals at open, the doctor), `tests/config_v7.rs` (the schema and the host agree), and the unit tests of `public_origin` |
+
 ## Follow-ups
 
 | Date | Raised by | Follow-up | Where it goes |
@@ -452,3 +471,4 @@ the person store keeps schema version 2.
 | 2026-11-12 | Step H1's review | An event's envelope is capped at `PROVENANCE_VERSION`, 3 (`src/provenance.rs:432`), so `is_confirmation(.., 3)` would silently drop a journaled confirmation whose assurance is `local` from the event, where the store keeps it in version 4 | H3: done, refused (A35) |
 | 2026-11-13 | Step H3 | A raw compiled plugin's finished definition is admitted on the local page and told nothing (A26) | Open: no first-party plugin answers items that way. Give `CommandDefinition` a host wrapper in AFD, or refuse such a command a local registration |
 | 2026-11-13 | Step H3 | The doctor's `person.local` cannot see whether a `person-page-serve` is running, and nothing tells the agent's harness that the page is down beyond the refusal's suggestion | Open: a probe of `http://<bind>/d/` like `auth.person_listener`'s, if the owner wants one |
+| 2026-11-14 | The plugin's first use, F-4 | A host option to use the local page through a proxy on another of the deployer's computers | Done, A46 to A50 |
