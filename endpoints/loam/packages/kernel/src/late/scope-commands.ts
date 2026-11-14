@@ -307,6 +307,21 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				)
 			: undefined;
 
+	/**
+	 * A member list that names someone twice (the review of step 4's B1): refused for every caller, so no rule that reads
+	 * the list, D110's "remove only yourself" above all, is decided on a count.
+	 */
+	const duplicateRefusal = (
+		asked: ProjectAccessV1 | undefined
+	): CommandResult<never> | undefined =>
+		asked?.mode === 'restricted' && new Set(asked.members).size !== asked.members.length
+			? kernelFailure(
+					'VALIDATION_ERROR',
+					"A project's members name each person once",
+					'List each member once, with no repeated id'
+				)
+			: undefined;
+
 	/** Name, icon and access, each checked; a refusal, or undefined. */
 	function checkFields(
 		fields: { name?: string; icon?: string; access?: ProjectAccessV1 },
@@ -314,6 +329,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		selfExempt = false
 	): CommandResult<never> | undefined {
 		const { name, icon, access: asked } = fields;
+		const repeated = duplicateRefusal(asked);
+		if (repeated) return repeated;
 		if (name !== undefined && (name.trim() === '' || name.length > 80)) {
 			return kernelFailure(
 				'PROJECT_NAME_INVALID',
@@ -511,6 +528,8 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 					: undefined);
 			if (!project) return projectNotFound();
 			let selfExempt = false;
+			const repeated = duplicateRefusal(input.access);
+			if (repeated) return repeated;
 			if (input.access !== undefined && !owner) {
 				if (listedSlug(project.slug))
 					return kernelFailure('OWNER_REQUIRED', OWNER_LISTED, ASK_OWNER);
@@ -518,13 +537,16 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				const person = personOf(context);
 				const held = project.access.mode === 'restricted' ? project.access.members : [];
 				const asked = input.access;
+				// As sets: what was held, less the caller, is exactly what is asked (B1).
+				const kept = new Set(held.filter((member) => member !== person));
+				const wanted = new Set(asked.mode === 'restricted' ? asked.members : []);
 				const leavesOnly =
 					project.access.mode === 'restricted' &&
 					asked.mode === 'restricted' &&
 					held.includes(person) &&
-					!asked.members.includes(person) &&
-					asked.members.length === held.length - 1 &&
-					asked.members.every((member) => held.includes(member));
+					!wanted.has(person) &&
+					wanted.size === kept.size &&
+					[...wanted].every((member) => kept.has(member));
 				if (project.createdBy !== person && !leavesOnly) {
 					return kernelFailure('OWNER_REQUIRED', OWNER_MEMBERS, ASK_OWNER);
 				}

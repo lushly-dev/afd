@@ -13,7 +13,7 @@ import { createHash } from 'node:crypto';
 import type { AuthContext } from 'better-auth';
 import { createAuthEndpoint, createAuthMiddleware, getSessionFromCtx } from 'better-auth/api';
 import { deleteSessionCookie, setSessionCookie } from 'better-auth/cookies';
-import { type LinkAdapter, linkRefusal, signOutFirst } from './enrolment.js';
+import { consumeOnce, type LinkAdapter, linkRefusal, signOutFirst } from './enrolment.js';
 import { newToken, timeOf, tokenHash } from './tokens.js';
 
 /** The plugin's recovery tables, by their schema names. */
@@ -72,7 +72,7 @@ interface UserRow {
 	name: string;
 }
 
-const recoveryInvalid = () =>
+export const recoveryInvalid = () =>
 	linkRefusal(
 		'NOT_FOUND',
 		'RECOVERY_LINK_INVALID',
@@ -243,17 +243,9 @@ export function recoveryEndpoints(deps: RecoveryDeps) {
 						if (recent.length < RECOVERY_PER_HOUR) {
 							const token = newToken();
 							await adapter.transaction(async (trx) => {
-								// A new link cancels the one outstanding (5.7).
-								for (const row of rows) {
-									if (!row.consumedAt && !row.cancelledAt) {
-										await trx.update({
-											model: RECOVERY_MODEL,
-											where: [{ field: 'id', value: row.id }],
-											update: { cancelledAt: new Date(now) },
-										});
-									}
-								}
-								await trx.create({
+								// The new link first, then every other outstanding one cancelled by a conditional update: two requests racing
+								// leave at most one link outstanding, never two (5.7; the review of step 4's I4).
+								const made = await trx.create<{ id: string }>({
 									model: RECOVERY_MODEL,
 									data: {
 										userId: user.id,
@@ -261,6 +253,16 @@ export function recoveryEndpoints(deps: RecoveryDeps) {
 										createdAt: new Date(now),
 										expiresAt: new Date(now + RECOVERY_LINK_MS),
 									},
+								});
+								await trx.updateMany({
+									model: RECOVERY_MODEL,
+									where: [
+										{ field: 'userId', value: user.id },
+										{ field: 'id', value: made.id, operator: 'ne' },
+										{ field: 'consumedAt', value: null },
+										{ field: 'cancelledAt', value: null },
+									],
+									update: { cancelledAt: new Date(now) },
 								});
 							});
 							// Sent in the background: its time is not the answer's.
@@ -342,12 +344,9 @@ export function recoveryEndpoints(deps: RecoveryDeps) {
 							},
 						});
 					}
+					// Consumed by a conditional update that must change one row (I4); the transaction undoes the rest if not.
+					await consumeOnce(trx, RECOVERY_MODEL, row.id, recoveryInvalid, at);
 					await recoverPerson(trx, row.userId, { now: at });
-					await trx.update({
-						model: RECOVERY_MODEL,
-						where: [{ field: 'id', value: row.id }],
-						update: { consumedAt: at },
-					});
 					return row.userId;
 				});
 				const user = await ctx.context.internalAdapter.findUserById(userId);
@@ -458,11 +457,8 @@ export function recoveryEndpoints(deps: RecoveryDeps) {
 					throw refused();
 				const at = new Date(now);
 				await adapter.transaction(async (trx) => {
-					await trx.update({
-						model: NONCE_MODEL,
-						where: [{ field: 'id', value: held.id }],
-						update: { consumedAt: at },
-					});
+					// The nonce is marked consumed, by a conditional update that must change one row (5.7; I4, N4).
+					await consumeOnce(trx, NONCE_MODEL, held.id, refused, at);
 					await recoverPerson(trx, found.user.id, { keep: found.session.token, now: at });
 					await trx.create({
 						model: MARK_MODEL,

@@ -27,9 +27,9 @@ beforeAll(async () => {
 		workspace: 'acme',
 		organization: { slug: 'acme', name: 'Acme' },
 		people: [
-			{ email: 'olu@example.com', role: 'owner', password: PASSWORD },
-			{ email: 'ada@example.com', role: 'admin', password: PASSWORD },
-			{ email: 'bea@example.com', role: 'member', password: PASSWORD },
+			{ email: 'olu@example.com', name: 'Owner A', role: 'owner', password: PASSWORD },
+			{ email: 'ada@example.com', name: 'Admin B', role: 'admin', password: PASSWORD },
+			{ email: 'bea@example.com', name: 'Bea', role: 'member', password: PASSWORD },
 			{ email: 'cy@example.com', role: null, password: PASSWORD },
 			{ email: 'una@example.com', role: null, password: PASSWORD, emailVerified: false },
 		],
@@ -52,7 +52,8 @@ async function signedIn(email: string): Promise<TestBrowser> {
 /** An owner's invitation, through the provider's own endpoint, and the link the mail carries. */
 async function invite(
 	email: string,
-	role = 'member'
+	role = 'member',
+	named: string | null = 'New Person'
 ): Promise<{ invitation: string; token: string; link: URL }> {
 	const olu = await signedIn('olu@example.com');
 	const made = await olu.call('/organization/invite-member', {
@@ -62,11 +63,11 @@ async function invite(
 	const mail = sent.filter((message) => message.to === email).at(-1);
 	if (!mail) throw new Error(`No mail to ${email}`);
 	const link = linkIn(mail.text);
-	return {
-		invitation: link.searchParams.get('invitation') as string,
-		token: link.searchParams.get('token') as string,
-		link,
-	};
+	const invitation = link.searchParams.get('invitation') as string;
+	const token = link.searchParams.get('token') as string;
+	// The name the invitee gives first (5.6): set here so each test starts from a join ready to complete.
+	if (named) await browser().call('/loam/join/name', { body: { invitation, token, name: named } });
+	return { invitation, token, link };
 }
 
 const row = <T>(sql: string, ...values: (string | number | null)[]) =>
@@ -274,14 +275,18 @@ describe('P3-E17: enrolment by invitation only, at the provider (5.6, 5.8)', () 
 			body: { invitation, token, password: 'short' },
 		});
 		expect(short.status).toBe(400);
-		const joined = await page.call('/loam/join/password', {
+		const nameless = await page.call('/loam/join/password', {
 			body: { invitation, token, password: PASSWORD },
+		});
+		expect(nameless.body).toMatchObject({ code: 'VALIDATION_ERROR' });
+		const joined = await page.call('/loam/join/password', {
+			body: { invitation, token, password: PASSWORD, name: 'Grace Hopper' },
 		});
 		expect(joined.status).toBe(200);
 		const whoami = await page.call('/loam/whoami');
 		expect(whoami.body).toMatchObject({ membership: { role: 'admin' } });
 		const again = await browser().call('/loam/join/password', {
-			body: { invitation, token, password: PASSWORD },
+			body: { invitation, token, password: PASSWORD, name: 'Again' },
 		});
 		expect(again.body).toMatchObject({ code: 'INVITATION_NOT_FOUND' });
 		// The session a password made is not user-verified (D99).
@@ -335,6 +340,44 @@ describe('P3-E17: enrolment by invitation only, at the provider (5.6, 5.8)', () 
 		});
 	});
 
+	it('P3-E17: a join needs the name other members will see, and takes none from the email (I1)', async () => {
+		const { invitation, token } = await invite('jane.q.public@corp.example', 'member', null);
+		const page = browser();
+		// No name yet: the ceremony is refused before it starts, with a suggestion.
+		const options = await page.call(
+			`/passkey/generate-register-options?context=${encodeURIComponent(`join:${invitation}.${token}`)}`
+		);
+		expect(options.status).toBe(400);
+		expect(options.body).toMatchObject({ code: 'VALIDATION_ERROR' });
+		for (const name of ['', '   ', 'x'.repeat(81)]) {
+			const refused = await page.call('/loam/join/name', { body: { invitation, token, name } });
+			expect(refused.body, JSON.stringify(name)).toMatchObject({ code: 'VALIDATION_ERROR' });
+		}
+		expect(
+			(await page.call('/loam/join/name', { body: { invitation, token, name: 'Jane' } })).status
+		).toBe(200);
+		const { verified } = await page.registerPasskey(new SoftAuthenticator({ origin: ORIGIN }), {
+			context: `join:${invitation}.${token}`,
+			createSession: true,
+		});
+		expect(verified?.status).toBe(200);
+		// What a member who is no owner sees of the people: no part of anyone else's email.
+		const bea = await signedIn('bea@example.com');
+		const seen = (await bea.call('/loam/members')).body as { people: Record<string, unknown>[] };
+		const others = seen.people.filter((person) => person.name !== 'Bea');
+		// Every field a member sees but the opaque ids, which are random.
+		const shown = JSON.stringify(
+			others.map(({ id: _id, memberId: _member, ...rest }) => rest)
+		).toLowerCase();
+		const emails = database
+			.prepare('SELECT email FROM user WHERE id IN (SELECT userId FROM member)')
+			.all() as { email: string }[];
+		for (const { email } of emails.filter(({ email }) => email !== 'bea@example.com')) {
+			for (const part of email.toLowerCase().split('@')) expect(shown, part).not.toContain(part);
+		}
+		expect(seen.people.map((person) => person.name)).toContain('Jane');
+	});
+
 	it('P3-E17: bootstrapOrganization invited the first owner, who enrols through the same join page as an owner', async () => {
 		const mail = sent.find((message) => message.to === 'first@example.com');
 		if (!mail) throw new Error('No mail to the first owner');
@@ -347,6 +390,13 @@ describe('P3-E17: enrolment by invitation only, at the provider (5.6, 5.8)', () 
 			)?.bootstrap
 		).toBe(1);
 		const page = browser();
+		await page.call('/loam/join/name', {
+			body: {
+				invitation: link.searchParams.get('invitation'),
+				token: link.searchParams.get('token'),
+				name: 'First Owner',
+			},
+		});
 		const { verified } = await page.registerPasskey(new SoftAuthenticator({ origin: ORIGIN }), {
 			context,
 			createSession: true,

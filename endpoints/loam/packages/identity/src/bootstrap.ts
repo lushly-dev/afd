@@ -15,6 +15,7 @@ import { bindOrganization, readBinding } from './binding.js';
 import {
 	issueJoin,
 	JOIN_INVITATION_MS,
+	JOIN_MODEL,
 	joinLink,
 	type LinkAdapter,
 	newUserId,
@@ -54,7 +55,11 @@ function stateOf(context: AuthContext): LoamProviderState {
  * Create the bound organization and invite its first owner (5.6). The workspace is the one `createLoamAuthOptions`
  * was given, and `slug` must be its `[identity] organization`, so the binding it pins is the deployment's.
  *
- * @throws Error when a binding exists, an organization already has the slug, or the input is off its shape
+ * While the bound organization has no member, a second call sends the first owner's link again and ends the earlier
+ * one (I5); phase 6's one-time server command (10.2) uses this path when the first link lapsed.
+ *
+ * @throws Error when the bound organization has members, an organization already has the slug, or the input is off
+ *   its shape
  */
 export async function bootstrapOrganization(
 	provider: Provider,
@@ -77,19 +82,48 @@ export async function bootstrapOrganization(
 	const adapter = context.adapter as unknown as LinkAdapter & {
 		transaction<R>(run: (trx: LinkAdapter) => Promise<R>): Promise<R>;
 	};
-	if (await readBinding(adapter as never, state.workspace)) {
-		throw new Error(
-			'This workspace is already bound to an organization: a deployer rebinds it on the server'
-		);
+	const held = await readBinding(adapter as never, state.workspace);
+	const now = new Date();
+	const expiresAt = new Date(now.getTime() + JOIN_INVITATION_MS);
+	const invitation = `boot_${newUserId(context)}`;
+	if (held) {
+		// The first owner's link may lapse unused (the review of step 4's I5): while the bound organization has no
+		// member, the deployer may send it again, which ends every earlier one. Once anyone is a member, owners invite.
+		const members = await adapter.findMany<{ id: string }>({
+			model: 'member',
+			where: [{ field: 'organizationId', value: held.organizationId }],
+		});
+		if (members.length > 0) {
+			throw new Error(
+				'This workspace is already bound to an organization with members: an owner invites people, and a deployer rebinds it on the server'
+			);
+		}
+		const token = await adapter.transaction(async (trx) => {
+			await trx.deleteMany({
+				model: JOIN_MODEL,
+				where: [
+					{ field: 'organizationId', value: held.organizationId },
+					{ field: 'bootstrap', value: true },
+				],
+			});
+			return issueJoin(trx, {
+				invitation,
+				organizationId: held.organizationId,
+				email,
+				role: 'owner',
+				pendingUserId: newUserId(context),
+				expiresAt,
+				bootstrap: true,
+			});
+		});
+		await sendOwnerLink(state, email, name, invitation, token, expiresAt);
+		return { organizationId: held.organizationId, invitation, expiresAt };
 	}
 	if (
 		await adapter.findOne({ model: 'organization', where: [{ field: 'slug', value: input.slug }] })
 	) {
 		throw new Error(`An organization already has the slug '${input.slug}'`);
 	}
-	const now = new Date();
-	const expiresAt = new Date(now.getTime() + JOIN_INVITATION_MS);
-	const invitation = `boot_${newUserId(context)}`;
 	const { organizationId, token } = await adapter.transaction(async (trx) => {
 		const organization = await trx.create<{ id: string }>({
 			model: 'organization',
@@ -112,10 +146,22 @@ export async function bootstrapOrganization(
 		});
 		return { organizationId: organization.id, token };
 	});
+	await sendOwnerLink(state, email, name, invitation, token, expiresAt);
+	return { organizationId, invitation, expiresAt };
+}
+
+/** The first owner's join link (5.6), by the deployment's mail sender. */
+async function sendOwnerLink(
+	state: LoamProviderState,
+	email: string,
+	name: string,
+	invitation: string,
+	token: string,
+	expiresAt: Date
+): Promise<void> {
 	await state.mail.send({
 		to: email,
 		subject: `You're the first owner of ${name}`,
 		text: `You have been made the first owner of ${name}. Open this link to create your passkey and join: ${joinLink(state.shell, invitation, token)}\nThis link expires at ${expiresAt.toISOString()}.`,
 	});
-	return { organizationId, invitation, expiresAt };
 }

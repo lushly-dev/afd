@@ -40,6 +40,8 @@ export interface LinkProviderV1 {
 	completeOidc(): Promise<Answer>;
 	/** Register a passkey: with a `join:`/`recover:` context, signing in; with none, for the session's person. */
 	registerPasskey(context?: string): Promise<Answer>;
+	/** The name other members will see, given before a join's passkey (5.6). */
+	setName(invitation: string, token: string, name: string): Promise<Answer>;
 	setPassword(kind: 'join' | 'recover', fields: Record<string, string>): Promise<Answer>;
 	signOut(): Promise<void>;
 }
@@ -101,7 +103,8 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 					'Sign out',
 					async () => {
 						await options.provider.signOut();
-						location.reload();
+						// Again with the link as it was read: the address bar no longer holds it (N3).
+						await mountLinkPage(target, options);
 					},
 					{ class: 'action primary' }
 				)
@@ -142,6 +145,8 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 
 	const token = query.get('token') ?? '';
 	const invitation = query.get('invitation') ?? '';
+	// The token leaves the address bar and the history entry once read (the review of step 4's N3).
+	if (token) history.replaceState(null, '', location.pathname);
 	const checked =
 		options.kind === 'join'
 			? await provider.checkJoin(invitation, token)
@@ -167,9 +172,28 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 	};
 	const expires = el('p', {}, `This link expires at ${dateText(data.expiresAt)}.`);
 	const context = options.kind === 'join' ? `join:${invitation}.${token}` : `recover:${token}`;
+	// The name other members will see (5.6; I1): required at join, nothing taken from the email.
+	const name = el('input', {
+		id: 'link-name',
+		autocomplete: 'name',
+		maxlength: '80',
+		required: '',
+	}) as HTMLInputElement;
+	const named = async (): Promise<boolean> => {
+		if (options.kind !== 'join') return true;
+		if (name.value.trim() === '') {
+			status.textContent = 'Give the name other members will see, then create your passkey.';
+			name.focus();
+			return false;
+		}
+		const set = await provider.setName(invitation, token, name.value.trim());
+		if (!set.success) status.textContent = words(set);
+		return set.success;
+	};
 	const passkey = button(
 		'Create a passkey',
 		async () => {
+			if (!(await named())) return;
 			const made = await provider.registerPasskey(context);
 			if (made.success) {
 				return options.kind === 'join'
@@ -195,7 +219,8 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 				'p',
 				{},
 				`You are invited as ${ROLE_NAMES[data.role ?? ''] ?? data.role} with ${data.email}.`
-			)
+			),
+			el('label', { for: 'link-name' }, 'Your name, as other members will see it', name)
 		);
 	} else {
 		heading.textContent = 'Restore your access';
@@ -236,7 +261,7 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 			event.preventDefault();
 			const fields: Record<string, string> =
 				options.kind === 'join'
-					? { invitation, token, password: field.value }
+					? { invitation, token, password: field.value, name: name.value.trim() }
 					: { token, password: field.value };
 			const set = await provider.setPassword(options.kind, fields);
 			if (set.success)
@@ -246,5 +271,5 @@ export async function mountLinkPage(target: HTMLElement, options: LinkPageOption
 		parts.push(form);
 	}
 	body.replaceChildren(...parts);
-	passkey.focus();
+	(options.kind === 'join' ? name : passkey).focus();
 }

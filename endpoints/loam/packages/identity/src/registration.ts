@@ -13,7 +13,9 @@ import { getCurrentAdapter } from 'better-auth';
 import { getAuthoritativeSessionFromCtx } from 'better-auth/api';
 import {
 	completeJoin,
+	consumeOnce,
 	invitationNotFound,
+	joinName,
 	type LinkAdapter,
 	linkRefusal,
 	parseLinkContext,
@@ -21,7 +23,7 @@ import {
 	requireNoAccount,
 	signOutFirst,
 } from './enrolment.js';
-import { RECOVERY_MODEL, readRecovery, recoverPerson } from './recovery.js';
+import { RECOVERY_MODEL, readRecovery, recoverPerson, recoveryInvalid } from './recovery.js';
 import { reauthRequired, requireFreshPasskeySession } from './sessions.js';
 
 type Ctx = {
@@ -66,7 +68,9 @@ export function passkeyRegistration(deps: RegistrationDeps) {
 			if (link.kind === 'join') {
 				const row = await readJoin(adapter, link.invitation, link.token);
 				await requireNoAccount(adapter, row.email);
-				return { id: row.pendingUserId, name: row.email, displayName: row.email };
+				// The name other members will see is given first, on the join page (5.6, I1): a join without one is refused
+				// before any ceremony, and nothing is taken from the email.
+				return { id: row.pendingUserId, name: row.email, displayName: joinName(row.name) };
 			}
 			const row = await readRecovery(adapter, link.token);
 			const user = await ctx.context.internalAdapter.findUserById(row.userId);
@@ -114,12 +118,9 @@ export function passkeyRegistration(deps: RegistrationDeps) {
 			const row = await readRecovery(adapter, link.token);
 			if (row.userId !== user.id) throw invitationNotFound();
 			const at = new Date();
+			// Consumed first, by a conditional update that must change one row, so two uses racing find one refused (I4).
+			await consumeOnce(adapter, RECOVERY_MODEL, row.id, recoveryInvalid, at);
 			await recoverPerson(adapter, row.userId, { now: at });
-			await adapter.update({
-				model: RECOVERY_MODEL,
-				where: [{ field: 'id', value: row.id }],
-				update: { consumedAt: at },
-			});
 			deps.hold(ctx.request, row.userId, at);
 			return { userId: row.userId };
 		},

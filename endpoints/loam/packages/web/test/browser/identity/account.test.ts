@@ -144,6 +144,14 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 		await addVirtualAuthenticator(invitee.page, { userVerified: true });
 		await expect.poll(() => link(invitee.page).locator('h1').textContent()).toBe('Join Acme');
 		expect(await axe(invitee.page)).toEqual([]);
+		// The token leaves the address bar once read (N3).
+		expect(new URL(invitee.page.url()).search).toBe('');
+		// The name others will see is required (I1).
+		await link(invitee.page).getByRole('button', { name: 'Create a passkey' }).click();
+		await expect
+			.poll(() => link(invitee.page).locator('.status').textContent())
+			.toContain('Give the name other members will see');
+		await link(invitee.page).locator('#link-name').fill('Newcomer Person');
 		await link(invitee.page).getByRole('button', { name: 'Create a passkey' }).click();
 		await expect.poll(() => link(invitee.page).locator('h1').textContent()).toBe('Welcome to Acme');
 		const user = host()
@@ -163,7 +171,7 @@ describe('P3-E17: enrolment by invitation only, through a test-only auth host', 
 		// Signed in by that ceremony: the shell in the same browser is the member's.
 		await invitee.page.goto(site.root);
 		await invitee.page.waitForFunction(() => document.documentElement.dataset.loamHost === 'web');
-		await expect.poll(() => accountOf(invitee.page)).toBe('newcomer');
+		await expect.poll(() => accountOf(invitee.page)).toBe('Newcomer Person');
 		// The link a second time, in yet another browser.
 		const again = await openLink(url);
 		await expect

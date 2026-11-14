@@ -46,7 +46,10 @@ type Answer<T> = Promise<{ data?: T | null; error?: { code?: string; message?: s
 
 async function answered<T>(run: () => Answer<T>): Promise<T | null | undefined> {
 	const result = await run();
-	if (result?.error) throw refusal(result.error.code, result.error.message);
+	if (result?.error)
+		throw Object.assign(refusal(result.error.code, result.error.message), {
+			status: (result.error as { status?: number }).status,
+		});
 	return result?.data;
 }
 
@@ -79,7 +82,11 @@ const requester =
 			...(body === undefined ? {} : { body: JSON.stringify(body) }),
 		});
 		const json = (await response.json().catch(() => null)) as Record<string, unknown> | null;
-		if (!response.ok) throw refusal(json?.code as string | undefined, json?.message as string);
+		// The status travels with the code: a refusal (4xx) is not retried as an outage is (the review of step 4's N1).
+		if (!response.ok)
+			throw Object.assign(refusal(json?.code as string | undefined, json?.message as string), {
+				status: response.status,
+			});
 		return json ?? {};
 	};
 
@@ -301,6 +308,8 @@ export function createLinkProvider(authBase: string) {
 		checkRecover: (token: string) =>
 			answer(() => request(`/loam/recover/check?${query({ token })}`)),
 		completeOidc: () => answer(() => request('/loam/recover/oidc/complete', {})),
+		setName: (invitation: string, token: string, name: string) =>
+			answer(() => request('/loam/join/name', { invitation, token, name })),
 		registerPasskey: (context?: string) =>
 			answer(async () => {
 				if (typeof globalThis.PublicKeyCredential !== 'function') {

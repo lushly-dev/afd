@@ -160,11 +160,27 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 			{ retryable }
 		);
 	/** A provider's or an adapter's failure as the kernel answers it: its own code where it has one (15). */
+	/**
+	 * A provider's answer the kernel does not map (the review of step 4's N1): a definite refusal, any 4xx, is not
+	 * retryable; an outage (a 5xx, or no answer at all) is.
+	 */
+	const providerFailure = (cause: unknown, text: string): CommandResult<never> => {
+		const status = (cause as { status?: unknown } | null)?.status;
+		const refused = typeof status === 'number' && status >= 400 && status < 500;
+		return refused
+			? kit.kernelFailure(
+					'IDENTITY_PROVIDER_UNAVAILABLE',
+					text,
+					'The sign-in provider refused this request; read its message, then change the request',
+					{ retryable: false }
+				)
+			: fail('IDENTITY_PROVIDER_UNAVAILABLE', text, true);
+	};
 	const refusal = (cause: unknown): CommandResult<never> => {
 		const { code, message } = (cause ?? {}) as { code?: unknown; message?: unknown };
 		const text = typeof message === 'string' ? message : 'The sign-in provider refused the request';
 		if (typeof code === 'string' && KEPT.has(code)) return fail(code, text);
-		return fail('IDENTITY_PROVIDER_UNAVAILABLE', text, true);
+		return providerFailure(cause, text);
 	};
 	const unsupported = (): CommandResult<never> =>
 		fail(

@@ -36,6 +36,8 @@ export const JOIN_FIELDS = {
 	consumedAt: { type: 'date', required: false },
 	/** `bootstrapOrganization`'s first owner: no Better Auth invitation stands behind it. */
 	bootstrap: { type: 'boolean', required: false },
+	/** The name the invitee gave on the join page (5.6), which other members see; never taken from the email. */
+	name: { type: 'string', required: false },
 } as const;
 
 export interface JoinRowV1 {
@@ -49,6 +51,7 @@ export interface JoinRowV1 {
 	expiresAt: Date;
 	consumedAt?: Date | null;
 	bootstrap?: boolean | null;
+	name?: string | null;
 }
 
 type Where = { field: string; value: unknown; operator?: string }[];
@@ -63,6 +66,12 @@ export interface LinkAdapter {
 		forceAllowId?: boolean;
 	}): Promise<T>;
 	update<T>(query: { model: string; where: Where; update: Record<string, unknown> }): Promise<T>;
+	/** How many rows changed: a conditional update's answer (I4). */
+	updateMany(query: {
+		model: string;
+		where: Where;
+		update: Record<string, unknown>;
+	}): Promise<number>;
 	delete(query: { model: string; where: Where }): Promise<void>;
 	deleteMany(query: { model: string; where: Where }): Promise<number>;
 }
@@ -199,24 +208,64 @@ export async function requireNoAccount(
 }
 
 /**
- * The join's writes (5.8), through `adapter`, which is the transaction's: the user with the reserved id, the
- * invitation's email and `emailVerified`, since holding the emailed token proves the mailbox; the member row; the
- * invitation accepted; the token consumed. Its member row is written here, not through `/organization/add-member`,
- * whose `beforeAddMember` hook refuses every add but an accepted invitation's (7.5).
+ * The name a person gives at join (5.6; the review of step 4's I1, decided by the coordinator): 1 to 80 characters,
+ * required, never derived from the email, which only an owner may see (7.2).
+ */
+export function joinName(name: unknown): string {
+	const trimmed = typeof name === 'string' ? name.trim() : '';
+	if (trimmed === '' || trimmed.length > 80) {
+		throw linkRefusal(
+			'BAD_REQUEST',
+			'VALIDATION_ERROR',
+			'Give the name other members will see, 1 to 80 characters, on the join page'
+		);
+	}
+	return trimmed;
+}
+
+/**
+ * Consume a link's row: a conditional update on `consumedAt` being unset, which must change exactly one row, so two
+ * uses racing on any database find one of them refused (the review of step 4's I4).
+ */
+export async function consumeOnce(
+	adapter: LinkAdapter,
+	model: string,
+	id: string,
+	refused: () => Error,
+	now: Date = new Date()
+): Promise<void> {
+	const changed = await adapter.updateMany({
+		model,
+		where: [
+			{ field: 'id', value: id },
+			{ field: 'consumedAt', value: null },
+		],
+		update: { consumedAt: now },
+	});
+	if (changed !== 1) throw refused();
+}
+
+/**
+ * The join's writes (5.8), through `adapter`, which is the transaction's: the user with the reserved id, the name the
+ * invitee gave, the invitation's email and `emailVerified`, since holding the emailed token proves the mailbox; the
+ * member row; the invitation accepted; the token consumed. Its member row is written here, not through
+ * `/organization/add-member`, whose `beforeAddMember` hook refuses every add but an accepted invitation's (7.5).
  */
 export async function completeJoin(
 	adapter: LinkAdapter,
 	row: JoinRowV1,
 	now: Date = new Date()
 ): Promise<string> {
+	const name = joinName(row.name);
 	await requireNoAccount(adapter, row.email);
+	await consumeOnce(adapter, JOIN_MODEL, row.id, invitationNotFound, now);
 	await adapter.create({
 		model: 'user',
 		forceAllowId: true,
 		data: {
 			id: row.pendingUserId,
 			email: row.email,
-			name: row.email.split('@')[0] || row.email,
+			name,
 			emailVerified: true,
 			image: null,
 			createdAt: now,
@@ -239,12 +288,6 @@ export async function completeJoin(
 			update: { status: 'accepted' },
 		});
 	}
-	// In the same transaction as the read that found it unconsumed; a second use finds the user it made, above.
-	await adapter.update({
-		model: JOIN_MODEL,
-		where: [{ field: 'id', value: row.id }],
-		update: { consumedAt: now },
-	});
 	return row.pendingUserId;
 }
 
@@ -304,8 +347,10 @@ export interface EnrolmentDeps {
  * - `GET <path>/loam/join/check?invitation=&token=`: the invitation the link names, to its holder: the
  *   organization's name, the role and when the link expires. `ACCOUNT_EXISTS` when the email has an account, then
  *   `SIGN_OUT_FIRST` with any session present, so the page says each before offering anything.
- * - `POST <path>/loam/join/password { invitation, token, password }`: with `password` allowed, the join made with a
- *   password instead of a passkey, by the same checks, then signed in.
+ * - `POST <path>/loam/join/name { invitation, token, name }`: the name other members will see, required before a
+ *   passkey join and never derived from the email.
+ * - `POST <path>/loam/join/password { invitation, token, password, name }`: with `password` allowed, the join made
+ *   with a password instead of a passkey, by the same checks, then signed in.
  */
 export function enrolmentEndpoints(deps: EnrolmentDeps) {
 	return {
@@ -327,6 +372,25 @@ export function enrolmentEndpoints(deps: EnrolmentDeps) {
 				password: deps.password,
 			});
 		}),
+		/**
+		 * `POST <path>/loam/join/name { invitation, token, name }`: the name the invitee gives before creating a passkey,
+		 * kept on the join row until the registration completes the join (5.6). Required: the ceremony is refused
+		 * without it.
+		 */
+		loamJoinName: createAuthEndpoint('/loam/join/name', { method: 'POST' }, async (ctx) => {
+			const body = (ctx.body ?? {}) as { invitation?: unknown; token?: unknown; name?: unknown };
+			if (await getSessionFromCtx(ctx)) throw signOutFirst();
+			const name = joinName(body.name);
+			const adapter = ctx.context.adapter as unknown as LinkAdapter;
+			const row = await readJoin(adapter, body.invitation, body.token);
+			await requireNoAccount(adapter, row.email);
+			await adapter.update({
+				model: JOIN_MODEL,
+				where: [{ field: 'id', value: row.id }],
+				update: { name },
+			});
+			return ctx.json({ name });
+		}),
 		loamJoinPassword: createAuthEndpoint('/loam/join/password', { method: 'POST' }, async (ctx) => {
 			if (!deps.password) {
 				throw linkRefusal(
@@ -339,9 +403,11 @@ export function enrolmentEndpoints(deps: EnrolmentDeps) {
 				invitation?: unknown;
 				token?: unknown;
 				password?: unknown;
+				name?: unknown;
 			};
 			if (await getSessionFromCtx(ctx)) throw signOutFirst();
 			const { password } = body;
+			const name = joinName(body.name);
 			if (
 				typeof password !== 'string' ||
 				password.length < PASSWORD.min ||
@@ -359,7 +425,7 @@ export function enrolmentEndpoints(deps: EnrolmentDeps) {
 			const hash = await ctx.context.password.hash(password);
 			const userId = await adapter.transaction(async (trx) => {
 				const row = await readJoin(trx, body.invitation, body.token);
-				const id = await completeJoin(trx, row);
+				const id = await completeJoin(trx, { ...row, name });
 				const now = new Date();
 				await trx.create({
 					model: 'account',

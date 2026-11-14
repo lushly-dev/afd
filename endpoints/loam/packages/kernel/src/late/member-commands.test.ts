@@ -340,6 +340,22 @@ describe('P3-E6: owners (7.1, 7.2)', () => {
 			'IDENTITY_PROVIDER_UNAVAILABLE',
 			true,
 		]);
+		// A definite refusal the kernel does not map, a 4xx, is not retried as an outage is (N1).
+		made.organization.removeMember.mockRejectedValueOnce(
+			Object.assign(new Error('Invitation limit reached'), {
+				code: 'INVITATION_LIMIT_REACHED',
+				status: 403,
+			})
+		);
+		const limit = await made.kernel.call('member-remove', { member: BEA });
+		expect([limit.error?.code, limit.error?.retryable]).toEqual([
+			'IDENTITY_PROVIDER_UNAVAILABLE',
+			false,
+		]);
+		made.organization.removeMember.mockRejectedValueOnce(
+			Object.assign(new Error('Internal error'), { status: 502 })
+		);
+		expect((await made.kernel.call('member-remove', { member: BEA })).error?.retryable).toBe(true);
 		expect((await made.kernel.call('member-remove', { member: 'nobody' })).error?.code).toBe(
 			'MEMBER_NOT_FOUND'
 		);
@@ -579,6 +595,57 @@ describe("P3-E6: #852's rules in the kernel (7.3, 7.4; D110)", () => {
 		expect(swap.error?.code).toBe('OWNER_REQUIRED');
 		const leave = await made.kernel.call('project-update', { project, access: restricted([BEA]) });
 		expect(leave.success, JSON.stringify(leave.error)).toBe(true);
+	});
+
+	it("P3-E6: a member removes no one else by repeating an id (the review of step 4's B1)", async () => {
+		const DEE = 'mock-user-dee@example.com';
+		const CY = 'mock-user-cy@example.com';
+		const members = roles();
+		members.set(CY, 'member');
+		members.set(DEE, 'member');
+		const made = await provider({ membership: { mode: 'provider', members, digest: 'd1' } });
+		await signIn(made.kernel, 'bea@example.com');
+		const created = await made.kernel.call<{ id: string }>('project-create', {
+			name: 'Plans',
+			access: restricted([BEA, CY, DEE]),
+		});
+		const project = created.data?.id as string;
+		await made.kernel.call('auth-sign-out');
+		await signIn(made.kernel, 'cy@example.com');
+		// Cy's [Bea, Bea]: the same length as the list less Cy, every entry once held; it would drop Dee too.
+		const dropped = await made.kernel.call('project-update', {
+			project,
+			access: restricted([BEA, BEA]),
+		});
+		expect(dropped.success).toBe(false);
+		await made.kernel.call('auth-sign-out');
+		await signIn(made.kernel, 'bea@example.com');
+		const held = await made.kernel.call<{ access: { members: string[] } }>('project-get', {
+			project,
+		});
+		expect(held.data?.access.members).toEqual([BEA, CY, DEE]);
+	});
+
+	it('P3-E6: a member list that repeats an id is VALIDATION_ERROR for any caller, an owner and the creator included', async () => {
+		const made = await provider();
+		await signIn(made.kernel, 'olu@example.com');
+		const created = await made.kernel.call('project-create', {
+			name: 'Twice',
+			access: restricted([OLU, OLU]),
+		});
+		expect([created.error?.code, created.error?.suggestion]).toEqual([
+			'VALIDATION_ERROR',
+			'List each member once, with no repeated id',
+		]);
+		const made2 = await made.kernel.call<{ id: string }>('project-create', {
+			name: 'Once',
+			access: restricted([OLU, BEA]),
+		});
+		const updated = await made.kernel.call('project-update', {
+			project: made2.data?.id,
+			access: restricted([OLU, BEA, BEA]),
+		});
+		expect(updated.error?.code).toBe('VALIDATION_ERROR');
 	});
 
 	it("P3-E6: PROJECT_MEMBER_NOT_PERSON: a project's members are person ids only", async () => {

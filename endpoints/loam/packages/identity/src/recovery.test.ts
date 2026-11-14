@@ -19,10 +19,13 @@ const PASSWORD = 'correct horse battery staple';
 const database = new DatabaseSync(':memory:');
 const sent: LoamMailV1[] = [];
 let oidc: TestOidcProvider;
+/** A second deployer's single sign-on, so a ceremony begun for one cannot finish through the other (I3). */
+let other: TestOidcProvider;
 let provider: Awaited<ReturnType<typeof createTestProvider>>;
 
 beforeAll(async () => {
 	oidc = await startTestOidcProvider();
+	other = await startTestOidcProvider({ clientId: 'loam-other-client' });
 	provider = await createTestProvider({
 		baseURL: `${ORIGIN}/api/auth`,
 		secret: 'r'.repeat(32),
@@ -36,15 +39,22 @@ beforeAll(async () => {
 			{ email: 'dee@example.com', role: 'member', password: PASSWORD },
 			{ email: 'eli@example.com', role: 'member', password: PASSWORD },
 			{ email: 'fay@example.com', role: 'member', password: PASSWORD },
+			{ email: 'gil@example.com', role: 'member', password: PASSWORD },
 			{ email: 'una@example.com', role: 'member', password: PASSWORD, emailVerified: false },
 		],
-		methods: ['passkey', 'password', 'oidc:corp'],
+		methods: ['passkey', 'password', 'oidc:corp', 'oidc:other'],
 		oidc: [
 			{
 				id: 'corp',
 				clientId: oidc.clientId,
 				clientSecret: oidc.clientSecret,
 				discoveryUrl: oidc.discoveryUrl,
+			},
+			{
+				id: 'other',
+				clientId: other.clientId,
+				clientSecret: other.clientSecret,
+				discoveryUrl: other.discoveryUrl,
 			},
 		],
 		send: async (message) => void sent.push(message),
@@ -53,6 +63,7 @@ beforeAll(async () => {
 afterAll(async () => {
 	database.close();
 	await oidc?.close();
+	await other?.close();
 });
 
 const browser = () => new TestBrowser((request) => provider.auth.handler(request), ORIGIN);
@@ -84,10 +95,15 @@ async function request(email: string): Promise<{ ms: number; body: unknown; link
 }
 
 /** A sign-in through the deployer's single sign-on, as `email`, following every redirect but the last. */
-async function oidcSignIn(page: TestBrowser, email: string, emailVerified = true) {
-	oidc.as({ sub: `sub-${email}`, email, emailVerified });
+async function oidcSignIn(
+	page: TestBrowser,
+	email: string,
+	emailVerified = true,
+	through: 'corp' | 'other' = 'corp'
+) {
+	(through === 'corp' ? oidc : other).as({ sub: `sub-${email}`, email, emailVerified });
 	const started = await page.call('/sign-in/social', {
-		body: { provider: 'corp', callbackURL: `${ORIGIN}/~/recover?via=oidc` },
+		body: { provider: through, callbackURL: `${ORIGIN}/~/recover?via=oidc` },
 	});
 	expect(started.status).toBe(200);
 	const authorize = await fetch(started.body?.url as string, { redirect: 'manual' });
@@ -225,6 +241,51 @@ describe('P3-E18: recovery by email, at the provider (5.7, D97)', () => {
 		});
 	});
 
+	it('P3-E18: one link is used once however many use it at the same time, and racing requests leave one outstanding (I4)', async () => {
+		const token = (await request('gil@example.com')).link?.searchParams.get('token') as string;
+		const answers = await Promise.all(
+			[1, 2, 3].map((n) =>
+				browser().call('/loam/recover/password', {
+					body: { token, password: `a racing passphrase ${n}` },
+				})
+			)
+		);
+		expect(answers.map((answer) => answer.status).sort()).toEqual([200, 404, 404]);
+		// Racing requests for one account: never two links outstanding.
+		database.prepare('DELETE FROM loam_recovery WHERE userId = ?').run(idOf('fay@example.com'));
+		await Promise.all(
+			[1, 2, 3].map(() =>
+				browser().call('/loam/recover/request', { body: { email: 'fay@example.com' } })
+			)
+		);
+		const outstanding = database
+			.prepare(
+				'SELECT count(*) AS n FROM loam_recovery WHERE userId = ? AND consumedAt IS NULL AND cancelledAt IS NULL'
+			)
+			.get(idOf('fay@example.com')) as { n: number };
+		expect(outstanding.n).toBeLessThanOrEqual(1);
+	});
+
+	it('P3-E18: a link row is consumed by a conditional update: a second consumption, even one that read it unconsumed, is refused (I4)', async () => {
+		const { consumeOnce } = await import('./enrolment.js');
+		const context = await provider.auth.$context;
+		database
+			.prepare(
+				"INSERT INTO loam_recovery (id, userId, tokenHash, createdAt, expiresAt) VALUES ('rc-once', ?, ?, ?, ?)"
+			)
+			.run(
+				idOf('gil@example.com'),
+				'f'.repeat(64),
+				new Date().toISOString(),
+				new Date(Date.now() + 60_000).toISOString()
+			);
+		const refused = () => new Error('refused');
+		await consumeOnce(context.adapter as never, 'loamRecovery', 'rc-once', refused);
+		await expect(
+			consumeOnce(context.adapter as never, 'loamRecovery', 'rc-once', refused)
+		).rejects.toThrow('refused');
+	});
+
 	it("P3-E18: Better Auth's own password-reset and change-email routes answer 404", async () => {
 		const olu = browser();
 		for (const path of [
@@ -324,6 +385,43 @@ describe('P3-E18: recovery by single sign-on, an explicit ceremony (5.7, 5.8)', 
 			(await page.registerPasskey(new SoftAuthenticator({ origin: ORIGIN }))).verified?.status
 		).toBe(200);
 		// The nonce is spent.
+		expect((await page.call('/loam/recover/oidc/complete', { body: {} })).body).toMatchObject({
+			code: 'REAUTH_REQUIRED',
+		});
+	});
+
+	it("P3-E18: a session the ceremony marked `recovery` may not delete a passkey or revoke others' sessions (I2)", async () => {
+		const page = browser();
+		await page.call('/loam/recover/oidc/start', { body: { provider: 'corp' } });
+		expect((await oidcSignIn(page, 'cy@example.com')).status).toBe(302);
+		expect((await page.call('/loam/recover/oidc/complete', { body: {} })).body).toEqual({
+			recovered: true,
+		});
+		const held = database
+			.prepare('SELECT id FROM passkey WHERE userId = ?')
+			.get(idOf('cy@example.com')) as { id: string };
+		expect(held).toBeDefined();
+		const deleted = await page.call('/passkey/delete-passkey', { body: { id: held.id } });
+		expect(deleted.body).toMatchObject({ code: 'REAUTH_REQUIRED' });
+		expect(database.prepare('SELECT id FROM passkey WHERE id = ?').get(held.id)).toBeDefined();
+		await signedIn('cy@example.com');
+		const revoked = await page.call('/loam/revoke-person', { body: { target: 'others' } });
+		expect(revoked.body).toMatchObject({ code: 'REAUTH_REQUIRED' });
+		expect(sessionsOf('cy@example.com')).toBe(2);
+		// What the mark may do: register a passkey (5.8).
+		expect(
+			(await page.registerPasskey(new SoftAuthenticator({ origin: ORIGIN }))).verified?.status
+		).toBe(200);
+	});
+
+	it('P3-E18: a ceremony begun for one single sign-on cannot finish through another (I3)', async () => {
+		// Cy holds an account at both providers, each linked by a verified email.
+		const linking = browser();
+		expect((await oidcSignIn(linking, 'cy@example.com', true, 'other')).status).toBe(302);
+		const page = browser();
+		await page.call('/loam/recover/oidc/start', { body: { provider: 'corp' } });
+		expect((await oidcSignIn(page, 'cy@example.com', true, 'other')).status).toBe(302);
+		expect(page.session).toBeDefined();
 		expect((await page.call('/loam/recover/oidc/complete', { body: {} })).body).toMatchObject({
 			code: 'REAUTH_REQUIRED',
 		});
