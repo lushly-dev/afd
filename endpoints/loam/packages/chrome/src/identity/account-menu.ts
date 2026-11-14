@@ -2,7 +2,7 @@
  * @fileoverview `loam-account-menu`, the `account-menu` chunk (phase 3 specification, 5.1 and 14), loaded when a
  * `provider` deployment's account button is pressed: the person's name and email, and "Sign out". A menu button's
  * menu (APG): focus moves to its first item, the arrows move between items, Escape or a press outside closes it
- * and focus returns to the button. Step 4 adds "Account" and step 5 the persona switch.
+ * and focus returns to the button. "Account" opens the account section (step 4); step 5 adds the persona switch.
  */
 
 import { css, FASTElement, html, observable } from '@lushly-dev/fast-element';
@@ -16,6 +16,9 @@ const template = html<LoamAccountMenu>`
 			<span class="name">${(x) => x.name}</span>
 			<span class="email">${(x) => x.email}</span>
 		</p>
+		<button class="item" role="menuitem" type="button" tabindex="-1" @click="${(x) => x.account()}">
+			Account
+		</button>
 		<button class="item" role="menuitem" type="button" tabindex="-1" @click="${(x) => x.signOut()}">
 			Sign out
 		</button>
@@ -139,6 +142,12 @@ export class LoamAccountMenu extends FASTElement {
 			items[next]?.focus();
 		} else return true;
 		return event.key === 'Tab';
+	}
+
+	/** The account section (5.1), at workspace level: focus moves to its heading. */
+	async account(): Promise<void> {
+		this.close(false);
+		await this.kernel?.call('section-open', { section: 'account' });
 	}
 
 	async signOut(): Promise<void> {

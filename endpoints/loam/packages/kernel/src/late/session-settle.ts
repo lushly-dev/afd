@@ -24,6 +24,7 @@ import type { KernelPortsV1 } from '../types.js';
 import type { DocumentKit } from './document-kit.js';
 import type { EditorDraftsV1, EditorStateV1 } from './editor-state.js';
 import type { IdentityCommands } from './identity-commands.js';
+import { OWNER_COMMANDS } from './member-commands.js';
 
 export {
 	createIdentityCommands,
@@ -31,6 +32,11 @@ export {
 	type IdentityCommands,
 	PROVIDER_COMMANDS,
 } from './identity-commands.js';
+export {
+	createMemberCommands,
+	MEMBERSHIP_CHANGING_COMMANDS,
+	OWNER_COMMANDS,
+} from './member-commands.js';
 
 /** Why the kernel settles (4.4): stage B's first act, an expiry, another tab or the adapter, a membership read. */
 export type SessionSettleReasonV1 = 'provider' | 'expiry' | 'tab' | 'membership';
@@ -74,12 +80,12 @@ export const REFRESH_RETRY_MAX_MS = 300_000;
 export const MEMBERSHIP_READ_TIMEOUT_MS = 10_000;
 
 /**
- * The commands before which the kernel reads the person's membership again (7.6): the owner cases of shared
- * commands and the owner commands that exist so far; step 4 adds the rest of `OWNER_COMMANDS`.
+ * The commands before which the kernel reads the person's membership again (7.6): every owner command, every
+ * `project-create`, and every `project-update` carrying `access`.
  */
 const rereads = (name: string, input: unknown): boolean =>
 	name === 'project-create' ||
-	name === 'workspace-app-set' ||
+	OWNER_COMMANDS.includes(name) ||
 	(name === 'project-update' && typeof input === 'object' && input !== null && 'access' in input);
 
 /** `session-settle`'s input schema, from the kit's Zod: this chunk imports none of first paint's (13). */
@@ -219,6 +225,12 @@ export interface SessionSettle {
 	afterAuth(): void;
 	/** Whether line 0 waits for the membership read before `name`, in `run` rather than before it (I5). */
 	rereadsBefore(name: string): boolean;
+	/**
+	 * After a command that may have changed the person's own membership (an invitation accepted, a member removed or
+	 * their role set, 5.3, 7.2), once its entry is journaled: the membership is read again, and the next call waits
+	 * for it, as after a sign-in.
+	 */
+	membershipChanged(): void;
 	/**
 	 * Before a command that reads membership again (7.6), on the settles' chain: a changed digest is a top-level
 	 * `session-settle` with `reason: 'membership'`, before the call that needed it runs. Answers a refusal:
@@ -828,9 +840,18 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				if (reading === check) reading = undefined;
 			});
 		},
+		membershipChanged() {
+			const person = current();
+			if (!provider || replaying() || person === null) return;
+			const check = checkMembership(person);
+			reading = check;
+			void check.finally(() => {
+				if (reading === check) reading = undefined;
+			});
+		},
 		rereadsBefore: (name) =>
 			provider &&
-			(name === 'project-create' || name === 'workspace-app-set' || name === 'project-update'),
+			(name === 'project-create' || name === 'project-update' || OWNER_COMMANDS.includes(name)),
 		reread(name, input) {
 			if (!provider || replaying() || !rereads(name, input)) return Promise.resolve(undefined);
 			return serial(async () => {

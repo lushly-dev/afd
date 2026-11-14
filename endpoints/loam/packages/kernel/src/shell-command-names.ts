@@ -80,4 +80,16 @@ export const SHELL_COMMAND_NAMES = [
 	'account-passkey-add',
 	'account-passkey-rename',
 	'account-passkey-remove',
+	// Step 4 (5.1, 5.3, 5.4, 7.2): the person's account and invitations, and the workspace's members.
+	'account-get',
+	'account-update',
+	'account-invitation-list',
+	'account-invitation-accept',
+	'account-invitation-reject',
+	'member-list',
+	'member-invite',
+	'member-invitation-list',
+	'member-invitation-cancel',
+	'member-remove',
+	'member-role-set',
 ] as const;

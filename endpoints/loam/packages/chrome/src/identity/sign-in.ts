@@ -62,6 +62,7 @@ const template = html<LoamSignInDialog>`
 			)}
 		</form>
 		<div class="oidc"></div>
+		<div class="recover"></div>
 		<p class="message" role="status" aria-live="polite">${(x) => x.message}</p>
 		<div class="buttons">
 			<button class="action cancel" type="button" @click="${(x) => x.dialog.close()}">Cancel</button>
@@ -128,6 +129,18 @@ const styles = [
 			display: grid;
 			gap: var(--space-stack-sm);
 		}
+		.recover {
+			display: grid;
+			gap: var(--space-stack-xs);
+		}
+		.recover form {
+			display: grid;
+			gap: var(--space-stack-xs);
+		}
+		.recover form[hidden] {
+			display: none;
+		}
+		.recover:empty,
 		.oidc:empty {
 			display: none;
 		}
@@ -171,6 +184,9 @@ export class LoamSignInDialog extends FASTElement {
 	organization = '';
 	methods: readonly string[] = [];
 	kernel: LoamKernelV3 | null = null;
+	/** Recovery's request and the single sign-on ceremony's start (5.7), the host's. */
+	recover: ((email: string) => Promise<void>) | undefined;
+	recoverWith: ((provider: string) => Promise<void>) | undefined;
 	/** Where focus returns when the dialog closes: the button that opened it. */
 	opener: HTMLElement | null = null;
 
@@ -196,9 +212,68 @@ export class LoamSignInDialog extends FASTElement {
 			button.addEventListener('click', () => void this.oidc(method.slice(5)));
 			list?.append(button);
 		}
+		this.#recovery();
 		this.dialog.showModal();
 		this.shadowRoot?.querySelector<HTMLElement>('.passkey')?.focus();
 		void this.#autofill();
+	}
+
+	/**
+	 * "Can't sign in?" (5.7): the person's own recovery, by an emailed link to their verified address, answered the same
+	 * whatever the email, or through the deployer's single sign-on. No one restores another person's access.
+	 */
+	#recovery(): void {
+		const holder = this.shadowRoot?.querySelector('.recover');
+		const recover = this.recover;
+		if (!holder || !recover) return;
+		const make = (tag: string, attributes: Record<string, string>, text = '') => {
+			const made = this.ownerDocument.createElement(tag);
+			for (const [name, value] of Object.entries(attributes)) made.setAttribute(name, value);
+			made.textContent = text;
+			return made;
+		};
+		const toggle = make(
+			'button',
+			{ type: 'button', class: 'action', 'aria-expanded': 'false' },
+			"Can't sign in?"
+		);
+		const form = make('form', { hidden: '', 'aria-label': 'Restore your access' });
+		const field = make('input', { id: 'recover-email', type: 'email', autocomplete: 'username' });
+		form.append(
+			make('label', { for: 'recover-email' }, 'The email of your account'),
+			field,
+			make('button', { type: 'submit', class: 'action' }, 'Email me a link')
+		);
+		toggle.addEventListener('click', () => {
+			const showing = form.hidden;
+			form.hidden = !showing;
+			toggle.setAttribute('aria-expanded', String(showing));
+			if (showing) (field as HTMLInputElement).focus();
+		});
+		form.addEventListener('submit', (event) => {
+			event.preventDefault();
+			const email = (field as HTMLInputElement).value.trim();
+			if (!email) return;
+			void recover(email).then(
+				() => {
+					this.message = `If ${email} has an account, a link to restore your access is on its way. It works for 15 minutes.`;
+				},
+				() => {
+					this.message = 'The request did not reach the server. Try again in a moment.';
+				}
+			);
+		});
+		holder.append(toggle, form);
+		for (const method of this.methods.filter((held) => held.startsWith('oidc:'))) {
+			const provider = method.slice(5);
+			const button = make(
+				'button',
+				{ type: 'button', class: 'action' },
+				`Can't sign in? Use ${provider}`
+			);
+			button.addEventListener('click', () => void this.recoverWith?.(provider));
+			holder.append(button);
+		}
 	}
 
 	async #autofill(): Promise<void> {
@@ -294,6 +369,8 @@ export async function openSignIn(shell: LoamShell): Promise<LoamSignInDialog> {
 	dialog.kernel = shell.kernel;
 	dialog.organization = shell.identity?.organization ?? '';
 	dialog.methods = shell.identity?.methods ?? ['passkey'];
+	dialog.recover = shell.identity?.recover;
+	dialog.recoverWith = shell.identity?.recoverWith;
 	// The title bar's account button, which Escape returns focus to (14); main's "Sign in" too.
 	dialog.opener =
 		(deepActiveElement(shell.ownerDocument) as HTMLElement | null) ??

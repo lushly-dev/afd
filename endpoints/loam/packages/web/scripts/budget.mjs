@@ -236,20 +236,32 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,489,
  * set at 9,300; `accountMenuMinified`, 3,543, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
  * (+153) are within their rows; `switcher` 11,317 is at its ceiling.
+ * Phase 3's step 4 (the account section, members and owners) raised the ceilings it passed under D115, each to its
+ * measurement plus a margin, measured against `main` at `4e11c2ce` on the same machine. First paint 296,364 and
+ * 92,051 gzip, +1,639 and +434 over `main` (294,725 and 91,617), with no allowance in 13: `DeferredAuthAdapter`'s
+ * deferred `organization` and `account` capabilities, the not-a-member notice's invitations button, the account
+ * route and the shell's `invitations` action, and `section-open`'s `account`. `jsGzip` 92,000 to 93,000;
+ * `kernelMinified` 114,444 to 114,800 (114,628, from 114,402); `lateMinified` 75,000 to 77,000 (76,194, from 74,036:
+ * the owner rules in `project-*` and `workspace-app-set`); `lateIdentityMinified` 24,000 to 37,000 (34,529, from
+ * 22,631: the eleven account and member commands); `signInMinified` 9,300 to 10,500 (10,011, from 8,489: "Can't
+ * sign in?"); `urlMinified` 5,247 to 5,700 (5,506, from 5,194: the account section's sync). New row
+ * `accountMinified`, the `account` chunk, 20,530 against 13's estimate of 46,000, set at 22,500: it uses no FAST
+ * element, since importing FAST's `css` there parts FAST's core from first paint into a chunk of its own.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
-	jsGzip: 92_000,
+	jsGzip: 93_000,
 	cssMinified: 8_496,
-	kernelMinified: 114_444,
-	lateMinified: 75_000,
+	kernelMinified: 114_800,
+	lateMinified: 77_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	lateIdentityMinified: 24_000,
+	lateIdentityMinified: 37_000,
 	authMinified: 72_000,
-	signInMinified: 9_300,
+	signInMinified: 10_500,
 	accountMenuMinified: 3_900,
-	urlMinified: 5_247,
+	accountMinified: 22_500,
+	urlMinified: 5_700,
 	appsMinified: 394_973,
 	surfacesMinified: 85_000,
 	viewMinified: 25_105,
@@ -455,6 +467,10 @@ async function measurePage() {
 	const accountMenu = closure(/^assets\/account-menu-/, afterAuth);
 	if (accountMenu.size === 0)
 		throw new Error('budget: the build has no `account-menu` chunk to measure');
+	// Phase 3's step 4: the `account` chunk, the account section, the invitations panel and the join and recovery
+	// pages, loaded when one shows, after `auth` (13's estimate 46,000).
+	const account = closure(/^assets\/account-(?!menu-)/, afterAuth);
+	if (account.size === 0) throw new Error('budget: the build has no `account` chunk to measure');
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -544,6 +560,7 @@ async function measurePage() {
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
 		accountMenuMinified: sizeOf(accountMenu),
+		accountMinified: sizeOf(account),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -633,6 +650,10 @@ const ROWS = [
 	['authMinified', "The `auth` chunk, Better Auth's client and `SessionSync`, minified"],
 	['signInMinified', 'The `sign-in` chunk, `loam-sign-in-dialog`, minified'],
 	['accountMenuMinified', 'The `account-menu` chunk, `loam-account-menu`, minified'],
+	[
+		'accountMinified',
+		'The `account` chunk, the account section and the join and recovery pages, minified',
+	],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

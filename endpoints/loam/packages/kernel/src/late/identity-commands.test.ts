@@ -97,7 +97,7 @@ describe('P3-E3: sessions (4.6), over the Mock in `local` mode', () => {
 		});
 		expect(report.diverged).toBe(false);
 		expect(report.recorded).toContain(entry?.seq);
-		expect(PROVIDER_COMMANDS).toEqual([
+		expect(PROVIDER_COMMANDS.slice(0, 6)).toEqual([
 			'session-list',
 			'session-revoke',
 			'account-passkey-list',
@@ -209,7 +209,8 @@ describe('P3-E1: HUMAN_REQUIRED (3.4)', () => {
 				'account-passkey-rename': { passkey: 'p', name: 'n' },
 				'account-passkey-remove': { passkey: 'p' },
 			};
-			for (const name of PROVIDER_COMMANDS) {
+			// Step 3's: the session and passkey commands. Step 4's are held in `member-commands.test.ts`.
+			for (const name of PROVIDER_COMMANDS.slice(0, 6)) {
 				const refused = await made.kernel.agent.call(name, inputs[name] ?? {});
 				expect(refused.error?.code, name).toBe('HUMAN_REQUIRED');
 				const entry = await last(made, name);

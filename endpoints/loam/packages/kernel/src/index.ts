@@ -52,6 +52,16 @@ export {
 	SHELL_KEYBINDINGS_V0,
 	type ShellKeybindingV0,
 } from './keybindings.js';
+// The account and member commands' shapes (phase 3 specification, 5.1, 5.3, 7.2), and Loam's account capability,
+// which the web host's `auth` chunk gives its adapter. Types only: nothing here reaches first paint.
+export type {
+	AccountV1,
+	AgentMemberRowV1,
+	LoamAccountAccessV1,
+	MemberInvitationV1,
+	MemberV1,
+	OwnInvitationV1,
+} from './late/member-commands.js';
 export {
 	appLayoutId,
 	createDefaultLayout,
