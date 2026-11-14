@@ -1,0 +1,480 @@
+//! `memory-erase` at the store (phase 5 specification, section 8.4; D85, D118): the target's
+//! records selected by owner **whatever their access set**, the erase on phase 3's forget path,
+//! and the two-person rule's erase requests.
+//!
+//! **Blind, and only for the host.** No reader filter applies here: the host's memory services
+//! call these methods only for a verified eraser, and they answer ids, versions and counts, never
+//! a record's text, labels or access.
+//!
+//! **The erase.** In one first transaction it takes the named erase request (only if still
+//! pending with the plan presented), selects the targets, computes their plan and, when it is the
+//! one presented, commits their erased prefixes; then phase 3's steps 2 to 5 run as for a forget
+//! (keys first, D73, D82). A plan that does not match erases nothing and voids the request, in that
+//! same transaction. Step 2 checks the complete plan again under the write lock it holds through
+//! key destruction: a writer between the two transactions can make the plan stale, erasing
+//! nothing and leaving the request void.
+//!
+//! **Erase requests** live in the memory database's `erase_requests` table, created on first use
+//! (`IF NOT EXISTS`, so a database from before step 10 gains it without a schema version), never
+//! copied by `store-backup` (it is not one of the backup's tables), and deleted with
+//! `secure_delete` when they run, are voided or expire: every request operation first purges the
+//! expired ones.
+
+use rusqlite::{Connection, OptionalExtension, TransactionBehavior, params, params_from_iter};
+use umbel_store::memory::{
+    Erase, EraseDryRun, EraseOutcome, EraseRequest, EraseTarget, check_erase_ids,
+    check_erase_owners, erase_plan, is_erase_request_id,
+};
+use umbel_store::{Millis, StoreError};
+
+use super::SqliteMemoryStore;
+use super::erase::{Erasure, erase_prefixes};
+use super::points;
+use super::rows::{RecordRow, record_row};
+use crate::error::Fail;
+use crate::sql::Sql;
+
+/// The erase requests' table: ids, the target, the plan's hash, the first eraser and two times.
+const ERASE_REQUESTS: &str = "CREATE TABLE IF NOT EXISTS erase_requests (
+    id         TEXT PRIMARY KEY,
+    target     TEXT NOT NULL,
+    plan       TEXT NOT NULL,
+    first      TEXT NOT NULL,
+    at         INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL
+) STRICT, WITHOUT ROWID";
+
+/// The dry runs' table: the eraser's person, the target, the plan's hash and two times.
+const ERASE_DRY_RUNS: &str = "CREATE TABLE IF NOT EXISTS erase_dry_runs (
+    eraser     TEXT NOT NULL,
+    target     TEXT NOT NULL,
+    plan       TEXT NOT NULL,
+    at         INTEGER NOT NULL,
+    expires_at INTEGER NOT NULL,
+    PRIMARY KEY (eraser, target, plan)
+) STRICT, WITHOUT ROWID";
+
+/// Whether the dry runs' table exists.
+fn has_dry_runs(conn: &Connection) -> Result<bool, Fail> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'erase_dry_runs')",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// Whether the table exists (a reader never creates it).
+fn has_requests(conn: &Connection) -> Result<bool, Fail> {
+    Ok(conn.query_row(
+        "SELECT EXISTS (SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'erase_requests')",
+        [],
+        |r| r.get(0),
+    )?)
+}
+
+/// Delete the requests and dry runs expired at `now`, from the tables that exist.
+fn purge_expired(conn: &Connection, now: Millis) -> Result<(), Fail> {
+    if has_requests(conn)? {
+        conn.execute("DELETE FROM erase_requests WHERE expires_at <= ?1", [now])?;
+    }
+    if has_dry_runs(conn)? {
+        conn.execute("DELETE FROM erase_dry_runs WHERE expires_at <= ?1", [now])?;
+    }
+    Ok(())
+}
+
+/// The ids of the records `owners` own, among `ids` when given, ordered by id.
+fn target_ids(
+    conn: &Connection,
+    owners: &[String],
+    ids: Option<&[String]>,
+) -> Result<Vec<String>, Fail> {
+    let mut sql = Sql::new("SELECT r.id FROM records r WHERE r.owner IN ");
+    sql.bind_list(owners.iter().map(String::as_str));
+    if let Some(ids) = ids {
+        sql.push(" AND r.id IN ")
+            .bind_list(ids.iter().map(String::as_str));
+    }
+    sql.push(" ORDER BY r.id");
+    let mut stmt = conn.prepare(&sql.text)?;
+    let found = stmt.query_map(params_from_iter(sql.params.iter()), |r| r.get(0))?;
+    Ok(found.collect::<Result<_, _>>()?)
+}
+
+/// The targets of `owners` (and `ids`) with their current versions.
+fn targets(
+    conn: &Connection,
+    owners: &[String],
+    ids: Option<&[String]>,
+) -> Result<Vec<EraseTarget>, Fail> {
+    let mut out = Vec::new();
+    for id in target_ids(conn, owners, ids)? {
+        let version: u32 = conn.query_row(
+            "SELECT COALESCE(MAX(record_version), 1) FROM versions WHERE id = ?1",
+            [&id],
+            |r| r.get(0),
+        )?;
+        out.push(EraseTarget {
+            id,
+            record_version: version,
+        });
+    }
+    Ok(out)
+}
+
+impl SqliteMemoryStore {
+    pub(super) fn do_erase_targets(
+        &self,
+        owners: &[String],
+        ids: Option<&[String]>,
+    ) -> Result<Vec<EraseTarget>, StoreError> {
+        check_erase_owners(owners)?;
+        if let Some(ids) = ids {
+            check_erase_ids(ids)?;
+        }
+        self.pool.read(|_| Ok(()))?;
+        // A record whose key a forget already destroyed is gone: roll it forward first, so the
+        // plan names only what an erase can still reach.
+        self.roll_forward()?;
+        self.pool.read(|conn| targets(conn, owners, ids))
+    }
+
+    pub(super) fn do_erase(&self, req: Erase) -> Result<EraseOutcome, StoreError> {
+        self.erase_with_plan_commit(req, || {})
+    }
+
+    // The callback permits a deterministic concurrent writer between the two transactions in
+    // this module's tests. Production calls use a no-op.
+    fn erase_with_plan_commit(
+        &self,
+        req: Erase,
+        on_plan_commit: impl FnOnce(),
+    ) -> Result<EraseOutcome, StoreError> {
+        req.check()?;
+        self.pool.read(|_| Ok(()))?;
+        self.roll_forward()?;
+        let timeout = self.pool.timeout();
+        self.pool.write(|conn| {
+            self.pool.keys(|kc| {
+                // Step 1: take the request, select and check the plan, commit the erased prefixes.
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                if let Some(request) = &req.request {
+                    tx.execute_batch(ERASE_REQUESTS)?;
+                    purge_expired(&tx, req.at)?;
+                    let plan: Option<String> = tx
+                        .query_row(
+                            "SELECT plan FROM erase_requests WHERE id = ?1",
+                            [request],
+                            |r| r.get(0),
+                        )
+                        .optional()?;
+                    match plan {
+                        None => {
+                            tx.commit()?;
+                            return Ok(EraseOutcome::RequestGone);
+                        }
+                        // A plan other than the request's erases nothing and leaves the request:
+                        // only records that changed void it (below).
+                        Some(plan) if plan != req.plan => return Ok(EraseOutcome::PlanStale),
+                        Some(_) => {}
+                    }
+                    // Taken here, in the erase's own first transaction, so two second erasers
+                    // cannot both run it; if the records no longer have its plan, it stays taken,
+                    // which voids it (section 8.4).
+                    tx.execute("DELETE FROM erase_requests WHERE id = ?1", [request])?;
+                }
+                let selected = targets(&tx, &req.owners, req.ids.as_deref())?;
+                if erase_plan(&selected) != req.plan {
+                    // The request, if any, is already taken in this transaction: it is voided.
+                    tx.commit()?;
+                    return Ok(EraseOutcome::PlanStale);
+                }
+                let mut rows: Vec<RecordRow> = Vec::with_capacity(selected.len());
+                for target in &selected {
+                    if let Some(rec) = record_row(&tx, &target.id)? {
+                        rows.push(rec);
+                    }
+                }
+                erase_prefixes(&tx, &rows, false, req.at, req.trace_id.as_deref())?;
+                tx.commit()?;
+                points::crash("erase-1");
+                on_plan_commit();
+                let erasure = Erasure {
+                    at: req.at,
+                    trace_id: req.trace_id.as_deref(),
+                    tombstone: "erase",
+                };
+                // Step 2 is the erasure point. Recheck the complete plan under the lock that
+                // will be held through key destruction, including an unrestricted target set.
+                let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+                if erase_plan(&targets(&tx, &req.owners, req.ids.as_deref())?) != req.plan {
+                    tx.commit()?;
+                    return Ok(EraseOutcome::PlanStale);
+                }
+                if !erasure.destroy_and_remove(tx, kc, &rows)? {
+                    return Ok(EraseOutcome::Erased(Erasure::receipt(
+                        &rows,
+                        Vec::new(),
+                        umbel_store::memory::WalState::Pending,
+                    )));
+                }
+                Ok(EraseOutcome::Erased(erasure.settle(
+                    conn,
+                    kc,
+                    &rows,
+                    Vec::new(),
+                    timeout,
+                )))
+            })
+        })
+    }
+
+    pub(super) fn do_erase_request_create(
+        &self,
+        req: EraseRequest,
+        now: Millis,
+    ) -> Result<(), StoreError> {
+        req.check()?;
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            tx.execute_batch(ERASE_REQUESTS)?;
+            purge_expired(&tx, now)?;
+            let added = tx.execute(
+                "INSERT OR IGNORE INTO erase_requests (id, target, plan, first, at, expires_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
+                params![
+                    req.id,
+                    req.target,
+                    req.plan,
+                    req.first,
+                    req.at,
+                    req.expires_at
+                ],
+            )?;
+            if added != 1 {
+                return Err(StoreError::invalid("an erase request with this id exists").into());
+            }
+            tx.commit()?;
+            Ok(())
+        })
+    }
+
+    pub(super) fn do_erase_request(
+        &self,
+        id: &str,
+        now: Millis,
+    ) -> Result<Option<EraseRequest>, StoreError> {
+        if !is_erase_request_id(id) {
+            return Ok(None);
+        }
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            if !has_requests(&tx)? {
+                return Ok(None);
+            }
+            purge_expired(&tx, now)?;
+            let found = tx
+                .query_row(
+                    "SELECT id, target, plan, first, at, expires_at FROM erase_requests WHERE id = ?1",
+                    [id],
+                    |r| {
+                        Ok(EraseRequest {
+                            id: r.get(0)?,
+                            target: r.get(1)?,
+                            plan: r.get(2)?,
+                            first: r.get(3)?,
+                            at: r.get(4)?,
+                            expires_at: r.get(5)?,
+                        })
+                    },
+                )
+                .optional()?;
+            tx.commit()?;
+            Ok(found)
+        })
+    }
+
+    pub(super) fn do_erase_request_void(&self, id: &str) -> Result<bool, StoreError> {
+        if !is_erase_request_id(id) {
+            return Ok(false);
+        }
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            if !has_requests(&tx)? {
+                return Ok(false);
+            }
+            let gone = tx.execute("DELETE FROM erase_requests WHERE id = ?1", [id])?;
+            tx.commit()?;
+            Ok(gone == 1)
+        })
+    }
+
+    pub(super) fn do_erase_dry_run_record(&self, run: EraseDryRun) -> Result<(), StoreError> {
+        run.check()?;
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            tx.execute_batch(ERASE_DRY_RUNS)?;
+            purge_expired(&tx, run.at)?;
+            tx.execute(
+                "INSERT OR REPLACE INTO erase_dry_runs (eraser, target, plan, at, expires_at) \
+                 VALUES (?1, ?2, ?3, ?4, ?5)",
+                params![run.eraser, run.target, run.plan, run.at, run.expires_at],
+            )?;
+            tx.commit()?;
+            Ok(())
+        })
+    }
+
+    pub(super) fn do_erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool, StoreError> {
+        self.pool.read(|_| Ok(()))?;
+        self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            if !has_dry_runs(&tx)? {
+                return Ok(false);
+            }
+            purge_expired(&tx, now)?;
+            let found = if take {
+                tx.execute(
+                    "DELETE FROM erase_dry_runs WHERE eraser = ?1 AND target = ?2 AND plan = ?3",
+                    params![eraser, target, plan],
+                )? == 1
+            } else {
+                tx.query_row(
+                    "SELECT EXISTS (SELECT 1 FROM erase_dry_runs \
+                     WHERE eraser = ?1 AND target = ?2 AND plan = ?3)",
+                    params![eraser, target, plan],
+                    |r| r.get(0),
+                )?
+            };
+            tx.commit()?;
+            Ok(found)
+        })
+    }
+
+    /// Delete the expired erase requests and dry runs at `now`, in a transaction of its own, for
+    /// the sweep and each write (so a request no one touches again does not outlive its window
+    /// for long). Best effort: a busy lock leaves it for the next.
+    pub(super) fn purge_erase_state(&self, now: Millis) -> Result<(), StoreError> {
+        let result = self.pool.write(|conn| {
+            let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;
+            purge_expired(&tx, now)?;
+            tx.commit()?;
+            Ok(())
+        });
+        match result {
+            Ok(()) | Err(StoreError::Busy) => Ok(()),
+            Err(other) => Err(other),
+        }
+    }
+}
+
+#[cfg(test)]
+#[allow(clippy::unwrap_used)]
+mod tests {
+    use std::sync::Arc;
+
+    use umbel_store::conformance::samples;
+    use umbel_store::memory::{Erase, EraseOutcome, EraseRequest, Invalidate, InvalidationReason};
+    use umbel_store::{MemoryStore, ReaderFilter};
+
+    use super::*;
+    use crate::StoreOptions;
+
+    #[test]
+    fn a_writer_between_plan_commit_and_key_destruction_makes_the_plan_stale() {
+        const OWNER: &str = "human:bo";
+        const REQUEST: &str = "x-0123456789abcdef0123";
+        let at = samples::MEMORY_AT;
+        for new_record in [false, true] {
+            let dir = tempfile::tempdir().unwrap();
+            let store = Arc::new(
+                SqliteMemoryStore::open(dir.path(), "main", StoreOptions::default()).unwrap(),
+            );
+            store
+                .write(samples::memory_batch(
+                    at,
+                    vec![samples::memory_entry(1, OWNER, &["space"], "one", "first")],
+                ))
+                .unwrap();
+            let owners = vec![OWNER.to_owned()];
+            let plan = erase_plan(&store.erase_targets(&owners, None).unwrap());
+            store
+                .erase_request_create(
+                    EraseRequest {
+                        id: REQUEST.to_owned(),
+                        target: OWNER.to_owned(),
+                        plan: plan.clone(),
+                        first: "human:ada".to_owned(),
+                        at,
+                        expires_at: at + 1000,
+                    },
+                    at,
+                )
+                .unwrap();
+            let writer = Arc::clone(&store);
+            let result = store
+                .erase_with_plan_commit(
+                    Erase {
+                        owners: owners.clone(),
+                        ids: None,
+                        plan,
+                        request: Some(REQUEST.to_owned()),
+                        at: at + 2,
+                        trace_id: None,
+                    },
+                    move || {
+                        if new_record {
+                            writer
+                                .write(samples::memory_batch(
+                                    at + 1,
+                                    vec![samples::memory_entry(
+                                        2,
+                                        OWNER,
+                                        &["space"],
+                                        "two",
+                                        "second",
+                                    )],
+                                ))
+                                .unwrap();
+                        } else {
+                            writer
+                                .invalidate(
+                                    Invalidate {
+                                        id: samples::memory_id(1),
+                                        at: at + 1,
+                                        valid_until: at + 1,
+                                        by: OWNER.to_owned(),
+                                        reason: InvalidationReason::Wrong,
+                                        note: None,
+                                        expect_version: Some(1),
+                                        trace_id: None,
+                                    },
+                                    &ReaderFilter::tokens(["space"]).unwrap(),
+                                )
+                                .unwrap();
+                        }
+                    },
+                )
+                .unwrap();
+            assert_eq!(result, EraseOutcome::PlanStale, "new_record={new_record}");
+            assert_eq!(store.key_status().unwrap().destroyed, 0);
+            let kept = store.erase_targets(&owners, None).unwrap();
+            assert_eq!(kept.len(), if new_record { 2 } else { 1 });
+            if !new_record {
+                assert_eq!(kept[0].record_version, 2);
+            }
+            assert!(store.erase_request(REQUEST, at + 2).unwrap().is_none());
+        }
+    }
+}

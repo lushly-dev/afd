@@ -66,7 +66,8 @@ const PROVIDER: IdentityV1 = {
 	mode: 'provider',
 	organization: 'acme',
 	path: 'api/auth',
-	methods: ['passkey'],
+	// Its people sign in with a password, which `auth-sign-in`'s wrapper refuses unless allowed (4.6, step 3).
+	methods: ['passkey', 'password'],
 };
 const members = (entries: Record<string, 'owner' | 'admin' | 'member'>): MembershipV1 => ({
 	mode: 'provider',

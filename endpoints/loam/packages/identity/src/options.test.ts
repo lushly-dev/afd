@@ -10,6 +10,7 @@ import { createOrganizationHooks } from './hooks.js';
 import { createLoamAuthOptions, FRESH_AGE_SECONDS, LOAM_DISABLED_PATHS } from './options.js';
 import type { LoamProviderState } from './plugin.js';
 import { isOwnerRole, loamRole, loamRoles } from './roles.js';
+import { REVOKES_CONSENTS } from './sessions.js';
 
 const BASE = {
 	baseURL: 'https://acme.example/loam/api/auth',
@@ -151,12 +152,15 @@ describe('createLoamAuthOptions (2.6)', () => {
 			updatedAt: new Date(),
 		});
 		const at = (path: string, params?: Record<string, string>) => ({ path, params }) as never;
-		expect(
-			await creating(user(true), at('/oauth2/callback/:providerId', { providerId: 'okta' }))
-		).toBe(true);
-		expect(await creating(user(true), at('/oauth2/callback/okta'))).toBe(true);
-		expect(await creating(user(false), at('/oauth2/callback/okta'))).toBe(false);
-		expect(await creating(user(true), at('/oauth2/callback/other'))).toBe(false);
+		// genericOAuth's providers sign in on the core callback, `/callback/:id`, which names the provider in `id`
+		// and, as the router resolves it, last in the path (NEW-2).
+		expect(await creating(user(true), at('/callback/okta', { id: 'okta' }))).toBe(true);
+		expect(await creating(user(true), at('/callback/:id', { id: 'okta' }))).toBe(true);
+		expect(await creating(user(true), at('/callback/okta'))).toBe(true);
+		expect(await creating(user(false), at('/callback/okta', { id: 'okta' }))).toBe(false);
+		expect(await creating(user(true), at('/callback/other', { id: 'other' }))).toBe(false);
+		// A path no route serves names no provider.
+		expect(await creating(user(true), at('/oauth2/callback/okta'))).toBe(false);
 		expect(await creating(user(true), at('/sign-up/email'))).toBe(false);
 		expect(await creating(user(true), null)).toBe(false);
 		// Linking only on a verified email, never to another email.
@@ -174,6 +178,30 @@ describe('createLoamAuthOptions (2.6)', () => {
 		['an `oidc:` method with no provider', { methods: ['passkey', 'oidc:okta'] }],
 	])('refuses %s', (_name, extra) => {
 		expect(() => createLoamAuthOptions({ ...BASE, ...extra } as never)).toThrow();
+	});
+});
+
+describe("step 3's deviation 2: no OAuth consents before revocation revokes them (4.6)", () => {
+	it('registers no OAuth, OIDC-provider or consent plugin while `revoke-person` leaves consents alone', () => {
+		const ids = [
+			...built().plugins,
+			...built({
+				methods: ['passkey', 'oidc:corp'],
+				oidc: [
+					{
+						id: 'corp',
+						clientId: 'c',
+						clientSecret: 's',
+						discoveryUrl: 'https://corp.example/.well-known/openid-configuration',
+					},
+				],
+			}).plugins,
+		].map((plugin) => plugin.id);
+		// Signing in through a deployer's OIDC provider (`generic-oauth`) grants no consent; serving OAuth does.
+		const serving = ids.filter((id) => /oauth-provider|oidc-provider|consent|mcp|jwt/i.test(id));
+		if (!REVOKES_CONSENTS)
+			expect(serving, 'step 7 makes revoke-person revoke consents first').toEqual([]);
+		expect(new Set(ids)).toEqual(new Set(['organization', 'passkey', 'generic-oauth', 'loam']));
 	});
 });
 

@@ -182,6 +182,20 @@ impl Services {
         let spaces = workspace
             .resolve_spaces(input, context)
             .unwrap_or_else(|_| vec![space.clone()]);
+        let person_decision = command.and_then(|command| {
+            let person = self.shared.commands.get(command)?;
+            if !person.require_human {
+                return None;
+            }
+            let person = person.person;
+            crate::person::attested(workspace.config(), command, input, context).filter(|decided| {
+                match decided.surface.as_str() {
+                    "mcp" => person.mcp == Some(crate::plugins::Assurance::Verified),
+                    "cli" => person.cli == crate::plugins::Assurance::Verified,
+                    _ => false,
+                }
+            })
+        });
         // Whether this call passed the person gate (the records host specification, section
         // 6.1, check 2), decided once, here, where the command, its validated input and the
         // context are all at hand: only for one of this instance's commands declared
@@ -201,6 +215,7 @@ impl Services {
             space,
             spaces,
             command: command.map(str::to_owned),
+            person_decision,
             person_gate,
             as_principal: None,
             read_only: false,
@@ -298,6 +313,9 @@ pub struct CallServices {
     space: SpaceId,
     spaces: Vec<SpaceId>,
     pub(super) command: Option<String>,
+    /// The person-page decision this call carries for its command and validated input,
+    /// including the local page's level. Memory accepts only the verified level.
+    pub(super) person_decision: Option<umbel_sdk::PersonDecision>,
     /// The proof that a person decided this very call, as the assurance a standing fact records
     /// (the records host specification, section 6.1, check 2): `Some` only for one of the
     /// instance's `require-human` commands, called with the proof the plugin gate's person gate
@@ -329,6 +347,7 @@ impl CallServices {
             space: self.space.clone(),
             spaces: self.spaces.clone(),
             command: self.command.clone(),
+            person_decision: None,
             // A view that reads as another principal carries no person's decision.
             person_gate: None,
             as_principal: Some(principal.to_owned()),
@@ -366,21 +385,24 @@ impl CallServices {
     pub fn person(&self) -> bool {
         let empty = crate::authority::Prompts::default();
         let prompts = self.shared.prompts.get().unwrap_or(&empty);
-        crate::authority::caller_is_person(&self.context, self.command.as_deref(), prompts)
+        crate::authority::caller_is_person(
+            &self.context,
+            self.shared.workspace.config(),
+            self.command.as_deref(),
+            prompts,
+        )
     }
 
     /// The person decision this call carries for its own command and validated `input`, which
     /// `CallContext.person_decision` carries to every compiled plugin's command (phase 5 step 6;
     /// [`crate::person::attested`]). A call made with [`Services::call`], which names no command,
     /// has none.
-    pub fn person_decision(&self, input: &Value) -> Option<umbel_sdk::PersonDecision> {
-        let command = self.command.as_deref()?;
-        crate::person::attested(
-            self.shared.workspace.config(),
-            command,
-            input,
-            &self.context,
-        )
+    ///
+    /// Since step 10 it counts only on a surface the command's `person` names `verified`, where
+    /// the plugin gate admitted the decision (the call's own `input` was read when the services
+    /// were built). A local-page decision retains its `local` level.
+    pub fn person_decision(&self, _input: &Value) -> Option<umbel_sdk::PersonDecision> {
+        self.person_decision.clone()
     }
 
     /// The command whose person decision is about to be begun, when this call is its preview run
@@ -1036,6 +1058,24 @@ impl HostServices for CallServices {
         selector: umbel_store::ForgetSelector,
     ) -> Result<memory::ForgetReceipt, ServiceError> {
         self.svc_memory_forget(space, selector)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_erase(
+        &self,
+        space: &str,
+        call: umbel_sdk::EraseCall,
+    ) -> Result<umbel_sdk::EraseAnswer, ServiceError> {
+        self.svc_memory_erase(space, call)
+    }
+
+    #[cfg(feature = "store-embedded")]
+    fn memory_erase_preview(
+        &self,
+        space: &str,
+        call: umbel_sdk::EraseCall,
+    ) -> Result<umbel_sdk::ErasePreview, ServiceError> {
+        self.svc_memory_erase_preview(space, call)
     }
 
     #[cfg(feature = "store-embedded")]

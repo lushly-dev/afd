@@ -55,7 +55,9 @@ pub use cx::{
     CallContext, Cx, HostError, HostServices, Level, NoServices, PersonCheck, PersonDecision,
     PipelineAttestation, WalCheckpoint,
 };
-pub use memory::{LeftOutQuery, MemoryPath, MemoryWriteRequest};
+pub use memory::{
+    EraseAnswer, EraseCall, ErasePreview, LeftOutQuery, MemoryPath, MemoryWriteRequest,
+};
 #[cfg(feature = "mounted")]
 pub use mounted::{mounted_server, serve_mounted};
 pub use outcome::{Outcome, failure, success};

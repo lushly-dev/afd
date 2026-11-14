@@ -1,0 +1,15 @@
+{
+	"type": "object",
+	"required": ["id"],
+	"additionalProperties": false,
+	"properties": {
+		"space": {
+			"type": "string",
+			"description": "The space; default: the workspace's default space"
+		},
+		"id": {
+			"type": "string",
+			"description": "The record memory-confirm would confirm"
+		}
+	}
+}

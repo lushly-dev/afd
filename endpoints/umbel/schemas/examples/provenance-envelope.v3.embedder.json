@@ -1,0 +1,50 @@
+{
+	"version": 3,
+	"origin": "agent-inferred",
+	"space": "main",
+	"plugin": "memory",
+	"agent": {
+		"kind": "agent",
+		"id": "ada"
+	},
+	"principal": "human:ada",
+	"session": "s-81",
+	"traceId": "0a1b2c3d4e5f60718293a4b5c6d7e8f9",
+	"observedAt": "2026-11-01T10:00:00.000Z",
+	"validFrom": "2026-10-30T09:00:00.000Z",
+	"validUntil": "2026-11-01T10:00:00.000Z",
+	"confidence": 0.8,
+	"authority": "person",
+	"sources": [
+		{
+			"resource": "harness:claude-code/s-81#w3.p0.t60-79",
+			"title": "2.1.309"
+		}
+	],
+	"generated": null,
+	"contentHash": "sha256:9f2c1a7b0d3e5f60718293a4b5c6d7e8f90a1b2c3d4e5f60718293a4b5c6d7e8",
+	"derivedFrom": null,
+	"access": ["principal:human:ada"],
+	"sensitivity": "internal",
+	"redactions": [
+		{
+			"kind": "aws-access-key",
+			"count": 1
+		},
+		{
+			"kind": "private-key",
+			"count": 1
+		}
+	],
+	"constraints": ["staging only"],
+	"delegationChain": [],
+	"confirmation": {
+		"by": "human:ada",
+		"at": "2026-11-01T09:30:00.000Z",
+		"priorAuthority": "agent",
+		"assurance": {
+			"level": "embedder",
+			"method": "library"
+		}
+	}
+}

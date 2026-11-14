@@ -26,7 +26,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::time::Instant;
 
-use afd::SystemClock;
+use afd::{Clock, SystemClock};
 use async_trait::async_trait;
 use loam_mail::engine::Engine;
 use loam_mail::home::Home;
@@ -48,37 +48,83 @@ struct Sampled {
     inner: Box<dyn Provider>,
     served: Arc<AtomicUsize>,
     limit: usize,
+    timings: Timings,
+}
+
+/// Calls to the provider and the time they took, by method: what a pass
+/// spent waiting on the provider, so that the rest is the engine's.
+type Timings = Arc<std::sync::Mutex<std::collections::BTreeMap<&'static str, (u64, f64)>>>;
+
+/// Runs `call`, adding its time to `method`'s.
+async fn timed<T>(
+    timings: &Timings,
+    method: &'static str,
+    call: impl std::future::Future<Output = T>,
+) -> T {
+    let started = Instant::now();
+    let result = call.await;
+    let mut timings = timings.lock().unwrap();
+    let entry = timings.entry(method).or_insert((0, 0.0));
+    entry.0 += 1;
+    entry.1 += started.elapsed().as_secs_f64() * 1000.0;
+    result
+}
+
+/// The provider's share of a pass, and the time left to the engine.
+fn provider_time(timings: &Timings, seconds: f64) -> serde_json::Value {
+    let timings = timings.lock().unwrap();
+    let waited: f64 = timings.values().map(|(_, ms)| ms).sum::<f64>() / 1000.0;
+    json!({
+        "byMethod": timings.iter().map(|(method, (calls, ms))| {
+            (method.to_string(), json!({ "calls": calls, "ms": ms.round() }))
+        }).collect::<serde_json::Map<_, _>>(),
+        "waitedSeconds": waited,
+        "engineSeconds": seconds - waited,
+    })
 }
 
 #[async_trait]
 impl Provider for Sampled {
     async fn mailboxes(&mut self) -> Result<Vec<RemoteMailbox>, ProviderError> {
-        self.inner.mailboxes().await
+        timed(&self.timings, "mailboxes", self.inner.mailboxes()).await
     }
     async fn open(&mut self, mailbox: &str) -> Result<Opened, ProviderError> {
-        self.inner.open(mailbox).await
+        timed(&self.timings, "open", self.inner.open(mailbox)).await
     }
     async fn list(&mut self) -> Result<Listing, ProviderError> {
-        self.inner.list().await
+        timed(&self.timings, "list", self.inner.list()).await
     }
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError> {
-        self.inner.changes(cursor).await
+        timed(&self.timings, "changes", self.inner.changes(cursor)).await
+    }
+    async fn open_since(
+        &mut self,
+        mailbox: &str,
+        validity: &str,
+        cursor: &str,
+    ) -> Result<(Opened, Option<Since>), ProviderError> {
+        timed(
+            &self.timings,
+            "openSince",
+            self.inner.open_since(mailbox, validity, cursor),
+        )
+        .await
     }
     async fn flags(&mut self) -> Result<Vec<FlagsSeen>, ProviderError> {
-        self.inner.flags().await
+        timed(&self.timings, "flags", self.inner.flags()).await
     }
     async fn headers(&mut self, ids: &[String]) -> Result<Vec<HeaderSeen>, ProviderError> {
-        self.inner.headers(ids).await
+        timed(&self.timings, "headers", self.inner.headers(ids)).await
     }
     async fn messages(&mut self, ids: &[String]) -> Result<Vec<Fetched>, ProviderError> {
         if self.served.fetch_add(1, Ordering::SeqCst) < self.limit {
-            self.inner.messages(ids).await
+            timed(&self.timings, "messages", self.inner.messages(ids)).await
         } else {
             Ok(Vec::new())
         }
     }
     async fn structure(&mut self, id: &str) -> Result<Option<Structure>, ProviderError> {
-        self.inner.structure(id).await
+        timed(&self.timings, "structure", self.inner.structure(id)).await
     }
     async fn parts(
         &mut self,
@@ -86,7 +132,7 @@ impl Provider for Sampled {
         places: &[String],
     ) -> Result<Vec<PartFetched>, ProviderError> {
         if self.served.fetch_add(1, Ordering::SeqCst) < self.limit {
-            self.inner.parts(id, places).await
+            timed(&self.timings, "parts", self.inner.parts(id, places)).await
         } else {
             Ok(Vec::new())
         }
@@ -100,18 +146,25 @@ struct Live {
     credentials: Credentials,
     served: Arc<AtomicUsize>,
     limit: usize,
+    timings: Timings,
 }
 
 #[async_trait]
 impl Connector for Live {
     async fn connect(&self, _account: &AccountRow) -> Result<Box<dyn Provider>, ProviderError> {
-        let imap = Imap::connect(&Endpoint::icloud(), &self.credentials, ICLOUD_NAMES).await?;
+        let imap = timed(
+            &self.timings,
+            "connect",
+            Imap::connect(&Endpoint::icloud(), &self.credentials, ICLOUD_NAMES),
+        )
+        .await?;
         let (condstore, qresync) = imap.extensions();
         eprintln!("connected: CONDSTORE {condstore}, QRESYNC {qresync}");
         Ok(Box::new(Sampled {
             inner: Box::new(imap),
             served: Arc::clone(&self.served),
             limit: self.limit,
+            timings: Arc::clone(&self.timings),
         }))
     }
 }
@@ -153,10 +206,12 @@ fn a_pass_against_icloud() {
         .and_then(|value| value.parse().ok())
         .unwrap_or(20);
     let served = Arc::new(AtomicUsize::new(0));
+    let timings: Timings = Arc::default();
     let connector = Live {
         credentials,
         served: Arc::clone(&served),
         limit: body_batches,
+        timings: Arc::clone(&timings),
     };
     let home = Home::at(&directory);
     let engine = Engine::new(Some(home.clone()));
@@ -195,6 +250,7 @@ fn a_pass_against_icloud() {
     let first_totals = totals(&first);
     eprintln!("first pass: {first_seconds:.0} s, {first_totals}");
 
+    timings.lock().unwrap().clear();
     let started = Instant::now();
     let second = runtime
         .block_on(sync_account(
@@ -208,7 +264,76 @@ fn a_pass_against_icloud() {
         .expect("the second pass completes");
     let second_seconds = started.elapsed().as_secs_f64();
     let second_totals = totals(&second);
-    eprintln!("second pass: {second_seconds:.1} s, {second_totals}");
+    let second_provider = provider_time(&timings, second_seconds);
+    eprintln!("second pass: {second_seconds:.1} s, {second_totals}, {second_provider}");
+
+    // A third pass, after the second has tried what was due.
+    timings.lock().unwrap().clear();
+    let started = Instant::now();
+    let third = runtime
+        .block_on(sync_account(
+            &engine,
+            &connector,
+            &account,
+            &options,
+            &SystemClock,
+            &|_| {},
+        ))
+        .expect("the third pass completes");
+    let third_seconds = started.elapsed().as_secs_f64();
+    let third_totals = totals(&third);
+    let third_provider = provider_time(&timings, third_seconds);
+    eprintln!("third pass: {third_seconds:.1} s, {third_totals}, {third_provider}");
+
+    // What the store's reads in a pass cost, mailbox by mailbox: the time
+    // summed over every mailbox, and the most one mailbox took.
+    let mut queries: std::collections::BTreeMap<&'static str, (f64, f64)> =
+        std::collections::BTreeMap::new();
+    let mut add = |name: &'static str, started: Instant| {
+        let ms = started.elapsed().as_secs_f64() * 1000.0;
+        let entry = queries.entry(name).or_insert((0.0, 0.0));
+        entry.0 += ms;
+        entry.1 = entry.1.max(ms);
+    };
+    let mut bodies_wanted = 0usize;
+    let mut refetch_wanted = 0usize;
+    let mut largest_shown = 0usize;
+    engine
+        .with_store(|store| {
+            let now = SystemClock.now();
+            for row in store.mailboxes(account.id)? {
+                let at = Instant::now();
+                let shown = store.shown_ids(row.id, &row.validity)?;
+                add("shownIds", at);
+                largest_shown = largest_shown.max(shown.len());
+                let at = Instant::now();
+                store.unreturned_tries(row.id, &row.validity)?;
+                add("unreturnedTries", at);
+                let at = Instant::now();
+                store.mailbox_counts(row.id)?;
+                add("mailboxCounts", at);
+                let at = Instant::now();
+                bodies_wanted += store.bodies_wanted(row.id, &row.validity, now)?.len();
+                add("bodiesWanted", at);
+                let at = Instant::now();
+                refetch_wanted += store.refetch_wanted(row.id, &row.validity)?.len();
+                add("refetchWanted", at);
+                let at = Instant::now();
+                store.mailbox_status(row.id)?;
+                add("mailboxStatus", at);
+            }
+            Ok(())
+        })
+        .unwrap();
+    let store_queries = json!({
+        "byQuery": queries.iter().map(|(name, (total, most))| {
+            (name.to_string(), json!({ "totalMs": total.round(), "mostMs": most.round() }))
+        }).collect::<serde_json::Map<_, _>>(),
+        "bodiesWanted": bodies_wanted,
+        "refetchWanted": refetch_wanted,
+        "largestMailboxShown": largest_shown,
+    });
+    eprintln!("store queries: {store_queries}");
 
     // The specification's 4.2: one Message-ID in two mailboxes.
     let database = rusqlite::Connection::open_with_flags(
@@ -299,13 +424,23 @@ fn a_pass_against_icloud() {
         )
         .unwrap();
     let results = json!({
-        "run": "B3 live pass, iCloud",
+        "run": "B5 live passes, iCloud: where a pass with nothing new spends its time",
         "firstPass": {
             "seconds": first_seconds,
             "headersPerSecond": (headers as f64) / first_seconds,
             "totals": first_totals,
         },
-        "secondPass": { "seconds": second_seconds, "totals": second_totals },
+        "secondPass": {
+            "seconds": second_seconds,
+            "totals": second_totals,
+            "provider": second_provider,
+        },
+        "thirdPass": {
+            "seconds": third_seconds,
+            "totals": third_totals,
+            "provider": third_provider,
+        },
+        "storeQueries": store_queries,
         "messagesShown": headers,
         "awaited": unreturned.0,
         "unreturned": unreturned.1,

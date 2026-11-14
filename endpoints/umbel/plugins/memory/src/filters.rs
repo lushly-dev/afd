@@ -158,6 +158,12 @@ impl Filters {
         Ok(Self {
             scope: ScopeQuery {
                 project,
+                // `mine` is the caller's records and its legacy principals' (phase 5 section 4.6).
+                equivalents: if principal.is_some() {
+                    cx.call().equivalents.clone()
+                } else {
+                    Vec::new()
+                },
                 principal,
                 agent: input.agent,
                 session: input.session,

@@ -265,6 +265,26 @@
 			]
 		},
 		{
+			"id": "botcore-factory",
+			"family": "botcore",
+			"protocol": "language-tag-v1",
+			"sourceRevision": "a27f75b5e0a93e993a05a41151a0607724b66c84",
+			"authority": "none: new plugin authored in lushly-dev/afd on top of this revision, not imported; no publisher, release route approval or registry identity exists; distribution name tentative",
+			"state": "quarantined",
+			"routes": ["pypi-plugin"],
+			"gates": ["botcore-factory.yml", "artifact-contents", "isolated-install", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "botcore-factory",
+					"registry": "pypi",
+					"manifest": "endpoints/botcore/plugins/botcore-factory/pyproject.toml",
+					"format": "python",
+					"initialVersion": "0.1.0"
+				}
+			]
+		},
+		{
 			"id": "alfred",
 			"family": "alfred",
 			"protocol": "language-tag-v1",

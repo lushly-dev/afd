@@ -292,6 +292,7 @@ async fn seeded(hidden: bool, ids: &Hidden) -> (Ws, Vec<String>, Vec<String>) {
             memory(dir, "alpha")
                 .forget(Forget {
                     owner: "human:ada".to_owned(),
+                    equivalents: Vec::new(),
                     selector: ForgetSelector::Ids(vec![forgotten]),
                     at: day(9),
                     trace_id: None,

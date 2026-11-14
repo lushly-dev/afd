@@ -83,6 +83,77 @@ describe('Evaluator', () => {
 			});
 		});
 
+		describe('arrays holding objects', () => {
+			const violations: CommandResult<unknown> = {
+				success: true,
+				data: {
+					violations: [
+						{ number: 203, rule: 'several execution profiles: keep one execution profile' },
+						{ number: 207, rule: 'execution:expert-escalation unassigned' },
+					],
+					ids: [1, 2],
+				},
+			};
+			const check = (data: Record<string, unknown>) =>
+				evaluateResult(violations, { success: true, data });
+
+			it('match item by item, each object checking only the fields it names', () => {
+				const result = check({
+					violations: [{ number: 203, rule: { contains: 'one execution' } }, { number: 207 }],
+				});
+
+				expect(result.passed).toBe(true);
+				expect(result.assertions.map((a) => a.path)).toEqual([
+					'success',
+					'data.violations[0].number',
+					'data.violations[0].rule',
+					'data.violations[1].number',
+				]);
+			});
+
+			it('fail on a wrong field or matcher, naming the item', () => {
+				const result = check({
+					violations: [{ number: 203, rule: { contains: 'two' } }, { number: 207 }],
+				});
+
+				expect(result.passed).toBe(false);
+				const failed = result.assertions.filter((a) => !a.passed);
+				expect(failed.map((a) => a.path)).toEqual(['data.violations[0].rule']);
+			});
+
+			it('fail on a different length, still checking the items both arrays have', () => {
+				const result = check({ violations: [{ number: 203 }] });
+
+				expect(result.passed).toBe(false);
+				const failed = result.assertions.filter((a) => !a.passed);
+				expect(failed.map((a) => [a.path, a.matcher])).toEqual([['data.violations', 'length']]);
+				expect(failed[0]?.description).toBe('✗ data.violations.length equals 1 (got 2)');
+				expect(result.assertions.some((a) => a.path === 'data.violations[0].number')).toBe(true);
+			});
+
+			it('fail when the actual value is not an array', () => {
+				const result = evaluateResult(
+					{ success: true, data: { violations: 'none' } },
+					{ success: true, data: { violations: [{ number: 203 }] } }
+				);
+
+				expect(result.passed).toBe(false);
+			});
+
+			it('keep comparing arrays of plain values, and equals, as a whole', () => {
+				expect(check({ ids: [1, 2] }).passed).toBe(true);
+				expect(check({ ids: [2, 1] }).passed).toBe(false);
+				const literal = check({ violations: { equals: [{ number: 203 }, { number: 207 }] } });
+				expect(literal.passed).toBe(false);
+			});
+
+			it('reject a malformed matcher inside an item', () => {
+				expect(() => check({ violations: [{ rule: { contains: 1 } }, {}] })).toThrow(
+					/Invalid assertion at data\.violations\[0\]\.rule: 'contains' expects a string/
+				);
+			});
+		});
+
 		describe('matchers', () => {
 			it('should handle exists matcher', () => {
 				const actual: CommandResult<unknown> = {

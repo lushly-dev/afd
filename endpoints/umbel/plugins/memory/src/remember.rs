@@ -89,6 +89,9 @@ fn remember(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
     draft.sources = input.sources;
     draft.derived_from = input.derived_from;
     draft.constraints = input.constraints;
+    for target in &input.supersedes {
+        crate::owned::may_change(cx, &call.space, target)?;
+    }
     draft.supersedes = input.supersedes;
     let session = draft.session.clone();
     let prepared = call.prepare(draft, 0, pipeline::draw(cx)?, MAX_REMEMBER_TEXT_BYTES)?;

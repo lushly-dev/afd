@@ -17,6 +17,7 @@
 //! Time Machine unless the deployer turns it off (D87).
 
 mod backup;
+mod blind;
 mod change;
 mod erase;
 mod exclusion;
@@ -320,5 +321,58 @@ impl MemoryStore for SqliteMemoryStore {
 
     fn checkpoint(&self) -> Result<(), StoreError> {
         self.do_checkpoint()
+    }
+
+    fn erase_targets(
+        &self,
+        owners: &[String],
+        ids: Option<&[String]>,
+    ) -> Result<Vec<umbel_store::memory::EraseTarget>, StoreError> {
+        self.do_erase_targets(owners, ids)
+    }
+
+    fn erase(
+        &self,
+        req: umbel_store::memory::Erase,
+    ) -> Result<umbel_store::memory::EraseOutcome, StoreError> {
+        self.do_erase(req)
+    }
+
+    fn erase_request_create(
+        &self,
+        req: umbel_store::memory::EraseRequest,
+        now: Millis,
+    ) -> Result<(), StoreError> {
+        self.do_erase_request_create(req, now)
+    }
+
+    fn erase_request(
+        &self,
+        id: &str,
+        now: Millis,
+    ) -> Result<Option<umbel_store::memory::EraseRequest>, StoreError> {
+        self.do_erase_request(id, now)
+    }
+
+    fn erase_request_void(&self, id: &str) -> Result<bool, StoreError> {
+        self.do_erase_request_void(id)
+    }
+
+    fn erase_dry_run_record(
+        &self,
+        run: umbel_store::memory::EraseDryRun,
+    ) -> Result<(), StoreError> {
+        self.do_erase_dry_run_record(run)
+    }
+
+    fn erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool, StoreError> {
+        self.do_erase_dry_run(eraser, target, plan, now, take)
     }
 }

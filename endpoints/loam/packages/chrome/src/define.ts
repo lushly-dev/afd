@@ -19,7 +19,12 @@ import type { LoamNotice } from './elements/notice.js';
 import { defineNotice } from './elements/notice-loader.js';
 import { LoamPanel, panelDefinition } from './elements/panel.js';
 import { LoamProjectSwitcher, projectSwitcherDefinition } from './elements/project-switcher.js';
-import { type JournalReader, LoamShell, shellDefinition } from './elements/shell.js';
+import {
+	type JournalReader,
+	LoamShell,
+	type ShellIdentity,
+	shellDefinition,
+} from './elements/shell.js';
 import {
 	inspectorDefinition,
 	LoamInspector,
@@ -105,6 +110,8 @@ export interface MountShellOptions {
 	 * path of their own set it, so two renders compare equal.
 	 */
 	home?: string;
+	/** A `provider` deployment's identity, from its host (phase 3 specification, 2.1, 4.2). Absent: `local`. */
+	identity?: ShellIdentity;
 }
 
 /** Apply the theme, define the chrome and mount `loam-shell` into `container`. */
@@ -120,6 +127,7 @@ export async function mountShell(
 	if (options.base !== undefined) shell.base = options.base;
 	shell.home = options.home ?? new URL(shell.base).pathname;
 	if (options.listsApps) shell.listsApps = true;
+	if (options.identity) shell.identity = options.identity;
 	container.append(shell);
 	await shell.ready;
 	return shell;

@@ -138,14 +138,15 @@ pub struct Confirmation {
 /// How a person was proven for one decision (phase 5 sections 2.4 and 7.1, owner decision 6):
 /// `terminal` (the CLI's check, `cli-terminal`) records its level and method alone; `verified`
 /// (the person page, `person-page`) also the namespace, the login's `authTime` and its `acr`;
+/// `embedder` (`library`, step 10) is the embedding application's own word for its person;
 /// from envelope version 4, `local` (the local person page, `local-page`, the Ideas host-review
 /// specification section 6.4) its level and method alone.
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
 pub struct Assurance {
-    /// `terminal`, `verified` or `local`.
+    /// `terminal`, `verified`, `embedder` or `local`.
     pub level: String,
-    /// `cli-terminal`, `person-page` or `local-page`.
+    /// `cli-terminal`, `person-page`, `library` or `local-page`.
     pub method: String,
     /// The identity namespace, for `verified`.
     #[serde(default, skip_serializing_if = "Option::is_none")]
@@ -165,6 +166,19 @@ impl Assurance {
         Self {
             level: "terminal".to_owned(),
             method: "cli-terminal".to_owned(),
+            namespace: None,
+            auth_time: None,
+            acr: None,
+        }
+    }
+
+    /// An embedding application's person through the library (phase 5 step 10): its word, which
+    /// Umbel did not check.
+    #[must_use]
+    pub fn embedder() -> Self {
+        Self {
+            level: "embedder".to_owned(),
+            method: "library".to_owned(),
             namespace: None,
             auth_time: None,
             acr: None,
@@ -209,7 +223,7 @@ impl Assurance {
             })
         };
         match (self.level.as_str(), self.method.as_str()) {
-            ("terminal", "cli-terminal") => {
+            ("terminal", "cli-terminal") | ("embedder", "library") => {
                 self.namespace.is_none() && self.auth_time.is_none() && self.acr.is_none()
             }
             ("verified", "person-page") => {

@@ -123,6 +123,12 @@ const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'editor-move': { tab: 't1', group: 'new' },
 	'editor-dirty-set': { tab: 't1', dirty: true },
 	'editor-selection-set': { tab: 't1', selection: { kind: 'text-range', start: 0, end: 1 } },
+	'session-list': {},
+	'session-revoke': { session: 'others' },
+	'account-passkey-list': {},
+	'account-passkey-add': { name: 'Laptop' },
+	'account-passkey-rename': { passkey: 'none', name: 'x' },
+	'account-passkey-remove': { passkey: 'none' },
 };
 
 /**

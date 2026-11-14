@@ -36,13 +36,31 @@ umbel-store = { path = "../../store" }
 umbel-sdk = { path = "../../sdk" }
 
 [dev-dependencies]
-afd = { path = "../../../../packages/rust", default-features = false }
+# `server-auth` for the hosted kit `tests/hosted_kit/` shares with the host's tests
+# (`tests/support/hosted.rs`, included by path): its token verifier types.
+afd = { path = "../../../../packages/rust", default-features = false, features = ["server-auth"] }
+# `tests/erase.rs`, `editors.rs` and `confirm_preview.rs` (phase 5 step 10): memory-confirm and
+# memory-erase over MCP through the person page, end to end over real sockets with the kit's
+# identity provider, as the knowledge plugin's `relay.rs` does. Every crate below was already in
+# the workspace's lock.
+async-trait = "0.1"
+bytes = "1"
+http = "1"
+http-body-util = "0.1"
+hyper = { version = "1", features = ["client", "http1"] }
+hyper-util = { version = "0.1", features = ["tokio", "http1"] }
+tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
+umbel-testkit-idp = { path = "../../testkit-idp" }
+url = "2"
 # `memory-show`'s record is validated against `memory-record.v1.json`.
 jsonschema = { version = "0.60", default-features = false }
 tempfile = "3"
-tokio = { version = "1", features = ["macros", "rt-multi-thread"] }
-# The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
-umbel = { path = "../..", default-features = false, features = ["cli", "store-embedded", "testkit"] }
+tokio = { version = "1", features = ["io-util", "macros", "net", "rt-multi-thread", "sync", "time"] }
+# The tests boot a host with the plugin and its grants, with no loader (so no wasmtime). `auth`
+# serves the hosted workspaces the step 10 tests confirm and erase in.
+umbel = { path = "../..", default-features = false, features = ["auth", "cli", "store-embedded", "testkit"] }
+# The erase tests open the memory store's files to see that the keys are gone.
+umbel-store-embedded = { path = "../../store-embedded" }
 
 [lints]
 workspace = true

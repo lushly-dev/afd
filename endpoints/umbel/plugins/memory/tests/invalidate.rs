@@ -42,7 +42,7 @@ async fn the_owner_invalidates_and_the_result_names_the_version() {
 }
 
 #[tokio::test]
-async fn a_persons_record_needs_a_person_and_another_principals_needs_a_sharing_writer() {
+async fn a_persons_record_needs_a_person_and_another_principals_needs_an_editor() {
     let mut fx = Fx::with(&config("default_access = \"space\""));
     let persons = fx
         .remember(fact("Ada's word", "A person's fact.", json!({})))
@@ -65,9 +65,12 @@ async fn a_persons_record_needs_a_person_and_another_principals_needs_a_sharing_
     let not_owned = fx.agent("memory-invalidate", invalidate(&bos)).await;
     assert_eq!(code(&not_owned), "MEMORY_NOT_OWNED", "{not_owned}");
     never_mentions(&not_owned.to_string(), &["An agent's note for Bo"]);
-    // Ada, a person, is a sharing writer who can read it.
+    // Ada, a person who can read it, may not either: since phase 5's owner decision 10 another
+    // principal's record changes only for a person the memory_write grant lists under editors
+    // (none here; `editors.rs` holds the rule), never for a sharing writer as such.
     let by_person = fx.person("memory-invalidate", invalidate(&bos)).await;
-    assert_eq!(data(&by_person)["recordVersion"], 2, "{by_person}");
+    assert_eq!(code(&by_person), "MEMORY_NOT_OWNED", "{by_person}");
+    never_mentions(&by_person.to_string(), &["An agent's note for Bo"]);
 }
 
 #[tokio::test]

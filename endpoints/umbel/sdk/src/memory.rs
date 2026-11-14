@@ -44,6 +44,68 @@ pub struct MemoryWriteRequest {
     pub batch: MemoryBatch,
 }
 
+/// `memory-erase`'s call as the plugin asks for it (phase 5 specification, section 8.4): the
+/// target principal, the ids (or all of the target's records), whether it is the dry run, and the
+/// plan and erase request it presents.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct EraseCall {
+    /// The principal whose records are erased, `<kind>:<id>`.
+    pub principal: String,
+    /// Only these of the target's records; `None` for all of them.
+    pub ids: Option<Vec<String>>,
+    /// The dry run: a count and the plan, nothing erased.
+    pub dry_run: bool,
+    /// The plan the dry run gave; required for the erase.
+    pub plan: Option<String>,
+    /// The erase request a second eraser approves (`erase_approvals = 2`).
+    pub request: Option<String>,
+}
+
+/// What `memory-erase` did, as the host answers it: counts, ids of requests and plans, never a
+/// record's id or text.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EraseAnswer {
+    /// The dry run: how many records the erase would reach, and the plan that names them.
+    Planned {
+        /// The records.
+        count: u64,
+        /// `sha256:` and 64 hex digits.
+        plan: String,
+    },
+    /// The first of two erasers approved: nothing is erased until a second, other eraser
+    /// approves the same plan before `expires_at`.
+    Awaiting {
+        /// `x-` and 20 hex digits.
+        request: String,
+        /// When the request expires.
+        expires_at: umbel_store::Millis,
+    },
+    /// The records were erased.
+    Erased {
+        /// How many.
+        erased: u64,
+        /// Whether the write-ahead log and the index were rewritten yet.
+        wal: umbel_store::memory::WalState,
+        /// Every eraser who approved, first first.
+        erasers: Vec<String>,
+        /// The erase request the second eraser approved.
+        request: Option<String>,
+    },
+}
+
+/// What `memory-erase-preview` may show of a call (phase 5 section 8.4): the count only when the
+/// plan presented names the records as they are now, and the pending request it approves.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ErasePreview {
+    /// How many records the plan presented names, when it still names them; `None` for a dry
+    /// run.
+    pub count: Option<u64>,
+    /// The first eraser of the request presented, and when it expires.
+    pub request: Option<(String, umbel_store::Millis)>,
+    /// `erase_approvals`: 1 or 2.
+    pub approvals: u64,
+}
+
 /// `left_out`'s arguments (section 5.2).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct LeftOutQuery {
@@ -217,6 +279,28 @@ impl Cx {
     ) -> Result<ForgetReceipt, HostError> {
         self.check_space(space)?;
         self.host()?.memory_forget(space, selector)
+    }
+
+    /// Grant `memory_write`: `memory-erase` (phase 5 section 8.4).
+    ///
+    /// # Errors
+    /// See [`HostServices::memory_erase`](crate::HostServices::memory_erase).
+    pub fn memory_erase(&self, space: &str, call: EraseCall) -> Result<EraseAnswer, HostError> {
+        self.check_space(space)?;
+        self.host()?.memory_erase(space, call)
+    }
+
+    /// Grant `memory_write`: what `memory-erase-preview` may show (phase 5 section 8.4).
+    ///
+    /// # Errors
+    /// See [`HostServices::memory_erase_preview`](crate::HostServices::memory_erase_preview).
+    pub fn memory_erase_preview(
+        &self,
+        space: &str,
+        call: EraseCall,
+    ) -> Result<ErasePreview, HostError> {
+        self.check_space(space)?;
+        self.host()?.memory_erase_preview(space, call)
     }
 
     /// Grant `memory_write`: purge records past their purge date.

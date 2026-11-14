@@ -28,10 +28,15 @@ steps:
           validationMinutesPerMerge: { state: normal }
         anomalies: { length: 0 }
         review: { state: closed, note: { contains: work-mix } }
-  - description: No review is waiting and no dial moved
+  - description: No review is waiting
     command: lane-status
     expect:
       success: true
       data:
         openEvents: { length: 0 }
-        dials: { lane.slots: 2, lane.queueTarget: 2 }
+  - description: No dial moved
+    command: dial-get
+    input: { key: lane.queueTarget }
+    expect:
+      success: true
+      data: { key: lane.queueTarget, value: 2 }

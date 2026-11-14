@@ -87,10 +87,10 @@ plugin builds two hosts:
 | `factory-cell` | `lane-status`, `issue-check`, `lane-enqueue`, the `lane-handoff` commands | Cells |
 | `factory` | Every command | The foreman and Jason |
 
-Each command's `CommandPolicy` uses botcore's existing effect names: `inspect` for reads,
-`subprocess` for anything that runs git or the adapter's commands (`lane-enqueue`,
-`issue-check`, `pr-preview`, `lane-host-probe`), `service` for the lane process and
-GitHub writes, `history-write` for state. botcore gains `PluginRegistry.add_policy`, so a
+Each command's `CommandPolicy` uses botcore's existing effect names: `inspect` for reads of
+the lane's own state, `subprocess` for anything that runs git, `gh` or the adapter's commands
+(`lane-enqueue`, `issue-check`, `lane-status`, `pr-preview`, `lane-host-probe`), `service`
+for the lane process and GitHub writes, `history-write` for state. botcore gains `PluginRegistry.add_policy`, so a
 plugin declares its own policies instead of each host passing them to `build_host`.
 
 **For a model with no skill installed.** Command names below are AFD's kebab-case; the
@@ -130,7 +130,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `cell-register` | `issues[]`, `branch`, `route`, `thread?` | `cell` with the `plan` the lane assigned; claims the issues on GitHub. Called **before** `delegate_task`, so a refusal costs nothing | `ALREADY_EXISTS`, `ALREADY_CLAIMED`, `NOT_DISPATCHABLE`, `CELLS_FULL`, `PLAN_ABOVE_CEILING`, `HOST_LOADED`, `TOO_MANY_ISSUES` |
 | `cell-attach` | `branch`, `thread` | `cell`: the thread `delegate_task` returned | `NOT_FOUND` |
 | `cell-park` | `branch`, `question` | `parked`: the issue gets `needs:decision` and the question as one comment, the seat is freed, the worktree and a long lease are kept; it shows in `owner-queue` until triage plans it again | `NOT_FOUND` |
-| `lane-enqueue` | `worktree`; `title?` and `body_file?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }`; the head is also pushed to `refs/factory/queue/<branch>` on `origin`, so a replacement host can rebuild the queue | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR` |
+| `lane-enqueue` | `worktree`; `title?` and `body_file?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }`; the head is also pushed to `refs/factory/queue/<branch>` on `origin`, so a replacement host can rebuild the queue | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `NOT_CONFIGURED` (the adapter names no `review_evidence`), `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR` |
 | `lane-handoff` | As `lane-enqueue` | As `lane-enqueue`, from a machine that is not the lane host | As `lane-enqueue` |
 | `lane-handoff-status` | — | `queue[]`, `cellsActive`, this machine's `cells[]` | — |
 | `lane-handoff-sync` | `worktree` | `head`, `logPath`: the lane's copy of the branch and the ejection's log, fetched into the worktree | `NOT_FOUND` |
@@ -202,8 +202,9 @@ command exits, as Lushly's foreman does with `merge-lane wait`.
 
 ### The repository adapter
 
-Everything Lushly hard-codes becomes configuration under `[tool.botcore.factory]` (or
-`botcore.toml`), so each repository states its own contract:
+Everything Lushly hard-codes becomes configuration under `[plugins.factory]` in `botcore.toml`
+(`[tool.botcore.plugins.factory]` in `pyproject.toml`, where botcore reads a plugin's settings),
+so each repository states its own contract:
 
 | Key | AFD | Lushly (when it migrates) |
 |---|---|---|

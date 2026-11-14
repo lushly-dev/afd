@@ -689,6 +689,9 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@better-auth/passkey':
+        specifier: 1.7.18
+        version: 1.7.18(@better-auth/core@1.7.18(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-call@1.4.5(zod@4.6.7))(jose@6.2.14)(kysely@0.29.8)(nanostores@1.5.5))(@better-auth/utils@0.5.1)(@better-fetch/fetch@1.3.3)(better-auth@1.7.18(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0))(better-call@1.4.5(zod@4.6.7))(nanostores@1.5.5)
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../packages/server
@@ -713,6 +716,9 @@ importers:
       '@lushly-dev/loam-host':
         specifier: workspace:*
         version: link:../host
+      '@lushly-dev/loam-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@lushly-dev/loam-sdk':
         specifier: workspace:*
         version: link:../sdk
@@ -743,6 +749,9 @@ importers:
       axe-core:
         specifier: 4.14.0
         version: 4.14.0
+      better-auth:
+        specifier: 1.7.18
+        version: 1.7.18(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)
       fake-indexeddb:
         specifier: ^6.2.7
         version: 6.2.7

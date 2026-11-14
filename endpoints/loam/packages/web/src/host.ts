@@ -4,7 +4,7 @@
  * writer lock is refused gets no kernel, so the page can show "Loam is open in another tab".
  */
 
-import { MockAuthAdapter } from '@lushly-dev/afd-auth';
+import { type AuthAdapter, MockAuthAdapter } from '@lushly-dev/afd-auth';
 import {
 	IndexedDbJournalError,
 	IndexedDbJournalSink,
@@ -61,6 +61,13 @@ export interface HostKernelOptions {
 	appsLoader?: KernelOptionsV3['appsLoader'];
 	/** The URL's project, by slug, or `null` for workspace level (phase 2 specification, 6.3). */
 	initialScope?: KernelOptionsV3['initialScope'];
+	/**
+	 * A `provider` deployment's adapter, membership and ports, from the probe (phase 3 specification, 4.2). Absent:
+	 * `local`, with a Mock per page.
+	 */
+	auth?: AuthAdapter;
+	membership?: KernelOptionsV3['membership'];
+	identityPorts?: KernelOptionsV3['identityPorts'];
 }
 
 const LOCK_RETRY_MS = 100;
@@ -97,7 +104,9 @@ export async function createHostKernel(options: HostKernelOptions): Promise<Host
 		}),
 		storeKind: 'indexeddb',
 		journal,
-		auth: new MockAuthAdapter(),
+		auth: options.auth ?? new MockAuthAdapter(),
+		...(options.membership ? { membership: options.membership } : {}),
+		...(options.identityPorts ? { identityPorts: options.identityPorts } : {}),
 		environment: options.environment,
 		host: 'browser',
 		// With `boot`, stage B, the late commands and the apps, runs after the first frame (2.2).

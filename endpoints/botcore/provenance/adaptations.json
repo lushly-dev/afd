@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "377db1153a9566aca91fb3e1bc47fac15ad8091d53a0a8ba8f2bbd1f9a8b11cf",
+      "current_import_sha256": "528cbbe35d23a9768e6d74c1c865dcdad1fc3bbe0aed7707ceadb6ab03ee7b27",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections"
     },
     {
       "path": "LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "1b15dc36e9d2fbca0fef065ff98d93bd080a9015b388721d22405370735cb7c7",
+      "current_import_sha256": "98a322fd57753a8a66b7c43db21d75544f7cbdc4e8caad95b1eea9135f435b0a",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "40ce173ce202029e3d1f1e9966e65e88c2312ba780f0528286c7bd28a2b41fa8",
+      "current_import_sha256": "97ccfdf5b9475cbc85334a603187d3fae88b88e40746978be4bf6c1fb8c9d8fc",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -1867,11 +1867,11 @@
       "path": "src/botcore/config.py",
       "upstream_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
       "staged_sha256": "a01fbc4f11941c2e45efc2840ecdc4edb76b088ad8103536bf4bbd140ded515d",
-      "current_import_sha256": "93063bb1eae2a52271fb2477f5e0168899c2840b558976c280cd783a9eb71a29",
+      "current_import_sha256": "9116f37d856f743a9c52bf3dcc25a11d66fc0941534605e456d0f631e1f05a8e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig)"
+      "import_reason": "Accept the legacy version stamp, reject unknowns, add listing_budget; add the [sweep] section (SweepConfig); do not warn about plugin sections a host's explicit selection leaves out"
     },
     {
       "path": "src/botcore/context.py",
@@ -1897,11 +1897,11 @@
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "19b99d3cda340e42f215d83ad551cc96b4e1cc984eeb6189461ee8d7c54c116d",
+      "current_import_sha256": "5846b17d2883f87adbe0f571b52d6b7eda21a7c0d32e52d6e2b607600ac9bc4a",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection"
     },
     {
       "path": "src/botcore/host_surfaces.py",
@@ -1917,11 +1917,11 @@
       "path": "src/botcore/plugin.py",
       "upstream_sha256": "210c8510c9a303478bfe909dafa0b7e4e60a81c01f6965c9bc058cce53fa1bf4",
       "staged_sha256": "8369caed177c2d75773ca90ecd19290c3fc2cf87f6393bd8c5f71dc70b715d9f",
-      "current_import_sha256": "8369caed177c2d75773ca90ecd19290c3fc2cf87f6393bd8c5f71dc70b715d9f",
+      "current_import_sha256": "451ace843fdfd27d3a88e2c7a61595c8bbd10e41b6cc3d97918cd9a64412e4d3",
       "stage_classification": "modified-upstream",
       "stage_reason": "Add explicit plugin allowlists, host identity and collision rejection",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Let a plugin declare its command policies (add_policy)"
     },
     {
       "path": "src/botcore/registry.py",

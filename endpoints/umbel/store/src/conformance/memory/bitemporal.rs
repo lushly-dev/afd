@@ -312,6 +312,7 @@ fn confirm(env: &MemoryEnv<'_>) -> CaseResult {
         id: id.clone(),
         at: T0 + D,
         by: by.to_owned(),
+        equivalents: Vec::new(),
         content_hash: hash.to_owned(),
         trace_id: None,
         assurance: Some(crate::Assurance::terminal()),

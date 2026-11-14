@@ -8,6 +8,7 @@
 //! [`ReaderFilter::derivation`] with `Invalid` in phase 3 (section 13, D81). The store keeps no
 //! clock: every instant comes from the command context.
 
+mod erase;
 mod instant;
 mod query;
 /// The memory tokenizer: FTS5's `porter unicode61 remove_diacritics 2`, ported (section 9.2).
@@ -25,6 +26,10 @@ use crate::document::Rev;
 use crate::envelope::{Actor, Authority, Envelope, Origin, Sensitivity};
 use crate::error::{Result, StoreError};
 
+pub use erase::{
+    Erase, EraseDryRun, EraseOutcome, EraseRequest, EraseTarget, MAX_ERASE_OWNERS, check_erase_ids,
+    check_erase_owners, erase_plan, is_erase_plan, is_erase_request_id,
+};
 pub use instant::{DAY_MS, HOUR_MS, Millis, format_instant, parse_instant};
 pub use query::{
     MAX_MEMORY_QUERY_CHARS, MAX_MEMORY_QUERY_TERMS, MemoryQuery, Occur, QueryTerm, TermField,
@@ -561,8 +566,12 @@ pub struct Confirm {
     pub id: String,
     /// The command context's clock.
     pub at: Millis,
-    /// The confirming person's principal string; it must be the record's principal (D88).
+    /// The confirming person's principal string; it must be the record's principal (D88), or
+    /// one of [`Self::equivalents`].
     pub by: String,
+    /// The legacy principals `by` stands for (phase 5 section 4.6, `[principal.equivalents]`, one
+    /// way), filled only by the host: a record one of them owns is the confirmer's own.
+    pub equivalents: Vec<String>,
     /// What `memory-show` printed: `sha256:` and at least 16 hex digits, or the hex alone.
     pub content_hash: String,
     /// The call's trace id.
@@ -675,6 +684,9 @@ pub struct ScopeQuery {
     pub project: ProjectMatch,
     /// Only this principal's records.
     pub principal: Option<String>,
+    /// With `principal`, also the records of these: the legacy principals it stands for (phase 5
+    /// section 4.6). Ignored without `principal`.
+    pub equivalents: Vec<String>,
     /// Only records whose agent has this id.
     pub agent: Option<String>,
     /// Only this session's records.
@@ -686,10 +698,9 @@ impl ScopeQuery {
     #[must_use]
     pub fn admits(&self, scope: &MemoryScope) -> bool {
         self.project.admits(scope.project.as_deref())
-            && self
-                .principal
-                .as_ref()
-                .is_none_or(|p| *p == scope.principal)
+            && self.principal.as_ref().is_none_or(|p| {
+                *p == scope.principal || self.equivalents.contains(&scope.principal)
+            })
             && self
                 .agent
                 .as_deref()
@@ -915,6 +926,9 @@ pub enum ForgetSelector {
 pub struct Forget {
     /// The caller's effective principal: only its records are erased.
     pub owner: String,
+    /// The legacy principals `owner` stands for (phase 5 section 4.6, one way), filled only by
+    /// the host: their records are the owner's own.
+    pub equivalents: Vec<String>,
     /// What to erase.
     pub selector: ForgetSelector,
     /// The command context's clock.
@@ -1257,6 +1271,86 @@ pub trait MemoryStore: Send + Sync {
     /// `Io` when the maintenance itself fails for a reason other than being busy.
     fn checkpoint(&self) -> Result<()> {
         Ok(())
+    }
+
+    /// The records `memory-erase` would reach (phase 5 section 8.4): every live record one of
+    /// `owners` owns (or, with `ids`, those of them among `ids`), **whatever its access set**,
+    /// with its current version, sorted by id. No reader filter applies; only the host's memory
+    /// services call it, for a verified eraser. Reads no key and no text.
+    ///
+    /// # Errors
+    /// `Invalid` for malformed owners or ids; `NotProvisioned`; `Io`. A backend that does not
+    /// erase answers `Invalid`.
+    fn erase_targets(&self, owners: &[String], ids: Option<&[String]>) -> Result<Vec<EraseTarget>> {
+        let _ = (owners, ids);
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Erase what [`MemoryStore::erase_targets`] selects, on phase 3's forget path (keys first,
+    /// D73, D82), only when its plan is `req.plan`, taking `req.request` (when named) in the same
+    /// first transaction. Idempotent past the erasure point, as forget is.
+    ///
+    /// # Errors
+    /// `Invalid` for a malformed request; `Busy` before the erasure point; `NotProvisioned`.
+    fn erase(&self, req: Erase) -> Result<EraseOutcome> {
+        let _ = req;
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Record an erase request of the two-person rule (section 8.4), first purging the expired
+    /// ones (`secure_delete`). Holds no text and no record id.
+    ///
+    /// # Errors
+    /// `Invalid` for a malformed request or a used id; `NotProvisioned`; `Busy`; `Io`.
+    fn erase_request_create(&self, req: EraseRequest, now: Millis) -> Result<()> {
+        let _ = (req, now);
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// The pending erase request `id`, after purging the expired ones: `None` for one that ran,
+    /// expired, was voided or never existed.
+    ///
+    /// # Errors
+    /// `NotProvisioned`; `Busy`; `Io`.
+    fn erase_request(&self, id: &str, now: Millis) -> Result<Option<EraseRequest>> {
+        let _ = (id, now);
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Record an eraser's dry run (section 8.4), replacing an earlier one of the same eraser,
+    /// target and plan, first purging the expired ones.
+    ///
+    /// # Errors
+    /// `Invalid` for a malformed dry run; `NotProvisioned`; `Busy`; `Io`.
+    fn erase_dry_run_record(&self, run: EraseDryRun) -> Result<()> {
+        let _ = run;
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Whether `eraser` ran a dry run of `target` giving `plan` that has not expired at `now`;
+    /// with `take`, it is used up (`secure_delete`).
+    ///
+    /// # Errors
+    /// `NotProvisioned`; `Busy`; `Io`.
+    fn erase_dry_run(
+        &self,
+        eraser: &str,
+        target: &str,
+        plan: &str,
+        now: Millis,
+        take: bool,
+    ) -> Result<bool> {
+        let _ = (eraser, target, plan, now, take);
+        Err(StoreError::invalid("this memory backend does not erase"))
+    }
+
+    /// Void the erase request `id` (`secure_delete`); whether one was there.
+    ///
+    /// # Errors
+    /// `NotProvisioned`; `Busy`; `Io`.
+    fn erase_request_void(&self, id: &str) -> Result<bool> {
+        let _ = id;
+        Err(StoreError::invalid("this memory backend does not erase"))
     }
 }
 
@@ -1617,6 +1711,9 @@ impl Forget {
     /// [`StoreError::Invalid`].
     pub fn check(&self) -> Result<()> {
         check_principal("owner", &self.owner)?;
+        self.equivalents
+            .iter()
+            .try_for_each(|owner| check_principal("an equivalent owner", owner))?;
         match &self.selector {
             ForgetSelector::Ids(ids) => {
                 if ids.is_empty() || ids.len() > MAX_FORGET_IDS {

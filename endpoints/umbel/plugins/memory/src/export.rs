@@ -50,8 +50,8 @@ pub(crate) fn run(input: &Value, cx: &Cx) -> Outcome {
 
 /// Whether a record read back may be exported: the caller's own, unflagged, not a transcript.
 /// The query already asked for exactly this; this is the second look.
-fn exportable(record: &MemoryRecord, principal: &str) -> bool {
-    record.scope.principal == principal
+fn exportable(record: &MemoryRecord, principal: &str, equivalents: &[String]) -> bool {
+    (record.scope.principal == principal || equivalents.contains(&record.scope.principal))
         && record.flags.is_empty()
         && record.authority().is_some_and(|a| EXPORTED.contains(&a))
 }
@@ -112,6 +112,8 @@ fn export(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
                 .clone()
                 .map_or(ProjectMatch::Any, ProjectMatch::ExactOrUnset),
             principal: Some(principal.clone()),
+            // The caller's own records, and its legacy principals' (phase 5 section 4.6).
+            equivalents: cx.call().equivalents.clone(),
             agent: None,
             session: None,
         },
@@ -139,7 +141,9 @@ fn export(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
     let mut read: Vec<(&MemoryMeta, MemoryRecord)> = Vec::new();
     for meta in &page.items {
         match cx.memory_get(&call.space, &meta.id, now, flags) {
-            Ok(Some(record)) if exportable(&record, &principal) => read.push((meta, record)),
+            Ok(Some(record)) if exportable(&record, &principal, &cx.call().equivalents) => {
+                read.push((meta, record))
+            }
             Ok(_) => {}
             Err(HostError::KeyAbsent { .. } | HostError::SealInvalid { .. }) => unreadable += 1,
             Err(error) => return Err(fail::host(&error)),

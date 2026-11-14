@@ -335,6 +335,38 @@ impl Console for Terminal {
     }
 }
 
+/// A terminal where the person answers yes, keeping what the command line showed before asking
+/// (a confirmation preview).
+pub struct Shown {
+    shown: Mutex<String>,
+}
+
+impl Shown {
+    pub fn new() -> Arc<Self> {
+        Arc::new(Self {
+            shown: Mutex::new(String::new()),
+        })
+    }
+
+    pub fn shown(&self) -> String {
+        self.shown.lock().unwrap().clone()
+    }
+}
+
+impl Console for Shown {
+    fn is_interactive(&self) -> bool {
+        true
+    }
+
+    fn ask(&self, _text: &str) -> bool {
+        true
+    }
+
+    fn show(&self, text: &str) {
+        self.shown.lock().unwrap().push_str(text);
+    }
+}
+
 pub fn human(id: &str) -> Actor {
     Actor::new(ActorKind::Human).with_id(id)
 }

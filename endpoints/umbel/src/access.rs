@@ -210,14 +210,15 @@ pub fn space_unavailable() -> CommandError {
         .with_retryable(false)
 }
 
-/// Whether `context` is the operator's: the CLI, with the CLI interface, transport `cli` and
-/// authentication `process` (phase 5 section 4.7, owner decision 17), as the CLI's marks need
-/// them (`authority::cli_mark`). Nothing else is: not stdio, not the library, not a verified
-/// caller whose person is the operator.
+/// Whether `context` is the operator's: the host's own command line, sealed (phase 5 step 10:
+/// `authority::is_cli`), with the CLI interface, transport `cli` and authentication `process`
+/// (section 4.7, owner decision 17), as the CLI's marks need them (`authority::cli_mark`). Nothing
+/// else is: not stdio, not the library (even one that writes the CLI's interface and principal
+/// into its own context), not a verified caller whose person is the operator.
 #[must_use]
 pub fn is_operator(context: &CommandContext) -> bool {
     use crate::principal::{Authentication, Transport};
-    context.interface == Some(afd::CommandInterface::Cli)
+    crate::authority::is_cli(context)
         && Principal::from_context(context).is_some_and(|principal| {
             principal.transport == Transport::Cli
                 && principal.authentication == Authentication::Process

@@ -54,6 +54,7 @@ fn pushable(cx: &Cx, space: &str, me: &str, now: Millis) -> Result<Option<u64>, 
         scope: ScopeQuery {
             project: ProjectMatch::Any,
             principal: Some(me.to_owned()),
+            equivalents: Vec::new(),
             agent: None,
             session: None,
         },

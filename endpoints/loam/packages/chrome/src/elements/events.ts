@@ -14,7 +14,9 @@ export type ChromeAction =
 	| { action: 'close'; part: 'sidebar' | 'inspector' | 'panel' }
 	| { action: 'maximize'; maximized: boolean }
 	| { action: 'sign-in' }
-	| { action: 'sign-out' };
+	| { action: 'sign-out' }
+	/** A `provider` deployment's account button: the account menu (phase 3 specification, 5.1). */
+	| { action: 'account-menu' };
 
 export const ACTION_EVENT = 'loam-action';
 

@@ -168,6 +168,24 @@ pub trait Provider: Send {
     /// What changed in the open mailbox since `cursor`.
     async fn changes(&mut self, cursor: &str) -> Result<Since, ProviderError>;
 
+    /// Opens a mailbox and asks what changed since `cursor`, which belongs
+    /// to the generation `validity`, in as few requests as the provider
+    /// can. The changes are `None` when the mailbox's generation is no
+    /// longer `validity`: its ids are new, and it is listed again.
+    async fn open_since(
+        &mut self,
+        mailbox: &str,
+        validity: &str,
+        cursor: &str,
+    ) -> Result<(Opened, Option<Since>), ProviderError> {
+        let opened = self.open(mailbox).await?;
+        if opened.validity != validity {
+            return Ok((opened, None));
+        }
+        let since = self.changes(cursor).await?;
+        Ok((opened, Some(since)))
+    }
+
     /// The flags or labels of every message the open mailbox holds.
     async fn flags(&mut self) -> Result<Vec<FlagsSeen>, ProviderError>;
 

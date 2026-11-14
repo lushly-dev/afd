@@ -1,8 +1,12 @@
-//! `memory-confirm` (section 8.7, owner decision 2, D88): a person at a terminal vouches for one of
-//! their own records, which writes version n+1 with authority `person` and the envelope's
-//! `confirmation`. `confirm = "require-human"` shows the fixed prompt and refuses `--yes`,
-//! `--approve` and every surface but the CLI; the host also requires authority `person`; the store
-//! checks the owner, the record's state and the hash the person was shown.
+//! `memory-confirm` (section 8.7, owner decision 2, D88; phase 5 section 8.1, owner decision 8):
+//! a person vouches for one of their own records (with the legacy principals they stand for),
+//! which writes version n+1 with authority `person` and the envelope's `confirmation`.
+//! `confirm = "require-human"` with `person = { cli = "terminal", mcp = "verified" }`: at a
+//! terminal the command line shows `memory-preview` and the fixed prompt and refuses `--yes` and
+//! `--approve`; over MCP, in a hosted workspace that serves the person page, the person decides
+//! on the page, which shows `memory-preview`. The host records how the person was proven (and
+//! admits the library's person only for the operator); the store checks the owner, the record's
+//! state and the hash the person was shown.
 
 use serde::Deserialize;
 use serde_json::{Value, json};
@@ -44,6 +48,11 @@ fn not_allowed(reason: &str) -> Outcome {
     )
 }
 
+/// Whether `owner` is the caller `me` or a legacy principal it stands for (phase 5 section 4.6).
+pub(crate) fn owns(cx: &Cx, me: Option<&str>, owner: &str) -> bool {
+    me == Some(owner) || cx.call().equivalents.iter().any(|legacy| legacy == owner)
+}
+
 /// Why the store refused: the record as the caller reads it, named by the first rule it breaks.
 fn refusal(cx: &Cx, space: &str, id: &str) -> Outcome {
     let me = effective_principal(cx.call());
@@ -54,9 +63,9 @@ fn refusal(cx: &Cx, space: &str, id: &str) -> Outcome {
     let Some(current) = current else {
         return not_allowed("it cannot be read");
     };
-    if me.as_deref() != Some(current.scope.principal.as_str()) {
+    if !owns(cx, me.as_deref(), &current.scope.principal) {
         return not_allowed(
-            "it is another principal's record; confirming another person's record waits for verified identity (phase 5)",
+            "it is another principal's record, and a person confirms only their own (D88, kept by phase 5's owner decision 8)",
         );
     }
     if !current.flags.is_empty() {
@@ -87,6 +96,7 @@ fn confirm(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
         id: input.id.clone(),
         at: call.now,
         by: call.principal.clone(),
+        equivalents: Vec::new(),
         content_hash: input.content_hash,
         trace_id: None,
         assurance: None,

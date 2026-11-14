@@ -197,6 +197,7 @@ impl Fx {
         self.memory()
             .forget(Forget {
                 owner: owner.to_owned(),
+                equivalents: Vec::new(),
                 selector: ForgetSelector::Ids(vec![id.to_owned()]),
                 at: self.clock,
                 trace_id: None,

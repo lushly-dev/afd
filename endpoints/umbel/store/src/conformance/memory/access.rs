@@ -150,6 +150,7 @@ fn indistinguishable(env: &MemoryEnv<'_>) -> CaseResult {
     let absent = samples::memory_id(999);
     m.forget(Forget {
         owner: ADA.into(),
+        equivalents: Vec::new(),
         selector: ForgetSelector::Ids(vec![samples::memory_id(7)]),
         at: NOW,
         trace_id: None,
@@ -193,6 +194,7 @@ fn indistinguishable(env: &MemoryEnv<'_>) -> CaseResult {
                     id: id.clone(),
                     at: NOW,
                     by: ADA.into(),
+                    equivalents: Vec::new(),
                     content_hash: "0".repeat(16),
                     trace_id: None,
                     assurance: Some(crate::Assurance::terminal()),

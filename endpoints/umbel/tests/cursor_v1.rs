@@ -687,3 +687,61 @@ async fn the_journal_keeps_a_sealed_results_changes_whatever_its_trace() {
     let line = support::events(h.dir.path(), "main");
     assert_eq!(line[0]["changes"]["toRev"], rev);
 }
+
+/// A library context of the operator's own person, `corp/ada`, that writes everything the CLI's
+/// own context holds but the host's seal: the CLI interface, a CLI principal (transport `cli`,
+/// authentication `process`) and the terminal's marks for `command`.
+fn posing_as_the_cli(host: &Host, command: &str) -> afd::CommandContext {
+    let mut context = host
+        .context(human("corp/ada"))
+        .with_interface(afd::CommandInterface::Cli);
+    let mut principal = context.extra["dev.umbel/principal"].clone();
+    principal["transport"] = json!("cli");
+    principal["authentication"] = json!("process");
+    context
+        .extra
+        .insert("dev.umbel/principal".to_owned(), principal);
+    for mark in ["dev.umbel/human-present", "dev.umbel/human-confirmed"] {
+        context.extra.insert(mark.to_owned(), json!(command));
+    }
+    context
+}
+
+#[tokio::test]
+async fn an_embedder_posing_as_the_cli_is_no_operator() {
+    // Phase 5 step 10: every check that trusts the CLI asks for the host's own seal, so a library
+    // context that writes the CLI's interface, principal and marks is the library's. The
+    // operator-only built-ins of steps 2c and 7 refuse it as they refuse the library.
+    let h = hosted("local_id = \"corp/ada\"").await;
+    write(&h.host, bo(), "notes/one", &["space"]).await;
+    for (command, input) in [
+        ("store-show", json!({})),
+        ("event-rebuild", json!({})),
+        ("store-check", json!({})),
+        ("store-backup", json!({ "path": "backups/posing" })),
+        ("workspace-doctor", json!({})),
+    ] {
+        let result = h
+            .host
+            .registry()
+            .execute(command, input, Some(posing_as_the_cli(&h.host, command)))
+            .await;
+        assert!(!result.success, "{command}: {result:?}");
+        let code = result.error.unwrap().code;
+        assert_eq!(code, "COMMAND_NOT_EXPOSED", "{command}");
+    }
+    assert!(!h.dir.path().join("backups/posing").exists());
+    // The operator, at the host's own command line, runs them.
+    let run = support::cli_with(
+        h.dir.path(),
+        &["call", "workspace-doctor"],
+        support::Scripted::no_terminal(),
+        configure_cli,
+    )
+    .await;
+    assert!(
+        !run.stdout.contains("COMMAND_NOT_EXPOSED"),
+        "{}",
+        run.stdout
+    );
+}

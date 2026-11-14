@@ -93,6 +93,31 @@ pub fn build_with(dir: &Path, drafters: bool) -> Host {
         .unwrap()
 }
 
+/// Run the host's real command line, so its context carries the private CLI seal.
+async fn run_cli(
+    dir: &Path,
+    drafters: bool,
+    console: Arc<dyn Console>,
+    args: &[&str],
+) -> (i32, Value) {
+    let mut environment = Environment::from_process();
+    environment.cwd = dir.to_path_buf();
+    environment.workspace = None;
+    environment.console = console;
+    let mut stdout = Vec::new();
+    let code = umbel::cli::run(
+        std::iter::once("umbel").chain(args.iter().copied()),
+        &environment,
+        &mut stdout,
+        move |builder: HostBuilder| plugins(builder, drafters),
+    )
+    .await;
+    let text = String::from_utf8(stdout).unwrap();
+    let value = serde_json::from_str(&text)
+        .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}): {text}"));
+    (code, value)
+}
+
 impl Fx {
     pub fn new() -> Self {
         Self::with(CONFIG)
@@ -191,23 +216,7 @@ impl Fx {
     /// Run the command line in process from the workspace, as the person `principal.local_id`
     /// names, with `console` for a terminal; the JSON on stdout, and the exit code.
     pub async fn command_line(&self, console: Arc<dyn Console>, args: &[&str]) -> (i32, Value) {
-        let mut environment = Environment::from_process();
-        environment.cwd = self.dir.path().to_path_buf();
-        environment.workspace = None;
-        environment.console = console;
-        let mut stdout = Vec::new();
-        let drafters = self.drafters;
-        let code = umbel::cli::run(
-            std::iter::once("umbel").chain(args.iter().copied()),
-            &environment,
-            &mut stdout,
-            move |builder: HostBuilder| plugins(builder, drafters),
-        )
-        .await;
-        let text = String::from_utf8(stdout).unwrap();
-        let value = serde_json::from_str(&text)
-            .unwrap_or_else(|error| panic!("stdout is not one JSON document ({error}): {text}"));
-        (code, value)
+        run_cli(self.dir.path(), self.drafters, console, args).await
     }
 
     /// Call `command` on the command line at a terminal where the person answers yes.
@@ -221,10 +230,7 @@ impl Fx {
 
     /// A person at the command line: `human:local`.
     pub async fn cli(&self, command: &str, input: Value) -> Value {
-        json_of(
-            self.call(human("local"), CommandInterface::Cli, command, input)
-                .await,
-        )
+        self.at_terminal(command, input).await
     }
 
     /// Read the files into the stores of `space` and index them, as a person at the command line.

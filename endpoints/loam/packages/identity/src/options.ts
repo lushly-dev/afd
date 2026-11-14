@@ -12,11 +12,20 @@
 import { passkey } from '@better-auth/passkey';
 import type { IdentityMethodV1 } from '@lushly-dev/loam-manifest';
 import type { BetterAuthOptions } from 'better-auth';
+import { getAuthoritativeSessionFromCtx } from 'better-auth/api';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { organization } from 'better-auth/plugins/organization';
 import { createOrganizationHooks } from './hooks.js';
 import { type LoamProviderState, loamServerPlugin } from './plugin.js';
 import { loamAccessControl, loamRoles } from './roles.js';
+import {
+	FRESH_AGE_SECONDS,
+	methodOfPath,
+	OIDC_CALLBACK,
+	reauthRequired,
+	requireFreshPasskeySession,
+	SESSION_METHOD_FIELD,
+} from './sessions.js';
 
 /** A message the provider sends: invitations and recovery, from step 4 (5.6, 5.7). */
 export interface LoamMailV1 {
@@ -65,13 +74,36 @@ export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
 	// The session's active organization is never an input (2.3): Loam never reads or sets it. Better Auth sets
 	// it on accepting an invitation, so the role endpoints' hook resolves it as Better Auth does.
 	'/organization/set-active',
+	// Sessions are Loam's own `/loam/sessions` and `/loam/revoke-person` (4.6), by handle and under 5.8's freshness
+	// rule. Better Auth's own list answers every session's token, and its revocations skip D99's passkey rule (the
+	// review of step 3's B2); a session's fields are the provider's alone, so none is updated from a page.
+	'/list-sessions',
+	'/revoke-session',
+	'/revoke-sessions',
+	'/revoke-other-sessions',
+	'/update-session',
+	// A linked provider's tokens never reach page script, and linking or unlinking a sign-in is step 4's, behind
+	// 5.8's rule, if the account section ever offers it (5.1).
+	'/get-access-token',
+	'/refresh-token',
+	'/account-info',
+	'/list-accounts',
+	'/link-social',
+	'/unlink-account',
+	// Passwords: no open sign-up (5.6), changing one is recovery's (5.7), and no page tests a guess against one.
+	'/sign-up/email',
+	'/change-password',
+	'/verify-password',
+	// Account deletion is a follow-up with its retention rule (Follow-ups).
+	'/delete-user',
+	'/delete-user/callback',
+	// Better Auth's leave deletes the member without the organization hooks, so it neither revokes the leaver's
+	// sessions nor runs Loam's last-owner check (7.5). Loam's own leave endpoint, with both, comes with
+	// `member-leave` (phase 6's A4); until then a member leaves by being removed (the re-check of step 3's NEW-5).
+	'/organization/leave',
 ]);
 
-/** `session.freshAge`: a session made within it may add or remove a passkey or revoke others (5.2). */
-export const FRESH_AGE_SECONDS = 300;
-
-/** The genericOAuth callback, the one path on which a user may be created in step 1 (5.6). */
-const OIDC_CALLBACK = '/oauth2/callback/';
+export { FRESH_AGE_SECONDS };
 
 /**
  * Better Auth's options for a deployment (2.6):
@@ -118,7 +150,8 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		database: config.database,
 		trustedOrigins: [url.origin],
 		session: { cookieCache: { enabled: false }, freshAge: FRESH_AGE_SECONDS },
-		advanced: { useSecureCookies: true },
+		// Better Auth skips its origin and CSRF checks when `NODE_ENV` is `test`; Loam's provider never does.
+		advanced: { useSecureCookies: true, disableOriginCheck: false, disableCSRFCheck: false },
 		disabledPaths: [...LOAM_DISABLED_PATHS],
 		user: { changeEmail: { enabled: false } },
 		emailAndPassword: password
@@ -133,6 +166,18 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 			},
 		},
 		databaseHooks: {
+			session: {
+				create: {
+					/**
+					 * How the session was made (2.6, D99): by a passkey, a password or single sign-on, which 5.2's
+					 * freshness rule reads. A session made any other way is marked by none, so it is never a passkey's.
+					 */
+					async before(session, context) {
+						const method = methodOfPath(context?.path);
+						return { data: { ...session, [SESSION_METHOD_FIELD]: method ?? null } };
+					},
+				},
+			},
 			user: {
 				create: {
 					/**
@@ -140,10 +185,11 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 					 * Step 4 adds the join path, which completes an invitation.
 					 */
 					async before(user, context) {
-						// The route's template names the provider in its parameters; a resolved path names it last.
 						const path = context?.path ?? '';
+						// The core callback, the one path on which a user may be created in step 1 (5.6), names the
+						// provider in its `id` parameter, or last in a resolved path.
 						const provider = path.startsWith(OIDC_CALLBACK)
-							? ((context?.params as { providerId?: string } | undefined)?.providerId ??
+							? ((context?.params as { id?: string } | undefined)?.id ??
 								path.slice(OIDC_CALLBACK.length))
 							: undefined;
 						const fromOidc = oidc.some(({ id }) => id === provider);
@@ -167,6 +213,18 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 				rpName: config.organization,
 				origin: url.origin,
 				authenticatorSelection: { residentKey: 'required', userVerification: 'required' },
+				// The plugin's own session and freshness checks stay until step 4 sets `requireSession: false` for the
+				// join and recovery paths (5.8); D99's passkey rule is added on generation (`loamServerPlugin`'s hook)
+				// and here again, at verification, from the session read again from the store, before the passkey is
+				// stored. No session there is refused: step 4's join and recovery paths say so when they come.
+				registration: {
+					async afterVerification({ ctx }) {
+						const found = await getAuthoritativeSessionFromCtx(ctx);
+						if (!found?.session) throw reauthRequired();
+						await requireFreshPasskeySession(ctx.context, found);
+						return {};
+					},
+				},
 			}),
 			...(oidc.length > 0
 				? [

@@ -73,6 +73,9 @@ fn leading_code(text: &str) -> Option<&str> {
     valid.then_some(code)
 }
 
+/// `MEMORY_NOT_OWNED`'s suggestion (phase 5 section 8.3).
+pub(crate) const NOT_OWNED_SUGGESTION: &str = "Only the record's owner may change it, or a person the deployer lists under the memory_write grant's editors: at a terminal, or through the library as the operator's person. Over MCP only the owner may; remember a new record instead.";
+
 /// The suggestion for a code the host names.
 fn suggestion(code: &str) -> &'static str {
     match code {
@@ -82,9 +85,7 @@ fn suggestion(code: &str) -> &'static str {
         "MEMORY_AUTHORITY_TOO_LOW" => {
             "A record a person vouched for changes only by a person at a terminal; leave it, or ask the person to run the command."
         }
-        "MEMORY_NOT_OWNED" => {
-            "Only the record's owner, or a sharing writer who can read it, may replace it; remember a new record instead."
-        }
+        "MEMORY_NOT_OWNED" => NOT_OWNED_SUGGESTION,
         "MEMORY_SCOPE_MISMATCH" => {
             "A record may only supersede records in the same project and with the same access set; pass the same project and share, or remember it without supersedes."
         }
@@ -93,7 +94,19 @@ fn suggestion(code: &str) -> &'static str {
         }
         "MEMORY_TTL_TOO_LONG" => "Pass a shorter ttlDays, or leave it out.",
         "MEMORY_CONFIRM_NOT_ALLOWED" => {
-            "Only a person at a terminal confirms, with umbel call memory-confirm and no --yes, no --approve and no agent environment variable; and only their own records."
+            "Only a person confirms, and only their own records: at a terminal with umbel call memory-confirm and no --yes, no --approve and no agent environment variable, or over MCP on the person page in a hosted workspace."
+        }
+        "MEMORY_ERASE_NOT_ALLOWED" => {
+            "Only a person the deployer lists under the memory_write grant's erasers erases, verified on the person page; ask one of them."
+        }
+        "MEMORY_ERASE_PLAN_STALE" => {
+            "The records changed since the dry run, or since the erase request: run memory-erase with dryRun = true again and present its new plan; a voided request starts again from the first eraser."
+        }
+        "MEMORY_ERASE_SECOND_ERASER_REQUIRED" => {
+            "With erase_approvals = 2 another eraser, a different person, approves your request: give them the request id, the principal and the plan."
+        }
+        "MEMORY_ERASE_REQUEST_EXPIRED" => {
+            "The erase request is no longer pending: it ran, expired, or was voided. Start again with a dry run and a first eraser's erase."
         }
         "MEMORY_FORGET_HUMAN_REQUIRED" => {
             "Forget by ids, which memory-list returns; a forget by session, project or time needs a person at a terminal, without --yes."

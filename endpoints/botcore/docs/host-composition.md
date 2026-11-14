@@ -29,14 +29,39 @@ check plans; empty plans and required skipped/unavailable checks never pass.
 Host plugins are explicitly selected by entry-point name (`plugins=("alfred",)`).
 Missing, duplicate, or failing selections reject construction. Registration
 rejects duplicate command names and documentation topics, including collisions
-with core commands/docs. Plugins cannot override host branding. Plugin command
-policies must be provided explicitly and plugins must declare
+with core commands/docs. Plugins cannot override host branding. Every plugin
+command needs an explicit policy, and plugins must declare
 `host_context_safe = True` after a per-host state audit. The bundled optional
 LLM, agents, memory, connectors, and Teams distributions remain preserved;
 this change does not claim their stateful implementations are admitted to a
 managed multi-worktree host. In particular, their module-global configuration
 needs adapters before such admission. No optional plugin is auto-installed or
-auto-enabled by `build_host`.
+auto-enabled by `build_host`. A host validates the `[plugins.<name>]` sections of
+the plugins it selects and leaves the others alone, without a warning: they
+configure other hosts' plugins, which may be installed in another environment.
+
+A plugin declares the policy of each command it registers, keyed by the command
+function's name: `registry.add_policy("lane_status", CommandPolicy())` or
+`registry.add_policies({...})`. `build_host` refuses a policy for a command the
+declaring plugin did not register (another plugin's included), and still refuses
+a command that neither its plugin nor the host gives a policy. The host's
+`policies` argument keeps working for commands whose plugin declares none.
+Where both declare one, the host's may only narrow the plugin's:
+
+- its effects must be among the plugin's possible effects;
+- it must keep every path argument the plugin confines, and may confine more;
+- it may not leave out an effect the command always has (a plugin's static
+  effects), since that would understate what every call does.
+
+Anything else refuses construction, so a conflict never silently widens what a
+profile admits. Within those limits the plugin's per-argument effects still
+decide each call, and a call whose effects fall outside the host's set is
+refused with `EFFECT_DENIED` before the handler runs: a host that admits only
+`subprocess` for a lint command whose `fix` adds `source-write` serves lint and
+denies `fix`. The host's capabilities, quality field and output scope replace
+the plugin's where the host sets them; an unset host field keeps the plugin's,
+so a host cannot drop a plugin's quality verdict. Legacy surfaces ignore
+declared policies.
 
 `ExecutionContext(workspace, target, profile)` resolves an existing target
 inside one worktree, rejects symlink/path escapes, and never changes process
@@ -60,9 +85,48 @@ The `inspection` profile permits pure declared inspection. It rejects writers,
 subprocesses, browsers, and service access before execution. `trusted-local`
 permits the admitted effects, including explicitly selected remediation. There
 is no report-artifact exception or output-only profile in this initial API.
-Effects, capabilities, path arguments and artifact output scope are discoverable
-in `host.catalog()`. Conditional effects (such as lint `fix`) are evaluated
-against bound arguments before invocation.
+Conditional effects (such as lint `fix`) are evaluated against bound arguments
+before invocation; effects a call computes beyond its declared set are
+`EFFECT_DENIED`.
+
+`host.catalog()`, which the CLI `catalog` command prints and the MCP `start`
+tool returns as `commands`, carries what a model needs to call each command
+without a skill installed: `name`, `description` (the docstring's first line),
+`input_schema`, and the policy fields `effects`, `effects_depend_on_arguments`,
+`capabilities`, `paths`, `quality` and `output_scope`. `input_schema` is a JSON
+Schema object derived from the handler's signature and type hints, one
+parameter at a time with Pydantic's `TypeAdapter`. `required` lists the inputs
+without defaults; optional inputs carry their default. `Literal` becomes
+`enum`, `X | None` an `anyOf` with `null`, lists and dicts `array` and
+`object`, and Pydantic models their object schemas, with nested definitions
+under `$defs`. A Google-style `Args:` entry or a Sphinx `:param name:` field
+supplies an input's description, an `Annotated[..., Field(description=...)]`
+wins over both, and each description is capped at 200 characters; no other
+docstring prose reaches the catalog. Path
+arguments the host resolves are ordinary inputs, also named in `paths`.
+`additionalProperties` is false unless the handler takes `**kwargs`. Limits:
+an unannotated parameter, a hint that does not resolve at runtime, or one
+Pydantic cannot describe (a callable, say) gives `{}`, any value; a default
+with no JSON form is left out; other docstring styles give no descriptions;
+and the schema is published, not enforced, so values are not type-checked
+before the call. `DirectClient.list_commands()` reports the same one-line
+descriptions.
+
+Every surface (CLI `call`, MCP `call`, DirectClient) enters `host.execute`,
+which checks argument names before binding the handler and before any policy,
+path or effect check. An argument the handler does not take, or a missing
+required one, is refused with `VALIDATION_ERROR`, the code AFD's shared error
+catalog (`spec/error-codes.md`) gives input that fails a command's schema, which
+the host catalog now publishes. Its `details` carry the `expectedFields`,
+`unexpectedFields` and `missingFields` AFD's engines use, plus
+`suggestedFields`, mapping each unknown key to the input
+it most likely meant: the same name in another case or separator convention
+(`timeoutMs`, `TimeoutMs` and `timeout-ms` all mean `timeout_ms`), else the
+closest name by `difflib`. The suggestion says the same in words, for example
+`Use timeout_ms instead of timeoutMs. Expected fields: lane, timeout_ms`, or
+names the missing input (`Pass lane.`). A wrong key is refused, never renamed,
+so the caller learns the convention. A handler taking `**kwargs` accepts any
+key.
 
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is

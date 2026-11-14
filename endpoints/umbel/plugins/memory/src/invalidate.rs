@@ -52,6 +52,7 @@ fn invalidate(input: &Value, cx: &Cx) -> Result<Outcome, Outcome> {
     let reason = reason(&input.reason)
         .ok_or_else(|| fail::invalid("reason is wrong, outdated, duplicate or other"))?;
     let call = Call::open(cx)?;
+    crate::owned::may_change(cx, &call.space, &input.id)?;
     let at = input
         .at
         .as_deref()

@@ -28,7 +28,13 @@ import type {
 	KernelPortsV1,
 } from '../types.js';
 import { type AppCommandDeps, createAppCommands } from './app-commands.js';
-import { agentActor, createAuthGate, membershipUnavailable, sessionChanged } from './auth-gate.js';
+import {
+	agentActor,
+	createAuthGate,
+	membershipUnavailable,
+	SIGNED_OUT_COMMANDS,
+	sessionChanged,
+} from './auth-gate.js';
 import { DOCUMENT_KIT } from './document-kit.js';
 import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
@@ -90,7 +96,7 @@ export type LateCommandDeps = ShellCommandDeps &
 		stageA?: [AccessActorV1] | undefined;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
-	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment'>;
+	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts'>;
 
 /**
  * The commands that move a person's active scope, what main shows or the session: a person's or an
@@ -226,12 +232,15 @@ export async function createLateParts(
 	// The chunks of the late load, awaited together inside `loadLate`, so their commands register in stage B;
 	// any failing fails the late load whole (documents specification, Status, deviations 9 and 14). The third is
 	// `late-identity`, the kernel's hearing of the adapter, with `session-settle` (phase 3 specification, 4.4, 13).
-	const [{ createDocumentCommands, trashBefore }, { createEditorParts }, { createSessionSettle }] =
-		await Promise.all([
-			import('./documents.js'),
-			import('./editor-commands.js'),
-			import('./session-settle.js'),
-		]);
+	const [
+		{ createDocumentCommands, trashBefore },
+		{ createEditorParts },
+		{ createSessionSettle, createIdentityCommands, HUMAN_COMMANDS, PROVIDER_COMMANDS },
+	] = await Promise.all([
+		import('./documents.js'),
+		import('./editor-commands.js'),
+		import('./session-settle.js'),
+	]);
 	// The port reads its list from here, so `apps` does not hold it (2.4); set once both chunks have loaded,
 	// before any app, so a late load that fails sets nothing.
 	deps.scope.callable = appCallable;
@@ -269,8 +278,15 @@ export async function createLateParts(
 	};
 	/** The kernel's hearing of the adapter (phase 3 specification, 4.4), built below with what it needs. */
 	let sessions: SessionSettle | undefined;
+	// Step 3's identity commands (4.6, 5.2); in `local` mode the Mock's capabilities are attached first (4.1).
+	const identityCommands = await createIdentityCommands({
+		auth: deps.auth,
+		identity: deps.identity,
+		kit: DOCUMENT_KIT,
+	});
 	const lateScope = createLateScope({
 		...deps,
+		recorded: PROVIDER_COMMANDS,
 		session: () => sessions,
 		documents,
 		async settle(name, call) {
@@ -289,6 +305,8 @@ export async function createLateParts(
 	editor = editorParts;
 	sessions = createSessionSettle({
 		...deps,
+		ports: deps.identityPorts ?? deps.ports,
+		identityCommands,
 		lateScope,
 		drafts,
 		ensureEditor: (project) => editorParts.ensure(project),
@@ -363,7 +381,20 @@ export async function createLateParts(
 			...editor.commands,
 			created.command,
 			sessions.command,
+			...identityCommands.commands,
 		].map((command) => [command.name, command])
+	);
+	// The kernel's wrapper of `auth-sign-in`, and a signed-out `provider` page's palette (phase 3 specification, 2.1, 4.6).
+	byName.set(
+		'auth-sign-in',
+		identityCommands.signIn(byName.get('auth-sign-in') as ZodCommandDefinition)
+	);
+	byName.set(
+		'palette-search',
+		identityCommands.paletteSearch(
+			byName.get('palette-search') as ZodCommandDefinition,
+			SIGNED_OUT_COMMANDS
+		)
 	);
 	// The New menu's `document-create { recent: true }` keeps its type and template first (documents specification, 7).
 	byName.set(
@@ -428,10 +459,13 @@ export async function createLateParts(
 			}),
 		mcpOptions: ({ commands, middleware }, listeners) => ({
 			// A server holds no active scope and no person's session (3.3), so the commands that move them
-			// are not served: a person's calls make them.
+			// are not served: a person's calls make them. Nor are the human commands, which only a person runs
+			// (3.4: "not served over MCP means left out of `mcpOptions().commands`").
 			commands: commands.filter(
 				(command) =>
-					!INTERNAL_COMMANDS.includes(command.name) && !PERSON_SESSION.includes(command.name)
+					!INTERNAL_COMMANDS.includes(command.name) &&
+					!PERSON_SESSION.includes(command.name) &&
+					!HUMAN_COMMANDS.includes(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

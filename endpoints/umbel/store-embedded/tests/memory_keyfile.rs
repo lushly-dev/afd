@@ -148,6 +148,7 @@ fn recall(m: &dyn MemoryStore, text: &str) -> Result<umbel_store::memory::Recall
 fn forget(m: &dyn MemoryStore, selector: ForgetSelector) -> umbel_store::memory::ForgetReceipt {
     m.forget(Forget {
         owner: ADA.into(),
+        equivalents: Vec::new(),
         selector,
         at: NOW,
         trace_id: Some("t-forget".into()),
@@ -177,6 +178,7 @@ fn confirm(m: &dyn MemoryStore, n: u64) -> Result<(), StoreError> {
         Confirm {
             id: id(n),
             by: ADA.into(),
+            equivalents: Vec::new(),
             content_hash: "sha256:".into(),
             at: NOW,
             trace_id: None,
@@ -388,6 +390,7 @@ fn a_missing_key_file_is_keys_missing_and_never_recreated() {
     assert!(matches!(
         m.forget(Forget {
             owner: ADA.into(),
+            equivalents: Vec::new(),
             selector: ForgetSelector::Ids(vec![id(1)]),
             at: NOW,
             trace_id: None

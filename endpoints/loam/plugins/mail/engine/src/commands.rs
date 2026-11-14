@@ -535,14 +535,33 @@ pub fn credential_for(command: &str, input: &serde_json::Value) -> Option<Creden
 /// engine's words: `None` for the command's own prompt. The account's
 /// address is the person's own, typed at the terminal, not text from mail.
 #[must_use]
-pub fn approval_summary(command: &str, input: &serde_json::Value) -> Option<String> {
-    if command != "mail-account-add" {
-        return crate::tokens::approval_summary(command, input);
+pub fn approval_summary(
+    engine: &Engine,
+    command: &str,
+    input: &serde_json::Value,
+) -> Option<String> {
+    match command {
+        "mail-account-add" => {
+            let (provider, address) = account_fields(input).ok()?;
+            Some(format!(
+                "Add the {provider} account {address}, and sign in to check that the sign-in works"
+            ))
+        }
+        REMOVE => {
+            let account = account_input(input).ok()??;
+            let preview = engine
+                .with_store(|store| store.removal_preview(crate::store::AccountId(account)))
+                .ok()??;
+            let provider = provider_name(&preview.account.provider);
+            Some(format!(
+                "Remove the {provider} account {}: delete its {} and the {} only it has shown from the store on this computer, and its sign-in from the keychain. Nothing changes at {provider}; adding the account again syncs its mail again",
+                preview.account.address,
+                counted(preview.mailboxes, "mailbox", "mailboxes"),
+                counted(preview.messages, "message", "messages"),
+            ))
+        }
+        _ => crate::tokens::approval_summary(command, input),
     }
-    let (provider, address) = account_fields(input).ok()?;
-    Some(format!(
-        "Add the {provider} account {address}, and sign in to check that the sign-in works"
-    ))
 }
 
 /// `mail-account-add`'s provider and address, checked, with the address's
@@ -719,6 +738,152 @@ pub fn account_list(engine: Arc<Engine>) -> CommandDefinition {
         AccountList { engine },
     )
     .with_expose(ExposeOptions::new().with_cli(true).with_mcp(true))
+}
+
+/// The name of the command that removes an account.
+const REMOVE: &str = "mail-account-remove";
+
+/// A provider's name as a person writes it.
+fn provider_name(provider: &str) -> &str {
+    match provider {
+        "icloud" => "iCloud",
+        "gmail" => "Gmail",
+        other => other,
+    }
+}
+
+/// `n` and the noun that goes with it.
+fn counted(n: u64, one: &str, many: &str) -> String {
+    format!("{n} {}", if n == 1 { one } else { many })
+}
+
+struct AccountRemove {
+    engine: Arc<Engine>,
+}
+
+#[async_trait]
+impl CommandHandler for AccountRemove {
+    async fn execute(
+        &self,
+        input: serde_json::Value,
+        context: CommandContext,
+    ) -> CommandResult<serde_json::Value> {
+        let engine = &self.engine;
+        let named = match account_input(&input) {
+            Ok(Some(named)) => named,
+            Ok(None) => {
+                return failure(
+                    CommandError::new("INVALID_INPUT", "`account` is required").with_suggestion(
+                        "Run `loam-mail mail-account-list` to see the accounts' ids.",
+                    ),
+                );
+            }
+            Err(error) => return failure(*error),
+        };
+        let account = match accounts_for(engine, Some(named)) {
+            Ok(mut accounts) => accounts.remove(0),
+            Err(error) => return failure(*error),
+        };
+        // On a server, nothing of the server's work may read the account
+        // while it goes.
+        let work = engine.work();
+        let serving = work.serving();
+        let paused = if serving {
+            match work.pause() {
+                Some(paused) => Some(paused),
+                None => {
+                    return failure(
+                        CommandError::new("WORK_RUNNING", "the server is syncing or rebuilding")
+                            .with_suggestion(
+                                "Try again when `loam-mail mail-status` shows no work running.",
+                            )
+                            .with_retryable(true),
+                    );
+                }
+            }
+        } else {
+            None
+        };
+        let now = context.clock().now();
+        let removed = match engine.with_store(|store| store.remove_account(account.id, now)) {
+            Ok(removed) => removed,
+            Err(error) => {
+                // What was derived may already be gone: derive it again,
+                // so a failed removal does not leave the mail unlisted.
+                drop(paused);
+                let mut refused = store_failure(&error);
+                if engine
+                    .with_store(|store| store.rebuilding())
+                    .unwrap_or(false)
+                {
+                    if serving {
+                        work.ask_rebuild(true);
+                    } else if rebuild_in_steps(engine, now, true, |_| {}).await.is_err() {
+                        refused = refused.with_suggestion(
+                            "Run `loam-mail mail-rebuild` so the mail is listed again, then try the removal again.",
+                        );
+                    }
+                }
+                return failure(refused);
+            }
+        };
+        // A pass asked for the account alone has nothing left to do.
+        work.forget_account(account.id.0);
+        // The sign-in goes too; the account is gone whether or not the
+        // keychain lets it.
+        let sign_in_removed = engine
+            .secrets()
+            .delete(&account_key(&account.provider, &account.address))
+            .is_ok();
+        drop(paused);
+        // What was derived was thrown away: derive what is left.
+        let rebuild = if serving {
+            work.ask_rebuild(false).json("rebuild")
+        } else {
+            match rebuild_in_steps(engine, now, false, |_| {}).await {
+                Ok(rebuilt) => rebuilt,
+                Err(error) => json!({ "error": { "code": error.code, "message": error.message } }),
+            }
+        };
+        success(json!({
+            "account": account.id.0,
+            "removed": true,
+            "messages": removed.messages,
+            "files": removed.files,
+            "filesLeft": removed.files_left,
+            "signInRemoved": sign_in_removed,
+            "rebuild": rebuild,
+        }))
+    }
+}
+
+/// `mail-account-remove`: removes an account and deletes its mail from the
+/// store, not from the provider, and its sign-in from the keychain. A
+/// person's command, and destructive: what it deletes comes back only by
+/// adding the account again and syncing (the specification's section 11).
+#[must_use]
+pub fn account_remove(engine: Arc<Engine>) -> CommandDefinition {
+    CommandDefinition::new(
+        REMOVE,
+        "Remove a mail account and delete its mail from this computer, not from the provider",
+        vec![CommandParameter {
+            name: "account".to_string(),
+            param_type: JsonSchemaType::Integer,
+            description: "The account's id, as mail-account-list shows it".to_string(),
+            required: true,
+            default: None,
+            enum_values: None,
+            schema: None,
+        }],
+        AccountRemove { engine },
+    )
+    .as_mutation()
+    .with_destructive(true)
+    .with_confirm_prompt(
+        "Remove the account and delete its mail from this computer; the provider keeps it",
+    )
+    .with_approval(ApprovalPolicy::Required)
+    .with_expose(command_line_only())
 }
 
 #[cfg(test)]

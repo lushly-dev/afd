@@ -273,6 +273,8 @@ export async function createKernelParts(
 
 	/** `app-list`'s rows: the workspace's overrides, and whether each can open in the active scope (7.1). */
 	const summaries = (): AppSummaryV2[] => {
+		// Signed out in `provider` mode the rail is empty: `app-list` answers none (phase 3 specification, 2.1).
+		if (provider && person() === undefined) return [];
 		const { project } = scope.active();
 		return apps
 			.summaries()

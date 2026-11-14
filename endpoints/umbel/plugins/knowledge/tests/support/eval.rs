@@ -1,13 +1,12 @@
 //! The seeded fixture as a running host, for the eval tests.
 #![allow(dead_code, unreachable_pub, clippy::unwrap_used, clippy::expect_used)]
 
-use afd::CommandInterface;
 use serde_json::{Value, json};
 use tempfile::TempDir;
 use umbel::Host;
 use umbel_plugin_knowledge::eval::fixture::{self, DEFAULT_SEED, FixtureManifest};
 
-use super::{build, human, json_of};
+use super::{Terminal, build, run_cli};
 
 /// The generated workspace and a host over it.
 pub struct Seeded {
@@ -38,16 +37,14 @@ impl Seeded {
 
     /// Call `command` as a person at the command line (`human:local`, a member of `restricted`).
     pub async fn cli(&self, command: &str, input: Value) -> Value {
-        let context = self
-            .host
-            .context(human("local"))
-            .with_interface(CommandInterface::Cli);
-        json_of(
-            self.host
-                .registry()
-                .execute(command, input, Some(context))
-                .await,
+        run_cli(
+            self.dir.path(),
+            false,
+            Terminal::new(true, true),
+            &["call", command, &input.to_string()],
         )
+        .await
+        .1
     }
 
     /// Read the files into the stores of both spaces and index them from scratch.

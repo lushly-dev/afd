@@ -1,7 +1,7 @@
 //! What the `store-*` commands share: the space of the call, the caller's view of it and the
 //! errors of the stores.
 
-use afd::{CommandContext, CommandError, CommandInterface};
+use afd::{CommandContext, CommandError};
 use serde_json::{Value, json};
 use umbel_store::ReaderFilter;
 
@@ -32,10 +32,11 @@ pub(super) fn view(
     Ok((space, filter))
 }
 
-/// Whether the call is a person at the command line: the one caller who is shown totals that
-/// include what the reader filter would hide (the files are theirs to read anyway).
+/// Whether the call is a person at the host's own command line (sealed, phase 5 step 10): the one
+/// caller who is shown totals that include what the reader filter would hide (the files are theirs
+/// to read anyway).
 pub(super) fn is_cli_human(context: &CommandContext) -> bool {
-    context.interface == Some(CommandInterface::Cli)
+    crate::authority::is_cli(context)
         && context
             .actor
             .as_ref()

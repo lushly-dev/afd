@@ -315,7 +315,7 @@ fn capture() -> Value {
 
 #[tokio::test]
 async fn an_export_holds_only_the_callers_own_live_records() {
-    let fx = Fx::new();
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
     let person_id = fx
         .remember(fact(
             "Person fact",

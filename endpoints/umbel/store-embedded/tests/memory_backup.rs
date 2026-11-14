@@ -132,6 +132,7 @@ fn forget(m: &dyn MemoryStore, selector: ForgetSelector) {
     let receipt = m
         .forget(Forget {
             owner: ADA.into(),
+            equivalents: Vec::new(),
             selector,
             at: NOW,
             trace_id: None,

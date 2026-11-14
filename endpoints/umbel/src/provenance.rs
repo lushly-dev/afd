@@ -373,6 +373,12 @@ pub struct Envelope {
     /// assertion, never `null`.
     #[serde(default)]
     pub delegation_chain: Option<Vec<crate::auth::ChainEntry>>,
+    /// Version 3, on the event of a `memory-erase` only (phase 5 section 8.4, step 10): the
+    /// erased principal's notice, `{ erasers, count, request, plan }`, filled only by the host
+    /// from the erase it performed. Absent (not `null`) everywhere else, so every other envelope
+    /// keeps its shape.
+    #[serde(default)]
+    pub erasure: Option<Value>,
 }
 
 impl Serialize for Envelope {
@@ -380,8 +386,9 @@ impl Serialize for Envelope {
         let v1 = self.version >= 1;
         let v2 = self.version >= 2;
         let v3 = self.version >= 3;
+        let erasure = self.erasure.as_ref().filter(|_| v3);
         let mut map = serializer.serialize_map(Some(match (v1, v2) {
-            (_, true) if v3 => 23,
+            (_, true) if v3 => 23 + usize::from(erasure.is_some()),
             (_, true) => 22,
             (true, false) => 19,
             _ => 12,
@@ -420,6 +427,9 @@ impl Serialize for Envelope {
                 "delegationChain",
                 self.delegation_chain.as_ref().unwrap_or(&none),
             )?;
+            if let Some(erasure) = erasure {
+                map.serialize_entry("erasure", erasure)?;
+            }
         }
         map.end()
     }
@@ -551,8 +561,46 @@ impl Envelope {
                     .filter(|chain| chain.len() <= crate::auth::MAX_DELEGATION_CHAIN)
                     .unwrap_or_default()
             }),
+            erasure: (version >= 3)
+                .then(|| host_owned.and_then(|host| host.get("erasure")))
+                .flatten()
+                .filter(|value| is_erasure(value))
+                .cloned(),
         }
     }
+}
+
+/// `{ erasers, count, request, plan }` (phase 5 section 8.4): one or two principal strings, a
+/// count of at least 1, a request id or `null`, and a plan.
+fn is_erasure(value: &Value) -> bool {
+    value.as_object().is_some_and(|map| {
+        map.len() == 4
+            && map
+                .get("erasers")
+                .and_then(Value::as_array)
+                .is_some_and(|erasers| {
+                    (1..=2).contains(&erasers.len())
+                        && erasers.iter().all(|eraser| {
+                            eraser
+                                .as_str()
+                                .is_some_and(|text| parse_principal(text).is_ok())
+                        })
+                })
+            && map
+                .get("count")
+                .and_then(Value::as_u64)
+                .is_some_and(|count| count >= 1)
+            && map.get("request").is_some_and(|request| {
+                request.is_null()
+                    || request
+                        .as_str()
+                        .is_some_and(umbel_store::memory::is_erase_request_id)
+            })
+            && map
+                .get("plan")
+                .and_then(Value::as_str)
+                .is_some_and(umbel_store::memory::is_erase_plan)
+    })
 }
 
 /// `{ by, at, priorAuthority }`, each a string, the prior authority of the closed set; in

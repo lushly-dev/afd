@@ -146,6 +146,26 @@ async fn store_show_gives_totals_to_a_person_at_the_cli_only() {
     // `human:local` is in no group: readable counts exclude the hidden document; totals do not.
     assert_eq!(data["counts"]["documents"], 1);
     assert_eq!(data["totals"]["documents"], 2);
+    // A library context that writes the CLI's interface and principal, without the host's seal
+    // (phase 5 step 10), is the library's: no totals.
+    let host = host_at(dir.path(), T0, StoreProbe::new());
+    let mut posing = host
+        .context(human())
+        .with_interface(afd::CommandInterface::Cli);
+    let mut principal = posing.extra["dev.umbel/principal"].clone();
+    principal["transport"] = json!("cli");
+    principal["authentication"] = json!("process");
+    posing
+        .extra
+        .insert("dev.umbel/principal".to_owned(), principal);
+    let shown = host
+        .registry()
+        .execute("store-show", json!({}), Some(posing))
+        .await;
+    assert!(shown.success, "{shown:?}");
+    let shown = shown.data.unwrap();
+    assert_eq!(shown["counts"]["documents"], 1);
+    assert!(shown.get("totals").is_none(), "{shown}");
 }
 
 #[tokio::test]

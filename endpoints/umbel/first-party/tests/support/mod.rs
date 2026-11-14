@@ -390,6 +390,7 @@ pub fn json_of(result: CommandResult<Value>) -> Value {
 }
 
 /// `data` of a successful result.
+#[track_caller]
 pub fn data(result: &Value) -> &Value {
     assert_eq!(result["success"], true, "{result}");
     &result["data"]

@@ -1245,6 +1245,7 @@ impl Host {
             .with_policy_version(self.workspace.config().policy_version.clone())
             .apply(&mut context);
         self.apply_clock(&mut context);
+        crate::authority::seal_cli(&mut context);
         context
     }
 }

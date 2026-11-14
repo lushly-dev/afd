@@ -73,6 +73,8 @@ pub struct World {
     /// Take each new connection and never answer it, as a provider that
     /// hangs would.
     pub stall: bool,
+    /// Answer `NO` to a search while this mailbox is open.
+    pub refuse_search_in: Option<String>,
     /// Give a mailbox a new `UIDVALIDITY` when it is opened with QRESYNC, as
     /// if it changed between two openings.
     pub renumber_on_qresync: Option<String>,
@@ -92,6 +94,7 @@ impl World {
             down_on_drop: false,
             down: false,
             stall: false,
+            refuse_search_in: None,
             renumber_on_qresync: None,
             connections: 0,
         }
@@ -487,6 +490,10 @@ fn examine(
 }
 
 fn search(tag: &str, criteria: &[String], world: &mut World, open: &str, out: &mut Vec<Chunk>) {
+    if world.refuse_search_in.as_deref() == Some(open) {
+        text(out, format!("{tag} NO search refused\r\n"));
+        return;
+    }
     let mailbox = world.find(open);
     let uids: Vec<u32> = match criteria {
         [all] if all.eq_ignore_ascii_case("ALL") => mailbox.messages.keys().copied().collect(),

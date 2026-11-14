@@ -340,6 +340,7 @@ mod tests {
                 constraints: None,
                 confirmation: None,
                 delegation_chain: None,
+                erasure: None,
             },
         }
     }

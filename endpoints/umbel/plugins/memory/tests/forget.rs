@@ -28,7 +28,7 @@ async fn shown(fx: &Fx, id: &str) -> Value {
 
 #[tokio::test]
 async fn ids_forget_the_callers_records_and_count_the_rest_as_not_found() {
-    let fx = Fx::new();
+    let fx = Fx::with(&config("writers = [\"principal:human:bo\"]"));
     let mine = fx.remember(fact("Mine", "Ada's record.", json!({}))).await;
     let shared = fx
         .as_actor(

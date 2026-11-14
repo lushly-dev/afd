@@ -41,6 +41,9 @@ pub(crate) struct CallRecord {
     pub(crate) authority: Assigned,
     /// `{ by, at, priorAuthority }` of a `memory-confirm` the host performed.
     pub(crate) confirmation: Option<serde_json::Value>,
+    /// `{ erasers, count, request, plan }` of a `memory-erase` the host performed (phase 5
+    /// section 8.4): the erased principal's notice.
+    pub(crate) erasure: Option<serde_json::Value>,
 }
 
 /// A range of revisions of one sequence.
@@ -127,6 +130,12 @@ impl Ledger {
     #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
     pub(crate) fn note_confirmation(&self, trace: &str, confirmation: serde_json::Value) {
         self.with(trace, |record| record.confirmation = Some(confirmation));
+    }
+
+    /// The host performed an erase, `{ erasers, count, request, plan }`.
+    #[cfg_attr(not(feature = "store-embedded"), allow(dead_code))]
+    pub(crate) fn note_erasure(&self, trace: &str, erasure: serde_json::Value) {
+        self.with(trace, |record| record.erasure = Some(erasure));
     }
 
     /// Take (and forget) the record of the call `trace`.

@@ -346,6 +346,7 @@ impl Fx {
                     id: id.to_owned(),
                     at: NOW - 60_000,
                     by: by.to_owned(),
+                    equivalents: Vec::new(),
                     content_hash: hash.as_str().to_owned(),
                     trace_id: None,
                     assurance: Some(umbel_store::Assurance::terminal()),

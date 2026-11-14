@@ -129,24 +129,32 @@ function collectProblems(
 	problems: string[]
 ): void {
 	for (const [key, value] of Object.entries(expected)) {
-		const path = `${basePath}.${key}`;
-		let matcher: boolean;
-		try {
-			matcher = isAssertionMatcher(value, path);
-		} catch (err) {
-			problems.push(err instanceof Error ? err.message : String(err));
-			continue;
-		}
-		if (matcher) {
-			for (const [matcherKey, matcherValue] of Object.entries(value as Record<string, unknown>)) {
-				const problem = matcherValueProblem(matcherKey, matcherValue);
-				if (problem) {
-					problems.push(`Invalid assertion at ${path}: '${matcherKey}' ${problem}`);
-				}
+		collectValueProblems(value, `${basePath}.${key}`, problems);
+	}
+}
+
+function collectValueProblems(value: unknown, path: string, problems: string[]): void {
+	let matcher: boolean;
+	try {
+		matcher = isAssertionMatcher(value, path);
+	} catch (err) {
+		problems.push(err instanceof Error ? err.message : String(err));
+		return;
+	}
+	if (matcher) {
+		for (const [matcherKey, matcherValue] of Object.entries(value as Record<string, unknown>)) {
+			const problem = matcherValueProblem(matcherKey, matcherValue);
+			if (problem) {
+				problems.push(`Invalid assertion at ${path}: '${matcherKey}' ${problem}`);
 			}
-		} else if (isPlainObject(value)) {
-			collectProblems(value, path, problems);
 		}
+	} else if (Array.isArray(value)) {
+		// Items of an array that holds objects are evaluated item by item, so check them too.
+		value.forEach((item, index) => {
+			collectValueProblems(item, `${path}[${index}]`, problems);
+		});
+	} else if (isPlainObject(value)) {
+		collectProblems(value, path, problems);
 	}
 }
 

@@ -15,8 +15,13 @@
 //!   newest first with a cursor, both under the filters and project rule of section 8.4 and the
 //!   two instants of section 4.1;
 //! - `memory-show` reads one record as `memory-record.v1.json`, labeled with its state;
-//! - `memory-invalidate` closes a record's validity with a new version, and `memory-confirm`
-//!   (a person at a terminal, own records only) gives it authority `person`;
+//! - `memory-invalidate` closes a record's validity with a new version (the owner's, or a listed
+//!   editor's as a person, phase 5 section 8.3), and `memory-confirm` (a person at a terminal, or
+//!   on the person page over MCP, own records only) gives it authority `person`, after
+//!   `memory-preview` shows the record;
+//! - `memory-erase` (phase 5 section 8.4) removes another principal's records, blind, for a listed
+//!   eraser verified on the person page, after a dry run, with an optional two-person rule, and
+//!   `memory-erase-preview` shows what the person confirms;
 //! - `memory-forget` erases the caller's own records, by id or, for a person, by selector;
 //! - `memory-sweep` purges what is past its purge date and `memory-reindex` rebuilds the lexical
 //!   lane, removing orphan keys only when asked;
@@ -35,6 +40,7 @@
 mod budget;
 mod capture;
 mod confirm;
+mod erase;
 mod export;
 mod fail;
 mod filters;
@@ -44,8 +50,10 @@ mod import;
 mod invalidate;
 mod list;
 mod maintain;
+mod owned;
 mod pipeline;
 mod policy;
+mod preview;
 mod recall;
 mod remember;
 mod show;
@@ -84,6 +92,9 @@ impl Plugin for Memory {
             "memory-show" => show::run(&input, cx),
             "memory-invalidate" => invalidate::run(&input, cx),
             "memory-confirm" => confirm::run(&input, cx),
+            "memory-preview" => preview::run(&input, cx),
+            "memory-erase" => erase::run(&input, cx),
+            "memory-erase-preview" => erase::preview(&input, cx),
             "memory-forget" => forget::run(&input, cx),
             "memory-sweep" => maintain::sweep(&input, cx),
             "memory-reindex" => maintain::reindex(&input, cx),

@@ -264,8 +264,9 @@ directly at a terminal, with no server, may run for longer, printing its progres
     text, or a file's bytes, 1.75 MiB at a time, where before it was 4 MiB.
 - When the server stops, its work stops between two steps of sync or two batches of a rebuild, and
   carries on from there next time.
-- **Left to the third pull request:** `mail-account-remove`, and where the 174 seconds of a pass
-  with nothing new went ([5.2](#52-imap)).
+- **Left to the third pull request** (now built): `mail-account-remove`
+  ([3.5](#35-commands-only-a-person-may-run)), and where the 174 seconds of a pass with nothing new
+  went ([5.2](#52-imap)).
 
 ### 3.3 Callers
 
@@ -364,10 +365,40 @@ this version (M18):
   presents it is refused from then on, and it cannot be brought back". A token's name is the
   person's own words, typed at the terminal, so it may appear in a summary. `mail-token-list` is
   a read and asks nothing.
+- **`mail-account-remove`, as step B5 built it.** It takes the account's id, and always asks.
+  - **What the person is asked.** The summary names the account's provider and address, its
+    number of mailboxes, and the number of messages only it has shown: no other account's
+    mailbox has shown them, now or before. On a server the counts can grow between the question
+    and the answer. It says that these go
+    from the store on this computer and the sign-in from the keychain, that nothing changes at the
+    provider, and that adding the account again syncs its mail again. An address is the person's
+    own, typed when they added the account.
+  - **What goes:**
+    - the account and its mailboxes;
+    - every observation, unreturned message and repair waiting in them;
+    - every message no other account's mailbox has shown, now or before, with its held bytes and
+      structure;
+    - the files in the log that no message left holds;
+    - the sign-in in the keychain.
+  - A message another account shows stays, with its bytes. The rows go in one transaction and the
+    files after it, so a stop between leaves files nothing refers to, never a row whose file is
+    gone.
+  - **Derived mail is rebuilt.** Removal throws away everything derived first, as `mail-rebuild`
+    does, and the rebuild then derives what is left. At the command line the rebuild runs inside
+    the call; on a server it runs as the server's work.
+  - **On a server, removal waits for no work.** It holds the server's work back while it removes,
+    and fails with `WORK_RUNNING`, which can be retried, while a pass or a rebuild runs. A pass
+    asked for that account alone is dropped.
+  - **A removal that fails** after what was derived is thrown away still leads to a rebuild,
+    inside the call or as the server's work, so the mail does not stay unlisted.
+  - A store test lists every table that refers to a message, a mailbox or an account, so a table
+    added later fails until removal handles it.
 - **A gap in the forwarded call.** When the person stops `mail-account-add` while it runs on a
   server, the command line drops the call and puts the keychain back, but the server may still
   finish adding the account with the password it had already read. The account then exists with
-  the earlier password, or none, and the next sync reports `SIGN_IN_REQUIRED`.
+  the earlier password, or none, and the next sync reports `SIGN_IN_REQUIRED`. Accepted with step
+  B5's third pull request: the person sees the account in `mail-account-list`, and can remove it
+  with `mail-account-remove` or add it again.
 
 **What this proves, and what it does not.**
 
@@ -634,6 +665,25 @@ says which role.
 - **A mailbox the provider stops listing** shows nothing: its observations are closed. If it is
   listed again, it is listed in full and its messages are matched by their identity. A listing
   that does not name the inbox retires nothing.
+- **One request a mailbox, when nothing is new** (step B5). A pass opens a mailbox that has a
+  cursor and asks what changed since it in one `EXAMINE` that names the stored `UIDVALIDITY` and
+  the cursor's mod-sequence (QRESYNC, RFC 7162 section 3.2.5). The server reports what vanished
+  and the flags that changed, and the pass asks for new UIDs only when `UIDNEXT` moved. A server
+  that answers for another `UIDVALIDITY` ignores the parameters; the mailbox is then listed again.
+  A mailbox that now keeps no mod-sequences (`NOMODSEQ`) has its flags and what remains read in
+  full. Without QRESYNC, a pass opens the mailbox and then asks, as before.
+- **What a pass with nothing new costs** (step B5, measured on the owner's iCloud account,
+  2026-11-13, reading only; counts in the plugin's `docs/live-icloud-b5.results.json`).
+  - The 174 seconds step B3 measured did not come back. A pass with nothing new took 22.3
+    seconds, all but 0.5 of them waiting for iCloud's replies: 72 requests in turn, two for each
+    of the 36 mailboxes. The pass before it, which found 9 new messages and 1 changed, took 26.0.
+  - The store's reads a pass makes, timed apart after the passes, took 0.3 seconds in all and
+    113 ms at most for one mailbox, the largest of which shows 271 167 messages. Timed again
+    after the second run they took 0.9 seconds and 258 ms.
+  - B3's second pass came straight after a first that fetched bodies only for a sample, and is
+    likely to have spent its time on bodies that sample left; that was not measured.
+  - With one request a mailbox, two passes took 12.7 and 12.1 seconds: 0.27 seconds for each
+    mailbox, a second to sign in, and 0.6 seconds of the engine's own.
 
 ### 5.3 Order and fairness
 
@@ -1191,7 +1241,7 @@ says otherwise.
 | --- | --- | --- | --- | --- |
 | `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome. Step B5: and the server's work ([3.2](#32-modes)) |
 | `mail-account-list` | B | Read | cli, mcp | |
-| `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's, with the other person's commands that remove something |
+| `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's ([3.5](#35-commands-only-a-person-may-run)) |
 | `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND` |
 | `mail-token-list` | B | Read | cli | Each token's id, name and when it was made; never the token, which the store does not have. A read, so no approval (step B5) |
 | `mail-sync` | B | Local | cli, mcp | Returns counts only ([5.7](#57-what-synced-means)). On a server it asks for a pass and returns at once (step B5) |
@@ -1290,6 +1340,7 @@ Beside the crate's own codes:
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
 | `NOT_HELD` | The bytes asked for are not in the log and could not be fetched now |
 | `PART_NOT_FOUND` | A message has no part at the place named |
+| `WORK_RUNNING` | `mail-account-remove` on a server while a pass or a rebuild runs; retryable |
 | `REPLY_TOO_LARGE` | A reply larger than a call to a running server may return ([3.2](#32-modes)) |
 | `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
@@ -1383,7 +1434,7 @@ file.
 | B2 | The store, in two pull requests. First: the data directory and its lock, the log, migrations, and the tables that are not derived (`account`, `mailbox`, a message's identity, `held`, `observation`, `unreturned`, `change`). Second: the derived tables, the index, `mail-rebuild`, and the harness run against it for [4.4](#44-limits-to-meet). The second built what a list, a thread and a search need (`envelope`, `part`, `thread`, `thread_key`, `thread_place`), and the command line's running of a command. Left to the step that owns each: unread counts, with the provider interface's flags (B3); the parts of a message fetched in parts, which need its structure from the provider (B3); hidden text, the template, the limits of [6.4](#64-parsing-strangers-bytes) and the index's filters (B4); Gmail's own threads (B6); `sender`, `template` and `story` (phase C) |
 | B3 | In two pull requests, as B2. First: the provider interface, IMAP, the scripted IMAP server, iCloud sync with resume and unreturned messages, unread counts, repairs of damaged files, `mail-sync` and `mail-status`, and the checks on the owner's account ([4.2](#42-what-makes-two-messages-the-same) and the IMAP crate of [section 2](#2-units-placement-and-crates)). Second: `mail-account-add` and `mail-account-list`, the keychain, and the command line's approval of a person's command ([3.5](#35-commands-only-a-person-may-run)). The headers and text of a message over 1 MiB (M20) moved to B4, which builds the fetching of a part that opening a message or an attachment needs; such a message does not hold a mailbox back from "synced" ([5.7](#57-what-synced-means)) |
 | B4 | In three pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a message's body when it is opened. Third: a message over 1 MiB (M20): its structure, its text parts at sync, and a file of it fetched when it is opened |
-| B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account, and `mail-account-remove` |
+| B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account (they did not come back; the pass now asks one request a mailbox, [5.2](#52-imap)), and `mail-account-remove` ([3.5](#35-commands-only-a-person-may-run)) |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |

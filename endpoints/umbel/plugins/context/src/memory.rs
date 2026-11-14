@@ -79,6 +79,7 @@ fn scope(request: &Request) -> ScopeQuery {
             .clone()
             .map_or(ProjectMatch::Any, ProjectMatch::ExactOrUnset),
         principal: None,
+        equivalents: Vec::new(),
         agent: None,
         session: None,
     }
