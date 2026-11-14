@@ -236,19 +236,28 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,489,
  * set at 9,300; `accountMenuMinified`, 3,543, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
  * (+153) are within their rows; `switcher` 11,317 is at its ceiling.
+ * Phase 3's step 5 (persona) raised the ceilings it passed under D115, each to its measurement plus a margin.
+ * First paint 296,567 and 92,170 gzip, +1,842 and +553 over `main` at `4e11c2ce` (294,725 and 91,617), past step
+ * 5's allowance of 750 and 300: stage A's read of `loam.persona~<person>` and each call's `persona` context field
+ * in the kernel, the rail's emphasis (`railOrder`'s rank and `loam-app-entry`'s emphasized state, +658 in the
+ * `events` chunk), the shell's read of the active persona with its announcement, and the title bar's persona
+ * title. `jsGzip` 92,000 to 93,000. `kernelMinified` 114,444 to 115,500 (114,969, +567). `lateIdentityMinified`
+ * 24,000 to 34,000: the five `persona-*` commands, sign-in's landing and project, and the palette's emphasis
+ * (31,821, +9,190). `accountMenuMinified` 3,900 to 5,400: the persona switch (4,868, +1,325). `late` 74,573
+ * (+537) is within its row.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
-	jsGzip: 92_000,
+	jsGzip: 93_000,
 	cssMinified: 8_496,
-	kernelMinified: 114_444,
+	kernelMinified: 115_500,
 	lateMinified: 75_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	lateIdentityMinified: 24_000,
+	lateIdentityMinified: 34_000,
 	authMinified: 72_000,
 	signInMinified: 9_300,
-	accountMenuMinified: 3_900,
+	accountMenuMinified: 5_400,
 	urlMinified: 5_247,
 	appsMinified: 394_973,
 	surfacesMinified: 85_000,

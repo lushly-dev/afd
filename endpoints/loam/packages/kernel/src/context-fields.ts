@@ -1,6 +1,6 @@
 /**
  * @fileoverview The declared context fields on both registries (phase 1 specification, 7.6), with
- * `scope` (phase 2 specification, 3.2). The kernel alone sets them, and each holds an id, so the journal
+ * `scope` (phase 2 specification, 3.2) and `persona` (phase 3 specification, 6.2). The kernel alone sets them, and each holds an id, so the journal
  * keeps them all.
  */
 
@@ -18,6 +18,9 @@ export const KERNEL_CONTEXT_FIELDS: NonNullable<DirectRegistryOptions['contextFi
 		{ name: 'replay', meta: 'dev.loam/replay', schema: z.literal('recorded'), journal: true },
 		{ name: 'parent', meta: 'dev.loam/parent', schema: id, journal: true },
 		SCOPE_FIELD,
+		// The active persona's id, when not `default` (phase 3 specification, 6.2; D89): journaled, set by the kernel
+		// alone, never declared to a server, never given to an app, and never read by a decision.
+		{ name: 'persona', meta: 'dev.loam/persona', schema: id, journal: true },
 	]);
 
 /** What the kernel sets for a call. */

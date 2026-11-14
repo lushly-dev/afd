@@ -8,6 +8,9 @@
  * `loading` one has `aria-busy="true"`. A `dimmed` one (7.1) is `aria-disabled`, stays in the Tab order,
  * describes itself with its `tip`, and a press does nothing but show that tip. Its tooltip is the rail's
  * `loam-tooltip`, which reads `tip` (7.5). `loam-section-entry` is the same shape for a section (7.2).
+ * An `emphasized` entry, an app the active persona puts first, has a mark beside its icon, drawn in the entry's
+ * own color in forced colors too, and says so in its description, after why it is dimmed when it is (phase 3
+ * specification, 6.2 and 14).
  */
 
 import { attr, css, FASTElement, html, when } from '@lushly-dev/fast-element';
@@ -26,7 +29,8 @@ const template = html<LoamAppEntry>`
 		aria-current="${(x) => (x.current ? 'page' : null)}"
 		aria-busy="${(x) => (x.state === 'loading' ? 'true' : null)}"
 		aria-disabled="${(x) => (x.dimmed ? 'true' : null)}"
-		aria-describedby="${(x) => (x.dimmed ? 'why' : null)}"
+		aria-describedby="${(x) =>
+			[x.dimmed && 'why', x.emphasized && 'emphasis'].filter(Boolean).join(' ') || null}"
 		@click="${(x) => x.press()}"
 	>
 		<span class="icon">
@@ -41,6 +45,7 @@ const template = html<LoamAppEntry>`
 		<span class="label">${(x) => x.accessibleLabel}</span>
 	</button>
 	<span id="why" hidden>${(x) => x.tip}</span>
+	<span id="emphasis" hidden>Emphasized by your persona</span>
 `;
 
 const styles = css`
@@ -55,6 +60,7 @@ const styles = css`
 			color var(--duration-fast) var(--easing-standard);
 	}
 	.icon {
+		position: relative;
 		display: inline-flex;
 		flex: none;
 		inline-size: var(--size-line-md);
@@ -76,6 +82,16 @@ const styles = css`
 		opacity: 0.55;
 		cursor: not-allowed;
 	}
+	:host([emphasized]) .icon::after {
+		content: '';
+		position: absolute;
+		inset-block-start: 0;
+		inset-inline-end: 0;
+		inline-size: var(--size-space-sm);
+		block-size: var(--size-space-sm);
+		border-radius: var(--radius-round);
+		background: currentColor;
+	}
 	:host([variant='rail']) .entry {
 		inline-size: var(--size-target-comfortable);
 	}
@@ -91,6 +107,22 @@ const styles = css`
 			color: GrayText;
 			border-color: GrayText;
 		}
+		/*
+		 * The entry's own system color, named per state: under forced-color-adjust: none, Chromium resolves
+		 * currentColor to the author color, not the forced one (the step 5 review's I3).
+		 */
+		:host([emphasized]) .icon::after {
+			forced-color-adjust: none;
+			background: ButtonText;
+		}
+		:host([emphasized]) .entry:not([aria-disabled]):hover .icon::after,
+		:host([emphasized]) .entry:not([aria-disabled]):active .icon::after,
+		:host([emphasized]) .entry[aria-current='page'] .icon::after {
+			background: HighlightText;
+		}
+		:host([emphasized]) .entry[aria-disabled] .icon::after {
+			background: GrayText;
+		}
 		.entry:hover:focus-visible,
 		.entry[aria-current='page']:focus-visible {
 			outline-color: HighlightText;
@@ -105,6 +137,8 @@ export class LoamAppEntry extends FASTElement {
 	declare state: string;
 	declare current: boolean;
 	declare dimmed: boolean;
+	/** First in its band by the active persona's emphasis (phase 3 specification, 6.2). */
+	declare emphasized: boolean;
 	/** What the rail's or tab bar's `loam-tooltip` says of it; empty for none. */
 	declare tip: string;
 	declare variant: 'rail' | 'tabbar';
@@ -117,6 +151,7 @@ export class LoamAppEntry extends FASTElement {
 		this.state = 'ready';
 		this.current = false;
 		this.dimmed = false;
+		this.emphasized = false;
 		this.tip = '';
 		this.variant = 'rail';
 	}
@@ -152,6 +187,7 @@ attr(LoamAppEntry.prototype, 'icon');
 attr(LoamAppEntry.prototype, 'state');
 attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'current');
 attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'dimmed');
+attr({ mode: 'boolean' })(LoamAppEntry.prototype, 'emphasized');
 attr(LoamAppEntry.prototype, 'tip');
 attr(LoamAppEntry.prototype, 'variant');
 

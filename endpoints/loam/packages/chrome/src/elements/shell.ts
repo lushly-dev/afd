@@ -117,6 +117,7 @@ const template = html<LoamShell>`
 			<loam-titlebar
 				data-part="titlebar"
 				account="${(x) => x.account}"
+				persona="${(x) => x.persona}"
 				?provider="${(x) => x.identity !== null}"
 				shortcut="${(x) => x.shortcut}"
 				key-shortcut="${(x) => (x.mac ? 'Meta+K' : 'Control+K')}"
@@ -268,6 +269,8 @@ export class LoamShell extends FASTElement {
 	declare projectName: string;
 	/** The live region's text: a change of scope, and what it left (phase 2 specification, 7.8). */
 	declare announcement: string;
+	/** The active persona's title beside the name, empty for `default` (phase 3 specification, 6.3). */
+	declare persona: string;
 	/** The rail's and the tab bar's entries, in first paint (7.2). */
 	readonly rail = new RailBands(this);
 
@@ -303,7 +306,7 @@ export class LoamShell extends FASTElement {
 	#pendingQuery = '';
 	#cleanup: (() => void)[] = [];
 	#started: Promise<void> | null = null;
-	#reads = { layout: 0, appearance: 0, session: 0 };
+	#reads = { layout: 0, appearance: 0, session: 0, persona: 0 };
 	/** The router, once the shell has started (phase 2 specification, 6.3). */
 	router: RouterV1 | null = null;
 	/** Set once stage B's own boot of the URL chunk has been tried, whether or not the chunk loaded. */
@@ -333,6 +336,7 @@ export class LoamShell extends FASTElement {
 		this.workspaceName = '';
 		this.projectName = '';
 		this.announcement = '';
+		this.persona = '';
 		this.mac = isMacPlatform(globalThis.navigator);
 		this.base = new URL('./', globalThis.location?.href ?? 'http://localhost/').href;
 		this.home = new URL(this.base).pathname;
@@ -525,7 +529,8 @@ export class LoamShell extends FASTElement {
 			return;
 		}
 		const listed = this.listsApps || this.appCount > 0;
-		// Stage B's list corrects what the boot records said (2.2).
+		// Stage B's list corrects what the boot records said (2.2), placed by the active persona's emphasis (6.2).
+		await this.#readPersona();
 		await this.rail.refresh();
 		// Before the surfaces start, so they open what the URL names rather than the persisted app.
 		await this.#url((url) => url.boot());
@@ -645,6 +650,27 @@ export class LoamShell extends FASTElement {
 		if (this.booted) this.#present();
 	}
 
+	/**
+	 * The active persona (phase 3 specification, 6.2, 6.3): its title for the title bar and its emphasized apps for
+	 * the rail. With `announce`, a switch: the live region says so and the rail is placed again. A read that fails,
+	 * as one signed out, is `default`.
+	 */
+	async #readPersona(announce = false): Promise<void> {
+		const generation = ++this.#reads.persona;
+		const result = await this.kernel?.call<{
+			personas: { id: string; title: string; emphasis: { apps?: string[] } }[];
+			active: string;
+		}>('persona-list');
+		if (generation !== this.#reads.persona) return;
+		const listed = result?.success ? result.data : undefined;
+		const active = listed?.personas.find((persona) => persona.id === listed.active);
+		this.persona = active && active.id !== 'default' ? active.title : '';
+		this.rail.emphasis = active?.emphasis.apps ?? [];
+		if (!announce) return;
+		this.announcement = `Persona: ${active?.title ?? 'Default'}`;
+		await this.rail.refresh();
+	}
+
 	async #readSession(): Promise<void> {
 		const generation = ++this.#reads.session;
 		const result = await this.kernel?.call<SessionState>('auth-session-get');
@@ -676,6 +702,15 @@ export class LoamShell extends FASTElement {
 	#onEvent(event: KernelEventV3): void {
 		if (event.seq !== undefined) this.lastSeq = Math.max(this.lastSeq, event.seq);
 		if (!this.booted) return;
+		// A change of person: nothing of the leaving person's persona shows while the next one's is read (6.1; the
+		// step 5 review's I2).
+		if (
+			event.actorChanged ||
+			(event.success && event.mutation && event.command.startsWith('auth-'))
+		) {
+			this.persona = '';
+			this.rail.emphasis = [];
+		}
 		this.rail.heard(event);
 		// From anyone, whatever the command: a command moves the URL (6.3). Each is a late command's.
 		if (event.scopeChanged || event.mainChanged) void this.#url((url) => url.changed(event));
@@ -692,9 +727,17 @@ export class LoamShell extends FASTElement {
 			void this.#loadApps().then(() => this.apps?.start());
 		} else if (event.command.startsWith('layout-')) void this.readLayout();
 		else if (event.command.startsWith('appearance-')) void this.#readAppearance();
+		else if (event.personaChanged) {
+			// A switch applies the persona's density and theme, and announces it; a removal or a change re-reads it.
+			void this.#readAppearance();
+			void this.#readPersona(event.command === 'persona-set');
+		}
 		// After a sign-in or sign-out, or a change of person no command made (phase 3 specification, 4.4).
-		else if (event.actorChanged || event.command.startsWith('auth-')) void this.#readSession();
-		else if (event.command === 'view-state-set') {
+		else if (event.actorChanged || event.command.startsWith('auth-')) {
+			void this.#readSession();
+			// Another person's persona: their title, and their emphasis, read before the rail's re-read (4.4, 6.1).
+			void this.#readPersona().then(() => this.rail.refresh());
+		} else if (event.command === 'view-state-set') {
 			void this.readLayout();
 			void this.#readAppearance();
 		}
@@ -996,5 +1039,6 @@ observable(LoamShell.prototype, 'mainBusy');
 observable(LoamShell.prototype, 'workspaceName');
 observable(LoamShell.prototype, 'projectName');
 observable(LoamShell.prototype, 'announcement');
+observable(LoamShell.prototype, 'persona');
 
 export const shellDefinition = { name: 'loam-shell', template, styles } as const;

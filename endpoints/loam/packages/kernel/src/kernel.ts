@@ -46,7 +46,7 @@ import {
 import type { LateParts } from './late/index.js';
 import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
-import { type AccessActorV1, type MembershipV1, personKey } from './scope/access.js';
+import { type AccessActorV1, type MembershipV1, personKey, personOf } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
 import { personalStore } from './scope/personal.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
@@ -87,12 +87,16 @@ export const NEEDS_STAGE_B: readonly string[] = [
  * `section-get` at every re-read of the rail, reading memory and writing nothing, so an empty shell's boot
  * journals no more than it did (phase 2 specification, 4.3). `editor-selection-set` runs per selection
  * change, holds what a replay need not reproduce, and is a query (documents specification, 5.4).
+ * `persona-list` is the shell's read of the active persona, the same way (phase 3 specification, 6.3).
  */
 export const UNJOURNALED_COMMANDS: readonly string[] = Object.freeze([
 	'palette-search',
 	'scope-get',
 	'section-get',
 	'editor-selection-set',
+	// The shell reads it at stage B, at each change of person and at each switch (phase 3 specification, 6.3), as it
+	// reads `scope-get`: journaled, an empty shell's boot would gain an entry. It reads and writes nothing else.
+	'persona-list',
 ]);
 
 /**
@@ -263,6 +267,11 @@ export async function createKernelParts(
 		options.workspace ?? { id: 'personal', name: 'Personal' };
 	const generation = boot?.generation ?? options.deployment?.generation ?? 'empty';
 	const scope = createScopeRuntime(workspace, membership);
+	/**
+	 * By person, the active persona's id when it is not `default` (phase 3 specification, 6.1, 6.2): the `persona`
+	 * context field of each call for that person. Stage A reads its person's; `late/` keeps it.
+	 */
+	const personas = new Map<string, string>();
 	let lateScope: LateScope | undefined;
 	// Only late commands and apps use the store, so it loads with the former.
 	let overlays: OverlayStore | undefined;
@@ -432,6 +441,7 @@ export async function createKernelParts(
 				identity,
 				personal,
 				pending,
+				personas,
 			});
 			lateParts = parts;
 			shell = [...parts.shell, ...parts.internal];
@@ -663,6 +673,17 @@ export async function createKernelParts(
 		}
 		const traceId = `${traceBase}-${++calls}`;
 		const owned = apps.contextOf(name, input);
+		// The call's person's persona, for the journal alone: no decision reads it (6.2). The person is the one the
+		// chain will decide for: a copied actor's, else the session's, since the agent interface's actor gains its
+		// `onBehalfOf` only in the chain (the step 5 review's B1). No read of the session while no one has a persona,
+		// and a read that fails is no persona: the chain answers for the session itself.
+		let persona: string | undefined;
+		try {
+			if (personas.size > 0)
+				persona = personas.get(
+					personKey(actor) ?? personOf({ actor: sessionActor(options.auth, clock) })
+				);
+		} catch {}
 		// The requested scope, explicit per call: a surface's or a nested call's, the caller's option, or
 		// the active scope at this moment. No registry or connection holds it (3.2).
 		const asked = callOptions.scope;
@@ -673,6 +694,7 @@ export async function createKernelParts(
 			...(callOptions.signal !== undefined ? { signal: callOptions.signal } : {}),
 			...owned,
 			...fields,
+			...(persona ? { persona } : {}),
 			actor,
 			scope:
 				fields.scope ??
@@ -759,6 +781,14 @@ export async function createKernelParts(
 		// Stage B ran before the persisted state was read, so its settle is here (F3).
 		if (applying) await lateParts?.settle(runBoot);
 	}
+	// Stage A's person's active persona (6.1), so their first call carries it; a read that fails is `default`.
+	const who = personOf({ actor: sessionActor(options.auth, clock) });
+	const active = (
+		await options.store
+			.get<{ value?: { active?: unknown } }>('settings', `loam.persona~${who}`)
+			.catch(() => null)
+	)?.value?.active;
+	if (typeof active === 'string' && active !== 'default') personas.set(who, active);
 	chooseScope(options.initialScope?.project);
 	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.
 	await state.scopedLayoutId(
