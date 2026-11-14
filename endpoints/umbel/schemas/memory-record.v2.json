@@ -283,7 +283,7 @@
 			"const": "content"
 		},
 		"provenance": {
-			"description": "Envelope version 3 of the write that made this version; authority is never null.",
+			"description": "Envelope version 3 of the write that made this version; authority is never null, and erasure, an erase event's notice, is never held by a record (step 10). A confirmation's assurance is terminal, verified, or embedder for the operator's person through the library (step 10).",
 			"allOf": [
 				{
 					"$ref": "provenance-envelope.v3.json"
@@ -293,6 +293,9 @@
 						"authority": {
 							"type": "string"
 						}
+					},
+					"not": {
+						"required": ["erasure"]
 					}
 				}
 			]

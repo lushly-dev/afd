@@ -9,6 +9,7 @@ use afd::{Actor, ActorKind, CommandInterface, CommandResult, fixed_clock};
 use rusqlite::{Connection, OpenFlags};
 use serde_json::{Value, json};
 use tempfile::TempDir;
+use umbel::cli::{Console, Environment};
 use umbel::plugins::sdk;
 use umbel::{Host, HostBuilder};
 
@@ -125,8 +126,25 @@ impl Fx {
 
     /// A person at the command line: `human:local`.
     pub async fn cli(&self, command: &str, input: Value) -> CommandResult<Value> {
-        self.call(human("local"), CommandInterface::Cli, command, input)
-            .await
+        let environment = Environment {
+            cwd: self.dir.path().to_path_buf(),
+            workspace: None,
+            overrides: Default::default(),
+            console: Arc::new(NoPerson),
+            vars: Default::default(),
+            clock: Some(1_767_225_600_000),
+        };
+        let mut stdout = Vec::new();
+        umbel::cli::run(
+            ["umbel", "call", command, &input.to_string()],
+            &environment,
+            &mut stdout,
+            |builder| {
+                builder.with_compiled(Arc::new(sdk(umbel_plugin_sources_filesystem::plugin())))
+            },
+        )
+        .await;
+        serde_json::from_slice(&stdout).expect("the CLI writes one CommandResult")
     }
 
     /// The agent every loopback caller is.
@@ -217,6 +235,18 @@ impl Fx {
         std::fs::read_to_string(self.path("state/journal.jsonl"))
             .map(|text| text.lines().count())
             .unwrap_or(0)
+    }
+}
+
+struct NoPerson;
+
+impl Console for NoPerson {
+    fn is_interactive(&self) -> bool {
+        false
+    }
+
+    fn ask(&self, _: &str) -> bool {
+        false
     }
 }
 

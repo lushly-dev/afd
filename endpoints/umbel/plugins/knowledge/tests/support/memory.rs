@@ -118,6 +118,7 @@ pub fn forget(fx: &Fx, id: &str, owner: &str) {
     store(fx)
         .forget(Forget {
             owner: owner.to_owned(),
+            equivalents: Vec::new(),
             selector: ForgetSelector::Ids(vec![id.to_owned()]),
             at: NOW - DAY_MS,
             trace_id: None,

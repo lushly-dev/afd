@@ -37,6 +37,8 @@ impl SqliteMemoryStore {
             Ok(_) | Err(StoreError::Busy) => {}
             Err(other) => return Err(other),
         }
+        // And the erase requests and dry runs past their window (phase 5 section 8.4).
+        self.purge_erase_state(batch.at)?;
         self.pool.write(|conn| {
             self.pool.keys(|kc| {
                 let tx = conn.transaction_with_behavior(TransactionBehavior::Immediate)?;

@@ -66,6 +66,7 @@ fn reopen(env: &MemoryEnv<'_>) -> CaseResult {
             id: samples::memory_id(3),
             at: T0 + DAY_MS,
             by: ADA.into(),
+            equivalents: Vec::new(),
             content_hash: hash,
             trace_id: None,
             assurance: Some(crate::Assurance::terminal()),
@@ -75,6 +76,7 @@ fn reopen(env: &MemoryEnv<'_>) -> CaseResult {
     .ctx("confirm")?;
     m.forget(Forget {
         owner: ADA.into(),
+        equivalents: Vec::new(),
         selector: ForgetSelector::Ids(vec![samples::memory_id(4)]),
         at: T0 + DAY_MS,
         trace_id: None,
