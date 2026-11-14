@@ -27,12 +27,49 @@ export interface VioletThemeSet {
     readonly presets: Readonly<Record<VioletThemePreset, readonly VioletThemeToken[]>>;
 }
 
+/** The token types `tokens/interface.json` uses. */
+export const VIOLET_TOKEN_TYPES = [
+    "color",
+    "dimension",
+    "duration",
+    "cubicBezier",
+    "fontWeight",
+    "fontFamily",
+    "number",
+    "shadow",
+] as const;
+
+/** One of `VIOLET_TOKEN_TYPES`. */
+export type VioletTokenType = (typeof VIOLET_TOKEN_TYPES)[number];
+
+/** One entry of `tokens/interface.json`. */
+export interface VioletTokenInterfaceEntry {
+    readonly property: string;
+    readonly type: VioletTokenType;
+    /** In the interface, but no component reads it yet. A theme set supplies it anyway. */
+    readonly reserved?: boolean;
+}
+
 /** `tokens/interface.json`: the custom properties the components read, per token id. */
 export interface VioletTokenInterface {
     readonly contractVersion: number;
-    readonly tokens: Readonly<
-        Record<string, { readonly property: string; readonly type: string; readonly reserved?: boolean }>
-    >;
+    readonly tokens: Readonly<Record<string, VioletTokenInterfaceEntry>>;
+}
+
+/** An interface id a preset does not supply, counting what it inherits from the default. */
+export interface VioletThemeSetGap {
+    readonly preset: VioletThemePreset;
+    readonly id: string;
+    readonly property: string;
+}
+
+/** What `findVioletThemeSetGaps` found: an unsound set's problems, or the ids it lacks. */
+export interface VioletThemeSetGaps {
+    /** `validateVioletThemeSet`'s problems; when any, `missing` is not computed and is empty. */
+    readonly problems: readonly string[];
+    readonly missing: readonly VioletThemeSetGap[];
+    /** No problems and nothing missing. */
+    readonly complete: boolean;
 }
 
 const PRESET_NAME = /^[A-Za-z0-9][A-Za-z0-9_-]*$/;
@@ -40,6 +77,31 @@ const TOKEN_ID = /^[A-Za-z0-9_-]+(?:\.[A-Za-z0-9_-]+)*$/;
 // A value is one declaration's value: nothing that could end the declaration, the rule or the
 // style element it is written into.
 const UNSAFE_VALUE = /[;{}<>]|\/\*|\\|[\r\n]/;
+const CLOSERS: Readonly<Record<string, string>> = { ")": "(", "]": "[" };
+
+/**
+ * Whether every quote in `value` closes and every `(` and `[` outside quotes closes in order. An
+ * open one would swallow the rest of the stylesheet (CSS Syntax consumes to its match), so
+ * `rgb(0 0 0` is refused. Backslashes are refused already, so no quote is escaped.
+ */
+function isBalanced(value: string): boolean {
+    const open: string[] = [];
+    let quote: string | null = null;
+    for (const char of value) {
+        if (quote !== null) {
+            if (char === quote) {
+                quote = null;
+            }
+        } else if (char === '"' || char === "'") {
+            quote = char;
+        } else if (char === "(" || char === "[") {
+            open.push(char);
+        } else if (char in CLOSERS && open.pop() !== CLOSERS[char]) {
+            return false;
+        }
+    }
+    return quote === null && open.length === 0;
+}
 
 /** `--` and the id with `.` replaced by `-`: `color.surface.page` gives `--color-surface-page`. */
 export function violetTokenProperty(id: string): string {
@@ -81,7 +143,7 @@ export function validateVioletThemeSet(themeSet: VioletThemeSet): string[] {
             }
             seen.add(id);
             const value = token.value;
-            if (typeof value !== "string" || value.trim() === "" || UNSAFE_VALUE.test(value)) {
+            if (typeof value !== "string" || value.trim() === "" || UNSAFE_VALUE.test(value) || !isBalanced(value)) {
                 problems.push(`the preset '${name}' has an empty or unsafe value for '${id}': ${JSON.stringify(value)}`);
             }
         }
@@ -127,27 +189,30 @@ export function createVioletThemeCss(themeSet: VioletThemeSet): string {
 }
 
 /**
- * What a theme set lacks against the components' token interface: per preset, every interface id
- * it does not supply, counting what a non-default preset inherits from the default. A product runs
- * this at build time with the interface its installed `violet-elements` ships
- * (`@lushly-dev/violet-elements/tokens/interface.json`); an empty list means the set is complete.
- * Ids the interface does not list are allowed: a product's tree may hold more than the components
- * read.
+ * What a theme set lacks against the components' token interface. `problems` holds
+ * `validateVioletThemeSet`'s findings; for a sound set, `missing` holds, per preset, every interface
+ * id it does not supply, counting what a non-default preset inherits from the default.
+ *
+ * Completeness is not enforced at runtime: an id a set omits silently falls back to the
+ * component's literal `var()` fallback (the built-in light value). A product runs this in its
+ * build with the `tokens/interface.json` of the installed version, from the Node-safe
+ * `@lushly-dev/violet-elements/theme-css` entry. Ids the interface does not list are allowed: a
+ * product's tree may hold more than the components read.
  */
-export function findVioletThemeSetGaps(themeSet: VioletThemeSet, tokenInterface: VioletTokenInterface): string[] {
+export function findVioletThemeSetGaps(themeSet: VioletThemeSet, tokenInterface: VioletTokenInterface): VioletThemeSetGaps {
     const problems = validateVioletThemeSet(themeSet);
     if (problems.length > 0) {
-        return problems;
+        return { problems, missing: [], complete: false };
     }
-    const gaps: string[] = [];
+    const missing: VioletThemeSetGap[] = [];
     const defaults = new Set(themeSet.presets[themeSet.defaultPreset].map(token => token.id));
-    for (const [name, tokens] of Object.entries(themeSet.presets)) {
+    for (const [preset, tokens] of Object.entries(themeSet.presets)) {
         const supplied = new Set([...defaults, ...tokens.map(token => token.id)]);
-        for (const id of Object.keys(tokenInterface.tokens)) {
+        for (const [id, entry] of Object.entries(tokenInterface.tokens)) {
             if (!supplied.has(id)) {
-                gaps.push(`the preset '${name}' has no value for '${id}' (${tokenInterface.tokens[id].property})`);
+                missing.push({ preset, id, property: entry.property });
             }
         }
     }
-    return gaps;
+    return { problems: [], missing, complete: missing.length === 0 };
 }

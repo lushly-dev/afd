@@ -18,13 +18,18 @@ import {
     installVioletThemeSet,
     isVioletThemePreset,
     normalizeVioletThemePreset,
+    loadVioletBuiltInTheme,
     resetVioletThemeSet,
+    violetThemePresets,
+} from "./violet-theme-runtime";
+import {
     violetThemeBuiltInSet,
     violetThemeCssText,
     violetThemeDeclarations,
     violetThemeDeclarationsByPreset,
-    violetThemePresets,
-} from "./violet-theme-runtime";
+} from "./violet-theme-builtin";
+import runtimeSource from "./violet-theme-runtime.ts?raw";
+import elementSource from "./violet-theme.ts?raw";
 import "./violet-theme";
 
 /** A product's own set: preset names the built-in set does not have, and an id it lacks. */
@@ -57,9 +62,10 @@ function runtimeStyles(): HTMLStyleElement[] {
 }
 
 describe("violet runtime theme", () => {
-    beforeEach(() => {
+    beforeEach(async () => {
         resetVioletThemeSet();
         clearRuntimeTheme();
+        await loadVioletBuiltInTheme();
     });
 
     it("reuses the same runtime style element for repeated document installs", () => {
@@ -121,6 +127,16 @@ describe("violet runtime theme", () => {
         expect(violetThemeCssText).toContain(':root[data-violet-theme="dark"],\n[data-violet-theme-root][data-violet-theme="dark"]\n{');
         expect(violetThemeDeclarations).toBe(violetThemeDeclarationsByPreset.light);
         expect(violetThemeDeclarations).toContain('  --font-family-body: "Montserrat", "Segoe UI", sans-serif;');
+        expect(VIOLET_THEME_DEFAULT_PRESET).toBe("light");
+    });
+
+    it("loads the built-in set only on demand, never statically", async () => {
+        expect(runtimeSource).not.toContain('from "./violet-theme-builtin"');
+        expect(runtimeSource).not.toContain('from "./generated/violet-theme.generated"');
+        expect(runtimeSource).toContain('import("./violet-theme-builtin")');
+        expect(elementSource).not.toContain("violet-theme-builtin");
+        expect(elementSource).not.toContain("generated/violet-theme.generated");
+        await expect(loadVioletBuiltInTheme()).resolves.toBe(violetThemeCssText);
     });
 
     it("connects violet-theme hosts as scoped roots and ensures the runtime style exists", () => {
@@ -158,9 +174,10 @@ describe("violet runtime theme", () => {
 describe("a product's replacement theme set", () => {
     let warn: ReturnType<typeof vi.spyOn>;
 
-    beforeEach(() => {
+    beforeEach(async () => {
         resetVioletThemeSet();
         clearRuntimeTheme();
+        await loadVioletBuiltInTheme();
         warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     });
 
@@ -229,6 +246,22 @@ describe("a product's replacement theme set", () => {
         expect(scoped?.textContent).toBe(createVioletThemeCss(productSet));
     });
 
+    it("reaches a shadow root that was detached when the set changed, once it is attached again", () => {
+        const host = document.createElement("div");
+        const shadowRoot = host.attachShadow({ mode: "open" });
+        document.body.append(host);
+        const scoped = installVioletTheme(shadowRoot);
+        host.remove();
+        expect(scoped.isConnected).toBe(false);
+
+        installVioletThemeSet(productSet);
+        document.body.append(host);
+
+        expect(scoped.textContent).toBe(createVioletThemeCss(productSet));
+        resetVioletThemeSet();
+        expect(scoped.textContent).toBe(violetThemeCssText);
+    });
+
     it("keeps a violet-theme host's unknown preset as written and warns", () => {
         installVioletThemeSet(productSet);
         const scope = document.createElement("violet-theme");
@@ -272,6 +305,16 @@ describe("a product's replacement theme set", () => {
         expect(() => installVioletThemeSet(unsound)).toThrow(TypeError);
         expect(runtimeStyles()).toEqual([]);
         expect(getVioletThemePresets()).toEqual(["light", "dark", "high-contrast"]);
+        // An open bracket or quote would swallow the rest of the stylesheet, so each is refused.
+        for (const value of ["rgb(0 0 0", "var(--x", '"Montserrat', "'Segoe UI", "attr(x]", "a)b", "[x"]) {
+            expect(
+                validateVioletThemeSet({ defaultPreset: "a", presets: { a: [{ id: "x", value }] } }),
+                value,
+            ).toEqual([`the preset 'a' has an empty or unsafe value for 'x': ${JSON.stringify(value)}`]);
+        }
+        for (const value of ["rgb(0 0 0 / 50%)", 'local("a)b"), sans-serif', "calc((1px + 2px) * 2)", "'a(' serif"]) {
+            expect(validateVioletThemeSet({ defaultPreset: "a", presets: { a: [{ id: "x", value }] } }), value).toEqual([]);
+        }
         expect(validateVioletThemeSet({ defaultPreset: "x", presets: null } as unknown as VioletThemeSet)).toEqual([
             "the theme set has no presets object",
         ]);

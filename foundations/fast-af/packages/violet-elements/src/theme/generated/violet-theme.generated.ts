@@ -5,10 +5,8 @@
 
 import type { VioletThemeSet } from "../violet-theme-css";
 
-export type VioletBuiltInThemePreset = "light" | "dark" | "high-contrast";
-
 /** The built-in default theme set, installed when a product installs none of its own. */
-export const violetThemeBuiltInSet: VioletThemeSet = {
+export const violetThemeBuiltInSet = {
   defaultPreset: "light",
   presets: {
     "light": [
@@ -363,4 +361,4 @@ export const violetThemeBuiltInSet: VioletThemeSet = {
       { id: "z-index.toast", value: "400" },
     ],
   },
-};
+} as const satisfies VioletThemeSet;

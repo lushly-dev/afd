@@ -98,6 +98,7 @@ try {
     [`${packageName}/package.json`]: "package.json",
     [`${packageName}/tokens/theme-presets.jsonc`]: "tokens/theme-presets.jsonc",
     [`${packageName}/tokens/interface.json`]: "tokens/interface.json",
+    [`${packageName}/theme-css`]: "dist/theme/violet-theme-css.js",
   };
   for (const [specifier, expected] of Object.entries(mustResolve)) {
     const actual = resolveRuntime(specifier);
@@ -120,6 +121,41 @@ try {
     const resolved =
       resolvedModule && path.relative(installed, resolvedModule.resolvedFileName).split(path.sep).join("/");
     check(resolved === `dist/${element}.d.ts`, `TypeScript should resolve ${element}.js to its .d.ts, got ${resolved}`);
+  }
+
+  {
+    const { resolvedModule } = ts.resolveModuleName(`${packageName}/theme-css`, path.join(consumer, "index.ts"), options, ts.sys);
+    const resolved =
+      resolvedModule && path.relative(installed, resolvedModule.resolvedFileName).split(path.sep).join("/");
+    check(resolved === "dist/theme/violet-theme-css.d.ts", `TypeScript should resolve theme-css to its .d.ts, got ${resolved}`);
+  }
+
+  // A product's build checks its theme set in plain Node: theme-css and the interface must import
+  // there, with no bundler, no DOM and no element registered.
+  const nodeCheck = spawnSync(
+    process.execPath,
+    [
+      "--input-type=module",
+      "-e",
+      [
+        `import { findVioletThemeSetGaps, createVioletThemeCss } from "${packageName}/theme-css";`,
+        `import tokenInterface from "${packageName}/tokens/interface.json" with { type: "json" };`,
+        "const light = Object.keys(tokenInterface.tokens).map(id => ({ id, value: \"0\" }));",
+        "const full = findVioletThemeSetGaps({ defaultPreset: \"light\", presets: { light, sepia: [] } }, tokenInterface);",
+        "const short = findVioletThemeSetGaps({ defaultPreset: \"light\", presets: { light: light.slice(1) } }, tokenInterface);",
+        "const css = createVioletThemeCss({ defaultPreset: \"light\", presets: { light } });",
+        "console.log(JSON.stringify({ full: full.complete, short: short.missing.length, css: css.startsWith(\":root,\"), registry: typeof customElements }));",
+      ].join("\n"),
+    ],
+    { cwd: consumer, encoding: "utf8" },
+  );
+  check(nodeCheck.status === 0, `theme-css must import in plain Node: ${nodeCheck.stderr}`);
+  if (nodeCheck.status === 0) {
+    const result = JSON.parse(nodeCheck.stdout.trim());
+    check(
+      result.full === true && result.short === 1 && result.css === true && result.registry === "undefined",
+      `theme-css in plain Node gave ${nodeCheck.stdout.trim()}`,
+    );
   }
 
   const pkg = JSON.parse(readFileSync(path.join(installed, "package.json"), "utf8"));

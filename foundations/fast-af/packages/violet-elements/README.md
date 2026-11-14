@@ -52,6 +52,7 @@ import "@lushly-dev/violet-elements";
 
 - `@lushly-dev/violet-elements/custom-elements.json` is the Custom Elements Manifest (also referenced by the `customElements` field).
 - `@lushly-dev/violet-elements/tokens/*` exposes the token sources: `tokens/interface.json`, the custom properties the components read, and `tokens/violet-theme.export.json`, the built-in default theme.
+- `@lushly-dev/violet-elements/theme-css` is the Node-safe theme-set helpers (`findVioletThemeSetGaps` and the types), side-effect free; see [Runtime Theme](#runtime-theme).
 - Element modules register themselves when imported, so the package declares `sideEffects: true`.
 
 ## Storybook Review
@@ -133,6 +134,15 @@ installVioletTheme();
 applyVioletThemePreset(document, "dark");
 ```
 
+The runtime (`dist/theme/violet-theme-runtime.js`) never imports the built-in set's values:
+`installVioletTheme()` loads them on first use with a dynamic import (a chunk of its own in a
+bundle) and writes the stylesheet when they arrive; `await loadVioletBuiltInTheme()` to know it is
+applied. Until then the components render their literal fallbacks, which are the built-in light
+values. The package root re-exports the built-in values (`violetThemeCssText` and the rest), so it
+loads them; a product that installs its own set and keeps them out of its bundle imports the
+element modules and `@lushly-dev/violet-elements/dist/theme/violet-theme-runtime.js` instead of the
+root.
+
 A product that brings its own Violet tree installs its complete theme set as data instead. The
 set replaces the built-in default, which is then never written, wherever this package installed a
 theme, scoped `violet-theme` hosts in shadow roots included. Preset names are the product's:
@@ -155,16 +165,38 @@ applyVioletThemeRoot(panel, "dark");
 
 - `installVioletThemeSet(set, target?)` throws a `TypeError` for an unsound set (an unknown
   default preset, a preset name other than letters, digits, `-` and `_`, a malformed or repeated
-  id, or a value holding `;`, `{`, `}`, `<`, `>`, a backslash, a comment or a line break).
-- `findVioletThemeSetGaps(set, tokenInterface)` lists every interface id a preset does not
-  supply; run it in the product's build with the `tokens/interface.json` of the installed version.
-  Ids the interface lacks are allowed.
+  id, or a value holding `;`, `{`, `}`, `<`, `>`, a backslash, a comment, a line break, an
+  unclosed quote or an unbalanced `(` or `[`).
+- **Completeness is the product's check.** At runtime an id a set omits is not an error: the
+  component silently uses its literal `var()` fallback, the built-in light value. Run
+  `findVioletThemeSetGaps(set, tokenInterface)` in the product's build, with the
+  `tokens/interface.json` of the installed version. It returns `{ problems, missing, complete }`:
+  `problems` from `validateVioletThemeSet`, `missing` as `{ preset, id, property }` for every
+  interface id a preset does not supply (counting what it inherits from the default). Ids the
+  interface lacks are allowed.
+- `@lushly-dev/violet-elements/theme-css` is the Node-safe entry for that check: side-effect
+  free, with no DOM and no element registration (the package root registers every element and
+  does not load in plain Node). It exports `findVioletThemeSetGaps`, `validateVioletThemeSet`,
+  `createVioletThemeCss`, `violetTokenProperty`, `VIOLET_TOKEN_TYPES` and the types
+  (`VioletThemeSet`, `VioletTokenInterface`, `VioletTokenType`, `VioletThemeSetGaps`):
+
+  ```ts
+  import { findVioletThemeSetGaps } from "@lushly-dev/violet-elements/theme-css";
+  import tokenInterface from "@lushly-dev/violet-elements/tokens/interface.json" with { type: "json" };
+
+  const { problems, missing, complete } = findVioletThemeSetGaps(themeSet, tokenInterface);
+  if (!complete) throw new Error([...problems, ...missing.map(gap => `${gap.preset}: ${gap.id}`)].join("
+"));
+  ```
 - `applyVioletThemePreset`, `applyVioletThemeRoot` and `normalizeVioletThemePreset` throw a
   `RangeError` for a name the installed set lacks; it is never mapped to the default. A
   `violet-theme` host keeps such a name as written and warns.
 - `getVioletThemePresets()` and `getVioletThemeDefaultPreset()` describe the installed set;
-  `resetVioletThemeSet()` goes back to the built-in one. `violetThemeBuiltInSet`,
-  `violetThemePresets` and `violetThemeCssText` are the built-in set.
+  `resetVioletThemeSet()` goes back to the built-in one. `violetThemeBuiltInSet` (typed narrowly,
+  `as const`), `violetThemePresets`, `VIOLET_THEME_DEFAULT_PRESET` and `violetThemeCssText` are the
+  built-in set.
+- Runtime styles are tracked weakly and rewritten on every change, so a shadow root detached when
+  the set changed is current when it is attached again.
 
 ```html
 <violet-theme preset="dark">

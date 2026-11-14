@@ -2,60 +2,85 @@
  * Installs a Violet theme set and selects its presets on the document or a scoped
  * `[data-violet-theme-root]`.
  *
- * With nothing installed, the active set is the built-in default (`violetThemeBuiltInSet`), so
- * `installVioletTheme()` stays the zero-config route. A product that brings its own tree calls
- * `installVioletThemeSet()` instead: its set replaces the built-in one wherever this module has
- * installed a theme, and the built-in stylesheet is never written.
+ * With nothing installed, the active set is the built-in default, so `installVioletTheme()` stays
+ * the zero-config route. A product that brings its own tree calls `installVioletThemeSet()`
+ * instead: its set replaces the built-in one wherever this module has installed a theme.
+ *
+ * The built-in set's values live in `violet-theme-builtin`, which this module never imports
+ * statically: `installVioletTheme()` loads it on first use, with a dynamic import, and writes its
+ * stylesheet once it arrives (the components' literal fallbacks are its light values meanwhile). A
+ * product that installs its own set first never loads it, and a bundler keeps it in a chunk of its
+ * own.
  */
-import { violetThemeBuiltInSet } from "./generated/violet-theme.generated";
+import { VIOLET_THEME_DEFAULT_PRESET, violetThemePresets } from "./generated/violet-theme-presets.generated";
 import {
     createVioletThemeCss,
     VIOLET_THEME_PRESET_ATTRIBUTE,
     VIOLET_THEME_ROOT_ATTRIBUTE,
     type VioletThemePreset,
     type VioletThemeSet,
-    violetTokenProperty,
 } from "./violet-theme-css";
 
-export type { VioletBuiltInThemePreset } from "./generated/violet-theme.generated";
-export { violetThemeBuiltInSet };
+export {
+    VIOLET_THEME_DEFAULT_PRESET,
+    type VioletBuiltInThemePreset,
+    violetThemePresets,
+} from "./generated/violet-theme-presets.generated";
 
-/** The built-in default set's default preset. */
-export const VIOLET_THEME_DEFAULT_PRESET = violetThemeBuiltInSet.defaultPreset;
-
-/** The built-in default set's presets. */
-export const violetThemePresets: readonly VioletThemePreset[] = Object.keys(violetThemeBuiltInSet.presets);
-
-/** The built-in default set's stylesheet. */
-export const violetThemeCssText = createVioletThemeCss(violetThemeBuiltInSet);
-
-/** The built-in default set's declarations, per preset, one `  --property: value;` per line. */
-export const violetThemeDeclarationsByPreset: Readonly<Record<VioletThemePreset, string>> = Object.fromEntries(
-    Object.entries(violetThemeBuiltInSet.presets).map(([name, tokens]) => [
-        name,
-        tokens.map(token => `  ${violetTokenProperty(token.id)}: ${token.value};`).join("\n"),
-    ]),
-);
-
-/** The built-in default preset's declarations. */
-export const violetThemeDeclarations = violetThemeDeclarationsByPreset[VIOLET_THEME_DEFAULT_PRESET];
-
-interface ActiveThemeSet {
+interface ProductThemeSet {
     readonly cssText: string;
     readonly presets: readonly VioletThemePreset[];
     readonly defaultPreset: VioletThemePreset;
 }
 
-const builtIn: ActiveThemeSet = {
-    cssText: violetThemeCssText,
-    presets: violetThemePresets,
-    defaultPreset: VIOLET_THEME_DEFAULT_PRESET,
-};
+/** The product's set; `null` while the built-in default is active. */
+let product: ProductThemeSet | null = null;
+/** The built-in stylesheet, once its module has loaded. */
+let builtInCssText: string | undefined;
+let builtInLoad: Promise<string> | undefined;
 
-let active: ActiveThemeSet = builtIn;
+/**
+ * Every runtime style element this module wrote, held weakly so a removed shadow root's style can
+ * be collected, and written on every change, connected or not, so one reattached later is current.
+ */
+const installedStyles = new Set<WeakRef<HTMLStyleElement>>();
+const trackedStyles = new WeakSet<HTMLStyleElement>();
 
-/** Every runtime style element this module wrote, so a newly installed set reaches all of them. */
-const installedStyles = new Set<HTMLStyleElement>();
+function activePresets(): readonly VioletThemePreset[] {
+    return product?.presets ?? violetThemePresets;
+}
+
+function activeDefaultPreset(): VioletThemePreset {
+    return product?.defaultPreset ?? VIOLET_THEME_DEFAULT_PRESET;
+}
+
+/** The active stylesheet; empty while the built-in one is still loading. */
+function activeCssText(): string {
+    if (product !== null) {
+        return product.cssText;
+    }
+    if (builtInCssText === undefined) {
+        void loadVioletBuiltInTheme();
+        return "";
+    }
+    return builtInCssText;
+}
+
+/**
+ * Loads the built-in default set's stylesheet, writing it into every installed runtime style if no
+ * product set is active by then. `installVioletTheme()` calls it; await it to know the built-in
+ * theme is applied.
+ */
+export function loadVioletBuiltInTheme(): Promise<string> {
+    builtInLoad ??= import("./violet-theme-builtin").then(module => {
+        builtInCssText = module.violetThemeCssText;
+        if (product === null) {
+            refreshInstalledStyles();
+        }
+        return builtInCssText;
+    });
+    return builtInLoad;
+}
 
 function isShadowRoot(target: unknown): target is ShadowRoot {
     return typeof ShadowRoot !== "undefined" && target instanceof ShadowRoot;
@@ -92,20 +117,25 @@ function writeStyle(target: Document | ShadowRoot): HTMLStyleElement {
     const style = existing instanceof HTMLStyleElement ? existing : ownerDocument.createElement("style");
 
     style.dataset.violetTheme = "runtime";
-    style.textContent = active.cssText;
+    style.textContent = activeCssText();
     if (!style.isConnected) {
         styleContainer.append(style);
     }
-    installedStyles.add(style);
+    if (!trackedStyles.has(style)) {
+        trackedStyles.add(style);
+        installedStyles.add(new WeakRef(style));
+    }
     return style;
 }
 
 function refreshInstalledStyles(): void {
-    for (const style of installedStyles) {
-        if (style.isConnected) {
-            style.textContent = active.cssText;
+    const cssText = activeCssText();
+    for (const ref of installedStyles) {
+        const style = ref.deref();
+        if (style === undefined) {
+            installedStyles.delete(ref);
         } else {
-            installedStyles.delete(style);
+            style.textContent = cssText;
         }
     }
 }
@@ -113,7 +143,8 @@ function refreshInstalledStyles(): void {
 /**
  * Writes the active theme set's stylesheet into `target` (the document's head by default, or a
  * shadow root), reusing the runtime style element already there. The active set is the built-in
- * default unless `installVioletThemeSet()` installed another.
+ * default unless `installVioletThemeSet()` installed another; the built-in stylesheet is written
+ * when its module has loaded (`loadVioletBuiltInTheme()`).
  */
 export function installVioletTheme(target: Document | ShadowRoot = document): HTMLStyleElement {
     return writeStyle(target);
@@ -141,7 +172,7 @@ export function installVioletThemeSet(
     themeSet: VioletThemeSet,
     target: Document | ShadowRoot = document,
 ): HTMLStyleElement {
-    active = {
+    product = {
         cssText: createVioletThemeCss(themeSet),
         presets: Object.keys(themeSet.presets),
         defaultPreset: themeSet.defaultPreset,
@@ -152,23 +183,23 @@ export function installVioletThemeSet(
 
 /** Makes the built-in default the active set again and rewrites every installed runtime style. */
 export function resetVioletThemeSet(): void {
-    active = builtIn;
+    product = null;
     refreshInstalledStyles();
 }
 
 /** The active set's preset names. */
 export function getVioletThemePresets(): readonly VioletThemePreset[] {
-    return active.presets;
+    return activePresets();
 }
 
 /** The active set's default preset. */
 export function getVioletThemeDefaultPreset(): VioletThemePreset {
-    return active.defaultPreset;
+    return activeDefaultPreset();
 }
 
 /** Whether `value` names a preset of the active set. */
 export function isVioletThemePreset(value: string | null | undefined): value is VioletThemePreset {
-    return typeof value === "string" && active.presets.includes(value);
+    return typeof value === "string" && activePresets().includes(value);
 }
 
 /**
@@ -178,12 +209,12 @@ export function isVioletThemePreset(value: string | null | undefined): value is 
  */
 export function normalizeVioletThemePreset(value: string | null | undefined): VioletThemePreset {
     if (value === null || value === undefined || value === "") {
-        return active.defaultPreset;
+        return activeDefaultPreset();
     }
     if (isVioletThemePreset(value)) {
         return value;
     }
-    throw new RangeError(`Unknown Violet theme preset '${value}'; the installed presets are ${active.presets.join(", ")}`);
+    throw new RangeError(`Unknown Violet theme preset '${value}'; the installed presets are ${activePresets().join(", ")}`);
 }
 
 /**
@@ -200,7 +231,7 @@ export function applyVioletThemePreset<T extends Document | HTMLElement>(target:
  * written, or the active set's default when it has none.
  */
 export function getVioletThemePreset(target: Document | HTMLElement = document): VioletThemePreset {
-    return resolvePresetTarget(target).getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE) || active.defaultPreset;
+    return resolvePresetTarget(target).getAttribute(VIOLET_THEME_PRESET_ATTRIBUTE) || activeDefaultPreset();
 }
 
 /** Marks an element as a scoped theme root and selects a preset of the active set on it. */

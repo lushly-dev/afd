@@ -20,17 +20,14 @@ export function inlinePadding(element: Element): number {
 }
 
 /**
- * The body font family the theme resolves at the document root (`--font-family-body`), or the
- * generic `sans-serif` when no theme sets one. Autosize measures with it when there is no rendered
- * cell to read a font from, so it never assumes a typeface the page does not use.
+ * The font to measure an element's text in. With no element, the family `fallback` computes (the
+ * grid host, so `--violet-data-grid-font-family` and a scoped theme apply) at 500 14px, or the
+ * generic `sans-serif`: autosize never assumes a typeface the grid does not use.
  */
-function resolvedBodyFontFamily(): string {
-    return getComputedStyle(document.documentElement).getPropertyValue("--font-family-body").trim() || "sans-serif";
-}
-
-export function fontForElement(element: Element | null): string {
+export function fontForElement(element: Element | null, fallback: Element | null = null): string {
     if (!element) {
-        return `500 14px ${resolvedBodyFontFamily()}`;
+        const family = fallback ? getComputedStyle(fallback).fontFamily : "";
+        return `500 14px ${family || "sans-serif"}`;
     }
 
     const style = getComputedStyle(element);
@@ -108,6 +105,8 @@ export function autosizedColumnWidth<RowLike extends VioletDataGridIdLike>(optio
     getCellText: (location: { rowId: string; columnId: string }) => string;
     sampleRows: RowLike[];
     measurementCanvas: HTMLCanvasElement | null;
+    /** The grid host, whose computed font family measures text when no cell is rendered. */
+    fontSource?: Element | null;
 }): number {
     const {
         columnId,
@@ -117,14 +116,15 @@ export function autosizedColumnWidth<RowLike extends VioletDataGridIdLike>(optio
         getCellText,
         sampleRows,
         measurementCanvas,
+        fontSource = null,
     } = options;
 
     if (!column) {
         return minimumColumnWidth(headerCell);
     }
 
-    const headerFont = fontForElement(headerCell);
-    const cellFont = fontForElement(sampleCell);
+    const headerFont = fontForElement(headerCell, fontSource);
+    const cellFont = fontForElement(sampleCell, fontSource);
     const headerPadding = headerCell ? inlinePadding(headerCell) : 0;
     const cellPadding = sampleCell ? inlinePadding(sampleCell) : headerPadding;
     const sortAllowance = column.sortable ? 24 : 0;

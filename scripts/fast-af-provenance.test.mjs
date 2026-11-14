@@ -113,6 +113,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	}
 	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers,
 	// the label-in-name change (#971) reached six more files, five of them specs, and the token
-	// interface (#1190) adapted the files that hard-coded a typeface or read the generated theme.
-	assert(checked > 630, `only ${checked} unchanged upstream files`);
+	// interface (#1190) adapted the files that hard-coded a typeface or read the generated theme
+	// (636 on its branch alone; the count after #1194's repairs is set when they merge).
+	assert(checked > 634, `only ${checked} unchanged upstream files`);
 });

@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
     autosizedColumnWidth,
     cssLengthToPixels,
+    fontForElement,
     inlinePadding,
     minimumColumnWidth,
     resolvedColumnWidth,
@@ -67,5 +68,16 @@ describe("violet-data-grid-sizing helpers", () => {
         });
 
         expect(width).toBeGreaterThanOrEqual(72);
+    });
+
+    it("measures with the grid host's font family when no cell is rendered", () => {
+        const host = document.createElement("div");
+        host.style.setProperty("--violet-data-grid-font-family", "Georgia, serif");
+        host.style.fontFamily = "var(--violet-data-grid-font-family)";
+        document.body.append(host);
+
+        expect(fontForElement(null, host)).toBe("500 14px Georgia, serif");
+        expect(fontForElement(null)).toBe("500 14px sans-serif");
+        host.remove();
     });
 });
