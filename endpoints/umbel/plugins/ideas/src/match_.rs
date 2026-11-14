@@ -245,8 +245,9 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
         .map(|r| r["candidates"].as_array().map_or(0, Vec::len))
         .max()
         .unwrap_or(0);
-    let build = |each: usize| {
-        let shown: Vec<Value> = results
+    // `build(inputs, each)`: the first `inputs` results, each cut to `each` candidates.
+    let build = |inputs: usize, each: usize| {
+        let shown: Vec<Value> = results[..inputs]
             .iter()
             .map(|result| {
                 let mut result = result.clone();
@@ -256,7 +257,7 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
                 result
             })
             .collect();
-        let omitted: usize = results
+        let omitted: usize = results[..inputs]
             .iter()
             .map(|r| {
                 r["candidates"]
@@ -280,5 +281,13 @@ pub(crate) fn run(input: &Value, cx: &Cx, call: &Call) -> Result<Outcome, Outcom
             "candidates",
         )
     };
-    Ok(budget::fit_count(most, cx.call().output_budget, build).1)
+    let budget = cx.call().output_budget;
+    let (each, fitted) = budget::fit_count(most, budget, |each| build(results.len(), each));
+    // Every result cut to no candidates is not an answer (amendment F-3): the owner's first use
+    // read 64 empty lists as "nothing near". Refused, with how many inputs keep one each.
+    if each == 0 && most > 0 {
+        let (fit, _) = budget::fit_count(results.len(), budget, |inputs| build(inputs, 1));
+        return Err(fail::match_too_large(results.len(), fit.max(1), budget));
+    }
+    Ok(fitted)
 }
