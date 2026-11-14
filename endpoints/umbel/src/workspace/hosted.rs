@@ -1958,7 +1958,7 @@ pub(crate) fn check_person_origin(url: &str, allowed_hosts: &[String]) -> Result
 /// An absolute `https` URL as an issuer or the resource is written: `https://host[:port][path]`
 /// in visible ASCII, without user information, query or fragment. Returns the host, the port as
 /// written and the path.
-fn split_https_url(url: &str) -> Result<(&str, Option<&str>, &str), String> {
+pub(super) fn split_https_url(url: &str) -> Result<(&str, Option<&str>, &str), String> {
     let shape = || {
         format!("`{url}` must be an absolute https URL without user information, query or fragment")
     };

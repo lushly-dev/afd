@@ -886,7 +886,9 @@ fn auth_checks(
 /// `person.local` (the Ideas host-review specification, section 6.5): passes when the local
 /// person page is not enabled; warns when it is, naming what it does not prove. It has no
 /// sign-in: an agent with a shell can start `umbel person page-serve` itself and post the form,
-/// so turning it on relaxes what an agent variable withholds at a terminal.
+/// so turning it on relaxes what an agent variable withholds at a terminal. With
+/// `person.local.public_origin` set, it also says that whatever reaches that origin can confirm,
+/// and, while the page is not enabled, that the key has no effect (A49).
 fn person_local(config: Option<&crate::workspace::Config>) -> Check {
     const ID: &str = "person.local";
     let Some(config) = config else {
@@ -914,6 +916,17 @@ fn person_local(config: Option<&crate::workspace::Config>) -> Check {
         parts.insert(0, format!(
             "The local person page is enabled at http://{}/d/. It has no sign-in, so a decision made there shows only that something on this machine posted its form, not that a person clicked: an agent can start umbel person page-serve itself and post the form. Loopback is shared by every account on this machine, so another user can read the list and the previews and approve, and any process here can read what they show. Its decisions are recorded as local, never verified, and a call for verified content leaves them out unless a space's verified_levels lists local",
             local.bind
+        ));
+        // Behind a proxy (A49): the page is reachable from wherever that origin is.
+        if let Some(origin) = &local.public_origin {
+            parts.insert(1, format!(
+                "person.local.public_origin is {origin}: anyone who can reach that origin can confirm the local person's decisions with no login, so it must be reachable only on a private network you control, through a proxy on this same machine"
+            ));
+        }
+    } else if let Some(origin) = &local.public_origin {
+        // Set, but nothing serves it: the key has no effect (A49).
+        parts.insert(0, format!(
+            "person.local.public_origin is {origin}, but the local person page is not enabled, so the key has no effect"
         ));
     }
     if parts.is_empty() {
