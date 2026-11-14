@@ -261,4 +261,32 @@ fn the_built_program_rebuilds_the_store_it_is_pointed_at() {
     assert_eq!(result["success"], true);
     assert!(directory.path().join("data/mail.sqlite3").exists());
     assert!(output.stderr.is_empty(), "no progress without a terminal");
+    // Nothing in the data directory, the index's files included, is open to
+    // others.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut entries = vec![directory.path().join("data")];
+        let mut index_files = 0;
+        while let Some(path) = entries.pop() {
+            let metadata = std::fs::metadata(&path).expect("metadata");
+            assert_eq!(
+                metadata.permissions().mode() & 0o077,
+                0,
+                "{} is open to others",
+                path.display()
+            );
+            if metadata.is_dir() {
+                for entry in std::fs::read_dir(&path).expect("a directory") {
+                    entries.push(entry.expect("an entry").path());
+                }
+            } else if path
+                .parent()
+                .is_some_and(|parent| parent.ends_with("index"))
+            {
+                index_files += 1;
+            }
+        }
+        assert!(index_files > 0, "the rebuild made the index");
+    }
 }

@@ -13,6 +13,11 @@ use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnect
 use loam_mail::secrets::{Keychain, Secrets, account_key};
 
 fn main() -> ExitCode {
+    // Everything the program creates is its owner's alone (the specification's
+    // 3.1), including the files of libraries that use the default mode, such as
+    // the search index's.
+    #[cfg(unix)]
+    rustix::process::umask(rustix::fs::Mode::from_raw_mode(0o077));
     let args: Vec<String> = std::env::args().skip(1).collect();
     let home = Home::resolve(|name| std::env::var(name).ok()).ok();
     let secrets: Arc<dyn Secrets> = Arc::new(Keychain);

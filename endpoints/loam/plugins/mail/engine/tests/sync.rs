@@ -946,6 +946,130 @@ fn a_message_the_engine_cannot_read_is_passed_over() {
 }
 
 #[test]
+fn a_batch_that_keeps_failing_is_narrowed_to_its_own_messages_alone() {
+    // Bodies are asked for two at a time by their bytes, under a batch of
+    // 400 by count. When the first batch keeps failing, only its two messages
+    // are asked for one at a time; the rest go back to batches of two.
+    let size = message(10, "Hello", None, "hi").len() as u64;
+    let fixture = Fixture::with(
+        true,
+        true,
+        PASSWORD,
+        Options {
+            body_batch: 400,
+            body_batch_bytes: 2 * size,
+            retries: 1,
+            ..Options::default()
+        },
+    );
+    let poisoned;
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        let mut newest = 0;
+        for n in 10..19 {
+            newest = world.add("INBOX", message(n, "Hello", None, "hi"), &[]);
+        }
+        poisoned = newest;
+        world.find("INBOX").poison_body.insert(poisoned);
+    }
+    fixture.pass().unwrap();
+    let inbox = fixture.mailbox("INBOX");
+    let status = fixture
+        .engine
+        .with_store(|store| store.mailbox_status(inbox.id))
+        .unwrap();
+    assert_eq!(status.counts.bodies_held, 8);
+    let bodies: Vec<String> = fetches(&fixture.server.take_log())
+        .into_iter()
+        .filter(|command| command.contains("BODY.PEEK[]"))
+        .collect();
+    let set = |command: &str| command.split(' ').nth(2).unwrap_or("").to_string();
+    let last_poisoned = bodies
+        .iter()
+        .rposition(|command| set(command) == poisoned.to_string())
+        .unwrap();
+    let after: Vec<String> = bodies[last_poisoned + 1..].iter().map(|c| set(c)).collect();
+    // The poisoned message's batch-mate alone, then batches of two again,
+    // newest first.
+    assert_eq!(after, ["8", "6:7", "4:5", "2:3", "1"]);
+}
+
+#[test]
+fn a_mailbox_whose_opening_nests_too_deep_stops_for_the_pass_and_passes_nothing_over() {
+    let fixture = Fixture::new(true, true);
+    populate(&fixture.server);
+    fixture.pass().unwrap();
+    {
+        let mut world = fixture.server.world();
+        world.nest_examine_of = Some("Archive".to_string());
+        world.add("INBOX", message(20, "Later", None, "news"), &[]);
+    }
+    fixture.later(1);
+    let report = fixture.pass().unwrap();
+    let archive = report
+        .mailboxes
+        .iter()
+        .find(|mailbox| mailbox.mailbox == fixture.mailbox("Archive").id.0)
+        .unwrap();
+    assert!(archive.error.is_some(), "{archive:?}");
+    assert_eq!((archive.not_returned, archive.added), (0, 0), "{archive:?}");
+    let inbox = report
+        .mailboxes
+        .iter()
+        .find(|mailbox| mailbox.mailbox == fixture.mailbox("INBOX").id.0)
+        .unwrap();
+    assert_eq!(
+        (inbox.added, inbox.error.as_deref()),
+        (1, None),
+        "{inbox:?}"
+    );
+    // Every other mailbox went on, on a new connection.
+    assert_eq!(
+        report
+            .mailboxes
+            .iter()
+            .filter(|mailbox| mailbox.error.is_some())
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn a_message_fetched_in_parts_that_keeps_failing_narrows_to_itself() {
+    // Over the whole limit, so fetched in parts, its part requests break;
+    // the small messages after it go back to one batch.
+    let fixture = Fixture::with(
+        true,
+        true,
+        PASSWORD,
+        Options {
+            whole_limit: 2_000,
+            retries: 1,
+            ..Options::default()
+        },
+    );
+    let large;
+    {
+        let mut world = fixture.server.world();
+        world.mailbox("INBOX", &[]);
+        for n in 10..14 {
+            world.add("INBOX", message(n, "Hello", None, "hi"), &[]);
+        }
+        large = world.add("INBOX", message(14, "Big", None, &"x".repeat(5_000)), &[]);
+        world.find("INBOX").poison_body.insert(large);
+    }
+    fixture.pass().unwrap();
+    let bodies: Vec<String> = fetches(&fixture.server.take_log())
+        .into_iter()
+        .filter(|command| command.contains("BODY.PEEK[]"))
+        .map(|command| command.split(' ').nth(2).unwrap_or("").to_string())
+        .collect();
+    // The four small messages, newest first, in one request.
+    assert_eq!(bodies, ["1:4"], "{bodies:?}");
+}
+
+#[test]
 fn a_generation_that_changed_since_the_last_pass_begins_the_mailbox_again() {
     let fixture = Fixture::new(true, true);
     populate(&fixture.server);

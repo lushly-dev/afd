@@ -1,0 +1,125 @@
+{
+	"step": "B7, the iCloud half",
+	"date": "2026-11-13",
+	"what": "The acceptance run on the owner's iCloud account: the account added at the terminal, the release build's `serve` syncing it in the background into the real data directory from empty to synced, then reads from the command line and by an agent over MCP, and the limits of the specification's 4.4 on that store. Reading only: EXAMINE and BODY.PEEK. Counts and milliseconds only: no address, subject, mailbox name or text.",
+	"machine": "the owner's Mac (Apple silicon, macOS), release build, Rust 1.98.0",
+	"firstSync": {
+		"started": "15:26",
+		"headersDone": "about 17:00",
+		"bodiesDone": "about 22:00",
+		"synced": "23:04",
+		"note": "One pass from 15:26 to about 22:00 read every header and every body; two passes after it gave the messages listed and not returned their second and third tries, an hour apart. The body batch was 50 a request throughout (the release build predates the change to 400).",
+		"mailboxes": 36,
+		"mailboxesSynced": 36,
+		"mailboxErrors": 0,
+		"listed": 307164,
+		"headers": 293932,
+		"messages": 293929,
+		"countingNote": "mail-status counts a message once in each mailbox that shows it: 3 messages are shown in two mailboxes, so 293 932 headers and 292 581 bodies by mailbox are 293 929 messages and 292 578 bodies held (292 038 whole, 540 in parts).",
+		"largestMailbox": {
+			"role": "none",
+			"listed": 284445,
+			"headers": 271213,
+			"bodies": 271213,
+			"unreturned": 13232
+		},
+		"bodiesPerMinute": {
+			"otherMailboxes": "about 250",
+			"largestMailbox": "650 to 1 000"
+		},
+		"engineCpu": "under 2% of one core while fetching bodies"
+	},
+	"unreturned": {
+		"listedNotReturned": 13232,
+		"afterThreeTries": 13232,
+		"note": "Every message iCloud listed and did not return reached unreturned after its third try, an hour after the second, and the largest mailbox then reached synced (5.4, 5.7). The same 13 232 as the first pass of step B3."
+	},
+	"bodies": {
+		"heldWhole": 292038,
+		"over1MiBReported": 541,
+		"over1MiBHeldInParts": 540,
+		"structureRefusedByNestingLimit": 0,
+		"unparsed": 0,
+		"bodyMissingAfterThreeTries": 1,
+		"bodyMissingNote": "One message of 2.8 MiB in the mailbox whose role is archive, not the largest mailbox; it is the 541st message over 1 MiB. A read-only probe on a new connection: iCloud lists it and returns its header, and closes the connection when asked for its BODYSTRUCTURE or its whole body. The engine narrowed the failure to that message, counted three tries and went on (5.4)."
+	},
+	"aPassWithNothingNew": {
+		"seconds": 12.9,
+		"totals": {
+			"added": 0,
+			"changed": 0,
+			"removed": 0,
+			"bodies": 0,
+			"notReturned": 0,
+			"setAside": 0,
+			"errors": 0
+		},
+		"note": "The server's own background pass on the synced store, five minutes after the last. Step B5 measured 12.7 s on a store with headers only."
+	},
+	"bodyBatch": {
+		"what": "A second, read-only connection to the largest mailbox while the server synced, timing one request for whole messages by its size.",
+		"byRequestSize": [
+			{ "messages": 50, "returned": 50, "seconds": 5.19, "kiB": 523 },
+			{ "messages": 50, "returned": 50, "seconds": 4.09, "kiB": 584 },
+			{ "messages": 100, "returned": 100, "seconds": 5.03, "kiB": 1108 },
+			{ "messages": 100, "returned": 100, "seconds": 6.51, "kiB": 971 },
+			{ "messages": 200, "returned": 200, "seconds": 12.27, "kiB": 2097 },
+			{ "messages": 200, "returned": 199, "seconds": 9.59, "kiB": 2052 },
+			{ "messages": 400, "returned": 400, "seconds": 18.54, "kiB": 4245 },
+			{ "messages": 400, "returned": 397, "seconds": 15.27, "kiB": 4041 }
+		],
+		"serverBodiesPerMinuteDuringProbe": 806,
+		"conclusion": "A straight line through the eight requests gives about 2.8 s for each request and 36 ms for each message in it, so 50 a request read 10 to 12 messages a second and 400 read 22 to 26. The server's own rate did not drop while the probe ran on a second connection, so the line was not the limit. The default body batch is now 400, still at most 8 MiB."
+	},
+	"limits": {
+		"what": "The specification's 4.4 on the synced store, over MCP with an agent's token, 100 calls each.",
+		"listFiftyThreadsP95Ms": { "limit": 50, "measured": 0.57 },
+		"searchFiftyP95Ms": { "limit": 200, "measured": 4.21 },
+		"openOneMessageP95Ms": { "limit": 50, "measured": 3.27 },
+		"tablesAndIndexAgainstBytesWithoutAttachments": {
+			"limit": 3,
+			"measured": 0.27,
+			"databaseBytes": 1522796984,
+			"indexBytes": 150732800,
+			"reportedBytes": 7886527145,
+			"attachmentBytes": 1678982010
+		},
+		"dataDirectoryAgainstBytesHeld": {
+			"limit": 1.5,
+			"measured": 0.76,
+			"dataDirectoryBytes": 5334925312,
+			"heldBytes": 7058514896
+		},
+		"importStoreSide": "not measured here: a first sync waits on iCloud, and the engine used under 2% of a core",
+		"readsDuringAFirstSync": "not measured: the reads above ran on the synced store. The store is held while a batch is derived and indexed, which at 400 a batch is eight times longer than at 50",
+		"largestTables": {
+			"linkBytes": 1108627456,
+			"linkMiB": 1057,
+			"envelopeMiB": 172,
+			"links": 7151309,
+			"messagesWithLinks": 289036
+		}
+	},
+	"reads": {
+		"commandLine": {
+			"mailSearchHits": 50,
+			"mailThreadListThreads": 50,
+			"actorKind": "script"
+		},
+		"agentOverMcp": {
+			"noToken": 401,
+			"toolsListed": 5,
+			"personsCommandsListed": 0,
+			"mailAccountRemove": "COMMAND_NOT_FOUND",
+			"afdBatch": "ONE_COMMAND_PER_CALL",
+			"mailThreadListThreads": 50,
+			"mailSearchHits": [50, 50],
+			"stringsOutsideAContentPart": "engine vocabulary only (authentication results, unsubscribe kind, mailbox role) and the list's opaque cursor"
+		}
+	},
+	"privacy": {
+		"passwordInJournalOrDatabase": 0,
+		"journalEntries": 5,
+		"filesOthersCouldRead": "65 before the change: the index directory and its files, created with the default mode inside the data directory only the owner can enter. The index now makes its directory 0700 and the program sets its file mode mask to 077; the run's store was closed to match, and none is left"
+	}
+}

@@ -155,7 +155,11 @@ fails on a licence outside its allowlist, and the workflow runs it with the othe
 
 One directory holds everything: the platform's application-data directory for `loam-mail`
 (`~/Library/Application Support/loam-mail` on macOS), or `LOAM_MAIL_HOME`. It is created with
-mode `0700` and its files with `0600`.
+mode `0700` and its files with `0600`. The program sets its file mode mask to `077`, so the files
+a library creates with the default mode, such as the search index's, are the owner's alone too.
+Where the engine runs inside another program, which keeps its own mask, the index's files may be
+open to others, and its directory and the data directory, both `0700`, keep others from reaching
+them.
 
 | Entry | Holds |
 | --- | --- |
@@ -597,6 +601,23 @@ five in six. Every limit is met ([the results](limits-500000-icloud.results.json
   two threads, and every hundredth message joins one thread that grows to 5 000. The template
   copies share their template's text and add their own words.
 
+**Measured by step B7** on 2026-11-13 on the owner's iCloud account, synced from empty by the
+release build's `serve`: 293 929 messages in 36 mailboxes (293 932 counted once in each mailbox
+that shows one), 7.1 GB held, with an agent's token
+over MCP, 100 calls each ([the results](live-icloud-b7.results.json)):
+
+| Measure | Limit | Measured |
+| --- | --- | --- |
+| List 50 threads, 95th percentile | 50 ms | 0.57 ms |
+| Search and read back 50, 95th percentile | 200 ms | 4.21 ms |
+| Import, store side | 500 a second | Not measured: a first sync waits on iCloud, and the engine used under 2% of a core |
+| The tables and the index, against the messages' bytes without attachments | 3 times | 0.27 times |
+| Open one message, 95th percentile | 50 ms | 3.27 ms |
+| The whole data directory on the disk, against the bytes held | 1.5 times | 0.76 times |
+
+The largest table is `link`, 1.11 GB of the database's 1.52 GB: 7.2 million links in 289 000
+messages, most of them in the largest mailbox.
+
 ## 5. Sync
 
 ### 5.1 The provider interface
@@ -634,7 +655,10 @@ says which role.
   `EXAMINE`, `UID SEARCH`, `UID FETCH` with `BODY.PEEK`, and `LOGOUT`, and nothing else; a test
   over the scripted server fails if any other command is sent. Step B4 adds `UID FETCH` of
   `BODYSTRUCTURE`, and of `BODY.PEEK` at a part's place, for a message fetched in parts (M20).
-- **First sync.** `UID SEARCH ALL`, then headers in batches of 250, newest first, then bodies.
+- **First sync.** `UID SEARCH ALL`, then headers in batches of 250, newest first, then bodies
+  in batches of up to 400 or 8 MiB. Step B7 measured iCloud at about 2.8 seconds for each request
+  and 36 milliseconds for each message in it: 50 messages a request read 10 to 12 a second, 400
+  read 22 to 26.
   The cursor (the next UID and the highest mod-sequence) is stored once every listed message has
   been tried. A mailbox that stops before then is listed again on the next pass, and only what it
   does not yet show is fetched: the stop costs one listing, and the flags of what it already
@@ -655,8 +679,8 @@ says which role.
   the step that failed is tried again. A batch is the unit of progress: the cursor moves only
   after a batch is stored.
 - **A request that keeps failing** on a connection that can be opened is asked again with a new
-  connection, without counting toward giving up the pass. After two failures it is asked for a
-  message at a time, and a message whose request fails alone four times is passed over and
+  connection, without counting toward giving up the pass. After two failures the messages that
+  request asked for are asked for one at a time, and those after them in batches again; a message whose request fails alone four times is passed over and
   counted as not returned ([5.4](#54-messages-listed-and-not-returned)), so a message the engine
   cannot read never holds back its mailbox. Twenty-four such failures in a row across the
   account end the pass with `PROVIDER_UNAVAILABLE`.
@@ -940,9 +964,10 @@ engine computes it beside the census's figure, and how many stream stories each 
   and refuses a reply nested deeper than 32, which a message within the 20 levels above keeps
   under. The request fails with an error of its own, not as a dropped connection, and the
   connection is closed: the message is held as a structure that broke the depth limit, marked
-  `unparsed` and shown with its headers alone, and its structure is not asked for again. Any
-  other request refused that way is narrowed and passed over as one the engine cannot read
-  ([5.2](#52-imap)).
+  `unparsed` and shown with its headers alone, and its structure is not asked for again. A
+  request for a batch of messages refused that way is narrowed and passed over as one the engine
+  cannot read ([5.2](#52-imap)); any other, such as opening the mailbox, names no message, and
+  the mailbox stops for that pass with the error.
 - HTML handed to a caller for display is cleaned with `ammonia`: no script, no form, no frame,
   and every remote reference reported so the caller decides whether to load it. The engine
   loads none. As step B4 built it, a relative address is removed (a message has no page to
@@ -1436,7 +1461,7 @@ file.
 | B4 | In three pull requests. First: the evidence of [6.1](#61-what-is-read) and [6.3](#63-the-template-fingerprint), the limits of [6.4](#64-parsing-strangers-bytes), the parser's version raised and stale rows derived again, the fuzz targets, and the two decisions on the owner's mail: which authentication header is the provider's, and whether a shared subject joins a thread ([5.6](#56-threads-on-imap)). Second: labels on results ([12.1](#121-content-labels)); the read commands and `mail-search`; cleaning HTML for display; fetching a message's body when it is opened. Third: a message over 1 MiB (M20): its structure, its text parts at sync, and a file of it fetched when it is opened |
 | B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account (they did not come back; the pass now asks one request a mailbox, [5.2](#52-imap)), and `mail-account-remove` ([3.5](#35-commands-only-a-person-may-run)) |
 | B6 | Gmail sync through the API, with the scripted API |
-| B7 | The acceptance run on the owner's accounts |
+| B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |
 | C2 | Screening classes, the person's decisions and agents' suggestions, stream stories |
 | C3 | Bursts, tried on the period the owner names |
