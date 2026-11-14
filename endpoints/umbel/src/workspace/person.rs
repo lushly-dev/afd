@@ -1,6 +1,7 @@
 //! What configuration version 7 adds (the Ideas host-review specification, sections 4, 6.1 and
-//! 6.5; D180): `[person]` with `decision_ttl_s`, `[person.local]` with `enabled` and `bind`, and a
-//! space's `verified_levels`.
+//! 6.5; D180): `[person]` with `decision_ttl_s`, `[person.local]` with `enabled`, `bind` and
+//! `public_origin` (added later, additively, as D188 adds keys to version 7), and a space's
+//! `verified_levels`.
 //!
 //! This module parses, validates and stores them, each refusal a `WORKSPACE_CONFIG_INVALID`
 //! naming the key. The person page reads the decision lifetime (that specification's step H2);
@@ -30,7 +31,7 @@ pub(super) const SPACE_KEYS_V7: &[&str] = &[
 /// What version 7 adds to a space, for the message an older version gives.
 const SPACE_ADDED_V7: &[&str] = &["verified_levels"];
 const PERSON_KEYS: &[&str] = &["decision_ttl_s", "local"];
-const LOCAL_KEYS: &[&str] = &["enabled", "bind"];
+const LOCAL_KEYS: &[&str] = &["enabled", "bind", "public_origin"];
 
 /// The default `person.decision_ttl_s`, in seconds: phase 5's ten minutes.
 pub const DEFAULT_DECISION_TTL_S: u64 = crate::auth::PERSON_DECISION_TTL_S;
@@ -108,6 +109,12 @@ pub struct LocalPageConfig {
     pub enabled: bool,
     /// Where it listens: a loopback address.
     pub bind: SocketAddr,
+    /// `person.local.public_origin`: the page's origin behind a TLS-terminating proxy on this
+    /// machine, `https://<host>[:<port>]`, as a browser's `Origin` writes it (lowercase, no path,
+    /// no `:443`); `None` when not set. The page then also admits that origin's `Host` and a post
+    /// from it, and the links the host hands out name it (the Ideas host-review specification,
+    /// A46 to A50).
+    pub public_origin: Option<String>,
 }
 
 impl Default for LocalPageConfig {
@@ -115,6 +122,7 @@ impl Default for LocalPageConfig {
         Self {
             enabled: false,
             bind: SocketAddr::from(([127, 0, 0, 1], 7421)),
+            public_origin: None,
         }
     }
 }
@@ -211,7 +219,66 @@ fn local_page(table: &Table, mode: AuthMode) -> Result<LocalPageConfig, Workspac
             "the local person page needs a build with the auth feature, such as umbel-first-party",
         ));
     }
-    Ok(LocalPageConfig { enabled, bind })
+    let public_origin = match reader.string("public_origin")? {
+        None => None,
+        Some(text) => Some(
+            public_origin(&text)
+                .map_err(|p| WorkspaceError::config_invalid("person.local.public_origin", p))?,
+        ),
+    };
+    Ok(LocalPageConfig {
+        enabled,
+        bind,
+        public_origin,
+    })
+}
+
+/// `person.local.public_origin`: an `https` origin, `https://<host>[:<port>]`, with no user
+/// information, query or fragment, no path but `/`, and a host in its canonical form. Returns it
+/// as a browser's `Origin` serialises it: no trailing `/`, no `:443`.
+fn public_origin(text: &str) -> Result<String, String> {
+    if !text.starts_with("https://") {
+        return Err(format!(
+            "`{text}` must be an https origin such as https://garden-host.example-tailnet.ts.net:8443: the proxy in front of the local page terminates TLS"
+        ));
+    }
+    let (host, port, path) = super::hosted::split_https_url(text)?;
+    if !path.is_empty() && path != "/" {
+        return Err(format!(
+            "`{text}` must be an origin, https://<host>[:<port>], with no path: the page's routes are /d/... under it"
+        ));
+    }
+    super::hosted::check_canonical_host(host).map_err(|problem| format!("`{text}`: {problem}"))?;
+    let port = match port {
+        None => None,
+        Some(port) => match port.parse::<u16>() {
+            Ok(number) if number.to_string() == port => (number != 443).then_some(number),
+            _ => {
+                return Err(format!(
+                    "`{text}` must write its port as a browser's Origin does, with no leading zero"
+                ));
+            }
+        },
+    };
+    let normalized = match port {
+        Some(port) => format!("https://{host}:{port}"),
+        None => format!("https://{host}"),
+    };
+    // A browser's own reading of it must be the same origin, byte for byte: a host the URL
+    // standard refuses or rewrites (invalid punycode, an IPv4-mapped IPv6 address) is refused.
+    // Only a build with the `auth` feature, which the local page needs, has the parser.
+    #[cfg(feature = "auth")]
+    {
+        let serialized = url::Url::parse(&normalized)
+            .ok()
+            .map(|url| url.origin().ascii_serialization());
+        if serialized.as_deref() != Some(normalized.as_str()) {
+            return Err(format!(
+                "`{text}` is not an origin a browser writes the same way: write it as a browser's Origin header does"
+            ));
+        }
+    }
+    Ok(normalized)
 }
 
 /// `verified_levels` of the space table `entry` (section 6.5): the default before version 7 or
@@ -283,6 +350,43 @@ mod tests {
             assert_eq!(AssuranceLevel::parse(level.as_str()), Some(level));
         }
         assert_eq!(AssuranceLevel::parse("Verified"), None);
+    }
+
+    #[test]
+    fn a_public_origin_is_kept_as_a_browser_writes_it() {
+        let host = "https://garden-host.example-tailnet.ts.net";
+        assert_eq!(
+            public_origin(&format!("{host}:8443")).unwrap(),
+            format!("{host}:8443")
+        );
+        for written in [host.to_owned(), format!("{host}/"), format!("{host}:443")] {
+            assert_eq!(public_origin(&written).unwrap(), host, "{written}");
+        }
+        for refused in [
+            "http://garden-host.example-tailnet.ts.net:8443".to_owned(),
+            format!("{host}:8443/d/"),
+            format!("{host}/?bed=3"),
+            format!("{host}/#bed"),
+            "https://gardener@garden-host.example-tailnet.ts.net".to_owned(),
+            "https://Garden-Host.example-tailnet.ts.net".to_owned(),
+            format!("{host}:08443"),
+            format!("{host}:0"),
+            "https://".to_owned(),
+        ] {
+            assert!(public_origin(&refused).is_err(), "{refused}");
+        }
+    }
+
+    #[test]
+    #[cfg(feature = "auth")]
+    fn a_public_origin_a_browser_would_rewrite_is_refused() {
+        for refused in ["https://xn--a.example", "https://[::ffff:1.2.3.4]:8443"] {
+            assert!(public_origin(refused).is_err(), "{refused}");
+        }
+        assert_eq!(
+            public_origin("https://[::1]:8443").unwrap(),
+            "https://[::1]:8443"
+        );
     }
 
     #[test]

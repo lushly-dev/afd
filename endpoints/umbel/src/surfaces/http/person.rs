@@ -116,7 +116,9 @@ pub(crate) fn server(
 /// `[person.local]`, which configuration refuses to be anything else. Its layers: the body cap of
 /// the page's largest form, then the page's own limit and checks (its `Host` exactly the bind,
 /// against DNS rebinding; a post's `Origin` exactly `http://<bind>`; the CSRF token bound to the
-/// decision and the page shown). No TLS, no `/health`, and nothing else is served.
+/// decision and the page shown). With `person.local.public_origin` set, a TLS-terminating proxy
+/// on this machine serves it at that origin, whose `Host` and `Origin` the page also admits
+/// (A47). No TLS, no `/health`, and nothing else is served.
 ///
 /// # Errors
 /// The errors of opening `state/shared/limits.sqlite3`.
