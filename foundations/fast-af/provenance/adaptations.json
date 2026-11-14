@@ -9647,11 +9647,11 @@
       "upstream_sha256": "9d86b5b79d46a39b07784a44a675c48f24131b038dd107a80176471515e2b3d6",
       "staged_path": "vitest.config.ts",
       "staged_sha256": "cf828d91ebc971ad6a0081b18f9cfbbba91ea8751a1b8a609c08fc5ce0e634e1",
-      "current_import_sha256": "9b3bf28fc64e26f73fb1150058b7c67b86c5f8819b7fa81a0fccf05e780b7bc2",
+      "current_import_sha256": "63e241ce8132dcc79d4f8950439f8857efa73e41c7c477544014892c107532bf",
       "stage_classification": "modified-upstream",
       "stage_reason": "Candidate reduced the upstream root Vitest config to the violet project at the staging root",
       "import_classification": "modified-after-staging",
-      "import_reason": "Upstream root Vitest config moved to the violet-elements package: violet project only, paths rebased on the package directory, Storybook project excluded with Storybook; coverage thresholds and Chromium instance unchanged"
+      "import_reason": "Upstream root Vitest config moved to the violet-elements package: violet project only, paths rebased on the package directory, Storybook project excluded with Storybook; coverage thresholds and Chromium instance unchanged; Run Violet's browser specs headless so they never open a window on a developer desktop"
     },
     {
       "path": "foundations/fast-af/tsconfig.base.wc.json",
