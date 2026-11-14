@@ -56,7 +56,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "4eb884a3fe07acf89d7c563b281fe83944ec53118184675d9a6fc3d324fe8d01"
+      "sha256": "c34edbdcc7ee44402cc92fa35c0bcbf19822605b9c5859566ef4d165fc26bdb6"
     }
   },
   "units": [
@@ -89,8 +89,8 @@
   "interpretation": "upstream-selected.json describes upstream bytes only. adaptations.json maps every imported file to its upstream source (or marks it AFD-authored) with a reason for every change. Candidate hashes are context, not identity",
   "license": "MIT (packages/*/LICENSE, verbatim; the integration carries a copy of the core license)",
   "source_authority": "https://github.com/lushly-dev/violet",
-  "publisher_authority": "original Violet repository: main-branch Changesets release workflow, fixed group @lushly-dev/violet-*; sole publishing authority; no handoff authorized",
-  "publication_state": "quarantined",
+  "publisher_authority": "lushly-dev/afd release.yml through npm trusted publishing, under the preview npm tag; handed over from the original Violet repository (main-branch Changesets release workflow, fixed group @lushly-dev/violet-*, which never published) with the owner's approval on 2026-11-14, recorded in docs/features/active/platform-monorepo/violet-handoff.md",
+  "publication_state": "preview",
   "compatibility_holds": [
     "Breaking for direct importers of the moved command, result, demo and Neon names; the first publication is 0.3.0 from AFD (owner decision 2026-10-30), and the Violet repository's release PR #135 is not merged",
     "Hosted Neon and the two hosted-migration cases (packages/api/migrations, not imported) are not exercised; the Postgres leg and the Neon driver leg run in violet.yml's stores job"

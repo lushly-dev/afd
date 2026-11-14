@@ -85,12 +85,13 @@ const edges = (manifest) =>
 // Packed manifests: identities, portable ranges, licenses and no cross-family edges.
 const runtime = packedManifest(runtimeName);
 const component = packedManifest(componentName);
-const runtimeVersion = JSON.parse(
-	await readFile(join(repository, runtimeSource, 'package.json'), 'utf8')
-).version;
+const sourceVersion = async (path) =>
+	JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8')).version;
+const runtimeVersion = await sourceVersion(runtimeSource);
 assert.equal(runtime.version, runtimeVersion);
-assert.equal(component.version, '0.1.0');
-assert.equal(component.private, true, 'violet-elements keeps its upstream private flag');
+assert.equal(component.version, await sourceVersion(componentSource));
+// Published as a preview since 2026-11-14; upstream it was private and never published.
+assert.equal(component.private, undefined, 'violet-elements is publishable');
 assert.equal(Object.keys(runtime.exports).length, 38);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
@@ -100,7 +101,8 @@ assert.deepEqual(Object.keys(component.exports), [
 	'./package.json',
 ]);
 assert.deepEqual(edges(runtime), ['@webcomponents/scoped-custom-element-registry']);
-assert.deepEqual(component.peerDependencies, { [runtimeName]: runtimeVersion });
+// `workspace:^` packs as a range from the runtime it was built against, not an exact pin.
+assert.deepEqual(component.peerDependencies, { [runtimeName]: `^${runtimeVersion}` });
 assert.deepEqual(Object.keys(component.dependencies).sort(), ['@tanstack/virtual-core', 'tslib']);
 for (const manifest of [runtime, component]) {
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);

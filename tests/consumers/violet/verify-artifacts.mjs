@@ -69,11 +69,14 @@ const workspaceManifest = (path) =>
 	JSON.parse(readFileSync(join(repository, path, 'package.json'), 'utf8'));
 // The fixed group's version, so a Changesets version step needs no edit here.
 const VERSION = workspaceManifest('foundations/violet/packages/core').version;
-// Widened before each minor release (Changesets major-bumps a dependent whose peer range
-// the new version leaves); scripts/violet-provenance.test.mjs checks the widening.
-const CORE_PEER = workspaceManifest('integrations/violet-afd').peerDependencies[CORE];
+// A workspace range (scripts/violet-provenance.test.mjs checks it), which packs as the core
+// version it was built against.
+const CORE_PEER = workspaceManifest('integrations/violet-afd').peerDependencies[CORE].replace(
+	/^workspace:([~^])$/,
+	`$1${VERSION}`
+);
 // pnpm quotes a peer range that contains spaces.
-const CORE_PEER_SPEC = `${CORE}@"${CORE_PEER}"`;
+const CORE_PEER_SPEC = CORE_PEER.includes(' ') ? `${CORE}@"${CORE_PEER}"` : `${CORE}@${CORE_PEER}`;
 const checks = [];
 const passed = (name) => {
 	checks.push(name);
