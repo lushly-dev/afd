@@ -658,12 +658,12 @@
       "upstream_sha256": "d7edc73530a7f4fc9e87990b1f84b6b80015dc6b6cedc7b8c31ef7e8a1647783",
       "staged_path": "packages/specimen/package.json",
       "staged_sha256": "2c1a240634881e2fe2c7d5f691a1466d8e03e343adb7a6d359cc818964b11ba3",
-      "current_import_sha256": "5d0f716c9ab5b7c15ce632174453053dbc5e1953047d0e052dd489b37022c818",
-      "manifest_shape_sha256": "c0b1ad669d4828e81f226263684402a7d4de5eee139091f02531f4f461695239",
+      "current_import_sha256": "4abc0660812d8ec3d6cd74ab79606222b772bd0b2ae1241af03721b2a7b865da",
+      "manifest_shape_sha256": "02480a57a875ce6014938c3630630130736e7356d26e3afd23ba16f96feebbe9",
       "stage_classification": "modified-upstream",
       "stage_reason": "Remove AFD core/server dependencies and the bin; add the native ./schema export",
       "import_classification": "modified-after-staging",
-      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 2: claims, expectations and waivers; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); build:host names its target directory, because host.ts reads the release build beside the package even when CARGO_TARGET_DIR points elsewhere; TypeScript ^5.9.3 to ^7.0.2, and @typescript/typescript6 for the experiment inputs' CSF parser, since TypeScript 7 exports no compiler API (lushly-dev/afd#594); parse5 8.1 escapes < and > in attribute values, as HTML now specifies; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Browser-only type check (#811): tsconfig.browser.json checks the bench page's runtime and the test, evidence and preview entries without Node's types, and the typecheck script runs it; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Versioned for release by pnpm version-packages (fast-element, specimen); axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow"
+      "import_reason": "test runs the browser-free subset for pnpm check; test:browser runs the full suite; repository directory foundations/specimen; T03 driver context and lifecycle: common context probe across bench, static index and Vitest reference driver, context-mismatch labels, genuine TrustedHTML observation, static context URL and CLI locale/motion options; publication authority unchanged; @types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; T04 optimization rounds under the unchanged policy: bench tracing and cold-sample attribution; the native host (Rolldown bundling, in-memory serving, Chromium over CDP); page-side normalization and Zod-free bench validation; publication authority unchanged; T05 step 1 retained-story discovery: Storybook-compatible static indexer in the native host, stories and preview configuration, static validation and specimen-validate, Storybook 10.6.2 as the reference indexer for the compat fixtures; publication authority unchanged; T05 step 2 running retained stories: Storybook field-specific composition, story-settled viewport and theme with browser-default media, plain-div canvas, play then axe-core 4.13.0 under the a11y policy, specimen-run, include/exclude/skip test tags, side-effectful source modules in the host bundle, and the two-runner agreement against Storybook 10.6.2's Vitest addon; publication authority unchanged; T06 step 6: budgets, the review page, the normalizer without parse5, the manifest check; T07 step 2: claims, expectations and waivers; T08 native helpers and types: test, preview and csf-types entries, the codemod's helpers option, fixtures and build accounting; G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Review page styling: the index grouped by component with a filter, the preview's layout, and the pages' own stylesheet with its ceiling; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); build:host names its target directory, because host.ts reads the release build beside the package even when CARGO_TARGET_DIR points elsewhere; TypeScript ^5.9.3 to ^7.0.2, and @typescript/typescript6 for the experiment inputs' CSF parser, since TypeScript 7 exports no compiler API (lushly-dev/afd#594); parse5 8.1 escapes < and > in attribute values, as HTML now specifies; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Browser-only type check (#811): tsconfig.browser.json checks the bench page's runtime and the test, evidence and preview entries without Node's types, and the typecheck script runs it; Component Briefs step A1: the component pack format, version 0 (schemas, check, catalog writer, JSON Schema files, description and fixture packs); Component Briefs step B1: guide files (the guides key, schema, loader and static checks); Versioned for release by pnpm version-packages (fast-element, specimen); axe-core 4.14.0 (#971): the accessibility ceiling moves from 650,000 to 680,000 bytes, since axe-core 4.14.0's own minified file is 652,140; the engine pins in the tests and the README follow; Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/src/bench-runtime.ts",
@@ -1019,12 +1019,12 @@
       "upstream_sha256": null,
       "staged_path": "integrations/specimen-afd/package.json",
       "staged_sha256": "1436f79dd262a15f958f9333bbafa5c268fc48166c02e401c5a9bc64bc9d0832",
-      "current_import_sha256": "4bc76d8727f60aa897cc4bc5220e7874c35e90253dfe838f5ce98cab67116bf5",
-      "manifest_shape_sha256": "a500f1837e4020cc1ca82a8c17522f888f7009760ee6f570b1906212d6ea9cae",
+      "current_import_sha256": "beb0c6a998ebb7991373fae340c15b7e0a3417f69c548d18adec39057ffeb874",
+      "manifest_shape_sha256": "1dd94aa7dceb4078dc27559754b75f59cc448953693b892bc562b3b940ecbe5e",
       "stage_classification": "added-in-staging",
       "stage_reason": "New split-package configuration or documentation",
       "import_classification": "modified-after-staging",
-      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); The packed consumer expects the integration's Specimen peer as the version it was built against (#1066)"
+      "import_reason": "@types/node aligned across the workspace on ^26.6.6 during the post-merge dependency hygiene pass, so every package and every optional peer resolves one copy; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); TypeScript ^5.9.3 to ^7.0.2 (lushly-dev/afd#594); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); The packed consumer expects the integration's Specimen peer as the version it was built against (#1066); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "integrations/specimen-afd/src/commands.test.ts",
@@ -3672,12 +3672,12 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8c4d668db2ecd44438dd8ece338b1b52681b025ab72dfe47606909f5ebb3890b",
-      "manifest_shape_sha256": "9d99d32e7a85e045dfb52081bfe3fd8a9c18a6fc4424086eb5e6b0e2a5e9385a",
+      "current_import_sha256": "5b84c256d9083a9fc6326fb9adc1e103c3f302fb00f0791afe98bc25e61a118d",
+      "manifest_shape_sha256": "3c358d560d7022bf0600d74bbd48e47525b69985f736dde645e9b769faff7cf6",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-darwin-x64/README.md",
@@ -3697,12 +3697,12 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "cc4f56b733b7b8114e2ed7348905fd3c2a04c1d9893b6919d0419a793e80bfc0",
-      "manifest_shape_sha256": "ffbff29bb3dfd467937917d4cd68dfbdc6bfd4d4dcea75d3a1db260956e295f7",
+      "current_import_sha256": "f073201ceb0d53788ba33ca416eb9ff4182a92417ccb9f396d8d74e583f14f22",
+      "manifest_shape_sha256": "5e6e23135941310bff1a82b92d0f93f4eae15ab93231e3780a8852e98edd7951",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-linux-arm64-gnu/README.md",
@@ -3722,12 +3722,12 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2255b3d98b2e0e9bf57b53fb9294a3a43de523ac73bf5bdc00af5139aa95d90b",
-      "manifest_shape_sha256": "ab90f3f60457886718fb28036db53b9e29f993accd4c546507a3d80254face9b",
+      "current_import_sha256": "c186dc47b1c1b734813a64642e44877b907d4dd0fc3e11f5aa5064eac9f60241",
+      "manifest_shape_sha256": "a3d573c87ad1c8a8cb03d5b6da9affb0a9dc28b8cc7276b77e37fb01141449de",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-linux-x64-gnu/README.md",
@@ -3747,12 +3747,12 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8ba97cf809efa5fbc46b4e6d58367b1e5b9f49343ee02048b91b0e3d9fbc134e",
-      "manifest_shape_sha256": "aa5d71cc30469edb23e94ccab8e27671bb764c544859e317cd7e76a14a05dd76",
+      "current_import_sha256": "2752bfce35f7484b08031fe098f94fbd4fc9a504fb6614f80c754504f1a193da",
+      "manifest_shape_sha256": "2200c9f5ebf46adf7178dd85ecba75a3d64f87e8be3ced71f408ede49be80de8",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "G13: prebuilt native host packages, one per platform, as optional dependencies of the core; host lookup and staging; the owner's 2026-11-02 decisions recorded; publication authority unchanged; Admitted for the preview prerelease (owner approval 2026-11-04): preview seed versions, workspace ranges and peers that accept the preview, consumer checks read versions from the manifests; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/src/host.test.ts",
@@ -3892,11 +3892,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c94d99c31fd60a4e6744c8f84ba837e92b683652ad2b8d1d20962a815fb68371",
+      "current_import_sha256": "eb0aa8b8739fd3d5484f7639bb20728f2f684ae95e64d9e1028bb12680ec5b64",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/compat/guide-claims-bare.config.json",
@@ -3964,11 +3964,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ab0fd60ef94c4cfbff49e41490c914676a96376c236f0176889e86ffb83e0cc5",
+      "current_import_sha256": "aa80e759f40579d3488c6013a12e1a9dcf0f1c650af64c547b6eea0669d07a16",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-darwin-x64/CHANGELOG.md",
@@ -3976,11 +3976,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d0d4548ca4eac13eb4d007590401fb5204dc84c2463522639bcf60579698c043",
+      "current_import_sha256": "7f1f6772f812af9df4ba0a40822658aff3cd4de91694f49f1e6be24888c816b1",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-linux-arm64-gnu/CHANGELOG.md",
@@ -3988,11 +3988,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "d9949832fd44cfb39e945c09bf1c0c1389a7d2c8fcd82af69ed89856a14c4c33",
+      "current_import_sha256": "67df02efdf1a505bbd8a31f325607564f187a0f675776697a94320b8560e6368",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/packages/host-linux-x64-gnu/CHANGELOG.md",
@@ -4000,11 +4000,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c5295ec579f51cc34b137e4ceb54311fe7e15d9ff511c9e3acaa7904356ce444",
+      "current_import_sha256": "5263d62d472144253ee8910443d19e2e0e4cc1f74ff6a32eec2facd72da22e2b",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "integrations/specimen-afd/CHANGELOG.md",
@@ -4012,11 +4012,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "039f276b06e98f3ebeeb4a9666658eb124f7952c70b4a2a54e54980c294bb74a",
+      "current_import_sha256": "99aae9ac9c8935c0fc2b528e45c8c6ac90942f8c4443add8e8d6385d3e0e8a9d",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af)"
     },
     {
       "path": "foundations/specimen/tsconfig.browser.json",
