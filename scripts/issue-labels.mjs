@@ -18,7 +18,8 @@
  * `priority:0`, then `priority:1`, then the rest, oldest first. It leaves out
  * anything not planned, `execution:expert-escalation`, assigned issues (the
  * owner's lane), claimed issues, issues breaking a rule, and issues an open PR
- * would close. It is the rule the factory plugin's `issue-check` will share.
+ * would close. The factory plugin's `issue-check` shares these rules and messages
+ * (endpoints/botcore/plugins/botcore-factory/src/botcore_factory/labels.py); change both.
  *
  * `labels` compares the repository's labels with the file: missing, extra, and
  * changed colors or descriptions. `--create-missing` creates the missing ones
@@ -104,7 +105,9 @@ function statusRule(f) {
 }
 
 function executionRule(f) {
-	if (f.executions.length > 1) return `several execution profiles (${f.executions.join(', ')})`;
+	if (f.executions.length > 1) {
+		return `several execution profiles (${f.executions.join(', ')}): keep one execution profile`;
+	}
 	if (f.has(PLANNED) && f.executions.length === 0) return `${PLANNED} without an execution profile`;
 	if (f.has(DEFERRED) && f.executions.length > 0) return `${DEFERRED} keeps ${f.executions[0]}`;
 	return null;

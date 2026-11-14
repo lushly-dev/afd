@@ -369,7 +369,7 @@ def build_host(
     selected = discover_plugins(plugins)
     registry = PluginRegistry(cli_name=name, mcp_name=name)
     with use_context(context):
-        config = load_config(workspace=context.target, discovered_plugins=selected)
+        config = load_config(workspace=context.target, discovered_plugins=selected, selection=True)
         for plugin_name in sorted(selected):
             plugin = selected[plugin_name]
             if getattr(plugin, "host_context_safe", False) is not True:

@@ -18,6 +18,7 @@ What a plugin served through the managed host needs: its own command policies, a
 
 - **Wrong arguments are refused with the way forward.** On the CLI, MCP and DirectClient surfaces alike, an argument the handler does not take, or a missing required one, is refused before binding with `VALIDATION_ERROR` (was `INVALID_TARGET_OR_INPUT`). Its details list `expectedFields`, `unexpectedFields` and `missingFields`, and its `suggestedFields` and suggestion name the input a wrong key most likely meant: the same name in another case convention (`timeoutMs` for `timeout_ms`), else the closest name.
 - Effects a call computes beyond its policy's declared set are `EFFECT_DENIED` (was `INVALID_TARGET_OR_INPUT`).
+- A host no longer warns about a `[plugins.<name>]` section for a plugin it did not select: that section configures another host's plugin, which may be installed in another environment. `load_config(..., selection=True)` says the plugins passed are a host's selection; legacy discovery of every installed plugin still warns about a section no installed plugin reads.
 
 ## [0.7.0] - 2026-11-13
 

@@ -36,7 +36,9 @@ LLM, agents, memory, connectors, and Teams distributions remain preserved;
 this change does not claim their stateful implementations are admitted to a
 managed multi-worktree host. In particular, their module-global configuration
 needs adapters before such admission. No optional plugin is auto-installed or
-auto-enabled by `build_host`.
+auto-enabled by `build_host`. A host validates the `[plugins.<name>]` sections of
+the plugins it selects and leaves the others alone, without a warning: they
+configure other hosts' plugins, which may be installed in another environment.
 
 A plugin declares the policy of each command it registers, keyed by the command
 function's name: `registry.add_policy("lane_status", CommandPolicy())` or

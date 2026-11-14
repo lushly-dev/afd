@@ -851,6 +851,21 @@ expect:
     # Other fields ignored
 ```
 
+An expected array that holds objects is matched item by item: the arrays must have the
+same length, and each object item checks only the fields it names, with matchers allowed.
+An array of plain values is compared whole, and `{ equals: [...] }` compares any array
+literally.
+
+```yaml
+expect:
+  success: true
+  data:
+    violations:                 # Exactly two items, in this order
+      - { number: 203, rule: { contains: one execution } }
+      - { number: 207 }         # Its other fields are ignored
+    ids: [1, 2]                 # Compared whole
+```
+
 #### Matchers
 
 An object whose keys are **all** matcher keys is a matcher; any other object is

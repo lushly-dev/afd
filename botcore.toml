@@ -68,3 +68,11 @@ coverage_paths = ["src/"]
 # runaway guard.
 [sweep]
 trend_issue = 1098
+
+# The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
+# docs/features/proposed/software-factory). Botcore reads a plugin's settings under
+# [plugins.<entry point>]; intake needs only the label definitions so far. The lane's other
+# keys (validate, prequeue, coverage, install, required_check, gate_paths, ...) arrive with the
+# commands that run them.
+[plugins.factory]
+labels = ".github/labels.json"
