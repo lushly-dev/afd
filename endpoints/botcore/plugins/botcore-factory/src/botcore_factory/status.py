@@ -11,12 +11,12 @@ import difflib
 
 from botcore_factory import dials
 from botcore_factory.cells import choose_plan, describe_plan, read_plans, seated
+from botcore_factory.events import open_events, view
 from botcore_factory.intake import dispatchable, read_backlog
 from botcore_factory.labels import NEEDS_OWNER
 from botcore_factory.runtime import Factory, Refusal, paginate
-from botcore_factory.world import LANE_HOST_VARIABLE
+from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
-EVENT_FIELDS = ("id", "type", "branch", "reason", "detail", "logPath", "needsOwner")
 CELL_FIELDS = ("branch", "issues", "state", "plan", "route", "ejections", "thread")
 
 
@@ -26,14 +26,6 @@ def _cell_view(cell: dict) -> dict:
     view["issue"] = issues[0] if issues else None
     view.setdefault("ejections", 0)
     return view
-
-
-def _event_view(event: dict) -> dict:
-    return {key: event[key] for key in EVENT_FIELDS if key in event}
-
-
-def open_events(state: dict) -> list[dict]:
-    return [event for event in state["events"] if event.get("open", True)]
 
 
 def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
@@ -70,26 +62,32 @@ def can_start(factory: Factory, state: dict, ready: list[int]) -> dict:
     }
 
 
+def waiting_on_owner(state: dict, backlog) -> int:
+    """Items only the owner can answer: decision and operator issues (a parked cell's issue
+    among them), parked cells, and open events that need the owner (a sign-in)."""
+    issues = {
+        issue.number
+        for issue in backlog.open_issues()
+        if any(label in issue.labels for label in NEEDS_OWNER)
+    }
+    issues |= {
+        n for cell in state["cells"] if cell.get("state") == "parked" for n in cell["issues"]
+    }
+    return len(issues) + sum(1 for event in open_events(state) if event.get("needsOwner"))
+
+
 def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict:
     world = factory.world
     state = factory.store.read()
     backlog = read_backlog(factory)
-    ready = dispatchable(backlog)
     host_id = world.machine.id()
     lane_host = world.github.get_variable(LANE_HOST_VARIABLE)
     lane = state["lane"]
-    events = open_events(state)
-    owner_issues = [
-        issue.number
-        for issue in backlog.open_issues()
-        if any(label in issue.labels for label in NEEDS_OWNER)
-    ]
-    parked = [cell for cell in state["cells"] if cell.get("state") == "parked"]
     lists = {
         "queue": state["queue"],
         "held": state["held"],
         "cells": [_cell_view(cell) for cell in state["cells"] if cell.get("state") != "parked"],
-        "openEvents": [_event_view(event) for event in events],
+        "openEvents": [view(event) for event in open_events(state)],
     }
     return {
         "runId": lane.get("runId"),
@@ -103,12 +101,32 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
             "busy": sum(1 for entry in state["queue"] if entry.get("state") == "validating"),
         },
         **paginate(lists, limit, cursor),
-        "waitingOnOwner": len(owner_issues)
-        + len(parked)
-        + sum(1 for event in events if event.get("needsOwner")),
+        "waitingOnOwner": waiting_on_owner(state, backlog),
         "dials": dials.values(state["dials"]),
-        **can_start(factory, state, ready),
+        **can_start(factory, state, dispatchable(backlog)),
     }
+
+
+def compact_status(factory: Factory) -> dict:
+    """What a woken foreman needs first, carried by every event lane-wait returns.
+
+    The queue length always comes from the lane's state; when GitHub cannot be read, the rest
+    is replaced by ``unavailable`` rather than withholding the events.
+    """
+    state = factory.store.read()
+    compact = {"queueLength": len(state["queue"]), "held": len(state["held"])}
+    try:
+        backlog = read_backlog(factory)
+    except (Refusal, WorldError) as exc:
+        return {**compact, "unavailable": str(exc)}
+    start = can_start(factory, state, dispatchable(backlog))
+    return {**compact, **start, "waitingOnOwner": waiting_on_owner(state, backlog)}
+
+
+def plan_list(factory: Factory) -> dict:
+    ceiling = dials.value(factory.store.read()["dials"], "plans.ceiling")
+    plans = read_plans(factory)
+    return {"plans": [describe_plan(plan, ceiling) for plan in plans], "ceiling": ceiling}
 
 
 def find_dial(key: str) -> dials.Dial:

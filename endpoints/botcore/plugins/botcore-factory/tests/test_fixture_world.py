@@ -158,12 +158,27 @@ def test_worktrees_and_processes(tmp_path):
     world = FixtureWorld.create(
         tmp_path / "w.json",
         {
-            "worktrees": {"wt/a": {"head": "abc", "branch": "fix/a", "dirty": True}},
+            "worktrees": {
+                "wt/a": {"head": "abc", "branch": "fix/a", "clean": False},
+                "wt/b": {
+                    "head": "b",
+                    "branch": "fix/b",
+                    "uncommitted": ["src/x.ts"],
+                    "gatePathsChanged": ["lefthook.yml"],
+                    "changed": ["src/y.ts"],
+                },
+            },
             "processes": {"alive": [77], "results": {"pnpm lint": {"returncode": 1}}},
         },
     ).world()
     assert (world.git.head("wt/a"), world.git.branch("wt/a")) == ("abc", "fix/a")
-    assert world.git.is_clean("wt/a") is False
+    assert world.git.uncommitted("wt/a") == ["(uncommitted changes)"]
+    assert world.git.uncommitted("wt/b") == ["src/x.ts"]
+    assert world.git.changed_files("wt/b", "abc") == ["lefthook.yml", "src/y.ts"]
+    world.git.push_queue_ref("wt/b", "fix/b", "b")
+    assert FixtureWorld(tmp_path / "w.json").data["originQueueRefs"] == [
+        {"branch": "fix/b", "head": "b"}
+    ]
     with pytest.raises(WorldError):
         world.git.head("wt/none")
     assert world.processes.alive(77) and world.processes.alive(os.getpid())

@@ -9,13 +9,14 @@
  * runner) is applied through a registered `factory` fixture adapter, which calls the harness's
  * `fixture-apply`; every step then runs `factory-cli.mjs call <command> <json> --format json`,
  * which hands it to `python -m botcore_factory.harness`. FACTORY_PYTHON names the interpreter
- * that has botcore-factory installed (default: python). The repository root is the target, so
- * the host reads AFD's own adapter (`[plugins.factory]` in botcore.toml).
+ * that has botcore-factory installed (default: python). The target is the example repository
+ * the fixtures describe, built in the run directory: `repository/botcore.toml` beside this file
+ * (its adapter) and AFD's own `.github/labels.json`.
  *
  * Prints one JSON report: each scenario's outcome and every assertion that did not pass. Exit 0
  * when every scenario passed, 1 when one did not, 2 when the runner could not start.
  */
-import { chmodSync, copyFileSync, existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -74,6 +75,15 @@ function failures(step) {
 		.map(({ path, matcher, description }) => ({ path, matcher, description }));
 }
 
+/** The example repository the job fixtures describe: its adapter and AFD's labels. */
+function exampleRepository(runDir) {
+	const repository = join(runDir, 'repository');
+	mkdirSync(join(repository, '.github'), { recursive: true });
+	copyFileSync(join(here, 'repository', 'botcore.toml'), join(repository, 'botcore.toml'));
+	copyFileSync(join(root, '.github', 'labels.json'), join(repository, '.github', 'labels.json'));
+	return repository;
+}
+
 async function runOne(file) {
 	const runDir = mkdtempSync(join(tmpdir(), 'factory-scenario-'));
 	try {
@@ -81,7 +91,7 @@ async function runOne(file) {
 		if (!parsed.success) return { file, outcome: 'error', error: parsed.error, steps: [] };
 		const executor = new testing.ScenarioExecutor({
 			cliPath: launcher(runDir),
-			cwd: root,
+			cwd: exampleRepository(runDir),
 			env: {
 				BOTCORE_FACTORY_HARNESS_DIR: join(runDir, 'run'),
 				FACTORY_PYTHON: process.env.FACTORY_PYTHON || 'python',

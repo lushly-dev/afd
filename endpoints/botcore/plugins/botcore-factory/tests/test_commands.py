@@ -137,7 +137,12 @@ async def test_registering_claims_the_issue_and_assigns_the_roomiest_plan(make_r
         "fix/client-timeout",
         "fix/server-timeout",
     ]
-    assert run.store.read_log()[-2]["kind"] == "cell-registered"
+    [record] = run.store.read_records()
+    assert (record["kind"], record["branch"], record["profile"]) == (
+        "cell-registered",
+        "fix/server-timeout",
+        "bounded",
+    )
     # The claimed issue leaves the dispatch list and holds no stale claim.
     data = (await run.call("issue_check")).data
     assert data["dispatchable"] == [201] and [s["number"] for s in data["staleClaims"]] == [208]
@@ -361,3 +366,58 @@ async def test_a_wrong_input_name_is_refused_with_the_right_one(make_run):
 
 def test_the_conftest_target_is_afd(make_run):
     assert (REPO_ROOT / "botcore.toml").is_file()
+
+
+# cell_attach, lane_drop, plan_list
+
+
+async def test_attaching_records_the_thread_and_starts_the_cell(make_run):
+    run = make_run()
+    await run.call("cell_register", branch="fix/a", issues=[101], route="r")
+    cell = (await run.call("cell_attach", branch="fix/a", thread="thread-1")).data["cell"]
+    assert (cell["thread"], cell["state"]) == ("thread-1", "working")
+    missing = await run.call("cell_attach", branch="fix/none", thread="t")
+    assert missing.error.code == "NOT_FOUND" and "lane-status" in missing.error.suggestion
+
+
+async def test_dropping_releases_the_issue_dequeues_and_forgets_the_cell(make_run):
+    run = make_run("ejected")
+    data = (await run.call("lane_drop", branch="fix/parser-empty-input", reason="Abandoned")).data
+    assert data == {"dropped": True, "released": [101], "answered": ["ev-7"]}
+    issue = next(i for i in run.world_data()["issues"] if i["number"] == 101)
+    assert "status:planned" in issue["labels"] and "status:in-progress" not in issue["labels"]
+    assert "botcore-factory:release" in issue["comments"][-1]["body"]
+    state = run.state()
+    assert all(c["branch"] != "fix/parser-empty-input" for c in state["cells"])
+    assert run.store.read_records()[-1]["kind"] == "dropped"
+    assert (await run.call("issue_check")).data["dispatchable"][0] == 101
+
+
+async def test_dropping_the_cell_that_filled_the_last_seat_opens_queue_room(make_run):
+    run = make_run("backlog", dials={"cells.max": 1})
+    await run.call("lane_drop", branch="fix/client-timeout", reason="Gone")
+    [event] = [e for e in run.state()["events"] if e["type"] == "queue-room"]
+    assert event["open"] and event["id"] == "ev-42"
+    assert (await run.call("lane_status")).data["canStartCell"] is True
+
+
+async def test_a_drop_whose_release_fails_keeps_the_cell(make_run):
+    run = make_run("backlog")
+    host = run.host(**failing(run, "add_comment"))
+    result = await run.call("lane_drop", host, branch="fix/client-timeout", reason="x")
+    assert result.error.code == "WRITE_FAILED"
+    assert any(c["branch"] == "fix/client-timeout" for c in run.state()["cells"])
+    unknown = await run.call("lane_drop", branch="no-such-branch", reason="Typo")
+    assert unknown.error.code == "NOT_FOUND" and "lane-status" in unknown.error.suggestion
+
+
+async def test_plan_list_shows_each_plan_s_room_and_ceiling(make_run):
+    plans = (await make_run().call("plan_list")).data["plans"]
+    assert [(p["id"], p["room"], p["aboveCeiling"]) for p in plans] == [
+        ("plan-a", 70, False),
+        ("plan-b", 20, False),
+    ]
+    above = (await make_run("at-ceiling").call("plan_list")).data["plans"]
+    assert all(plan["aboveCeiling"] for plan in above)
+    unreadable = await make_run(plansUnreadable=True).call("plan_list")
+    assert unreadable.error.code == "PLANS_UNREADABLE"

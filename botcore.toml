@@ -71,8 +71,28 @@ trend_issue = 1098
 
 # The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
 # docs/features/proposed/software-factory). Botcore reads a plugin's settings under
-# [plugins.<entry point>]; intake needs only the label definitions so far. The lane's other
-# keys (validate, prequeue, coverage, install, required_check, gate_paths, ...) arrive with the
-# commands that run them.
+# [plugins.<entry point>]. Commands are argument lists, run in the cell's worktree. The lane's
+# other keys (validate, coverage, install, required_check, ...) arrive with the commands that run
+# them. review_evidence waits for prepare-pr's lane mode, which records the reviewed head; until
+# then lane-enqueue refuses here with NOT_CONFIGURED.
 [plugins.factory]
 labels = ".github/labels.json"
+# The cheap stages of pnpm check, run before a branch joins the queue.
+prequeue = [
+    { name = "lint", run = ["pnpm", "lint"] },
+    { name = "typecheck", run = ["node", "scripts/affected.mjs", "run", "typecheck"] },
+    { name = "portability", run = ["node", "scripts/check-portability.mjs"] },
+    { name = "file-size", run = ["node", "scripts/check-file-size.mjs"] },
+]
+# A repair after a failing check may not edit these without gate-allow.
+gate_paths = [
+    "lefthook.yml",
+    ".github/workflows/**",
+    ".github/labels.json",
+    "scripts/check-*.mjs",
+    "scripts/issue-labels.mjs",
+    "scripts/affected*",
+    "biome.json",
+    "package.json",
+    "botcore.toml",
+]

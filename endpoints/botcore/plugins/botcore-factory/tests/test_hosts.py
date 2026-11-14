@@ -11,7 +11,24 @@ from conftest import REPO_ROOT
 from botcore_factory import CELL_COMMANDS, FactoryPlugin
 from botcore_factory.commands import POLICIES
 
-EVERY = ["cell_register", "dial_get", "dial_set", "issue_check", "lane_status"]
+EVERY = sorted(
+    [
+        "cell_attach",
+        "cell_register",
+        "dial_get",
+        "dial_set",
+        "event_resolve",
+        "gate_allow",
+        "issue_check",
+        "lane_drop",
+        "lane_enqueue",
+        "lane_pause",
+        "lane_resume",
+        "lane_status",
+        "lane_wait",
+        "plan_list",
+    ]
+)
 
 
 def test_the_plugin_is_installed_under_factory_and_admitted_to_hosts():

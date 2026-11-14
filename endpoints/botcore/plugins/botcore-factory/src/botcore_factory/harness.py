@@ -28,9 +28,8 @@ from pathlib import Path
 from afd import CommandResult, error, success
 from botcore.context import ExecutionContext
 
-from botcore_factory.fixture_world import FixtureWorld, split_fixture
+from botcore_factory.fixture_world import FixtureWorld, open_run, split_fixture
 from botcore_factory.hosts import build_factory_host
-from botcore_factory.state import LANE_DEFAULTS, StateStore
 
 RUN_DIR_ENV = "BOTCORE_FACTORY_HARNESS_DIR"
 TARGET_ENV = "BOTCORE_FACTORY_TARGET"
@@ -56,13 +55,7 @@ def apply_fixture(run_dir: Path, arguments: dict) -> CommandResult:
         return error("VALIDATION_ERROR", str(exc), suggestion="Add the key to fixture_world")
     world_path, state_base = _paths(run_dir)
     shutil.rmtree(state_base, ignore_errors=True)
-    world = FixtureWorld.create(world_path, world_part).world()
-    store = StateStore.for_repository(
-        world.github.repository(), world.processes, world.clock, base=state_base
-    )
-    with store.update(APPLY) as state:
-        state.update(state_part)
-        state["lane"] = {**LANE_DEFAULTS, **state_part.get("lane", {})}
+    open_run(world_path, state_base, fixture)
     return success(
         {"world": sorted(world_part), "state": sorted(state_part)},
         reasoning=f"Applied a fixture to {run_dir}",

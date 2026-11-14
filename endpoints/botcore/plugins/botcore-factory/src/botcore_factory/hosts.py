@@ -14,8 +14,8 @@ from botcore.host import CommandHost, build_host
 from botcore_factory.runtime import bind
 from botcore_factory.world import World
 
-#: What a cell may call. lane-enqueue and the lane-handoff commands join as they land.
-CELL_COMMANDS = ("issue_check", "lane_status")
+#: What a cell may call. The lane-handoff commands join as they land.
+CELL_COMMANDS = ("issue_check", "lane_enqueue", "lane_status")
 HOSTS = ("factory", "factory-cell")
 
 

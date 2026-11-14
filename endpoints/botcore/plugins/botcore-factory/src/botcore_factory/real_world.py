@@ -254,8 +254,29 @@ class CliGit:
         except WorldError:
             return None  # Detached HEAD.
 
-    def is_clean(self, worktree: str) -> bool:
-        return self.run(["git", "-C", worktree, "status", "--porcelain"]).strip() == ""
+    def uncommitted(self, worktree: str) -> list[str]:
+        out = self.run(["git", "-C", worktree, "status", "--porcelain", "--untracked-files=all"])
+        # Each line is "XY path" (or "XY old -> new" for a rename); the path is what changed.
+        return [line[3:].split(" -> ")[-1] for line in out.splitlines() if line.strip()]
+
+    def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
+        base = since or "origin/HEAD"
+        out = self.run(["git", "-C", worktree, "diff", "--name-only", f"{base}...HEAD"])
+        return [line for line in out.splitlines() if line.strip()]
+
+    def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
+        self.run(
+            [
+                "git",
+                "-C",
+                worktree,
+                "push",
+                "--force",
+                "--quiet",
+                "origin",
+                f"{head}:refs/factory/queue/{branch}",
+            ]
+        )
 
 
 class SystemClock:
@@ -405,7 +426,14 @@ class OsProcesses:
                 return boot + int(fields[19]) / os.sysconf("SC_CLK_TCK")
         return None
 
-    def run(self, args: Sequence[str], cwd: str, timeout: float | None = None) -> Completed:
+    def run(
+        self,
+        args: Sequence[str],
+        cwd: str,
+        timeout: float | None = None,
+        *,
+        label: str | None = None,
+    ) -> Completed:
         return run_process(args, cwd=cwd, timeout=timeout)
 
 
