@@ -490,6 +490,26 @@ export const styles = css`
         outline: none;
     }
 
+    .cell-editor-hint {
+        position: absolute;
+        /* Above the fill handle, which shares the sticky layer. */
+        z-index: calc(var(--_layer-sticky) + 1);
+        inset-inline-start: var(--_row-padding-inline);
+        inset-block-start: calc(100% - var(--_space-stack-xs));
+        /* A sentence rather than a word: wider than the edit error, still bounded. */
+        inline-size: max-content;
+        max-inline-size: 18rem;
+        padding: 2px var(--_space-stack-xs);
+        border: 1px solid var(--_border-strong);
+        border-radius: calc(var(--_radius-md) / 2);
+        background: var(--_surface-floating);
+        color: var(--_text-primary);
+        box-shadow: var(--_shadow-card);
+        font-size: 0.75rem;
+        line-height: 1.25;
+        white-space: normal;
+    }
+
     .cell-editor-error {
         position: absolute;
         z-index: var(--_layer-sticky);

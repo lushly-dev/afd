@@ -219,7 +219,7 @@ const styles = css`
 `;
 
 const template = html<VioletDatePicker>`
-    <div class="field" part="field">
+    <div class="field" part="field" @focusout="${(x, c) => x.handleFocusOut(c.event as FocusEvent)}">
         ${when(
             x => Boolean(x.label),
             html<VioletDatePicker>`<label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>`,
@@ -523,6 +523,22 @@ export class VioletDatePicker extends FASTElement {
             return false;
         }
 
+        return true;
+    }
+
+    /**
+     * Closes the popup when focus moves to something outside the picker, such as Tab past its last
+     * control, so the open panel never covers the next field. Focus moving between the input, the
+     * toggle and the calendar keeps it open, and so does focus leaving the window (no
+     * `relatedTarget`); a pointer press outside is handled by the document listener.
+     */
+    public handleFocusOut(event: FocusEvent): boolean {
+        const next = event.relatedTarget;
+        if (this.open && next instanceof Node && next !== this && !this.shadowRoot?.contains(next)) {
+            this.hide();
+        }
+
+        // focusout cannot be cancelled; leave the event alone.
         return true;
     }
 

@@ -11,6 +11,8 @@ interface VioletDataGridCellTemplateModel {
     editing: boolean;
   editingError: string;
   editingErrorId: string;
+    editingHint?: string;
+    editingHintId?: string;
     editorOptions: Array<{ label: string; value: string }>;
     fillPreview: boolean;
     rawValue: unknown;
@@ -33,6 +35,7 @@ export const inputCellEditorTemplate = html<VioletDataGridCellTemplateModel>`
         aria-label="${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}"
         aria-invalid="${(x) => (x.editingError ? "true" : "false")}"
         aria-errormessage="${(x) => (x.editingError ? x.editingErrorId : null)}"
+        aria-describedby="${(x) => (x.editingHint && !x.editingError ? x.editingHintId : null)}"
         inputmode="${(x) => (x.editor === "number" ? "decimal" : null)}"
         type="text"
     />
@@ -47,6 +50,7 @@ export const selectCellEditorTemplate = html<VioletDataGridCellTemplateModel>`
         aria-label="${(x) => `Edit ${x.columnLabel} for ${x.rowLabel}`}"
         aria-invalid="${(x) => (x.editingError ? "true" : "false")}"
         aria-errormessage="${(x) => (x.editingError ? x.editingErrorId : null)}"
+        aria-describedby="${(x) => (x.editingHint && !x.editingError ? x.editingHintId : null)}"
         :value="${(x) => x.editValue}"
     >
         ${repeat(

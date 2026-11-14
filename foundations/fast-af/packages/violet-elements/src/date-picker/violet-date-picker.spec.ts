@@ -333,6 +333,58 @@ describe("violet-date-picker", () => {
             expect(picker.open).toBe(false);
         });
 
+        it("closes when Tab moves focus out of the open calendar", async () => {
+            const picker = await renderDatePicker();
+            const after = document.createElement("button");
+            after.textContent = "Next field";
+            document.body.append(after);
+
+            picker.show();
+            await vi.waitFor(() => {
+                expect(getCalendar(picker).shadowRoot?.activeElement?.getAttribute("data-date")).toBe("2026-03-23");
+            });
+
+            await userEvent.tab();
+            await nextFrame();
+
+            expect(document.activeElement).toBe(after);
+            expect(picker.open).toBe(false);
+            expect(getPanel(picker).hidden).toBe(true);
+            expect(getToggle(picker).getAttribute("aria-expanded")).toBe("false");
+        });
+
+        it("closes when focus leaves from the input or toggle, and stays open while it moves inside", async () => {
+            const picker = await renderDatePicker();
+            const after = document.createElement("input");
+            document.body.append(after);
+
+            picker.show();
+            await vi.waitFor(() => {
+                expect(getCalendar(picker).shadowRoot?.activeElement?.getAttribute("data-date")).toBe("2026-03-23");
+            });
+
+            getInput(picker).focus();
+            getToggle(picker).focus();
+            calendarDay(picker, "2026-03-24").focus();
+            await nextFrame();
+            expect(picker.open).toBe(true);
+
+            getToggle(picker).focus();
+            after.focus();
+            await nextFrame();
+            expect(picker.open).toBe(false);
+        });
+
+        it("stays open when focus leaves the window rather than moving elsewhere on the page", async () => {
+            const picker = await renderDatePicker();
+            picker.show();
+            await nextFrame();
+
+            getInput(picker).dispatchEvent(new FocusEvent("focusout", { bubbles: true, composed: true, relatedTarget: null }));
+
+            expect(picker.open).toBe(true);
+        });
+
         it("stops reacting to outside presses once removed from the document", async () => {
             const picker = await renderDatePicker();
             picker.show();
