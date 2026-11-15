@@ -1,0 +1,46 @@
+{
+	"cache": { "empty": true },
+	"cutover": { "legacyMarkers": ["lushly-issue-claim"], "legacyUntil": "2030-02-10T00:00:00Z" },
+	"claimComments": [
+		{
+			"number": 101,
+			"author": "example-factory[bot]",
+			"at": "2030-02-03T08:10:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "fix/parser",
+				"machine": "workstation",
+				"leaseUntil": "2030-02-04T08:10:00Z"
+			}
+		},
+		{
+			"number": 102,
+			"author": "example-factory[bot]",
+			"at": "2030-02-03T08:30:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "fix/line-numbers",
+				"machine": "laptop",
+				"leaseUntil": "2030-02-04T08:30:00Z"
+			}
+		},
+		{
+			"number": 103,
+			"author": "example-stranger",
+			"at": "2030-02-03T09:00:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "evil/branch",
+				"machine": "unknown",
+				"leaseUntil": "2031-01-01T00:00:00Z"
+			}
+		},
+		{
+			"number": 104,
+			"author": "example-owner",
+			"at": "2030-02-03T07:00:00Z",
+			"marker": "lushly-issue-claim",
+			"claim": { "branch": "docs/commas", "machine": "mini", "leaseUntil": "2030-02-03T11:00:00Z" }
+		}
+	]
+}

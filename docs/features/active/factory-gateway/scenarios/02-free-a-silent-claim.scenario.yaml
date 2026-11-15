@@ -1,0 +1,98 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the lane endpoint, which may claim, release and open pull requests.
+# The clock cannot move between steps, so the fixture holds a lease that lapsed two hours before "now".
+name: Free an issue whose holder went silent
+description: >-
+  When a cell's machine sleeps or its session dies while it holds an issue, I want its claim to
+  lapse on its own, the next claim to take it over with the old holder named, and the old holder
+  stopped if it wakes, so that no issue stays locked by work nobody is doing and none is finished
+  twice.
+job: free-a-silent-claim
+tags: [mvp]
+fixture:
+  file: fixtures/stale-claim.json
+  base: gateway.json
+steps:
+  - description: The silent claim is listed as stale
+    command: claim-list
+    input: { repo: example-org/example-repo }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 102, stale: true, holder: { branch: fix/line-numbers } }
+  - description: A new holder takes the issue over, and the result names whom it replaced
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [102]
+      holder: { branch: fix/line-numbers-2, machine: workstation }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 102, holder: { branch: fix/line-numbers-2 }, previousHolder: { branch: fix/line-numbers } }
+  - description: The old holder wakes and tries to open its pull request; it is told the issue moved on
+    command: pr-open
+    input:
+      repo: example-org/example-repo
+      branch: fix/line-numbers
+      title: Report the line of a bad token
+      body: Reports the line number with every parse error.
+      closes: [102]
+    expect:
+      success: false
+      error:
+        code: CLAIM_LOST
+        message: fix/line-numbers-2
+        suggestion: { contains: lane-drop }
+  - description: Someone who does not hold the claim cannot release it
+    command: issue-release
+    input:
+      repo: example-org/example-repo
+      number: 102
+      holder: { branch: fix/line-numbers, machine: laptop }
+      reason: The machine woke up
+    expect:
+      success: false
+      error:
+        code: NOT_HOLDER
+        message: fix/line-numbers-2
+        suggestion: { contains: claim-list }
+  - description: The holder releases it, and the issue goes back to planned on GitHub
+    command: issue-release
+    input:
+      repo: example-org/example-repo
+      number: 102
+      holder: { branch: fix/line-numbers-2, machine: workstation }
+      reason: Dropped by the foreman
+    expect:
+      success: true
+      data:
+        released: true
+        record:
+          label: status:planned
+  - description: A retry of that release succeeds without writing again
+    command: issue-release
+    input:
+      repo: example-org/example-repo
+      number: 102
+      holder: { branch: fix/line-numbers-2, machine: workstation }
+      reason: Dropped by the foreman
+    expect:
+      success: true
+      data:
+        released: true
+        changed: false
+  - description: Releasing an issue nobody ever claimed is refused, not silently accepted
+    command: issue-release
+    input:
+      repo: example-org/example-repo
+      number: 101
+      holder: { branch: fix/parser, machine: workstation }
+      reason: Mistaken
+    expect:
+      success: false
+      error:
+        code: NOT_CLAIMED
+        suggestion: { contains: claim-list }

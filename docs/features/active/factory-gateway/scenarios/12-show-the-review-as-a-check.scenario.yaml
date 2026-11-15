@@ -1,0 +1,56 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# A cell records its review on the cell endpoint; the lane pushes the head on the lane endpoint, and
+# the gateway publishes the review check itself, from the record. Scenario steps run against one
+# server, so this file is written for an endpoint that serves all three commands (the owner's).
+name: Record a review once and show it on the pull request as a check
+description: >-
+  When a cell's review lanes finish, I want their verdicts recorded once against the exact head they
+  reviewed and shown on the pull request as a check the gateway derives from that record, so that
+  the lane, the owner and later readers see the same evidence, nobody can publish a verdict the
+  record does not hold, and a head that moved after review has no review.
+job: show-the-review-as-a-check
+tags: [records]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The cell records two lanes' verdicts for its head
+    command: review-record
+    input:
+      repo: example-org/example-repo
+      branch: fix/parser
+      head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      lanes:
+        - { lane: general, model: example-model, effort: high, verdict: pass, fixed: 2, deferred: 1 }
+        - { lane: security, model: example-model, effort: high, verdict: pass, fixed: 0, deferred: 0 }
+    expect:
+      success: true
+      data:
+        record: { head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0, verdict: pass, lanes: { length: 2 } }
+  - description: The lane reads it back for the head it is about to push
+    command: review-get
+    input: { repo: example-org/example-repo, head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 }
+    expect:
+      success: true
+      data:
+        verdict: pass
+        lanes: { length: 2 }
+  - description: A head nobody reviewed has no record, and the refusal says how to get one
+    command: review-get
+    input: { repo: example-org/example-repo, head: f0e1d2c3b4a5968778695a4b3c2d1e0f0e1d2c3b }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: review-record }
+  - description: When the lane pushes the reviewed head, the gateway publishes the review check from the record
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/fix/parser
+      head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      bundle: bundle-12
+    expect:
+      success: true
+      data:
+        checksPublished:
+          - { name: factory/review, conclusion: success }

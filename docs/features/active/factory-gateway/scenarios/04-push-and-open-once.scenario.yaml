@@ -1,0 +1,104 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the lane endpoint. The bundle was uploaded to the gateway's upload route before the
+# call, which returned the id `bundle-7`.
+name: Push a validated branch and open its pull request once
+description: >-
+  When the lane has validated a branch, I want to push it and open its pull request through the
+  gateway, with the issues it closes written by the gateway and a retry returning the same pull
+  request, so that the lane holds no GitHub credential, a closing keyword is never mistyped, and a
+  network retry never opens a duplicate.
+job: push-and-open-once
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: Opening a pull request for a branch that is not on GitHub is refused with the way forward
+    command: pr-open
+    input:
+      repo: example-org/example-repo
+      branch: fix/tokens
+      title: Report the line of a bad token
+      body: Reports the line number with every parse error.
+      closes: [102]
+    expect:
+      success: false
+      error:
+        code: NO_BRANCH
+        suggestion: { contains: branch-push }
+  - description: The lane pushes the validated head from a bundle
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/fix/tokens
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-7
+    expect:
+      success: true
+      data:
+        ref: refs/heads/fix/tokens
+        head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+        changed: true
+        by: example-factory[bot]
+  - description: Pushing the same head again changes nothing
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/fix/tokens
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-7
+    expect:
+      success: true
+      data:
+        changed: false
+  - description: The pull request opens with the closing lines the gateway wrote
+    command: pr-open
+    input:
+      repo: example-org/example-repo
+      branch: fix/tokens
+      title: Report the line of a bad token
+      body: Reports the line number with every parse error.
+      closes: [102]
+    expect:
+      success: true
+      data:
+        created: true
+        number: 45
+        closes: [102]
+        author: example-factory[bot]
+  - description: A retry returns the same pull request instead of a second one
+    command: pr-open
+    input:
+      repo: example-org/example-repo
+      branch: fix/tokens
+      title: Report the line of a bad token
+      body: Reports the line number with every parse error.
+      closes: [102]
+    expect:
+      success: true
+      data:
+        created: false
+        number: 45
+  - description: Pushing to main is refused whatever the caller
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/main
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-7
+    expect:
+      success: false
+      error:
+        code: PROTECTED_REF
+        suggestion: { contains: pr-open }
+  - description: A head the bundle does not contain is refused before anything is pushed
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/fix/tokens
+      head: "9999999999999999999999999999999999999999"
+      bundle: bundle-7
+    expect:
+      success: false
+      error:
+        code: HEAD_NOT_IN_BUNDLE
+        suggestion: { contains: git bundle }

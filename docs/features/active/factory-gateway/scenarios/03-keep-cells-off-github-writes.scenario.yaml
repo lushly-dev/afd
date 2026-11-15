@@ -1,0 +1,55 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the cell endpoint (the `gateway-cell` host). Every scenario step runs as the same
+# test actor, so this job shows the host boundary only. Which token reaches which endpoint, and
+# whether a cell can read another class's token, are covered by unit tests and by G4.
+name: Keep cells to reads and their own hand-over
+description: >-
+  When a cell is working on its branch, I want it able to read what it needs from GitHub and hand
+  its branch over, and unable to label, comment, claim, open or merge anything, so that every other
+  write to GitHub comes from the lane or the foreman and a confused or misled cell cannot change the
+  repository's state.
+job: keep-cells-off-github-writes
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The cell sees which endpoint it is on and the one write it has
+    command: gateway-status
+    expect:
+      success: true
+      data:
+        host: gateway-cell
+        writes: [branch-push]
+        identity: example-factory[bot]
+  - description: Reading a pull request works
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 44 }
+    expect:
+      success: true
+      data:
+        state: open
+  - description: Labelling an issue is not a command this endpoint has
+    command: issue-label
+    input: { repo: example-org/example-repo, number: 101, add: [status:in-progress] }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_FOUND
+        suggestion: { contains: catalog }
+  - description: Neither is merging a pull request
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 44, head: c7d8e9f0a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6 }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_FOUND
+  - description: Nor claiming an issue, which is the foreman's through cell-register
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser, machine: workstation }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_FOUND
