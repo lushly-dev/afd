@@ -17,7 +17,11 @@ import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import { fileURLToPath } from 'node:url';
 import type { IdentityMethodV1 } from '@lushly-dev/loam-manifest';
-import type { LoamMailV1 } from '../options.js';
+import type { LoamMailV1, LoamOidcProviderV1 } from '../options.js';
+
+export { startTestOidcProvider, type TestOidcPersonV1, type TestOidcProvider } from './oidc.js';
+export { type Answer, linkIn, TestBrowser } from './requests.js';
+export { SoftAuthenticator, type SoftCredentialV1 } from './webauthn.js';
 
 /** A person the host seeds: an account, and a member row when `role` is set. */
 export interface TestPersonV1 {
@@ -45,6 +49,10 @@ export interface TestAuthHostOptions {
 	origin?: string;
 	/** The provider's path under the origin. Default `/api/auth`. */
 	path?: string;
+	/** The deployer's single sign-on providers, each named in `methods` as `oidc:<id>` (2.6). */
+	oidc?: readonly LoamOidcProviderV1[];
+	/** Whom `bootstrapOrganization` invites as the first owner; its join link is in the mail (5.6). */
+	bootstrapOwner?: string;
 }
 
 export interface TestAuthHost {
@@ -76,6 +84,9 @@ export interface HostChildConfig {
 	organization: { slug: string; name: string };
 	people: readonly TestPersonV1[];
 	methods: readonly IdentityMethodV1[];
+	shell: string;
+	oidc?: readonly LoamOidcProviderV1[];
+	bootstrapOwner?: string;
 }
 
 export type HostReady =
@@ -155,6 +166,10 @@ export async function startTestAuthHost(options: TestAuthHostOptions): Promise<T
 			organization: options.organization,
 			people: options.people,
 			methods: options.methods ?? ['passkey', 'password'],
+			// The shell is served at the path the provider's `api/auth` hangs from.
+			shell: `${origin}${path.replace(/api\/auth\/?$/, '')}`.replace(/([^/])$/, '$1/'),
+			...(options.oidc ? { oidc: options.oidc } : {}),
+			...(options.bootstrapOwner ? { bootstrapOwner: options.bootstrapOwner } : {}),
 		};
 		const entry = childEntry();
 		child = fork(entry.path, [], {

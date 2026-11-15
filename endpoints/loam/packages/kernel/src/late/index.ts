@@ -45,6 +45,7 @@ import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js
 import { canOpen, setMain } from './main-state.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
+import { isOwner } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
@@ -243,8 +244,11 @@ export async function createLateParts(
 		{
 			createSessionSettle,
 			createIdentityCommands,
+			createMemberCommands,
 			createPersona,
 			HUMAN_COMMANDS,
+			MEMBERSHIP_CHANGING_COMMANDS,
+			OWNER_COMMANDS,
 			PROVIDER_COMMANDS,
 		},
 	] = await Promise.all([
@@ -294,6 +298,19 @@ export async function createLateParts(
 		auth: deps.auth,
 		identity: deps.identity,
 		kit: DOCUMENT_KIT,
+	});
+	// Step 4's account and member commands (5.1, 5.3, 5.4, 7.2), decided on the membership the kernel holds.
+	const memberCommands = createMemberCommands({
+		auth: deps.auth,
+		identity: deps.identity,
+		kit: { ...DOCUMENT_KIT, personKey, isOwner },
+		membership: () => deps.scope.membership,
+		agents: () => agents.all(),
+		// Step 5's persona, built below: what other members see, and the active persona's id (step 5's deviation 8).
+		personas: {
+			presentationOf: (person) => persona.presentationOf(person),
+			activeOf: async (person) => (await persona.recordOf(person))?.id ?? 'default',
+		},
 	});
 	/** `appearance-set`'s handler, once the commands are built: `persona-set` applies a persona's through it (6.2). */
 	let appearance: ZodCommandDefinition | undefined;
@@ -411,6 +428,7 @@ export async function createLateParts(
 			created.command,
 			sessions.command,
 			...identityCommands.commands,
+			...memberCommands.commands,
 			...persona.commands,
 		].map((command) => [command.name, command])
 	);
@@ -493,6 +511,7 @@ export async function createLateParts(
 				copied: sessions?.copied,
 				after: (name) => {
 					if (name.startsWith('auth-')) sessions?.afterAuth();
+					else if (MEMBERSHIP_CHANGING_COMMANDS.includes(name)) sessions?.membershipChanged();
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
@@ -504,7 +523,8 @@ export async function createLateParts(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) &&
 					!PERSON_SESSION.includes(command.name) &&
-					!HUMAN_COMMANDS.includes(command.name)
+					!HUMAN_COMMANDS.includes(command.name) &&
+					!OWNER_COMMANDS.includes(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

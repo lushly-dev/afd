@@ -15,6 +15,7 @@ import {
 	sessionMiddleware,
 } from 'better-auth/api';
 import { deleteSessionCookie } from 'better-auth/cookies';
+import { markedRecovery } from './recovery.js';
 
 /** `session.freshAge`: a session made within it may add or remove a passkey or revoke others (5.2). */
 export const FRESH_AGE_SECONDS = 300;
@@ -28,10 +29,23 @@ export const SESSION_METHOD_FIELD = 'loamMethod';
 /** The core OAuth callback, `/callback/:id`, on which genericOAuth's providers sign in (Better Auth 1.7.18). */
 export const OIDC_CALLBACK = '/callback/';
 
-/** The routes that make a session, and how (2.6): a passkey, a password, or the deployer's single sign-on. */
+/** The session row's field naming the single sign-on provider an `oidc` session came from (5.7's ceremony). */
+export const SESSION_PROVIDER_FIELD = 'loamProvider';
+
+/**
+ * The routes that make a session, and how (2.6): a passkey, a password, or the deployer's single sign-on. A join or a
+ * recovery that registers a passkey signs in from `/passkey/verify-registration`, by the user-verified ceremony that
+ * made it (5.8); one that sets a password signs in as a password does.
+ */
 export function methodOfPath(path: string | undefined): SessionMethodV1 | undefined {
-	if (path === '/passkey/verify-authentication') return 'passkey';
-	if (path === '/sign-in/email') return 'password';
+	if (path === '/passkey/verify-authentication' || path === '/passkey/verify-registration')
+		return 'passkey';
+	if (
+		path === '/sign-in/email' ||
+		path === '/loam/join/password' ||
+		path === '/loam/recover/password'
+	)
+		return 'password';
 	// A deployer's OIDC provider is a social provider of genericOAuth's, called back on the core `/callback/:id`; no
 	// social provider is configured otherwise (5.8), so that route is single sign-on's alone (NEW-2).
 	if (path?.startsWith(OIDC_CALLBACK)) return 'oidc';
@@ -79,6 +93,17 @@ interface SessionRow {
 	[SESSION_METHOD_FIELD]?: string | null;
 }
 
+/** What `requireFreshPasskeySession` may also accept. */
+export interface FreshOptions {
+	/**
+	 * A session the single sign-on recovery ceremony marked `recovery` may register a passkey though a passkey did not
+	 * make it (5.7, 5.8: D97 wins over D99 where they meet). Registration's alone: deleting a passkey or revoking a
+	 * session is never a recovery's.
+	 */
+	allowRecovery?: boolean;
+	now?: number;
+}
+
 /**
  * Whether `revoke-person` also revokes the person's OAuth consents and refresh tokens (4.6). Not until step 7, which
  * configures the OAuth provider (step 3's deviation 2): until then there are none, and a guard test refuses an OAuth
@@ -104,7 +129,8 @@ type Found = NonNullable<Awaited<ReturnType<typeof getSessionFromCtx>>>;
 
 /**
  * 5.8's first row, with D99 (5.2): a session made within `freshAge`, and for a person who holds a passkey, one made
- * by a passkey. Step 4 adds the `recovery` mark single sign-on recovery sets. Throws `REAUTH_REQUIRED`.
+ * by a passkey, unless, for a registration, single sign-on recovery marked it `recovery` (5.7). Throws
+ * `REAUTH_REQUIRED`.
  *
  * Both are read from the session's own row in the store, found by its token: the session Better Auth hands a route has
  * been through `parseSessionOutput`, which drops `loamMethod` (`returned: false`), so it never says `passkey` (the
@@ -113,8 +139,9 @@ type Found = NonNullable<Awaited<ReturnType<typeof getSessionFromCtx>>>;
 export async function requireFreshPasskeySession(
 	context: Pick<AuthContext, 'adapter'>,
 	found: Found,
-	now: number = Date.now()
+	options: FreshOptions = {}
 ): Promise<void> {
+	const now = options.now ?? Date.now();
 	const token = (found.session as { token?: unknown }).token;
 	const row =
 		typeof token === 'string' && token !== ''
@@ -131,7 +158,13 @@ export async function requireFreshPasskeySession(
 		model: 'passkey',
 		where: [{ field: 'userId', value: found.user.id }],
 	});
-	if (held && row[SESSION_METHOD_FIELD] !== 'passkey') throw reauthRequired();
+	if (!held || row[SESSION_METHOD_FIELD] === 'passkey') return;
+	if (
+		options.allowRecovery &&
+		(await markedRecovery(context.adapter as never, row.token, row.userId, now))
+	)
+		return;
+	throw reauthRequired();
 }
 
 /**
@@ -167,7 +200,9 @@ export function freshSessionHook(context: () => AuthContext | undefined) {
 					'Sign out first: a join or recovery link registers a passkey with no session present'
 				);
 			}
-			await requireFreshPasskeySession(context() ?? ctx.context, found);
+			await requireFreshPasskeySession(context() ?? ctx.context, found, {
+				allowRecovery: ctx.path !== '/passkey/delete-passkey',
+			});
 		}),
 	};
 }

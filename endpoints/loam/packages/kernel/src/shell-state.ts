@@ -212,7 +212,8 @@ export function registerShellState(viewState: ViewStateRegistry): ShellState {
 	const activeId = (): string =>
 		active !== null && layouts.has(appLayoutId(active))
 			? appLayoutId(active)
-			: section === 'projects'
+			: // The account section declares main alone, as the projects section does (phase 3 specification, 5.1).
+				section === 'projects' || section === 'account'
 				? PROJECTS_LAYOUT_ID
 				: section === 'documents'
 					? DOCUMENTS_LAYOUT_ID
