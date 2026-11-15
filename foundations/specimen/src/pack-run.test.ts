@@ -264,6 +264,18 @@ describe('specimen pack', () => {
 					)
 				);
 				expect(field).not.toContain('Token');
+				// The dropdown keeps its control, a button, in its shadow tree: its role is that
+				// button's, with no word on its name, which the dropdown's own attributes do not give.
+				const dropdown = JSON.parse(
+					decoder.decode(
+						(await readPackFiles(join(root, 'pack/committed'))).get(
+							'data/example/components/example-dropdown.json'
+						)
+					)
+				);
+				expect(dropdown.a11y.role).toEqual([
+					{ state: 'default', role: 'button', basis: 'observed' },
+				]);
 			} finally {
 				await variants.close();
 				await rm(root, { recursive: true, force: true });
