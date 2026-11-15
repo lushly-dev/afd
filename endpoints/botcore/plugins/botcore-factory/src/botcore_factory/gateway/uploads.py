@@ -18,8 +18,10 @@ author email. Nothing treats it as an authorization control.
 
 from __future__ import annotations
 
+import contextlib
 import os
 import secrets
+import signal
 import subprocess
 import threading
 import time
@@ -57,24 +59,30 @@ def git(mirror: Path, *arguments: str, deadline: float | None = None) -> str:
     remaining = 300.0 if deadline is None else deadline - time.monotonic()
     if remaining <= 0:
         raise GitError("the upload ran out of time")
+    # Its own process group, so a timeout also stops the helpers git starts (index-pack).
+    process = subprocess.Popen(
+        ["git", "--git-dir", str(mirror), *arguments],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        start_new_session=True,
+        env={
+            **os.environ,
+            "GIT_TERMINAL_PROMPT": "0",
+            "GIT_CONFIG_NOSYSTEM": "1",
+            "GIT_CONFIG_GLOBAL": os.devnull,
+        },
+    )
     try:
-        completed = subprocess.run(
-            ["git", "--git-dir", str(mirror), *arguments],
-            capture_output=True,
-            text=True,
-            timeout=remaining,
-            env={
-                **os.environ,
-                "GIT_TERMINAL_PROMPT": "0",
-                "GIT_CONFIG_NOSYSTEM": "1",
-                "GIT_CONFIG_GLOBAL": os.devnull,
-            },
-        )
+        stdout, stderr = process.communicate(timeout=remaining)
     except subprocess.TimeoutExpired:
+        with contextlib.suppress(ProcessLookupError):
+            os.killpg(process.pid, signal.SIGKILL)
+        process.communicate()
         raise GitError("the upload ran out of time") from None
-    if completed.returncode != 0:
-        raise GitError(completed.stderr.strip() or f"git {arguments[0]} failed")
-    return completed.stdout
+    if process.returncode != 0:
+        raise GitError(stderr.strip() or f"git {arguments[0]} failed")
+    return stdout
 
 
 def mirror_path(data_dir: Path, repo: str) -> Path:
@@ -243,12 +251,14 @@ class BundleUploads:
             pass
 
     def prune(self, repo: str) -> None:
-        """Drop the objects only expired uploads referenced."""
+        """Drop the objects only expired uploads referenced. A fetch of many objects is kept
+        as a pack, which ``prune`` alone never touches, so repack first."""
         mirror = mirror_path(self.data_dir, repo)
         if not (mirror / "HEAD").exists():
             return
         try:
             with _mirror_lock(mirror):
+                git(mirror, "repack", "-a", "-d", "-q")
                 git(mirror, "prune", "--expire=now")
         except GitError:
             pass

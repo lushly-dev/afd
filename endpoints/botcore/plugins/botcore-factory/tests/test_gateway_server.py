@@ -390,3 +390,21 @@ def test_serve_refuses_without_a_github_and_beyond_the_tailnet(tmp_path):
         admin_cli, [*base, "--address", "192.168.1.5", "--fake-github", str(github)]
     )
     assert lan.exit_code == 2 and "tailnet" in lan.output
+
+
+def test_an_expired_large_upload_leaves_no_pack_behind(gateway, tmp_path):
+    client, tokens, data, clock, _ = gateway
+    bundle, _ = make_bundle(tmp_path, [OWNER] * 120)  # Over git's unpack limit: kept as a pack.
+    mirror = mirror_path(data, REPO)
+    upload(client, tokens["cell"], bundle)
+
+    def stored() -> int:
+        return sum(p.stat().st_size for p in (mirror / "objects").rglob("*") if p.is_file())
+
+    held = stored()
+    clock.at += timedelta(hours=2)
+    other = tmp_path / "other"
+    other.mkdir()
+    small, _ = make_bundle(other, [OWNER])  # An unrelated upload; any upload runs expiry first.
+    assert upload(client, tokens["session"], small, route="session")["success"]
+    assert stored() < held
