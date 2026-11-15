@@ -17,18 +17,18 @@ steps:
     command: review-record
     input:
       repo: example-org/example-repo
-      branch: fix/parser
-      head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      branch: fix/lexer
+      head: 5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b
       lanes:
         - { lane: general, model: example-model, effort: high, verdict: pass, fixed: 2, deferred: 1 }
         - { lane: security, model: example-model, effort: high, verdict: pass, fixed: 0, deferred: 0 }
     expect:
       success: true
       data:
-        record: { head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0, verdict: pass, lanes: { length: 2 } }
+        record: { head: 5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b, verdict: pass, lanes: { length: 2 } }
   - description: The lane reads it back for the head it is about to push
     command: review-get
-    input: { repo: example-org/example-repo, head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0 }
+    input: { repo: example-org/example-repo, head: 5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b }
     expect:
       success: true
       data:
@@ -46,8 +46,8 @@ steps:
     command: branch-push
     input:
       repo: example-org/example-repo
-      ref: refs/heads/fix/parser
-      head: a1b2c3d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0
+      ref: refs/heads/fix/lexer
+      head: 5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b
       bundle: bundle-12
     expect:
       success: true

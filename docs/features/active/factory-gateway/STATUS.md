@@ -22,11 +22,12 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 - **State:** active by the owner's direction of 2026-11-14; the proposal is in review, and the
   owner's ranking of the jobs is next. Nothing is built.
-- **Last verified:** 2026-11-14 against `main` at `2a1253bc`: the fifteen scenarios pass
+- **Last verified:** 2026-11-14 against `main` at `dd080235`: the fifteen scenarios pass
   `afd scenario validate` and the dry-run check with fixtures resolved; the coverage report uses
-  19 of 20 drafted commands and 16 of 24 error codes
-  ([Checks](factory-gateway.proposal.md#checks)). The paths in `process.json` exist in both
-  repositories. No code was built or run.
+  19 of 20 drafted commands and 17 of 24 error codes
+  ([Checks](factory-gateway.proposal.md#checks)). Every path in `process.json` exists in its
+  repository except the files a milestone creates (G0's runbook,
+  `docs/operations/factory-gateway.md`). No code was built or run.
 - **Done:** nothing yet.
 - **Not done:** every milestone below.
 
@@ -54,6 +55,12 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   (the people, the job list, the calling agent, each with Opus 5.5 at medium effort); the revision
   that followed is recorded in the proposal's
   [Walking the paths](factory-gateway.proposal.md#walking-the-paths). Checks rerun after it.
+- 2026-11-14: one independent review (Opus 5.5, high effort): 3 blockers, 9 improvements and 6
+  nits, all fixed in the same pull request except one nit declined: a scenario for
+  `VARIABLE_NOT_ALLOWED`, since `variable-set` belongs to the factory's job 02 and has no job here.
+  A focused pass by a second fresh reviewer (Opus 5.5, high effort) then verified the fixes: eight resolved, four partly, with
+  four new improvements and five nits; all were fixed. See the proposal's
+  [Review](factory-gateway.proposal.md#review). Checks rerun after it: 15 files, 70 steps.
 
 ## Follow-ups not yet issues
 

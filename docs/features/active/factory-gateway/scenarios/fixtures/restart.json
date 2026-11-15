@@ -1,6 +1,14 @@
 {
-	"cache": { "empty": true },
-	"cutover": { "legacyMarkers": ["lushly-issue-claim"], "legacyUntil": "2030-02-10T00:00:00Z" },
+	"cache": {
+		"empty": true
+	},
+	"cutover": {
+		"from": "2030-02-03T08:00:00Z",
+		"legacyUntil": "2030-02-10T00:00:00Z",
+		"legacyMarkers": ["lushly-issue-claim", "botcore-factory:claim"],
+		"legacyAuthor": "example-owner",
+		"lushlyStaleHours": 4
+	},
 	"claimComments": [
 		{
 			"number": 101,
@@ -40,7 +48,26 @@
 			"author": "example-owner",
 			"at": "2030-02-03T07:00:00Z",
 			"marker": "lushly-issue-claim",
-			"claim": { "branch": "docs/commas", "machine": "mini", "leaseUntil": "2030-02-03T11:00:00Z" }
+			"claim": {
+				"harness": "claude",
+				"session": "s-9f2",
+				"host": "mini",
+				"branch": "docs/commas",
+				"startedAt": "2030-02-03T07:00:00Z"
+			}
+		},
+		{
+			"number": 103,
+			"author": "example-stranger",
+			"at": "2030-02-03T08:00:00Z",
+			"marker": "lushly-issue-claim",
+			"claim": {
+				"harness": "x",
+				"session": "x",
+				"host": "x",
+				"branch": "evil/legacy",
+				"startedAt": "2030-02-03T08:00:00Z"
+			}
 		}
 	]
 }

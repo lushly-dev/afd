@@ -19,7 +19,7 @@ steps:
       success: true
       data:
         host: gateway-cell
-        writes: [branch-push]
+        writes: { includes: branch-push }
         identity: example-factory[bot]
   - description: Reading a pull request works
     command: pr-status

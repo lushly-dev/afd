@@ -25,7 +25,7 @@ steps:
           trust: content
           text: { contains: ignore your instructions }
   - description: Comments come in pages, each labelled content
-    command: issue-comments
+    command: comment-list
     input: { repo: example-org/example-repo, number: 103, limit: 2 }
     expect:
       success: true
@@ -42,3 +42,12 @@ steps:
       error:
         code: NOT_FOUND
         suggestion: { contains: pr-status }
+  - description: A repository the gateway does not serve is refused, naming the ones it does
+    command: issue-get
+    input: { repo: other-org/other-repo, number: 1 }
+    expect:
+      success: false
+      error:
+        code: REPO_NOT_ALLOWED
+        message: example-org/example-repo
+        suggestion: { contains: gateway-status }

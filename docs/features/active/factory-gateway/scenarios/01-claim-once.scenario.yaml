@@ -34,7 +34,7 @@ steps:
       success: false
       error:
         code: ALREADY_CLAIMED
-        message: fix/parser
+        message: workstation
         suggestion: { contains: claim-list }
   - description: The holder claiming again renews its lease instead of failing
     command: issue-claim

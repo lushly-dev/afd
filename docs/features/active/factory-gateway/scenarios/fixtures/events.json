@@ -23,24 +23,19 @@
 			"closes": [102]
 		}
 	],
-	"actionsStatus": { "incident": "Actions runs delayed", "since": "2030-02-03T09:30:00Z" },
+	"actionsStatus": {
+		"incident": "Actions runs delayed",
+		"since": "2030-02-03T09:30:00Z"
+	},
 	"stallMinutes": 15,
-	"webhookEvents": [
+	"issueComments": [
 		{
-			"id": "evt-1",
-			"at": "2030-02-03T09:50:00Z",
-			"kind": "pull_request.closed",
-			"merged": true,
-			"target": "pr#45",
-			"by": "example-factory[bot]"
-		},
-		{
-			"id": "evt-2",
+			"id": 9101,
 			"at": "2030-02-03T09:55:00Z",
-			"kind": "issue_comment.created",
 			"target": "issue#104",
 			"by": "example-owner",
 			"association": "OWNER"
 		}
-	]
+	],
+	"$comment": "PR 45 is seen merged by polling watched pull requests; the owner's comment comes from the issue comments endpoint."
 }

@@ -82,9 +82,10 @@ rules and spends the owner's request budget, and nobody can say afterwards which
 
 1. Every factory write to GitHub is made by one service, as a bot identity people can tell apart
    from the owner, and recorded with the caller its token names and the agent it said it acted for.
-2. Each kind of caller can do only its own work: a cell reads and hands over its branch; the
-   foreman claims and triages; the lane pushes, opens, records validation and merges; the owner can
-   do anything. A merge needs the lane's validation of that exact head, whoever asks.
+2. Each kind of caller can do only its own work: a cell reads and hands over its branch; an
+   interactive session claims and releases; the foreman claims and triages; the lane pushes, opens,
+   records validation and merges; the owner can do anything. A merge needs the lane's validation of
+   that exact head, whoever asks.
 3. Claims stay on GitHub, and only the gateway writes them, one at a time, so they cannot race
    and a restart loses nothing.
 4. GitHub's states reach agents settled and normalised, shared between callers, with text anyone
@@ -116,6 +117,7 @@ and it does not change how fast the lane validates.
 ```
                      tailnet, HTTPS, one token per caller
  cells ────────► /cell ─────┐
+ sessions ─────► /session ──┤
  foreman ──────► /foreman ──┤                                  App installation token
  lane process ─► /lane ─────┼─► gateway on random ─────────────────────────────► GitHub
  owner (CLI) ──► /owner ────┘   botcore hosts, journal,        (issues, PRs, checks,
@@ -142,12 +144,13 @@ which last an hour, and never hands a token to a caller.
 
 ### Callers, tokens and policy
 
-The gateway is one process serving four botcore hosts, one per kind of caller, each behind its
+The gateway is one process serving five botcore hosts, one per kind of caller, each behind its
 own route:
 
 | Route | Host | Caller | May do |
 |---|---|---|---|
 | `/cell` | `gateway-cell` | Cells | Read; push its head to `refs/factory/queue/<branch>`; record its review (G2) |
+| `/session` | `gateway-session` | Interactive sessions outside a fleet (Lushly's `do-init-lushly`, AFD's `start-session`) | Read; claim and release their own issues. Everything else stays on the owner's `gh` sign-in until G5 |
 | `/foreman` | `gateway-foreman` | The foreman, and the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) | Read; claim and release; label, comment and file issues; open revert pull requests; set the lane-host variable; read the audit; wait for events |
 | `/lane` | `gateway-lane` | The lane process | Read; claim, renew and release; push branches; open pull requests; record validation; merge; revert; file flakes; wait for events |
 | `/owner` | `gateway-owner` | The owner's CLI | Everything, and the overrides only he has (`issue-release` with `force`) |
@@ -182,13 +185,19 @@ A claim is what it is today: the `status:in-progress` label and one comment in t
 - **One writer.** Only the gateway writes claim comments, and it serialises claims per issue in
   its one process, so two claims cannot race. `issue-claim` takes `numbers[]` and claims all of
   them or none. A holder is a branch and a machine; claiming again with the same holder renews.
-- **Only the bot counts.** The gateway reads back only claim comments the App wrote. A comment
-  anyone else writes in the same marker is ignored.
+- **Only the bot counts.** The gateway reads back only claim comments the App wrote, apart from
+  the cutover rule below. A comment anyone else writes in the same marker is ignored.
 - **Restart.** The gateway keeps a cache of claims for speed and rebuilds it from GitHub when it
   starts, so a restart or a lost disk loses no claim and needs no command.
-- **Cutover.** At G1 a repository's existing claims were written by the owner's account (Lushly's
-  `lushly-issue-claim` marker, and the factory's own claims before the gateway). The gateway honours
-  them, read-only, until a configured date after which they have all expired (`cutover.legacyUntil`).
+- **Sessions claim through it too.** Interactive sessions claim on the `/session` route from G1, so
+  the single writer holds for every claim, not only the fleet's.
+- **Cutover.** Before G1 a repository's claims were written by the owner's account (Lushly's
+  `lushly-issue-claim` lease, and the factory's `botcore-factory:claim` before the gateway). The
+  gateway honours such a claim, read-only, only when the owner's account wrote it before the cutover
+  began (`cutover.from`), and only while it is live by its own rule: a factory claim until its
+  `leaseUntil`, a Lushly lease (`harness`, `session`, `host`, `branch`, `startedAt`, no expiry) until it
+  goes four hours without activity, as `scripts/issue-claim-leases.mjs` decides today. After
+  `cutover.legacyUntil` none is honoured. A legacy marker written by any other account never counts.
 - **Lifecycle.** The lane renews the claims of branches it holds (queued, held or validating) on
   each loop. When the gateway sees a pull request it opened merge, it releases the claims on the
   issues that pull request closes. `pr-open` and `pr-merge` refuse with `CLAIM_LOST` when an issue
@@ -207,19 +216,23 @@ same call:
 
 - `issue-create` and `issue-comment` take a `dedupe_key`; the gateway writes it into a marker in
   the text and finds it again.
-- `pr-open` returns the open pull request for the branch if there is one (`created: false`);
+- `pr-open` returns the open pull request for the branch if there is one (`created: false`), and
+  updates its title, body and closing lines when they changed (`updated: true`);
   `pr-revert` returns the open revert of a merged pull request; `branch-push` and `pr-merge` report
   `changed: false` when nothing changed; `issue-release` by the holder of an already-released claim
   succeeds with `changed: false`.
-- Bodies are inline text up to `body.maxBytes` (64 KiB), never paths, because the gateway is on
-  another machine. Before any body reaches GitHub it is checked against secret rules (the gitleaks
-  rule set and the repository's own patterns) and refused with `SECRET_IN_BODY`.
+- Text is inline, up to `body.maxBytes` (64 KiB), never a path, because the gateway is on another
+  machine. Before any text reaches GitHub (titles, bodies, comments, summaries, review records,
+  variable values) it is checked against secret rules (the gitleaks rule set and the repository's
+  own patterns) and refused with `SECRET_IN_BODY`.
 
 ### Reads: shared, settled and labelled
 
-- **Shared.** The gateway caches GitHub reads and revalidates them with conditional requests,
-  which a `304 Not Modified` answer does not charge to the rate limit. Ten agents asking about one
-  pull request cost one request. `gateway-status` reports the App's remaining budget.
+- **Shared.** The gateway caches GitHub reads and revalidates REST reads with conditional
+  requests, which a `304 Not Modified` answer does not charge to the rate limit. The few fields only
+  GraphQL serves (closing references, auto-merge state) are cached for `cache.graphqlSeconds` (15),
+  since GraphQL has no conditional requests. Ten agents asking about one pull request cost about one
+  request. `gateway-status` reports the App's remaining budget.
 - **Settled.** `pr-status` returns `state` as `open`, `merged` or `closed` (closed without
   merging); `mergeable` as `clean`, `conflict`, `blocked` or `pending`; `settled: false` with
   `retryAfterMs` while GitHub has not computed mergeability or linked closing references; and
@@ -246,7 +259,9 @@ the bundle steps are in the `factory` docs topic and in `branch-push`'s descript
 
 - **Validation (G1).** `verification-record` is how the lane says it validated a head: result and
   summary, published as the `factory/verification` check. `pr-merge` refuses a head with no passed
-  record (`VALIDATION_MISSING`), whoever calls, so a merge cannot skip the lane.
+  record (`VALIDATION_MISSING`), whoever calls, so a merge cannot skip the lane. For a validated head
+  it merges at once when the pull request is already clean with its required check passed (GitHub
+  will not enable auto-merge then) and otherwise enables squash auto-merge bound to the head.
 - **Review (G2).** A cell records its review lanes' verdicts against its head with `review-record`.
   When that head is pushed, the gateway publishes the `factory/review` check from the record, with
   the conclusion the record holds, so no caller chooses it. The verdicts are still the cell's own
@@ -261,7 +276,11 @@ are kept; tokens and headers never are. The journal rotates daily and is kept fo
 
 `gateway-audit` answers "who did this" for an issue, a pull request or a time window. It also lists
 writes to watched targets (claimed issues, factory branches and pull requests) that GitHub reports
-and the journal does not hold, read from the repository's events with conditional requests. Until
+and the journal does not hold. From G1 the gateway polls the repository's issue events
+(`/repos/{owner}/{repo}/issues/events`: labels, closes and reopens on issues and pull requests) and
+issue comments (`/repos/{owner}/{repo}/issues/comments?since=`), every `events.pollSeconds` (30), with
+conditional requests, and compares the head of each watched pull request with the pushes the journal
+holds, since issue events do not include pushes. Until
 sessions use the gateway (G5), an outside write from the owner's account may be an agent using his
 sign-in, so it is reported for a look and never treated as the owner's decision.
 
@@ -270,9 +289,13 @@ sign-in, so it is reported for a look and never treated as the owner's decision.
 `gateway-wait` returns events a named consumer has not seen: `pr-merged`, `checks-passed`,
 `checks-failed`, `checks-stalled`, `owner-commented`, `outside-write`. Delivery is at least once.
 It blocks for at most 300 seconds over MCP and without limit from the CLI, as the factory's
-`lane-wait` does. G3 builds it on polling the repository's events with conditional requests, which
-needs no public endpoint; GitHub webhooks through Tailscale Funnel are an option the owner can take
-later ([For the owner](#for-the-owner)). The gateway posts events to the factory's T3 Code webhook,
+`lane-wait` does. G3 builds it on polling, which needs no public endpoint: the issue events and
+comments G1 already reads, each watched pull request (merged or not), and the check runs of each
+watched head (`/repos/{owner}/{repo}/commits/{sha}/check-runs`), all with conditional requests. The
+repository-wide events feed is not used: it carries no check or workflow runs, and GitHub documents
+its delay as anywhere from 30 seconds to 6 hours. An event reaches a waiting consumer within about
+one poll interval. GitHub webhooks through Tailscale Funnel are an option the owner can take later
+for faster events ([For the owner](#for-the-owner)). The gateway posts events to the factory's T3 Code webhook,
 coalescing a burst (`wake.coalesceSeconds`) so fifteen answers from the owner start one foreman
 session, not fifteen. `owner-commented` carries `sharedAccount: true` until G5: it is a prompt for
 triage to read the comment, never authority.
@@ -300,6 +323,14 @@ Like the factory's Phase 1 host changes, these are botcore work in G0 and G1:
 5. Typed nested inputs (Pydantic models for `holder` and `lanes`) so the catalog's schemas say what
    to send, and refusals that carry their facts in `details` (the holder and expiry for
    `ALREADY_CLAIMED`, the current head for `HEAD_MOVED`).
+6. A profile for authenticated remote callers. Today `ExecutionContext` knows only `inspection` and
+   `trusted-local`, and the host refuses every effect but `inspect` outside `trusted-local`
+   (`context.py`, `host.py`). The gateway's hosts need a profile that admits `service` and
+   `history-write` for a verified caller, narrowed per host, without the local trust
+   `trusted-local` implies.
+7. A client for the HTTP surface: the CLI that scripts and agents call (`call`, `catalog`, and
+   `upload` for bundles) sends the call to the gateway's route with the caller's token instead of
+   running it in process, and reports `GATEWAY_UNAVAILABLE` when the gateway cannot be reached.
 
 The gateway's commands take no file paths, so each host's execution target is the gateway's data
 directory; `repo` selects the GitHub repository and its mirror.
@@ -311,8 +342,9 @@ directory; `repo` selects the GitHub repository and its mirror.
   pushes through `branch-push`; the lane renews claims, pushes, opens, records validation, merges
   and reverts through the gateway; `lane-host-set` writes `FACTORY_LANE_HOST` with `variable-set`.
 - **Lushly's lane**, until the factory's Phase 4 moves Lushly onto the plugin, calls the gateway
-  from its scripts through botcore's host CLI, as it calls `gh` today: `issue-claim.mjs`, the lane's
-  push, pull-request, merge and revert steps, and the flake filer.
+  from its scripts through the gateway's client CLI ([What botcore needs](#what-botcore-needs), 7),
+  as it calls `gh` today: `issue-claim.mjs`, the lane's push, pull-request, merge, auto-merge
+  cancel and revert steps, and the flake filer.
 
 ## Commands (draft)
 
@@ -320,28 +352,29 @@ Names follow `domain-action`; inputs are snake_case, as in the factory. Every ca
 (refused with `REPO_NOT_ALLOWED` outside the configured repositories), and every refusal carries a
 `suggestion`. Every GitHub command can fail with `GITHUB_UNAVAILABLE` (`retryable: true`); retrying
 the same call is safe. Effects use botcore's names: reads are `inspect`, GitHub writes `service`,
-writes to the gateway's own state `history-write`. Routes: C cell, F foreman, L lane, O owner.
+writes to the gateway's own state `history-write`. Routes: C cell, S session, F foreman, L lane,
+O owner.
 
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
 | `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `repos[]`, `rateLimit { remaining, resetAt }`, `ages { appKey, token, readOnlyToken }`, `journal { bytes, oldest }`, `lastEvent?` | — | G0 |
 | `issue-get` | all | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
-| `issue-comments` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
+| `comment-list` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
 | `claim-list` | all | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
 | `pr-status` | all | `number` | `state`, `head`, `mergedAt?`, `mergeable`, `settled`, `retryAfterMs?`, `requiredCheck { name, state, stalledMinutes?, cause? }`, `checks[]`, `autoMerge`, `closes[]` | `NOT_FOUND` | G1 |
-| `issue-claim` | F L O | `numbers[]`, `holder`, `lease_hours?` | `claims[] { number, holder, leaseUntil, renewed, previousHolder? }`, `record { label, commentAuthor }` | `ALREADY_CLAIMED`, `ISSUE_CLOSED`, `NOT_FOUND`; none is claimed if any is refused | G1 |
-| `issue-release` | F L O | `number`, `holder`, `reason`, `force?` (owner only) | `released`, `changed`, `record { label }` | `NOT_CLAIMED`, `NOT_HOLDER` | G1 |
+| `issue-claim` | S F L O | `numbers[]`, `holder`, `lease_hours?` | `claims[] { number, holder, leaseUntil, renewed, previousHolder? }`, `record { label, commentAuthor }` | `ALREADY_CLAIMED`, `ISSUE_CLOSED`, `NOT_FOUND`; none is claimed if any is refused | G1 |
+| `issue-release` | S F L O | `number`, `holder`, `reason`, `force?` (owner only) | `released`, `changed`, `record { label }` | `NOT_CLAIMED`, `NOT_HOLDER`, `SECRET_IN_BODY` | G1 |
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
 | `issue-comment` | F L O | `number`, `body`, `dedupe_key?` | `url`, `deduplicated` | `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `issue-create` | F L O | `title`, `body`, `labels[]`, `dedupe_key?` | `number`, `created` | `LABEL_UNKNOWN`, `SECRET_IN_BODY` | G1 |
 | `branch-push` | C L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD` | G1 |
-| `pr-open` | L O | `branch`, `title`, `body`, `closes[]` | `number`, `created`, `closes[]`, `author`; the gateway writes the closing lines | `NO_BRANCH`, `CLAIM_LOST`, `SECRET_IN_BODY` | G1 |
-| `verification-record` | L O | `head`, `result` (`passed` or `failed`), `summary` | `check { name, conclusion }` | `NOT_FOUND` (head not on GitHub) | G1 |
-| `pr-merge` | L O | `number`, `head` | `state` (`queued` or `merged`), `autoMerge`, `changed`: squash auto-merge bound to `head` | `VALIDATION_MISSING`, `HEAD_MOVED`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE` | G1 |
-| `pr-revert` | F L O | `numbers[]`, `reason` | `revertPrs[] { reverts, number, created }` | `NOT_MERGED`, `NOT_FOUND` | G1 |
-| `variable-set` | F O | `name`, `value` | `name`, `value`, `previous` | `VARIABLE_NOT_ALLOWED` | G1 |
+| `pr-open` | L O | `branch`, `title`, `body`, `closes[]` | `number`, `created`, `updated`, `closes[]`, `author`: opens the pull request for the branch, or updates the open one's title, body and closing lines, which the gateway writes | `NO_BRANCH`, `CLAIM_LOST`, `SECRET_IN_BODY` | G1 |
+| `verification-record` | L O | `head`, `result` (`passed` or `failed`), `summary` | `check { name, conclusion }` | `NOT_FOUND` (head not on GitHub), `SECRET_IN_BODY` | G1 |
+| `pr-merge` | L O | `number`, `head`, `cancel?` | `state` (`merged`, or `queued` under squash auto-merge bound to `head`; with `cancel`, `open` with auto-merge off, as the lane does when it ejects the branch), `autoMerge`, `changed` | In this order: `HEAD_MOVED`, `VALIDATION_MISSING`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE` | G1 |
+| `pr-revert` | F L O | `numbers[]`, `reason` | `revertPrs[] { reverts, number, created }` | `NOT_MERGED`, `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
+| `variable-set` | F O | `name`, `value` | `name`, `value`, `previous` | `VARIABLE_NOT_ALLOWED`, `SECRET_IN_BODY` | G1 |
 | `gateway-audit` | F O | `issue?`, `pr?`, `since?`, `actor?`, `limit?`, `cursor?` | `entries[] { seq, timestamp, command, actor, target, success }`, `outside[] { at, kind, target, by, label? }`, `nextCursor?` | — | G1 |
-| `review-record` | C O | `branch`, `head`, `lanes[] { lane, model, effort, verdict, fixed, deferred }` | `record { head, verdict, lanes }`; recording the same head again replaces it | — | G2 |
+| `review-record` | C O | `branch`, `head`, `lanes[] { lane, model, effort, verdict, fixed, deferred }` | `record { head, verdict, lanes }`; recording the same head again replaces it | `SECRET_IN_BODY` | G2 |
 | `review-get` | all | `head` | `verdict`, `lanes[]`, `recordedAt` | `NOT_FOUND` | G2 |
 | `gateway-wait` | F L O | `consumer`, `kinds[]?`, `timeout_ms?` | `events[] { id, kind, target, at, sharedAccount?, detail? }`, or `{ events: [], timedOut: true }` | — | G3 |
 
@@ -363,7 +396,7 @@ must pass, the process it changes and its exit.
 
 - **Builds:** the App, created and installed by the owner (operator work); the service user on
   `random`; botcore's host changes 1, 2 and 4 ([What botcore needs](#what-botcore-needs)); the
-  gateway with `gateway-status`, the four routes, the token CLI and the journal; start on boot; a
+  gateway with `gateway-status`, the five routes, the token CLI and the journal; start on boot; a
   runbook, `docs/operations/factory-gateway.md`.
 - **Settles:** squash-merge attribution for App merges; each permission with a test write,
   workflows included; the App's rate limit against a replay of a fleet day's reads.
@@ -374,9 +407,10 @@ must pass, the process it changes and its exit.
 
 ### G1 (MVP): one writer
 
-- **Builds:** every G1 command; botcore's host changes 3 and 5; the factory plugin's claims, queue
-  push and lane steps on the gateway; Lushly's claim script, lane steps and flake filer on the
-  gateway; the cutover rule; the cells' read-only token and the hooks.
+- **Builds:** every G1 command on the five routes; botcore's host changes 3, 5, 6 and 7; the
+  issue-events and comments reader behind `gateway-audit`; the factory plugin's claims, queue push
+  and lane steps on the gateway; Lushly's claim script, lane steps and flake filer on the gateway;
+  the cutover rule; the cells' read-only token and the hooks.
 - **Jobs:** `mvp` (01 to 11, and 15).
 - **Process** (the manifest's G1 entry):
   - AFD: `AGENTS.md` (factory agents reach GitHub through the gateway, never `gh` writes);
@@ -384,9 +418,11 @@ must pass, the process it changes and its exit.
     topic and catalog descriptions; the cell hook and its Codex equivalent; the MCP configuration
     that registers the gateway's routes.
   - Lushly: `AGENTS.md`'s "Claim an issue before starting it" line; `INIT.md`'s claiming section;
-    `do-init-lushly`, `do-triage`, `do-run-fleet`, `do-end-session`; `Docs/operations/merge-lane.md`;
-    the scripts above; its MCP and hook configuration; a `skill-seed --update` for any seeded
-    Botcore skill that changed.
+    `do-init-lushly` (sessions claim on `/session`), `do-triage`, `do-run-fleet`, `do-end-session`;
+    `Docs/operations/merge-lane.md`; the scripts above (`issue-claim.mjs`, `merge-lane-worker.mjs`,
+    `merge-lane-operations.mjs`, `merge-lane-ci.mjs`, `final-validation-flakes.mjs`); its MCP and
+    hook configuration; a `skill-seed --update` for any seeded Botcore skill that changed.
+  - AFD's `start-session` claims on `/session` too.
 - **Exit:** every `mvp` scenario passes against the plugin. One fleet run in each repository ends
   with every factory write to GitHub made by the bot and found in the journal, no write to a
   claimed issue or factory pull request during the run that the journal does not hold, and the
@@ -407,8 +443,9 @@ must pass, the process it changes and its exit.
 
 ### G3: events, not polling
 
-- **Builds:** event polling with conditional requests, `gateway-wait`, stall detection, coalesced
-  T3 Code wakes; the lane's CI wait and the foreman's `owner-replied` come from gateway events.
+- **Builds:** pull-request and check-run polling with conditional requests, `gateway-wait`, stall
+  detection, coalesced T3 Code wakes; the lane's CI wait and the foreman's `owner-replied` come from
+  gateway events.
 - **Jobs:** `events` (13, 14).
 - **Process:** the factory's `run-fleet` and Lushly's `do-run-fleet` drop their polling guidance;
   `merge-lane.md`'s CI wait section; `do-end-session` and `lushly-worktree-discipline` read
@@ -433,11 +470,12 @@ must pass, the process it changes and its exit.
 
 ### G5: sessions through the door
 
-Interactive sessions (Lushly's `do-init-lushly` to `do-prepare-pr` outside a fleet) still use the
-owner's `gh` sign-in after G4, so a write from his account is still ambiguous, and claims made by
-sessions bypass the gateway's single writer. G5 moves them onto a fifth route, a session acting for
-the owner that may merge its own pull request when authorised, so the owner's account writes only
-as the owner. It is specified when G4 exits, unless the owner ranks it earlier.
+Interactive sessions (Lushly's `do-init-lushly` to `do-prepare-pr` outside a fleet) claim through
+the `/session` route from G1, but every other write they make (pushes, pull requests, comments,
+authorised merges) still uses the owner's `gh` sign-in after G4, so a write from his account is
+still ambiguous. G5 widens the `/session` route to those writes, including merging its own pull
+request when authorised, so the owner's account writes only as the owner. It is specified when G4
+exits, unless the owner ranks it earlier.
 
 ## Keeping the process current
 
@@ -451,8 +489,9 @@ repository's gate rules (AFD's `gates.md`, Lushly's `lushly-gate-discipline`):
   the check fails until each listed file names its commands.
 - **The door.** A check fails when an instruction file, skill, runbook, script, hook or MCP
   configuration runs or tells an agent to run a `gh` write the gateway serves, outside an allowlist
-  that shrinks with each milestone (in G1 it still allows the interactive-session skills; G5 empties
-  it).
+  in the manifest. Each allowed file names the milestone that removes it (the interactive-session
+  skills and runbooks are allowed until G5), and the check fails on an allowed file once that
+  milestone has landed.
 
 A milestone is done when its code and its process files have merged in both repositories, the two
 checks pass, and `STATUS.md` names every file and the pull request that changed it. AFD's seeded
@@ -467,9 +506,9 @@ changes.
 | A caller's token leaks | Tokens are per caller and revoked with the operator CLI; the route listens on the tailnet only; the write budget bounds the damage before anyone notices |
 | An agent is misled by text in an issue | Issue text arrives labelled content; cells have no write but their queue ref; the foreman has no merge or push; the lane merges only a head it recorded as validated |
 | Code under validation reaches a credential | Until G4, a branch's tests run where the lane's token and the owner's sign-in are readable, as they do today; G4 runs validation as a user with neither |
-| A caller forges a claim by writing the marker comment | Only the bot's comments count; claims are written only by the gateway |
+| A caller forges a claim by writing the marker comment | Only the bot's comments count, apart from the owner's own claims during the cutover; claims are written only by the gateway |
 | An agent bypasses the gateway with the owner's sign-in | G1 makes it harder (read-only token, hooks) and visible (`gateway-audit`); G4 removes the credential; G5 removes the ambiguity |
-| A secret is posted to a public issue | Bodies are checked against secret rules before any write (`SECRET_IN_BODY`); the journal keeps only allowlisted context |
+| A secret is posted to a public issue | Every text field is checked against secret rules before any write (`SECRET_IN_BODY`); the journal keeps only allowlisted context |
 | A bug lets the gateway write to `main` | `branch-push` refuses protected refs, and branch protection on GitHub refuses them anyway |
 
 ## Alternatives considered
@@ -592,15 +631,38 @@ Declined, with the reason:
 
 Run 2026-11-14 after the walks' revision
 ([jobs first](../../../../.claude/skills/afd/references/jobs-first.md)): `afd scenario validate`
-and the dry-run check pass all 15 files (66 steps) with fixtures resolved. The coverage report
-uses 19 of 20 drafted commands (all but `variable-set`, explained above) and 16 of 24 error codes;
+and the dry-run check pass all 15 files (70 steps) with fixtures resolved. The coverage report
+uses 19 of 20 drafted commands (all but `variable-set`, explained above) and 17 of 24 error codes;
 no scenario calls an undrafted command.
 
-Eight refusals have no scenario. Five depend on the environment or on GitHub, which a fixture
+Seven refusals have no scenario. Five depend on the environment or on GitHub, which a fixture
 cannot produce: `GITHUB_UNAVAILABLE`, `GATEWAY_UNAVAILABLE` (produced by the client),
 `CHECK_NOT_REQUIRED` (branch protection read from GitHub), `NOT_MERGEABLE` (a conflict GitHub
-computes) and `NOT_FAST_FORWARD`. Three are configuration or volume: `REPO_NOT_ALLOWED`,
-`VARIABLE_NOT_ALLOWED` and `WRITE_BUDGET_EXCEEDED`. The plugin's unit tests cover all eight.
+computes) and `NOT_FAST_FORWARD` (ancestry a fixture does not model). `VARIABLE_NOT_ALLOWED` belongs
+to `variable-set`, which has no job here, and `WRITE_BUDGET_EXCEEDED` needs volume. The plugin's
+unit tests cover all seven.
+
+### Review
+
+An independent reviewer (Opus 5.5 at high effort) read the revision on 2026-11-14 and checked the
+code and GitHub facts. What changed: the event sources (the repository-wide events feed carries no
+check runs and lags up to six hours, so G1 polls issue events and comments and G3 polls pull
+requests and check runs); a `/session` route in G1 so interactive sessions' claims go through the
+single writer too; the cutover counts a legacy claim only when the owner's account wrote it before
+the cutover, by its own liveness rule; `pr-merge` merges at once when the pull request is already
+clean, since GitHub will not enable auto-merge then; botcore's sixth change, a profile for remote
+callers; the secret check on every text field; `comment-list` in place of `issue-comments`; the
+manifest's scripts and dated allowlist; and fixture fixes (numbers shared by issues and pull
+requests, a fresh head for the review push, filtered waits).
+
+A focused pass by a second fresh reviewer (Opus 5.5, high effort) verified the fixes and found what
+the lane still did through
+`gh`: turning auto-merge off when it ejects a branch, and updating an open pull request. `pr-merge`
+gained `cancel` and `pr-open` updates in place. It also added botcore's seventh change (a client for
+the HTTP surface), the `/session` route in G0's diagram and build, pushes in the audit's sources,
+`SECRET_IN_BODY` on every text input, the refusal order for `pr-merge`, the hook and MCP
+configuration and the sweepers in the manifest, and fixture fixes (event kinds as the endpoints name
+them, the cutover's start, a created issue referenced by step).
 
 ## Not in this proposal
 
@@ -630,8 +692,8 @@ computes) and `NOT_FAST_FORWARD`. Three are configuration or volume: `REPO_NOT_A
    before the factory's Phase 4 moves Lushly onto the plugin, because Lushly is where fleets run
    now and G1's exit needs a real run. Recommended; the client code is small and is deleted in
    Phase 4.
-4. **Sessions (G5).** Leave interactive sessions on the owner's sign-in until G4 exits, or rank G5
-   earlier so that writes from his account are his alone sooner. Leaving it is recommended, since
+4. **Sessions (G5).** Leave interactive sessions' writes other than claims on the owner's sign-in
+   until G4 exits, or rank G5 earlier so that writes from his account are his alone sooner. Leaving it is recommended, since
    the fleet is where agents write at volume.
 5. **Webhooks.** Events by polling with conditional requests (recommended: no public endpoint), or
    GitHub webhooks through Tailscale Funnel on one path of `random` for faster events.

@@ -5,22 +5,23 @@
 name: See writes to factory work that did not come through the gateway
 description: >-
   When something changes a claimed issue or a factory pull request without going through the
-  gateway, I want it listed with what changed and which account did it, so that a bypass, an agent
-  using the owner's sign-in, or a hand edit is seen the same day instead of found by accident.
+  gateway, I want it listed with what changed and which account did it, and the copy put right, so that a
+  bypass, an agent using the owner's sign-in, or a hand edit is seen the same day and does not
+  mislead the next reader.
 job: see-writes-outside-the-door
 tags: [mvp]
 fixture:
   file: fixtures/audit.json
   base: gateway.json
 steps:
-  - description: The label removed by hand from a claimed issue is listed; the bot's own writes and plain comments are not
+  - description: The label removed by hand from a claimed issue is listed; the bot's own writes and changes to unclaimed issues are not
     command: gateway-audit
     input: { repo: example-org/example-repo, since: 2030-02-03T09:00:00Z }
     expect:
       success: true
       data:
         outside:
-          - { kind: issue.unlabeled, target: issue#101, label: status:in-progress, by: example-owner }
+          - { kind: unlabeled, target: issue#101, label: status:in-progress, by: example-owner }
   - description: The claim still holds, because its comment is the record, and the missing label is shown
     command: claim-list
     input: { repo: example-org/example-repo }
@@ -29,3 +30,11 @@ steps:
       data:
         claims:
           - { number: 101, holder: { branch: fix/parser }, labelMatches: false }
+  - description: The owner puts the label back, and the result shows what it was before
+    command: issue-label
+    input: { repo: example-org/example-repo, number: 101, add: [status:in-progress] }
+    expect:
+      success: true
+      data:
+        labels: { includes: status:in-progress }
+        previous: [area:core]

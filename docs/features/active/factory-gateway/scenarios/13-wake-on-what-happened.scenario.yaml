@@ -15,7 +15,7 @@ fixture:
 steps:
   - description: The foreman's wait returns the merge and the comment from the owner's account, marked as possibly an agent's
     command: gateway-wait
-    input: { repo: example-org/example-repo, consumer: foreman, timeout_ms: 1000 }
+    input: { repo: example-org/example-repo, consumer: foreman, kinds: [pr-merged, owner-commented], timeout_ms: 1000 }
     expect:
       success: true
       data:
@@ -24,7 +24,7 @@ steps:
           - { kind: owner-commented, target: issue#104, sharedAccount: true }
   - description: Waiting again returns nothing new for that reader
     command: gateway-wait
-    input: { repo: example-org/example-repo, consumer: foreman, timeout_ms: 1000 }
+    input: { repo: example-org/example-repo, consumer: foreman, kinds: [pr-merged, owner-commented], timeout_ms: 1000 }
     expect:
       success: true
       data:

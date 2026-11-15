@@ -17,7 +17,11 @@
 			"seq": 1,
 			"timestamp": "2030-02-03T08:10:00Z",
 			"command": "issue-claim",
-			"actor": { "kind": "agent", "id": "foreman", "onBehalfOf": "cell-3" },
+			"actor": {
+				"kind": "agent",
+				"id": "foreman",
+				"onBehalfOf": "cell-3"
+			},
 			"target": "issue#101",
 			"success": true
 		},
@@ -25,7 +29,11 @@
 			"seq": 2,
 			"timestamp": "2030-02-03T09:20:00Z",
 			"command": "branch-push",
-			"actor": { "kind": "service", "id": "lane@workstation", "onBehalfOf": "cell-3" },
+			"actor": {
+				"kind": "service",
+				"id": "lane@workstation",
+				"onBehalfOf": "cell-3"
+			},
 			"target": "refs/heads/fix/parser",
 			"success": true
 		},
@@ -33,7 +41,11 @@
 			"seq": 3,
 			"timestamp": "2030-02-03T09:21:00Z",
 			"command": "pr-open",
-			"actor": { "kind": "service", "id": "lane@workstation", "onBehalfOf": "cell-3" },
+			"actor": {
+				"kind": "service",
+				"id": "lane@workstation",
+				"onBehalfOf": "cell-3"
+			},
 			"target": "pr#45",
 			"success": true
 		},
@@ -41,7 +53,11 @@
 			"seq": 4,
 			"timestamp": "2030-02-03T09:38:00Z",
 			"command": "verification-record",
-			"actor": { "kind": "service", "id": "lane@workstation", "onBehalfOf": "cell-3" },
+			"actor": {
+				"kind": "service",
+				"id": "lane@workstation",
+				"onBehalfOf": "cell-3"
+			},
 			"target": "pr#45",
 			"success": true
 		},
@@ -49,28 +65,52 @@
 			"seq": 5,
 			"timestamp": "2030-02-03T09:40:00Z",
 			"command": "pr-merge",
-			"actor": { "kind": "service", "id": "lane@workstation", "onBehalfOf": "cell-3" },
+			"actor": {
+				"kind": "service",
+				"id": "lane@workstation",
+				"onBehalfOf": "cell-3"
+			},
 			"target": "pr#45",
 			"success": true
 		}
 	],
-	"repoEvents": [
-		{
-			"at": "2030-02-03T09:21:00Z",
-			"kind": "pull_request.opened",
-			"target": "pr#45",
-			"by": "example-factory[bot]"
-		},
+	"issueEvents": [
 		{
 			"at": "2030-02-03T09:30:00Z",
-			"kind": "issue.unlabeled",
+			"kind": "unlabeled",
 			"target": "issue#101",
 			"label": "status:in-progress",
 			"by": "example-owner"
+		}
+	],
+	"$comment": "Issue 101 after its claim set status:in-progress and the owner removed it by hand.",
+	"issues": [
+		{
+			"number": 101,
+			"state": "open",
+			"title": "Accept empty parser input",
+			"author": {
+				"login": "example-owner",
+				"association": "OWNER"
+			},
+			"labels": ["area:core"],
+			"body": "An empty string makes the parser throw. It should return an empty document."
 		},
 		{
+			"number": 104,
+			"state": "open",
+			"title": "Choose the default for trailing commas",
+			"author": {
+				"login": "example-owner",
+				"association": "OWNER"
+			},
+			"labels": ["needs:decision"],
+			"body": "Allow or refuse trailing commas by default?"
+		}
+	],
+	"issueComments": [
+		{
 			"at": "2030-02-03T09:35:00Z",
-			"kind": "issue.commented",
 			"target": "issue#104",
 			"by": "example-owner"
 		}

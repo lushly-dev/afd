@@ -23,7 +23,7 @@ steps:
       success: true
       data:
         created: true
-        number: 120
+        number: { exists: true }
   - description: The same flake again returns the open issue instead of a new one
     command: issue-create
     input:
@@ -36,7 +36,7 @@ steps:
       success: true
       data:
         created: false
-        number: 120
+        number: "${{ steps[0].data.number }}"
   - description: A label the repository does not define is refused rather than created
     command: issue-create
     input:
@@ -55,7 +55,7 @@ steps:
     command: issue-comment
     input:
       repo: example-org/example-repo
-      number: 120
+      number: "${{ steps[0].data.number }}"
       body: Failed again on 2030-02-03.
       dedupe_key: flake-3fa9c2-2030-02-03
     expect:
@@ -67,7 +67,7 @@ steps:
     command: issue-comment
     input:
       repo: example-org/example-repo
-      number: 120
+      number: "${{ steps[0].data.number }}"
       body: Failed again on 2030-02-03.
       dedupe_key: flake-3fa9c2-2030-02-03
     expect:
@@ -78,7 +78,7 @@ steps:
     command: issue-comment
     input:
       repo: example-org/example-repo
-      number: 120
+      number: "${{ steps[0].data.number }}"
       body: "Log excerpt: connecting with EXAMPLE-SECRET-4821 failed."
       dedupe_key: flake-3fa9c2-log
     expect:
