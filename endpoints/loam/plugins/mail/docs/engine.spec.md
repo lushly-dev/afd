@@ -481,7 +481,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision`, the person's own addresses (`account` and the sent mailboxes), `observation` and `mailbox.role` |
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
-| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream of five messages or more, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams no message belongs to |
+| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream of five messages or more, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams of mail no longer held |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
@@ -1257,8 +1257,8 @@ migration 9):
 - **A story's id** is its stream's, from `stream`, which is not derived: an id once given to a
   list or a sender is kept, so a rebuild keeps it and no two streams share one (an id made from
   a hash of the stream would let a sender who searched for a collision join another's story). A
-  rebuild that finishes drops the streams no message belongs to any longer, such as a removed
-  account's. Its **title** is the list's id, or else the name on its newest message, or else the
+  rebuild that finishes drops the streams of mail no longer held, such as a removed account's; a
+  stream whose mail is held but in no story now, screened in or only in junk, keeps its id. Its **title** is the list's id, or else the name on its newest message, or else the
   address; it sits with the list's id and the sender's address in a labelled part.
 - **An exception** is a member whose body shape is not one of its story's usual ones, a shape at
   least five of its messages have. A story with no usual shape has no exceptions, since nothing
@@ -1276,10 +1276,10 @@ migration 9):
   gives none and the cursor of now: a caller starts there, then reads `mail-story-list`, and
   follows the changes after, so nothing falls between. With one it gives each story that changed
   after it once, at its latest change: `current` with what the list gives, or `gone` when it is
-  no longer a story. `more` says another page waits. The epoch is a random number made again
-  by each rebuild, which removing an account also runs: a cursor of another epoch, or one naming
-  a change the store never noted, is another time's or another store's, and gets `reset`, no
-  changes and the cursor of now, so the caller reads the list again.
+  no longer a story. `more` says another page waits. The epoch grows by a random step with each
+  rebuild, which removing an account also runs: a cursor of another epoch (from before a
+  rebuild, or most likely another store's), or one naming a change the store never noted, gets
+  `reset`, no changes and the cursor of now, so the caller reads the list again.
 - **Stories wait with screening**: the commands fail with `SCREENING_NOT_READY` while it waits.
   `mail-status` gives `screening.stories`, and `mail-message-list` and `mail-thread-open` give
   each message's story.

@@ -592,6 +592,46 @@ fn what_changed_is_each_story_once_after_a_cursor() {
 }
 
 #[test]
+fn a_story_keeps_its_id_across_a_rebuild_while_its_mail_is_held() {
+    let mut mail = Mail::new();
+    let inbox = mail.inbox;
+    mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 5);
+    let story = mail.news_story();
+    // Screened in, the list's mail is in no story; a rebuild keeps the
+    // stream, so undone, the story comes back with its id.
+    mail.decide("news@example.net", Some(Decision::In));
+    mail.store.rebuild(NOW, |_| {}).unwrap();
+    mail.decide("news@example.net", None);
+    assert_eq!(mail.news_story(), story);
+    assert_eq!(mail.story(story).unwrap().messages, 5);
+    // New streams take the next ids, none skipped.
+    mail.add_many(
+        inbox,
+        "a@example.net",
+        &["Precedence: bulk"],
+        "Offers.\r\n",
+        5,
+    );
+    assert_eq!(mail.sender_story("a@example.net"), story + 1);
+}
+
+#[test]
+fn a_store_with_no_epoch_still_answers_and_a_rebuild_resets_its_cursors() {
+    let mut mail = Mail::new();
+    mail.store
+        .connection
+        .execute("DELETE FROM engine_state WHERE key = 'story-epoch'", [])
+        .unwrap();
+    let start = mail.store.story_changes(None, 10).unwrap();
+    assert_eq!(start.now.epoch, 0);
+    assert!(!mail.store.story_changes(Some(start.now), 10).unwrap().reset);
+    mail.store.rebuild(NOW, |_| {}).unwrap();
+    let after = mail.store.story_changes(Some(start.now), 10).unwrap();
+    assert!(after.reset);
+    assert!(after.now.epoch > 0);
+}
+
+#[test]
 fn a_rebuild_gives_the_same_stories() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
@@ -690,11 +730,13 @@ fn every_story_query_reads_an_index() {
         for line in plan.lines().filter(|line| line.starts_with("SCAN")) {
             // The target is a batch's own few rows; a constant row is the
             // one an EXISTS is read into.
-            // Pruning reads every stream, once, when a rebuild finishes.
+            // Pruning reads every stream and envelope, once, when a rebuild
+            // finishes.
             if !(line.starts_with("SCAN story_target")
                 || line.starts_with("SCAN temp.story_target")
                 || line == "SCAN CONSTANT ROW"
-                || (name == "prune" && line == "SCAN stream"))
+                || (name == "prune"
+                    && (line == "SCAN stream" || line.starts_with("SCAN envelope"))))
             {
                 failed.push(format!("{name} scans:\n{plan}"));
             }
@@ -706,7 +748,7 @@ fn every_story_query_reads_an_index() {
             "members" | "streams" => "SEARCH screening USING INTEGER PRIMARY KEY",
             "newest in target" => "story_member_date (story_id=?",
             "stream" => "USING COVERING INDEX sqlite_autoindex_stream_1 (key=?)",
-            "prune" => "story_member_date (story_id=?",
+            "prune" => "SCAN envelope",
             "exceptions of a shape" | "shape count" => {
                 "story_member_shape (story_id=? AND body_shape=?"
             }

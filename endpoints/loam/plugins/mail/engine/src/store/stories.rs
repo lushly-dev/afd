@@ -46,10 +46,10 @@ pub const KINDS_SHOWN: u32 = 10;
 /// stories existed: they are filled when it is next opened.
 const FILL: &str = "story-fill";
 
-/// The `engine_state` key of the stories' epoch: a random number made again
-/// whenever every story is thrown away (a rebuild), which a cursor of
-/// `mail-story-changes` carries, so a cursor from before, or from another
-/// store, is told to read the stories again.
+/// The `engine_state` key of the stories' epoch: a number that grows by a
+/// random step whenever every story is thrown away (a rebuild), which a
+/// cursor of `mail-story-changes` carries, so a cursor from before is told
+/// to read the stories again, as one from another store most likely is.
 const EPOCH: &str = "story-epoch";
 
 /// The stream a message of `envelope` belongs to: its list, or else its
@@ -64,10 +64,27 @@ const TARGET_MEMBERS: &str = "FROM temp.story_target
      CROSS JOIN envelope ON envelope.message_id = story_target.message_id
      WHERE screening.class = 'bulk' AND screening.listed = 1";
 
+/// Gives each new stream of `members` (rows of `envelope`) its id. Only a
+/// key not there yet is inserted: an insert ignored would still use up an
+/// id.
+fn new_streams_sql(members: &str) -> String {
+    format!(
+        "INSERT INTO stream (key)
+         SELECT DISTINCT member_stream FROM (SELECT {STREAM} AS member_stream {members})
+         WHERE NOT EXISTS (SELECT 1 FROM stream WHERE stream.key = member_stream)"
+    )
+}
+
 /// Gives each new stream of the target's members its id.
 fn streams_sql() -> String {
-    format!("INSERT OR IGNORE INTO stream (key) SELECT {STREAM} {TARGET_MEMBERS}")
+    new_streams_sql(TARGET_MEMBERS)
 }
+
+/// The bulk messages a mailbox other than junk and trash shows, all of
+/// them, as [`compose_all`] reads them.
+const EVERY_MEMBER: &str =
+    "FROM screening JOIN envelope ON envelope.message_id = screening.message_id
+     WHERE screening.class = 'bulk' AND screening.listed = 1";
 
 /// The membership of each message of `temp.story_target`, as it should be;
 /// returns each member made or changed.
@@ -415,14 +432,12 @@ pub(super) fn settle(
 /// whose row this changed.
 pub(super) fn compose_all(transaction: &Transaction<'_>, now: i64) -> Result<(), StoreError> {
     let exception = exception_expression();
+    let streams = new_streams_sql(EVERY_MEMBER);
     transaction.execute_batch(&format!(
         "DELETE FROM story_member;
          DELETE FROM story_shape;
          DELETE FROM story_kind;
-         INSERT OR IGNORE INTO stream (key)
-             SELECT {STREAM}
-             FROM screening JOIN envelope ON envelope.message_id = screening.message_id
-             WHERE screening.class = 'bulk' AND screening.listed = 1;
+         {streams};
          INSERT INTO story_member (message_id, story_id, date, template_key, body_shape, exception)
              SELECT envelope.message_id, (SELECT id FROM stream WHERE stream.key = {STREAM}),
                     envelope.date, envelope.template_key, envelope.body_shape, 0
@@ -483,13 +498,18 @@ pub(super) const CLEAR: &str = "DELETE FROM story;
      DELETE FROM story_kind;
      DELETE FROM engine_state WHERE key = 'story-fill';
      INSERT OR REPLACE INTO engine_state (key, value)
-         VALUES ('story-epoch', abs(random() % 2147483647) + 1);";
+         VALUES ('story-epoch',
+                 coalesce((SELECT value FROM engine_state WHERE key = 'story-epoch'), 0)
+                     + 1 + abs(random() % 1000000));";
 
-/// Drops the streams no message belongs to any longer, when a rebuild
+/// Drops the streams no held message belongs to any longer, when a rebuild
 /// finishes: those of mail that is gone, such as a removed account's, whose
-/// lists and addresses are not kept.
-pub(super) const PRUNE: &str =
-    "DELETE FROM stream WHERE NOT EXISTS (SELECT 1 FROM story_member WHERE story_id = stream.id)";
+/// lists and addresses are not kept. A stream whose mail is held but in no
+/// story now (screened in, or only in junk) keeps its id, so its story has
+/// the same one if it comes back.
+pub(super) fn prune_sql() -> String {
+    format!("DELETE FROM stream WHERE key NOT IN (SELECT {STREAM} FROM envelope)")
+}
 
 /// The queries stories run, by name, for the test of their plans.
 #[cfg(test)]
@@ -500,7 +520,7 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("streams", streams_sql()),
         ("members", member_sql()),
         ("newest in target", NEWEST_IN_TARGET.to_string()),
-        ("prune", PRUNE.to_string()),
+        ("prune", prune_sql()),
         ("stream", STREAM_ID.to_string()),
         ("exceptions of the target", except_sql(EXCEPT_TARGET)),
         ("exceptions of a shape", except_sql(EXCEPT_SHAPE)),

@@ -451,8 +451,8 @@ pub(super) const MIGRATIONS: &[&str] = &[
     "
     -- A stream: a list's id or a sender's address (`list <id>` or `sender <address>`), and the
     -- id its story has. Not derived: an id once given is kept, so a rebuild gives a story the
-    -- same one and no two streams share one. A rebuild that finishes drops the streams no
-    -- message belongs to any longer.
+    -- same one and no two streams share one. A rebuild that finishes drops the streams of mail
+    -- no longer held.
     CREATE TABLE stream (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         key TEXT NOT NULL UNIQUE
@@ -520,7 +520,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- Stories for the mail already held are filled when the store is next opened.
     INSERT INTO engine_state (key, value) SELECT 'story-fill', 1
         WHERE EXISTS (SELECT 1 FROM message);
-    -- The stories' epoch, which a cursor of what changed carries; made again by each rebuild.
+    -- The stories' epoch, which a cursor of what changed carries; each rebuild moves it on.
     INSERT INTO engine_state (key, value) VALUES ('story-epoch', abs(random() % 2147483647) + 1);
     ",
 ];

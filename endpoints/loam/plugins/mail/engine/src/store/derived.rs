@@ -1099,7 +1099,7 @@ impl Store {
             self.commit_index()?;
             let transaction = self.connection.transaction()?;
             transaction.execute("DELETE FROM engine_state WHERE key = ?1", [REBUILD])?;
-            transaction.execute_batch(super::stories::PRUNE)?;
+            transaction.execute_batch(&super::stories::prune_sql())?;
             note_change(&transaction, now, "rebuilt", 0)?;
             transaction.commit()?;
             return Ok(RebuildProgress {
