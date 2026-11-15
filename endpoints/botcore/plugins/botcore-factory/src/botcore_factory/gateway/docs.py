@@ -46,8 +46,8 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
 2. branch-push {ref, head, bundle}: head is the full 40-character SHA. Every commit the push
    adds must be authored by the owner (COMMIT_AUTHOR_NOT_OWNER): an agent that helped is an
    `Assisted-by:` trailer, never the author. This keeps credit honest; it is not a permission
-   check. An upload is pushed by the caller that made it. (A `Co-authored-by:` naming an agent is refused
-   by the repository's ci-ok, not here.)
+   check. (A `Co-authored-by:` naming an agent is refused by the repository's ci-ok, not
+   here.) An upload is pushed by the caller that made it.
 3. pr-open {branch, title, body, closes[]}: write no closing keywords (CLOSING_KEYWORD_IN_BODY);
    the gateway writes them. A retry returns the same pull request; a new title or body updates
    it. A pull request on the branch the gateway did not open is NOT_GATEWAY_PR.
