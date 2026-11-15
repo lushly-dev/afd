@@ -103,7 +103,7 @@ e need `components-check`, which phase 0 left out of phase C. Arm a was run agai
 moved from `cfb70942` to `047268ab` and arm c had to be compared with today's route on the same one.
 
 **The checkout.** Each session ran in a worktree of a repository holding one commit: `047268ab`'s tree
-without `docs/features/active/component-briefs/`, so neither the tasks and checks nor what is counted
+without `docs/features/complete/component-briefs/`, so neither the tasks and checks nor what is counted
 could be read, in the tree or in its history (`git grep` for the tasks' text found nothing else).
 Every session wrote its page and changed no other file. The pilot of one run each (t1, a and c) used
 the procedure unchanged and is counted.
