@@ -5,3 +5,4 @@ export const validateCoreManifest: GeneratedValidator;
 export const validateDeployment: GeneratedValidator;
 export const validateDeploymentV2: GeneratedValidator;
 export const validateDeploymentV3: GeneratedValidator;
+export const validateDeploymentV4: GeneratedValidator;

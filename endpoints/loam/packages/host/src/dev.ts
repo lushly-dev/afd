@@ -32,7 +32,6 @@ import { HostError } from './errors.js';
 import { createLoamHost, type LoamHost } from './host.js';
 import { bindServer, createHostServer, HOST_INTERNALS } from './internal.js';
 import { acquireDataLock, type DataLock } from './lock.js';
-import { SERVE_STATIC_DEPLOYMENT, type TestOnlyOptions } from './testing-only.js';
 
 /** The directory beside the deployment file that `--data` defaults to. */
 export const DEV_DATA_DIRECTORY = '.loam-dev';
@@ -49,6 +48,8 @@ export interface DevOptions {
 	port?: number;
 	/** The web host's build; the workspace's `web/dist` by default. */
 	dist?: string;
+	/** Tests only, from `startDevHost`: the provider's rate limit, raised (never off). The bin passes none. */
+	rateLimit?: { window: number; max: number };
 }
 
 export interface DevProfile {
@@ -102,8 +103,38 @@ async function bindRecorded(
 	return (server.address() as AddressInfo).port;
 }
 
+/**
+ * The profile's server configuration, in memory, from its ports (5.1's step 4): `https://localhost:<port>`, the
+ * certificate, the generated secret, the sink, and the sandbox on `https://127.0.0.1:<sandbox port>`, another site.
+ * `dev` builds it from the ports it bound, and `bootstrap --dev` from `dev.json`'s (3.7).
+ */
+export function devServerConfig(options: {
+	data: string;
+	ports: DevPorts;
+	certificate: string;
+	key: string;
+	secret: string;
+}): { server: ServerConfigV1; origin: string; sandboxOrigin: string | null } {
+	const { data, ports } = options;
+	const origin = `https://localhost:${ports.port}`;
+	const sandboxOrigin = ports.sandboxPort ? `https://127.0.0.1:${ports.sandboxPort}` : null;
+	const server: ServerConfigV1 = {
+		server_version: 1,
+		origin,
+		listen: `127.0.0.1:${ports.port}`,
+		data,
+		tls: { cert_file: options.certificate, key_file: options.key },
+		auth: { secret_file: options.secret },
+		mail: { transport: 'sink' },
+		...(sandboxOrigin
+			? { sandbox: { origin: sandboxOrigin, listen: `127.0.0.1:${ports.sandboxPort}` } }
+			: {}),
+	};
+	return { server, origin, sandboxOrigin };
+}
+
 /** Whether the deployment needs the sandbox's origin: a view app, or a `[sandbox]` of its own. */
-async function needsSandbox(deployment: string): Promise<boolean> {
+export async function needsSandbox(deployment: string): Promise<boolean> {
 	const analysis = await analyzeDeployment(deployment);
 	return (
 		analysis.deployment?.sandbox !== undefined ||
@@ -112,7 +143,7 @@ async function needsSandbox(deployment: string): Promise<boolean> {
 }
 
 /** Runs the development profile; the returned host listens, holds the lock and owns its sockets. */
-export async function runDev(options: DevOptions & TestOnlyOptions): Promise<DevProfile> {
+export async function runDev(options: DevOptions): Promise<DevProfile> {
 	const deployment = resolve(options.deployment);
 	const data = resolve(options.data ?? join(dirname(deployment), DEV_DATA_DIRECTORY));
 	const dist = resolve(options.dist ?? WORKSPACE_DIST);
@@ -168,21 +199,15 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 		const ports: DevPorts = { port, ...(keptSandbox ? { sandboxPort: keptSandbox } : {}) };
 		if (recorded?.port !== ports.port || recorded?.sandboxPort !== ports.sandboxPort)
 			await writeDevPorts(data, ports);
-		// 4. The configuration, in memory, from the bound ports.
-		const origin = `https://localhost:${port}`;
-		const sandboxOrigin = sandboxPort ? `https://127.0.0.1:${sandboxPort}` : null;
-		const server: ServerConfigV1 = {
-			server_version: 1,
-			origin,
-			listen: `127.0.0.1:${port}`,
+		// 4. The configuration, in memory, from the bound ports. A recorded sandbox port no view app needs is
+		// kept in `dev.json`, and served only once one does.
+		const { server, origin, sandboxOrigin } = devServerConfig({
 			data,
-			tls: { cert_file: tls.certificate, key_file: tls.key },
-			auth: { secret_file: secret },
-			mail: { transport: 'sink' },
-			...(sandboxOrigin
-				? { sandbox: { origin: sandboxOrigin, listen: `127.0.0.1:${sandboxPort}` } }
-				: {}),
-		};
+			ports: { port, ...(sandboxPort ? { sandboxPort } : {}) },
+			certificate: tls.certificate,
+			key: tls.key,
+			secret,
+		});
 		handedOver = true;
 		const host = await createLoamHost({
 			server,
@@ -192,8 +217,8 @@ export async function runDev(options: DevOptions & TestOnlyOptions): Promise<Dev
 				lock,
 				servers: { shell, ...(sandbox ? { sandbox } : {}) },
 				...(sandboxOrigin ? { sandboxOrigin } : {}),
+				...(options.rateLimit ? { rateLimit: options.rateLimit } : {}),
 			},
-			...(options[SERVE_STATIC_DEPLOYMENT] ? { [SERVE_STATIC_DEPLOYMENT]: true as const } : {}),
 		});
 		// 5. Serving. The host owns the lock and the sockets now, so a failed listen closes it.
 		try {

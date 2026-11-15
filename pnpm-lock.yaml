@@ -423,9 +423,15 @@ importers:
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
+      '@lushly-dev/loam-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@lushly-dev/loam-manifest':
         specifier: workspace:*
         version: link:../manifest
+      better-auth:
+        specifier: 1.7.18
+        version: 1.7.18(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)
       hono:
         specifier: 4.13.17
         version: 4.13.17

@@ -19,7 +19,7 @@ import {
 	type ReplayReport,
 	replayJournal,
 } from '@lushly-dev/afd-server/direct';
-import type { IdentityV1, ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { IdentityV1, ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { BOOT_ONLY } from './commands.js';
@@ -117,7 +117,7 @@ export interface ReplayKernelOptions {
 	 */
 	keep?: boolean;
 	/** The recording kernel's deployment. */
-	deployment?: ProjectionV3;
+	deployment?: ProjectionV4;
 	/** Ports that serve the deployment's packages in process, so a view replays with no iframe. */
 	ports?: KernelPortsV1;
 	/** The recording kernel's identity (phase 3 specification, 2.1). */

@@ -8,6 +8,8 @@ import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
+import { seedTestPeople } from '@lushly-dev/loam-identity/testing';
+import { runBootstrap, withBootstrapProvider } from '../bootstrap.js';
 import { DEV_DATA_DIRECTORY } from '../dev.js';
 import {
 	claimDataDirectory,
@@ -50,24 +52,33 @@ export interface StartDevHostOptions {
 	/** The deployment file's text, as `serveDeployment` takes it. */
 	config: string;
 	basePath?: string;
-	organization?: { slug: string; name: string };
+	/**
+	 * Bootstraps with `bootstrap --dev`'s own path before the profile starts, inviting `owner` (default an address no
+	 * one reads, as the test-only auth host's), then seeds `people` as `startTestAuthHost` does (5.2).
+	 */
+	organization?: { slug: string; name: string; owner?: string };
 	people?: {
 		email: string;
 		name: string;
 		role: 'owner' | 'admin' | 'member';
 		methods?: ('passkey' | 'password')[];
+		/** A password account, which `methods` holding `password` needs, as the test-only auth host's people take. */
+		password?: string;
 	}[];
 	modules?: unknown[];
 	resources?: string[];
 	accessTokenTtlSeconds?: number;
+	/**
+	 * The provider's rate limit, raised for a suite that legitimately makes many requests from one address, such as
+	 * P6-H3's 500 `whoami` reads. It raises the limit only: the limiter is on in every mode.
+	 */
+	rateLimit?: { window: number; max: number };
 	/** The child process's environment additions. */
 	env?: Record<string, string>;
 }
 
 /** The options a later step brings, refused until then rather than ignored. */
 const LATER: Record<string, string> = {
-	organization: 'step 3, with the provider',
-	people: 'step 3, with the provider',
 	resources: 'step 4, with the MCP route',
 	accessTokenTtlSeconds: 'step 4, with the MCP route',
 	modules: 'the step that builds HostModule',
@@ -117,8 +128,41 @@ export async function createDevHost(
 		await claimDataDirectory(data);
 		await writePrivate(join(data, '.gitignore'), DEV_GITIGNORE);
 		const { certificate } = await ensureCertificate(data);
+		if (options.people && !options.organization)
+			throw new Error("startDevHost's `people` are seeded into its `organization`.");
+		if (options.organization) {
+			// Bootstrapped and seeded before the profile starts, as `bootstrap --dev` runs with `dev` stopped (3.7).
+			const { slug, name, owner } = options.organization;
+			const report = await runBootstrap({
+				form: 'dev',
+				deployment,
+				data,
+				slug,
+				name,
+				ownerEmail: owner ?? `owner@${slug}.invalid`,
+			});
+			const people = options.people ?? [];
+			for (const person of people) {
+				if (person.methods?.includes('password') && person.password === undefined)
+					throw new Error(`startDevHost's ${person.email} signs in with a password, and has none.`);
+			}
+			if (people.length > 0) {
+				await withBootstrapProvider({ form: 'dev', deployment, data }, ({ provider }) =>
+					seedTestPeople(
+						provider.auth,
+						report.organization.id,
+						people.map(({ email, name, role, password }) => ({
+							email,
+							name,
+							role,
+							...(password !== undefined ? { password } : {}),
+						}))
+					)
+				);
+			}
+		}
 		const env = { ...options.env, NODE_EXTRA_CA_CERTS: certificate };
-		running = await launch(deployment, env, logs);
+		running = await launch(deployment, env, logs, options.rateLimit);
 		const basePath = options.basePath ?? '/';
 		const current = (): Launched => {
 			if (!running) throw new Error('The development profile is not running.');
@@ -151,7 +195,15 @@ export async function createDevHost(
 			certificate,
 			data,
 			mail: () => readMail(data),
-			db: () => ({ auth: database('auth.sqlite'), loam: database('loam.sqlite') }),
+			// Each database opens when it is first read: `loam.sqlite` exists only from step 4.
+			db: () => ({
+				get auth() {
+					return database('auth.sqlite');
+				},
+				get loam() {
+					return database('loam.sqlite');
+				},
+			}),
 			async journal() {
 				try {
 					return (await readFile(join(data, 'journal.jsonl'), 'utf8'))
@@ -173,7 +225,7 @@ export async function createDevHost(
 				const before = current().ready.origin;
 				await current().stop('SIGTERM');
 				running = undefined;
-				running = await launch(deployment, env, logs);
+				running = await launch(deployment, env, logs, options.rateLimit);
 				if (running.ready.origin !== before)
 					throw new Error(
 						`The origin changed across a restart: ${before} to ${running.ready.origin}.`

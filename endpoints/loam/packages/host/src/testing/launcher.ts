@@ -15,5 +15,7 @@ export interface Launched {
 export type Launcher = (
 	deployment: string,
 	env: Record<string, string>,
-	logs: string[]
+	logs: string[],
+	/** Tests only: the provider's rate limit, raised for a suite's many requests from one address (never off). */
+	rateLimit?: { window: number; max: number }
 ) => Promise<Launched>;

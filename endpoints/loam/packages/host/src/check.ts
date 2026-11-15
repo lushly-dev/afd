@@ -17,9 +17,9 @@ type Deployment = NonNullable<DeploymentAnalysis['deployment']>;
 /** Which host serves a deployment. Versions 1 to 3 have no `[host]` and read as `static` (3.3). */
 export type HostKind = 'static' | 'hosted' | 'desktop';
 
-/** The kind a deployment file declares. No version this package reads yet has `[host]`. */
-export function hostKindOf(_analysis: DeploymentAnalysis): HostKind {
-	return 'static';
+/** The kind a deployment file declares: version 4's `[host] kind`, else `static` (3.3). */
+export function hostKindOf(analysis: DeploymentAnalysis): HostKind {
+	return analysis.host ?? 'static';
 }
 
 /** The identity mode a deployment file declares: version 3's `[identity] mode`, or `local` (phase 3's 2.1). */
@@ -36,31 +36,6 @@ export function oidcMethodsOf(analysis: DeploymentAnalysis): string[] {
 		.map((method) => method.slice('oidc:'.length));
 }
 
-/**
- * The first path segments the hosted server answers itself (3.4), which a workspace id, the first segment
- * of the shell's URLs under `<base>`, must not take. Step 3 adds them to version 4's reserved list
- * (approved by the coordinator 2026-11-09); until then the hosted server refuses them here. Already
- * refused by version 2's schema: `mounts` (in its reserved list) and `.well-known` (its pattern admits no
- * dot). `api` covers the default `identity.path`, `api/auth`, and every `HostModule`, all served under
- * `<base>api/`; version 3's `identity.path` of its own adds its first segment through
- * {@link hostRouteSegments}.
- */
-export const HOST_ROUTE_SEGMENTS: readonly string[] = Object.freeze([
-	'api',
-	'mcp',
-	'mounts',
-	'.well-known',
-]);
-
-/** The segments a deployment's workspace id must not take: 3.4's, and its identity path's first. */
-export function hostRouteSegments(analysis: DeploymentAnalysis): readonly string[] {
-	const identity = analysis.identity;
-	const first = identity?.mode === 'provider' ? identity.path.split('/')[0] : undefined;
-	return first && !HOST_ROUTE_SEGMENTS.includes(first)
-		? [...HOST_ROUTE_SEGMENTS, first]
-		: HOST_ROUTE_SEGMENTS;
-}
-
 export interface CheckHostOptions {
 	server: ServerConfigV1;
 	/** The path of `loam.deployment.toml`. */
@@ -72,8 +47,6 @@ export interface CheckHostOptions {
 	 * `createLoamHost` itself does for `start` and `dev`, does not.
 	 */
 	purpose: 'start' | 'serve';
-	/** Test-only, until step 3: a version 1 to 3 deployment, read as `static`, is served. */
-	serveStatic?: boolean;
 	/** The development profile's: the deployment is read as if its `[sandbox] origin` were this one (5.1). */
 	sandboxOrigin?: string;
 	environment?: NodeJS.ProcessEnv;
@@ -96,8 +69,8 @@ function deploymentFindings(
 	const deployment = analysis.deployment as Deployment;
 	const kind = hostKindOf(analysis);
 	const mode = identityModeOf(analysis);
-	// The test-only option serves a `local` deployment of version 1 to 3 until step 3, and nothing else.
-	if (kind !== 'hosted' && !(options.serveStatic && mode === 'local')) {
+	// Only a version 4 file with `[host] kind = "hosted"`: a static deployment is never served by accident (3.3).
+	if (kind !== 'hosted') {
 		refusals.push({
 			code: 'HOST_DEPLOYMENT_KIND',
 			key: options.deployment,
@@ -116,15 +89,40 @@ function deploymentFindings(
 				'Use `[identity] mode = "provider"`, or serve a personal shell from a static host or the desktop.',
 		});
 	}
-	const workspace = analysis.workspace?.id;
-	const segments = hostRouteSegments(analysis);
-	if (workspace !== undefined && segments.includes(workspace)) {
-		refusals.push({
-			code: 'DEPLOYMENT_WORKSPACE_INVALID',
-			key: 'workspace.id',
-			message: `The workspace id \`${workspace}\` is a path the hosted server answers itself, so the shell's URLs under it would never reach the shell.`,
-			suggestion: `Choose another id, such as \`acme\`: ${segments.map((id) => `\`${id}\``).join(', ')} are the hosted server's.`,
-		});
+	// A workspace id the hosted server answers at the top level (`api`, `mcp`, `mounts`, `.well-known`, the identity
+	// path's first segment) is version 4's reader's `DEPLOYMENT_WORKSPACE_INVALID` or `DEPLOYMENT_IDENTITY_INVALID`
+	// since step 3, so the analysis has refused it before here (step 1's obligation; its deviation 2).
+	if (kind === 'hosted' && mode === 'provider') {
+		// The provider's secret and its mail (step 1's deviation 5: both are optional for a `local` deployment).
+		if (server.auth === undefined) {
+			refusals.push({
+				code: 'HOST_SECRET_UNAVAILABLE',
+				key: 'auth',
+				message:
+					"A `provider` deployment needs the provider's secret, and the configuration has no `[auth]`.",
+				suggestion:
+					'Add `[auth]` with `secret_file` (mode 0600) or `secret_env`, at least 32 bytes.',
+			});
+		}
+		if (server.mail === undefined) {
+			refusals.push({
+				code: 'HOST_CONFIG_INVALID',
+				key: 'mail',
+				message:
+					'A `provider` deployment sends invitations and recovery links, and the configuration has no `[mail]`.',
+				suggestion: 'Add `[mail]`: `transport = "sink"` on `localhost`.',
+			});
+		} else if (server.mail.transport === 'smtp') {
+			// Section 9's SMTP is the production profile's (step 8); until then, refused rather than silently unsent.
+			refusals.push({
+				code: 'HOST_CONFIG_INVALID',
+				key: 'mail.transport',
+				message:
+					"`smtp` mail is the production profile's, built with milestone M2; until then the server sends only to the development profile's sink.",
+				suggestion:
+					'Use `loam-host dev`, whose mail goes to its sink, until the production profile is built.',
+			});
+		}
 	}
 	const declared = deployment.sandbox?.origin;
 	const configured = server.sandbox?.origin;

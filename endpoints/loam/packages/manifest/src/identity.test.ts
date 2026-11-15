@@ -207,7 +207,7 @@ describe('readBoot, version 3', () => {
 			);
 			expect(readProjection({ ...EMPTY, identity }).ok, JSON.stringify(identity)).toBe(false);
 		}
-		expect(readBoot({ ...EMPTY, deployment_version: 4 })).toBeUndefined();
+		expect(readBoot({ ...EMPTY, deployment_version: 5 })).toBeUndefined();
 		const refused = readProjection({ ...EMPTY, identity: { mode: 'team' } });
 		expect(refused.ok === false && refused.refusals).toEqual([
 			{

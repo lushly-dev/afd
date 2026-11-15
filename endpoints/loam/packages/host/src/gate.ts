@@ -4,11 +4,43 @@
  * origin`'s, and any other is `421 Misdirected Request` with nothing run (`HOST_MISDIRECTED`). No
  * `X-Forwarded-*` header is read. The common headers are set here with `setHeader`, so they reach every
  * answer, including the ones a later route writes itself and answers `RESPONSE_ALREADY_SENT` (3.5).
+ *
+ * A7 (3.7): before any route, every incoming `x-forwarded-for` and `x-loam-client-ip` is deleted, and
+ * `x-loam-client-ip` is set from the socket's address, the one header the provider reads a client's address
+ * from, so a forged header can neither pick a rate-limit bucket nor escape one.
  */
 
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 export type NodeListener = (incoming: IncomingMessage, outgoing: ServerResponse) => void;
+
+/** The header only the host sets, from the socket (A7); `createLoamAuthOptions` reads no other. */
+export const CLIENT_ADDRESS_HEADER = 'x-loam-client-ip';
+/** Headers a client could forge an address with, deleted before any route (A7). */
+const FORGEABLE_ADDRESS_HEADERS: ReadonlySet<string> = new Set([
+	'x-forwarded-for',
+	CLIENT_ADDRESS_HEADER,
+]);
+
+/**
+ * Deletes every incoming copy of a forgeable address header from `headers` and `rawHeaders` (from which
+ * `@hono/node-server` builds the `Request`), then sets `x-loam-client-ip` from the socket (A7).
+ */
+export function setClientAddress(incoming: IncomingMessage): void {
+	for (const name of FORGEABLE_ADDRESS_HEADERS) delete incoming.headers[name];
+	const kept: string[] = [];
+	for (let index = 0; index < incoming.rawHeaders.length; index += 2) {
+		const name = incoming.rawHeaders[index] as string;
+		if (!FORGEABLE_ADDRESS_HEADERS.has(name.toLowerCase()))
+			kept.push(name, incoming.rawHeaders[index + 1] as string);
+	}
+	const address = incoming.socket.remoteAddress;
+	if (address !== undefined) {
+		incoming.headers[CLIENT_ADDRESS_HEADER] = address;
+		kept.push(CLIENT_ADDRESS_HEADER, address);
+	}
+	incoming.rawHeaders.splice(0, incoming.rawHeaders.length, ...kept);
+}
 
 /** The authority a browser sends for an origin: `host` or `host:port`, the default port left out. */
 export function authorityOf(origin: string): string {
@@ -77,6 +109,7 @@ export function gate(
 		for (let index = 0; index < incoming.rawHeaders.length; index += 2)
 			if (incoming.rawHeaders[index]?.toLowerCase() === 'host')
 				incoming.rawHeaders[index + 1] = authority;
+		setClientAddress(incoming);
 		next(incoming, outgoing);
 	};
 }

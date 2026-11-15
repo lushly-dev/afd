@@ -129,7 +129,8 @@ const bootIdentity = (value: unknown): IdentityV1 =>
 		: ({ ...recordOf(value), mode: 'provider' } as IdentityV1);
 
 /**
- * Undefined when `raw` is not a version 2 or 3 projection at all. Each field is checked as it is read, as
+ * Undefined when `raw` is not a version 2, 3 or 4 projection at all. A version 4 projection's `host` is stage B's
+ * (phase 6 specification, 14), so nothing here reads it. Each field is checked as it is read, as
  * `unavailableApps` did: a display field out of shape takes its default, after the entry's own `title`
  * and `order` where it has them, and the entry stays listed,
  * since stage B will refuse it with its reason. An entry whose `instance` or `app` fails its pattern,
@@ -140,10 +141,13 @@ export function readBoot(raw: unknown): BootProjectionV2 | undefined {
 	const workspace = recordOf(projection?.workspace);
 	const id = workspace?.id;
 	const version = projection?.deployment_version;
-	const identity = version === 3 ? bootIdentity(projection?.identity) : { mode: 'local' as const };
+	const identity =
+		version === 3 || version === 4
+			? bootIdentity(projection?.identity)
+			: { mode: 'local' as const };
 	if (
 		!projection ||
-		(version !== 2 && version !== 3) ||
+		(version !== 2 && version !== 3 && version !== 4) ||
 		!Array.isArray(projection.apps) ||
 		typeof id !== 'string' ||
 		!WORKSPACE_ID.test(id)

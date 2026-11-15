@@ -1,19 +1,10 @@
 /**
- * @fileoverview Test-only seams, imported by this package's own tests and never exported from its entry
- * (step 2's `/testing` may re-export them for its harness). Step 3 removes `SERVE_STATIC_DEPLOYMENT`.
+ * @fileoverview Test-only seams, imported by this package's own tests and its `/testing` harness, and never
+ * exported from its entry: each listener's bound address, and the provider a host mounted.
  */
 
 import type { AddressInfo } from 'node:net';
-
-/**
- * Serve a `local` deployment of versions 1 to 3, read as `static`, until step 3 brings version 4 and its
- * `[host] kind = "hosted"` (phase 6 specification, 20, row 1).
- */
-export const SERVE_STATIC_DEPLOYMENT: unique symbol = Symbol('loam-host.serveStaticDeployment');
-
-export interface TestOnlyOptions {
-	[SERVE_STATIC_DEPLOYMENT]?: true;
-}
+import type { HostProvider } from './provider.js';
 
 /** Each listener's bound address, after `listen()`, so a test can bind port 0. */
 export interface BoundAddresses {
@@ -31,4 +22,17 @@ export function boundAddresses(host: object): BoundAddresses {
 	const addresses = bound.get(host)?.();
 	if (!addresses) throw new Error('The host is not listening.');
 	return addresses;
+}
+
+const providers = new WeakMap<object, HostProvider>();
+
+export function recordProvider(host: object, provider: HostProvider): void {
+	providers.set(host, provider);
+}
+
+/** The provider a host mounted, so a test lists its routes from the instance the host serves (5.8). */
+export function providerOf(host: object): HostProvider {
+	const provider = providers.get(host);
+	if (!provider) throw new Error('The host mounts no provider: its deployment is `local`.');
+	return provider;
 }

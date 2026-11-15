@@ -27,9 +27,11 @@
 		"./schemas/deployment.v1.json": "./schemas/deployment.v1.json",
 		"./schemas/deployment.v2.json": "./schemas/deployment.v2.json",
 		"./schemas/deployment.v3.json": "./schemas/deployment.v3.json",
+		"./schemas/deployment.v4.json": "./schemas/deployment.v4.json",
 		"./schemas/projection.v1.json": "./schemas/projection.v1.json",
 		"./schemas/projection.v2.json": "./schemas/projection.v2.json",
 		"./schemas/projection.v3.json": "./schemas/projection.v3.json",
+		"./schemas/projection.v4.json": "./schemas/projection.v4.json",
 		"./schemas/server.v1.json": "./schemas/server.v1.json"
 	},
 	"scripts": {

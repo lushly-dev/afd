@@ -32,7 +32,9 @@
 		"@hono/node-server": "2.1.6",
 		"@lushly-dev/afd-server": "workspace:*",
 		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-identity": "workspace:*",
 		"@lushly-dev/loam-manifest": "workspace:*",
+		"better-auth": "1.7.18",
 		"hono": "4.13.17",
 		"zod": "^4.6.6"
 	},

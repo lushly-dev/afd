@@ -30,7 +30,12 @@ export interface TestProviderConfig {
 	 * no one reads, whose grant stays pending; the people are seeded beside it.
 	 */
 	bootstrapOwner?: string;
+	/** The provider's rate limit, raised for a suite's many requests from one address; default 10,000 per 10 s. */
+	rateLimit?: { window: number; max: number };
 }
+
+/** What the test-only provider raises the limit to by default: suites sign in many times from one address. */
+export const TEST_RATE_LIMIT = Object.freeze({ window: 10, max: 10_000 });
 
 /** A migrated, seeded provider, and what it seeded. */
 export async function createTestProvider(config: TestProviderConfig) {
@@ -45,12 +50,12 @@ export async function createTestProvider(config: TestProviderConfig) {
 			mail: { send: config.send },
 			...(config.oidc ? { oidc: config.oidc } : {}),
 			...(config.shell ? { shell: config.shell } : {}),
+			rateLimit: config.rateLimit ?? TEST_RATE_LIMIT,
 		}),
 		logger: { disabled: true },
 	};
 	await (await getMigrations(options)).runMigrations();
 	const auth = betterAuth(options);
-	const context = await auth.$context;
 	const now = new Date();
 	// The organization and its binding as a deployer makes them (5.6), with the first owner's invitation.
 	const organization = {
@@ -62,12 +67,26 @@ export async function createTestProvider(config: TestProviderConfig) {
 			})
 		).organizationId,
 	};
-	// The people are seeded through the database adapter, past every hook, so a test starts with the members it
-	// names; a test of enrolment invites and joins through the provider instead.
+	const people = await seedTestPeople(auth, organization.id, config.people, now);
+	return { auth, organizationId: organization.id, people };
+}
+
+/**
+ * The people a test names, seeded through the database adapter, past every hook, so a test starts with the
+ * members it names; a test of enrolment invites and joins through the provider instead. The test-only auth host
+ * and phase 6's `startDevHost` seed through it (phase 6 specification, 5.2). Each person's user id, by email.
+ */
+export async function seedTestPeople(
+	auth: { $context: Promise<unknown> },
+	organizationId: string,
+	seeded: readonly TestPersonV1[],
+	now = new Date()
+): Promise<Record<string, string>> {
+	const context = (await auth.$context) as Awaited<ReturnType<typeof betterAuth>['$context']>;
 	const create = <T>(model: string, data: Record<string, unknown>) =>
 		context.adapter.create({ model, data }) as Promise<T>;
 	const people: Record<string, string> = {};
-	for (const person of config.people) {
+	for (const person of seeded) {
 		const user = await create<{ id: string }>('user', {
 			email: person.email,
 			// A fixed placeholder, never a part of the email (I1; the final check's NIT 6).
@@ -89,12 +108,12 @@ export async function createTestProvider(config: TestProviderConfig) {
 		}
 		if (person.role) {
 			await create('member', {
-				organizationId: organization.id,
+				organizationId,
 				userId: user.id,
 				role: person.role,
 				createdAt: now,
 			});
 		}
 	}
-	return { auth, organizationId: organization.id, people };
+	return people;
 }

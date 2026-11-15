@@ -10,7 +10,9 @@ import {
 	type DeploymentV1,
 	type DeploymentV2,
 	type DeploymentV3,
+	type DeploymentV4,
 	type DeploymentWorkspaceV2,
+	type HostKindV1,
 	type IdentityV1,
 	type ManifestV2,
 	NOTICES_V1,
@@ -70,7 +72,9 @@ export interface DeploymentAnalysis {
 	/** Warnings of the packages, which fail nothing. */
 	warnings: DeploymentFinding[];
 	notices: DeploymentNotice[];
-	deployment?: DeploymentV1 | DeploymentV2 | DeploymentV3;
+	deployment?: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4;
+	/** Version 4's `[host] kind`, or `--host`'s, else `static` (phase 6 specification, 3.3). */
+	host?: HostKindV1;
 	/** The deployment's workspace, `personal` unless it names one (phase 2 specification, 4.2). */
 	workspace?: DeploymentWorkspaceV2;
 	/** The deployment's identity: `[identity]`, or `local` (phase 3 specification, 2.2). */
@@ -355,7 +359,7 @@ async function readCredential(
 /** The deployment file and each credential file: what must never be served or replaced. */
 export async function secretPaths(
 	config: string,
-	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4
 ): Promise<string[]> {
 	const base = dirname(resolve(config));
 	const bearers = Object.values(deployment.apps).flatMap(({ bearer_file }) =>
@@ -367,7 +371,7 @@ export async function secretPaths(
 /** A package is served whole, so nothing secret may sit inside one. */
 async function secretsServed(
 	config: string,
-	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const secrets = await secretPaths(config, deployment);
@@ -393,6 +397,42 @@ export interface AnalyzeDeploymentOptions {
 	 * reader's checks as the file's own would.
 	 */
 	sandboxOrigin?: string;
+	/**
+	 * `deployment write --host` (phase 6 specification, 3.3): the kind, set when a version 4 file has no `[host]`,
+	 * and `DEPLOYMENT_HOST_MISMATCH` when the file names another. A file before version 4 reads as `static`, so
+	 * only `static` matches it.
+	 */
+	host?: HostKindV1;
+}
+
+/** `--host` against the file's own kind (3.3): a finding, or the file with the kind set, or as it was. */
+function withHost(parsed: unknown, host: HostKindV1 | undefined): DeploymentFinding | undefined {
+	if (host === undefined || typeof parsed !== 'object' || parsed === null) return undefined;
+	const file = parsed as { deployment_version?: unknown; host?: unknown };
+	const version = file.deployment_version;
+	// A version this reader does not read, or a `[host]` out of shape, is the reader's to refuse.
+	if (version !== 1 && version !== 2 && version !== 3 && version !== 4) return undefined;
+	if (file.host !== undefined && (typeof file.host !== 'object' || file.host === null))
+		return undefined;
+	const table = file.host as { kind?: unknown } | undefined;
+	const declared = version === 4 ? table?.kind : 'static';
+	if (declared === undefined) {
+		file.host = { ...table, kind: host };
+		return undefined;
+	}
+	if (declared === host) return undefined;
+	return {
+		code: 'DEPLOYMENT_HOST_MISMATCH',
+		key: 'host.kind',
+		message:
+			file.deployment_version === 4
+				? `The deployment file names \`[host] kind = "${String(declared)}"\`, and \`--host\` names \`${host}\`.`
+				: `A file before version 4 is for a static host, and \`--host\` names \`${host}\`.`,
+		suggestion:
+			file.deployment_version === 4
+				? 'Drop `--host`, or name the same kind in both.'
+				: `Use \`deployment_version = 4\` with \`[host] kind = "${host}"\`, or drop \`--host\`.`,
+	};
 }
 
 /** Reads the file and every package it lists, as `deployment check` and a write both must. */
@@ -424,6 +464,8 @@ export async function analyzeDeployment(
 	}
 	if (options.sandboxOrigin !== undefined && typeof parsed === 'object' && parsed !== null)
 		(parsed as Record<string, unknown>).sandbox = { origin: options.sandboxOrigin };
+	const mismatch = withHost(parsed, options.host);
+	if (mismatch) return { ...empty, refusals: [mismatch] };
 	const read = readDeployment(parsed);
 	if (!read.ok) return { ...empty, refusals: read.refusals };
 	const { deployment } = read;
@@ -431,7 +473,8 @@ export async function analyzeDeployment(
 
 	const refusals: DeploymentFinding[] = [];
 	const instanceRefusals: DeploymentFinding[] = [];
-	const warnings: DeploymentFinding[] = [];
+	// The reader's own warnings: `DEPLOYMENT_PROVIDER_NEEDS_HOST` (phase 6 specification, 3.3).
+	const warnings: DeploymentFinding[] = [...read.warnings];
 	const instances: InstanceEffect[] = [];
 	const mounts: MountAccess[] = [];
 	for (const [id, entry] of Object.entries(deployment.apps)) {
@@ -526,6 +569,7 @@ export async function analyzeDeployment(
 			...instances.flatMap(noticesFor),
 		],
 		deployment,
+		host: read.host,
 		workspace: read.workspace,
 		identity: read.identity,
 		basePath: read.basePath,

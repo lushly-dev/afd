@@ -65,7 +65,47 @@ export interface LoamAuthConfig {
 	shell?: string;
 	/** The single sign-on providers `methods` names as `oidc:<id>`, and no other. */
 	oidc?: readonly LoamOidcProviderV1[];
+	/**
+	 * Tests only: a higher limit for a suite that legitimately makes many requests from one address. It raises the
+	 * limit, Better Auth's default and its stricter sign-in and mail rules alike; nothing turns the limiter off.
+	 */
+	rateLimit?: { window: number; max: number };
 }
+
+/** Better Auth's own stricter rules (1.7.18's `getDefaultSpecialRules`), which a test's higher limit raises too. */
+const SPECIAL_RATE_LIMIT_PATHS = [
+	'/sign-in/*',
+	'/sign-up/*',
+	'/change-password',
+	'/change-email',
+	'/request-password-reset',
+	'/send-verification-email',
+] as const;
+
+/**
+ * The provider's rate limit, on in every mode (the coordinator's decision of 2026-11-15, phase 3's 5.8): Better Auth
+ * turns its limiter on only when `NODE_ENV` is `production`, and Loam's safety never rests on `NODE_ENV`. It keys
+ * each request by A7's `x-loam-client-ip`.
+ */
+function rateLimitOf(
+	raised: LoamAuthConfig['rateLimit']
+): NonNullable<BetterAuthOptions['rateLimit']> {
+	if (!raised) return { enabled: true };
+	if (!(raised.max >= 1 && raised.window >= 1))
+		throw new Error('A raised rate limit needs a window and a max of at least 1');
+	const rule = { window: raised.window, max: raised.max };
+	return {
+		enabled: true,
+		...rule,
+		customRules: Object.fromEntries(SPECIAL_RATE_LIMIT_PATHS.map((path) => [path, rule])),
+	};
+}
+
+/**
+ * The header the hosted server sets from the socket's address before any route, after deleting any incoming
+ * copy and `x-forwarded-for` (A7): the only one the provider reads a client's address from.
+ */
+export const CLIENT_ADDRESS_HEADER = 'x-loam-client-ip';
 
 /** Better Auth's routes no Loam deployment serves (5.7, 9.4): resets and email change are recovery's. */
 export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
@@ -168,8 +208,17 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		database: config.database,
 		trustedOrigins: [url.origin],
 		session: { cookieCache: { enabled: false }, freshAge: FRESH_AGE_SECONDS },
-		// Better Auth skips its origin and CSRF checks when `NODE_ENV` is `test`; Loam's provider never does.
-		advanced: { useSecureCookies: true, disableOriginCheck: false, disableCSRFCheck: false },
+		rateLimit: rateLimitOf(config.rateLimit),
+		advanced: {
+			useSecureCookies: true,
+			// Better Auth skips its origin and CSRF checks when `NODE_ENV` is `test`; Loam's provider never does.
+			disableOriginCheck: false,
+			disableCSRFCheck: false,
+			// A7 (phase 6 specification): the client's address only from the header the hosted server sets from
+			// the socket, after deleting any incoming copy and `x-forwarded-for`, so no client picks its own
+			// rate-limit bucket, and no two clients share one for want of an address.
+			ipAddress: { ipAddressHeaders: [CLIENT_ADDRESS_HEADER] },
+		},
 		disabledPaths: [...LOAM_DISABLED_PATHS],
 		user: { changeEmail: { enabled: false } },
 		emailAndPassword: password

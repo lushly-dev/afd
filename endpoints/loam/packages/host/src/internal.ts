@@ -1,7 +1,8 @@
 /**
- * @fileoverview What the development profile hands `createLoamHost` that a production start does not
- * (phase 6 specification, 5.1): the lock it took first, the sockets it bound before the configuration
- * existed, and the sandbox origin it wrote the site with. Kept off the package's entry; only `dev` uses it.
+ * @fileoverview What `dev` and `start` hand `createLoamHost` beyond its configuration: for the development
+ * profile (phase 6 specification, 5.1), the lock it took first, the sockets it bound before the configuration
+ * existed, and the sandbox origin it wrote the site with; for `start`, its own refusals (3.1). Kept off the
+ * package's entry.
  */
 
 import { createServer as createHttpServer, type Server } from 'node:http';
@@ -18,6 +19,13 @@ export interface HostInternals {
 		servers?: { shell: Server; sandbox?: Server };
 		/** The deployment is read, checked and written as if its `[sandbox] origin` were this one. */
 		sandboxOrigin?: string;
+		/**
+		 * `loam-host start`'s own refusals (3.1, 3.3): a `local` deployment (`HOST_IDENTITY_LOCAL`), and a `provider`
+		 * deployment whose organization was never bootstrapped (`HOST_NOT_BOOTSTRAPPED`). `dev` serves both.
+		 */
+		start?: true;
+		/** Tests only, through `dev`: the provider's rate limit, raised for a suite (never off). */
+		rateLimit?: { window: number; max: number };
 	};
 }
 

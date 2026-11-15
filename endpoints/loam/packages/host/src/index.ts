@@ -6,11 +6,9 @@
 export {
 	type CheckHostOptions,
 	checkHost,
-	HOST_ROUTE_SEGMENTS,
 	type HostCheck,
 	type HostKind,
 	hostKindOf,
-	hostRouteSegments,
 } from './check.js';
 export { type HostCliIO, runHostCli } from './cli.js';
 export { hostCheckCommand, hostDoctorCommand } from './commands.js';
