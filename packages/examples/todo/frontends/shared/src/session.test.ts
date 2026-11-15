@@ -54,6 +54,7 @@ async function stopBackend(child: ChildProcess): Promise<void> {
 function holdingFetch() {
 	let hold: { command: string; released: Promise<void> } | undefined;
 	let release = () => {};
+	let reached = () => {};
 	const fetchWithHold: typeof fetch = async (input, init) => {
 		const body = typeof init?.body === 'string' ? init.body : '';
 		const waiting = hold;
@@ -62,13 +63,16 @@ function holdingFetch() {
 		const response = await fetch(input, init);
 		if (!matched || !waiting) return response;
 		const text = await response.text();
+		reached();
 		await waiting.released;
 		return new Response(text, { status: response.status, headers: response.headers });
 	};
 	return {
 		fetch: fetchWithHold,
-		holdNext(command: string) {
+		/** Hold the next answer naming `command`; resolves once the server has answered it. */
+		holdNext(command: string): Promise<void> {
 			hold = { command, released: new Promise<void>((resolve) => (release = resolve)) };
+			return new Promise<void>((resolve) => (reached = resolve));
 		},
 		release: () => release(),
 	};
@@ -282,9 +286,9 @@ describe('TodoSession', () => {
 		await session.add(a);
 		await session.add(b);
 		// The refresh after toggling A answers late, after B is toggled and read
-		control.holdNext('todo-list');
+		const held = control.holdNext('todo-list');
 		const first = session.toggle(idOf(session, a));
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await held;
 		await session.toggle(idOf(session, b));
 		control.release();
 		await first;
@@ -298,9 +302,9 @@ describe('TodoSession', () => {
 		const session = new TodoSession({ baseUrl, pollMs: 0, fetch: control.fetch });
 		sessions.push(session);
 		await session.start();
-		control.holdNext('todo-list');
+		const held = control.holdNext('todo-list');
 		const adding = session.add(unique('Mine'));
-		await new Promise((resolve) => setTimeout(resolve, 100));
+		await held;
 		await session.poll();
 		control.release();
 		await adding;

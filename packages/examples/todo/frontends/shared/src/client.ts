@@ -91,6 +91,8 @@ export class TodoClient {
 	/** The connection being opened, shared by every call that needs one meanwhile. */
 	private connecting: Promise<StreamableHttpTransport> | undefined;
 	private nextId = 1;
+	/** Rises on every disconnect, so a connection that finishes opening after one is closed. */
+	private generation = 0;
 
 	constructor(private readonly options: TodoClientOptions) {}
 
@@ -114,6 +116,7 @@ export class TodoClient {
 	}
 
 	private async open(): Promise<StreamableHttpTransport> {
+		const generation = this.generation;
 		const transport = new StreamableHttpTransport(`${this.options.baseUrl}/mcp`, {
 			clientName: 'todo-page',
 			clientVersion: '1.0.0',
@@ -121,6 +124,11 @@ export class TodoClient {
 			...(this.options.fetch && { fetch: this.options.fetch }),
 		});
 		await transport.connect();
+		if (generation !== this.generation) {
+			// Disconnected while this was opening: close it rather than leave it open
+			transport.disconnect();
+			throw new Error('Disconnected while connecting');
+		}
 		this.transport = transport;
 		return transport;
 	}
@@ -173,6 +181,8 @@ export class TodoClient {
 	}
 
 	disconnect(): void {
+		this.generation++;
+		this.connecting = undefined;
 		this.transport?.disconnect();
 		this.transport = undefined;
 	}

@@ -422,7 +422,8 @@ export class TodoApp extends FASTElement {
 
 	/** Enter in the title field adds the todo: violet buttons do not submit a form. */
 	addOnEnter(event: KeyboardEvent): boolean {
-		if (event.key !== 'Enter') return true;
+		// Enter that ends an input method's composition only confirms the text
+		if (event.key !== 'Enter' || event.isComposing) return true;
 		void this.addFromForm(event);
 		return false;
 	}
