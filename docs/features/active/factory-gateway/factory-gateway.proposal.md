@@ -270,7 +270,7 @@ the bundle steps are in the `factory` docs topic and in `branch-push`'s descript
   summary, published as the `factory/verification` check. `pr-merge` refuses a head with no passed
   record (`VALIDATION_MISSING`), whoever calls, so a merge cannot skip the lane. For a validated head
   it merges at once when the pull request is already clean with its required check passed (GitHub
-  will not enable auto-merge then) and otherwise enables squash auto-merge bound to the head.
+  will not enable auto-merge then) and otherwise enables auto-merge bound to the head, by the repository's merge method (`mergeMethods`; a merge commit unless the repository allows only squash).
 - **Review (G2).** A cell records its review lanes' verdicts against its head with `review-record`.
   When that head is pushed, the gateway publishes the `factory/review` check from the record, with
   the conclusion the record holds, so no caller chooses it. The verdicts are still the cell's own
@@ -376,10 +376,10 @@ O owner.
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
 | `issue-comment` | F L O | `number`, `body`, `dedupe_key?` | `url`, `deduplicated` | `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `issue-create` | F L O | `title`, `body`, `labels[]`, `dedupe_key?` | `number`, `created` | `LABEL_UNKNOWN`, `SECRET_IN_BODY` | G1 |
-| `branch-push` | C S L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD`, `COMMIT_AUTHOR_NOT_OWNER` | G1 |
+| `branch-push` | C S L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD`, `COMMIT_AUTHOR_NOT_OWNER` (a commit the push adds, not already on `main`, authored by someone other than the owner), `UPLOAD_INCOMPLETE` (the upload does not list the commits leading to `head`) | G1 |
 | `pr-open` | L O | `branch`, `title`, `body`, `closes[]` | `number`, `created`, `updated`, `closes[]`, `author`: opens the pull request for the branch, or updates the open one's title, body and closing lines, which the gateway writes | `NO_BRANCH`, `CLAIM_LOST`, `SECRET_IN_BODY` | G1 |
 | `verification-record` | L O | `head`, `result` (`passed` or `failed`), `summary` | `check { name, conclusion }` | `NOT_FOUND` (head not on GitHub), `SECRET_IN_BODY` | G1 |
-| `pr-merge` | L O | `number`, `head`, `cancel?` | `state` (`merged`, or `queued` under squash auto-merge bound to `head`; with `cancel`, `open` with auto-merge off, as the lane does when it ejects the branch), `autoMerge`, `changed` | In this order: `HEAD_MOVED`, `VALIDATION_MISSING`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE` | G1 |
+| `pr-merge` | L O | `number`, `head`, `cancel?` | `state` (`merged`, or `queued` under auto-merge bound to `head`, by the repository's merge method; with `cancel`, `open` with auto-merge off, as the lane does when it ejects the branch), `autoMerge`, `changed` | In this order: `HEAD_MOVED`, `VALIDATION_MISSING`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE`; `MERGE_METHOD_NOT_ALLOWED` when GitHub refuses the configured method | G1 |
 | `pr-revert` | F L O | `numbers[]`, `reason` | `revertPrs[] { reverts, number, created }` | `NOT_MERGED`, `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `variable-set` | F O | `name`, `value` | `name`, `value`, `previous` | `VARIABLE_NOT_ALLOWED`, `SECRET_IN_BODY` | G1 |
 | `gateway-audit` | F O | `issue?`, `pr?`, `since?`, `actor?`, `limit?`, `cursor?` | `entries[] { seq, timestamp, command, actor, target, success }`, `outside[] { at, kind, target, by, label? }`, `nextCursor?` | — | G1 |

@@ -52,7 +52,8 @@ CLAIMS = ("issue-claim", "issue-release")
 #: its queue ref and records its review.
 ROUTES: dict[str, tuple[str, ...]] = {
     "cell": (*READS, "branch-push", "review-record"),
-    "session": (*READS, *CLAIMS),
+    # A session hands its branch to the lane through its queue ref, as a cell does.
+    "session": (*READS, *CLAIMS, "branch-push"),
     "foreman": (
         *READS,
         *CLAIMS,
@@ -276,9 +277,12 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
     run, write = _run, _writer(get)
 
     async def branch_push(repo: Repo, ref: Name, head: Sha, bundle: Name) -> CommandResult:
-        """Push one ref from an uploaded git bundle; cells push only refs/factory/queue/<branch>.
+        """Push one ref from an uploaded git bundle; cells and sessions push only
+        refs/factory/queue/<branch>, which hands the branch to the lane.
 
         Upload the bundle first (POST /uploads on this route returns its id, valid an hour).
+        Every commit the push adds must be authored by the owner; an agent that helped is an
+        Assisted-by trailer.
 
         Args:
             repo: owner/name of a repository this gateway serves.
@@ -317,8 +321,8 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
         return await write(lambda: get().verification_record(repo, head, result, summary))
 
     async def pr_merge(repo: Repo, number: int, head: Sha, cancel: bool = False) -> CommandResult:
-        """Merge a pull request at the head the lane validated, at once or by squash
-        auto-merge bound to that head; cancel turns auto-merge off.
+        """Merge a pull request at the head the lane validated, at once or by auto-merge bound
+        to that head, by the repository's merge method; cancel turns auto-merge off.
 
         Args:
             repo: owner/name of a repository this gateway serves.

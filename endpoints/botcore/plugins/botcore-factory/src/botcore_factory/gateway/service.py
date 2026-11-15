@@ -19,7 +19,13 @@ from botcore.context import current_call
 from botcore_factory.gateway import claims as claim_rules
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
-from botcore_factory.gateway.github import GitHub, GitHubUnavailable, HeadMoved, comment_url
+from botcore_factory.gateway.github import (
+    GitHub,
+    GitHubUnavailable,
+    HeadMoved,
+    MergeMethodNotAllowed,
+    comment_url,
+)
 from botcore_factory.gateway.secrets import CLOSING_KEYWORD, check_text, ref_is_well_formed
 from botcore_factory.gateway.state import GatewayState, journal_size
 
@@ -506,10 +512,10 @@ class Gateway:
                 "Push a branch, then land it through pr-open and pr-merge",
                 ref=ref,
             )
-        if self.route == "cell" and not ref.startswith(QUEUE_PREFIX):
+        if self.route in ("cell", "session") and not ref.startswith(QUEUE_PREFIX):
             raise refuse(
                 "REF_NOT_ALLOWED",
-                f"A cell pushes only to {QUEUE_PREFIX}<branch>, not {ref}",
+                f"A {self.route} pushes only to {QUEUE_PREFIX}<branch>, not {ref}",
                 f"Push to {QUEUE_PREFIX}<your branch>; the lane pushes the branch after it "
                 "validates it",
                 ref=ref,
@@ -536,6 +542,7 @@ class Gateway:
                 "Create the bundle from the head you push (git bundle create <file> <branch>), "
                 "upload it and call again",
             )
+        self._credit(repo, bundle, upload, head)
         current = self.github.ref(repo, ref)
         ancestors = set(upload.get("ancestors", [])) | set(upload.get("heads", []))
         if (
@@ -726,7 +733,9 @@ class Gateway:
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
             try:
-                self.github.merge_pull(repo, number, head)
+                self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
+            except MergeMethodNotAllowed as refused:
+                raise self._merge_method_refusal(repo, refused.method) from None
             except HeadMoved as moved:
                 raise refuse(
                     "HEAD_MOVED",
@@ -739,10 +748,56 @@ class Gateway:
                 {"state": "merged", "autoMerge": False, "changed": True},
                 reasoning=f"Merged {number} at {head[:12]}",
             )
-        self.github.enable_auto_merge(repo, number, head)
+        method = self.config.merge_method(repo)
+        try:
+            self.github.enable_auto_merge(repo, number, head, method)
+        except MergeMethodNotAllowed:
+            raise self._merge_method_refusal(repo, method) from None
         return success(
             {"state": "queued", "autoMerge": True, "changed": True},
-            reasoning=f"Queued {number} to squash-merge at {head[:12]} once its checks pass",
+            reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
+        )
+
+    def _credit(self, repo: str, bundle: str, upload: dict, head: str) -> None:
+        """Refuse a push that would add a commit someone other than the owner authored.
+
+        The upload route reads the bundle's commits and their authors from the bundle itself,
+        never from the caller. A commit already on main (its history, others' merged work) is
+        not this push's to credit; one on any other branch, queue ref or fork is.
+        """
+        commits = upload.get("commits")
+        if commits is None or (
+            head not in {commit.get("sha") for commit in commits}
+            and not self.github.on_main(repo, head)
+        ):
+            raise refuse(
+                "UPLOAD_INCOMPLETE",
+                f"Upload {bundle} does not list the commits that lead to {head}; nothing was "
+                "pushed",
+                "Upload the bundle again through POST /uploads, which reads its commits and "
+                "their authors from the bundle",
+            )
+        for commit in commits:
+            email = commit.get("authorEmail", "")
+            if self.config.is_owner_email(email) or self.github.on_main(repo, commit["sha"]):
+                continue
+            raise refuse(
+                "COMMIT_AUTHOR_NOT_OWNER",
+                f"Commit {commit['sha'][:12]} is authored by {email or 'no email'}, not the "
+                "owner; nothing was pushed",
+                "Make the owner the author (git commit --amend --reset-author, or git rebase "
+                "<base> --exec 'git commit --amend --no-edit --reset-author') and list an agent "
+                "that helped as an 'Assisted-by:' trailer; then bundle, upload and push again",
+                sha=commit["sha"],
+            )
+
+    def _merge_method_refusal(self, repo: str, method: str) -> Refusal:
+        return refuse(
+            "MERGE_METHOD_NOT_ALLOWED",
+            f"{repo} does not allow {method} merges; nothing was merged",
+            f"Set mergeMethods[{repo!r}] in the gateway's configuration to a method the "
+            "repository allows (squash for a squash-only repository) and merge again",
+            method=method,
         )
 
     def _release_on_merge(self, repo: str, pull: dict) -> None:
