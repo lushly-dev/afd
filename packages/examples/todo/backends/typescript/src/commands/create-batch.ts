@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
+import { stampFrom } from './shared.js';
 
 /**
  * Schema for a single todo item in a batch
@@ -64,11 +65,14 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 	expose: { mcp: true },
 	tags: ['todo', 'create', 'write', 'batch'],
 	mutation: true,
+	undoable: true,
+	approval: 'not-required',
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['VALIDATION_ERROR', 'PARTIAL_FAILURE'],
 
-	async handler(input) {
+	async handler(input, context) {
+		const stamp = stampFrom(context);
 		const succeeded: Todo[] = [];
 		const failed: FailedItem[] = [];
 
@@ -93,11 +97,14 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 				}
 
 				// Create the todo
-				const todo = store.create({
-					title: item.title.trim(),
-					description: item.description?.trim(),
-					priority: item.priority,
-				});
+				const todo = store.create(
+					{
+						title: item.title.trim(),
+						description: item.description?.trim(),
+						priority: item.priority,
+					},
+					stamp
+				);
 
 				succeeded.push(todo);
 			} catch (err) {
@@ -150,6 +157,10 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 				reasoning,
 				confidence,
 				warnings,
+				...(succeeded.length > 0 && {
+					undoCommand: 'todo-delete-batch',
+					undoArgs: { ids: succeeded.map((todo) => todo.id) },
+				}),
 			}
 		);
 	},

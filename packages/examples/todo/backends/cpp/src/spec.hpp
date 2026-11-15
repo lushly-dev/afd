@@ -15,7 +15,7 @@ std::string_view embedded_spec();
 /// The parsed contract.
 const afd::Json& spec();
 
-/// The command names the contract defines.
+/// The command names the contract defines for C++: those without implementedBy, or naming cpp.
 std::vector<std::string> spec_command_names();
 
 /// A command's input schema, with the contract's shared `definitions` attached so its `$ref`s

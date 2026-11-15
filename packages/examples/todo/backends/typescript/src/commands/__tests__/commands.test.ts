@@ -329,12 +329,13 @@ describe('todo-delete', () => {
 		expect(get.success).toBe(false);
 	});
 
-	it('includes warning about permanence', async () => {
+	it('says the todo can be restored, and names the undo', async () => {
 		const created = await createTodo.handler({ title: 'Delete me', priority: 'medium' }, {});
 		const result = await deleteTodo.handler({ id: idOf(created) }, {});
 
-		expect(result.warnings).toBeDefined();
-		expect(result.warnings?.[0]?.code).toBe('PERMANENT');
+		expect(result.warnings?.[0]?.code).toBe('RESTORABLE');
+		expect(result.undoCommand).toBe('todo-restore');
+		expect(result.undoArgs).toEqual({ ids: [idOf(created)] });
 	});
 
 	it('returns NOT_FOUND for missing todo', async () => {

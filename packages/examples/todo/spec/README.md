@@ -4,12 +4,15 @@ This directory contains the shared API contract for the Todo example. All four b
 
 ## Files
 
-- `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
+- `commands.schema.json`: JSON Schema defining the input and output for all 13 commands,
   keyed by MCP tool name, and each command's `metadata`: `mutation`, `destructive`, `contexts`
   and, on `todo-clear`, `confirmPrompt`. The test suites of all four backends fail if it does not
   list exactly the commands their backend defines with that metadata (Rust's leaves out
   `contexts`, which it does not declare yet); the C++ backend also validates every input
-  against it.
+  against it. A command with `implementedBy` (`todo-restore`, `todo-history`), or an input
+  property with `x-implementedBy`, exists so far only in the languages it names, and only their
+  tests expect it: the [to-do reference plan](../../../../docs/features/active/todo-reference/todo-reference.proposal.md)
+  adds it to TypeScript in phase 2 and to the others in phase 5, which removes the field.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
 - `README.md`: This file.

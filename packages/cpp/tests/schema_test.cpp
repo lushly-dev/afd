@@ -74,7 +74,8 @@ TEST_CASE("every todo input schema compiles with its shared definitions") {
     const auto spec = afd::parse_bounded(text);
     REQUIRE(spec.has_value());
     const auto& commands = spec->at("commands");
-    REQUIRE(commands.size() == 11);
+    // Every command, including those only TypeScript implements so far (implementedBy).
+    REQUIRE(commands.size() == 13);
     for (auto it = commands.begin(); it != commands.end(); ++it) {
         CAPTURE(it.key());
         afd::Json schema = it.value().at("input");

@@ -20,7 +20,7 @@ describe('todo contexts', () => {
 			.map((tool) => tool.name)
 			.filter((name) => name.startsWith('todo-'))
 			.sort();
-		expect(reading).toEqual(['todo-get', 'todo-list', 'todo-stats']);
+		expect(reading).toEqual(['todo-get', 'todo-history', 'todo-list', 'todo-stats']);
 	});
 
 	it('shows every command while editing and with no context', () => {

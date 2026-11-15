@@ -1,5 +1,6 @@
 #include "spec.hpp"
 
+#include <algorithm>
 #include <cstdio>
 #include <cstdlib>
 
@@ -21,6 +22,12 @@ const afd::Json& spec() {
 std::vector<std::string> spec_command_names() {
     std::vector<std::string> names;
     for (auto it = spec()["commands"].begin(); it != spec()["commands"].end(); ++it) {
+        // A command with implementedBy exists so far only in the languages it names.
+        const auto& entry = it.value();
+        if (entry.contains("implementedBy")) {
+            const auto& languages = entry["implementedBy"];
+            if (std::find(languages.begin(), languages.end(), "cpp") == languages.end()) continue;
+        }
         names.push_back(it.key());
     }
     return names;

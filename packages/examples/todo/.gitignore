@@ -1,4 +1,6 @@
 # Runtime data written by the file stores. It is created from
 # data/todos.seed.json on first run; commit changes to the seed instead.
 data/todos.json
-data/.todos.json.*.tmp
+data/todos.deleted.json
+data/todos.history.json
+data/.todos*.json.*.tmp

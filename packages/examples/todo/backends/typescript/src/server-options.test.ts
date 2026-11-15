@@ -170,7 +170,12 @@ describe('contexts (src/contexts.ts)', () => {
 			expect.arrayContaining(['context-list', 'context-enter', 'context-exit'])
 		);
 		expect(await actions('todo')).toContain('create');
-		expect((await actions('todo', 'todo-reading')).sort()).toEqual(['get', 'list', 'stats']);
+		expect((await actions('todo', 'todo-reading')).sort()).toEqual([
+			'get',
+			'history',
+			'list',
+			'stats',
+		]);
 	});
 
 	it('refuses a change while reading', async () => {

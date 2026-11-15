@@ -1,5 +1,6 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Limit: `expect` cannot assert `undoCommand`; the draft says todo-update's result carries
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# Limit: `expect` cannot assert `undoCommand`; todo-update's result carries
 # undoCommand: todo-update and undoArgs holding the previous value of each changed field.
 # Limit: a step's input must be an object, so these steps pass each undoArgs field by name
 # where an agent passes the whole object; a missing field fails the reference.

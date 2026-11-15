@@ -1,8 +1,8 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Run with the context todo-reading active: in-process through createDirectRegistry's
-# activeContext, or over /mcp with _meta["dev.afd/context"] on every request (MCP 2026-07-28
-# keeps no context between requests, so afd-context-enter stores nothing there).
-# `afd scenario run` sends no _meta, so the backend's tests run this file in-process.
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference).
+# Runs with the context todo-reading active: src/scenarios.test.ts runs it in-process through
+# createDirectRegistry's activeContext; over /mcp a client sends _meta["dev.afd/context"] on every
+# request (MCP 2026-07-28 keeps no context between requests, so afd-context-enter stores nothing
+# there). `afd scenario run` sends no _meta, so it cannot run this file.
 # Contexts narrow what an agent is offered; they are not a security boundary. Keeping an agent
 # from changing anything is phase 4's DirectClient `allow`, or authorization.
 name: An agent reviewing the todos is offered only the reading commands

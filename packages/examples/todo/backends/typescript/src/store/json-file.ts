@@ -11,7 +11,7 @@
 import { randomBytes } from 'node:crypto';
 import { readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { basename, dirname, join } from 'node:path';
-import type { Todo } from '../types.js';
+import type { ChangeEntry, Todo } from '../types.js';
 
 /**
  * The todo file exists but does not contain a list of todos.
@@ -74,18 +74,65 @@ export function readTodoFile(filePath: string): Map<string, Todo> {
 }
 
 /**
- * Write todos atomically: write a temporary sibling file, then rename it over `filePath`.
+ * Write a value as JSON atomically: write a temporary sibling file, then rename it over
+ * `filePath`, so a reader never sees a half-written file.
  */
-export function writeTodoFile(filePath: string, todos: Map<string, Todo>): void {
+export function writeJsonFile(filePath: string, value: unknown): void {
 	const tempPath = join(
 		dirname(filePath),
 		`.${basename(filePath)}.${process.pid}.${randomBytes(4).toString('hex')}.tmp`
 	);
 	try {
-		writeFileSync(tempPath, `${JSON.stringify(Array.from(todos.values()), null, 2)}\n`, 'utf-8');
+		writeFileSync(tempPath, `${JSON.stringify(value, null, 2)}\n`, 'utf-8');
 		renameSync(tempPath, filePath);
 	} catch (error) {
 		rmSync(tempPath, { force: true });
 		throw error;
 	}
+}
+
+/**
+ * Write todos atomically, as a JSON array.
+ */
+export function writeTodoFile(filePath: string, todos: Map<string, Todo>): void {
+	writeJsonFile(filePath, Array.from(todos.values()));
+}
+
+function isChange(value: unknown): value is ChangeEntry {
+	if (typeof value !== 'object' || value === null) return false;
+	const candidate = value as Record<string, unknown>;
+	return (
+		typeof candidate.seq === 'number' &&
+		typeof candidate.command === 'string' &&
+		Array.isArray(candidate.ids)
+	);
+}
+
+/**
+ * Read the change history, a JSON array of changes, oldest first.
+ *
+ * @throws NodeJS.ErrnoException with code `ENOENT` when the file does not exist
+ * @throws TodoStoreCorruptError when the file is not valid JSON or not a list of changes
+ */
+export function readHistoryFile(filePath: string): ChangeEntry[] {
+	const text = readFileSync(filePath, 'utf-8');
+	let parsed: unknown;
+	try {
+		parsed = JSON.parse(text);
+	} catch (error) {
+		const reason = error instanceof Error ? error.message : String(error);
+		throw new TodoStoreCorruptError(filePath, `is not valid JSON (${reason})`);
+	}
+	if (!Array.isArray(parsed)) {
+		throw new TodoStoreCorruptError(filePath, 'must contain a JSON array of changes');
+	}
+	for (const [index, entry] of parsed.entries()) {
+		if (!isChange(entry)) {
+			throw new TodoStoreCorruptError(
+				filePath,
+				`has an invalid change at index ${index} (expected number "seq", string "command" and array "ids")`
+			);
+		}
+	}
+	return parsed;
 }
