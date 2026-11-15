@@ -33,7 +33,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | The rest of phase 2: local-db, the approval suite, CI |
+| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | The rest of phase 2: local-db (D4) |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -153,9 +153,26 @@ Merged in [#1256](https://github.com/lushly-dev/afd/pull/1256) on 2026-11-15:
   `todo-delete-batch`'s undo); seven descriptions were rewritten.
 - **Middleware.** `defaultMiddleware()` replaces the hand-built logging.
 
-Left in phase 2: storage on local-db (D4); the approval conformance suite; `afd scenario run` and
-`afd validate --surface --strict` in CI, with the four older scenarios rewritten so they need no
-clear; conformance cases for the new behaviour.
+On branch `t3/todo-reference-phase2-ci`, 2026-11-15, not yet merged:
+
+- **Approval suite.** `spec/approval-cases.json` (`--suite approvals`, `APPROVALS=agents`): an
+  agent's clear held with its suggestion, a delete not held, a clear a person approves through
+  form elicitation, and one a person declines. It resets by deleting, since a clear is held.
+  TypeScript passes it in both MCP eras, in CI.
+- **New conformance cases.** Six cases in `spec/test-cases.json` marked
+  `implementedBy: ["typescript"]` (undo metadata, delete and restore, an id that cannot be
+  restored, emptying the deleted todos, history); the runner keeps each backend to its
+  language's cases and fails a suite that leaves it none. The other backends run the 35 shared
+  ones unchanged.
+- **Scenarios and surface in CI.** `pnpm test:scenarios:ts` (`dx/run-scenarios.ts`) serves the
+  backend over Streamable HTTP and runs `afd validate --surface --strict` (the four overlaps
+  suppressed, from one list shared with `surface.test.ts`) and `afd scenario run` on every
+  scenario not tagged `deterministic` or `contexts`: ten pass. The four older scenarios no longer
+  start by clearing, and `filter-by-priority` cleans up after itself.
+- **CI.** `conformance.yml` runs both and triggers on `packages/cli`, `packages/client` and
+  `packages/testing`; `scripts/affected/suites.mjs` lists the same steps for `pnpm verify`.
+
+Left in phase 2: storage on local-db (D4).
 
 ## Open questions
 
@@ -169,6 +186,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Open, phase 3 |
 | 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Open, phase 5 |
 | 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Open, phase 3 |
+| 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it | Open |
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
 
 ## Session log

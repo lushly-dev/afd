@@ -52,3 +52,18 @@ steps:
       success: true
       data:
         total: 1
+
+  # Step 3: Clean up the seeded todos, so the scenario can run again on the same server
+  - command: todo-delete-batch
+    description: Delete the four seeded todos
+    input:
+      ids:
+        - ${{ steps[0].data.todos[0].id }}
+        - ${{ steps[0].data.todos[1].id }}
+        - ${{ steps[0].data.todos[2].id }}
+        - ${{ steps[0].data.todos[3].id }}
+    expect:
+      success: true
+      data:
+        summary:
+          successCount: 4

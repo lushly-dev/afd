@@ -66,6 +66,7 @@
 			"expect": {
 				"success": false,
 				"error.code": "APPROVAL_REQUIRED",
+				"error.details.reason": "declined",
 				"error.suggestion": { "exists": true }
 			},
 			"then": {

@@ -8,7 +8,9 @@
  * Runs every scenario in `scenarios/` and `backends/typescript/scenarios/` except those tagged
  * `deterministic` or `contexts`: they need a fixed clock or an active context, which a server
  * run cannot set, so `src/scenarios.test.ts` and `src/replay.test.ts` run them in-process.
- * Uses a temporary `afd` config home, so the developer's saved connection is never touched.
+ * Uses a temporary `afd` config home (HOME, XDG_CONFIG_HOME and, on Windows, APPDATA and
+ * LOCALAPPDATA), so the developer's saved connection is never touched. Every scenario runs even
+ * after one fails, so the log shows everything that is broken.
  */
 
 import { type ChildProcess, spawn, spawnSync } from 'node:child_process';
@@ -17,6 +19,7 @@ import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { SURFACE_SUPPRESSIONS } from '../backends/typescript/src/surface-suppressions.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EXAMPLE = path.join(__dirname, '..');
@@ -24,18 +27,6 @@ const AFD = path.join(EXAMPLE, '../../cli/dist/bin.js');
 const SERVER = path.join(EXAMPLE, 'backends/typescript/dist/server.js');
 const DIRECTORIES = ['scenarios', 'backends/typescript/scenarios'];
 const IN_PROCESS_TAGS = ['deterministic', 'contexts'];
-
-/**
- * Surface findings kept on purpose, as in `backends/typescript/src/surface.test.ts`: the single-id
- * commands all take `{ id }`, and todo-restore takes the ids todo-delete-batch removed because it
- * is its undo.
- */
-const SUPPRESSIONS = [
-	'schema-overlap:todo-get:todo-toggle',
-	'schema-overlap:todo-get:todo-delete',
-	'schema-overlap:todo-toggle:todo-delete',
-	'schema-overlap:todo-delete-batch:todo-restore',
-];
 
 function freePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
@@ -105,7 +96,14 @@ async function main(): Promise<number> {
 	});
 	try {
 		await waitForHealth(url, backend);
-		const env = { ...process.env, HOME: home, XDG_CONFIG_HOME: path.join(home, 'config') };
+		const env = {
+			...process.env,
+			HOME: home,
+			USERPROFILE: home,
+			XDG_CONFIG_HOME: path.join(home, 'config'),
+			APPDATA: path.join(home, 'appdata'),
+			LOCALAPPDATA: path.join(home, 'localappdata'),
+		};
 
 		let failed = afd(['connect', `${url}/mcp`], env);
 		if (failed === 0) {
@@ -114,14 +112,14 @@ async function main(): Promise<number> {
 					'validate',
 					'--surface',
 					'--strict',
-					...SUPPRESSIONS.flatMap((rule) => ['--suppress', rule]),
+					...SURFACE_SUPPRESSIONS.flatMap((rule) => ['--suppress', rule]),
 				],
 				env
 			);
 		}
 		for (const file of serverScenarios()) {
 			console.log(`\n${path.relative(EXAMPLE, file)}`);
-			failed ||= afd(['scenario', 'run', file, '--server', `${url}/mcp`], env);
+			failed = afd(['scenario', 'run', file, '--server', `${url}/mcp`], env) || failed;
 		}
 		return failed;
 	} finally {

@@ -71,6 +71,11 @@ export class ConformanceRunner {
 					test.implementedBy === undefined ||
 					test.implementedBy.includes(filter.language))
 		);
+		if (tests.length === 0) {
+			throw new Error(
+				`No case in ${specPath} is for ${[filter.client, filter.language].filter(Boolean).join(' and ')}: this backend does not implement the suite yet`
+			);
+		}
 		const results: TestResult[] = [];
 
 		for (const test of tests) {
