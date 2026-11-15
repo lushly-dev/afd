@@ -26,8 +26,10 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
-- **Last verified:** 2026-11-14 against `main` at `57397cdb`: the proposal, `process.json`, the
-  fifteen scenarios and their fixtures are on `main` as #1222 merged them. The scenario checks
+- **Last verified:** 2026-11-14 (dates in this file are Pacific time) against `main` at
+  `57397cdb`: `gh pr view 1222 --json state,mergeCommit` reads `MERGED` at `57397cdb`, and
+  `git ls-tree origin/main docs/features/active/factory-gateway/` lists the proposal,
+  `process.json` and `scenarios/` with its fixtures. The scenario checks
   were last run by the proposal session against `dd080235` (15 files, 70 steps; 19 of 20 drafted
   commands and 17 of 24 error codes covered,
   [Checks](factory-gateway.proposal.md#checks)). No gateway code is on `main` yet.
@@ -74,8 +76,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     named refusals), `feat/factory-plugin-intake` as #1183 and `feat/factory-plugin-queue` as
     #1185. These are on `main`; the host changes build on them.
   - `feat/factory-lane-loop` (`1ba67bb3`, 2026-11-13) is pushed with no pull request. It changes
-    only `botcore-factory` (the lane process, loop, hosts and report, and a rewrite of
-    `real_world.py`), not botcore's host. The gateway is added as new modules so the two do not
+    `botcore-factory` (the lane process, loop, hosts and report, and a rewrite of
+    `real_world.py`), the root `botcore.toml`'s `[plugins.factory]` keys, and the software
+    factory's scenario 10 with two new fixtures; it does not touch botcore's host. The gateway is added as new modules so the two do not
     collide; its claims, queue push and lane steps move onto the gateway after it lands.
   - No open pull request touches `endpoints/botcore/`.
   - So this work does the host changes once, for the gateway and the factory's Phase 1 together
@@ -87,5 +90,5 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Raised | By | Follow-up |
 |---|---|---|
-| 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1, filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
-| 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
+| 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
+| 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Superseded: taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
