@@ -21,7 +21,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 - **Epic:** none. Opening one is the owner's call.
 - **Done:** the problem, what exists today, the model, fourteen draft jobs as sentences, a design
   direction, the amendments it implies for other documents, phases, twelve questions for the
-  owner with seven of them answered, a proposed rank for the jobs, and one independent review.
+  owner with six answered and one in part, a proposed rank for the jobs, and an independent
+  review in two passes.
 - **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
   owner's remaining answers, moving each part into the proposal that owns it, and everything in
   the phases. See
@@ -105,6 +106,10 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     corrections in sections 2 and 5; and a claim about models marked as a hypothesis.
   - *Not checked by the reviewer:* the content of the six public skills, and that
     `violet-elements` has no component bound to a result beyond its folder names.
+- **Second pass:** a second fresh reviewer, on the same model and effort, checked only that the
+  four blockers were fixed and that the owner's decisions were recorded consistently. It
+  approved, and raised six small wording points, all taken: "entries" for a reference's lines so
+  they are not read as pattern statements, the phase A, B and C exits, and a count in this file.
 - **Not run:** `botcore skill-lint` and the `docs_*` checks. No skill was changed.
 
 ## What was read to write it

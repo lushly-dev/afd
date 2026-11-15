@@ -526,18 +526,18 @@ which instrument to use when, and the judgements no pattern owns and no gate can
 
 - **One skill, with one reference per topic** that will later be served: direction for a whole
   screen, motion, and copy voice. Several skills would each spend listing budget.
-- **Each reference is written as one-line statements with ids,** the form a pack already uses,
-  so moving it is a file move.
+- **Each reference is written as one-line entries with ids,** the form a pack already uses, so
+  moving it is a file move.
 - **Three stages for each topic:**
   1. a reference in the skill;
   2. a skill served by an Umbel plugin, which the host already does for its plugins;
   3. a tool that selects what applies, as the copy plugin will for voice.
 - **The skill says to prefer the tool once it exists,** and the reference is then deleted.
 - **What the six public skills hold, sorted by kind.** The table says where content of each
-  kind belongs. It writes no statement: a statement comes only from the owner or from a fault
-  seen in phase 0 ([5.2](#52-the-default-pattern-set)). The public skills reach a building
-  agent only as arm 1 of the bench. Only the direction and motion references draw on them, and
-  what those hold stays `authored`.
+  kind belongs. It writes no pattern statement: one comes only from the owner or from a fault
+  seen in phase 0 ([5.2](#52-the-default-pattern-set)). The public skills themselves are given
+  to a building agent only in arm 1 of the bench. The direction and motion references draw on
+  them, and what those hold stays `authored`.
 
   | Kind of content | Where that kind belongs |
   | --- | --- |
@@ -611,8 +611,8 @@ the decision card, as amendments to the proposals that own them. The jobs in
 [section 4](#4-draft-jobs) become scenario files against drafted commands, and readers walk
 them.
 
-**Exit:** the owner has accepted or refused each amendment, and each job in the first slice is
-a scenario file whose paths readers have walked. A part that has moved takes its exit from the
+**Exit:** the owner has accepted or refused each amendment, and each job in the first slice the
+owner confirms is a scenario file whose paths readers have walked. A part that has moved takes its exit from the
 proposal that owns it.
 
 ### Phase B. Defaults
@@ -621,8 +621,8 @@ The result-state pattern set, with Loam as its first implementation. The edits i
 [5.3](#53-default-opinions-move-out-of-the-contract). The skill, if step 0.5 says so.
 
 **Exit:** every pattern in [5.2](#52-the-default-pattern-set) has gates that hold on Loam's
-implementation and fail on a seeded fault, and the edits in 5.3 are merged wherever the opinion
-is repeated.
+implementation and fail on a seeded fault, and the edits the owner accepts under question 4
+are merged wherever the opinion is repeated.
 
 ### Phase C. Review
 
@@ -630,11 +630,11 @@ The persona runner with enforced modalities, the triggers, the decision card and
 view.
 
 **Exit:** on the bench's seeded faults the panel meets the rule step 0.3 fixed, and one change
-has gone from the panel to a decision card to a person's approval.
+has gone from the panel to a decision card to a person's approval in the pre-ship view.
 
 ### Phase D. Adoption and improvement
 
-Reports that name what went unmeasured. Counts of changed copies. The draft, preview and stable
+Reports that name what went unmeasured. Counts of changed copied patterns. The draft, preview and stable
 states for a default. Topics moving from the skill into Umbel.
 
 **Exit:** a product with commands only gets a report that names what went unmeasured, and one
