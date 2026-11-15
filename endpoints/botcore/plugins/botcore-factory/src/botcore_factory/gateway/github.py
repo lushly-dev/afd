@@ -52,12 +52,12 @@ class GitHub(Protocol):
         ...
 
     def update_pull(self, repo: str, number: int, *, title: str, body: str) -> None: ...
-    def merge_pull(self, repo: str, number: int, head: str) -> str:
-        """Squash-merge at ``head`` (GitHub's sha guard); returns the merged-at time."""
+    def merge_pull(self, repo: str, number: int, head: str, method: str) -> str:
+        """Merge at ``head`` by ``method`` (GitHub's sha guard); returns the merged-at time."""
         ...
 
-    def enable_auto_merge(self, repo: str, number: int, head: str) -> None:
-        """Squash auto-merge bound to ``head`` (GraphQL expectedHeadOid)."""
+    def enable_auto_merge(self, repo: str, number: int, head: str, method: str) -> None:
+        """Auto-merge by ``method``, bound to ``head`` (GraphQL expectedHeadOid)."""
         ...
 
     def disable_auto_merge(self, repo: str, number: int) -> None: ...
@@ -298,17 +298,21 @@ class FakeGitHub:
         with self._write(repo) as data:
             self._pull(data, number).update(title=title, body=body, closes=_closes(body))
 
-    def merge_pull(self, repo, number, head):
+    def merge_pull(self, repo, number, head, method):
         with self._write(repo) as data:
             pull = self._pull(data, number)
             if pull["head"] != head:
                 raise HeadMoved(pull["head"])  # GitHub answers 409 to a stale sha.
-            pull.update(state="merged", mergedAt=data.get("now"), autoMerge=False)
+            pull.update(
+                state="merged", mergedAt=data.get("now"), autoMerge=False, mergeMethod=method
+            )
             return pull["mergedAt"]
 
-    def enable_auto_merge(self, repo, number, head):
+    def enable_auto_merge(self, repo, number, head, method):
         with self._write(repo) as data:
-            self._pull(data, number).update(autoMerge=True, autoMergeHead=head)
+            self._pull(data, number).update(
+                autoMerge=True, autoMergeHead=head, autoMergeMethod=method
+            )
 
     def disable_auto_merge(self, repo, number):
         with self._write(repo) as data:

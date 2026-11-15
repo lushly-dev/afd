@@ -106,7 +106,9 @@ def test_a_host_refuses_any_profile_but_remote_caller(tmp_path):
             "lane",
             ExecutionContext(tmp_path, profile="trusted-local"),
             github=None,
-            config=GatewayConfig(bot="b", owner="o", repositories=[REPO]),
+            config=GatewayConfig(
+                bot="b", owner="o", ownerEmails=["o@example.com"], repositories=[REPO]
+            ),
             state=GatewayState(tmp_path),
         )
 
@@ -186,6 +188,94 @@ def test_a_clean_green_pull_request_merges_at_once_and_frees_its_claims(run):
     assert merged.data == {"state": "merged", "autoMerge": False, "changed": True}
     assert gateway("lane", "pr-status", repo=REPO, number=44).data["state"] == "merged"
     assert gateway("lane", "claim-list", repo=REPO).data["claims"] == []
+    # With no method configured the gateway merges with a merge commit, keeping every author.
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
+    assert pull["mergeMethod"] == "merge"
+
+
+def test_a_repository_configured_for_squash_is_squash_merged(run):
+    gateway = run(mergeMethods={REPO: "squash"})
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR44_HEAD, result="passed", summary="ok"
+    ).success
+    assert gateway("lane", "pr-merge", repo=REPO, number=44, head=PR44_HEAD).success
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 44)
+    assert pull["mergeMethod"] == "squash"
+
+
+AGENT_HEAD = "e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6"
+
+
+def test_a_session_hands_its_branch_to_the_lane_and_pushes_nothing_else(run):
+    gateway = run()
+    head = "d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3"
+    queued = gateway(
+        "session",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/tokens",
+        head=head,
+        bundle="bundle-9",
+    )
+    assert queued.success and queued.data["changed"] is True
+    branch = gateway(
+        "session",
+        "branch-push",
+        repo=REPO,
+        ref="refs/heads/fix/tokens",
+        head=head,
+        bundle="bundle-9",
+    )
+    assert branch.error.code == "REF_NOT_ALLOWED" and "refs/factory/queue" in branch.error.message
+    assert "pr-merge" not in ROUTES["session"] and "pr-open" not in ROUTES["session"]
+
+
+@pytest.mark.parametrize("route", ["cell", "session", "lane", "owner"])
+def test_no_route_pushes_a_commit_an_agent_authored(run, route):
+    result = run()(
+        route,
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/agent",
+        head=AGENT_HEAD,
+        bundle="bundle-agent",
+    )
+    assert result.error.code == "COMMIT_AUTHOR_NOT_OWNER"
+    assert "noreply@anthropic.com" in result.error.message
+    assert "Assisted-by" in result.error.suggestion
+
+
+def test_commits_github_already_has_are_not_the_push_s_to_credit(run):
+    # A bundle carries main's history, others' merged work included; only new commits count.
+    gateway = run()
+    gateway.edit(lambda d: d["refs"].update({"refs/heads/elsewhere": AGENT_HEAD}))
+    result = gateway(
+        "cell",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/agent",
+        head=AGENT_HEAD,
+        bundle="bundle-agent",
+    )
+    assert result.success
+
+
+def test_owner_emails_match_without_regard_to_case(run):
+    gateway = run(ownerEmails=["Owner@Example.com"])
+    result = gateway(
+        "cell",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/tokens",
+        head="d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
+        bundle="bundle-9",
+    )
+    assert result.success
+
+
+def test_a_configuration_without_owner_emails_is_refused():
+    with pytest.raises(ValueError, match="ownerEmails"):
+        GatewayConfig.model_validate({"bot": "b", "owner": "o", "repositories": [REPO]})
 
 
 def test_a_non_fast_forward_push_to_a_branch_people_see_is_refused(run):
@@ -501,7 +591,7 @@ def test_a_merge_racing_a_push_is_reported_as_head_moved(tmp_path):
     assert apply_fixture(tmp_path / "run", {"fixture": fixture()}).success
     github = FakeGitHub(tmp_path / "run" / "github.json", bot="example-factory[bot]")
     with pytest.raises(HeadMoved) as moved:
-        github.merge_pull(REPO, 47, "0" * 40)
+        github.merge_pull(REPO, 47, "0" * 40, "merge")
     assert moved.value.head == PR47_HEAD
 
 

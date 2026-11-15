@@ -10,7 +10,8 @@ safe to retry with the same input.
 ## Routes
 
 - cell: reads, branch-push to refs/factory/queue/<branch> only, review-record.
-- session: reads, issue-claim and issue-release for your own issues.
+- session: reads, issue-claim and issue-release for your own issues, and branch-push to
+  refs/factory/queue/<branch> only: hand your branch to the lane rather than merging it.
 - foreman: reads, claims, issue-label, issue-comment, issue-create, pr-revert, variable-set,
   gateway-audit, gateway-wait. No push, pr-merge or verification-record.
 - lane: reads, claims, issue-comment, issue-create, branch-push, pr-open,
@@ -32,14 +33,17 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
 
 1. Upload a git bundle of the head to POST /uploads on your route; it returns an id valid an
    hour. `git bundle create head.bundle <branch>`.
-2. branch-push {ref, head, bundle}: head is the full 40-character SHA.
+2. branch-push {ref, head, bundle}: head is the full 40-character SHA. Every commit the push
+   adds must be authored by the owner (COMMIT_AUTHOR_NOT_OWNER): an agent that helped is an
+   `Assisted-by:` trailer, never the author or a `Co-authored-by:`.
 3. pr-open {branch, title, body, closes[]}: write no closing keywords (CLOSING_KEYWORD_IN_BODY);
    the gateway writes them. A retry returns the same pull request; a new title or body updates
    it. A pull request on the branch the gateway did not open is NOT_GATEWAY_PR.
 4. verification-record {head, result, summary}: publishes the factory/verification check.
 5. pr-merge {number, head}: refused VALIDATION_MISSING without a passed record for that exact
    head, HEAD_MOVED for any other head. It merges at once when clean and green, or queues
-   squash auto-merge bound to the head. A closed pull request is PR_CLOSED. pr-merge with
+   auto-merge bound to the head, by the repository's merge method (a merge commit unless
+   the configuration says squash). A closed pull request is PR_CLOSED. pr-merge with
    cancel turns auto-merge off, whatever the head is now.
 
 ## Reading GitHub settled
