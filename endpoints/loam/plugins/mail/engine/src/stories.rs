@@ -7,6 +7,8 @@
 //!   exceptions alone, or one kind's.
 //! - `mail-story-changes` gives each story that changed after a cursor,
 //!   with a new cursor. The caller keeps its cursor; the engine stores none.
+//!   With no cursor it gives none and the cursor of now: a caller starts
+//!   there, then reads `mail-story-list`, and follows the changes after.
 //!
 //! Stories are made from the screening classes, so they are read only when
 //! screening is ready, and fail with `SCREENING_NOT_READY` until then. A
@@ -31,8 +33,8 @@ use crate::read::{
 };
 use crate::screening::not_ready;
 use crate::store::{
-    KINDS_SHOWN, KindRow, MessageId, Store, StoreError, StoryMessage, StoryMessages, StoryRow,
-    sender_id,
+    KINDS_SHOWN, KindRow, MessageId, Store, StoreError, StoryCursor, StoryMessage, StoryMessages,
+    StoryRow, sender_id,
 };
 
 /// The size of a value written as JSON.
@@ -246,7 +248,7 @@ impl CommandHandler for StoryOpen {
             let story = story_json(&opened.story);
             // The card's kinds take at most a quarter of the room; the
             // messages the rest.
-            let (kinds, _) = fit(
+            let (kinds, kinds_cut) = fit(
                 opened.kinds.iter().map(kind_json).collect(),
                 budget / 4 + 1024,
             );
@@ -274,9 +276,11 @@ impl CommandHandler for StoryOpen {
             };
             Ok(json!({
                 "story": story,
-                // Its most common kinds of mail, each with a count; `kinds`
-                // above counts them all.
+                // Its most common kinds of mail, each with a count, up to
+                // ten; `kinds` above counts them all, and `kindsCut` says
+                // the budget left some of the ten out.
                 "kindsShown": kinds,
+                "kindsCut": kinds_cut,
                 "only": only,
                 "messages": kept,
                 "nextCursor": next,
@@ -338,21 +342,7 @@ struct StoryChangesCommand {
 impl CommandHandler for StoryChangesCommand {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
         let read = || -> Result<Value, Box<CommandError>> {
-            let after = match input.get("cursor") {
-                None | Some(Value::Null) => 0,
-                Some(Value::String(text)) => text.parse::<u64>().map_err(|_| {
-                    invalid(
-                        "`cursor` is not one this command gave",
-                        "Pass the `nextCursor` of the result before, or none to start.",
-                    )
-                })?,
-                Some(_) => {
-                    return Err(invalid(
-                        "`cursor` is not one this command gave",
-                        "Pass the `nextCursor` of the result before, or none to start.",
-                    ));
-                }
-            };
+            let after = changes_cursor(&input)?;
             let limit = limit(&input, 100, 500)?;
             let (changes, rows) = when_ready(&self.engine, |store| {
                 let changes = store.story_changes(after, limit + 1)?;
@@ -377,21 +367,22 @@ impl CommandHandler for StoryChangesCommand {
                 })
                 .collect();
             let (kept, cut) = fit(items, budget(&context, LIST_BUDGET));
-            // Read on from the last change given, or from the latest of all
-            // once every one is given.
+            // Read on from the last change given, or from now once every one
+            // is given.
             let next = if more || cut {
                 changes.changed[kept.len().saturating_sub(1)].1
             } else {
-                changes.last
+                changes.now
             };
             Ok(json!({
                 "changes": kept,
                 // Every story was made again since the cursor (a rebuild),
                 // or the cursor is not this store's: read `mail-story-list`
-                // again rather than trust what was kept.
+                // again rather than trust what was kept, and follow on from
+                // `nextCursor`.
                 "reset": changes.reset,
                 "more": more || cut,
-                "nextCursor": next.to_string(),
+                "nextCursor": format!("{}.{}", next.epoch, next.seq),
             }))
         };
         match read() {
@@ -401,9 +392,31 @@ impl CommandHandler for StoryChangesCommand {
     }
 }
 
+/// A cursor of `mail-story-changes`: the stories' epoch and a change's
+/// number, as `nextCursor` wrote them.
+fn changes_cursor(input: &Value) -> Result<Option<StoryCursor>, Box<CommandError>> {
+    let wrong = || {
+        invalid(
+            "`cursor` is not one this command gave",
+            "Pass the `nextCursor` of the result before, or none to start from now.",
+        )
+    };
+    match input.get("cursor") {
+        None | Some(Value::Null) => Ok(None),
+        Some(Value::String(text)) => {
+            let (epoch, seq) = text.split_once('.').ok_or_else(wrong)?;
+            Ok(Some(StoryCursor {
+                epoch: epoch.parse().map_err(|_| wrong())?,
+                seq: seq.parse().map_err(|_| wrong())?,
+            }))
+        }
+        Some(_) => Err(wrong()),
+    }
+}
+
 /// `mail-story-changes`: each story that changed after a cursor, once, with
 /// what it is now or that it is gone, and a new cursor (the specification's
-/// section 8).
+/// section 8). With no cursor, the cursor of now.
 #[must_use]
 pub fn story_changes(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
@@ -413,7 +426,7 @@ pub fn story_changes(engine: Arc<Engine>) -> CommandDefinition {
             parameter(
                 "cursor",
                 JsonSchemaType::String,
-                "The `nextCursor` of the call before; none for every change",
+                "The `nextCursor` of the call before; none to start from now",
                 false,
             ),
             parameter(

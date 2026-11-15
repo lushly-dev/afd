@@ -24,6 +24,14 @@ impl Mail {
             .collect()
     }
 
+    fn news_story(&self) -> i64 {
+        self.store.list_story("news.example.net").unwrap().unwrap()
+    }
+
+    fn sender_story(&self, address: &str) -> i64 {
+        self.store.sender_story(address).unwrap().unwrap()
+    }
+
     fn story(&self, id: i64) -> Option<StoryRow> {
         self.store.story(id).unwrap()
     }
@@ -68,8 +76,8 @@ impl Mail {
 fn a_stream_is_a_story_from_its_fifth_bulk_message() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
-    let story = list_story_id("news.example.net");
     let first = mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    let story = mail.news_story();
     assert_eq!(
         mail.member_of(first[0]),
         Some(story),
@@ -117,7 +125,7 @@ fn a_sender_with_no_list_is_its_own_stream_titled_by_its_name() {
         5,
     );
     let by_sender = mail
-        .story(sender_story_id("deals@shop.example"))
+        .story(mail.sender_story("deals@shop.example"))
         .expect("a story of the sender");
     assert_eq!(
         (
@@ -127,16 +135,11 @@ fn a_sender_with_no_list_is_its_own_stream_titled_by_its_name() {
         ),
         ("Shop", "", 5)
     );
-    assert_eq!(
-        mail.story(list_story_id("news.example.net"))
-            .unwrap()
-            .messages,
-        5
-    );
+    assert_eq!(mail.story(mail.news_story()).unwrap().messages, 5);
     // With no name, the address.
     mail.add_many(inbox, "alerts@bank.example", &[bulk], "Alert.\r\n", 5);
     assert_eq!(
-        mail.story(sender_story_id("alerts@bank.example"))
+        mail.story(mail.sender_story("alerts@bank.example"))
             .unwrap()
             .title,
         "alerts@bank.example"
@@ -149,8 +152,8 @@ fn a_sender_with_no_list_is_its_own_stream_titled_by_its_name() {
 fn mail_that_is_not_bulk_is_in_no_story_and_a_decision_moves_it() {
     let mut mail = Mail::new();
     let (inbox, sent) = (mail.inbox, mail.sent);
-    let story = list_story_id("news.example.net");
     let news = mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 6);
+    let story = mail.news_story();
     let stranger = mail.add(inbox, "stranger@example.biz", &[]);
     assert_eq!(
         mail.member_of(stranger),
@@ -175,6 +178,14 @@ fn mail_that_is_not_bulk_is_in_no_story_and_a_decision_moves_it() {
     mail.decide("news@example.net", None);
     assert_eq!(mail.story(story).unwrap().messages, 6);
 
+    // An address the person says is theirs has no class, and no story.
+    mail.decide("news@example.net", Some(Decision::Mine));
+    assert_eq!(mail.member_of(news[0]), None);
+    assert_eq!(mail.story(story), None);
+    mail.decide("news@example.net", None);
+    assert_eq!(mail.story(story).unwrap().messages, 6);
+    mail.assert_as_from_nothing();
+
     // Written to, the sender is known.
     mail.add(sent, PERSON, &["To: news@example.net"]);
     assert_eq!(mail.story(story), None);
@@ -186,8 +197,8 @@ fn a_message_moved_to_the_trash_leaves_its_story() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
     let trash = mail.mailbox("Deleted Messages", Role::Trash);
-    let story = list_story_id("news.example.net");
     let (moved, seen) = mail.add_seen(inbox, "news@example.net", &[LIST]);
+    let story = mail.news_story();
     for _ in 0..4 {
         mail.add(inbox, "news@example.net", &[LIST]);
     }
@@ -228,8 +239,8 @@ fn a_message_moved_to_the_trash_leaves_its_story() {
 fn exceptions_are_the_messages_whose_body_shape_is_not_a_usual_one() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
-    let story = list_story_id("news.example.net");
     let routine = mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    let story = mail.news_story();
     let odd = mail.add_body(inbox, "news@example.net", &[LIST], "> You wrote\r\n");
     // No shape is usual yet: nothing is routine to differ from.
     let row = mail.story(story).unwrap();
@@ -262,12 +273,123 @@ fn exceptions_are_the_messages_whose_body_shape_is_not_a_usual_one() {
 }
 
 #[test]
+fn a_template_seen_a_fifth_time_makes_a_story_of_its_sender() {
+    let mut mail = Mail::new();
+    let inbox = mail.inbox;
+    // No list or bulk header: unknown until the template is seen five times.
+    let first = mail.add_many(inbox, "promo@shop.example", &[], "Offers.\r\n", 4);
+    assert_eq!(mail.member_of(first[0]), None);
+    mail.add_body(inbox, "promo@shop.example", &[], "Offers.\r\n");
+    let story = mail.sender_story("promo@shop.example");
+    assert_eq!(mail.member_of(first[0]), Some(story));
+    assert_eq!(mail.story(story).unwrap().messages, 5);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_mailbox_that_closes_its_observations_takes_its_mail_out_of_stories() {
+    let mut mail = Mail::new();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 3);
+    mail.add_many(archive, "news@example.net", &[LIST], "Offers.\r\n", 3);
+    let story = mail.news_story();
+    assert_eq!(mail.story(story).unwrap().messages, 6);
+    // A new generation of ids: the archive shows nothing until listed again.
+    assert!(mail.store.set_validity(archive, "2", NOW).unwrap());
+    assert_eq!(mail.story(story), None);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_shape_that_stops_being_usual_makes_its_messages_exceptions() {
+    let mut mail = Mail::new();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    let quoted = "> You wrote\r\n";
+    let link = "https://news.example.net/read\r\n";
+    // Two usual shapes, one of whose fifth message is in the archive, and
+    // an odd one.
+    let plain = mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    mail.add_body(archive, "news@example.net", &[LIST], "Offers.\r\n");
+    mail.add_many(inbox, "news@example.net", &[LIST], quoted, 5);
+    let odd = mail.add_body(inbox, "news@example.net", &[LIST], link);
+    let story = mail.news_story();
+    assert_eq!(mail.story(story).unwrap().exceptions, 1);
+    assert!(mail.exception(odd) && !mail.exception(plain[0]));
+    // The archive's closing leaves the plain shape four: no longer usual.
+    mail.store.set_validity(archive, "2", NOW).unwrap();
+    assert_eq!(mail.story(story).unwrap().exceptions, 5);
+    assert!(mail.exception(plain[0]));
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_story_that_loses_its_last_usual_shape_has_no_exceptions() {
+    let mut mail = Mail::new();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    mail.add_body(archive, "news@example.net", &[LIST], "Offers.\r\n");
+    let odd = mail.add_body(inbox, "news@example.net", &[LIST], "> You wrote\r\n");
+    let story = mail.news_story();
+    assert!(mail.exception(odd));
+    mail.store.set_validity(archive, "2", NOW).unwrap();
+    let row = mail.story(story).unwrap();
+    assert_eq!((row.messages, row.exceptions), (5, 0));
+    assert!(!mail.exception(odd));
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_message_derived_into_another_stream_moves_and_the_title_follows_the_newest() {
+    let mut mail = Mail::new();
+    let inbox = mail.inbox;
+    let bulk = "Precedence: bulk";
+    let shop = mail.add_many(
+        inbox,
+        "Shop <deals@shop.example>",
+        &[bulk],
+        "Offers.\r\n",
+        6,
+    );
+    let story = mail.sender_story("deals@shop.example");
+    assert_eq!(mail.story(story).unwrap().title, "Shop");
+    // As a newer derivation might read them: the newest with another name,
+    // the oldest through a list.
+    let transaction = mail.store.connection.transaction().unwrap();
+    transaction
+        .execute(
+            "UPDATE envelope SET sender_name = 'Shop Deals' WHERE message_id = ?1",
+            [shop[5].0],
+        )
+        .unwrap();
+    transaction
+        .execute(
+            "UPDATE envelope SET list_id = 'news.example.net' WHERE message_id = ?1",
+            [shop[0].0],
+        )
+        .unwrap();
+    classes::settle(
+        &transaction,
+        &classes::Reclassify {
+            messages: Some(&std::collections::BTreeSet::from([shop[0].0, shop[5].0])),
+            ..Default::default()
+        },
+        NOW,
+    )
+    .unwrap();
+    transaction.commit().unwrap();
+    let row = mail.story(story).unwrap();
+    assert_eq!((row.title.as_str(), row.messages), ("Shop Deals", 5));
+    assert_eq!(mail.member_of(shop[0]), Some(mail.news_story()));
+    mail.assert_as_from_nothing();
+}
+
+#[test]
 fn a_story_s_kinds_are_its_template_keys_with_a_count_each() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
-    let story = list_story_id("news.example.net");
     let html = "Content-Type: text/html";
     mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    let story = mail.news_story();
     let receipts = mail.add_many(
         inbox,
         "news@example.net",
@@ -312,8 +434,8 @@ fn a_story_s_kinds_are_its_template_keys_with_a_count_each() {
 fn a_story_s_messages_are_read_newest_first_by_page() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
-    let story = list_story_id("news.example.net");
     let news = mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 5);
+    let story = mail.news_story();
     let odd = mail.add_body(inbox, "news@example.net", &[LIST], "> You wrote\r\n");
     let page = mail
         .store
@@ -378,11 +500,16 @@ fn what_changed_is_each_story_once_after_a_cursor() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
     let bulk = "Precedence: bulk";
-    let a = sender_story_id("a@example.net");
-    let b = sender_story_id("b@example.net");
+    // With no cursor, nothing, and the cursor of now.
+    let start = mail.store.story_changes(None, 100).unwrap();
+    assert_eq!((start.changed.len(), start.reset), (0, false));
     mail.add_many(inbox, "a@example.net", &[bulk], "Offers.\r\n", 5);
     mail.add_many(inbox, "b@example.net", &[bulk], "Offers.\r\n", 5);
-    let all = mail.store.story_changes(0, 100).unwrap();
+    let (a, b) = (
+        mail.sender_story("a@example.net"),
+        mail.sender_story("b@example.net"),
+    );
+    let all = mail.store.story_changes(Some(start.now), 100).unwrap();
     assert_eq!(
         all.changed
             .iter()
@@ -391,14 +518,18 @@ fn what_changed_is_each_story_once_after_a_cursor() {
         [a, b]
     );
     assert!(!all.reset);
-    let cursor = all.last;
-    assert_eq!(mail.store.story_changes(cursor, 100).unwrap().changed, []);
+    let cursor = all.now;
+    assert_eq!(
+        mail.store.story_changes(Some(cursor), 100).unwrap().changed,
+        []
+    );
 
     // A changes again, then B: each once, in the order of their latest.
     mail.add_body(inbox, "a@example.net", &[bulk], "Offers.\r\n");
     mail.add_body(inbox, "b@example.net", &[bulk], "Offers.\r\n");
+    let read = mail.next;
     mail.add_body(inbox, "a@example.net", &[bulk], "Offers.\r\n");
-    let since = mail.store.story_changes(cursor, 100).unwrap();
+    let since = mail.store.story_changes(Some(cursor), 100).unwrap();
     assert_eq!(
         since
             .changed
@@ -407,18 +538,57 @@ fn what_changed_is_each_story_once_after_a_cursor() {
             .collect::<Vec<_>>(),
         [b, a]
     );
-    let first = mail.store.story_changes(cursor, 1).unwrap();
+    let first = mail.store.story_changes(Some(cursor), 1).unwrap();
     assert_eq!(first.changed.len(), 1);
-    let next = mail.store.story_changes(first.changed[0].1, 1).unwrap();
+    let next = mail
+        .store
+        .story_changes(Some(first.changed[0].1), 1)
+        .unwrap();
     assert_eq!(next.changed[0].0, a);
 
-    // A rebuild derives every story again: a cursor from before it is
-    // told so, as is one this store never gave.
+    // A message whose flags alone change changes no story.
+    let flagged = mail
+        .store
+        .record_flags(
+            inbox,
+            "",
+            &[crate::provider::FlagsSeen {
+                provider_id: read.to_string(),
+                flags: vec!["\\Seen".to_string()],
+            }],
+            NOW,
+        )
+        .unwrap();
+    assert_eq!(flagged, 1);
+    let quiet = mail.store.story_changes(Some(since.now), 100).unwrap();
+    assert_eq!(quiet.changed, []);
+
+    // A rebuild makes every story again: a cursor from before it is told
+    // so, once, as is one this store never gave.
     mail.store.rebuild(NOW, |_| {}).unwrap();
-    assert!(mail.store.story_changes(since.last, 100).unwrap().reset);
-    let after = mail.store.last_change().unwrap();
-    assert!(!mail.store.story_changes(after, 100).unwrap().reset);
-    assert!(mail.store.story_changes(after + 10, 100).unwrap().reset);
+    let after = mail.store.story_changes(Some(since.now), 100).unwrap();
+    assert!(after.reset);
+    assert_eq!(after.changed, []);
+    assert_ne!(after.now.epoch, since.now.epoch);
+    assert!(
+        !mail
+            .store
+            .story_changes(Some(after.now), 100)
+            .unwrap()
+            .reset
+    );
+    let foreign = StoryCursor {
+        epoch: after.now.epoch,
+        seq: after.now.seq + 10,
+    };
+    assert!(mail.store.story_changes(Some(foreign), 100).unwrap().reset);
+    let other = StoryCursor {
+        epoch: after.now.epoch + 1,
+        seq: 1,
+    };
+    assert!(mail.store.story_changes(Some(other), 100).unwrap().reset);
+    // The stories keep their ids.
+    assert_eq!(mail.sender_story("a@example.net"), a);
 }
 
 #[test]
@@ -478,7 +648,7 @@ fn a_store_that_held_mail_before_stories_has_them_when_opened() {
     let store = Store::open(&home).unwrap();
     assert_eq!(store.schema_version().unwrap(), 9);
     let story = store
-        .story(list_story_id("news.example.net"))
+        .story(store.list_story("news.example.net").unwrap().unwrap())
         .unwrap()
         .expect("filled");
     assert_eq!(
@@ -520,9 +690,11 @@ fn every_story_query_reads_an_index() {
         for line in plan.lines().filter(|line| line.starts_with("SCAN")) {
             // The target is a batch's own few rows; a constant row is the
             // one an EXISTS is read into.
+            // Pruning reads every stream, once, when a rebuild finishes.
             if !(line.starts_with("SCAN story_target")
                 || line.starts_with("SCAN temp.story_target")
-                || line == "SCAN CONSTANT ROW")
+                || line == "SCAN CONSTANT ROW"
+                || (name == "prune" && line == "SCAN stream"))
             {
                 failed.push(format!("{name} scans:\n{plan}"));
             }
@@ -531,13 +703,15 @@ fn every_story_query_reads_an_index() {
             "members before" | "members removed" | "exceptions of the target" => {
                 "SEARCH story_member USING INTEGER PRIMARY KEY"
             }
-            "members" => "SEARCH screening USING INTEGER PRIMARY KEY",
+            "members" | "streams" => "SEARCH screening USING INTEGER PRIMARY KEY",
+            "newest in target" => "story_member_date (story_id=?",
+            "stream" => "USING COVERING INDEX sqlite_autoindex_stream_1 (key=?)",
+            "prune" => "story_member_date (story_id=?",
             "exceptions of a shape" | "shape count" => {
                 "story_member_shape (story_id=? AND body_shape=?"
             }
-            "exceptions of a story" | "span" | "newest" | "story messages" => {
-                "story_member_date (story_id=?"
-            }
+            "exceptions of a story" => "story_member_shape (story_id=?",
+            "span" | "newest" | "story messages" => "story_member_date (story_id=?",
             "has usual" => "story_shape_messages (story_id=? AND messages>?)",
             "exceptions" | "story exceptions" => "story_member_exception (story_id=?",
             "kind count" | "kind newest" | "story kind" => {

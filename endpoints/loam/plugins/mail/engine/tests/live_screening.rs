@@ -27,7 +27,8 @@ use std::time::Instant;
 
 use loam_mail::home::Home;
 use loam_mail::store::{
-    Class, Decision, KINDS_SHOWN, ScreeningCounts, SenderQuery, Store, StoryMessages, sender_id,
+    Class, Decision, KINDS_SHOWN, ScreeningCounts, SenderQuery, Store, StoryCursor, StoryMessages,
+    sender_id,
 };
 use serde_json::json;
 
@@ -259,12 +260,17 @@ fn screening_on_a_copy_of_a_synced_store() {
     }
     let mut story_list = Vec::new();
     let mut story_changes = Vec::new();
+    // Every change since the store's first: the most a caller can ask for.
+    let from_the_first = StoryCursor {
+        seq: 0,
+        ..store.story_changes(None, 1).unwrap().now
+    };
     for _ in 0..20 {
         let at = Instant::now();
         store.stories(None, 51).unwrap();
         story_list.push(at.elapsed().as_secs_f64() * 1000.0);
         let at = Instant::now();
-        store.story_changes(0, 101).unwrap();
+        store.story_changes(Some(from_the_first), 101).unwrap();
         story_changes.push(at.elapsed().as_secs_f64() * 1000.0);
     }
     // The largest story: opened (its card, its kinds and a page of its

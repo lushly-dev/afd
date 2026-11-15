@@ -30,8 +30,8 @@ pub use remove::{RemovalPreview, Removed};
 pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
 pub use senders::{SenderPlace, SenderQuery, SenderRow, domain_of, sender_id};
 pub use stories::{
-    KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryMessage, StoryMessages, StoryRow,
-    USUAL_SHAPE, list_story_id, sender_story_id, stream_story_id,
+    KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryCursor, StoryMessage, StoryMessages,
+    StoryRow, USUAL_SHAPE,
 };
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
@@ -335,7 +335,6 @@ impl Store {
         connection.pragma_update(None, "foreign_keys", "ON")?;
         // Every statement of a batch is prepared once and kept.
         connection.set_prepared_statement_cache_capacity(128);
-        stories::register(&connection)?;
         schema::migrate(&mut connection, migrations)?;
         // Mail held before classes existed is classed once (migration 8),
         // and then given its stories (migration 9).

@@ -18,15 +18,17 @@
 //! what each batch changed, so a rebuild gives the same rows. A story
 //! depends on its members' screening rows and envelopes, so the messages
 //! whose class or place in the lists changed, and those derived again, have
-//! their membership computed again; the stories they were in or are in have
-//! their counts, exceptions and rows computed again, and each one that
-//! changed is noted in `change` for `mail-story-changes`.
+//! their membership computed again; the stories a member left, joined or
+//! changed in have their counts, exceptions and rows computed again, and
+//! each one that changed is noted in `change` for `mail-story-changes`.
+//!
+//! A story's id is its stream's, from `stream`, which is not derived: an id
+//! once given to a list or a sender is kept, so a rebuild gives the story
+//! the same one and no two streams share one.
 
 use std::collections::{BTreeMap, BTreeSet, HashMap};
 
-use rusqlite::functions::FunctionFlags;
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
-use sha2::{Digest, Sha256};
 
 use super::read::{LISTED, listed};
 use super::{Kept, MessageId, MessageListed, Store, StoreError, count, note_change};
@@ -44,74 +46,49 @@ pub const KINDS_SHOWN: u32 = 10;
 /// stories existed: they are filled when it is next opened.
 const FILL: &str = "story-fill";
 
+/// The `engine_state` key of the stories' epoch: a random number made again
+/// whenever every story is thrown away (a rebuild), which a cursor of
+/// `mail-story-changes` carries, so a cursor from before, or from another
+/// store, is told to read the stories again.
+const EPOCH: &str = "story-epoch";
+
 /// The stream a message of `envelope` belongs to: its list, or else its
 /// sender. As step C1 grouped it.
 const STREAM: &str = "CASE WHEN envelope.list_id <> '' THEN 'list ' || envelope.list_id
      ELSE 'sender ' || envelope.sender_address END";
 
-/// The id of the story of the stream written `stream` ([`STREAM`]): made
-/// from it, so a rebuild gives the same one, and small enough for any JSON
-/// reader to hold exactly.
-#[must_use]
-pub fn stream_story_id(stream: &str) -> i64 {
-    let mut hasher = Sha256::new();
-    hasher.update(b"stream\0");
-    hasher.update(stream.as_bytes());
-    let digest = hasher.finalize();
-    let mut first = [0_u8; 8];
-    first.copy_from_slice(&digest[..8]);
-    i64::try_from(u64::from_be_bytes(first) >> 12).unwrap_or(0)
+/// The bulk messages of `temp.story_target` that a mailbox other than junk
+/// and trash shows, with their envelopes.
+const TARGET_MEMBERS: &str = "FROM temp.story_target
+     CROSS JOIN screening ON screening.message_id = story_target.message_id
+     CROSS JOIN envelope ON envelope.message_id = story_target.message_id
+     WHERE screening.class = 'bulk' AND screening.listed = 1";
+
+/// Gives each new stream of the target's members its id.
+fn streams_sql() -> String {
+    format!("INSERT OR IGNORE INTO stream (key) SELECT {STREAM} {TARGET_MEMBERS}")
 }
 
-/// The id of the story of a list.
-#[must_use]
-pub fn list_story_id(list_id: &str) -> i64 {
-    stream_story_id(&format!("list {list_id}"))
-}
-
-/// The id of the story of a sender with no list.
-#[must_use]
-pub fn sender_story_id(address: &str) -> i64 {
-    stream_story_id(&format!("sender {address}"))
-}
-
-/// Lets SQL make a story's id from its stream, as [`stream_story_id`]
-/// does.
-pub(super) fn register(connection: &Connection) -> Result<(), StoreError> {
-    connection.create_scalar_function(
-        "stream_story",
-        1,
-        FunctionFlags::SQLITE_UTF8 | FunctionFlags::SQLITE_DETERMINISTIC,
-        |context| {
-            let stream: String = context.get(0)?;
-            Ok(stream_story_id(&stream))
-        },
-    )?;
-    Ok(())
-}
-
-/// The membership of each message of `temp.story_target`, as it should be.
+/// The membership of each message of `temp.story_target`, as it should be;
+/// returns each member made or changed.
 fn member_sql() -> String {
     format!(
         "INSERT INTO story_member (message_id, story_id, date, template_key, body_shape, exception)
-         SELECT envelope.message_id, stream_story({STREAM}), envelope.date,
-                envelope.template_key, envelope.body_shape, 0
-         FROM temp.story_target
-         CROSS JOIN screening ON screening.message_id = story_target.message_id
-         CROSS JOIN envelope ON envelope.message_id = story_target.message_id
-         WHERE screening.class = 'bulk' AND screening.listed = 1
+         SELECT envelope.message_id, (SELECT id FROM stream WHERE stream.key = {STREAM}),
+                envelope.date, envelope.template_key, envelope.body_shape, 0
+         {TARGET_MEMBERS}
          ON CONFLICT (message_id) DO UPDATE SET
              story_id = excluded.story_id, date = excluded.date,
              template_key = excluded.template_key, body_shape = excluded.body_shape
          WHERE story_member.story_id <> excluded.story_id OR story_member.date <> excluded.date
             OR story_member.template_key IS NOT excluded.template_key
             OR story_member.body_shape IS NOT excluded.body_shape
-         RETURNING story_id, body_shape, template_key"
+         RETURNING message_id, story_id, body_shape, template_key"
     )
 }
 
 /// What the messages of `temp.story_target` were in before.
-const BEFORE: &str = "SELECT DISTINCT story_id, body_shape, template_key FROM story_member
+const BEFORE: &str = "SELECT message_id, story_id, body_shape, template_key FROM story_member
      WHERE message_id IN (SELECT message_id FROM temp.story_target)";
 
 /// The messages of `temp.story_target` that are no longer bulk mail a
@@ -121,7 +98,16 @@ const REMOVE: &str = "DELETE FROM story_member
        AND NOT EXISTS (SELECT 1 FROM screening
                        WHERE screening.message_id = story_member.message_id
                          AND screening.class = 'bulk' AND screening.listed = 1)
-     RETURNING story_id, body_shape, template_key";
+     RETURNING message_id, story_id, body_shape, template_key";
+
+/// The stories whose newest member is in `temp.story_target`, whose title
+/// it gives: a message derived again may bring another name.
+const NEWEST_IN_TARGET: &str = "SELECT DISTINCT story_member.story_id FROM temp.story_target
+     CROSS JOIN story_member ON story_member.message_id = story_target.message_id
+     WHERE story_member.message_id =
+         (SELECT newest.message_id FROM story_member AS newest
+          WHERE newest.story_id = story_member.story_id
+          ORDER BY newest.date DESC, newest.message_id DESC LIMIT 1)";
 
 /// Whether a member of `story_member` is an exception: it has a body
 /// shape, its story has a usual one, and its own is not.
@@ -139,10 +125,11 @@ fn exception_expression() -> String {
 }
 
 /// What [`except_sql`] selects by: the messages a batch changed, a story's
-/// members with one shape, or every member of a story.
+/// members with one shape, or every member of a story with a shape (one
+/// without is never an exception).
 const EXCEPT_TARGET: &str = "story_member.message_id IN (SELECT message_id FROM temp.story_target)";
 const EXCEPT_SHAPE: &str = "story_member.story_id = ?1 AND story_member.body_shape = ?2";
-const EXCEPT_STORY: &str = "story_member.story_id = ?1";
+const EXCEPT_STORY: &str = "story_member.story_id = ?1 AND story_member.body_shape IS NOT NULL";
 
 /// The statement that computes `exception` again for the members `filter`
 /// selects.
@@ -154,7 +141,8 @@ fn except_sql(filter: &str) -> String {
     )
 }
 
-/// Whether a story has a usual shape, from the partial index of those.
+/// Whether a story has a usual shape, from the index of its shapes by
+/// count.
 fn has_usual_sql() -> String {
     format!(
         "SELECT EXISTS (SELECT 1 FROM story_shape
@@ -180,45 +168,46 @@ const SHAPE_COUNT: &str =
 const KIND_COUNT: &str =
     "SELECT count(*) FROM story_member WHERE story_id = ?1 AND template_key = ?2";
 
+/// A member's story, shape and template key.
+type Membership = (i64, Option<Vec<u8>>, Option<Vec<u8>>);
+
 /// What a batch changed of stories.
 #[derive(Debug, Default)]
 struct Touched {
-    /// Stories a message was in or is in.
+    /// Stories whose row is computed again: those a member left, joined or
+    /// changed in, and those whose newest member was derived again.
     stories: BTreeSet<i64>,
-    /// Stories a member joined, left, or changed in.
+    /// Stories a member left, joined or changed in.
     moved: BTreeSet<i64>,
-    /// Shapes and template keys whose count in a story may have changed.
+    /// Shapes and template keys whose count in a story changed.
     shapes: BTreeSet<(i64, Vec<u8>)>,
     kinds: BTreeSet<(i64, Vec<u8>)>,
 }
 
 impl Touched {
-    /// Notes the rows `sql` returns: a story, a shape and a template key.
-    fn read(
-        &mut self,
-        transaction: &Transaction<'_>,
-        sql: &str,
-        moved: bool,
-    ) -> Result<(), StoreError> {
-        let mut statement = transaction.prepare_cached(sql)?;
-        let mut rows = statement.query([])?;
-        while let Some(row) = rows.next()? {
-            let story: i64 = row.get(0)?;
-            let shape: Option<Vec<u8>> = row.get(1)?;
-            let kind: Option<Vec<u8>> = row.get(2)?;
-            self.stories.insert(story);
-            if moved {
-                self.moved.insert(story);
-            }
-            if let Some(shape) = shape {
-                self.shapes.insert((story, shape));
-            }
-            if let Some(kind) = kind {
-                self.kinds.insert((story, kind));
-            }
+    /// Notes a membership a member had or has now.
+    fn note(&mut self, (story, shape, kind): Membership) {
+        self.stories.insert(story);
+        self.moved.insert(story);
+        if let Some(shape) = shape {
+            self.shapes.insert((story, shape));
         }
-        Ok(())
+        if let Some(kind) = kind {
+            self.kinds.insert((story, kind));
+        }
     }
+}
+
+/// The rows `sql` returns: a message, then its membership.
+fn memberships(
+    transaction: &Transaction<'_>,
+    sql: &str,
+) -> Result<Vec<(i64, Membership)>, StoreError> {
+    let mut statement = transaction.prepare_cached(sql)?;
+    let rows = statement.query_map([], |row| {
+        Ok((row.get(0)?, (row.get(1)?, row.get(2)?, row.get(3)?)))
+    })?;
+    Ok(rows.collect::<Result<_, _>>()?)
 }
 
 /// Fills `temp.story_target` with `messages`.
@@ -328,8 +317,8 @@ fn compute_story(transaction: &Transaction<'_>, story: i64) -> Result<(bool, boo
 }
 
 /// Computes again the membership of `messages`, then the counts,
-/// exceptions and rows of every story they were in or are in, and notes
-/// each story that changed.
+/// exceptions and rows of every story a member left, joined or changed in,
+/// and notes each story that changed.
 pub(super) fn settle(
     transaction: &Transaction<'_>,
     messages: &BTreeSet<i64>,
@@ -339,16 +328,33 @@ pub(super) fn settle(
         return Ok(());
     }
     load_target(transaction, messages)?;
+    let before: HashMap<i64, Membership> = memberships(transaction, BEFORE)?.into_iter().collect();
+    let removed = memberships(transaction, REMOVE)?;
+    transaction.run(&streams_sql(), [])?;
+    let written = memberships(transaction, &member_sql())?;
+    // Only the members that left, joined or changed count: the rest of the
+    // target is as it was.
     let mut touched = Touched::default();
-    touched.read(transaction, BEFORE, false)?;
-    touched.read(transaction, REMOVE, true)?;
-    touched.read(transaction, &member_sql(), true)?;
+    for (message, membership) in removed.into_iter().chain(written) {
+        if let Some(was_in) = before.get(&message) {
+            touched.note(was_in.clone());
+        }
+        touched.note(membership);
+    }
+    {
+        let mut statement = transaction.prepare_cached(NEWEST_IN_TARGET)?;
+        let newest = statement.query_map([], |row| row.get::<_, i64>(0))?;
+        for story in newest {
+            touched.stories.insert(story?);
+        }
+    }
     if touched.stories.is_empty() {
         return Ok(());
     }
+    let has_usual = has_usual_sql();
     let mut usual_before = BTreeMap::new();
-    for story in &touched.stories {
-        let usual: bool = transaction.one(&has_usual_sql(), [story], |row| row.get(0))?;
+    for story in &touched.moved {
+        let usual: bool = transaction.one(&has_usual, [story], |row| row.get(0))?;
         usual_before.insert(*story, usual);
     }
     let mut turned = Vec::new();
@@ -376,20 +382,21 @@ pub(super) fn settle(
         )?;
     }
     // A story that gained its first usual shape, or lost its last, has
-    // every member's exception computed again; a shape that became usual,
-    // or stopped being, has its members'; and the messages changed have
-    // theirs.
+    // every shaped member's exception computed again; a shape that became
+    // usual, or stopped being, has its members'; and the messages changed
+    // have theirs.
+    let (by_story, by_shape) = (except_sql(EXCEPT_STORY), except_sql(EXCEPT_SHAPE));
     let mut flipped = BTreeSet::new();
     for (story, before) in &usual_before {
-        let after: bool = transaction.one(&has_usual_sql(), [story], |row| row.get(0))?;
+        let after: bool = transaction.one(&has_usual, [story], |row| row.get(0))?;
         if after != *before {
             flipped.insert(*story);
-            transaction.run(&except_sql(EXCEPT_STORY), [story])?;
+            transaction.run(&by_story, [story])?;
         }
     }
     for (story, shape) in turned {
         if !flipped.contains(&story) {
-            transaction.run(&except_sql(EXCEPT_SHAPE), params![story, shape])?;
+            transaction.run(&by_shape, params![story, shape])?;
         }
     }
     transaction.run(&except_sql(EXCEPT_TARGET), [])?;
@@ -412,9 +419,13 @@ pub(super) fn compose_all(transaction: &Transaction<'_>, now: i64) -> Result<(),
         "DELETE FROM story_member;
          DELETE FROM story_shape;
          DELETE FROM story_kind;
+         INSERT OR IGNORE INTO stream (key)
+             SELECT {STREAM}
+             FROM screening JOIN envelope ON envelope.message_id = screening.message_id
+             WHERE screening.class = 'bulk' AND screening.listed = 1;
          INSERT INTO story_member (message_id, story_id, date, template_key, body_shape, exception)
-             SELECT envelope.message_id, stream_story({STREAM}), envelope.date,
-                    envelope.template_key, envelope.body_shape, 0
+             SELECT envelope.message_id, (SELECT id FROM stream WHERE stream.key = {STREAM}),
+                    envelope.date, envelope.template_key, envelope.body_shape, 0
              FROM screening JOIN envelope ON envelope.message_id = screening.message_id
              WHERE screening.class = 'bulk' AND screening.listed = 1;
          INSERT INTO story_shape (story_id, shape, messages)
@@ -463,12 +474,22 @@ pub(super) fn fill_if_marked(connection: &mut Connection) -> Result<(), StoreErr
 }
 
 /// What a rebuild throws away of stories: it derives them again a batch at
-/// a time.
+/// a time. The streams keep their ids; the epoch is made again, so every
+/// cursor of `mail-story-changes` from before is told to read the stories
+/// again.
 pub(super) const CLEAR: &str = "DELETE FROM story;
      DELETE FROM story_member;
      DELETE FROM story_shape;
      DELETE FROM story_kind;
-     DELETE FROM engine_state WHERE key = 'story-fill';";
+     DELETE FROM engine_state WHERE key = 'story-fill';
+     INSERT OR REPLACE INTO engine_state (key, value)
+         VALUES ('story-epoch', abs(random() % 2147483647) + 1);";
+
+/// Drops the streams no message belongs to any longer, when a rebuild
+/// finishes: those of mail that is gone, such as a removed account's, whose
+/// lists and addresses are not kept.
+pub(super) const PRUNE: &str =
+    "DELETE FROM stream WHERE NOT EXISTS (SELECT 1 FROM story_member WHERE story_id = stream.id)";
 
 /// The queries stories run, by name, for the test of their plans.
 #[cfg(test)]
@@ -476,7 +497,11 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
     vec![
         ("members before", BEFORE.to_string()),
         ("members removed", REMOVE.to_string()),
+        ("streams", streams_sql()),
         ("members", member_sql()),
+        ("newest in target", NEWEST_IN_TARGET.to_string()),
+        ("prune", PRUNE.to_string()),
+        ("stream", STREAM_ID.to_string()),
         ("exceptions of the target", except_sql(EXCEPT_TARGET)),
         ("exceptions of a shape", except_sql(EXCEPT_SHAPE)),
         ("exceptions of a story", except_sql(EXCEPT_STORY)),
@@ -628,18 +653,32 @@ const STORY_OF: &str = "SELECT story_member.story_id FROM story_member
      JOIN story ON story.id = story_member.story_id
      WHERE story_member.message_id = ?1";
 
+/// The id a stream's story has.
+const STREAM_ID: &str = "SELECT id FROM stream WHERE key = ?1";
+
+/// Where a caller of `mail-story-changes` read up to: the stories' epoch
+/// and a change's number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct StoryCursor {
+    /// The epoch the change belongs to.
+    pub epoch: i64,
+    /// The change's number.
+    pub seq: u64,
+}
+
 /// What changed in stories after a cursor.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct StoryChanges {
-    /// Each story that changed, with the sequence number of its latest
-    /// change, in that order.
-    pub changed: Vec<(i64, u64)>,
-    /// Whether every story was derived again from nothing since (a
-    /// rebuild), or the cursor is later than any change this store has
-    /// noted: either way the caller's stories may be gone unnoted.
+    /// Each story that changed, with the cursor of its latest change, in
+    /// the order of those. Empty with no cursor, and on a reset.
+    pub changed: Vec<(i64, StoryCursor)>,
+    /// Whether the cursor is of another epoch (every story was made again
+    /// since, by a rebuild) or names a change this store never noted (it is
+    /// another store's): the caller's stories may be gone unnoted, so it
+    /// reads them again.
     pub reset: bool,
-    /// The latest change of all.
-    pub last: u64,
+    /// The cursor of the latest change of all.
+    pub now: StoryCursor,
 }
 
 impl Store {
@@ -770,33 +809,91 @@ impl Store {
         Ok(rows)
     }
 
-    /// The stories that changed after the change numbered `after`, each
-    /// once: at most `limit`.
+    /// The stories that changed after `after`, each once: at most `limit`.
+    /// With no cursor, none, and the cursor of now: a caller starts there,
+    /// then reads the stories.
     ///
     /// # Errors
     /// When the database refuses.
-    pub fn story_changes(&self, after: u64, limit: u32) -> Result<StoryChanges, StoreError> {
-        let after = i64::try_from(after).unwrap_or(i64::MAX);
-        let changed: Vec<(i64, u64)> = {
+    pub fn story_changes(
+        &self,
+        after: Option<StoryCursor>,
+        limit: u32,
+    ) -> Result<StoryChanges, StoreError> {
+        let epoch: i64 = self
+            .connection
+            .query_row(
+                "SELECT value FROM engine_state WHERE key = ?1",
+                [EPOCH],
+                |row| row.get(0),
+            )
+            .optional()?
+            .unwrap_or(0);
+        let now = StoryCursor {
+            epoch,
+            seq: self.last_change()?,
+        };
+        let Some(after) = after else {
+            return Ok(StoryChanges {
+                changed: Vec::new(),
+                reset: false,
+                now,
+            });
+        };
+        if after.epoch != epoch || after.seq > now.seq {
+            return Ok(StoryChanges {
+                changed: Vec::new(),
+                reset: true,
+                now,
+            });
+        }
+        let changed = {
             let mut statement = self.connection.prepare_cached(CHANGES)?;
             statement
-                .query_map(params![after, limit], |row| {
-                    Ok((row.get(0)?, count(row.get(1)?)))
-                })?
+                .query_map(
+                    params![i64::try_from(after.seq).unwrap_or(i64::MAX), limit],
+                    |row| {
+                        Ok((
+                            row.get(0)?,
+                            StoryCursor {
+                                epoch,
+                                seq: count(row.get(1)?),
+                            },
+                        ))
+                    },
+                )?
                 .collect::<Result<_, _>>()?
         };
-        let rebuilt: bool = self.connection.query_row(
-            "SELECT EXISTS (SELECT 1 FROM change WHERE kind = 'rebuilt' AND seq > ?1)",
-            [after],
-            |row| row.get(0),
-        )?;
-        let last = self.last_change()?;
         Ok(StoryChanges {
             changed,
-            // A caller with no cursor has nothing to throw away.
-            reset: after > 0 && (rebuilt || count(after) > last),
-            last,
+            reset: false,
+            now,
         })
+    }
+
+    /// The id of the story of a list, once any of its mail made one.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn list_story(&self, list_id: &str) -> Result<Option<i64>, StoreError> {
+        self.stream_id(&format!("list {list_id}"))
+    }
+
+    /// The id of the story of a sender with no list, once any of its mail
+    /// made one.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn sender_story(&self, address: &str) -> Result<Option<i64>, StoreError> {
+        self.stream_id(&format!("sender {address}"))
+    }
+
+    fn stream_id(&self, key: &str) -> Result<Option<i64>, StoreError> {
+        Ok(self
+            .connection
+            .prepare_cached(STREAM_ID)?
+            .query_row([key], |row| row.get(0))
+            .optional()?)
     }
 
     /// The story each of `messages` is in, for those in one.

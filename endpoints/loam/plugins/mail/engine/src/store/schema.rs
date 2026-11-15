@@ -445,10 +445,19 @@ pub(super) const MIGRATIONS: &[&str] = &[
     INSERT INTO engine_state (key, value) SELECT 'screening-fill', 1
         WHERE EXISTS (SELECT 1 FROM message);
     ",
-    // 9: stream stories (section 8). Every row is derived from the screening classes and the
-    // envelopes, computed again for each batch that touches it. A store that held mail before
-    // has its stories filled once when it is next opened.
+    // 9: stream stories (section 8). Every row but a stream's id is derived from the screening
+    // classes and the envelopes, computed again for each batch that touches it. A store that held
+    // mail before has its stories filled once when it is next opened.
     "
+    -- A stream: a list's id or a sender's address (`list <id>` or `sender <address>`), and the
+    -- id its story has. Not derived: an id once given is kept, so a rebuild gives a story the
+    -- same one and no two streams share one. A rebuild that finishes drops the streams no
+    -- message belongs to any longer.
+    CREATE TABLE stream (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE
+    ) STRICT;
+
     -- A bulk message a mailbox other than junk and trash shows, and the stream it belongs to:
     -- its list, or else its sender. Its date, template key and body shape are the envelope's,
     -- kept here so that a story's counts read an index alone. `exception` is whether its body
@@ -458,8 +467,8 @@ pub(super) const MIGRATIONS: &[&str] = &[
         message_id INTEGER PRIMARY KEY REFERENCES message (id),
         story_id INTEGER NOT NULL,
         date INTEGER NOT NULL,
-        template_key BLOB,
-        body_shape BLOB,
+        template_key BLOB CHECK (template_key IS NULL OR length(template_key) = 16),
+        body_shape BLOB CHECK (body_shape IS NULL OR length(body_shape) = 16),
         exception INTEGER NOT NULL CHECK (exception IN (0, 1))
     ) STRICT;
     CREATE INDEX story_member_date ON story_member (story_id, date DESC, message_id DESC);
@@ -486,7 +495,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ) STRICT, WITHOUT ROWID;
     CREATE INDEX story_kind_most ON story_kind (story_id, messages DESC, template_key);
 
-    -- A story. Its id is made from its stream, so a rebuild gives it the same one. `list_id` is
+    -- A story. Its id is its stream's. `list_id` is
     -- '' for a story by sender; `sender_address` is its sender, or for a list the sender of its
     -- newest message; `title` is the list's id, or the name on the newest message, or else the
     -- address. `kinds` counts its template keys and `exceptions` its exceptions. A burst
@@ -511,6 +520,8 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- Stories for the mail already held are filled when the store is next opened.
     INSERT INTO engine_state (key, value) SELECT 'story-fill', 1
         WHERE EXISTS (SELECT 1 FROM message);
+    -- The stories' epoch, which a cursor of what changed carries; made again by each rebuild.
+    INSERT INTO engine_state (key, value) VALUES ('story-epoch', abs(random() % 2147483647) + 1);
     ",
 ];
 

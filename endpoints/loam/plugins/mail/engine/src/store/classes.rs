@@ -307,9 +307,10 @@ pub(super) fn settle(
     }
     let turned = recount(transaction, templates)?;
     load_own(transaction, &super::senders::own_addresses(transaction)?)?;
-    // The messages whose stories are computed again: those derived, those
-    // shown or no longer shown somewhere, and any other whose class changed.
-    let mut storied: BTreeSet<i64> = messages.union(shown).copied().collect();
+    // The messages whose stories are computed again: those derived, and
+    // any other whose class or place in the lists changed. A message whose
+    // flags alone changed is not among them.
+    let mut storied: BTreeSet<i64> = messages.clone();
     let mut rows = 0;
     for address in senders {
         rows += classify(transaction, BY_SENDER, [address], Some(&mut storied))?;
@@ -329,7 +330,12 @@ pub(super) fn settle(
     // Where a message is shown changes only whether it is listed.
     if !shown.is_empty() {
         load_target(transaction, shown)?;
-        changing(transaction, &relist_sql(SHOWN_TARGET), [], None)?;
+        changing(
+            transaction,
+            &relist_sql(SHOWN_TARGET),
+            [],
+            Some(&mut storied),
+        )?;
     }
     super::stories::settle(transaction, &storied, now)?;
     Ok(rows)

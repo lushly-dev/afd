@@ -275,9 +275,14 @@ fn a_store_that_held_mail_before_classes_is_classed_when_opened() {
     );
     let marks = table(
         &store,
-        "SELECT count(*) FROM engine_state WHERE key = 'screening-fill'",
+        "SELECT count(*) FROM engine_state WHERE key IN ('screening-fill', 'story-fill')",
     );
     assert_eq!(marks, [vec![Value::Integer(0)]]);
+    // From version 7 straight to the newest, the classes are filled first,
+    // then the stories from them: the bulk message is its list's first.
+    let members = table(&store, "SELECT message_id FROM story_member");
+    assert_eq!(members, [vec![Value::Integer(1)]]);
+    assert_eq!(store.story_count().unwrap(), 0, "a story needs five");
 }
 
 #[test]
