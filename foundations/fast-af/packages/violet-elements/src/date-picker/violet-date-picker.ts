@@ -310,10 +310,13 @@ export class VioletDatePicker extends FASTElement {
     };
 
     /**
-     * The pointer pressed inside the picker and has not been released yet. Pressing a
+     * A pointer press began inside the picker and its click has not arrived yet. Pressing a
      * non-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus
      * to the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus
-     * leaving the picker; the focus-out close ignores that while the press lasts.
+     * leaving the picker; the focus-out close ignores that until the press ends. A touch tap
+     * moves focus on its compatibility mousedown, after pointerup, so the press ends at the
+     * click (or pointercancel), not at pointerup. A keydown also ends it, so a keyboard exit always
+     * closes even when no click follows, and the next pointerdown resets it.
      */
     #pressedInside = false;
 
@@ -325,7 +328,7 @@ export class VioletDatePicker extends FASTElement {
         }
     };
 
-    readonly #handleDocumentPointerEnd = () => {
+    readonly #handleDocumentPressEnd = () => {
         this.#pressedInside = false;
     };
 
@@ -391,8 +394,9 @@ export class VioletDatePicker extends FASTElement {
     public connectedCallback(): void {
         super.connectedCallback();
         this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
-        this.ownerDocument.addEventListener("pointerup", this.#handleDocumentPointerEnd, true);
-        this.ownerDocument.addEventListener("pointercancel", this.#handleDocumentPointerEnd, true);
+        this.ownerDocument.addEventListener("click", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.addEventListener("pointercancel", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.addEventListener("keydown", this.#handleDocumentPressEnd, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
         this.#defaultValue = this.value;
@@ -402,8 +406,9 @@ export class VioletDatePicker extends FASTElement {
 
     public disconnectedCallback(): void {
         this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
-        this.ownerDocument.removeEventListener("pointerup", this.#handleDocumentPointerEnd, true);
-        this.ownerDocument.removeEventListener("pointercancel", this.#handleDocumentPointerEnd, true);
+        this.ownerDocument.removeEventListener("click", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.removeEventListener("pointercancel", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.removeEventListener("keydown", this.#handleDocumentPressEnd, true);
         this.#pressedInside = false;
         window.removeEventListener("resize", this.#handleViewportChange);
         window.removeEventListener("scroll", this.#handleViewportChange, true);

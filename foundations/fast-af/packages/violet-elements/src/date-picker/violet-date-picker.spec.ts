@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import type { VioletCalendar } from "../calendar/violet-calendar";
 import "./violet-date-picker";
@@ -407,30 +407,80 @@ describe("violet-date-picker", () => {
                 return element;
             }
 
-            async function expectPressesKeepItOpen(picker: VioletDatePicker): Promise<void> {
+            type Press = (element: HTMLElement) => Promise<void>;
+
+            const click: Press = async element => {
+                await userEvent.click(element, { force: true });
+            };
+
+            /**
+             * A real touch tap through the Chrome DevTools Protocol. A tap fires pointerdown and
+             * pointerup first, then the compatibility mousedown that moves focus, then click (none
+             * on a disabled button). userEvent.click is mouse-only and never shows that order.
+             */
+            const tap: Press = async element => {
+                const rect = element.getBoundingClientRect();
+                const frame = window.frameElement?.getBoundingClientRect();
+                const scale = frame ? frame.width / window.innerWidth : 1;
+                const x = (frame?.left ?? 0) + (rect.left + rect.width / 2) * scale;
+                const y = (frame?.top ?? 0) + (rect.top + rect.height / 2) * scale;
+                const types = ["pointerdown", "pointerup", "mousedown", "click"];
+                const seen: string[] = [];
+                const record = (event: Event) => seen.push(event.type);
+                for (const type of types) {
+                    document.addEventListener(type, record, true);
+                }
+                const session = cdp();
+                await session.send("Emulation.setTouchEmulationEnabled", { enabled: true, maxTouchPoints: 1 });
+                try {
+                    await session.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ x, y }] });
+                    await session.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
+                    if ((element as HTMLButtonElement).disabled) {
+                        // A disabled button gets no compatibility click; wait the tap out.
+                        await new Promise(resolve => setTimeout(resolve, 150));
+                    } else {
+                        await vi.waitFor(() => expect(seen).toEqual(types));
+                    }
+                    await nextFrame();
+                    // The tap order that matters: focus moves after pointerup.
+                    expect(seen.slice(0, 2)).toEqual(["pointerdown", "pointerup"]);
+                } finally {
+                    for (const type of types) {
+                        document.removeEventListener(type, record, true);
+                    }
+                    await session.send("Emulation.setTouchEmulationEnabled", { enabled: false });
+                }
+            };
+
+            async function expectPressesKeepItOpen(picker: VioletDatePicker, press: Press = click): Promise<void> {
                 await openAndExpectCalendarFocus(picker);
 
-                await userEvent.click(heading(picker));
+                await press(heading(picker));
                 await nextFrame();
                 expect(picker.open).toBe(true);
 
                 const disabledDay = calendarDay(picker, "2026-03-05");
                 expect(disabledDay.disabled).toBe(true);
-                await userEvent.click(disabledDay, { force: true });
+                await press(disabledDay);
                 await nextFrame();
                 expect(picker.open).toBe(true);
                 expect(picker.value).toBe("2026-03-23");
             }
 
-            it("stays open for presses on the heading and a disabled day in a tabindex=-1 wrapper", async () => {
+            const presses: Array<{ input: string; press: Press }> = [
+                { input: "mouse click", press: click },
+                { input: "touch tap", press: tap },
+            ];
+
+            it.each(presses)("stays open for a $input on the heading and a disabled day in a tabindex=-1 wrapper", async ({ press }) => {
                 const wrapper = document.createElement("div");
                 wrapper.tabIndex = -1;
                 const picker = await renderInside(wrapper);
 
-                await expectPressesKeepItOpen(picker);
+                await expectPressesKeepItOpen(picker, press);
             });
 
-            it("stays open for presses on the heading and a disabled day in a scrolling violet-dialog", async () => {
+            it.each(presses)("stays open for a $input on the heading and a disabled day in a scrolling violet-dialog", async ({ press }) => {
                 await import("../dialog/violet-dialog");
                 const dialog = document.createElement("violet-dialog") as HTMLElement & {
                     show(): void;
@@ -444,7 +494,25 @@ describe("violet-date-picker", () => {
                 dialog.show();
                 await vi.waitFor(() => expect(dialog.bodyScrollable).toBe(true));
 
-                await expectPressesKeepItOpen(picker);
+                await expectPressesKeepItOpen(picker, press);
+            });
+
+            it("still closes on Shift+Tab after a tap on a disabled day, which sends no click", async () => {
+                const wrapper = document.createElement("div");
+                wrapper.tabIndex = 0;
+                wrapper.setAttribute("aria-label", "Form");
+                const picker = await renderInside(wrapper);
+                await openAndExpectCalendarFocus(picker);
+
+                await tap(calendarDay(picker, "2026-03-05"));
+                expect(picker.open).toBe(true);
+
+                getInput(picker).focus();
+                await userEvent.keyboard("{Shift>}{Tab}{/Shift}");
+                await nextFrame();
+
+                expect(document.activeElement).toBe(wrapper);
+                expect(picker.open).toBe(false);
             });
 
             it("still closes on Shift+Tab onto a focusable ancestor", async () => {

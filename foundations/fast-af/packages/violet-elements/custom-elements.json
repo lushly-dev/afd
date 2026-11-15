@@ -19877,7 +19877,7 @@
             },
             {
               "kind": "field",
-              "name": "#handleDocumentPointerEnd",
+              "name": "#handleDocumentPressEnd",
               "privacy": "private",
               "readonly": true
             },
@@ -19914,7 +19914,7 @@
                 "text": "boolean"
               },
               "default": "false",
-              "description": "The pointer pressed inside the picker and has not been released yet. Pressing a\nnon-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus\nto the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus\nleaving the picker; the focus-out close ignores that while the press lasts."
+              "description": "A pointer press began inside the picker and its click has not arrived yet. Pressing a\nnon-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus\nto the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus\nleaving the picker; the focus-out close ignores that until the press ends. A touch tap\nmoves focus on its compatibility mousedown, after pointerup, so the press ends at the\nclick (or pointercancel), not at pointerup. A keydown also ends it, so a keyboard exit always\ncloses even when no click follows, and the next pointerdown resets it."
             },
             {
               "kind": "method",
