@@ -239,7 +239,7 @@
     {
       "name": "check_codex_skills_mirror",
       "imported_as": "core._agent_skills_mirror (wrapper), check id agent_skills_mirror",
-      "change": "the source function is imported unchanged; an added wrapper wants .agents/skills as the live mirror of .claude/skills, the path Codex and other agents document, judges a standalone .agents/skills copy with the source drift summary, and runs the source check only for a legacy .codex/skills mirror, whose pass becomes warn"
+      "change": "the source function is imported unchanged; an added wrapper wants .agents/skills as the live mirror of .claude/skills, the path Codex and other agents document, judges a standalone .agents/skills copy with the source drift summary, warns when .codex/skills remains beside it, and runs the source check only for a legacy .codex/skills mirror, keeping its failures with a suggestion that names .agents/skills and turning its pass into warn"
     },
     {
       "name": "HealthPlugin",

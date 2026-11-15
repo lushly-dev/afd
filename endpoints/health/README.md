@@ -86,7 +86,7 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 | Check id | Reads |
 | --- | --- |
 | `node_version_alignment` | `.nvmrc`, `.node-version`, `package.json` engines, workflow `node-version` including lists, matrix references and `fromJSON` over literal lists (TypeScript); other ranges or expressions produce `warn` |
-| `agent_skills_mirror` | `.agents/skills` is a live mirror of `.claude/skills`; a mirror only at the legacy `.codex/skills` path gives `warn` |
+| `agent_skills_mirror` | `.agents/skills` is a live mirror of `.claude/skills`. A live mirror only at the legacy `.codex/skills` path, or a `.codex/skills` left beside `.agents/skills`, gives `warn` |
 | `lefthook_configured` | `lefthook.yml` declares pre-commit and pre-push |
 | `linter_strict` | Biome rules (TypeScript) or `[tool.ruff]` (Python) |
 | `ci_present` | A workflow mentioning test and build that runs on pull requests or branch pushes; one only run by tags, releases, schedules or by hand doesn't count |

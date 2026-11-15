@@ -247,10 +247,12 @@ def _agent_skills_mirror(path: Path, language: str) -> dict:
     """Want .agents/skills as a live mirror of .claude/skills; a .codex/skills one only warns.
 
     Codex and other agents document .agents/skills for repository skills, and Claude Code
-    reads only .claude/skills. The source check still judges a legacy .codex/skills mirror.
+    reads only .claude/skills. The source check still judges a legacy .codex/skills mirror,
+    but every suggestion points at .agents/skills, and a leftover .codex/skills warns.
     """
     canonical = path / ".claude" / "skills"
     mirror = path / ".agents" / "skills"
+    legacy = path / ".codex" / "skills"
     create = "Create .agents/skills as a symlink or junction to .claude/skills"
     replace = "Replace .agents/skills with a symlink or junction to .claude/skills"
     if not canonical.is_dir():
@@ -259,9 +261,8 @@ def _agent_skills_mirror(path: Path, language: str) -> dict:
             "message": ".claude/skills/ directory not found",
             "suggestion": "Run 'botcore skill-seed' before creating the .agents/skills mirror",
         }
-    if not mirror.exists() and not mirror.is_symlink():
-        legacy = path / ".codex" / "skills"
-        if not legacy.exists() and not legacy.is_symlink():
+    if not os.path.lexists(mirror):
+        if not os.path.lexists(legacy):
             return {
                 "status": "fail",
                 "message": ".agents/skills mirror not found",
@@ -269,7 +270,11 @@ def _agent_skills_mirror(path: Path, language: str) -> dict:
             }
         result = checks.check_codex_skills_mirror(path, language)
         if result["status"] != "pass":
-            return result
+            return {
+                **result,
+                "suggestion": "Move any changes only in .codex/skills into .claude/skills, "
+                f"{create[0].lower()}{create[1:]}, then remove .codex/skills",
+            }
         return {
             "status": "warn",
             "message": ".codex/skills mirrors .claude/skills, but Codex now reads .agents/skills",
@@ -277,26 +282,37 @@ def _agent_skills_mirror(path: Path, language: str) -> dict:
             "metric": "legacy_mirror",
         }
     try:
-        if os.path.samefile(mirror, canonical):
-            return {
-                "status": "pass",
-                "message": ".agents/skills mirrors .claude/skills",
-                "metric": "mirrored",
-            }
+        live = os.path.samefile(mirror, canonical)
     except OSError:
-        pass
+        live = False
+    if live:
+        if os.path.lexists(legacy):
+            return {
+                "status": "warn",
+                "message": ".agents/skills mirrors .claude/skills, but .codex/skills remains",
+                "suggestion": "Remove .codex/skills; Codex also loads it",
+                "metric": "legacy_mirror_present",
+            }
+        return {
+            "status": "pass",
+            "message": ".agents/skills mirrors .claude/skills",
+            "metric": "mirrored",
+        }
     if not mirror.is_dir():
         return {
             "status": "fail",
             "message": ".agents/skills exists but is not a directory mirror",
             "suggestion": replace,
         }
-    found = checks._summarize_skill_tree_drift(canonical, mirror)
+    found = [
+        "Mirror-only" + item[len("Codex-only") :] if item.startswith("Codex-only") else item
+        for item in checks._summarize_skill_tree_drift(canonical, mirror)
+    ]
     if found:
         return {
             "status": "fail",
             "message": ".agents/skills is a standalone copy and has content to migrate: "
-            + "; ".join(found).replace("Codex-only", "Mirror-only"),
+            + "; ".join(found),
             "suggestion": "Move mirror-only changes into .claude/skills, then replace "
             ".agents/skills with a symlink or junction",
         }
