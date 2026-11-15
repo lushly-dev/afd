@@ -245,11 +245,11 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
   recorded. No command prints the weekly figure, so a person reads it. A session's result
-  does carry its cost at list prices. That gives the share a dollar at list price takes, and from it the share each
-  step will take, which comes back to the owner before step 0.1. If four pilots do not move
-  a figure shown in whole percents, the runs pause after the first fifteen builds of step
-  0.1, which are then the measurement, and the estimate comes back to the owner there. If a
-  pilot costs more than twice its line, the runs stop.
+  does carry its cost at list prices. That gives the share a dollar at list price takes, and
+  from it the share each step will take, which comes back to the owner before step 0.1. If
+  four pilots do not move a figure shown in whole percents, the runs pause after the first
+  fifteen builds of step 0.1, which are then the measurement, and the estimate comes back to
+  the owner there. If a pilot costs more than twice its line, the runs stop.
 - **The weekly figure is shared.** Another session of the owner's runs on that machine, so
   the figure also moves for reasons that are not the bench. Each session's reported cost is
   the measure of the bench's own use, and the weekly figure only scales it.
