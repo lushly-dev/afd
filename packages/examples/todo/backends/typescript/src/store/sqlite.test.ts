@@ -183,4 +183,43 @@ describe('SqliteStore', () => {
 		writeFileSync(notADirectory, 'x');
 		expect(() => new SqliteStore(join(notADirectory, 'todos.db'))).toThrow();
 	});
+
+	it('keeps order past a thousand writes in one millisecond', async () => {
+		const db = store();
+		const memory = new TodoStore();
+		const stamp = { now: '2026-11-15T09:00:00.000Z', newId: () => '' };
+		for (let index = 0; index < 1500; index++) {
+			const fixed = { ...stamp, newId: () => `todo-${String(index).padStart(5, '0')}` };
+			memory.create({ title: `Todo ${index}` }, fixed);
+			await db.create({ title: `Todo ${index}` }, fixed);
+		}
+		const ids = (todos: { id: string }[]) => todos.map((todo) => todo.id);
+		expect(ids(await db.list({ sortOrder: 'asc' }))).toEqual(
+			ids(memory.list({ sortOrder: 'asc' }))
+		);
+	});
+
+	it('skips a todo another process removed while clearing, and clears the rest', async () => {
+		const mine = store();
+		const theirs = store();
+		const first = await mine.create({ title: 'First' });
+		const second = await mine.create({ title: 'Second' });
+		await mine.toggle(first.id);
+		await mine.toggle(second.id);
+		// Another process deletes the second completed todo just before this clear writes
+		const realRun = (mine as unknown as { run: (ops: unknown[]) => Promise<string> }).run.bind(
+			mine
+		);
+		let raced = false;
+		(mine as unknown as { run: (ops: unknown[]) => Promise<string> }).run = async (ops) => {
+			if (!raced && ops.length > 2) {
+				raced = true;
+				await theirs.delete(second.id);
+			}
+			return realRun(ops);
+		};
+		const result = await mine.clearCompleted();
+		expect(result.clearedIds).toEqual([first.id]);
+		expect(await mine.getDeleted(second.id)).toBeDefined();
+	});
 });

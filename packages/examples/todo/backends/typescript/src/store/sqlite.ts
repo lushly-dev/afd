@@ -57,7 +57,7 @@ type Outcome = 'done' | 'missing';
  */
 export class SqliteStore {
 	readonly db: SqliteAdapter;
-	private orderCounter = 0;
+	private lastOrder = 0;
 
 	constructor(readonly path: string) {
 		mkdirSync(dirname(path), { recursive: true });
@@ -75,10 +75,13 @@ export class SqliteStore {
 		}
 	}
 
-	/** A position after every row written so far in this process (time first, then a counter). */
+	/**
+	 * A position after every row this process wrote: the time in microseconds, or one past the last
+	 * position when the clock has not moved on, so it always rises.
+	 */
 	private nextOrder(): number {
-		this.orderCounter = (this.orderCounter + 1) % 1000;
-		return Date.now() * 1000 + this.orderCounter;
+		this.lastOrder = Math.max(Date.now() * 1000, this.lastOrder + 1);
+		return this.lastOrder;
 	}
 
 	private async rows(table: string): Promise<Row[]> {
@@ -107,8 +110,11 @@ export class SqliteStore {
 	private async run(operations: BatchOperation[]): Promise<Outcome> {
 		if (operations.length === 0) return 'done';
 		const result = await this.db.batch(operations);
-		const failedAt = result.results.findIndex((entry) => entry.status >= 400);
-		if (failedAt < 0) return 'done';
+		// A rolled-back batch marks every other operation 424; find the one that failed
+		const failedAt = result.results.findIndex(
+			(entry) => entry.status >= 400 && entry.status !== 424
+		);
+		if (failedAt < 0 && result.results.every((entry) => entry.status < 400)) return 'done';
 		const failed = result.results[failedAt];
 		if (failed?.status === 404 && operations[failedAt]?.method === 'PATCH') return 'missing';
 		throw new Error(`SQLite store batch failed (${failed?.status}): ${failed?.error ?? ''}`);
