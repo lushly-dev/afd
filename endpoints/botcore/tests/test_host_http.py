@@ -557,7 +557,12 @@ def test_an_upload_body_that_dribbles_in_is_refused_and_frees_its_slot(tmp_path)
             "Content-Length: 1000\r\n\r\nabc".encode()
         )
         slow.settimeout(5)
-        answer = slow.recv(65536).decode()
+        answer = ""
+        while "}" not in answer:  # The headers can arrive before the body.
+            chunk = slow.recv(65536).decode()
+            if not chunk:
+                break
+            answer += chunk
     after = HostClient(f"http://127.0.0.1:{port}", "cell", secret).upload(b"ok")
     server.should_exit = True
     thread.join(5)
