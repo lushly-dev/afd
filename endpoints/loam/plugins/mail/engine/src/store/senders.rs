@@ -102,14 +102,17 @@ mod query {
         )
     }
 
-    /// The person's own addresses, as written.
+    /// The person's own addresses, as written: the accounts', the senders
+    /// of the person's messages, and those the person added by hand.
     pub(super) fn own() -> String {
         format!(
             "SELECT address FROM account
              UNION
              SELECT CASE WHEN envelope.resent_from <> '' THEN envelope.resent_from
                          ELSE envelope.sender_address END
-                 FROM {PERSONS} CROSS JOIN envelope ON envelope.message_id = mine.message_id"
+                 FROM {PERSONS} CROSS JOIN envelope ON envelope.message_id = mine.message_id
+             UNION
+             SELECT address FROM sender_decision WHERE decision = 'mine'"
         )
     }
 
@@ -173,6 +176,8 @@ pub struct SenderRow {
     /// The later of its last message and the person's last to it: what a
     /// list is ordered by.
     pub recent: i64,
+    /// The person's decision on it, if any: in or out.
+    pub decision: Option<super::Decision>,
 }
 
 /// A sender's id: the first 52 bits of its address's SHA-256, so the same
@@ -272,10 +277,11 @@ pub(super) fn touch_correspondents(
     Ok(())
 }
 
-/// The person's own addresses: every account's, and the sender of every
-/// message of the person's, or whoever redirected it: a redirect keeps the
-/// first sender's `From`, a stranger's. In lower case as the derivation
-/// writes a sender (Rust's, which SQLite's `lower` is not beyond ASCII).
+/// The person's own addresses: every account's, the sender of every message
+/// of the person's, or whoever redirected it (a redirect keeps the first
+/// sender's `From`, a stranger's), and every address the person added as
+/// theirs. In lower case as the derivation writes a sender (Rust's, which
+/// SQLite's `lower` is not beyond ASCII).
 pub(super) fn own_addresses(
     connection: &rusqlite::Connection,
 ) -> Result<HashSet<String>, StoreError> {
@@ -288,22 +294,43 @@ pub(super) fn own_addresses(
 }
 
 /// Computes again the row of each of `addresses`, and notes a change for
-/// each sender.
+/// each sender. Returns the addresses whose messages' screening class may
+/// have turned with the row: those that became the person's or stopped
+/// being, or that the person has now written to or no longer has (the
+/// specification's 7.2). Every message of each is classed again.
 pub(super) fn settle_senders(
     transaction: &Transaction<'_>,
     addresses: &BTreeSet<String>,
     now: i64,
-) -> Result<(), StoreError> {
+) -> Result<BTreeSet<String>, StoreError> {
+    let mut turned = BTreeSet::new();
     if addresses.is_empty() {
-        return Ok(());
+        return Ok(turned);
     }
     let own = own_addresses(transaction)?;
     for address in addresses {
+        let before = screened_as(transaction, address)?;
         if compute_sender(transaction, address, &own)? {
             note_change(transaction, now, "sender", sender_id(address))?;
         }
+        if screened_as(transaction, address)? != before {
+            turned.insert(address.clone());
+        }
     }
-    Ok(())
+    Ok(turned)
+}
+
+/// What a sender's row says to screening: `None` when it has none (the
+/// address is the person's, or it has no messages and was never written
+/// to), else whether the person has written to it.
+fn screened_as(transaction: &Transaction<'_>, address: &str) -> Result<Option<bool>, StoreError> {
+    Ok(transaction
+        .one(
+            "SELECT written > 0 FROM sender WHERE address = ?1",
+            [address],
+            |row| row.get(0),
+        )
+        .optional()?)
 }
 
 /// Computes again every sender's row: after the messages that are the
@@ -312,7 +339,7 @@ pub(super) fn settle_senders(
 pub(super) fn settle_every_sender(
     transaction: &Transaction<'_>,
     now: i64,
-) -> Result<(), StoreError> {
+) -> Result<BTreeSet<String>, StoreError> {
     let addresses: BTreeSet<String> = {
         let mut statement = transaction.prepare(&query::every())?;
         statement
@@ -401,6 +428,11 @@ pub struct SenderQuery<'a> {
     pub domain: Option<&'a str>,
     /// Only senders the person has written to.
     pub written_to: bool,
+    /// Only senders whose mail waits to be screened: `unknown` mail a
+    /// mailbox other than junk and trash shows.
+    pub waiting: bool,
+    /// Only senders with a suggestion waiting for the person.
+    pub suggested: bool,
     /// The `recent` and id of the last sender of the page before.
     pub before: Option<(i64, i64)>,
     /// At most this many.
@@ -421,11 +453,16 @@ fn sender_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SenderRow> {
         last_written: row.get(9)?,
         answered: count(row.get(10)?),
         recent: row.get(11)?,
+        decision: row
+            .get::<_, Option<String>>(12)?
+            .as_deref()
+            .and_then(super::Decision::parse),
     })
 }
 
 const SENDER_COLUMNS: &str = "id, address, domain, name, messages, bulk, first_received, \
-     last_received, written, last_written, answered, recent";
+     last_received, written, last_written, answered, recent, \
+     (SELECT decision FROM sender_decision WHERE sender_decision.address = sender.address)";
 
 impl Store {
     /// Computes one address's sender row again, in a transaction of its own,
@@ -435,7 +472,14 @@ impl Store {
     /// When the database refuses.
     pub fn recompute_sender(&mut self, address: &str, now: i64) -> Result<(), StoreError> {
         let transaction = self.connection.transaction()?;
-        settle_senders(&transaction, &BTreeSet::from([address.to_string()]), now)?;
+        let turned = settle_senders(&transaction, &BTreeSet::from([address.to_string()]), now)?;
+        super::classes::settle(
+            &transaction,
+            &super::classes::Reclassify {
+                senders: Some(&turned),
+                ..Default::default()
+            },
+        )?;
         transaction.commit()?;
         Ok(())
     }
@@ -460,15 +504,30 @@ impl Store {
     /// When the database refuses.
     pub fn senders(&self, query: &SenderQuery<'_>) -> Result<Vec<SenderRow>, StoreError> {
         let (recent, id) = query.before.unwrap_or((i64::MAX, i64::MAX));
+        let shown = super::classes::SHOWN;
         let mut statement = self.connection.prepare_cached(&format!(
             "SELECT {SENDER_COLUMNS} FROM sender
              WHERE (?1 IS NULL OR domain = ?1) AND (?2 = 0 OR written > 0)
+               AND (?6 = 0 OR EXISTS (SELECT 1 FROM screening
+                                      WHERE screening.sender_address = sender.address
+                                        AND screening.class = 'unknown' AND {shown}))
+               AND (?7 = 0 OR EXISTS (SELECT 1 FROM sender_suggestion
+                                      WHERE sender_suggestion.address = sender.address
+                                        AND sender_suggestion.state = 'open'))
                AND (recent, id) < (?3, ?4)
              ORDER BY recent DESC, id DESC LIMIT ?5"
         ))?;
         let rows = statement
             .query_map(
-                params![query.domain, query.written_to, recent, id, query.limit],
+                params![
+                    query.domain,
+                    query.written_to,
+                    recent,
+                    id,
+                    query.limit,
+                    query.waiting,
+                    query.suggested
+                ],
                 sender_row,
             )?
             .collect::<Result<_, _>>()?;

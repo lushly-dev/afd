@@ -1,7 +1,9 @@
-//! Step C1's report on the owner's mail (the specification's 6.3 and 7.1):
-//! Q2 as the engine computes it beside the census's figure, and how many
-//! stream stories each grouping gives. Ignored: it runs only when asked, on
-//! a copy of a synced store whose directory it is given.
+//! Steps C1's and C2's report on the owner's mail (the specification's 6.3,
+//! 7.1 and 7.2): Q2 as the engine computes it beside the census's figure, how
+//! many stream stories each grouping gives, and what screening classes the
+//! mail falls into, with what classing it and deciding on a sender cost.
+//! Ignored: it runs only when asked, on a copy of a synced store whose
+//! directory it is given.
 //!
 //! It opens the copy, which brings its schema up to date, derives again
 //! every message an older derivation wrote (that fills the senders), and
@@ -23,7 +25,7 @@ use std::path::Path;
 use std::time::Instant;
 
 use loam_mail::home::Home;
-use loam_mail::store::{ScreeningCounts, SenderQuery, Store, sender_id};
+use loam_mail::store::{Class, Decision, ScreeningCounts, SenderQuery, Store, sender_id};
 use serde_json::json;
 
 /// The census's Q2 on the same account (the prototype's README): the whole
@@ -169,6 +171,77 @@ fn screening_on_a_copy_of_a_synced_store() {
         recompute.push(at.elapsed().as_secs_f64() * 1000.0);
     }
     let persons = store.persons_messages().unwrap();
+
+    // Screening (step C2): classing every message from nothing, as a store
+    // from before classes is classed once, the classes and the queue, the
+    // lists by class, and a decision on the largest sender and back. The
+    // copy is changed; the store it was copied from is not.
+    assert!(store.screening_readiness().unwrap().ready());
+    let classed = Instant::now();
+    store.classify_everything().unwrap();
+    let classify_ms = classed.elapsed().as_millis();
+    let connection = rusqlite::Connection::open(home.database()).unwrap();
+    let count = |sql: &str| -> i64 { connection.query_row(sql, [], |row| row.get(0)).unwrap() };
+    let shown =
+        "EXISTS (SELECT 1 FROM observation JOIN mailbox ON mailbox.id = observation.mailbox_id
+                 WHERE observation.message_id = screening.message_id
+                   AND observation.ended_at IS NULL AND mailbox.role NOT IN ('junk', 'trash'))";
+    let mut classes = serde_json::Map::new();
+    for class in Class::ALL {
+        let name = class.as_str();
+        classes.insert(
+            name.to_string(),
+            json!({
+                "held": count(&format!("SELECT count(*) FROM screening WHERE class = '{name}'")),
+                "listed": count(&format!(
+                    "SELECT count(*) FROM screening WHERE class = '{name}' AND {shown}"
+                )),
+            }),
+        );
+    }
+    let templates = count("SELECT count(*) FROM template");
+    let recurring = count("SELECT count(*) FROM template WHERE messages >= 5");
+    drop(connection);
+    let (queue_messages, queue_senders) = store.queue_counts().unwrap();
+    let mut lists = serde_json::Map::new();
+    for class in Class::ALL {
+        let mut samples = Vec::new();
+        for _ in 0..20 {
+            let at = Instant::now();
+            store.class_messages(class, None, 51).unwrap();
+            samples.push(at.elapsed().as_secs_f64() * 1000.0);
+        }
+        lists.insert(class.as_str().to_string(), json!(p95(samples)));
+    }
+    let mut waiting = Vec::new();
+    for _ in 0..20 {
+        let at = Instant::now();
+        store
+            .senders(&SenderQuery {
+                waiting: true,
+                limit: 51,
+                ..SenderQuery::default()
+            })
+            .unwrap();
+        waiting.push(at.elapsed().as_secs_f64() * 1000.0);
+    }
+    let before_decision = store.class_counts(&largest.address).unwrap();
+    let preview = Instant::now();
+    let would = store.would_change(&largest.address, Decision::Out).unwrap();
+    let preview_ms = preview.elapsed().as_millis();
+    let decided = Instant::now();
+    let out = store
+        .decide(&largest.address, Some(Decision::Out), now())
+        .unwrap();
+    let decide_ms = decided.elapsed().as_millis();
+    let undecided = Instant::now();
+    let back = store.decide(&largest.address, None, now()).unwrap();
+    let undo_ms = undecided.elapsed().as_millis();
+    assert_eq!(
+        store.class_counts(&largest.address).unwrap(),
+        before_decision
+    );
+    assert_eq!(out.changed, would);
     drop(store);
 
     // Sizes, with the store closed: its write-ahead log is in the database.
@@ -232,6 +305,23 @@ fn screening_on_a_copy_of_a_synced_store() {
             "listFiftyP95Ms": p95(list),
             "showLargestP95Ms": p95(show),
             "recomputeLargestP95Ms": p95(recompute),
+        },
+        "screening": {
+            "classes": classes,
+            "queue": { "messages": queue_messages, "senders": queue_senders },
+            "templates": templates,
+            "recurringTemplates": recurring,
+            "classifyEverythingMs": classify_ms,
+            "listFiftyP95Ms": lists,
+            "sendersWaitingFiftyP95Ms": p95(waiting),
+            "largestSender": {
+                "messages": largest.messages,
+                "previewMs": preview_ms,
+                "blockChanged": out.changed,
+                "blockMs": decide_ms,
+                "undoChanged": back.changed,
+                "undoMs": undo_ms,
+            },
         },
         "q2": {
             "census": { "whole": CENSUS_Q2, "withoutTheLargestMailbox": CENSUS_Q2_WITHOUT_LARGEST },

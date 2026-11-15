@@ -7,6 +7,8 @@
 //! its thread, where a thread shows, the search index) is in `derived`, and
 //! is written in the same transaction as the bytes it is read from.
 
+mod classes;
+mod decisions;
 mod derived;
 mod parts;
 mod read;
@@ -17,6 +19,10 @@ mod senders;
 mod sync;
 mod tokens;
 
+pub use classes::{Class, ClassCounts, Readiness};
+pub use decisions::{
+    Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
+};
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use remove::{RemovalPreview, Removed};
@@ -325,6 +331,10 @@ impl Store {
         // Every statement of a batch is prepared once and kept.
         connection.set_prepared_statement_cache_capacity(128);
         schema::migrate(&mut connection, migrations)?;
+        // Mail held before classes existed is classed once (migration 8).
+        if migrations.len() >= schema::MIGRATIONS.len() {
+            classes::fill_if_marked(&mut connection)?;
+        }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
         restrict_to_owner(&home.database().with_extension("sqlite3-wal"))?;
@@ -377,10 +387,17 @@ impl Store {
             |row| row.get(0),
         )?);
         // The address is the person's from now on, and no sender's.
-        senders::settle_senders(
+        let turned = senders::settle_senders(
             &transaction,
             &std::collections::BTreeSet::from([address.to_lowercase()]),
             now,
+        )?;
+        classes::settle(
+            &transaction,
+            &classes::Reclassify {
+                senders: Some(&turned),
+                ..Default::default()
+            },
         )?;
         transaction.commit()?;
         Ok(id)
@@ -428,7 +445,14 @@ impl Store {
         // which messages are the person's (the specification's 7.1). That is
         // rare: every sender is computed again.
         if was_sent.is_some_and(|was| was != (seen.role == Role::Sent)) {
-            senders::settle_every_sender(&transaction, now)?;
+            let turned = senders::settle_every_sender(&transaction, now)?;
+            classes::settle(
+                &transaction,
+                &classes::Reclassify {
+                    senders: Some(&turned),
+                    ..Default::default()
+                },
+            )?;
         }
         transaction.commit()?;
         Ok(id)
@@ -1113,6 +1137,8 @@ fn restrict_to_owner(path: &std::path::Path) -> Result<(), StoreError> {
     Ok(())
 }
 
+#[cfg(test)]
+mod classes_tests;
 #[cfg(test)]
 mod derived_tests;
 #[cfg(test)]

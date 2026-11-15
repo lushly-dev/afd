@@ -385,6 +385,62 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX sender_recent ON sender (recent DESC, id DESC);
     CREATE INDEX sender_domain ON sender (domain, recent DESC, id DESC);
     ",
+    // 8: screening (sections 7.2 and 7.3). How often each template was seen and each inbound
+    // message's class are derived, computed again for each batch that touches them; the
+    // person's decisions on senders and agents' suggestions are not. A store that held mail
+    // before has its templates and classes filled once when it is next opened.
+    "
+    -- A template key and how many messages the store holds with it, wherever they are.
+    CREATE TABLE template (
+        key BLOB PRIMARY KEY CHECK (length(key) = 16),
+        messages INTEGER NOT NULL CHECK (messages > 0)
+    ) STRICT, WITHOUT ROWID;
+
+    -- An inbound message's screening class: a message not from one of the person's own
+    -- addresses. Its date and sender are the envelope's, kept here for the lists by class.
+    CREATE TABLE screening (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        class TEXT NOT NULL CHECK (class IN ('blocked', 'known', 'bulk', 'unknown')),
+        date INTEGER NOT NULL,
+        sender_address TEXT NOT NULL
+    ) STRICT;
+    CREATE INDEX screening_class ON screening (class, date DESC, message_id DESC);
+    CREATE INDEX screening_sender ON screening (sender_address, class);
+
+    -- The person's decision on an address: in, out, or theirs. Never derived, so it survives a
+    -- rebuild. `suggestion` is the agent's suggestion the person accepted, when it came from one.
+    CREATE TABLE sender_decision (
+        address TEXT PRIMARY KEY,
+        -- The address's sender id, so a decision is found by it when the address has no row.
+        id INTEGER NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out', 'mine')),
+        decided_at INTEGER NOT NULL,
+        suggestion INTEGER REFERENCES sender_suggestion (id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX sender_decision_id ON sender_decision (id);
+    CREATE INDEX sender_decision_at ON sender_decision (decision, decided_at);
+
+    -- An agent's suggestion of a decision. It changes no class until the person accepts it.
+    CREATE TABLE sender_suggestion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out')),
+        -- Who proposed it: the kind of caller, and the agent's token id when it had one.
+        proposer_kind TEXT NOT NULL,
+        proposer_id TEXT,
+        created_at INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('open', 'accepted', 'dismissed', 'superseded')),
+        closed_at INTEGER,
+        CHECK ((state = 'open') = (closed_at IS NULL))
+    ) STRICT;
+    CREATE INDEX sender_suggestion_open ON sender_suggestion (address) WHERE state = 'open';
+    CREATE INDEX sender_suggestion_proposer ON sender_suggestion (proposer_kind, proposer_id)
+        WHERE state = 'open';
+
+    -- Classes for the mail already held are filled when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'screening-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

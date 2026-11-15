@@ -248,6 +248,9 @@ fn run_command(
                 );
             }
             Caller::Terminal(person) => {
+                for line in preview(name, &input, runner, &runtime) {
+                    writeln!(err, "{line}")?;
+                }
                 writeln!(err, "{summary}.")?;
                 if !person.confirm("Go ahead? [y/N] ")? {
                     writeln!(err, "Nothing was done.")?;
@@ -379,6 +382,90 @@ pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
     }
 }
 
+/// What the person reads before approving a command, beside its summary:
+/// the values from mail the summary leaves out (the specification's 3.5),
+/// each named as it is shown. Read with the command's preview command.
+fn preview(
+    name: &str,
+    input: &serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+) -> Vec<String> {
+    if name != crate::screening::ACCEPT {
+        return Vec::new();
+    }
+    let Some(suggestion) = input.get("suggestion").cloned() else {
+        return Vec::new();
+    };
+    let shown = runtime.block_on(runner.run(
+        "mail-sender-show",
+        serde_json::json!({ "suggestion": suggestion }),
+        true,
+        None,
+    ));
+    let Some(shown) = shown.data.filter(|_| shown.success) else {
+        return Vec::new();
+    };
+    let text = |pointer: &str| {
+        shown
+            .pointer(pointer)
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+            .unwrap_or_default()
+    };
+    let mut lines = vec![format!(
+        "The sender's address, as written in its mail: {}",
+        text("/content/address")
+    )];
+    let sender_name = text("/content/name");
+    if !sender_name.is_empty() {
+        lines.push(format!(
+            "The sender's name, as written in its mail: {sender_name}"
+        ));
+    }
+    let written = shown
+        .pointer("/preview/written")
+        .and_then(serde_json::Value::as_u64)
+        .unwrap_or(0);
+    lines.push(match written {
+        0 => "You have never written to it.".to_string(),
+        1 => "You have written to it once.".to_string(),
+        n => format!("You have written to it {n} times."),
+    });
+    let proposer = |field: &str| {
+        shown
+            .pointer(&format!("/preview/proposer/{field}"))
+            .and_then(serde_json::Value::as_str)
+            .map(printable)
+    };
+    let by = match (proposer("name"), proposer("token")) {
+        (Some(name), Some(token)) => format!("the agent with the token \"{name}\" ({token})"),
+        (None, Some(token)) => format!("the agent with the token {token}"),
+        _ => proposer("kind").map_or_else(
+            || "an unknown caller".to_string(),
+            |kind| format!("a caller of kind {kind}"),
+        ),
+    };
+    lines.push(format!("Suggested by {by}."));
+    lines
+}
+
+/// Text from mail made safe to write to a terminal: control characters
+/// and the marks that reorder text are shown as U+FFFD, so the text cannot
+/// move the cursor, clear the screen or hide what follows.
+fn printable(text: &str) -> String {
+    text.chars()
+        .map(|c| {
+            let reorders = matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+            if c.is_control() || reorders {
+                '\u{fffd}'
+            } else {
+                c
+            }
+        })
+        .collect()
+}
+
 /// The summary and token of a call the approval middleware held.
 fn held(result: &afd::CommandResult<serde_json::Value>) -> Option<(String, String)> {
     let error = result.error.as_ref()?;
@@ -489,4 +576,20 @@ fn write_help(registry: &CommandRegistry, out: &mut dyn Write) -> std::io::Resul
         }
     }
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::printable;
+
+    #[test]
+    fn text_from_mail_cannot_drive_the_terminal() {
+        // A screen clear, a carriage return over the line, and marks that
+        // would show `moc.elpmaxe` the other way round.
+        assert_eq!(
+            printable("a\u{1b}[2Jb\rc\u{202e}moc.elpmaxe\u{2066}d"),
+            "a\u{fffd}[2Jb\u{fffd}c\u{fffd}moc.elpmaxe\u{fffd}d"
+        );
+        assert_eq!(printable("Ada Lovelace"), "Ada Lovelace");
+    }
 }

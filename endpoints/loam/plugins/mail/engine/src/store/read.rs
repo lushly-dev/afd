@@ -189,6 +189,56 @@ impl Store {
         Ok(rows.collect::<Result<_, _>>()?)
     }
 
+    /// The messages of a screening class that a mailbox other than junk
+    /// and trash shows, newest first: at most `limit`, starting before
+    /// `before` (the date and id of the last message of the page before).
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn class_messages(
+        &self,
+        class: super::Class,
+        before: Option<(i64, MessageId)>,
+        limit: u32,
+    ) -> Result<Vec<MessageListed>, StoreError> {
+        let (date, message) =
+            before.map_or((i64::MAX, i64::MAX), |(date, message)| (date, message.0));
+        let shown = super::classes::SHOWN;
+        let mut statement = self.connection.prepare_cached(&format!(
+            "SELECT {LISTED} FROM screening
+             JOIN envelope ON envelope.message_id = screening.message_id
+             JOIN message ON message.id = screening.message_id
+             WHERE screening.class = ?1 AND (screening.date, screening.message_id) < (?2, ?3)
+               AND {shown}
+             ORDER BY screening.date DESC, screening.message_id DESC LIMIT ?4"
+        ))?;
+        let rows = statement.query_map(params![class.as_str(), date, message, limit], listed)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The screening class of each of `messages` that is inbound.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn classes_of(
+        &self,
+        messages: &[MessageId],
+    ) -> Result<std::collections::HashMap<MessageId, super::Class>, StoreError> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT class FROM screening WHERE message_id = ?1")?;
+        let mut classes = std::collections::HashMap::new();
+        for message in messages {
+            let class: Option<String> = statement
+                .query_row([message.0], |row| row.get(0))
+                .optional()?;
+            if let Some(class) = class.as_deref().and_then(super::Class::parse) {
+                classes.insert(*message, class);
+            }
+        }
+        Ok(classes)
+    }
+
     /// One message as a list shows it, or `None` when there is no such
     /// message.
     ///

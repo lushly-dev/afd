@@ -122,6 +122,8 @@ fn derived(store: &Store) -> Vec<(String, Vec<Vec<Value>>)> {
         ("thread_place", "mailbox_id, thread_id"),
         ("recipient", "message_id, address"),
         ("sender", "address"),
+        ("template", "key"),
+        ("screening", "message_id"),
     ]
     .iter()
     .map(|(table, order)| {

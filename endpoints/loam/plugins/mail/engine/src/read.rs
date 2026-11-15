@@ -23,7 +23,9 @@ use crate::commands::{provider_failure, store_failure};
 use crate::derive;
 use crate::engine::Engine;
 use crate::fetch::{FetchError, fetch_body, fetch_part};
-use crate::store::{MailboxId, MessageId, MessageListed, StoreError, ThreadId};
+use std::collections::HashMap;
+
+use crate::store::{Class, MailboxId, MessageId, MessageListed, StoreError, ThreadId};
 
 /// The room a result's own fields need beside its items, in bytes.
 const ROOM: usize = 1024;
@@ -221,7 +223,7 @@ fn evidence(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError
 }
 
 /// A message as a list shows it.
-fn message_item(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError> {
+pub(crate) fn message_item(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError> {
     Ok(json!({
         "message": listed.message.0,
         "thread": listed.thread.0,
@@ -300,6 +302,29 @@ impl CommandHandler for ThreadList {
     }
 }
 
+/// The screening classes of `messages`, or `None` while screening waits for
+/// messages to be derived again, when a class could be wrong.
+fn classes_of(
+    store: &crate::store::Store,
+    messages: &[MessageListed],
+) -> Result<Option<HashMap<MessageId, Class>>, StoreError> {
+    if !store.screening_readiness()?.ready() {
+        return Ok(None);
+    }
+    let ids: Vec<MessageId> = messages.iter().map(|listed| listed.message).collect();
+    store.classes_of(&ids).map(Some)
+}
+
+/// A message's class as a result gives it: its screening class, `own` for
+/// mail from one of the person's own addresses, which has none, or null
+/// while screening waits (the specification's 7.2).
+fn class_value(classes: Option<&HashMap<MessageId, Class>>, message: MessageId) -> Value {
+    match classes {
+        None => Value::Null,
+        Some(classes) => json!(classes.get(&message).map_or("own", |class| class.as_str())),
+    }
+}
+
 pub(crate) const LIST_BUDGET: u64 = 32 * 1024;
 pub(crate) const OPEN_BUDGET: u64 = 64 * 1024;
 /// The largest budget a read may be asked for. A call to a running server
@@ -357,7 +382,9 @@ impl CommandHandler for ThreadOpen {
                     if !store.thread_exists(thread)? {
                         return Ok(None);
                     }
-                    store.thread_messages(thread, after, limit + 1).map(Some)
+                    let messages = store.thread_messages(thread, after, limit + 1)?;
+                    let classes = classes_of(store, &messages)?;
+                    Ok(Some((messages, classes)))
                 })
                 .map_err(|error| Box::new(store_failure(&error)))?
                 .ok_or_else(|| {
@@ -368,13 +395,14 @@ impl CommandHandler for ThreadOpen {
                             ),
                     )
                 })?;
+            let (messages, classes) = messages;
             let more = messages.len() > limit as usize;
             let mut items = Vec::new();
             for listed in messages.iter().take(limit as usize) {
-                items.push(
-                    message_item(engine, listed)
-                        .map_err(|error| Box::new(store_failure(&error)))?,
-                );
+                let mut item = message_item(engine, listed)
+                    .map_err(|error| Box::new(store_failure(&error)))?;
+                item["class"] = class_value(classes.as_ref(), listed.message);
+                items.push(item);
             }
             let (kept, cut) = fit(items, budget(&context, OPEN_BUDGET));
             let next = (more || cut)
