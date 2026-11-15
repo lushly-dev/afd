@@ -69,7 +69,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
       - id: rust
         run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
@@ -147,6 +147,14 @@ jobs:
       # Streamable HTTP (dx/run-scenarios.ts).
       - name: Surface and scenarios (TypeScript backend)
         run: pnpm --dir packages/examples/todo test:scenarios:ts
+
+      # The FAST-AF page in Chromium against the TypeScript backend: add, undo, approve and deny a
+      # clear in the page, an agent narrowing the view (job 6) and axe (frontends/fast-af/test).
+      - name: Install Chromium
+        run: pnpm -F @afd/example-todo-fast-af exec playwright install --with-deps chromium
+
+      - name: The page (Chromium, TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:page
 
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py

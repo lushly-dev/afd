@@ -139,7 +139,8 @@ Written as scenario files on 2026-11-15, before any command changes, and revised
 walked them (below). Each job moves beside the backend once it is built
 ([`backends/typescript/scenarios/`](../../../../packages/examples/todo/backends/typescript/scenarios/),
 run by `src/scenarios.test.ts`); until then it waits, checked but not run, in
-[`scenarios/`](scenarios/). Jobs 1 to 5 and 7 to 9 are built; job 6 waits for the page.
+[`scenarios/`](scenarios/). All nine are built; job 6, the page's, is in
+`frontends/shared/scenarios/`.
 
 | # | Job | File | Tags |
 |---|-----|------|------|
@@ -148,7 +149,7 @@ run by `src/scenarios.test.ts`); until then it waits, checked but not run, in
 | 3 | Undo a delete, single or batch; an id never deleted is reported, not restored | [03](../../../../packages/examples/todo/backends/typescript/scenarios/03-undo-a-delete.scenario.yaml) | `slice`, `undo` |
 | 4 | Clearing, the one change with no way back, waits for a person when an agent asks | [04](../../../../packages/examples/todo/backends/typescript/scenarios/04-clear-waits-for-approval.scenario.yaml) | `slice`, `approval` |
 | 5 | An agent asked only to review is offered only the reading commands | [05](../../../../packages/examples/todo/backends/typescript/scenarios/05-review-without-changing.scenario.yaml) | `contexts` |
-| 6 | An agent narrows the view on screen instead of copying the list into the chat | [06](scenarios/06-narrow-the-view.scenario.yaml) | `view` |
+| 6 | An agent narrows the view on screen instead of copying the list into the chat | [06](../../../../packages/examples/todo/frontends/shared/scenarios/06-narrow-the-view.scenario.yaml) | `view` |
 | 7 | A developer turns an agent session's journal into a regression test | [07](../../../../packages/examples/todo/backends/typescript/scenarios/07-replay-a-session.scenario.yaml) | `journal`, `deterministic`, `developer` |
 | 8 | Find a deleted todo long after the delete and bring it back | [08](../../../../packages/examples/todo/backends/typescript/scenarios/08-find-a-deleted-todo.scenario.yaml) | `undo` |
 | 9 | See what changed, who changed it, and undo it from there | [09](../../../../packages/examples/todo/backends/typescript/scenarios/09-see-what-changed.scenario.yaml) | `slice`, `undo`, `history` |

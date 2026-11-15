@@ -1,0 +1,185 @@
+/* Page layout over violet-elements' runtime theme tokens (fallbacks match its light preset). */
+:root {
+	color-scheme: light dark;
+	--page-bg: var(--color-surface-page, #fbfaf6);
+	--card-bg: var(--color-surface-card, #ffffff);
+	--subtle-bg: var(--color-surface-subtle, #f0efe6);
+	--text: var(--color-text-primary, #18181b);
+	--text-secondary: var(--color-text-secondary, #414651);
+	--border: var(--color-border-subtle, rgba(28, 26, 13, 0.1));
+	--radius: var(--radius-md, 4px);
+	--gap: var(--space-layout-sm, 16px);
+}
+
+* {
+	box-sizing: border-box;
+}
+
+body {
+	margin: 0;
+	background: var(--page-bg);
+	color: var(--text);
+	font-family: "Montserrat", "Segoe UI", system-ui, sans-serif;
+	font-size: var(--type-body-md-size, 14px);
+	line-height: 1.5;
+}
+
+todo-app {
+	display: block;
+}
+
+h1,
+h2 {
+	line-height: 1.25;
+	margin: 0 0 calc(var(--gap) / 2);
+}
+
+h1 {
+	font-size: 1.6rem;
+}
+
+h2 {
+	font-size: 1.05rem;
+}
+
+code,
+pre {
+	font-family: ui-monospace, "SFMono-Regular", Menlo, monospace;
+	font-size: 0.85em;
+}
+
+pre {
+	margin: 0;
+	white-space: pre-wrap;
+	word-break: break-word;
+}
+
+.visually-hidden {
+	position: absolute;
+	width: 1px;
+	height: 1px;
+	overflow: hidden;
+	clip: rect(0 0 0 0);
+	white-space: nowrap;
+}
+
+.banner {
+	padding: var(--gap) calc(var(--gap) * 1.5);
+	border-bottom: 1px solid var(--border);
+	background: var(--card-bg);
+}
+
+.banner-status {
+	margin: 0;
+	display: flex;
+	gap: calc(var(--gap) / 2);
+	align-items: center;
+	color: var(--text-secondary);
+}
+
+.page {
+	display: grid;
+	grid-template-columns: minmax(0, 3fr) minmax(0, 2fr);
+	gap: calc(var(--gap) * 1.5);
+	padding: calc(var(--gap) * 1.5);
+	max-width: 1280px;
+	margin: 0 auto;
+}
+
+@media (max-width: 900px) {
+	.page {
+		grid-template-columns: minmax(0, 1fr);
+		padding: var(--gap);
+	}
+}
+
+.work,
+.insight {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap);
+	min-width: 0;
+}
+
+.insight > section {
+	background: var(--card-bg);
+	border: 1px solid var(--border);
+	border-radius: var(--radius);
+	padding: var(--gap);
+}
+
+.add,
+.filters {
+	display: flex;
+	flex-wrap: wrap;
+	gap: calc(var(--gap) / 2);
+	align-items: end;
+}
+
+.add-title,
+.filter-search {
+	flex: 1 1 14rem;
+}
+
+.todo-list,
+.history-list {
+	list-style: none;
+	margin: 0;
+	padding: 0;
+}
+
+.todo {
+	display: flex;
+	gap: calc(var(--gap) / 2);
+	align-items: center;
+	padding: calc(var(--gap) / 2) 0;
+	border-bottom: 1px solid var(--border);
+}
+
+.todo-done,
+.todo-title {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.todo[data-completed] .todo-done {
+	color: var(--text-secondary);
+}
+
+.todo-deleted-at,
+.history-when,
+.history-note,
+.history-superseded {
+	color: var(--text-secondary);
+	font-size: 0.85em;
+}
+
+.list-actions {
+	display: flex;
+	justify-content: flex-end;
+}
+
+.history-entry {
+	display: flex;
+	gap: calc(var(--gap) / 2);
+	align-items: center;
+	padding: calc(var(--gap) / 4) 0;
+}
+
+.history-what {
+	flex: 1 1 auto;
+	min-width: 0;
+}
+
+.command-log {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--gap) / 2);
+}
+
+.trust-reasoning,
+.trust-command,
+.trust-undo,
+.trust-alternatives {
+	margin: 0 0 calc(var(--gap) / 2);
+}
