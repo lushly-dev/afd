@@ -483,6 +483,7 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
                         Role::None
                     },
                 },
+                0,
             )
             .unwrap()
     })

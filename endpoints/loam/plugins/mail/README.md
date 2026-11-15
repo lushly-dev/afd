@@ -22,8 +22,8 @@ It is built a step at a time from the specification's section 15. It answers `he
 `version` and runs a command the registry exposes to the command line, printing its result as
 JSON: `loam-mail <command> [input]`. Its commands so far are `mail-account-add`,
 `mail-account-list`, `mail-sync`, `mail-status`, `mail-rebuild`, and the read commands
-`mail-thread-list`, `mail-thread-open`, `mail-message-open`, `mail-attachment-open` and
-`mail-search`. Whatever came from mail, a file's bytes included, sits in a part of a result
+`mail-thread-list`, `mail-thread-open`, `mail-message-open`, `mail-attachment-open`,
+`mail-search`, `mail-sender-list` and `mail-sender-show`. Whatever came from mail, a file's bytes included, sits in a part of a result
 labelled `"trust": "content"`. It syncs an iCloud account over IMAP. To add one, at a terminal on macOS, with an
 [app-specific password](https://support.apple.com/en-us/102654):
 
@@ -45,7 +45,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
 - **The store** (`src/store/`): the SQLite tables. `mod.rs` holds what is not derived from the
   log: accounts, mailboxes, each message's identity, which bytes are held, and what a provider
   showed. `derived.rs` holds what is: a message's fields and parts, its thread, where each
-  thread shows, and the rebuild that makes all of it again from the log.
+  thread shows, and the rebuild that makes all of it again from the log. `senders.rs` holds each
+  sender's history with the person, and `screening.rs` the report of the specification's 6.3.
 - **What code reads from a message** (`src/derive.rs`, `src/html.rs`): the sender, the subject,
   the date, the ids that join a thread, the parts and the text a person sees, with `mail-parser`
   and `html5ever`; and the evidence of the specification's section 6: hidden text, links, list
@@ -56,8 +57,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
 - **Sync** (`src/sync.rs`): a pass over an account, mailboxes taking turns, resumable after any
   stop; `src/store/sync.rs` is what it reads and records in the store.
 - **The keychain** (`src/secrets.rs`): where an account's sign-in is kept.
-- **The commands** (`src/commands.rs` and the read commands in `src/read.rs`, over
-  `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
+- **The commands** (`src/commands.rs`, the read commands in `src/read.rs` and the sender
+  commands in `src/senders.rs`, over `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
 
 Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the
 specification's section 14 asks for. `tests/live.rs` runs a pass against a real iCloud account,
@@ -67,6 +68,16 @@ with the sign-in in two files, and reports counts only; it is ignored by default
 LOAM_MAIL_LIVE_ADDRESS_FILE=<file> LOAM_MAIL_LIVE_PASSWORD_FILE=<file> \
 LOAM_MAIL_LIVE_DIR=<new directory> LOAM_MAIL_LIVE_OUT=<results file> \
   cargo test --release --test live -- --ignored --nocapture
+```
+
+`tests/live_screening.rs` makes step C1's report on a copy of a synced store: it derives every
+message again and counts Q2 and the stream stories each grouping would make, counts only. It
+refuses the data directory an engine would use (`LOAM_MAIL_HOME`'s or the platform's), since
+opening a store brings its schema up to date:
+
+```sh
+LOAM_MAIL_LIVE_HOME=<a copy of the data directory> LOAM_MAIL_LIVE_OUT=<results file> \
+  cargo test --release --test live_screening -- --ignored --nocapture
 ```
 
 The readers of strangers' bytes are fuzzed with `cargo-fuzz` and nightly Rust, from `engine/fuzz/`,

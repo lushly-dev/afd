@@ -30,6 +30,17 @@ const EXCEPTIONS: &[(&str, &str)] = &[
     ("dtoa-short", "MPL-2.0"),
 ];
 
+/// Crates whose own licence is allowed but which compile in data under
+/// another, each by name. No manifest says so, so the check below cannot see
+/// it; this list is the record, and a test keeps it naming crates the
+/// lockfile has. Each is the owner's decision.
+const EMBEDDED: &[(&str, &str, &str)] = &[
+    // Mozilla's Public Suffix List, compiled in unmodified, for a sender's
+    // registrable domain (the specification's 7.1). File-level copyleft, as
+    // for `cssparser`. Allowed by the owner on 2026-11-14.
+    ("psl", "MPL-2.0", "the Public Suffix List"),
+];
+
 /// Whether an SPDX expression can be satisfied with allowed licences alone:
 /// one side of an `OR`, both sides of an `AND`.
 fn permitted(expression: &str) -> bool {
@@ -149,4 +160,16 @@ fn every_crate_in_the_lockfile_is_permissively_licensed() {
         })
         .collect();
     assert_eq!(refused, Vec::<String>::new());
+}
+
+#[test]
+fn every_crate_named_for_its_embedded_data_is_in_the_lockfile() {
+    let lockfile = std::fs::read_to_string(concat!(env!("CARGO_MANIFEST_DIR"), "/Cargo.lock"))
+        .expect("the lockfile can be read");
+    for (name, licence, data) in EMBEDDED {
+        assert!(
+            lockfile.contains(&format!("name = \"{name}\"")),
+            "{name}, named for {data} under {licence}, is no longer a dependency: remove it here"
+        );
+    }
 }

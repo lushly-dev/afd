@@ -3,7 +3,7 @@
 // was and arm c calling the real `components-brief` over MCP, served by
 // scripts/umbel-components.mjs from this repository, one Umbel workspace per slot. Each session
 // runs in a worktree of `--repo` reset to `--base`: a repository holding one commit, a snapshot of
-// this one without docs/features/active/component-briefs, so no session can read the tasks or what
+// this one without docs/features/complete/component-briefs, so no session can read the tasks or what
 // is counted, in the tree or in its history.
 //
 //   node run.mjs --repo <snapshot repo> --base <commit> --work <dir> --out <dir> --binary <path>
