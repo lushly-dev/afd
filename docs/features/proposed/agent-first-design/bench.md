@@ -193,9 +193,16 @@ phase 0 has no step for it.
   The Rust toolchain this repository pins, a Node 26, `pnpm`, `uv` and Playwright's headless
   shell are installed. `claude` takes the model, the effort, a JSON result, a list of tools
   and a strict MCP configuration as options; it has no option for a number of turns.
-- **Not checked yet:** that Specimen's host builds there. That needs a checkout of its own on
-  that machine, since another session is working in the existing one. The disk had 27 GiB
-  free, which is little for a Rust build beside those already there.
+- **Specimen's host builds and renders there,** checked on 2026-11-15 at `2fc5c6fe` in a
+  checkout of its own. The release build took about two minutes on the pinned Rust 1.98.0.
+  With `SPECIMEN_HOST_BINARY` pointing at it, the test that renders one specimen through the
+  host passed, and so did Specimen's whole suite: 558 tests passed and 1 was skipped, and the
+  reference driver's 18 passed.
+- **Rust builds go on the machine's external drive,** as the owner asked; its internal disk
+  is nearly full. Two things make that take care: Specimen's `build:host` script names its
+  own target directory, which overrides `CARGO_TARGET_DIR`, so the bench runs `cargo`
+  directly; and the suite fails on a fresh install until the TypeScript packages are built,
+  as CI builds them first.
 - **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
   an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
 
@@ -325,7 +332,7 @@ the fifth is open.
    Specimen does not support Windows (`foundations/specimen/README.md:499`), and the machine
    this file was written on has no Linux subsystem installed. The machine that runs the
    sessions is an Apple silicon Mac, which Specimen supports, so the checks can run there too
-   and nothing is installed here or added to CI. It holds only if Specimen's host builds
-   there, which is not checked.
+   and nothing is installed here or added to CI. Specimen's host was built there and its
+   suite passed on 2026-11-15.
 5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
    the first run of step 0.1, after the pilots.
