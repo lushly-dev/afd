@@ -19,9 +19,15 @@ export function inlinePadding(element: Element): number {
     return parseFloat(style.paddingInlineStart || "0") + parseFloat(style.paddingInlineEnd || "0");
 }
 
-export function fontForElement(element: Element | null): string {
+/**
+ * The font to measure an element's text in. With no element, the family `fallback` computes (the
+ * grid host, so `--violet-data-grid-font-family` and a scoped theme apply) at 500 14px, or the
+ * generic `sans-serif`: autosize never assumes a typeface the grid does not use.
+ */
+export function fontForElement(element: Element | null, fallback: Element | null = null): string {
     if (!element) {
-        return '500 14px "IBM Plex Sans", "Segoe UI", sans-serif';
+        const family = fallback ? getComputedStyle(fallback).fontFamily : "";
+        return `500 14px ${family || "sans-serif"}`;
     }
 
     const style = getComputedStyle(element);
@@ -99,6 +105,8 @@ export function autosizedColumnWidth<RowLike extends VioletDataGridIdLike>(optio
     getCellText: (location: { rowId: string; columnId: string }) => string;
     sampleRows: RowLike[];
     measurementCanvas: HTMLCanvasElement | null;
+    /** The grid host, whose computed font family measures text when no cell is rendered. */
+    fontSource?: Element | null;
 }): number {
     const {
         columnId,
@@ -108,14 +116,15 @@ export function autosizedColumnWidth<RowLike extends VioletDataGridIdLike>(optio
         getCellText,
         sampleRows,
         measurementCanvas,
+        fontSource = null,
     } = options;
 
     if (!column) {
         return minimumColumnWidth(headerCell);
     }
 
-    const headerFont = fontForElement(headerCell);
-    const cellFont = fontForElement(sampleCell);
+    const headerFont = fontForElement(headerCell, fontSource);
+    const cellFont = fontForElement(sampleCell, fontSource);
     const headerPadding = headerCell ? inlinePadding(headerCell) : 0;
     const cellPadding = sampleCell ? inlinePadding(sampleCell) : headerPadding;
     const sortAllowance = column.sortable ? 24 : 0;

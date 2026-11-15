@@ -1,0 +1,7 @@
+---
+"@lushly-dev/violet-elements": minor
+---
+
+Products can bring their own Violet theme. `tokens/interface.json` (`@lushly-dev/violet-elements/tokens/interface.json`) lists every custom property the components read, by token id, with its type and a `contractVersion`. `installVioletThemeSet({ defaultPreset, presets })` installs a product's complete theme set as data, with its own preset names, on the document and any `[data-violet-theme-root]`, in place of the built-in default, which is then never written; `findVioletThemeSetGaps(set, tokenInterface)` returns `{ problems, missing, complete }` for a product's build, from the new Node-safe, side-effect-free `@lushly-dev/violet-elements/theme-css` entry. The runtime loads the built-in set's values only when it installs them, with a dynamic import. The components read their typeface from the new `font.family.body` token (`--font-family-body`); the data grid and its pickers use it instead of IBM Plex Sans, and autosize measures with the grid host's font when no cell is rendered. `font.family.mono` is reserved.
+
+Breaking: `normalizeVioletThemePreset`, `applyVioletThemePreset` and `applyVioletThemeRoot` throw a `RangeError` for a preset name the installed set lacks instead of mapping it to `light`, `getVioletThemePreset` returns the attribute as written, `VioletThemePreset` is now `string` (the built-in names are `VioletBuiltInThemePreset`), and `installVioletTheme()` writes the built-in stylesheet once its module has loaded (`await loadVioletBuiltInTheme()`) rather than synchronously.

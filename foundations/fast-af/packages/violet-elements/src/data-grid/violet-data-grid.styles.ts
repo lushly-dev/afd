@@ -5,7 +5,7 @@ export const styles = css`
         display: block;
         container-type: inline-size;
         color: var(--color-text-primary, #18181b);
-        font-family: var(--violet-data-grid-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-card: var(--color-surface-card, #faf9f5);

@@ -2679,6 +2679,7 @@ export class VioletDataGrid extends FASTElement {
       getCellText: (location) => this.cellTextAt(location),
             sampleRows: sampleAutosizeRows(this.presentedRows),
             measurementCanvas: canvas,
+            fontSource: this,
         });
     }
 

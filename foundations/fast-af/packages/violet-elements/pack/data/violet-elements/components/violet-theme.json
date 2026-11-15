@@ -23,7 +23,7 @@
 		"attributes": [
 			{
 				"basis": "observed",
-				"description": "Selects which Violet runtime theme preset this scoped host should expose.",
+				"description": "Selects which preset of the installed Violet theme set this scoped host exposes. Any name the set has works; the built-in set has light, dark and high-contrast.",
 				"name": "preset",
 				"property": "preset",
 				"rules": [
