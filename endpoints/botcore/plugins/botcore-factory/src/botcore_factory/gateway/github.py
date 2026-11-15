@@ -26,6 +26,14 @@ class GitHubUnavailable(Exception):
     """GitHub did not answer, or answered 5xx; the same call may be retried."""
 
 
+class HeadMoved(Exception):
+    """GitHub refused a merge because the pull request's head is no longer the given sha."""
+
+    def __init__(self, head: str) -> None:
+        super().__init__(head)
+        self.head = head
+
+
 class GitHub(Protocol):
     def issue(self, repo: str, number: int) -> dict | None: ...
     def issues(self, repo: str) -> list[dict]: ...
@@ -294,7 +302,7 @@ class FakeGitHub:
         with self._write(repo) as data:
             pull = self._pull(data, number)
             if pull["head"] != head:
-                raise ValueError("Head moved")  # GitHub answers 409 to a stale sha.
+                raise HeadMoved(pull["head"])  # GitHub answers 409 to a stale sha.
             pull.update(state="merged", mergedAt=data.get("now"), autoMerge=False)
             return pull["mergedAt"]
 

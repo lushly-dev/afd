@@ -18,7 +18,8 @@ RESERVED_MARKER = re.compile(
 )
 #: A closing keyword GitHub acts on; pr-open writes these from closes[] itself.
 CLOSING_KEYWORD = re.compile(
-    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:[\w.-]+/[\w.-]+)?#\d+",
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+"
+    r"(?:(?:[\w.-]+/[\w.-]+)?#\d+|https?://\S+/issues/\d+)",
     re.IGNORECASE,
 )
 _BAD_REF = re.compile(r"(\.\.|//|@\{|[\x00-\x20~^:?*\[\\\x7f]|\.lock(?:/|$)|/\.|^\.|/$|\.$)")

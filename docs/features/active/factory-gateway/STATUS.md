@@ -133,7 +133,17 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `VALIDATION_ERROR` for a bad `cursor` or `since`; `cancel` before the head check; event
   reads off the event loop; Lushly's legacy lease counts the account's latest activity, not
   only its start. Deferred: claims are released when the gateway merges at once; a queued
-  auto-merge that lands later is released from G3's merge events.
+  auto-merge that lands later is released from G3's merge events. A focused second pass verified
+  every fix and approved, with four small improvements: three fixed (a merge racing a push is
+  `HEAD_MOVED`, closing keywords with issue URLs are refused, legacy activity counts only
+  before the cutover) and one left to the App adapter (it runs `git check-ref-format` rather
+  than the skeleton's pattern).
+- 2026-11-14: botcore's change 3 (each command as its own MCP tool) is written on
+  `lush/botcore-command-tools` but held back: its review found that the MCP SDK's own argument
+  model, which validates before the host, rejects `**kwargs` handlers, can stop the server
+  from being built on an unresolvable hint, and answers bad input outside AFD's error shape
+  while dropping unknown keys. The fix is to publish the catalog's schema and pass arguments
+  through so the host is the only validator, which needs a different hook into the SDK.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

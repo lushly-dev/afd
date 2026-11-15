@@ -481,23 +481,28 @@ def test_a_bad_cursor_or_time_is_a_validation_error(run):
     )
 
 
-def test_a_lushly_lease_stays_live_while_its_account_is_active(run):
+@pytest.mark.parametrize(
+    "comment_at,live", [("2030-02-03T07:30:00Z", True), ("2030-02-03T09:00:00Z", False)]
+)
+def test_a_lushly_lease_lives_on_activity_before_the_cutover_only(run, comment_at, live):
     data = fixture("restart")
-    data["now"] = "2030-02-03T11:30:00Z"  # 4.5 hours after the lease started at 07:00.
+    data["now"] = "2030-02-03T11:15:00Z"  # 4.25 hours after the lease started at 07:00.
     data["claimComments"].append(
-        {
-            "number": 104,
-            "author": "example-owner",
-            "at": "2030-02-03T09:00:00Z",
-            "marker": "note",
-            "claim": {},
-        }
+        {"number": 104, "author": "example-owner", "at": comment_at, "marker": "note", "claim": {}}
     )
     gateway = Run(run().directory, data)
-    claims = {
-        row["number"]: row for row in gateway("foreman", "claim-list", repo=REPO).data["claims"]
-    }
-    assert claims[104]["legacy"] is True and claims[104]["leaseUntil"] == "2030-02-03T13:00:00Z"
+    claims = {row["number"] for row in gateway("foreman", "claim-list", repo=REPO).data["claims"]}
+    assert (104 in claims) is live
+
+
+def test_a_merge_racing_a_push_is_reported_as_head_moved(tmp_path):
+    from botcore_factory.gateway.github import HeadMoved
+
+    assert apply_fixture(tmp_path / "run", {"fixture": fixture()}).success
+    github = FakeGitHub(tmp_path / "run" / "github.json", bot="example-factory[bot]")
+    with pytest.raises(HeadMoved) as moved:
+        github.merge_pull(REPO, 47, "0" * 40)
+    assert moved.value.head == PR47_HEAD
 
 
 async def test_concurrent_claims_on_one_issue_leave_one_holder(tmp_path):

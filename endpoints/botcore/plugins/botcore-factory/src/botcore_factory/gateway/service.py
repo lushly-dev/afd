@@ -19,7 +19,7 @@ from botcore.context import current_call
 from botcore_factory.gateway import claims as claim_rules
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
-from botcore_factory.gateway.github import GitHub, GitHubUnavailable, comment_url
+from botcore_factory.gateway.github import GitHub, GitHubUnavailable, HeadMoved, comment_url
 from botcore_factory.gateway.secrets import CLOSING_KEYWORD, check_text, ref_is_well_formed
 from botcore_factory.gateway.state import GatewayState, journal_size
 
@@ -725,7 +725,15 @@ class Gateway:
         self.spend("pr-merge")
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
-            self.github.merge_pull(repo, number, head)
+            try:
+                self.github.merge_pull(repo, number, head)
+            except HeadMoved as moved:
+                raise refuse(
+                    "HEAD_MOVED",
+                    f"Pull request {number}'s head moved to {moved.head} during the merge",
+                    "The branch moved: validate its current head, record it, and merge that head",
+                    head=moved.head,
+                ) from None
             self._release_on_merge(repo, pull)
             return success(
                 {"state": "merged", "autoMerge": False, "changed": True},

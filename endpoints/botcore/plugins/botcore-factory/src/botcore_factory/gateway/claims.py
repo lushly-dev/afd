@@ -105,7 +105,12 @@ def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: da
         (
             parse_time(c["at"])
             for c in ordered
-            if cutover and c.get("at") and c.get("author") == cutover.legacy_author
+            # Only before the cutover: after it, agents share the account until G5, so an
+            # unrelated comment must not keep an old lease alive.
+            if cutover
+            and c.get("at")
+            and c.get("author") == cutover.legacy_author
+            and parse_time(c["at"]) < cutover.start
         ),
         default=datetime.min.replace(tzinfo=now.tzinfo),
     )
