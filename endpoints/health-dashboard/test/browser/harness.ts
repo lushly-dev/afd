@@ -75,6 +75,10 @@ export async function open(context: BrowserContext, url: string): Promise<Watche
  * previous state when `setInputFiles` returns. Waiting on the rendered text alone
  * returned early whenever reading took longer than a frame (seen on Windows, #1201),
  * so this waits on the component's own state and on the DOM having caught up to it.
+ *
+ * Call it on a fresh dashboard with at least one file: on a dashboard that already shows
+ * reports it can return before the new files are read, and a load that ends with no
+ * reports and no failures would never satisfy it.
  */
 export async function loadFiles(page: Page, paths: string[]): Promise<void> {
 	await page.locator('violet-file-upload input[type="file"]').setInputFiles(paths);
