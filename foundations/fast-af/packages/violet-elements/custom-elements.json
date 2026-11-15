@@ -39329,7 +39329,7 @@
               "text": "Promise<string>"
             }
           },
-          "description": "Loads the built-in default set's stylesheet, writing it into every installed runtime style if no\nproduct set is active by then. `installVioletTheme()` calls it; await it to know the built-in\ntheme is applied."
+          "description": "Loads the built-in default set's stylesheet, writing it into every installed runtime style if no\nproduct set is active by then. `installVioletTheme()` calls it; await it to know the built-in\ntheme is applied. A failed load (a chunk that did not arrive) rejects and is not cached, so the\nnext call, or the next install, tries again."
         },
         {
           "kind": "function",

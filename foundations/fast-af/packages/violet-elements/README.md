@@ -135,13 +135,18 @@ applyVioletThemePreset(document, "dark");
 ```
 
 The runtime (`dist/theme/violet-theme-runtime.js`) never imports the built-in set's values:
-`installVioletTheme()` loads them on first use with a dynamic import (a chunk of its own in a
-bundle) and writes the stylesheet when they arrive; `await loadVioletBuiltInTheme()` to know it is
-applied. Until then the components render their literal fallbacks, which are the built-in light
-values. The package root re-exports the built-in values (`violetThemeCssText` and the rest), so it
-loads them; a product that installs its own set and keeps them out of its bundle imports the
-element modules and `@lushly-dev/violet-elements/dist/theme/violet-theme-runtime.js` instead of the
-root.
+`installVioletTheme()` loads them on first use with a dynamic import and writes the stylesheet when
+they arrive; `await loadVioletBuiltInTheme()` to know it is applied. Until then the components
+render their literal fallbacks, which are the built-in light values. A load that fails is reported
+with `console.error`, not cached, and retried by the next install or call.
+
+The laziness helps only a consumer that deep-imports the runtime and the element modules. The
+package root and `theme/index.ts` statically re-export the built-in module (`violetThemeCssText`,
+`violetThemeBuiltInSet` and the rest), so importing either loads it eagerly, and Vite may warn that
+the module is imported both statically and dynamically (it then stays in the same chunk). A product
+that installs its own set and wants the built-in values out of its bundle imports the element
+modules (`@lushly-dev/violet-elements/dist/<element>/<element>.js`) and
+`@lushly-dev/violet-elements/dist/theme/violet-theme-runtime.js`, never the root.
 
 A product that brings its own Violet tree installs its complete theme set as data instead. The
 set replaces the built-in default, which is then never written, wherever this package installed a

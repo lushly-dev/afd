@@ -60,7 +60,9 @@ function activeCssText(): string {
         return product.cssText;
     }
     if (builtInCssText === undefined) {
-        void loadVioletBuiltInTheme();
+        loadVioletBuiltInTheme().catch((error: unknown) => {
+            console.error("violet-theme: the built-in theme failed to load; the next install retries", error);
+        });
         return "";
     }
     return builtInCssText;
@@ -69,17 +71,41 @@ function activeCssText(): string {
 /**
  * Loads the built-in default set's stylesheet, writing it into every installed runtime style if no
  * product set is active by then. `installVioletTheme()` calls it; await it to know the built-in
- * theme is applied.
+ * theme is applied. A failed load (a chunk that did not arrive) rejects and is not cached, so the
+ * next call, or the next install, tries again.
  */
 export function loadVioletBuiltInTheme(): Promise<string> {
-    builtInLoad ??= import("./violet-theme-builtin").then(module => {
-        builtInCssText = module.violetThemeCssText;
-        if (product === null) {
-            refreshInstalledStyles();
-        }
-        return builtInCssText;
-    });
+    builtInLoad ??= importBuiltIn()
+        .then(module => {
+            const cssText = module.violetThemeCssText;
+            builtInCssText = cssText;
+            if (product === null) {
+                refreshInstalledStyles();
+            }
+            return cssText;
+        })
+        .catch((error: unknown) => {
+            builtInLoad = undefined;
+            throw error;
+        });
     return builtInLoad;
+}
+
+type BuiltInImporter = () => Promise<{ violetThemeCssText: string }>;
+
+let importBuiltIn: BuiltInImporter = () => import("./violet-theme-builtin");
+
+/**
+ * Replaces how the built-in set's module is imported, for this package's specs: a browser caches a
+ * module that failed, so a spec cannot make the real chunk fail once and then load. Not exported
+ * from the package root.
+ *
+ * @internal
+ */
+export function setVioletBuiltInThemeImporterForTesting(importer: BuiltInImporter): void {
+    importBuiltIn = importer;
+    builtInLoad = undefined;
+    builtInCssText = undefined;
 }
 
 function isShadowRoot(target: unknown): target is ShadowRoot {
