@@ -1,0 +1,11 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending"
+	},
+	"success": true,
+	"data": {
+		"requests": [],
+		"total": 0
+	}
+}

@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
 # Not expressible here: the caution comes back in the loan's `warnings` (code OLD_SEED), which a
 # scenario cannot assert. The steps check the lot's age and estimate, which the warning is built

@@ -1,0 +1,14 @@
+{
+	"$command": "donation-settle",
+	"$input": {
+		"donationId": "don-2",
+		"index": 0,
+		"varietyId": "var-painted"
+	},
+	"success": true,
+	"data": {
+		"index": 0,
+		"varietyId": "var-painted",
+		"lotId": "lot-don-2-0"
+	}
+}

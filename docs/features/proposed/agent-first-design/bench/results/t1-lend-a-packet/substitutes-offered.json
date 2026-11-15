@@ -1,0 +1,30 @@
+{
+	"$command": "substitute-suggest",
+	"$input": {
+		"varietyId": "var-runner"
+	},
+	"success": true,
+	"data": {
+		"variety": {
+			"id": "var-painted",
+			"name": "Painted Lady runner bean",
+			"packetsAvailable": 3
+		}
+	},
+	"reasoning": "Also a climbing runner bean, sown and grown the same way",
+	"confidence": 0.82,
+	"alternatives": [
+		{
+			"data": {
+				"variety": {
+					"id": "var-czar",
+					"name": "Czar runner bean",
+					"packetsAvailable": 1
+				}
+			},
+			"reason": "A runner bean with white flowers; one packet left, from 2027",
+			"confidence": 0.6,
+			"label": "Czar runner bean"
+		}
+	]
+}

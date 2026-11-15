@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
 # Not expressible here: the other varieties the label could be come back in `alternatives`, and
 # what the match rests on in `sources`. A scenario can assert neither. The step checks the first

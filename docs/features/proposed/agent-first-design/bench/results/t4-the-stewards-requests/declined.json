@@ -1,0 +1,36 @@
+{
+	"$command": "request-decide",
+	"$input": {
+		"id": "req-2",
+		"decision": "decline",
+		"reason": "Two packets left, and both are promised"
+	},
+	"success": true,
+	"data": {
+		"id": "req-2",
+		"status": "declined",
+		"decidedAt": "2030-03-09T10:00:00Z",
+		"memberTold": true
+	},
+	"plan": [
+		{
+			"id": "check-shelf",
+			"action": "Check the shelf",
+			"status": "skipped"
+		},
+		{
+			"id": "make-loan",
+			"action": "Make the loan",
+			"status": "skipped"
+		},
+		{
+			"id": "tell-member",
+			"action": "Tell the member",
+			"status": "complete"
+		}
+	],
+	"undoCommand": "request-reopen",
+	"undoArgs": {
+		"id": "req-2"
+	}
+}

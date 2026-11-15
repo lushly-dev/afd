@@ -1,0 +1,16 @@
+{
+	"$command": "substitute-suggest",
+	"$input": {
+		"varietyId": "var-salsify"
+	},
+	"success": false,
+	"error": {
+		"code": "NO_SUBSTITUTE",
+		"message": "Salsify has run out, and nothing the library keeps is close to it",
+		"suggestion": "Call waitlist-join with the member and varietyId var-salsify to put them on the waiting list",
+		"retryable": false,
+		"details": {
+			"varietyId": "var-salsify"
+		}
+	}
+}

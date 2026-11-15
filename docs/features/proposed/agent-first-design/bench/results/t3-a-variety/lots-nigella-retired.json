@@ -1,0 +1,31 @@
+{
+	"$command": "lot-list",
+	"$input": {
+		"varietyId": "var-nigella"
+	},
+	"success": true,
+	"data": {
+		"lots": [
+			{
+				"id": "lot-nigella-27",
+				"harvestYear": 2027,
+				"packets": 0,
+				"source": "return",
+				"germination": {
+					"estimate": 0.6,
+					"basis": "age"
+				}
+			}
+		],
+		"total": 1
+	},
+	"reasoning": "This lot from 2027 has not been tested, so its estimate is from its age",
+	"confidence": 0.6,
+	"sources": [
+		{
+			"type": "document",
+			"id": "viability-table",
+			"title": "How long seed keeps, by crop"
+		}
+	]
+}

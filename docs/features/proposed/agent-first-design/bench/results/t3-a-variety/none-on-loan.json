@@ -1,0 +1,11 @@
+{
+	"$command": "loan-list",
+	"$input": {
+		"varietyId": "var-parsnip"
+	},
+	"success": true,
+	"data": {
+		"loans": [],
+		"total": 0
+	}
+}

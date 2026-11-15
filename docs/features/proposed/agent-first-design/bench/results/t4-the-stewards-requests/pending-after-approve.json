@@ -1,0 +1,46 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending"
+	},
+	"success": true,
+	"data": {
+		"requests": [
+			{
+				"id": "req-2",
+				"member": {
+					"id": "mem-tobias",
+					"name": "Tobias Reed",
+					"number": "M-027"
+				},
+				"variety": {
+					"id": "var-glassgem",
+					"name": "Glass Gem corn"
+				},
+				"summary": "Lend one packet of Glass Gem corn to Tobias Reed",
+				"askedAt": "2030-03-09T09:20:00Z",
+				"expiresAt": "2030-03-10T09:20:00Z",
+				"status": "pending",
+				"packetsAvailable": 1
+			},
+			{
+				"id": "req-3",
+				"member": {
+					"id": "mem-wren",
+					"name": "Wren Achterberg",
+					"number": "M-031"
+				},
+				"variety": {
+					"id": "var-glassgem",
+					"name": "Glass Gem corn"
+				},
+				"summary": "Lend one packet of Glass Gem corn to Wren Achterberg",
+				"askedAt": "2030-03-09T09:40:00Z",
+				"expiresAt": "2030-03-10T09:40:00Z",
+				"status": "pending",
+				"packetsAvailable": 1
+			}
+		],
+		"total": 2
+	}
+}

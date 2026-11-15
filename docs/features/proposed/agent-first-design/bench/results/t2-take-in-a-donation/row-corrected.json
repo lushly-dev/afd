@@ -1,0 +1,14 @@
+{
+	"$command": "donation-correct",
+	"$input": {
+		"donationId": "don-3",
+		"index": 1,
+		"harvestYear": 2029
+	},
+	"success": true,
+	"data": {
+		"index": 1,
+		"outcome": "succeeded",
+		"lotId": "lot-don-3-1"
+	}
+}

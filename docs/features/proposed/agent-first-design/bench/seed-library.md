@@ -13,7 +13,8 @@ commands. Read the [bench specification](../bench.md) first.
   twenty-four drafted commands. The three checks pass ([Checks](#checks)). Three readers
   who did not write them walked the paths, and a fourth reviewed the result and walked the
   two commands the walks had added ([What the walks changed](#what-the-walks-changed)).
-- **Not done:** the owner has not cut, added or ranked the jobs. See [Not done](#not-done).
+- **Decided by the owner on 2026-11-15:** three design points ([For the owner](#for-the-owner)).
+  The list of jobs as a whole is still open. See [Not done](#not-done).
 - **Not in this folder, on purpose:** the two jobs held back for the panel loop, and the
   checks, planted faults and persona cards. The bench specification says why.
 
@@ -47,7 +48,7 @@ steward. Its rules:
 
 ## Outside the four screens
 
-The bench is four screens, not a whole application. Nothing here:
+The application is four screens, not a whole library system. Nothing here:
 
 - creates a member or a variety, or signs anyone in. Fixtures supply the members, the
   varieties and the lots;
@@ -56,7 +57,7 @@ The bench is four screens, not a whole application. Nothing here:
 - tells a member that seed they waited for has come in, or holds a returned packet for
   whoever is first on the waiting list;
 - marks an approved loan as collected;
-- pages a long list. The fixtures are small, and the bench does not test scale.
+- pages a long list. The fixtures are small.
 
 A donated label the library does not keep is corrected to one it does, or left out.
 
@@ -99,7 +100,7 @@ A `?` marks an optional field. No schema is written.
 | `variety-get` | Query | `id` | `id`, `name`, `kind`, `rare`, `packetsAvailable`, `waiting` (`member`, `position`), `retired`, `retiredAt?` | | `NOT_FOUND` | |
 | `variety-retire` | Mutation | `id` | `id`, `retired`, `retiredAt`, `packetsWithdrawn` | | `NOT_FOUND`, `CONFLICT`, `CONFIRMATION_REQUIRED`, `FORBIDDEN` | `destructive`, `confirmPrompt`; a person with the steward's role |
 | `lot-list` | Query | `varietyId` | `lots` (`id`, `harvestYear`, `packets`, `source`, `germination`), `total` | `reasoning`, `confidence`, `sources`, `warnings` (`OLD_SEED`) | `NOT_FOUND` | |
-| `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
+| `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `reasoning`, `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
 | `member-list` | Query | `query?` | `members` (`id`, `name`, `number`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED` | `approval` for a rare variety; `undoable` |
 | `loan-cancel` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
@@ -108,7 +109,7 @@ A `?` marks an optional field. No schema is written.
 | `loan-list` | Query | `varietyId?`, `memberId?`, `status?` | `loans` (`id`, `member`, `variety`, `lentAt`, `status`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `waitlist-join` | Mutation | `memberId`, `varietyId` | `position` | `undoCommand` (`waitlist-leave`), `undoArgs` | `NOT_FOUND`, `ALREADY_EXISTS`, `CONFLICT` | `undoable` |
 | `waitlist-leave` | Mutation | `memberId`, `varietyId` | `left` | | `NOT_FOUND` | |
-| `request-list` | Query | `status?`, `memberId?` | `requests` (`id`, `member`, `variety`, `summary`, `askedAt`, `expiresAt`, `status`, `packetsAvailable`), `total` | | `SERVICE_UNAVAILABLE` | |
+| `request-list` | Query | `status?` (a status, or `closed` for every status but `pending`), `memberId?` | `requests` (`id`, `member`, `variety`, `summary`, `askedAt`, `expiresAt`, `status`, `packetsAvailable`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `request-withdraw` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
 | `request-decide` | Mutation | `id`, `decision`, `reason?` | `id`, `status`, `decidedAt`, `loanId?`, `memberTold` | `plan`, `undoCommand` (`request-reopen`), `undoArgs`, `warnings` (`MEMBER_NOT_TOLD`) | `NOT_FOUND`, `CONFLICT`, `OUT_OF_STOCK`, `REQUEST_EXPIRED`, `FORBIDDEN` | `undoable`; a person with the steward's role |
 | `request-reopen` | Mutation | `id` | `id`, `status`, `expiresAt`, `loanCancelled?` | | `NOT_FOUND`, `CONFLICT`, `FORBIDDEN` | A person with the steward's role |
@@ -129,10 +130,10 @@ A `?` marks an optional field. No schema is written.
   `donation-settle` on a row already filed moves it to another variety. `donation-correct`
   puts a failed row right or, with `leaveOut`, drops it. Each is refused with `CONFLICT`
   once a packet from the lot has been lent.
-- **Two shapes of a batch, on purpose.** `donation-import` is one command over many rows and
-  reports them in its own `data`, as the todo example's batch command does. Deciding several
+- **Two shapes of a batch.** `donation-import` is one command over many rows and reports
+  them in its own `data`, as the todo example's batch command does. Deciding several
   requests is several `request-decide` calls in one `afd-batch`, whose result is the
-  meta-tool's (`spec/wire/batch-result.json`). A screen meets both.
+  meta-tool's (`spec/wire/batch-result.json`).
 - **Who may decide.** `FORBIDDEN` for anyone but a person with the steward's role is the
   application's authorization, in middleware. It is separate from the `approval` on
   `loan-create`.
@@ -145,11 +146,15 @@ The values a scenario asserts, which the commands table does not spell out:
 | --- | --- |
 | A loan's `status` | `out`, `returned`, `cancelled` |
 | A request's `status` | `pending`, `approved`, `declined`, `expired`, `withdrawn`. Every one but `pending` is closed, and `request-clear` removes closed requests |
-| A donation's `status` | `complete`, `needs-attention`, `cancelled` |
+| A donation's `status` | `in-progress` while its rows are worked through, then `complete` or `needs-attention`; `cancelled` once taken back |
 | A row's `outcome` | `succeeded`, `unsettled`, `failed`, `left-out` |
 | A donation's `summary` | `total`, `successCount`, `unsettledCount`, `failureCount`, `leftOutCount` |
 | A failed row's `error.code` | `INVALID_INPUT` for a value that cannot be right, such as a harvest year in the future; `NOT_FOUND` for a label the library does not keep |
-| A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age` |
+| A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age`. On a `variety-list` row it is the freshest lot's, and absent when the variety has no packets |
+| A donation's rows | Every entry of `succeeded`, `unsettled` and `failed`: `index`, `label`, `packets`, `harvestYear`. A `succeeded` entry adds `varietyId`, and `lotId` while its lot exists; a `failed` entry adds `error`. A row that waits for a person is a `pending` step in the batch's `plan` |
+| A `member` inside an entry | `id`, `name`, `number` |
+| A `variety` inside an entry | `id`, `name` |
+| A donation's `confidence` | `successCount / total`, so 0 for a box whose rows all wait for a person |
 
 ## What the application asks of the host
 
@@ -162,8 +167,10 @@ So the application does the rest:
 - **It says where the request went.** The hold's `summary` is the request's summary followed
   by where it waits: with the steward, in `request-list`. The refusal's `suggestion` quotes
   the summary (`packages/server/src/approval.ts:495`). The rest of that suggestion is the
-  host's and tells the caller to ask the user to approve, and at the desk the user is the
-  volunteer.
+  host's, and both its halves are wrong here: it tells the caller to ask the user to approve,
+  and at the desk the user is the volunteer; and it says the application retries the call
+  once the approval is recorded, where here `request-decide` makes the loan and nothing is
+  retried.
 - **It does not ask the person at the client.** `relay` stays off. With it on, the volunteer
   would be asked to approve rare seed for themselves.
 - **`request-decide` makes the loan itself.** The held call's token is never retried, and
@@ -179,17 +186,10 @@ So the application does the rest:
 - **A screen calls in process,** through a DirectClient, as the person signed in: a volunteer
   or the steward. A call made in process is never held for a confirmation
   (`spec/command-metadata.md`, "Confirmations"). So the screen reads the command's
-  `confirmPrompt` and asks before it calls. That is the confirmation pattern on T3 and T4.
+  `confirmPrompt` and asks before it calls.
 - **An agent in the application has to be marked as one.** A DirectClient's actor is a person
   unless it is set otherwise (`packages/core/src/actor.ts:18`), and the rule that only a
   person decides rests on the actor.
-- **A scenario runs in process as the test actor,** which the application treats as the
-  steward. That is why no file shows `FORBIDDEN`.
-- **Two steps need a server:** the first steps of jobs 12 and 16, which expect
-  `CONFIRMATION_REQUIRED`. In process they would carry the command out. They pass against a
-  server run with `confirmations: 'enforce'` whose `createContext` gives the runner a person
-  with the steward's role. Without that the server's actor is an agent
-  (`packages/server/README.md:510`), and the steward's commands are refused.
 - **Over MCP an agent can confirm by itself.** Under `enforce` the acknowledgement is the
   caller's, so "knowingly" holds for a person at a screen and not for an agent.
 
@@ -315,7 +315,7 @@ Each file says at its top what it leaves out. Together:
   fields are built from, and run the command an undo names.
 - **`confidence` is a floor.** A step can show that a match is at least 0.5 and cannot show
   that it is below 0.9. That a label was left for a person shows it.
-- **One actor.** In process every step runs as the test actor, which the application treats
+- **One actor.** A scenario runs in process as the test actor, which the application treats
   as the steward. So no file shows a volunteer or an agent refused with `FORBIDDEN`.
 - **A service that fails.** Jobs 6 and 17 are half shown: the empty list, and not the list
   that cannot be read (`SERVICE_UNAVAILABLE`).
@@ -324,13 +324,19 @@ Each file says at its top what it leaves out. Together:
 - **Work in progress.** The commands answer at once, so no step shows a batch that is still
   running.
 - **A confirmation.** Its wording is the command's `confirmPrompt`, which a step cannot read.
-  The first steps of jobs 12 and 16 pass only against a server
-  ([Who calls, and through what](#who-calls-and-through-what)). They write `confirm` inside
+  It is a fixed string on the command's definition, so it cannot name the variety or the date
+  it is about; the screen shows the record beside it.
+  The first steps of jobs 12 and 16, which expect `CONFIRMATION_REQUIRED`, would carry the
+  command out in process. They pass against a server run with `confirmations: 'enforce'`
+  whose `createContext` gives the runner a person with the steward's role; without that the
+  server's actor is an agent (`packages/server/README.md:510`), and the steward's commands
+  are refused. They write `confirm` inside
   `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
   the input.
 
 A screen's builder is given a fixture of each result as well, so the fields a scenario cannot
-assert still reach the screen. Those fixtures are not written.
+assert still reach the screen. They are in [`results/`](results/), and each state of a
+screen's [task](tasks/README.md) names the ones its story mounts.
 
 ## Checks
 
@@ -347,24 +353,28 @@ they are after the walks. Nothing is built, so the files are checked and not run
 
 ## Not done
 
+- **The tasks and results for building sessions are drafted** in [`tasks/`](tasks/README.md)
+  and [`results/`](results/): four screens, 50 states, 74 results. No reader other than their
+  author and one reviewer has read them.
+
 - **No schema.** Inputs and results are names in a table.
-- **The tasks a building session is given** are not written: for each screen, its states and
-  what the user must be able to do in each.
-- **The result fixtures** that force each state are not written.
 - **The application** in `packages/examples/seed-library` does not exist.
 
 ## For the owner
 
+On 2026-11-15 the owner accepted three design points: approval as a held loan, job 16, and the
+approval request off T4, recorded as a limit in the bench specification. The list of jobs as
+a whole is still open.
+
 1. **The jobs.** Cut, add or change them. *Recommendation: keep the seventeen,* because each
    screen then meets every pattern the bench specification gives it, and three readers found
    no job missing inside the four screens. Confidence: medium.
-2. **Job 16.** Removing a past season's closed requests is what gives T4 a command that
-   cannot be undone. *Recommendation: keep it.* Without it a confirmation is tested only on
-   T3, a screen the statements may be written from. Confidence: medium. The alternative is
-   to drop it and add confirmation to the bench specification's limit.
-3. **Approval as a held loan.** The steward's request is a held `loan-create`, not a command
-   of its own. *Recommendation: keep it,* because it tests the contract's `approval` and not
-   a look-alike. Confidence: medium. It has a price, which this design chooses: a request
+2. **Job 16.** **Decided 2026-11-15: kept.** Removing a past season's closed requests is
+   what gives T4 a command that cannot be undone. Without it a confirmation is tested only on
+   T3, a screen the statements may be written from.
+3. **Approval as a held loan.** **Decided 2026-11-15: kept.** The steward's request is a held
+   `loan-create`, not a command of its own, because it tests the contract's `approval` and not
+   a look-alike. It has a price, which this design chooses: a request
    expires with its hold, at most twenty-four hours later, so that the expiry a screen shows
    is the contract's. A request the steward does not decide within a day expires and the
    member asks again. The alternative is a request that outlives its hold and shows an

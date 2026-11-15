@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
 # Not expressible here: the work is reported step by step in the result's `plan`, and the way
 # back in `undoCommand` and `undoArgs`. A scenario can assert neither. The commands answer at

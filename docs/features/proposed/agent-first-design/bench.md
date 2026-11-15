@@ -92,19 +92,44 @@ Which task needs which pattern:
   against the commands, in the order the `afd` skill's
   [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets. Three readers
   walked them. No schema is written.
-- **A fixture of each result forces each state** of a screen. They are not written.
+- **A fixture of each result forces each state** of a screen. Each screen's task, its states
+  and their results are drafted in [`bench/tasks/`](bench/tasks/README.md), 50 states and 74
+  results across the four screens. A task lists the screen's states, so it is held material
+  for the bare arm.
 - **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
   kept after phase 0.
 
 ## What a session is given
 
-- **Every arm but the bare one gets the same task:** the jobs, the commands and their
-  fixtures, the states of the screen with what the user must be able to do in each, and what
-  counts as done. It writes one story file with a named story per state, from
-  `violet-elements` where a component fits. The bare arm gets the jobs and the commands
-  only ([ruling 3](#for-the-owner)). The seed library's table of where each pattern arises
-  lists every screen's states, so it is held material for that arm: its worktree holds no
-  copy, and its tool calls are checked for a read of one.
+- **Every session writes one story file** with a named story per state, from
+  `violet-elements` where a component fits. What it reads to do so depends on its arm, and
+  nothing it reads names a pattern or says which state shows one.
+- **Arms 0 to 3 read four things,** the same for each arm on a screen:
+  - the screen's task, from [`bench/tasks/`](bench/tasks/README.md): its jobs, commands,
+    states with the results each story mounts and what the person must be able to do, and
+    what counts as done;
+  - the screen's results, its folder of [`bench/results/`](bench/results/);
+  - the scenario files of the screen's jobs, with the fixtures they name;
+  - **the builder's extract** of [the seed library's jobs](bench/seed-library.md): its
+    sections "The library", "Outside the four screens", "Jobs", "Drafted commands" with its
+    notes, "States", "What the application asks of the host" and "Who calls, and through
+    what". The extract leaves out the opening paragraph and its pointer to this file, the
+    "Jobs" section's lines about the bench around its table, and every other section: "Where
+    each pattern arises", "What writing the jobs changed", "What the walks changed", "What a
+    scenario could not express", "Checks", "Not done" and "For the owner".
+- **The bare arm reads two things** ([ruling 3](#for-the-owner)): the job sentences of its
+  screen, as the rows of the "Jobs" table and not the scenario files, whose steps and header
+  comments name most states; and the same extract without "States". It gets no task, no
+  results and no list of states.
+- **The runner makes the extract** from the seed library's file at the pinned commit and
+  writes it at the same path, so the tasks' links to its sections resolve. It builds each
+  session's worktree with the files its arm reads and none of the rest of this feature's
+  folder: not this file, not the proposal, not another screen's task or results. A session's
+  tool calls are checked for a read of anything held back.
+- **A known limit of the bare arm:** the commands table and its notes still say what a
+  command returns and refuses, such as the error codes in "Refuses with" and that
+  `donation-import` succeeds when some rows fail, so a session can infer some states from
+  them.
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.

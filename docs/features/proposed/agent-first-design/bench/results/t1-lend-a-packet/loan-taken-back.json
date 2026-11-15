@@ -1,0 +1,11 @@
+{
+	"$command": "loan-cancel",
+	"$input": {
+		"id": "loan-2"
+	},
+	"success": true,
+	"data": {
+		"id": "loan-2",
+		"status": "cancelled"
+	}
+}

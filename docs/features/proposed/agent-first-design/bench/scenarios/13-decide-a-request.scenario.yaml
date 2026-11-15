@@ -1,6 +1,6 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
-# requests, which is held back from whoever writes the first pattern statements.
+# requests.
 # Not expressible here: every step runs as the test actor, so the file cannot show a volunteer
 # or an agent refused with FORBIDDEN and the steward allowed. An approval reports its three steps
 # in `plan` and a member who could not be told in `warnings` (code MEMBER_NOT_TOLD); a scenario

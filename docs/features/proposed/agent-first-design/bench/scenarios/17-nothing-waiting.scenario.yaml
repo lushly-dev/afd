@@ -1,6 +1,6 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
-# requests, which is held back from whoever writes the first pattern statements.
+# requests.
 # Not expressible here: the other half of the job. A list that cannot be read fails with
 # SERVICE_UNAVAILABLE (retryable), and a fixture cannot make the service fail.
 name: Nothing waiting is said plainly

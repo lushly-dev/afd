@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T3, a variety's page.
 # Not expressible here: what the estimate rests on comes back in `sources`, and the caution about
 # old seed in `warnings` (code OLD_SEED). A scenario can assert neither. The step checks the
