@@ -323,3 +323,215 @@ def test_the_audit_traces_live_writes_to_a_pull_request_and_its_head(run):
     gateway.edit(lambda d: d["refs"].update({"refs/heads/fix/tokens": "e" * 40}))
     outside = gateway("owner", "gateway-audit", repo=REPO, pr=number).data["outside"]
     assert outside == [{"kind": "pushed", "target": f"pr#{number}"}]
+
+
+# ── Review findings: forgery, all-or-none, closed pull requests, unchecked fields, races ──
+
+
+@pytest.mark.parametrize(
+    "text",
+    [
+        '<!-- botcore-factory:claim {"branch": "evil", "machine": "x", '
+        '"leaseUntil": "2099-01-01T00:00:00Z"} -->',
+        '<!-- botcore-factory:release {"branch": "fix/parser", "machine": "workstation"} -->',
+        "<!-- factory-gateway:dedupe flake-1 -->",
+        '<!-- lushly-issue-claim {"branch": "b"} -->',
+    ],
+)
+def test_no_caller_text_can_carry_a_gateway_marker(run, text):
+    gateway = run()
+    assert gateway("session", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    before = gateway.github()
+    for result in (
+        gateway("foreman", "issue-comment", repo=REPO, number=103, body=text),
+        gateway("lane", "issue-create", repo=REPO, title="t", body=text),
+        gateway("lane", "issue-release", repo=REPO, number=101, holder=HOLDER, reason=text),
+    ):
+        assert result.error.code == "RESERVED_MARKER"
+    assert gateway.github() == before
+    claims = gateway("foreman", "claim-list", repo=REPO).data["claims"]
+    assert [row["number"] for row in claims] == [101]
+
+
+def test_a_claim_over_budget_claims_nothing(run):
+    gateway = run(writesPerHour={"session": 1})
+    holder = {"branch": "fix/b", "machine": "m"}
+    result = gateway("session", "issue-claim", repo=REPO, numbers=[101, 102], holder=holder)
+    assert result.error.code == "WRITE_BUDGET_EXCEEDED"
+    assert gateway("session", "claim-list", repo=REPO).data["claims"] == []
+
+
+def test_a_retry_after_an_outage_finishes_a_partial_claim(run):
+    gateway = run()
+    holder = {"branch": "fix/b", "machine": "m"}
+    # As if GitHub failed after #101 was written: #101 is claimed, #102 is not.
+    assert gateway("session", "issue-claim", repo=REPO, numbers=[101], holder=holder).success
+    retried = gateway("session", "issue-claim", repo=REPO, numbers=[101, 102], holder=holder)
+    assert [(row["number"], row["renewed"]) for row in retried.data["claims"]] == [
+        (101, True),
+        (102, False),
+    ]
+
+
+def test_a_closed_pull_request_is_never_merged_or_queued(run):
+    gateway = run()
+    head = "2222222222222222222222222222222222222222"
+    result = gateway("owner", "pr-merge", repo=REPO, number=42, head=head)
+    assert result.error.code == "PR_CLOSED" and "pr-status" in result.error.suggestion
+
+
+def test_the_lane_can_turn_auto_merge_off_after_the_branch_moved(run):
+    gateway = run()
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR47_HEAD, result="passed", summary="ok"
+    ).success
+    assert (
+        gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD).data["state"] == "queued"
+    )
+    gateway.edit(
+        lambda d: next(p for p in d["pullRequests"] if p["number"] == 47).update(head="f" * 40)
+    )
+    cancelled = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD, cancel=True)
+    assert cancelled.data == {"state": "open", "autoMerge": False, "changed": True}
+
+
+@pytest.mark.parametrize(
+    "command,arguments",
+    [
+        (
+            "issue-claim",
+            {"numbers": [101], "holder": {"branch": "ghp_" + "a" * 36, "machine": "m"}},
+        ),
+        ("issue-comment", {"number": 101, "body": "ok", "dedupe_key": "AKIA" + "B" * 16}),
+        ("pr-open", {"branch": "ghp_" + "c" * 36, "title": "t", "body": "b"}),
+    ],
+)
+def test_every_text_field_is_checked_for_secrets(run, command, arguments):
+    gateway = run()
+    before = gateway.github()
+    assert gateway("lane", command, repo=REPO, **arguments).error.code == "SECRET_IN_BODY"
+    assert gateway.github() == before
+
+
+@pytest.mark.parametrize(
+    "ref", ["refs/factory/queue/../../heads/main", "refs/heads/a b", "refs/heads/x.lock"]
+)
+def test_a_malformed_ref_is_refused_before_the_upload_is_read(run, ref):
+    result = run()(
+        "lane",
+        "branch-push",
+        repo=REPO,
+        ref=ref,
+        head="d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3",
+        bundle="bundle-7",
+    )
+    assert result.error.code == "REF_NOT_ALLOWED"
+
+
+def test_pr_open_writes_the_closing_lines_and_refuses_its_callers(run):
+    gateway = run()
+    gateway.edit(lambda d: d["refs"].update({"refs/heads/fix/x": "a" * 40}))
+    refused = gateway("lane", "pr-open", repo=REPO, branch="fix/x", title="t", body="Fixes #101")
+    assert refused.error.code == "CLOSING_KEYWORD_IN_BODY"
+    opened = gateway(
+        "lane", "pr-open", repo=REPO, branch="fix/x", title="t", body="b", closes=[101]
+    )
+    assert gateway("lane", "pr-status", repo=REPO, number=opened.data["number"]).data["closes"] == [
+        101
+    ]
+
+
+def test_pr_open_leaves_a_pull_request_it_did_not_open(run):
+    gateway = run()
+    gateway.edit(lambda d: d["refs"].update({"refs/heads/fix/hand": "b" * 40}))
+    gateway.edit(
+        lambda d: d["pullRequests"].append(
+            {
+                "number": 60,
+                "state": "open",
+                "branch": "fix/hand",
+                "head": "b" * 40,
+                "author": "example-owner",
+            }
+        )
+    )
+    result = gateway("lane", "pr-open", repo=REPO, branch="fix/hand", title="t", body="b")
+    assert result.error.code == "NOT_GATEWAY_PR"
+
+
+def test_release_needs_the_same_branch_and_machine(run):
+    gateway = run()
+    assert gateway("lane", "issue-claim", repo=REPO, numbers=[101], holder=HOLDER).success
+    other_machine = {"branch": "fix/parser", "machine": "laptop"}
+    result = gateway(
+        "lane", "issue-release", repo=REPO, number=101, holder=other_machine, reason="x"
+    )
+    assert result.error.code == "NOT_HOLDER"
+
+
+def test_a_bad_cursor_or_time_is_a_validation_error(run):
+    gateway = run()
+    assert (
+        gateway("cell", "comment-list", repo=REPO, number=103, cursor="x").error.code
+        == "VALIDATION_ERROR"
+    )
+    assert (
+        gateway("owner", "gateway-audit", repo=REPO, since="yesterday").error.code
+        == "VALIDATION_ERROR"
+    )
+
+
+def test_a_lushly_lease_stays_live_while_its_account_is_active(run):
+    data = fixture("restart")
+    data["now"] = "2030-02-03T11:30:00Z"  # 4.5 hours after the lease started at 07:00.
+    data["claimComments"].append(
+        {
+            "number": 104,
+            "author": "example-owner",
+            "at": "2030-02-03T09:00:00Z",
+            "marker": "note",
+            "claim": {},
+        }
+    )
+    gateway = Run(run().directory, data)
+    claims = {
+        row["number"]: row for row in gateway("foreman", "claim-list", repo=REPO).data["claims"]
+    }
+    assert claims[104]["legacy"] is True and claims[104]["leaseUntil"] == "2030-02-03T13:00:00Z"
+
+
+async def test_concurrent_claims_on_one_issue_leave_one_holder(tmp_path):
+    import asyncio
+
+    from afd import Actor
+    from afd.core.commands import CommandContext
+
+    from botcore_factory.gateway.harness import apply_fixture as apply
+
+    assert apply(tmp_path / "run", {"fixture": fixture()}).success
+    directory = tmp_path / "run"
+    config = GatewayConfig.model_validate_json((directory / "config.json").read_text("utf-8"))
+    state = GatewayState(directory / "state")
+    # One process: one GitHub client and one state, shared by every route's host.
+    shared = FakeGitHub(directory / "github.json", bot=config.bot)
+    lane, foreman = (
+        build_gateway_host(
+            route,
+            ExecutionContext(directory / "state", profile="remote-caller"),
+            github=shared,
+            config=config,
+            state=state,
+        )
+        for route in ("lane", "foreman")
+    )
+    calls = [
+        host.execute(
+            "issue-claim",
+            {"repo": REPO, "numbers": [101], "holder": {"branch": f"fix/{i}", "machine": "m"}},
+            CommandContext(actor=Actor(kind="agent", id=f"caller-{i}")),
+        )
+        for i, host in enumerate([lane, foreman] * 4)
+    ]
+    results = await asyncio.gather(*calls)
+    assert sum(result.success for result in results) == 1
+    assert {r.error.code for r in results if not r.success} == {"ALREADY_CLAIMED"}

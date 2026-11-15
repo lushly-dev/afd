@@ -101,8 +101,21 @@ async def _run(body: Callable[[], CommandResult]) -> CommandResult:
     return await asyncio.to_thread(guard, body)
 
 
+def _writer(get: Callable[[], Gateway]):
+    """Run a write under the gateway's one lock: read, decide and write as one step."""
+
+    async def write(body: Callable[[], CommandResult]) -> CommandResult:
+        def locked() -> CommandResult:
+            with get().state.lock:
+                return body()
+
+        return await _run(locked)
+
+    return write
+
+
 def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) -> dict:
-    run = _run
+    run, write = _run, _writer(get)
 
     async def gateway_status() -> CommandResult:
         """Report this route's host, its write commands, the bot identity, repositories,
@@ -168,7 +181,9 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             holder: The branch and machine that hold them.
             lease_hours: How long the lease lasts (default 24).
         """
-        return await run(lambda: get().issue_claim(repo, numbers, holder.model_dump(), lease_hours))
+        return await write(
+            lambda: get().issue_claim(repo, numbers, holder.model_dump(), lease_hours)
+        )
 
     async def issue_release(repo: Repo, number: int, holder: Holder, reason: Name) -> CommandResult:
         """Release a claim the holder holds; a retry of a done release changes nothing.
@@ -179,7 +194,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             holder: The branch and machine releasing it.
             reason: Why, posted with the release.
         """
-        return await run(
+        return await write(
             lambda: get().issue_release(repo, number, holder.model_dump(), reason, False)
         )
 
@@ -195,7 +210,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             reason: Why, posted with the release.
             force: Release it whoever holds it (owner only).
         """
-        return await run(
+        return await write(
             lambda: get().issue_release(repo, number, holder.model_dump(), reason, force)
         )
 
@@ -210,7 +225,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             add: Labels to add.
             remove: Labels to remove.
         """
-        return await run(lambda: get().issue_label(repo, number, add or [], remove or []))
+        return await write(lambda: get().issue_label(repo, number, add or [], remove or []))
 
     async def issue_comment(
         repo: Repo, number: int, body: str, dedupe_key: Name | None = None
@@ -223,7 +238,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             body: The comment, inline (at most 64 KiB), checked for secrets.
             dedupe_key: A key you choose; the same key never posts twice.
         """
-        return await run(lambda: get().issue_comment(repo, number, body, dedupe_key))
+        return await write(lambda: get().issue_comment(repo, number, body, dedupe_key))
 
     async def issue_create(
         repo: Repo,
@@ -241,7 +256,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
             labels: Labels the repository defines.
             dedupe_key: A key you choose; the same key never files twice.
         """
-        return await run(lambda: get().issue_create(repo, title, body, labels or [], dedupe_key))
+        return await write(lambda: get().issue_create(repo, title, body, labels or [], dedupe_key))
 
     return {
         "gateway-status": gateway_status,
@@ -258,7 +273,7 @@ def _reads_claims_and_issues(route: str, get: Callable[[], Gateway], host: str) 
 
 
 def _lane_and_records(get: Callable[[], Gateway]) -> dict:
-    run = _run
+    run, write = _run, _writer(get)
 
     async def branch_push(repo: Repo, ref: Name, head: Sha, bundle: Name) -> CommandResult:
         """Push one ref from an uploaded git bundle; cells push only refs/factory/queue/<branch>.
@@ -271,7 +286,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             head: The full 40-character SHA to push; the bundle must contain it.
             bundle: The upload id.
         """
-        return await run(lambda: get().branch_push(repo, ref, head, bundle))
+        return await write(lambda: get().branch_push(repo, ref, head, bundle))
 
     async def pr_open(
         repo: Repo, branch: Name, title: Name, body: str, closes: list[int] | None = None
@@ -286,7 +301,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             body: The body, without closing keywords, checked for secrets.
             closes: The issues it closes.
         """
-        return await run(lambda: get().pr_open(repo, branch, title, body, closes or []))
+        return await write(lambda: get().pr_open(repo, branch, title, body, closes or []))
 
     async def verification_record(
         repo: Repo, head: Sha, result: Literal["passed", "failed"], summary: str
@@ -299,7 +314,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             result: passed or failed.
             summary: What ran, checked for secrets.
         """
-        return await run(lambda: get().verification_record(repo, head, result, summary))
+        return await write(lambda: get().verification_record(repo, head, result, summary))
 
     async def pr_merge(repo: Repo, number: int, head: Sha, cancel: bool = False) -> CommandResult:
         """Merge a pull request at the head the lane validated, at once or by squash
@@ -311,7 +326,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             head: The full SHA to merge; any other head is refused.
             cancel: Turn auto-merge off instead, as the lane does when it ejects a branch.
         """
-        return await run(lambda: get().pr_merge(repo, number, head, cancel))
+        return await write(lambda: get().pr_merge(repo, number, head, cancel))
 
     async def pr_revert(
         repo: Repo, numbers: Annotated[list[int], Field(min_length=1, max_length=10)], reason: str
@@ -323,7 +338,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             numbers: The merged pull requests to revert.
             reason: Why, written into each revert's body.
         """
-        return await run(lambda: get().pr_revert(repo, numbers, reason))
+        return await write(lambda: get().pr_revert(repo, numbers, reason))
 
     async def variable_set(repo: Repo, name: Name, value: str) -> CommandResult:
         """Set a repository variable the gateway is allowed to set (FACTORY_LANE_HOST).
@@ -333,7 +348,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             name: The variable.
             value: Its value, checked for secrets.
         """
-        return await run(lambda: get().variable_set(repo, name, value))
+        return await write(lambda: get().variable_set(repo, name, value))
 
     async def gateway_audit(
         repo: Repo,
@@ -374,7 +389,7 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             lanes: Each lane's verdict.
         """
         rows = [lane.model_dump() for lane in lanes]
-        return await run(lambda: records.review_record(get(), repo, branch, head, rows))
+        return await write(lambda: records.review_record(get(), repo, branch, head, rows))
 
     async def review_get(repo: Repo, head: Sha) -> CommandResult:
         """Read the review recorded for an exact head.

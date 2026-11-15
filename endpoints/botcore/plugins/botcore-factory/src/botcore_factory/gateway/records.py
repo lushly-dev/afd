@@ -159,7 +159,14 @@ def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict]
 
 def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor: str | None):
     gateway.repo(repo)
-    start = parse_time(filters.get("since"))
+    try:
+        start = parse_time(filters.get("since"))
+    except ValueError:
+        raise refuse(
+            "VALIDATION_ERROR",
+            f"since {filters['since']!r} is not an ISO 8601 time",
+            "Pass a time such as 2030-02-03T09:00:00Z",
+        ) from None
     wanted = {f"issue#{filters['issue']}"} if filters.get("issue") is not None else set()
     wanted |= {f"pr#{filters['pr']}"} if filters.get("pr") is not None else set()
     rows = []
@@ -171,7 +178,7 @@ def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor
         if filters.get("actor") and row["actor"].get("id") != filters["actor"]:
             continue
         rows.append({key: value for key, value in row.items() if key != "targets"})
-    offset = int(cursor or 0)
+    offset = gateway.offset(cursor)
     data: dict[str, Any] = {
         "entries": rows[offset : offset + limit],
         "outside": [
@@ -305,17 +312,19 @@ async def gateway_wait(gateway: Gateway, repo: str, consumer: str, kinds, timeou
             if event["id"] not in seen and (not kinds or event["kind"] in kinds)
         ]
 
-    found = fresh()
+    found = await asyncio.to_thread(fresh)  # GitHub reads block; keep the event loop free.
     if not found:
         await asyncio.sleep(timeout_ms / 1000)
         refresh = getattr(gateway.github, "refresh", None)
         if callable(refresh):
             refresh()
-        found = fresh()
+        found = await asyncio.to_thread(fresh)
     if not found:
         return success({"events": [], "timedOut": True}, reasoning="Nothing new before the timeout")
-    delivered[consumer] = sorted(seen | {event["id"] for event in found})
-    gateway.state.put("delivered", delivered)
+    with gateway.state.lock:
+        delivered = dict(gateway.state.get("delivered", {}))
+        delivered[consumer] = sorted(set(delivered.get(consumer, [])) | {e["id"] for e in found})
+        gateway.state.put("delivered", delivered)
     rows = [
         {key: value for key, value in event.items() if key != "id"} | {"id": event["id"]}
         for event in found

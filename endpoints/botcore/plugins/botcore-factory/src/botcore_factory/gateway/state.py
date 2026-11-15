@@ -9,6 +9,7 @@ journal, one file per UTC day under ``journal/``, kept for ``journal.keepDays``.
 from __future__ import annotations
 
 import json
+import threading
 from datetime import UTC, datetime
 from pathlib import Path
 
@@ -18,7 +19,12 @@ STATE_KEYS = {"uploads", "reviews", "journal", "verifications"}
 
 
 class GatewayState:
+    """One gateway process's state. Every route's host shares one instance, whose ``lock``
+    serialises the gateway's writes (claims, budgets, uploads, reviews, cursors), so two
+    callers can never race; one process is the single writer the proposal relies on."""
+
     def __init__(self, directory: Path) -> None:
+        self.lock = threading.RLock()
         self.directory = directory
         self.path = directory / "state.json"
         self.journal_dir = directory / "journal"

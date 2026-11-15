@@ -113,9 +113,27 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   the journal. One job changed: 09's `expect` referenced an earlier step, which AFD's runner
   resolves only in `input`, so it now asserts issue 105, as job 04 does; the checks the
   proposal session ran (`validate`, dry run) do not execute steps and could not catch it.
-  Refusals added beyond the draft: `UPLOAD_NOT_FOUND` (no live upload for `branch-push`) and
-  `BODY_TOO_LARGE` (text over `body.maxBytes`); `issue-release` takes `force` only on the
-  owner's route, so elsewhere it is refused as an input the command does not take.
+  Refusals added beyond the draft: `UPLOAD_NOT_FOUND` (no live upload for `branch-push`),
+  `BODY_TOO_LARGE` (text over `body.maxBytes`), `RESERVED_MARKER` (caller text holding a
+  claim, release or dedupe marker, which would otherwise forge one as the bot),
+  `CLOSING_KEYWORD_IN_BODY` (`pr-open` writes the closing lines itself), `NOT_GATEWAY_PR`
+  (`pr-open` updates only pull requests the gateway opened) and `PR_CLOSED` (`pr-merge` of a
+  pull request closed without merging). `issue-release` takes `force` only on the owner's
+  route, so elsewhere it is refused as an input the command does not take. The proposal's
+  tables are not yet updated for these.
+- 2026-11-14: one independent review of the skeleton (Opus 5.5, high): 5 blockers, 9
+  improvements and 2 nits. All blockers fixed, each with a test: claim and release markers
+  forged through `issue-comment` (now `RESERVED_MARKER`), a multi-issue claim left partial by
+  the write budget (now spent before the first write; a retry after an outage completes it),
+  `pr-merge` queuing a closed pull request (`PR_CLOSED`), holders, dedupe keys, refs and
+  branch names reaching GitHub unchecked, and concurrent writes racing (one lock on the shared
+  state, with a concurrency test). Improvements fixed: the GitHub port gained `merge_pull`,
+  `enable_auto_merge`, `disable_auto_merge` and `create_revert` in place of the fake's field
+  updates; `pr-open`'s two refusals above; ref format checks; release by branch and machine;
+  `VALIDATION_ERROR` for a bad `cursor` or `since`; `cancel` before the head check; event
+  reads off the event loop; Lushly's legacy lease counts the account's latest activity, not
+  only its start. Deferred: claims are released when the gateway merges at once; a queued
+  auto-merge that lands later is released from G3's merge events.
 - 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
   of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
 

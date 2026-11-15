@@ -77,14 +77,18 @@ def _markers(body: str) -> list[tuple[str, dict]]:
     return found
 
 
-def _legacy(number: int, kind: str, value: dict, at: datetime, config: GatewayConfig):
+def _legacy(
+    number: int, kind: str, value: dict, at: datetime, config: GatewayConfig, active: datetime
+):
     cutover = config.cutover
     if kind == CLAIM and {"branch", "machine", "leaseUntil"} <= set(value):
         until = parse_time(value["leaseUntil"])
         return Claim(number, value["branch"], value["machine"], until, at, legacy=True)
     if kind == LUSHLY and {"branch", "host", "startedAt"} <= set(value):
-        started = parse_time(value["startedAt"])
-        until = started + timedelta(hours=cutover.lushly_stale_hours)
+        # Lushly's rule: live until four hours pass without activity on the issue by its
+        # holder's account (the lease's start, or a later comment from that account).
+        last = max(parse_time(value["startedAt"]), active)
+        until = last + timedelta(hours=cutover.lushly_stale_hours)
         return Claim(number, value["branch"], value["host"], until, at, legacy=True)
     return None
 
@@ -96,7 +100,16 @@ def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: da
     """
     record: Claim | Release | None = None
     cutover = config.cutover
-    for comment in sorted(comments, key=lambda c: c.get("at") or ""):
+    ordered = sorted(comments, key=lambda c: c.get("at") or "")
+    active = max(
+        (
+            parse_time(c["at"])
+            for c in ordered
+            if cutover and c.get("at") and c.get("author") == cutover.legacy_author
+        ),
+        default=datetime.min.replace(tzinfo=now.tzinfo),
+    )
+    for comment in ordered:
         at = parse_time(comment.get("at")) or now
         for kind, value in _markers(comment.get("body", "")):
             if comment.get("author") == config.bot:
@@ -112,7 +125,7 @@ def read_claim(number: int, comments: list[dict], config: GatewayConfig, now: da
                 and at < cutover.start
                 and now < cutover.legacy_until
             ):
-                legacy = _legacy(number, kind, value, at, config)
+                legacy = _legacy(number, kind, value, at, config, active)
                 if legacy is not None and not legacy.stale(now):
                     record = legacy
     return record

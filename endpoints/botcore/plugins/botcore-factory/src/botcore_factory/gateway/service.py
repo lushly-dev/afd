@@ -19,8 +19,8 @@ from botcore.context import current_call
 from botcore_factory.gateway import claims as claim_rules
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
-from botcore_factory.gateway.github import GitHub, GitHubUnavailable, comment_url, fake_head
-from botcore_factory.gateway.secrets import check_text
+from botcore_factory.gateway.github import GitHub, GitHubUnavailable, comment_url
+from botcore_factory.gateway.secrets import CLOSING_KEYWORD, check_text, ref_is_well_formed
 from botcore_factory.gateway.state import GatewayState, journal_size
 
 DEDUPE = "factory-gateway:dedupe"
@@ -110,8 +110,8 @@ class Gateway:
         if refusal is not None:
             raise Refusal(refusal)
 
-    def spend(self, command: str) -> None:
-        """Count one write against the caller's hourly budget, or refuse it."""
+    def spend(self, command: str, count: int = 1) -> None:
+        """Count ``count`` writes against the caller's hourly budget, or refuse them all."""
         budget = self.config.writes_per_hour.get(self.route)
         actor = _actor().get("id") or self.route
         now = self.now()
@@ -121,7 +121,7 @@ class Gateway:
             if parse_time(entry["at"]) > now - timedelta(hours=1)
         ]
         mine = [entry for entry in log if entry["actor"] == actor]
-        if budget is not None and len(mine) >= budget:
+        if budget is not None and len(mine) + count > budget:
             raise refuse(
                 "WRITE_BUDGET_EXCEEDED",
                 f"{actor} made {len(mine)} writes in the last hour; the {self.route} budget "
@@ -131,8 +131,19 @@ class Gateway:
                 budget=budget,
                 route=self.route,
             )
-        log.append({"at": iso(now), "actor": actor, "command": command})
+        log += [{"at": iso(now), "actor": actor, "command": command}] * count
         self.state.put("writes", log)
+
+    def offset(self, cursor: str | None) -> int:
+        if cursor is None:
+            return 0
+        if not cursor.isdigit():
+            raise refuse(
+                "VALIDATION_ERROR",
+                f"cursor {cursor!r} is not one this gateway returned",
+                "Pass the nextCursor of the previous page, or leave cursor out for the first",
+            )
+        return int(cursor)
 
     def issue_or_refuse(self, repo: str, number: int) -> dict:
         issue = self.github.issue(repo, number)
@@ -229,7 +240,7 @@ class Gateway:
     def comment_list(self, repo: str, number: int, limit: int, cursor: str | None):
         self.repo(repo)
         issue = self.issue_or_refuse(repo, number)
-        start = int(cursor or 0)
+        start = self.offset(cursor)
         comments = issue.get("comments", [])
         page = comments[start : start + limit]
         rows = [
@@ -251,8 +262,6 @@ class Gateway:
     def _association(self, login: str | None, issue: dict) -> str:
         if login == self.config.owner:
             return "OWNER"
-        if login == self.config.bot:
-            return "BOT"
         author = issue.get("author") or {}
         return author.get("association", "NONE") if author.get("login") == login else "NONE"
 
@@ -336,7 +345,11 @@ class Gateway:
     # ── claims ────────────────────────────────────────────────────────────
 
     def issue_claim(self, repo: str, numbers: list[int], holder: dict, lease_hours: float | None):
+        """All or none: every issue is checked, and the whole write budget spent, before the
+        first write. A GitHub outage part-way leaves some claimed; retrying the same call
+        renews those and claims the rest."""
         self.repo(repo)
+        self.text(**{f"holder.{key}": value for key, value in holder.items()})
         now = self.now()
         plan = []
         for number in dict.fromkeys(numbers):
@@ -361,9 +374,9 @@ class Gateway:
                 )
             plan.append((issue, record, live))
         until = now + timedelta(hours=lease_hours or self.config.lease_hours)
+        self.spend("issue-claim", len(plan))
         rows = []
         for issue, record, live in plan:
-            self.spend("issue-claim")
             number = issue["number"]
             self.github.add_comment(repo, number, claim_rules.claim_body(holder, until))
             labels = [label for label in issue.get("labels", []) if not label.startswith("status:")]
@@ -384,10 +397,11 @@ class Gateway:
 
     def issue_release(self, repo: str, number: int, holder: dict, reason: str, force: bool):
         self.repo(repo)
-        self.text(reason=reason)
+        self.text(reason=reason, **{f"holder.{key}": value for key, value in holder.items()})
         issue = self.issue_or_refuse(repo, number)
         record = self.claim(repo, number)
-        if isinstance(record, Release) and record.branch == holder["branch"]:
+        same = (holder["branch"], holder["machine"])
+        if isinstance(record, Release) and (record.branch, record.machine) == same:
             return success(
                 {"released": True, "changed": False, "record": {"label": PLANNED}},
                 reasoning=f"Issue {number} was already released by {holder['branch']}",
@@ -399,7 +413,7 @@ class Gateway:
                 "Call claim-list to see what is held; there is nothing to release",
                 number=number,
             )
-        if not record.held_by(holder["branch"]) and not force:
+        if not record.held_by(*same) and not force:
             raise refuse(
                 "NOT_HOLDER",
                 f"Issue {number} is held by {record.describe()}, not by {holder['branch']} on "
@@ -437,7 +451,7 @@ class Gateway:
 
     def issue_comment(self, repo: str, number: int, body: str, dedupe_key: str | None):
         self.repo(repo)
-        self.text(body=body)
+        self.text(body=body, dedupe_key=dedupe_key)
         self.issue_or_refuse(repo, number)
         if dedupe_key:
             tag = f"<!-- {DEDUPE} {dedupe_key} -->"
@@ -457,7 +471,7 @@ class Gateway:
 
     def issue_create(self, repo: str, title: str, body: str, labels: list[str], dedupe_key):
         self.repo(repo)
-        self.text(title=title, body=body)
+        self.text(title=title, body=body, dedupe_key=dedupe_key)
         self.labels_known(repo, labels)
         if dedupe_key:
             tag = f"<!-- {DEDUPE} {dedupe_key} -->"
@@ -477,6 +491,14 @@ class Gateway:
 
     def branch_push(self, repo: str, ref: str, head: str, bundle: str):
         self.repo(repo)
+        self.text(ref=ref)
+        if not ref_is_well_formed(ref):
+            raise refuse(
+                "REF_NOT_ALLOWED",
+                f"{ref} is not a well-formed full ref",
+                "Pass a full ref such as refs/heads/<branch>, without '..', '//' or spaces",
+                ref=ref,
+            )
         if ref in self.config.protected_refs:
             raise refuse(
                 "PROTECTED_REF",
@@ -555,7 +577,14 @@ class Gateway:
 
     def pr_open(self, repo: str, branch: str, title: str, body: str, closes: list[int]):
         self.repo(repo)
-        self.text(title=title, body=body)
+        self.text(branch=branch, title=title, body=body)
+        if CLOSING_KEYWORD.search(body):
+            raise refuse(
+                "CLOSING_KEYWORD_IN_BODY",
+                "The body holds a closing keyword; the gateway writes those from closes[]",
+                "Remove 'Closes #N' (and fixes, resolves) from the body and pass the issues "
+                "in closes",
+            )
         if self.github.ref(repo, f"{HEADS_PREFIX}{branch}") is None:
             raise refuse(
                 "NO_BRANCH",
@@ -574,23 +603,25 @@ class Gateway:
             None,
         )
         if existing is not None:
-            changed = (existing.get("title"), existing.get("body"), existing.get("closes")) != (
-                title,
-                full,
-                closes,
-            )
+            if existing.get("author") != self.config.bot:
+                raise refuse(
+                    "NOT_GATEWAY_PR",
+                    f"Pull request {existing['number']} for {branch} was not opened by the gateway",
+                    "Ask the owner to close it or take it over; the gateway updates only the "
+                    "pull requests it opened",
+                    number=existing["number"],
+                )
+            changed = (existing.get("title"), existing.get("body")) != (title, full)
             if changed:
                 self.spend("pr-open")
-                self.github.update_pull(
-                    repo, existing["number"], title=title, body=full, closes=closes
-                )
+                self.github.update_pull(repo, existing["number"], title=title, body=full)
             return success(
                 self._opened(existing["number"], False, changed, closes),
                 reasoning=f"Pull request {existing['number']} "
                 f"{'updated' if changed else 'already open'}",
             )
         self.spend("pr-open")
-        number = self.github.create_pull(repo, branch, title, full, closes=closes)
+        number = self.github.create_pull(repo, branch, title, full)
         return success(self._opened(number, True, False, closes), reasoning=f"Opened {number}")
 
     def _opened(self, number: int, created: bool, updated: bool, closes: list[int]) -> dict:
@@ -638,21 +669,28 @@ class Gateway:
                 {"state": "merged", "autoMerge": False, "changed": False},
                 reasoning=f"Pull request {number} already merged",
             )
+        if state == "closed":
+            raise refuse(
+                "PR_CLOSED",
+                f"Pull request {number} is closed without merging",
+                "Call pr-status; reopen it on GitHub, or open a new one with pr-open",
+                number=number,
+            )
+        if cancel:
+            changed = bool(pull.get("autoMerge"))
+            if changed:
+                self.spend("pr-merge")
+                self.github.disable_auto_merge(repo, number)
+            return success(
+                {"state": "open", "autoMerge": False, "changed": changed},
+                reasoning=f"Auto-merge {'turned off' if changed else 'was already off'}",
+            )
         if pull["head"] != head:
             raise refuse(
                 "HEAD_MOVED",
                 f"Pull request {number}'s head is {pull['head']}, not {head}",
                 "The branch moved: validate its current head, record it, and merge that head",
                 head=pull["head"],
-            )
-        if cancel:
-            changed = bool(pull.get("autoMerge"))
-            if changed:
-                self.spend("pr-merge")
-                self.github.update_pull(repo, number, autoMerge=False)
-            return success(
-                {"state": "open", "autoMerge": False, "changed": changed},
-                reasoning=f"Auto-merge {'turned off' if changed else 'was already off'}",
             )
         return self._merge(repo, pull)
 
@@ -687,13 +725,13 @@ class Gateway:
         self.spend("pr-merge")
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
-            self.github.update_pull(repo, number, state="merged", mergedAt=iso(self.now()))
+            self.github.merge_pull(repo, number, head)
             self._release_on_merge(repo, pull)
             return success(
                 {"state": "merged", "autoMerge": False, "changed": True},
                 reasoning=f"Merged {number} at {head[:12]}",
             )
-        self.github.update_pull(repo, number, autoMerge=True, autoMergeHead=head)
+        self.github.enable_auto_merge(repo, number, head)
         return success(
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to squash-merge at {head[:12]} once its checks pass",
@@ -735,16 +773,11 @@ class Gateway:
                 )
                 continue
             self.spend("pr-revert")
-            branch = f"revert-{pull['number']}"
-            head = fake_head(f"revert:{pull['number']}:{pull['head']}")
-            self.github.update_ref(repo, f"{HEADS_PREFIX}{branch}", head)
-            created = self.github.create_pull(
+            created = self.github.create_revert(
                 repo,
-                branch,
+                pull["number"],
                 f"Revert #{pull['number']}",
                 f"Reverts #{pull['number']}.\n\n{reason}",
-                revertOf=pull["number"],
-                closes=[],
             )
             rows.append({"reverts": pull["number"], "number": created, "created": True})
         return success({"revertPrs": rows}, reasoning=f"{len(rows)} revert pull requests")

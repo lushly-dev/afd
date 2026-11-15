@@ -34,7 +34,8 @@ def build_gateway_host(
 ) -> CommandHost:
     """Build ``gateway-<route>``. ``context`` must use the ``remote-caller`` profile, whose
     target is the gateway's data directory; ``actor`` is who a call without its own
-    context (one the HTTP surface builds from the verified token) is made as."""
+    context (one the HTTP surface builds from the verified token) is made as. Every route's
+    host in one process takes the same ``state``, whose lock serialises their writes."""
     if route not in ROUTES:
         raise ValueError(f"Unknown gateway route {route!r}; use one of: {', '.join(ROUTES)}")
     if context.profile != "remote-caller":

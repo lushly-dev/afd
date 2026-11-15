@@ -1,4 +1,4 @@
-"""Text checked before it reaches GitHub: secret rules and the size limit.
+"""Text checked before it reaches GitHub: reserved markers, secret rules and the size limit.
 
 The built-in rules are a small subset of the gitleaks rule set (GitHub, AWS, Slack and
 private-key formats); a repository adds its own patterns in the configuration. A refusal
@@ -10,6 +10,18 @@ from __future__ import annotations
 import re
 
 from afd import CommandResult, error
+
+#: Hidden markers only the gateway writes: claims, releases, dedupe keys, and the legacy claim
+#: markers the cutover honours. A caller's text holding one could forge a claim or a key.
+RESERVED_MARKER = re.compile(
+    r"<!--\s*(?:botcore-factory:|factory-gateway:|lushly-issue-claim)", re.IGNORECASE
+)
+#: A closing keyword GitHub acts on; pr-open writes these from closes[] itself.
+CLOSING_KEYWORD = re.compile(
+    r"\b(?:close[sd]?|fix(?:e[sd])?|resolve[sd]?)\s*:?\s+(?:[\w.-]+/[\w.-]+)?#\d+",
+    re.IGNORECASE,
+)
+_BAD_REF = re.compile(r"(\.\.|//|@\{|[\x00-\x20~^:?*\[\\\x7f]|\.lock(?:/|$)|/\.|^\.|/$|\.$)")
 
 BUILT_IN_RULES: dict[str, str] = {
     "github-token": r"\bgh[pousr]_[A-Za-z0-9]{36,}\b",
@@ -35,6 +47,14 @@ def check_text(
     for field, text in fields.items():
         if not text:
             continue
+        if RESERVED_MARKER.search(text):
+            return error(
+                "RESERVED_MARKER",
+                f"{field} holds a marker only the gateway writes; nothing was written",
+                suggestion="Remove the <!-- botcore-factory:/factory-gateway: --> marker; "
+                "claims and dedupe keys go through issue-claim and dedupe_key",
+                details={"field": field},
+            )
         size = len(text.encode("utf-8"))
         if size > max_bytes:
             return error(
@@ -51,3 +71,9 @@ def check_text(
                     details={"field": field, "rule": name},
                 )
     return None
+
+
+def ref_is_well_formed(ref: str) -> bool:
+    """git check-ref-format's rules for a full ref: no ``..``, ``//``, ``@{``, control or
+    special characters, no component starting with ``.`` or ending ``.lock``."""
+    return ref.startswith("refs/") and not _BAD_REF.search(ref)

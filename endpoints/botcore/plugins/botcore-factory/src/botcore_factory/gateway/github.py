@@ -15,6 +15,7 @@ from __future__ import annotations
 import copy
 import hashlib
 import json
+import re
 from collections.abc import Iterator
 from contextlib import contextmanager
 from pathlib import Path
@@ -38,8 +39,24 @@ class GitHub(Protocol):
     def ref(self, repo: str, ref: str) -> str | None: ...
     def has_commit(self, repo: str, sha: str) -> bool: ...
     def update_ref(self, repo: str, ref: str, head: str) -> None: ...
-    def create_pull(self, repo: str, branch: str, title: str, body: str, **extra) -> int: ...
-    def update_pull(self, repo: str, number: int, **fields) -> None: ...
+    def create_pull(self, repo: str, branch: str, title: str, body: str) -> int:
+        """Open a pull request; GitHub links the issues its body's closing lines name."""
+        ...
+
+    def update_pull(self, repo: str, number: int, *, title: str, body: str) -> None: ...
+    def merge_pull(self, repo: str, number: int, head: str) -> str:
+        """Squash-merge at ``head`` (GitHub's sha guard); returns the merged-at time."""
+        ...
+
+    def enable_auto_merge(self, repo: str, number: int, head: str) -> None:
+        """Squash auto-merge bound to ``head`` (GraphQL expectedHeadOid)."""
+        ...
+
+    def disable_auto_merge(self, repo: str, number: int) -> None: ...
+    def create_revert(self, repo: str, number: int, title: str, body: str) -> int:
+        """A pull request reverting a merged one (GraphQL revertPullRequest)."""
+        ...
+
     def check_runs(self, repo: str, head: str) -> list[dict]: ...
     def create_check_run(self, repo: str, head: str, run: dict) -> None: ...
     def variable(self, repo: str, name: str) -> str | None: ...
@@ -263,14 +280,38 @@ class FakeGitHub:
                     "mergeable": "UNKNOWN",
                     "checks": [],
                     "autoMerge": False,
+                    "closes": _closes(body),
                     **extra,
                 }
             )
             return number
 
-    def update_pull(self, repo, number, **fields):
+    def update_pull(self, repo, number, *, title, body):
         with self._write(repo) as data:
-            self._pull(data, number).update(copy.deepcopy(fields))
+            self._pull(data, number).update(title=title, body=body, closes=_closes(body))
+
+    def merge_pull(self, repo, number, head):
+        with self._write(repo) as data:
+            pull = self._pull(data, number)
+            if pull["head"] != head:
+                raise ValueError("Head moved")  # GitHub answers 409 to a stale sha.
+            pull.update(state="merged", mergedAt=data.get("now"), autoMerge=False)
+            return pull["mergedAt"]
+
+    def enable_auto_merge(self, repo, number, head):
+        with self._write(repo) as data:
+            self._pull(data, number).update(autoMerge=True, autoMergeHead=head)
+
+    def disable_auto_merge(self, repo, number):
+        with self._write(repo) as data:
+            self._pull(data, number).update(autoMerge=False, autoMergeHead=None)
+
+    def create_revert(self, repo, number, title, body):
+        original = self.pull(repo, number)
+        branch = f"revert-{number}"
+        head = fake_head(f"revert:{number}:{original['head']}")
+        self.update_ref(repo, f"refs/heads/{branch}", head)
+        return self.create_pull(repo, branch, title, body, revertOf=number)
 
     def create_check_run(self, repo, head, run):
         with self._write(repo) as data:
@@ -281,6 +322,10 @@ class FakeGitHub:
     def set_variable(self, repo, name, value):
         with self._write(repo) as data:
             data.setdefault("variables", {})[name] = value
+
+
+def _closes(body: str) -> list[int]:
+    return [int(n) for n in re.findall(r"(?im)^closes #(\d+)$", body or "")]
 
 
 def comment_url(repo: str, number: int, comment_id: Any) -> str:
