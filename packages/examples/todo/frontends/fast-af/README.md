@@ -7,7 +7,7 @@ backend's `/mcp` endpoint.
 ```bash
 pnpm dev            # http://localhost:5173, against http://localhost:3100
 pnpm build          # dist/
-pnpm test:browser   # Chromium against a real TypeScript backend; build both first
+pnpm test:browser   # the shared Chromium suite against a real TypeScript backend; build both first
 ```
 
 `?backend=http://host:port` picks another backend. The page imports only the violet elements it

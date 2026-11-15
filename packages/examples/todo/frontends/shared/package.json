@@ -2,9 +2,11 @@
 	"name": "@afd/example-todo-ui",
 	"private": true,
 	"version": "0.0.0",
-	"description": "The to-do frontends' shared plain modules: the client, the session, view state and the trust summary",
+	"description": "The to-do frontends' shared modules: the client, the session, view state, the trust summary, the elements, the theme and the styles",
 	"type": "module",
 	"exports": {
+		"./styles.css": "./src/styles.css",
+		"./page-suite": "./test/page-suite.ts",
 		"./*": "./src/*.ts"
 	},
 	"scripts": {
@@ -15,12 +17,15 @@
 		"@lushly-dev/afd-client": "workspace:*",
 		"@lushly-dev/afd-core": "workspace:*",
 		"@lushly-dev/afd-server": "workspace:*",
-		"@lushly-dev/afd-view-state": "workspace:*"
+		"@lushly-dev/afd-view-state": "workspace:*",
+		"@lushly-dev/violet-elements": "workspace:*"
 	},
 	"devDependencies": {
 		"@afd/example-todo-ts": "workspace:*",
 		"@lushly-dev/afd-testing": "workspace:*",
 		"@types/node": "^26.6.6",
+		"axe-core": "4.14.0",
+		"playwright": "^1.64.1",
 		"typescript": "^7.0.2",
 		"vitest": "^5.1.0"
 	}
