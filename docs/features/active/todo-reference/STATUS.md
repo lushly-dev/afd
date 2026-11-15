@@ -21,7 +21,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Last verified:** 2026-11-15 on branch `t3/refresh-todo-afd-examples`, based on `main` at
   `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
 - **Done:** nothing merged yet.
-- **In progress:** phase 1 on `t3/refresh-todo-afd-examples`, in a pull request (number below) that
+- **In progress:** phase 1 on `t3/refresh-todo-afd-examples`, in [#1231](https://github.com/lushly-dev/afd/pull/1231), which
   is not yet merged.
 - **Not started:** phases 2 to 5.
 
