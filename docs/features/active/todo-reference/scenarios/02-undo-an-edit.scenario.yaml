@@ -1,0 +1,48 @@
+# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# Limit: `expect` cannot assert `undoCommand`; the draft says todo-update's result carries
+# undoCommand: todo-update and undoArgs holding the previous value of each changed field.
+# Limit: a step's input must be an object, so these steps pass each undoArgs field by name
+# where an agent passes the whole object; a missing field fails the reference.
+name: Undo an edit
+description: >-
+  When an edit to a todo turns out wrong, I want to put back what it said before, so that a
+  mistaken rename or reprioritisation by me or an agent costs nothing.
+job: undo-an-edit
+tags: [undo]
+steps:
+  - description: A todo exists
+    command: todo-create
+    input: { title: Order seed potatoes, priority: low }
+    expect:
+      success: true
+  - description: Its title and priority are changed
+    command: todo-update
+    input:
+      id: "${{ steps[0].data.id }}"
+      title: Order seed potatoes and onion sets
+      priority: high
+    expect:
+      success: true
+      data:
+        title: Order seed potatoes and onion sets
+        priority: high
+  - description: The result's undo arguments put both fields back
+    command: todo-update
+    input:
+      id: "${{ steps[1].undoArgs.id }}"
+      title: "${{ steps[1].undoArgs.title }}"
+      priority: "${{ steps[1].undoArgs.priority }}"
+    expect:
+      success: true
+      data:
+        title: Order seed potatoes
+        priority: low
+  - description: The todo reads as it did before the edit
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        title: Order seed potatoes
+        priority: low
+        completed: false

@@ -1,0 +1,86 @@
+# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# Limit: `expect` cannot assert `undoCommand`, so step 2 names todo-update itself. The draft says
+# todo-toggle's result carries undoCommand: todo-update and undoArgs: { id, completed }, and
+# todo-toggle-batch with `completed` given carries undoCommand: todo-toggle-batch and undoArgs:
+# { ids: <those it changed>, completed: <their previous value> }. The steps prove the undoArgs
+# are valid input and restore the state.
+# Limit: a step's input must be an object, so these steps pass each undoArgs field by name
+# where an agent passes the whole object; a missing field fails the reference.
+name: Undo a completion
+description: >-
+  When I or an agent mark todos done by mistake, one or many, I want to take that back in one
+  step, so that they are open again exactly as they were without my remembering what they said.
+job: undo-a-completion
+tags: [slice, undo]
+steps:
+  - description: An open todo exists
+    command: todo-create
+    input: { title: Water the seedlings in the cold frame, priority: high }
+    expect:
+      success: true
+      data:
+        completed: false
+  - description: It is marked done
+    command: todo-toggle
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        completed: true
+  - description: The result's undo arguments reopen it
+    command: todo-update
+    input:
+      id: "${{ steps[1].undoArgs.id }}"
+      completed: "${{ steps[1].undoArgs.completed }}"
+    expect:
+      success: true
+      data:
+        completed: false
+  - description: It reads as it did before, title and priority unchanged
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        title: Water the seedlings in the cold frame
+        priority: high
+        completed: false
+        completedAt: { notExists: true }
+  - description: Two more open todos exist
+    command: todo-create-batch
+    input:
+      todos:
+        - { title: Hoe the onion bed }
+        - { title: Tie in the sweet peas }
+    expect:
+      success: true
+  - description: An agent marks both done in one call
+    command: todo-toggle-batch
+    input:
+      ids:
+        - "${{ steps[4].data.succeeded[0].id }}"
+        - "${{ steps[4].data.succeeded[1].id }}"
+      completed: true
+    expect:
+      success: true
+  - description: One undo reopens both
+    command: todo-toggle-batch
+    input:
+      ids: "${{ steps[5].undoArgs.ids }}"
+      completed: "${{ steps[5].undoArgs.completed }}"
+    expect:
+      success: true
+  - description: The first is open again
+    command: todo-get
+    input: { id: "${{ steps[4].data.succeeded[0].id }}" }
+    expect:
+      success: true
+      data:
+        completed: false
+  - description: So is the second
+    command: todo-get
+    input: { id: "${{ steps[4].data.succeeded[1].id }}" }
+    expect:
+      success: true
+      data:
+        completed: false
