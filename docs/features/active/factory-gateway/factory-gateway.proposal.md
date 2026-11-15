@@ -15,7 +15,7 @@ the claims themselves.
   GitHub, like the one [Entire](https://entire.com) adds, could make GitHub work better for
   agents. The answer was yes, but not as a parallel forge: as the agents' only route to GitHub,
   built from the AFD pieces that already exist.
-- **Relation to the [Software Factory](../../proposed/software-factory/software-factory.proposal.md):**
+- **Relation to the [Software Factory](../software-factory/software-factory.proposal.md):**
   this is the factory's GitHub side. The factory's commands stay as they are; the GitHub calls
   inside them (claims in `cells.py`, the queue push in `queue.py`, the reads and writes in
   `real_world.GhGitHub`) go through the gateway.
@@ -74,7 +74,7 @@ which has run a fleet since 2026-11-11, shows what that costs:
   rerun".
 
 None of this limits merge throughput, which local validation sets (the factory's
-[Capacity](../../proposed/software-factory/software-factory.proposal.md#capacity)). It limits trust,
+[Capacity](../software-factory/software-factory.proposal.md#capacity)). It limits trust,
 cost and the record: anything that can write can write anything, every agent re-derives GitHub's
 rules and spends the owner's request budget, and nobody can say afterwards which agent did what.
 
@@ -102,7 +102,7 @@ and it does not change how fast the lane validates.
 | Fact | Where it was read |
 |---|---|
 | botcore's `CommandHost` builds the CLI (`catalog`, `call`), the MCP tools and a DirectClient from one registry; every command has a `CommandPolicy` of effects, a host may narrow and never widen it, and an unadmitted effect is refused with `EFFECT_DENIED`; on any profile but `trusted-local` every effect other than `inspect` is refused | `endpoints/botcore/src/botcore/host.py`; `endpoints/botcore/docs/host-composition.md` |
-| The host registers each command under its Python function's name (`issue_claim`); an unknown name fails with `COMMAND_NOT_FOUND` and "Inspect the host catalog". The factory proposal already plans catalog and wrong-case changes for its Phase 1 | `host.py`, `build_host` and `execute`; the factory proposal, [The plugin and its host](../../proposed/software-factory/software-factory.proposal.md#the-plugin-and-its-host) |
+| The host registers each command under its Python function's name (`issue_claim`); an unknown name fails with `COMMAND_NOT_FOUND` and "Inspect the host catalog". The factory proposal already plans catalog and wrong-case changes for its Phase 1 | `host.py`, `build_host` and `execute`; the factory proposal, [The plugin and its host](../software-factory/software-factory.proposal.md#the-plugin-and-its-host) |
 | The MCP surface is a plain FastMCP server with three tools (`<host>-start`, `-call`, `-docs`) and no authentication hook; its `call` passes no context to `host.execute`, so AFD's journal middleware, which writes to the context, cannot run behind it as it stands | `endpoints/botcore/src/botcore/host_surfaces.py`; `python/src/afd/server/journal.py` |
 | Confirmations, approvals and output budgets belong to AFD's MCP server, which botcore's host does not use | [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/output-budgets.md`](../../../../spec/output-budgets.md); `host_surfaces.py` |
 | The factory separates callers by host (`factory-cell`, `factory`), wraps `gh` in `GhGitHub`, claims with a label and a `botcore-factory:claim {branch, machine, leaseUntil}` comment (`claims.py`, `cells.py`), and `lane-enqueue` pushes the cell's head to `refs/factory/queue/<branch>` from the cell's worktree | `botcore-factory/src/botcore_factory/hosts.py`, `real_world.py`, `claims.py`, `cells.py`, `queue.py` |

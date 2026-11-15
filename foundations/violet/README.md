@@ -1,6 +1,6 @@
 # Violet foundation
 
-Violet's native token engine and web runtime, imported from [lushly-dev/violet](https://github.com/lushly-dev/violet) main `59b4bfa6` in platform migration Phase 3. File-level hashes and the reason for every adaptation are in [`provenance`](./provenance/provenance.json); the public contract changes are in the [transition notes](../../docs/features/active/platform-monorepo/violet-transition.md).
+Violet's native token engine and web runtime, imported from [lushly-dev/violet](https://github.com/lushly-dev/violet) main `59b4bfa6` in platform migration Phase 3. File-level hashes and the reason for every adaptation are in [`provenance`](./provenance/provenance.json); the public contract changes are in the [transition notes](../../docs/features/complete/platform-monorepo/violet-transition.md).
 
 | Unit | Layer | Path | Contract |
 | --- | --- | --- | --- |

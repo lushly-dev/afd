@@ -70,7 +70,7 @@ coverage_paths = ["src/"]
 trend_issue = 1098
 
 # The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
-# docs/features/proposed/software-factory). Botcore reads a plugin's settings under
+# docs/features/active/software-factory). Botcore reads a plugin's settings under
 # [plugins.<entry point>]. Commands are argument lists, run in the cell's worktree. The lane's
 # other keys (validate, coverage, install, required_check, ...) arrive with the commands that run
 # them. review_evidence waits for prepare-pr's lane mode, which records the reviewed head; until

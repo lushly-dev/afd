@@ -4,19 +4,19 @@
 
 - **State:** draft. Filled in 2026-11-13 against `main` at `f7ecbd43`: jobs, a design, ten
   drafted commands and nine scenario files that pass the three checks. Walked once by a fresh
-  reader covering three seats ([section 7](#7-what-the-walk-changed)); not reviewed, not
+  reader covering three seats ([section 7](#7-what-the-walk-changed)); reviewed and revised in the same proposal set, not
   approved. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-13 at `f7ecbd43`. The mechanisms in [the design](#4-design) draw on the owner's earlier
   editor work in a private repository, read for ideas only; nothing here depends on it.
-- **Next:** an independent review, then the owner cuts, adds and ranks the jobs and decides
+- **Next:** the owner cuts, adds and ranks the jobs and decides
   [section 9](#9-for-the-owner).
 
 | Field | Value |
 | --- | --- |
 | Epic | [#1110](https://github.com/lushly-dev/afd/issues/1110) |
 | Units likely touched | `foundations/specimen` (the host and the review page), `integrations/specimen-afd`, `endpoints/specimen-cli`; for the preview, Specimen's Violet work (T09) and `integrations/violet-afd` |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../active/specimens/STATUS.md) (T09, T10) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Patterns](../patterns/patterns.proposal.md), [Specimens status](../../complete/specimens/STATUS.md) (T09, T10) |
 | Rank among the four | Third. Design Decisions' review is the first surface to point from; pointing in the running application ([question 1](#8-recommended-answers-to-the-open-questions)) would not need it |
 
 ## 1. Problem
@@ -62,9 +62,9 @@ Read first-hand on 2026-11-13 at `f7ecbd43`.
   accessibility node belongs to (`host/src/page.rs:361-392`). For a custom element whose shadow
   root holds a native `<button>`, that is the inner button, not the custom element.
 - **T09, Violet context and impact, and T10, the Violet lens,** are "Not started, optional"
-  ([status](../../active/specimens/STATUS.md)). The Specimens proposal plans `specimen-impact`,
+  ([status](../../complete/specimens/STATUS.md)). The Specimens proposal plans `specimen-impact`,
   taking an offline snapshot and `changes.impact`'s input, returning "observed render effects per
-  node/state" (`docs/features/proposed/specimens/specimens.proposal.md:165`).
+  node/state" (`docs/features/complete/specimens/specimens.proposal.md:165`).
 
 ### Violet
 

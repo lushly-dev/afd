@@ -3,13 +3,17 @@
 > Proposal: Provider-agnostic authentication layer enabling zero-friction migration
 
 ---
-status: active
+status: complete
 created: 2026-01-11
 updated: 2026-01-31
 origin: Discussion on stack choices (Convex + BetterAuth vs Stytch/Supabase)
 effort: M (3-5 days)
-spec: [spec.md](./spec.md)
+spec: [auth-adapter.spec.md](./auth-adapter.spec.md)
 ---
+
+> **Delivery status (2026-11-13): complete for the adapter package and auth commands**
+> in `packages/auth` (#125), with later integration and refresh fixes. This is application sign-in;
+> [MCP authorization](../../active/mcp-authorization/STATUS.md) has its own remaining ports.
 
 ## Problem
 
@@ -434,4 +438,4 @@ pnpm vitest run --environment edge-runtime
 
 ---
 
-*Status: Ready — revised after review*
+*Design review snapshot: ready after revision; implementation subsequently shipped in #125.*

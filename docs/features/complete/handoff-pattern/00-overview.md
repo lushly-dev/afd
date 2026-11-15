@@ -1,6 +1,6 @@
 # Handoff Pattern: Commands That Bootstrap Specialized Protocols
 
-> **Status**: Active Spec  
+> **Status**: Complete: core handoff contract (#24), chat example (#28), client transports (#156)
 > **GitHub Issue**: [#18](https://github.com/lushly-dev/afd/issues/18)
 
 ## Vision
@@ -61,7 +61,12 @@ AFD commands are **request-response**. But real applications need:
 | [05-security.md](./05-security.md) | Token rotation, expiry, CORS |
 | [06-example.md](./06-example.md) | Complete streaming example |
 
-## Success Criteria
+## Original success criteria (historical)
+
+The checklist below preserves the original proposed API spelling. The delivered contract lives in
+`packages/core/src/handoff.ts`, client transports in `packages/client/src`, and the working example
+in `packages/examples/chat`. Subsequent cross-language gaps belong to the
+[parity plan](../../active/parity-closure/STATUS.md).
 
 - [ ] `HandoffResult` is a standard type in `@afd/core`
 - [ ] Commands can declare `handoff: true` in their definition
@@ -89,4 +94,4 @@ AFD commands are **request-response**. But real applications need:
 ## Related
 
 - DirectClient - See `afd-directclient` skill for in-process command execution
-- [Mint Collaboration](./rust-distribution/05-collaboration-sync.md) - Real-time sync layer (builds on handoff)
+- [Mint Collaboration](../../proposed/rust-distribution/05-collaboration-sync.md) - Real-time sync layer (builds on handoff)

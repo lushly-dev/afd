@@ -1,5 +1,7 @@
 # Zero Chat Tool Commands
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed for the external `fabric-ux-prototype` app. AFD prerequisites are available, but implementation in that other repository was not verified by this audit; this repository cannot claim those canvas commands shipped.
+
 > Plan: Add canvas-awareness commands to the Zero chat agent — perception (read selection, inspect components, query routes, walk DOM, capture screenshots) and manipulation (edit attributes, navigate, select elements, toggle overlays)
 
 ---

@@ -1,5 +1,7 @@
 # Mint Distribution Framework - Plan Overview
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Research for the external private Mint framework. No Mint distribution implementation is present here. Loam and Umbel have their own active plans; this audit does not infer delivery in the private repository.
+
 > **Disposition (2026-10-25, audit #349):** **Proposed (research).** Mint is a private framework in a separate repository that builds on AFD; none of its service layer, UI heads or distribution targets are in this repository. [06-future-phases.md](./06-future-phases.md) is explicitly not committed. Stays research.
 
 
@@ -219,7 +221,7 @@ Four-layer testing from conformance (foundation) through JTBD scenarios (behavio
 
 **See:** [04-testing-conformance.md](./04-testing-conformance.md)
 
-**Related:** [JTBD Testing Framework](../Archive/jtbd-testing/00-overview.plan.md) - Layer 4 detailed specification
+**Related:** [AFD job scenarios](../../../../.claude/skills/afd/references/jobs-first.md) - Layer 4 detailed specification
 
 ### Part 5: Collaboration & Sync
 

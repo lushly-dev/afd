@@ -746,7 +746,7 @@ flowchart TD
   `endpoints/loam/apps/*` and
   the release inventory gains the units when the first manifest lands.
   Every unit starts quarantined under the
-  [platform migration](../../../docs/features/active/platform-monorepo/)
+  [platform migration](../../../docs/features/complete/platform-monorepo/)
   rules. Generic features land in AFD first; section 9 lists them.
   Authoring skills are declared in `skills/exports.json`.
 - **Decisions.** Architecture decisions are dated entries in the

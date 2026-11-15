@@ -12,7 +12,7 @@ behavior until [#533](https://github.com/lushly-dev/afd/issues/533) decides it (
 [Current differences](#current-differences)). The [hybrid strategy](#hybrid) is new and normative.
 In it, **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in RFC 2119.
 
-The [hybrid tool strategy proposal](../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md)
+The [hybrid tool strategy proposal](../docs/features/complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md)
 explains why the hybrid exists and records the owner's decisions it follows.
 
 ## Terms
@@ -368,4 +368,4 @@ name, which every strategy serves, so it does not change.
 | `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | Planned |
 | Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |
 
-Progress is recorded in the [hybrid tool strategy status](../docs/features/active/hybrid-tool-strategy/STATUS.md).
+Progress is recorded in the [hybrid tool strategy status](../docs/features/complete/hybrid-tool-strategy/STATUS.md).

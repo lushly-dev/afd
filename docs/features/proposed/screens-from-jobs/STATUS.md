@@ -188,7 +188,7 @@ exactly. Every list is now asserted by a dotted index path.
 | 2026-11-12 | First Patterns draft | Raised in the [Patterns status](../patterns/STATUS.md#follow-ups-not-yet-issues) as Specimen's application-command runner (T11) letting one scenario drive a screen to a state; this proposal is where it is now tracked | Moved here |
 | 2026-11-13 | Scaffold survey | `onStepComplete` in `packages/testing` is synchronous, not awaited, and fires for skipped steps | Addressed in the draft: phase 1 adds awaited `beforeStep` and `afterStep` hooks and leaves `onStepComplete` as it is |
 | 2026-11-13 | Review | Add `.specimen/` to the root `.gitignore`. Shared with Design Decisions, whose phase 1 adds it | Open; Design Decisions' phase 1 |
-| 2026-11-13 | Draft | If the owner agrees that this is T11's design, link it from T11's row in the [Specimens status](../../active/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Open; waits on the owner |
+| 2026-11-13 | Draft | If the owner agrees that this is T11's design, link it from T11's row in the [Specimens status](../../complete/specimens/STATUS.md). That file is provenance-tracked, so run its provenance script | Open; waits on the owner |
 
 ## Session log
 

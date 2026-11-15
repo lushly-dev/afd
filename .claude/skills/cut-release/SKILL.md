@@ -85,7 +85,7 @@ A new crate's first version is a one-time manual upload, because crates.io offer
 
 ## Botcore (PyPI)
 
-The first AFD release, 0.6.0, waits for the owner steps in the [handoff record](../../../docs/features/active/platform-monorepo/botcore-handoff.md): `lushly-dev/botcore` loses its PyPI publisher before AFD's is added, so two repositories never publish at once.
+The first AFD release, 0.6.0, waits for the owner steps in the [handoff record](../../../docs/features/complete/platform-monorepo/botcore-handoff.md): `lushly-dev/botcore` loses its PyPI publisher before AFD's is added, so two repositories never publish at once.
 
 1. Set the version in `endpoints/botcore/pyproject.toml` and `__version__`, keeping them equal, then run `uv lock` in `endpoints/botcore`.
 2. These are imported files: re-hash their rows in both `adaptations.json` copies (`endpoints/botcore/provenance/` and `src/botcore/provenance/`), and the `adaptations` digest in both `provenance.json` copies, with an `IMPORT_REASONS` entry in `scripts/record_provenance.py` for each. The provenance test and `package_smoke.py` fail otherwise.

@@ -1,6 +1,8 @@
 # AFD Rust Support - Plan Overview
 
-> **Current status (2026-10-12):** The in-process core library is published as
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Partially implemented; stays proposed. Core, WASM and the optional MCP server are implemented; crates.io release and trusted publishing are recorded. Proc macros, the sketched examples, cargo-dist distribution and named-client interop remain unverified or unbuilt, as listed below.
+
+> **Historical release checkpoint (2026-10-12):** The in-process core library is published as
 > [`afd` 0.1.0](https://crates.io/crates/afd/0.1.0), tagged `rust-v0.1.0`.
 > [Release evidence](../../../operations/native-first-releases.md) covers registry
 > consumers and the GitHub trusted-publisher configuration. This historical
@@ -86,7 +88,7 @@ afd/
 - [x] Pass shared conformance test suite
 - [ ] General-purpose MCP transports work with Claude Desktop and Cursor (stdio and Streamable HTTP ship behind the `server` feature, #394; client interop is not verified)
 - [x] Build for Windows, Mac, Linux, and WASM
-- [x] crates.io 0.1.0 published; GitHub trusted publisher configured (the tag check skips the existing version; a future release must verify an actual OIDC upload)
+- [x] crates.io publication and trusted-publisher upload verified: 0.1.0 was the bootstrap, 0.2.0 exercised OIDC, and 0.2.1 is recorded in the [release receipt](../../../operations/native-first-releases.md)
 - [ ] cargo-dist distribution framework (outside the released core library)
 
 ## Timeline
@@ -103,5 +105,5 @@ afd/
 ## Related Plans
 
 - **[Mint Distribution](../rust-distribution/00-overview.md)** - Private framework that builds ON TOP of AFD Rust for multi-platform distribution
-- **[Performance](../performance/06-performance.plan.md)** - Command batching and streaming (applies to all AFD implementations)
+- **[Pipeline execution](../../complete/command-pipeline/00-overview.md)** - Command batching and streaming (applies to all AFD implementations)
 - **[Design-to-Code](../design-to-code/00-overview.md)** - Schema discovery commands (to be implemented in Rust)

@@ -1,6 +1,6 @@
 # Handoff Pattern: Commands That Bootstrap Specialized Protocols
 
-*Status: Concept — to be explored further*
+*Status: historical concept, superseded by the [delivered handoff specification](00-overview.md).*
 
 ---
 

@@ -1,5 +1,7 @@
 # Feature Proposal: Middleware Defaults
 
+> **Status (2026-11-13):** Complete: `defaultMiddleware()` and its tests shipped in #126. See `packages/server/src/middleware.ts` for the current bundle.
+
 ## 1. Summary
 Provide a `defaultMiddleware()` bundle that covers common observability needs (timing, logging, trace IDs) out of the box.
 

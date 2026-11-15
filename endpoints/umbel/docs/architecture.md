@@ -269,7 +269,7 @@ sequenceDiagram
   such as the four above, with lazy discovery for the rest; this hybrid
   strategy is decision [D27](decisions.md) and an AFD feature for every
   language before Umbel uses it, in the
-  [hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
+  [hybrid tool strategy proposal](../../../docs/features/complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md).
   Documents are also resources; workflows are prompts. Tool lists carry cache hints and a stable
   order.
 - **Skills.** Plugins contribute skills, and the host delivers them three
@@ -674,7 +674,7 @@ material, from loosest to strongest:
   dependency, if one emerges, goes under `foundations/umbel/`. When the
   first manifest lands, its units join the release inventory
   (`scripts/release/inventory.json`) and every unit starts quarantined under
-  the [platform migration](../../../docs/features/active/platform-monorepo/)
+  the [platform migration](../../../docs/features/complete/platform-monorepo/)
   rules. Its `families` list in `architecture.json` does not change: it names
   foundation families only, and the boundary check classifies any manifest
   under `endpoints/umbel/`, `Cargo.toml` included, as an endpoint unit of the
@@ -746,7 +746,7 @@ criterion.
 | Rust lazy and grouped strategies, meta-tools and AFD contexts | Phase 0 | [Language parity](../../../docs/language-parity.md), D1; done in #526 |
 | Rust `structuredContent` and top-level `outputSchema` | Phase 0 | #465; Rust done in #523 |
 | A per-request context hook on the Rust MCP server, so middleware can set the actor and credentials | Phase 0, version 0; phase 5 | MCP Authorization's Rust layer; the hook landed in #523, and binding confirmations to the actor and credentials is #532, done 2026-11-07 in step 0c of the [phase 5 plan](phases/5-auth-hosted/spec.md#16-implementation-plan) |
-| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); spec in #538; TypeScript #556, Python #555 and Rust #560 done; C++ waits on parity D2 and does not block Umbel |
+| The hybrid tool strategy, a few first-class tools plus lazy discovery, for every language | Phase 0 (D27) | [Hybrid tool strategy proposal](../../../docs/features/complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); spec in #538; TypeScript #556, Python #555 and Rust #560 done; C++ waits on parity D2 and does not block Umbel |
 | A process-shared mode for the Rust `FileJournalSink`, so several host processes append to one journal under one lock ([D29](decisions.md)) | Phase 0 | Step 0 of the [phase 0 plan](phases/0-host-skeleton/spec.md#step-0-the-afd-pull-request); not started |
 | Interface selection on the Rust `DirectClient`, as TypeScript and Python have ([D34](decisions.md)) | Phase 0 | Step 0 of the phase 0 plan; not started |
 | MCP resources, the Skills extension and per-command tool `_meta` in AFD servers, reconciled with the Skill Knowledge Layer ([D47](decisions.md)) | Phase 1 | Step 0 of the [phase 1 plan](phases/1-plugin-contract/spec.md#step-0-afd-first): the AFD feature proposal [MCP resources and skills](../../../docs/features/active/mcp-resources-skills/mcp-resources-skills.proposal.md) and [`spec/mcp-resources.md`](../../../spec/mcp-resources.md), done 2026-11-01 (step 0a); the Rust implementation is step 0b. Shared with Loam, which also needs `ui://` resources for MCP Apps views. Prompts follow when a phase needs them |

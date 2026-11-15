@@ -26,7 +26,7 @@ records which hold, and Umbel serves the result.
 | --- | --- |
 | Epic | [#1073](https://github.com/lushly-dev/afd/issues/1073) |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (its `components` plugin), `endpoints/loam` (its specimens and design record) |
-| Related | [Specimens status](../../active/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
+| Related | [Specimens status](../../complete/specimens/STATUS.md), [Component Briefs status](../../complete/component-briefs/STATUS.md), [pack format](../../../../foundations/specimen/docs/pack-format.md), [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md), [Loam design skill](../../../../.claude/skills/loam-design/SKILL.md) |
 
 ## 1. Problem and goal
 

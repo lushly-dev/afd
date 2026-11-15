@@ -12,7 +12,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Spec | [`spec/journal.md`](../../../../spec/journal.md), [`spec/protocol-conformance.md`](../../../../spec/protocol-conformance.md), [MCP 2026-07-28](https://modelcontextprotocol.io/specification/2026-07-28) per-request `_meta` |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (journal only) |
-| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), #523 (Rust per-request context hook, merged 2026-10-31), [Hybrid tool strategy](../../active/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) (also changes `spec/`), #431 (no caller-declared actor) |
+| Related | [Loam architecture, AFD prerequisites](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), [Umbel spaces (D26)](../../../../endpoints/umbel/docs/decisions.md), [Browser-safe direct registry](../browser-direct-registry/proposal.md) (#527), #466 (meta-tool `context` argument), #523 (Rust per-request context hook, merged 2026-10-31), [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md) (also changes `spec/`), #431 (no caller-declared actor) |
 
 ## Why
 
