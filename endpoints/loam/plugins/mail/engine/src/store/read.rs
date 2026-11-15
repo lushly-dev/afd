@@ -121,7 +121,7 @@ pub struct PartRow {
 
 /// The columns a [`MessageListed`] is read from, after `envelope` joined
 /// with `message`.
-const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
+pub(super) const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
     envelope.sender_address, envelope.sender_name, envelope.subject, envelope.snippet,
     envelope.attachments, message.reported_size,
     EXISTS (SELECT 1 FROM held WHERE held.message_id = envelope.message_id
@@ -134,7 +134,7 @@ const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
     (SELECT count(*) FROM part WHERE part.message_id = envelope.message_id
      AND part.type_differs = 1)";
 
-fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
+pub(super) fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
     let precedence: String = row.get(14)?;
     let auto_submitted: String = row.get(15)?;
     Ok(MessageListed {

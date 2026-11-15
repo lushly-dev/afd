@@ -2,3 +2,5 @@
 
 #[allow(unreachable_pub)]
 pub mod imap;
+#[allow(unreachable_pub)]
+pub mod synced;

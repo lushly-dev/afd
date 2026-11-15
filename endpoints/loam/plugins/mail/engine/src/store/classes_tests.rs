@@ -5,205 +5,8 @@
 
 use rusqlite::types::Value;
 
+use super::test_mail::*;
 use super::*;
-
-const DAY: i64 = 24 * 60 * 60 * 1000;
-const BASE: i64 = 1_637_446_921_000;
-const NOW: i64 = BASE + 400 * DAY;
-const PERSON: &str = "person@example.com";
-
-struct Mail {
-    _directory: tempfile::TempDir,
-    store: Store,
-    account: AccountId,
-    inbox: MailboxId,
-    sent: MailboxId,
-    archive: MailboxId,
-    next: u32,
-}
-
-impl Mail {
-    fn new() -> Self {
-        let directory = tempfile::tempdir().unwrap();
-        let home = Home::at(directory.path().join("data"));
-        let mut store = Store::open(&home).unwrap();
-        let account = store.add_account("icloud", PERSON, 1).unwrap();
-        let mut mailbox = |key: &'static str, role| {
-            store
-                .upsert_mailbox(
-                    account,
-                    &MailboxSeen {
-                        provider_key: key,
-                        name: key,
-                        role,
-                    },
-                    NOW,
-                )
-                .unwrap()
-        };
-        let inbox = mailbox("INBOX", Role::Inbox);
-        let sent = mailbox("Sent Messages", Role::Sent);
-        let archive = mailbox("Archive", Role::Archive);
-        Self {
-            _directory: directory,
-            store,
-            account,
-            inbox,
-            sent,
-            archive,
-            next: 1,
-        }
-    }
-
-    /// Records a message's headers in `mailbox`. `fields` are header lines
-    /// after `From`, `Message-ID`, the date and the subject, `s<number>`.
-    fn add(&mut self, mailbox: MailboxId, from: &str, fields: &[&str]) -> MessageId {
-        self.add_seen(mailbox, from, fields).0
-    }
-
-    fn add_seen(
-        &mut self,
-        mailbox: MailboxId,
-        from: &str,
-        fields: &[&str],
-    ) -> (MessageId, HeaderSeen) {
-        let number = self.next;
-        self.next += 1;
-        let seen = header(number, from, fields);
-        self.store
-            .record_headers(mailbox, "", std::slice::from_ref(&seen), NOW)
-            .unwrap();
-        let message = self
-            .store
-            .find_message(&seen.header_block, seen.reported_size)
-            .unwrap()
-            .unwrap();
-        (message, seen)
-    }
-
-    /// Records a message whole: its headers, then its body, which gives it
-    /// its template key. Every message one sender sends this way has the
-    /// same template: the subject's shape and the structure are the same.
-    fn add_whole(&mut self, mailbox: MailboxId, from: &str, fields: &[&str]) -> MessageId {
-        let (message, seen) = self.add_seen(mailbox, from, fields);
-        let bytes = [seen.header_block.as_slice(), b"Offers this week.\r\n"].concat();
-        self.store
-            .record_parts(
-                &[PartSeen {
-                    message,
-                    place: Place::Whole,
-                    bytes: &bytes,
-                }],
-                NOW,
-            )
-            .unwrap();
-        message
-    }
-
-    fn class(&self, message: MessageId) -> Option<String> {
-        self.store
-            .connection
-            .query_row(
-                "SELECT class FROM screening WHERE message_id = ?1",
-                [message.0],
-                |row| row.get(0),
-            )
-            .optional()
-            .unwrap()
-    }
-
-    fn listed(&self, message: MessageId) -> Option<bool> {
-        self.store
-            .connection
-            .query_row(
-                "SELECT listed FROM screening WHERE message_id = ?1",
-                [message.0],
-                |row| row.get(0),
-            )
-            .optional()
-            .unwrap()
-    }
-
-    fn mailbox(&mut self, key: &'static str, role: Role) -> MailboxId {
-        self.store
-            .upsert_mailbox(
-                self.account,
-                &MailboxSeen {
-                    provider_key: key,
-                    name: key,
-                    role,
-                },
-                NOW,
-            )
-            .unwrap()
-    }
-
-    fn decide(&mut self, address: &str, decision: Option<Decision>) -> Decided {
-        self.store.decide(address, decision, NOW).unwrap()
-    }
-
-    /// The derived rows screening keeps.
-    fn derived(&self) -> Vec<Vec<Vec<Value>>> {
-        vec![
-            table(&self.store, "SELECT * FROM screening ORDER BY message_id"),
-            table(&self.store, "SELECT * FROM template ORDER BY key"),
-        ]
-    }
-
-    /// What the person decided and agents suggested.
-    fn kept(&self) -> Vec<Vec<Vec<Value>>> {
-        vec![
-            table(
-                &self.store,
-                "SELECT * FROM sender_decision ORDER BY address",
-            ),
-            table(&self.store, "SELECT * FROM sender_suggestion ORDER BY id"),
-        ]
-    }
-
-    /// The rows a batch at a time gave are those classing everything from
-    /// nothing gives.
-    fn assert_as_from_nothing(&mut self) {
-        let before = self.derived();
-        self.store.classify_everything().unwrap();
-        assert_eq!(self.derived(), before);
-    }
-}
-
-fn header(number: u32, from: &str, fields: &[&str]) -> HeaderSeen {
-    let date = mail_parser::DateTime::from_timestamp((BASE + i64::from(number) * DAY) / 1000);
-    let mut block = format!(
-        "From: {from}\r\nMessage-ID: <m{number}@example.com>\r\nDate: {}\r\nSubject: s{number}\r\n",
-        date.to_rfc822()
-    );
-    for field in fields {
-        block.push_str(field);
-        block.push_str("\r\n");
-    }
-    block.push_str("\r\n");
-    HeaderSeen {
-        provider_id: number.to_string(),
-        provider_thread: None,
-        reported_size: 1000 + u64::from(number),
-        internal_date: Some(BASE + i64::from(number) * DAY),
-        flags: Vec::new(),
-        header_block: block.into_bytes(),
-    }
-}
-
-fn table(store: &Store, sql: &str) -> Vec<Vec<Value>> {
-    let mut statement = store.connection.prepare(sql).unwrap();
-    let columns = statement.column_count();
-    statement
-        .query_map([], |row| {
-            (0..columns)
-                .map(|column| row.get::<_, Value>(column))
-                .collect()
-        })
-        .unwrap()
-        .collect::<Result<_, _>>()
-        .unwrap()
-}
 
 fn agent(id: &str) -> Proposer {
     Proposer {
@@ -460,7 +263,10 @@ fn a_store_that_held_mail_before_classes_is_classed_when_opened() {
             .unwrap();
     }
     let store = Store::open(&home).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 8);
+    assert_eq!(
+        store.schema_version().unwrap(),
+        u32::try_from(schema::MIGRATIONS.len()).unwrap()
+    );
     let classes = table(&store, "SELECT message_id, class FROM screening");
     assert_eq!(
         classes,
@@ -469,9 +275,14 @@ fn a_store_that_held_mail_before_classes_is_classed_when_opened() {
     );
     let marks = table(
         &store,
-        "SELECT count(*) FROM engine_state WHERE key = 'screening-fill'",
+        "SELECT count(*) FROM engine_state WHERE key IN ('screening-fill', 'story-fill')",
     );
     assert_eq!(marks, [vec![Value::Integer(0)]]);
+    // From version 7 straight to the newest, the classes are filled first,
+    // then the stories from them: the bulk message is its list's first.
+    let members = table(&store, "SELECT message_id FROM story_member");
+    assert_eq!(members, [vec![Value::Integer(1)]]);
+    assert_eq!(store.story_count().unwrap(), 0, "a story needs five");
 }
 
 #[test]
@@ -802,6 +613,7 @@ fn a_template_that_falls_below_five_leaves_its_messages_unknown() {
             templates: Some(&std::collections::BTreeSet::from([old, new])),
             ..Default::default()
         },
+        NOW,
     )
     .unwrap();
     transaction.commit().unwrap();

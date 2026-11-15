@@ -531,6 +531,7 @@ pub(super) fn settle(
             senders: Some(&turned),
             shown: Some(&touched.shown),
         },
+        now,
     )?;
     Ok(())
 }
@@ -951,6 +952,7 @@ impl Store {
              DELETE FROM index_pending;",
         )?;
         transaction.execute_batch(super::classes::CLEAR)?;
+        transaction.execute_batch(super::stories::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;
@@ -1097,6 +1099,7 @@ impl Store {
             self.commit_index()?;
             let transaction = self.connection.transaction()?;
             transaction.execute("DELETE FROM engine_state WHERE key = ?1", [REBUILD])?;
+            transaction.execute_batch(&super::stories::prune_sql())?;
             note_change(&transaction, now, "rebuilt", 0)?;
             transaction.commit()?;
             return Ok(RebuildProgress {

@@ -10,192 +10,62 @@ mod support;
 
 use std::sync::Arc;
 
-use afd::{Actor, ActorKind, CommandContext, CommandInterface, CommandRegistry};
-use loam_mail::cli::{Caller, EXIT_FAILED, EXIT_OK, Person, run};
-use loam_mail::engine::Engine;
-use loam_mail::home::Home;
-use loam_mail::provider::imap::{Credentials, Endpoint, ICLOUD_NAMES, ImapConnector};
+use afd::{ActorKind, CommandContext, CommandInterface, CommandRegistry};
+use loam_mail::cli::{Caller, EXIT_FAILED, EXIT_OK, run};
 use loam_mail::secrets::InMemory;
-use loam_mail::store::{AccountRow, Decision, Proposer, sender_id};
-use loam_mail::sync::{Options, sync_account};
+use loam_mail::store::{Decision, Proposer, sender_id};
 use serde_json::{Value, json};
-use support::imap::{PASSWORD, Server, USER};
-
-fn mail(from: &str, id: &str, fields: &str) -> Vec<u8> {
-    format!(
-        "From: {from}\r\nMessage-ID: <{id}@example.org>\r\nSubject: About {id}\r\n{fields}\
-         Content-Type: text/plain\r\n\r\nWords of {id}.\r\n"
-    )
-    .into_bytes()
-}
+use support::imap::World;
+use support::synced::{Fixture, Scripted, assert_labelled, mail};
 
 const STRANGER: &str = "stranger@example.biz";
 
-struct Fixture {
-    directory: tempfile::TempDir,
-    _server: Server,
-    engine: Arc<Engine>,
-    registry: CommandRegistry,
+/// Mail from a friend the person wrote to, a stranger, a list, and junk.
+fn world(world: &mut World) {
+    world.mailbox("INBOX", &[]);
+    world.mailbox("Sent Messages", &["\\Sent"]);
+    world.mailbox("Junk", &["\\Junk"]);
+    world.add(
+        "INBOX",
+        mail(
+            "Friend <friend@example.org>",
+            "f1",
+            "To: person@example.com\r\n",
+        ),
+        &[],
+    );
+    world.add(
+        "Sent Messages",
+        mail("person@example.com", "p1", "To: friend@example.org\r\n"),
+        &["\\Seen"],
+    );
+    for number in 0..2 {
+        world.add(
+            "INBOX",
+            mail(&format!("Stranger <{STRANGER}>"), &format!("s{number}"), ""),
+            &[],
+        );
+    }
+    for number in 0..3 {
+        world.add(
+            "INBOX",
+            mail(
+                "News <news@example.net>",
+                &format!("n{number}"),
+                "List-Id: <news.example.net>\r\n",
+            ),
+            &[],
+        );
+    }
+    // Junk from a stranger: classed, and listed nowhere.
+    world.add("Junk", mail("spam@example.biz", "j1", ""), &[]);
+}
+
+fn fixture() -> Fixture {
+    Fixture::new(world)
 }
 
 impl Fixture {
-    fn new() -> Self {
-        let directory = tempfile::tempdir().unwrap();
-        let server = Server::start(true, true);
-        {
-            let mut world = server.world();
-            world.mailbox("INBOX", &[]);
-            world.mailbox("Sent Messages", &["\\Sent"]);
-            world.mailbox("Junk", &["\\Junk"]);
-            world.add(
-                "INBOX",
-                mail(
-                    "Friend <friend@example.org>",
-                    "f1",
-                    "To: person@example.com\r\n",
-                ),
-                &[],
-            );
-            world.add(
-                "Sent Messages",
-                mail("person@example.com", "p1", "To: friend@example.org\r\n"),
-                &["\\Seen"],
-            );
-            for number in 0..2 {
-                world.add(
-                    "INBOX",
-                    mail(&format!("Stranger <{STRANGER}>"), &format!("s{number}"), ""),
-                    &[],
-                );
-            }
-            for number in 0..3 {
-                world.add(
-                    "INBOX",
-                    mail(
-                        "News <news@example.net>",
-                        &format!("n{number}"),
-                        "List-Id: <news.example.net>\r\n",
-                    ),
-                    &[],
-                );
-            }
-            // Junk from a stranger: classed, and listed nowhere.
-            world.add("Junk", mail("spam@example.biz", "j1", ""), &[]);
-        }
-        let endpoint = Endpoint {
-            host: "127.0.0.1".to_string(),
-            port: server.address.port(),
-            tls: false,
-        };
-        let connector = ImapConnector::new(endpoint, ICLOUD_NAMES, |_| {
-            Ok(Credentials {
-                user: USER.to_string(),
-                password: PASSWORD.to_string(),
-            })
-        });
-        let engine = Arc::new(
-            Engine::new(Some(Home::at(directory.path().join("data"))))
-                .with_connector(Arc::new(connector))
-                .with_sync_options(Options {
-                    backoff: std::time::Duration::ZERO,
-                    ..Options::default()
-                }),
-        );
-        let account: AccountRow = engine
-            .with_store(|store| {
-                store.add_account("icloud", USER, 0)?;
-                Ok(store.accounts()?.remove(0))
-            })
-            .unwrap();
-        let registry = loam_mail::registry(&engine).unwrap();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let connector = Arc::clone(engine.connector().unwrap());
-        runtime
-            .block_on(sync_account(
-                &engine,
-                connector.as_ref(),
-                &account,
-                engine.sync_options(),
-                &afd::SystemClock,
-                &|_| {},
-            ))
-            .unwrap();
-        Self {
-            directory,
-            _server: server,
-            engine,
-            registry,
-        }
-    }
-
-    fn execute(&self, name: &str, input: Value, context: CommandContext) -> Value {
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .unwrap();
-        let result = runtime.block_on(self.registry.execute(name, input, Some(context)));
-        serde_json::to_value(&result).unwrap()
-    }
-
-    /// A call from the agent whose token has id `token`, over MCP.
-    fn agent(&self, token: &str, name: &str, input: Value) -> Value {
-        let context = CommandContext::new()
-            .with_interface(CommandInterface::Mcp)
-            .with_actor(Actor::new(ActorKind::Agent).with_id(token));
-        self.execute(name, input, context)
-    }
-
-    /// A call from the person at a terminal.
-    fn person(&self, name: &str, input: Value) -> Value {
-        let context = CommandContext::new()
-            .with_interface(CommandInterface::Cli)
-            .with_actor(ActorKind::Human);
-        self.execute(name, input, context)
-    }
-
-    /// A call over MCP from stdio's one caller, which has no actor.
-    fn stdio(&self, name: &str, input: Value) -> Value {
-        let context = CommandContext::new().with_interface(CommandInterface::Mcp);
-        self.execute(name, input, context)
-    }
-
-    /// A call at the command line, from a script.
-    fn cli(&self, name: &str, input: Value) -> Value {
-        let context = CommandContext::new()
-            .with_interface(CommandInterface::Cli)
-            .with_actor(ActorKind::Script);
-        self.execute(name, input, context)
-    }
-
-    /// Runs the command line as a person at a terminal who answers
-    /// `approve`; returns the status, standard output and error.
-    fn terminal(&self, args: &[&str], approve: bool) -> (u8, String, String, Vec<String>) {
-        let args: Vec<String> = args.iter().map(ToString::to_string).collect();
-        let (mut out, mut err) = (Vec::new(), Vec::new());
-        let mut person = Scripted {
-            approve,
-            asked: Vec::new(),
-        };
-        let status = run(
-            &args,
-            &self.registry,
-            Caller::Terminal(&mut person),
-            &InMemory::default(),
-            &mut out,
-            &mut err,
-        )
-        .unwrap();
-        (
-            status,
-            String::from_utf8(out).unwrap(),
-            String::from_utf8(err).unwrap(),
-            person.asked,
-        )
-    }
-
     fn messages(&self, class: &str) -> Vec<Value> {
         let listed = self.agent("a", "mail-message-list", json!({ "class": class }));
         assert_eq!(listed["success"], true, "{listed}");
@@ -214,63 +84,6 @@ impl Fixture {
             })
             .collect()
     }
-
-    /// Marks every message as derived by an older derivation, as an upgrade
-    /// of the derivation does, through a connection of its own.
-    fn make_stale(&self) {
-        let database = self.directory.path().join("data").join("mail.sqlite3");
-        let connection = rusqlite::Connection::open(database).unwrap();
-        connection
-            .execute("UPDATE envelope SET parser = parser - 1", [])
-            .unwrap();
-    }
-}
-
-struct Scripted {
-    approve: bool,
-    asked: Vec<String>,
-}
-
-impl Person for Scripted {
-    fn confirm(&mut self, question: &str) -> std::io::Result<bool> {
-        self.asked.push(question.to_string());
-        Ok(self.approve)
-    }
-
-    fn secret(&mut self, prompt: &str) -> std::io::Result<String> {
-        self.asked.push(prompt.to_string());
-        Ok(String::new())
-    }
-}
-
-/// Every string that came from a message sits under a part labelled
-/// `"trust": "content"`.
-fn assert_labelled(value: &Value, words: &[&str]) {
-    fn walk(value: &Value, inside: bool, words: &[&str], path: &str) {
-        match value {
-            Value::String(text) => {
-                for word in words {
-                    assert!(
-                        inside || !text.contains(word),
-                        "`{word}` outside content at {path}"
-                    );
-                }
-            }
-            Value::Array(items) => {
-                for (index, item) in items.iter().enumerate() {
-                    walk(item, inside, words, &format!("{path}[{index}]"));
-                }
-            }
-            Value::Object(fields) => {
-                let labelled = inside || fields.get("trust") == Some(&json!("content"));
-                for (key, item) in fields {
-                    walk(item, labelled, words, &format!("{path}.{key}"));
-                }
-            }
-            _ => {}
-        }
-    }
-    walk(value, false, words, "");
 }
 
 const FROM_MESSAGES: &[&str] = &[
@@ -279,7 +92,7 @@ const FROM_MESSAGES: &[&str] = &[
 
 #[test]
 fn each_class_lists_its_mail_newest_first_and_junk_in_none() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let known = fixture.messages("known");
     assert_eq!(
         fixture.senders_of("known"),
@@ -343,7 +156,7 @@ fn each_class_lists_its_mail_newest_first_and_junk_in_none() {
 
 #[test]
 fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let stranger = sender_id(STRANGER);
     let over_mcp = fixture.agent(
         "a",
@@ -433,7 +246,7 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
 
 #[test]
 fn an_agent_s_suggestion_waits_for_the_person_s_approval_at_the_terminal() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let stranger = sender_id(STRANGER);
     let suggested = fixture.agent(
         "token-a",
@@ -554,7 +367,7 @@ fn an_agent_s_suggestion_waits_for_the_person_s_approval_at_the_terminal() {
 
 #[test]
 fn a_suggestion_is_dismissed_by_the_person_or_its_proposer_alone() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let stranger = sender_id(STRANGER);
     let suggest = |token: &str| {
         fixture.agent(
@@ -590,7 +403,7 @@ fn a_suggestion_is_dismissed_by_the_person_or_its_proposer_alone() {
 
 #[test]
 fn a_caller_with_twenty_suggestions_waiting_is_refused_a_twenty_first() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     fixture
         .engine
         .with_store(|store| {
@@ -625,7 +438,7 @@ fn a_caller_with_twenty_suggestions_waiting_is_refused_a_twenty_first() {
 
 #[test]
 fn screening_waits_while_messages_wait_to_be_derived_again() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let id = fixture.agent(
         "token-a",
         "mail-sender-suggest",
@@ -667,7 +480,7 @@ fn screening_waits_while_messages_wait_to_be_derived_again() {
 
 #[test]
 fn stdio_s_one_caller_dismisses_its_own_and_a_script_only_its_own() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let stranger = sender_id(STRANGER);
     let suggestion = |result: Value| result["data"]["suggestion"].as_i64().unwrap();
     let by_stdio = suggestion(fixture.stdio(
@@ -700,7 +513,7 @@ fn stdio_s_one_caller_dismisses_its_own_and_a_script_only_its_own() {
 
 #[test]
 fn every_accept_is_held_and_an_approved_one_is_refused_when_it_cannot_go_ahead() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let id = fixture.agent(
         "token-a",
         "mail-sender-suggest",
@@ -774,7 +587,7 @@ impl loam_mail::cli::Runner for NoPreview<'_> {
 
 #[test]
 fn the_person_is_not_asked_to_accept_without_the_preview() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     let id = fixture.agent(
         "token-a",
         "mail-sender-suggest",
@@ -807,7 +620,7 @@ fn the_person_is_not_asked_to_accept_without_the_preview() {
 
 #[test]
 fn the_status_names_the_latest_blocks_and_the_list_gives_them_all() {
-    let fixture = Fixture::new();
+    let fixture = fixture();
     for address in [STRANGER, "news@example.net"] {
         let screened = fixture.person(
             "mail-sender-screen",
