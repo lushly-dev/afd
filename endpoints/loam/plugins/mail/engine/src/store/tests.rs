@@ -36,6 +36,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                 name: "Inbox",
                 role: Role::Inbox,
             },
+            0,
         )
         .expect("a mailbox");
     let archive = store
@@ -46,6 +47,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                 name: "Archive",
                 role: Role::Archive,
             },
+            0,
         )
         .expect("a mailbox");
     (store, inbox, archive)

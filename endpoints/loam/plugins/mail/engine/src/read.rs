@@ -29,7 +29,7 @@ use crate::store::{MailboxId, MessageId, MessageListed, StoreError, ThreadId};
 const ROOM: usize = 1024;
 
 /// A content part: what came from a message, labelled as such.
-fn content(mut value: Value) -> Value {
+pub(crate) fn content(mut value: Value) -> Value {
     if let Some(object) = value.as_object_mut() {
         object.insert("trust".to_string(), json!("content"));
     }
@@ -58,8 +58,14 @@ fn measured(data: &Value) -> usize {
 /// canonical form may write it differently.
 const SLACK: usize = 64;
 
+/// Whether `data` fits a budget of `budget` bytes, as the registry
+/// measures a result.
+pub(crate) fn fits(data: &Value, budget: usize) -> bool {
+    measured(data).saturating_add(SLACK) <= budget
+}
+
 /// The failure of a result that cannot be made to fit the call's budget.
-fn too_small(budget: usize) -> CommandError {
+pub(crate) fn too_small(budget: usize) -> CommandError {
     CommandError::new(
         afd::error_codes::OUTPUT_BUDGET_EXCEEDED,
         format!("the result does not fit this call's output budget of {budget} bytes"),
@@ -74,12 +80,12 @@ fn too_small(budget: usize) -> CommandError {
 }
 
 /// The effective budget, in bytes.
-fn budget(context: &CommandContext, default: u64) -> usize {
+pub(crate) fn budget(context: &CommandContext, default: u64) -> usize {
     usize::try_from(context.output_budget().unwrap_or(default)).unwrap_or(usize::MAX)
 }
 
 /// An optional integer input.
-fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> {
+pub(crate) fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> {
     match input.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => value.as_i64().map(Some).ok_or_else(|| {
@@ -92,7 +98,7 @@ fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> 
 }
 
 /// A required integer input.
-fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
+pub(crate) fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
     integer(input, name)?.ok_or_else(|| {
         Box::new(
             CommandError::new("INVALID_INPUT", format!("`{name}` is required"))
@@ -102,7 +108,7 @@ fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
 }
 
 /// How many items a list may hold: `limit`, from 1 to `most`.
-fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError>> {
+pub(crate) fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError>> {
     Ok(match integer(input, "limit")? {
         None => default,
         Some(asked) => u32::try_from(asked.clamp(1, i64::from(most))).unwrap_or(default),
@@ -110,7 +116,7 @@ fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError
 }
 
 /// A cursor: the date and id of the last item of the page before.
-fn cursor(input: &Value) -> Result<Option<(i64, i64)>, Box<CommandError>> {
+pub(crate) fn cursor(input: &Value) -> Result<Option<(i64, i64)>, Box<CommandError>> {
     let Some(text) = input.get("cursor").and_then(Value::as_str) else {
         return Ok(None);
     };
@@ -138,7 +144,7 @@ fn message_not_found() -> CommandError {
 
 /// Items fitted to a budget: as many as fit, in order, and whether any
 /// were left out.
-fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
+pub(crate) fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
     let mut used = ROOM;
     let mut kept = Vec::with_capacity(items.len());
     let total = items.len();
@@ -154,7 +160,7 @@ fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
     (kept, cut)
 }
 
-fn parameter(
+pub(crate) fn parameter(
     name: &str,
     kind: JsonSchemaType,
     description: &str,
@@ -172,7 +178,7 @@ fn parameter(
 }
 
 /// Exposed to the command line and to MCP (the specification's section 11).
-fn read_exposure() -> ExposeOptions {
+pub(crate) fn read_exposure() -> ExposeOptions {
     ExposeOptions::new().with_cli(true).with_mcp(true)
 }
 
@@ -294,13 +300,13 @@ impl CommandHandler for ThreadList {
     }
 }
 
-const LIST_BUDGET: u64 = 32 * 1024;
-const OPEN_BUDGET: u64 = 64 * 1024;
+pub(crate) const LIST_BUDGET: u64 = 32 * 1024;
+pub(crate) const OPEN_BUDGET: u64 = 64 * 1024;
 /// The largest budget a read may be asked for. A call to a running server
 /// may return 4 MiB (the specification's 3.2), and over MCP a result goes
 /// out twice, as text and as structured content, with the text escaped: so
 /// a little under half of that.
-const MOST_BUDGET: u64 = 1792 * 1024;
+pub(crate) const MOST_BUDGET: u64 = 1792 * 1024;
 
 /// `mail-thread-list`: a mailbox's threads, newest first, paged by cursor.
 #[must_use]
