@@ -115,6 +115,9 @@ pub(super) struct Touched {
     pub(super) messages: BTreeSet<i64>,
     /// Template keys a message gained or lost, whose count is computed again.
     pub(super) templates: BTreeSet<Vec<u8>>,
+    /// Messages a mailbox started or stopped showing, whose place in the
+    /// lists by class is computed again.
+    pub(super) shown: BTreeSet<i64>,
     pub(super) documents: Vec<Document>,
 }
 
@@ -127,6 +130,7 @@ impl Touched {
             senders: BTreeSet::new(),
             messages: BTreeSet::new(),
             templates: BTreeSet::new(),
+            shown: BTreeSet::new(),
             documents: Vec::new(),
         }
     }
@@ -490,6 +494,7 @@ pub(super) fn touch_place(
     message: i64,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
+    touched.shown.insert(message);
     let thread: Option<i64> = transaction
         .one(
             "SELECT thread_id FROM envelope WHERE message_id = ?1",
@@ -524,6 +529,7 @@ pub(super) fn settle(
             messages: Some(&touched.messages),
             templates: Some(&touched.templates),
             senders: Some(&turned),
+            shown: Some(&touched.shown),
         },
     )?;
     Ok(())

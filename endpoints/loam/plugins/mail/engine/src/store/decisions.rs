@@ -138,6 +138,9 @@ pub struct Decided {
     pub changed: u64,
 }
 
+/// A block, with the suggestion it came from when it came from one.
+pub type Blocked = (DecisionRow, Option<SuggestionRow>);
+
 /// Why a suggestion was not stored.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Suggested {
@@ -181,6 +184,20 @@ fn decision_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<DecisionRow> {
 }
 
 const DECISION_COLUMNS: &str = "address, id, decision, decided_at, suggestion";
+
+/// How many of a sender's messages are not in a class (`?2`, or any class
+/// for null).
+pub(super) const WOULD_CHANGE: &str =
+    "SELECT count(*) FROM screening WHERE sender_address = ?1 AND class IS NOT ?2";
+
+/// The latest blocks since `?1`, at most `?2`.
+pub(super) fn blocked_sql() -> String {
+    format!(
+        "SELECT {DECISION_COLUMNS} FROM sender_decision
+         WHERE decision = 'out' AND decided_at >= ?1
+         ORDER BY decided_at DESC, address LIMIT ?2"
+    )
+}
 
 /// Records `decision` on `address`, or removes the one there (`None`), and
 /// classes the address's mail again. `accepted` is the suggestion the
@@ -307,13 +324,7 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn is_own_by_mail(&self, address: &str) -> Result<bool, StoreError> {
-        let own = senders::own_addresses(&self.connection)?;
-        if !own.contains(address) {
-            return Ok(false);
-        }
-        Ok(self
-            .decision(address)?
-            .is_none_or(|row| row.decision != Decision::Mine))
+        Ok(senders::own_by_mail(&self.connection)?.contains(address))
     }
 
     /// Records the person's decision on `address` (in lower case), or
@@ -490,33 +501,30 @@ impl Store {
             Decision::In => Some("known"),
             Decision::Mine => None,
         };
-        let changed: i64 = self.connection.query_row(
-            "SELECT count(*) FROM screening WHERE sender_address = ?1 AND class IS NOT ?2",
-            params![address, class],
-            |row| row.get(0),
-        )?;
+        let changed: i64 =
+            self.connection
+                .query_row(WOULD_CHANGE, params![address, class], |row| row.get(0))?;
         Ok(count(changed))
     }
 
     /// The addresses the person screened out since `since`, the latest
-    /// first, each with the suggestion it came from, if any.
+    /// first, at most `limit`, each with the suggestion it came from, if
+    /// any; and how many there are in all.
     ///
     /// # Errors
     /// When the database refuses.
-    pub fn blocked_since(
-        &self,
-        since: i64,
-    ) -> Result<Vec<(DecisionRow, Option<SuggestionRow>)>, StoreError> {
+    pub fn blocked_since(&self, since: i64, limit: u32) -> Result<(Vec<Blocked>, u64), StoreError> {
         let rows: Vec<DecisionRow> = {
-            let mut statement = self.connection.prepare_cached(&format!(
-                "SELECT {DECISION_COLUMNS} FROM sender_decision
-                 WHERE decision = 'out' AND decided_at >= ?1
-                 ORDER BY decided_at DESC, address"
-            ))?;
+            let mut statement = self.connection.prepare_cached(&blocked_sql())?;
             statement
-                .query_map([since], decision_row)?
+                .query_map(params![since, limit], decision_row)?
                 .collect::<Result<_, _>>()?
         };
+        let total: i64 = self.connection.query_row(
+            "SELECT count(*) FROM sender_decision WHERE decision = 'out' AND decided_at >= ?1",
+            [since],
+            |row| row.get(0),
+        )?;
         let mut blocked = Vec::with_capacity(rows.len());
         for row in rows {
             let suggestion = match row.suggestion {
@@ -525,6 +533,6 @@ impl Store {
             };
             blocked.push((row, suggestion));
         }
-        Ok(blocked)
+        Ok((blocked, count(total)))
     }
 }

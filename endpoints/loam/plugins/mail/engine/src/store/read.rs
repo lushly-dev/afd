@@ -166,6 +166,19 @@ fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
     })
 }
 
+/// A class's listed messages, newest first, from the partial index of the
+/// listed ones.
+pub(super) fn class_list_sql() -> String {
+    format!(
+        "SELECT {LISTED} FROM screening
+         JOIN envelope ON envelope.message_id = screening.message_id
+         JOIN message ON message.id = screening.message_id
+         WHERE screening.class = ?1 AND screening.listed = 1
+           AND (screening.date, screening.message_id) < (?2, ?3)
+         ORDER BY screening.date DESC, screening.message_id DESC LIMIT ?4"
+    )
+}
+
 impl Store {
     /// A thread's messages, oldest first: at most `limit`, starting after
     /// `after` (the date and id of the last message of the page before).
@@ -203,15 +216,7 @@ impl Store {
     ) -> Result<Vec<MessageListed>, StoreError> {
         let (date, message) =
             before.map_or((i64::MAX, i64::MAX), |(date, message)| (date, message.0));
-        let shown = super::classes::SHOWN;
-        let mut statement = self.connection.prepare_cached(&format!(
-            "SELECT {LISTED} FROM screening
-             JOIN envelope ON envelope.message_id = screening.message_id
-             JOIN message ON message.id = screening.message_id
-             WHERE screening.class = ?1 AND (screening.date, screening.message_id) < (?2, ?3)
-               AND {shown}
-             ORDER BY screening.date DESC, screening.message_id DESC LIMIT ?4"
-        ))?;
+        let mut statement = self.connection.prepare_cached(&class_list_sql())?;
         let rows = statement.query_map(params![class.as_str(), date, message, limit], listed)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }

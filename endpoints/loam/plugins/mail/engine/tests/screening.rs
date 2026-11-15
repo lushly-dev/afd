@@ -148,6 +148,20 @@ impl Fixture {
         self.execute(name, input, context)
     }
 
+    /// A call from the person at a terminal.
+    fn person(&self, name: &str, input: Value) -> Value {
+        let context = CommandContext::new()
+            .with_interface(CommandInterface::Cli)
+            .with_actor(ActorKind::Human);
+        self.execute(name, input, context)
+    }
+
+    /// A call over MCP from stdio's one caller, which has no actor.
+    fn stdio(&self, name: &str, input: Value) -> Value {
+        let context = CommandContext::new().with_interface(CommandInterface::Mcp);
+        self.execute(name, input, context)
+    }
+
     /// A call at the command line, from a script.
     fn cli(&self, name: &str, input: Value) -> Value {
         let context = CommandContext::new()
@@ -337,9 +351,18 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
         json!({ "sender": stranger, "decision": "out" }),
     );
     assert_eq!(over_mcp["success"], false, "{over_mcp}");
+    // Nor a script at the command line, such as an agent's shell.
+    let by_a_script = fixture.cli(
+        "mail-sender-screen",
+        json!({ "sender": stranger, "decision": "out" }),
+    );
+    assert_eq!(
+        by_a_script["error"]["code"], "PERSON_REQUIRED",
+        "{by_a_script}"
+    );
     assert!(fixture.senders_of("blocked").is_empty());
 
-    let screened = fixture.cli(
+    let screened = fixture.person(
         "mail-sender-screen",
         json!({ "sender": stranger, "decision": "out" }),
     );
@@ -350,7 +373,7 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
     );
     assert_eq!(fixture.senders_of("blocked"), [STRANGER, STRANGER]);
     assert!(fixture.senders_of("unknown").is_empty());
-    let undone = fixture.cli(
+    let undone = fixture.person(
         "mail-sender-screen",
         json!({ "sender": stranger, "decision": "undecided" }),
     );
@@ -358,7 +381,7 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
     assert_eq!(fixture.senders_of("unknown").len(), 2);
 
     // An address typed in full, such as one of the person's.
-    let mine = fixture.cli(
+    let mine = fixture.person(
         "mail-sender-screen",
         json!({ "address": " Stranger@Example.BIZ ", "decision": "mine" }),
     );
@@ -366,15 +389,26 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
     assert!(fixture.senders_of("unknown").is_empty());
     let shown = fixture.cli("mail-sender-show", json!({ "sender": stranger }));
     assert_eq!(shown["data"]["decision"]["decision"], "mine", "{shown}");
-    fixture.cli(
+    fixture.person(
         "mail-sender-screen",
         json!({ "sender": stranger, "decision": "undecided" }),
     );
     assert_eq!(fixture.senders_of("unknown").len(), 2);
 
+    // An account's address the person also said is theirs is still never
+    // screened in or out.
+    let mine = fixture.person(
+        "mail-sender-screen",
+        json!({ "address": "person@example.com", "decision": "mine" }),
+    );
+    assert_eq!(mine["success"], true, "{mine}");
     for (input, code) in [
         (
             json!({ "address": "person@example.com", "decision": "in" }),
+            "INVALID_INPUT",
+        ),
+        (
+            json!({ "address": "person@example.com", "decision": "out" }),
             "INVALID_INPUT",
         ),
         (
@@ -392,7 +426,7 @@ fn the_person_screens_at_the_command_line_and_an_agent_cannot() {
             "VALIDATION_ERROR",
         ),
     ] {
-        let refused = fixture.cli("mail-sender-screen", input.clone());
+        let refused = fixture.person("mail-sender-screen", input.clone());
         assert_eq!(refused["error"]["code"], code, "{input}: {refused}");
     }
 }
@@ -534,7 +568,7 @@ fn a_suggestion_is_dismissed_by_the_person_or_its_proposer_alone() {
     let twice = fixture.agent("token-a", "mail-sender-dismiss", json!({ "suggestion": a }));
     assert_eq!(twice["error"]["code"], "PROPOSAL_NOT_OPEN");
     let b = suggest("token-b");
-    let by_the_person = fixture.cli("mail-sender-dismiss", json!({ "suggestion": b }));
+    let by_the_person = fixture.person("mail-sender-dismiss", json!({ "suggestion": b }));
     assert_eq!(
         by_the_person["data"]["state"], "dismissed",
         "{by_the_person}"
@@ -614,7 +648,7 @@ fn screening_waits_while_messages_wait_to_be_derived_again() {
     assert_eq!(status["data"]["screening"]["ready"], false);
     assert_eq!(status["data"]["screening"]["queue"], Value::Null);
     // The person's own decision is recorded whatever waits.
-    let screened = fixture.cli(
+    let screened = fixture.person(
         "mail-sender-screen",
         json!({ "sender": sender_id(STRANGER), "decision": "in" }),
     );
@@ -624,4 +658,160 @@ fn screening_waits_while_messages_wait_to_be_derived_again() {
     let synced = fixture.cli("mail-sync", json!({}));
     assert_eq!(synced["success"], true, "{synced}");
     assert_eq!(fixture.senders_of("known").len(), 3);
+}
+
+#[test]
+fn stdio_s_one_caller_dismisses_its_own_and_a_script_only_its_own() {
+    let fixture = Fixture::new();
+    let stranger = sender_id(STRANGER);
+    let suggestion = |result: Value| result["data"]["suggestion"].as_i64().unwrap();
+    let by_stdio = suggestion(fixture.stdio(
+        "mail-sender-suggest",
+        json!({ "sender": stranger, "decision": "out" }),
+    ));
+    let shown = fixture.person("mail-sender-show", json!({ "suggestion": by_stdio }));
+    assert_eq!(
+        shown["data"]["preview"]["proposer"],
+        json!({ "kind": "agent", "token": null, "name": null })
+    );
+    let by_agent = fixture.agent(
+        "token-a",
+        "mail-sender-dismiss",
+        json!({ "suggestion": by_stdio }),
+    );
+    assert_eq!(by_agent["error"]["code"], "FORBIDDEN", "{by_agent}");
+    let by_script = fixture.cli("mail-sender-dismiss", json!({ "suggestion": by_stdio }));
+    assert_eq!(by_script["error"]["code"], "FORBIDDEN", "{by_script}");
+    let own = fixture.stdio("mail-sender-dismiss", json!({ "suggestion": by_stdio }));
+    assert_eq!(own["data"]["state"], "dismissed", "{own}");
+    // A script's suggestion is a script's to dismiss.
+    let by_a_script = suggestion(fixture.cli(
+        "mail-sender-suggest",
+        json!({ "sender": stranger, "decision": "in" }),
+    ));
+    let own = fixture.cli("mail-sender-dismiss", json!({ "suggestion": by_a_script }));
+    assert_eq!(own["data"]["state"], "dismissed", "{own}");
+}
+
+#[test]
+fn an_accept_the_person_was_not_asked_about_is_refused() {
+    let fixture = Fixture::new();
+    let id = fixture.agent(
+        "token-a",
+        "mail-sender-suggest",
+        json!({ "sender": sender_id(STRANGER), "decision": "out" }),
+    )["data"]["suggestion"]
+        .as_i64()
+        .unwrap();
+    // A registry with no approval middleware runs the handler with no
+    // approval, as one does when a suggestion became acceptable after the
+    // policy found it was not.
+    let bare = CommandRegistry::new();
+    bare.register(loam_mail::screening::accept(Arc::clone(&fixture.engine)))
+        .unwrap();
+    let runtime = tokio::runtime::Builder::new_current_thread()
+        .enable_all()
+        .build()
+        .unwrap();
+    let context = CommandContext::new()
+        .with_interface(CommandInterface::Cli)
+        .with_actor(ActorKind::Human);
+    let result = runtime.block_on(bare.execute(
+        "mail-sender-accept",
+        json!({ "suggestion": id }),
+        Some(context),
+    ));
+    let result = serde_json::to_value(&result).unwrap();
+    assert_eq!(result["error"]["code"], "CONFLICT", "{result}");
+    assert_eq!(result["error"]["retryable"], true);
+    assert_eq!(fixture.senders_of("unknown").len(), 2, "nothing changed");
+}
+
+/// Runs commands as the registry does, but fails the preview of an accept.
+struct NoPreview<'a>(&'a CommandRegistry);
+
+#[async_trait::async_trait]
+impl loam_mail::cli::Runner for NoPreview<'_> {
+    async fn run(
+        &self,
+        name: &str,
+        input: Value,
+        terminal: bool,
+        approval: Option<String>,
+    ) -> afd::CommandResult<Value> {
+        if name == "mail-sender-show" {
+            return afd::failure(afd::CommandError::new("STORE_FAILED", "the store refused"));
+        }
+        loam_mail::cli::Local(self.0)
+            .run(name, input, terminal, approval)
+            .await
+    }
+}
+
+#[test]
+fn the_person_is_not_asked_to_accept_without_the_preview() {
+    let fixture = Fixture::new();
+    let id = fixture.agent(
+        "token-a",
+        "mail-sender-suggest",
+        json!({ "sender": sender_id(STRANGER), "decision": "out" }),
+    )["data"]["suggestion"]
+        .as_i64()
+        .unwrap();
+    let input = format!(r#"{{"suggestion": {id}}}"#);
+    let args = ["mail-sender-accept".to_string(), input];
+    let (mut out, mut err) = (Vec::new(), Vec::new());
+    let mut person = Scripted {
+        approve: true,
+        asked: Vec::new(),
+    };
+    let status = loam_mail::cli::run_on(
+        &args,
+        &fixture.registry,
+        &NoPreview(&fixture.registry),
+        Caller::Terminal(&mut person),
+        &InMemory::default(),
+        &mut out,
+        &mut err,
+    )
+    .unwrap();
+    assert_eq!(status, EXIT_FAILED);
+    assert!(person.asked.is_empty(), "{:?}", person.asked);
+    assert!(String::from_utf8_lossy(&err).contains("Nothing was done"));
+    assert_eq!(fixture.senders_of("unknown").len(), 2);
+}
+
+#[test]
+fn the_status_names_the_latest_blocks_and_the_list_gives_them_all() {
+    let fixture = Fixture::new();
+    for address in [STRANGER, "news@example.net"] {
+        let screened = fixture.person(
+            "mail-sender-screen",
+            json!({ "address": address, "decision": "out" }),
+        );
+        assert_eq!(screened["success"], true, "{screened}");
+    }
+    let status = fixture.agent("a", "mail-status", json!({}));
+    let screening = &status["data"]["screening"];
+    assert_eq!(screening["blockedLatelyTotal"], 2, "{status}");
+    assert_eq!(screening["blockedLately"].as_array().unwrap().len(), 2);
+    assert_eq!(screening["blockedLately"][0]["by"]["kind"], "person");
+    let blocked = fixture.agent("a", "mail-sender-list", json!({ "decision": "out" }));
+    let mut senders: Vec<i64> = blocked["data"]["senders"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|sender| sender["sender"].as_i64().unwrap())
+        .collect();
+    senders.sort_unstable();
+    let mut expected = vec![sender_id(STRANGER), sender_id("news@example.net")];
+    expected.sort_unstable();
+    assert_eq!(senders, expected, "{blocked}");
+    let admitted = fixture.agent("a", "mail-sender-list", json!({ "decision": "in" }));
+    assert!(admitted["data"]["senders"].as_array().unwrap().is_empty());
+    let waiting = fixture.agent("a", "mail-sender-list", json!({ "waiting": true }));
+    assert!(
+        waiting["data"]["senders"].as_array().unwrap().is_empty(),
+        "{waiting}"
+    );
 }

@@ -3,15 +3,15 @@
 //! class.
 //!
 //! - `mail-sender-screen` records the person's decision: in, out, that the
-//!   address is theirs, or none. A person's command, at the command line
-//!   alone, with no prompt: it is local, and undone by screening again with
-//!   the `previous` it returns.
+//!   address is theirs, or none. A person's command, at a terminal alone (a
+//!   script is refused `PERSON_REQUIRED`), with no prompt: it is local, and
+//!   undone by screening again with the `previous` it returns.
 //! - `mail-sender-suggest` stores an agent's suggestion of in or out. It
 //!   changes no class.
 //! - `mail-sender-accept` makes a suggestion the person's decision. A
 //!   person's command, held for approval, because the idea was not theirs.
-//! - `mail-sender-dismiss` drops a suggestion: the person's, at the command
-//!   line, or its proposer's.
+//! - `mail-sender-dismiss` drops a suggestion: any, for the person at a
+//!   terminal, or a caller's own.
 //! - `mail-message-list` gives the mail of one class, newest first: `known`
 //!   is the inbox, `unknown` the queue to be screened.
 //!
@@ -48,6 +48,19 @@ pub const MOST_WAITING: u32 = 20;
 
 /// The longest address the person may type (RFC 5321's path limit).
 const MOST_ADDRESS: usize = 254;
+
+/// How many of the latest blocks `mail-status` names.
+const BLOCKED_SHOWN: u32 = 20;
+
+/// Whether the caller is the person at a terminal: the command line, with
+/// a terminal on standard input. A script at the command line is not.
+fn person_at_terminal(context: &CommandContext) -> bool {
+    context.interface == Some(CommandInterface::Cli)
+        && context
+            .actor
+            .as_ref()
+            .is_some_and(|actor| actor.kind == afd::ActorKind::Human)
+}
 
 /// The name of the command that accepts a suggestion.
 pub const ACCEPT: &str = "mail-sender-accept";
@@ -101,13 +114,14 @@ pub fn proposer_of(context: &CommandContext) -> Proposer {
             kind: actor.kind.as_str().to_string(),
             id: actor.id.clone(),
         },
+        // Over stdio the one caller is an agent; elsewhere a caller with no
+        // actor is named by where it came from.
         None => Proposer {
-            kind: if context.interface == Some(CommandInterface::Mcp) {
-                "agent"
-            } else {
-                "script"
-            }
-            .to_string(),
+            kind: match context.interface {
+                Some(CommandInterface::Mcp) => "agent".to_string(),
+                Some(interface) => format!("{interface:?}").to_lowercase(),
+                None => "unknown".to_string(),
+            },
             id: None,
         },
     }
@@ -196,10 +210,14 @@ fn address_input(
                 .map(|row| row.address)
                 .ok_or_else(|| Box::new(sender_not_found())))
         }
-        _ => Ok(Err(Box::new(
+        (typed, _) => Ok(Err(Box::new(
             CommandError::new(
                 "INVALID_INPUT",
-                "give either `sender` or `address`, not both",
+                if typed.is_some() {
+                    "give either `sender` or `address`, not both"
+                } else {
+                    "give `sender` or `address`"
+                },
             )
             .with_suggestion("Pass a sender's id from mail-sender-list, or type an address."),
         ))),
@@ -222,6 +240,19 @@ struct Screen {
 #[async_trait]
 impl CommandHandler for Screen {
     async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        // A decision is the person's alone: a script at the command line,
+        // such as an agent's shell, is refused, as every person's command is.
+        if !person_at_terminal(&context) {
+            return failure(
+                CommandError::new(
+                    "PERSON_REQUIRED",
+                    "`mail-sender-screen` is a person's command, and there is no terminal to ask",
+                )
+                .with_suggestion(
+                    "Run it at a terminal. An agent can suggest a decision with mail-sender-suggest.",
+                ),
+            );
+        }
         let decision = match decision_input(&input, &["in", "out", "mine", "undecided"]) {
             Ok(decision) => decision,
             Err(error) => return failure(*error),
@@ -444,6 +475,16 @@ impl CommandHandler for Accept {
             if let Err(error) = acceptable(store, id)? {
                 return Ok(Err(error));
             }
+            // It became acceptable after the approval policy found it was
+            // not, so the person was never asked: ask now.
+            if context.approval.is_none() {
+                return Ok(Err(CommandError::new(
+                    afd::error_codes::CONFLICT,
+                    format!("suggestion {id} became one the person can accept while the command ran, and they were not asked"),
+                )
+                .with_suggestion("Run `loam-mail mail-sender-accept` again at a terminal; it asks for approval.")
+                .with_retryable(true)));
+            }
             Ok(Ok(store.accept(id, now)?))
         });
         match done {
@@ -453,7 +494,15 @@ impl CommandHandler for Accept {
                 success(result)
             }
             // Another call closed it between the check and the accept.
-            Ok(Ok(None)) => failure(suggestion_not_found()),
+            Ok(Ok(None)) => failure(
+                CommandError::new(
+                    "PROPOSAL_NOT_OPEN",
+                    format!("suggestion {id} was closed while the command ran"),
+                )
+                .with_suggestion(
+                    "Run `loam-mail mail-sender-show` with its sender to see what is waiting.",
+                ),
+            ),
             Ok(Err(error)) => failure(error),
             Err(error) => failure(store_failure(&error)),
         }
@@ -513,7 +562,7 @@ impl CommandHandler for Dismiss {
             Err(error) => return failure(*error),
         };
         // The person dismisses any at the command line; an agent its own.
-        let person = context.interface == Some(CommandInterface::Cli);
+        let person = person_at_terminal(&context);
         let caller = proposer_of(&context);
         let now = context.clock().now();
         let done = self.engine.with_store(|store| {
@@ -544,8 +593,8 @@ impl CommandHandler for Dismiss {
     }
 }
 
-/// `mail-sender-dismiss`: drops a suggestion. The person's at the command
-/// line, or its proposer's over MCP.
+/// `mail-sender-dismiss`: drops a suggestion. Any, for the person at a
+/// terminal; otherwise the caller's own alone.
 #[must_use]
 pub fn dismiss(engine: Arc<Engine>) -> CommandDefinition {
     CommandDefinition::new(
@@ -672,8 +721,9 @@ pub fn status_json(store: &Store, now: i64) -> Result<Value, StoreError> {
         Value::Null
     };
     let tokens = store.tokens()?;
-    let blocked: Vec<Value> = store
-        .blocked_since(now.saturating_sub(THIRTY_DAYS))?
+    let (blocked, blocked_total) =
+        store.blocked_since(now.saturating_sub(THIRTY_DAYS), BLOCKED_SHOWN)?;
+    let blocked: Vec<Value> = blocked
         .iter()
         .map(|(decision, suggestion)| {
             let by = match suggestion {
@@ -698,5 +748,8 @@ pub fn status_json(store: &Store, now: i64) -> Result<Value, StoreError> {
         "queue": queue,
         "suggestionsWaiting": store.open_suggestion_count()?,
         "blockedLately": blocked,
+        // Every block of the 30 days, of which `blockedLately` is the latest;
+        // `mail-sender-list` with `decision` gives them all.
+        "blockedLatelyTotal": blocked_total,
     }))
 }

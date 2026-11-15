@@ -478,7 +478,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `recipient` | An address a message was sent to, from its `To`, `Cc` and `Bcc` (step C1) | Yes |
 | `sender` | An address that is not the person's, and its history with them ([7.1](#71-senders)): its domain, the name on its newest message, its messages and how many carry a list or bulk header, when the first and last arrived, how many of the person's messages went to it and when the last did, and how many of its messages the person answered. Fixed by step C1. The person's decisions on senders are step C2's, in `sender_decision`, which is not derived | Yes |
 | `template` | A template key and how many held messages have it, wherever they are (step C2, migration 8) | Yes |
-| `screening` | An inbound message's screening class, with its date and sender for the lists by class ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes |
+| `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision` and `observation` |
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
 | `story`, `story_member` | Stories and their messages ([section 8](#8-stories)) | Stream and burst stories yes |
@@ -947,7 +947,8 @@ further. The owner chose the grouping by sender on 2026-11-14 ([section 8](#8-st
 difference from the census: the engine counts a template as recurring when the store holds five
 messages with its key, wherever they are, where the census counted among the inbound messages of
 its scope, once for each mailbox showing them; the scopes above choose which messages are
-counted, not where their templates are.
+counted, not where their templates are. Since step C2 the report's own addresses include any the
+person said are theirs ([7.3](#73-the-persons-decisions)), which the census had no way to know.
 
 ### 6.4 Parsing strangers' bytes
 
@@ -1110,7 +1111,11 @@ Every inbound message gets one class, by the first rule that matches:
   cursor: `known` is the inbox, `unknown` the queue, `blocked` and `bulk` when asked for. It lists
   a message only while a mailbox other than junk and trash shows it, the census's scope, so
   junk does not fill the queue and what the person deleted leaves it; the class itself is kept
-  wherever the message is. `mail-thread-open` gives each message's class, `own`, or null while
+  wherever the message is. Whether a message is listed is a derived flag beside its class, so a
+  list reads a partial index of the listed rows and never looks at where each row's message is:
+  it is computed again for each message whose observations a batch changed, and for every
+  message of a mailbox that closed its observations (a new generation, or gone) or became junk
+  or trash or stopped being. `mail-thread-open` gives each message's class, `own`, or null while
   screening waits. `mail-status` gives the queue: its messages and how many senders they come
   from. `mail-sender-list` with `waiting` gives the senders whose mail is in the queue, which is
   where the person answers once for each.
@@ -1147,7 +1152,9 @@ A decision on a sender is in, out or undecided, and is the person's alone.
 - **A decision is in, out or `mine`**, the last for an address the person says is theirs
   ([7.1](#71-senders)); `undecided` removes one. It is kept by address, with the address's sender
   id, so an address that is theirs, which has no sender row, is still found by its id.
-- **`mail-sender-screen`** takes a sender's id, or an address the person types in full, and a
+- **`mail-sender-screen`** is the person's at a terminal alone: a script at the command line,
+  such as an agent's shell, is refused with `PERSON_REQUIRED`, as every other person's command
+  is through its approval. It takes a sender's id, or an address the person types in full, and a
   decision. It refuses in or out on an address that is the person's by an account or by their
   sent mail. It returns the decision before (`previous`), which undoes it, and how many held
   messages changed class or gained or lost one.
@@ -1160,20 +1167,26 @@ A decision on a sender is in, out or undecided, and is the person's alone.
 - **`mail-sender-accept`** is held only when the suggestion can be accepted now: it is open,
   screening is ready, so the preview's count is right, and its address is still a stranger's.
   Otherwise the command refuses it without asking (`PROPOSAL_NOT_OPEN`, `SCREENING_NOT_READY`,
-  `SENDER_NOT_FOUND`). At the terminal the command line reads the preview, `mail-sender-show`
+  `SENDER_NOT_FOUND`). The command itself accepts only a call the person approved: one that
+  became acceptable after its policy found it was not, so the person was never asked, is
+  refused with `CONFLICT`, which can be retried, and asks when run again. If the preview
+  cannot be read, the command line does not ask and does nothing. At the terminal the command line reads the preview, `mail-sender-show`
   with the suggestion, and shows the sender's address and name, each named as written in its
   mail and with control characters and the marks that reorder text replaced, whether the person
   has written to it, and who suggested it, before the summary and the question.
-- **`mail-sender-dismiss`** is the person's at the command line, for any suggestion, and an
-  agent's over MCP for its own alone (`FORBIDDEN` otherwise).
+- **`mail-sender-dismiss`** is the person's at a terminal, for any suggestion, and any other
+  caller's for its own alone (`FORBIDDEN` otherwise): an agent's by its token, stdio's one
+  caller's, a script's.
 - **`mail-sender-show`** gives the decision, how many of the sender's messages are in each class
   (null while screening waits), and its open suggestions; with a suggestion's id in place of a
   sender's, it is the preview. `mail-sender-list` gives each sender's decision, and filters to
-  the senders whose mail waits to be screened (`waiting`) or with a suggestion waiting
-  (`suggested`).
+  the senders whose mail waits to be screened (`waiting`), with a suggestion waiting
+  (`suggested`), or that the person screened in or out (`decision`).
 - **`mail-status`** gives `screening`: whether it is ready, the queue, how many suggestions wait,
-  and the senders blocked in the last 30 days (`blockedLately`), each with the person or the
-  suggestion and proposer it came from, and its address in a labelled part.
+  and the 20 latest of the senders blocked in the last 30 days (`blockedLately`, with
+  `blockedLatelyTotal` for all of them), each with the person or the suggestion and proposer it
+  came from, and its address in a labelled part; `mail-sender-list` with `decision` gives them
+  all.
 
 ### 7.4 Bursts
 

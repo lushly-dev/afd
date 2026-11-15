@@ -397,15 +397,19 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ) STRICT, WITHOUT ROWID;
 
     -- An inbound message's screening class: a message not from one of the person's own
-    -- addresses. Its date and sender are the envelope's, kept here for the lists by class.
+    -- addresses. Its date and sender are the envelope's, kept here for the lists by class, and
+    -- `listed` is whether a mailbox other than junk and trash shows it now, which is what those
+    -- lists show.
     CREATE TABLE screening (
         message_id INTEGER PRIMARY KEY REFERENCES message (id),
         class TEXT NOT NULL CHECK (class IN ('blocked', 'known', 'bulk', 'unknown')),
         date INTEGER NOT NULL,
-        sender_address TEXT NOT NULL
+        sender_address TEXT NOT NULL,
+        listed INTEGER NOT NULL CHECK (listed IN (0, 1))
     ) STRICT;
-    CREATE INDEX screening_class ON screening (class, date DESC, message_id DESC);
-    CREATE INDEX screening_sender ON screening (sender_address, class);
+    CREATE INDEX screening_listed ON screening (class, date DESC, message_id DESC)
+        WHERE listed = 1;
+    CREATE INDEX screening_sender ON screening (sender_address, class, listed);
 
     -- The person's decision on an address: in, out, or theirs. Never derived, so it survives a
     -- rebuild. `suggestion` is the agent's suggestion the person accepted, when it came from one.

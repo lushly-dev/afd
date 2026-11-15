@@ -248,7 +248,16 @@ fn run_command(
                 );
             }
             Caller::Terminal(person) => {
-                for line in preview(name, &input, runner, &runtime) {
+                // A command whose detail comes through its preview is not
+                // asked about without it.
+                let Some(lines) = preview(name, &input, runner, &runtime) else {
+                    writeln!(
+                        err,
+                        "{PROGRAM}: what `{name}` would do could not be read. Nothing was done."
+                    )?;
+                    return Ok(EXIT_FAILED);
+                };
+                for line in lines {
                     writeln!(err, "{line}")?;
                 }
                 writeln!(err, "{summary}.")?;
@@ -385,27 +394,24 @@ pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
 /// What the person reads before approving a command, beside its summary:
 /// the values from mail the summary leaves out (the specification's 3.5),
 /// each named as it is shown. Read with the command's preview command.
+/// `None` when a command has a preview and it could not be read.
 fn preview(
     name: &str,
     input: &serde_json::Value,
     runner: &(dyn Runner + Sync),
     runtime: &tokio::runtime::Runtime,
-) -> Vec<String> {
+) -> Option<Vec<String>> {
     if name != crate::screening::ACCEPT {
-        return Vec::new();
+        return Some(Vec::new());
     }
-    let Some(suggestion) = input.get("suggestion").cloned() else {
-        return Vec::new();
-    };
+    let suggestion = input.get("suggestion").cloned()?;
     let shown = runtime.block_on(runner.run(
         "mail-sender-show",
         serde_json::json!({ "suggestion": suggestion }),
         true,
         None,
     ));
-    let Some(shown) = shown.data.filter(|_| shown.success) else {
-        return Vec::new();
-    };
+    let shown = shown.data.filter(|_| shown.success)?;
     let text = |pointer: &str| {
         shown
             .pointer(pointer)
@@ -447,7 +453,7 @@ fn preview(
         ),
     };
     lines.push(format!("Suggested by {by}."));
-    lines
+    Some(lines)
 }
 
 /// Text from mail made safe to write to a terminal: control characters
@@ -456,7 +462,18 @@ fn preview(
 fn printable(text: &str) -> String {
     text.chars()
         .map(|c| {
-            let reorders = matches!(c, '\u{200e}' | '\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2066}'..='\u{2069}');
+            // Unicode's Bidi_Control set, and the line and paragraph
+            // separators.
+            let reorders = matches!(
+                c,
+                '\u{061c}'
+                    | '\u{200e}'
+                    | '\u{200f}'
+                    | '\u{202a}'..='\u{202e}'
+                    | '\u{2066}'..='\u{2069}'
+                    | '\u{2028}'
+                    | '\u{2029}'
+            );
             if c.is_control() || reorders {
                 '\u{fffd}'
             } else {
@@ -590,6 +607,7 @@ mod tests {
             printable("a\u{1b}[2Jb\rc\u{202e}moc.elpmaxe\u{2066}d"),
             "a\u{fffd}[2Jb\u{fffd}c\u{fffd}moc.elpmaxe\u{fffd}d"
         );
+        assert_eq!(printable("x\u{61c}y\u{2028}z"), "x\u{fffd}y\u{fffd}z");
         assert_eq!(printable("Ada Lovelace"), "Ada Lovelace");
     }
 }

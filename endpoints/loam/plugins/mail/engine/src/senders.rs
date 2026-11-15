@@ -8,8 +8,8 @@
 use std::sync::Arc;
 
 use afd::{
-    CommandContext, CommandDefinition, CommandError, CommandHandler, CommandResult, JsonSchemaType,
-    failure, success,
+    CommandContext, CommandDefinition, CommandError, CommandHandler, CommandParameter,
+    CommandResult, JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -22,8 +22,8 @@ use crate::read::{
 };
 use crate::screening::{not_ready, proposer_json, suggestion_json};
 use crate::store::{
-    ClassCounts, DecisionRow, Readiness, SenderQuery, SenderRow, Store, StoreError, SuggestionRow,
-    sender_id,
+    ClassCounts, Decision, DecisionRow, Readiness, SenderQuery, SenderRow, Store, StoreError,
+    SuggestionRow, sender_id,
 };
 
 /// How many of a sender's lists `mail-sender-show` names.
@@ -75,6 +75,10 @@ impl CommandHandler for SenderList {
                 written_to: flag(&input, "writtenTo"),
                 waiting: flag(&input, "waiting"),
                 suggested: flag(&input, "suggested"),
+                decision: input
+                    .get("decision")
+                    .and_then(Value::as_str)
+                    .and_then(Decision::parse),
                 before: cursor(&input)?,
                 limit: limit + 1,
             };
@@ -143,6 +147,15 @@ pub fn list(engine: Arc<Engine>) -> CommandDefinition {
                 "Only senders with an agent's suggestion waiting for the person",
                 false,
             ),
+            CommandParameter {
+                name: "decision".to_string(),
+                param_type: JsonSchemaType::String,
+                description: "Only senders the person screened so: in or out".to_string(),
+                required: false,
+                default: None,
+                enum_values: Some(vec![json!("in"), json!("out")]),
+                schema: None,
+            },
             parameter(
                 "cursor",
                 JsonSchemaType::String,
@@ -195,17 +208,25 @@ fn read_shown(
         },
         None => None,
     };
-    let id = asked
-        .as_ref()
-        .map_or(sender.unwrap_or_default(), |row| row.sender);
-    let row = store.sender(id)?;
-    let address = match (&row, &asked) {
-        (Some(row), _) => row.address.clone(),
-        (None, Some(asked)) => asked.address.clone(),
-        (None, None) => match store.decision_by_sender(id)? {
-            Some(decision) => decision.address,
-            None => return Ok(None),
-        },
+    // A suggestion is about an address: the preview shows that address,
+    // whatever other address shares its sender id.
+    let (address, row) = match &asked {
+        Some(asked) => {
+            let row = store
+                .sender(asked.sender)?
+                .filter(|row| row.address == asked.address);
+            (asked.address.clone(), row)
+        }
+        None => {
+            let id = sender.unwrap_or_default();
+            match store.sender(id)? {
+                Some(row) => (row.address.clone(), Some(row)),
+                None => match store.decision_by_sender(id)? {
+                    Some(decision) => (decision.address, None),
+                    None => return Ok(None),
+                },
+            }
+        }
     };
     let readiness = store.screening_readiness()?;
     let preview = match asked {
@@ -315,7 +336,11 @@ impl CommandHandler for SenderShow {
                 return Err(Box::new(
                     CommandError::new(
                         "INVALID_INPUT",
-                        "give either `sender` or `suggestion`, not both",
+                        if sender.is_some() {
+                            "give either `sender` or `suggestion`, not both"
+                        } else {
+                            "give `sender` or `suggestion`"
+                        },
                     )
                     .with_suggestion(
                         "Pass a sender's id from mail-sender-list, or a suggestion's id to preview accepting it.",

@@ -49,6 +49,21 @@ pub(super) struct Reclassify<'a> {
     /// Addresses whose messages are classed again whole: a sender that
     /// turned, or one the person decided on.
     pub(super) senders: Option<&'a BTreeSet<String>>,
+    /// Messages a mailbox started or stopped showing, whose `listed` is
+    /// computed again.
+    pub(super) shown: Option<&'a BTreeSet<i64>>,
+}
+
+/// Whether a mailbox other than junk and trash shows the message whose id
+/// is `message` now: what the lists by class show, the census's scope and
+/// where a person reads mail.
+fn shown_expression(message: &str) -> String {
+    format!(
+        "EXISTS (SELECT 1 FROM observation
+                 JOIN mailbox ON mailbox.id = observation.mailbox_id
+                 WHERE observation.message_id = {message} AND observation.ended_at IS NULL
+                   AND mailbox.role NOT IN ('junk', 'trash'))"
+    )
 }
 
 /// A message's class, from its row, its sender's, its template's and the
@@ -67,10 +82,11 @@ fn class_expression() -> String {
 /// address loses any.
 fn classify_sql(filter: &str) -> [String; 2] {
     let class = class_expression();
+    let listed = shown_expression("envelope.message_id");
     [
         format!(
-            "INSERT INTO screening (message_id, class, date, sender_address)
-             SELECT envelope.message_id, {class}, envelope.date, envelope.sender_address
+            "INSERT INTO screening (message_id, class, date, sender_address, listed)
+             SELECT envelope.message_id, {class}, envelope.date, envelope.sender_address, {listed}
              FROM envelope
              LEFT JOIN sender ON sender.address = envelope.sender_address
              LEFT JOIN sender_decision AS decided ON decided.address = envelope.sender_address
@@ -79,9 +95,10 @@ fn classify_sql(filter: &str) -> [String; 2] {
                AND envelope.sender_address NOT IN (SELECT address FROM temp.screening_own)
              ON CONFLICT (message_id) DO UPDATE SET
                  class = excluded.class, date = excluded.date,
-                 sender_address = excluded.sender_address
+                 sender_address = excluded.sender_address, listed = excluded.listed
              WHERE screening.class <> excluded.class OR screening.date <> excluded.date
-                OR screening.sender_address <> excluded.sender_address"
+                OR screening.sender_address <> excluded.sender_address
+                OR screening.listed <> excluded.listed"
         ),
         format!(
             "DELETE FROM screening WHERE message_id IN (
@@ -97,6 +114,46 @@ fn classify_sql(filter: &str) -> [String; 2] {
 const BY_SENDER: &str = "envelope.sender_address = ?1";
 const BY_TEMPLATE: &str = "envelope.template_key = ?1";
 const BY_TARGET: &str = "envelope.message_id IN (SELECT message_id FROM temp.screening_target)";
+
+/// What [`relist_sql`] selects by: the messages a batch showed or stopped
+/// showing, or every message a mailbox has shown.
+const SHOWN_TARGET: &str = "message_id IN (SELECT message_id FROM temp.screening_target)";
+const SHOWN_MAILBOX: &str =
+    "message_id IN (SELECT message_id FROM observation WHERE mailbox_id = ?1)";
+
+/// The statement that computes `listed` again for the rows `filter` selects.
+fn relist_sql(filter: &str) -> String {
+    let listed = shown_expression("screening.message_id");
+    format!(
+        "UPDATE screening SET listed = {listed}
+         WHERE ({filter}) AND listed IS NOT {listed}"
+    )
+}
+
+/// Fills `temp.screening_target` with `messages`.
+fn load_target(transaction: &Transaction<'_>, messages: &BTreeSet<i64>) -> Result<(), StoreError> {
+    transaction.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS screening_target (message_id INTEGER PRIMARY KEY);
+         DELETE FROM temp.screening_target;",
+    )?;
+    let mut insert =
+        transaction.prepare_cached("INSERT OR IGNORE INTO temp.screening_target VALUES (?1)")?;
+    for message in messages {
+        insert.execute([message])?;
+    }
+    Ok(())
+}
+
+/// Computes `listed` again for every message `mailbox` has shown: after
+/// the mailbox closed its observations (a new generation, or gone), or
+/// became junk or trash, or stopped being one.
+pub(super) fn relist_mailbox(
+    transaction: &Transaction<'_>,
+    mailbox: i64,
+) -> Result<(), StoreError> {
+    transaction.run(&relist_sql(SHOWN_MAILBOX), [mailbox])?;
+    Ok(())
+}
 
 /// Classes again the messages `filter` selects, binding `bound`. Returns
 /// how many rows changed. Needs `temp.screening_own` filled
@@ -127,7 +184,13 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("by target, removed", by_target_remove),
         ("recount", RECOUNT.to_string()),
         ("class counts", CLASS_COUNTS.to_string()),
-        ("queue", queue_sql()),
+        ("queue", QUEUE.to_string()),
+        ("relist target", relist_sql(SHOWN_TARGET)),
+        ("relist mailbox", relist_sql(SHOWN_MAILBOX)),
+        ("class list", super::read::class_list_sql()),
+        ("waiting senders", super::senders::senders_sql()),
+        ("would change", super::decisions::WOULD_CHANGE.to_string()),
+        ("blocked since", super::decisions::blocked_sql()),
     ]
 }
 
@@ -153,12 +216,8 @@ const CLASS_COUNTS: &str =
     "SELECT class, count(*) FROM screening WHERE sender_address = ?1 GROUP BY class";
 
 /// The queue's messages and senders.
-fn queue_sql() -> String {
-    format!(
-        "SELECT count(*), count(DISTINCT sender_address) FROM screening
-         WHERE class = 'unknown' AND {SHOWN}"
-    )
-}
+const QUEUE: &str = "SELECT count(*), count(DISTINCT sender_address) FROM screening
+     WHERE class = 'unknown' AND listed = 1";
 
 /// Counts again each template in `keys`, and returns those that reached
 /// [`RECURRING`] or fell below it.
@@ -206,7 +265,8 @@ pub(super) fn settle(
     let messages = changed.messages.unwrap_or(&empty_messages);
     let templates = changed.templates.unwrap_or(&empty_templates);
     let senders = changed.senders.unwrap_or(&empty_senders);
-    if messages.is_empty() && templates.is_empty() && senders.is_empty() {
+    let shown = changed.shown.unwrap_or(&empty_messages);
+    if messages.is_empty() && templates.is_empty() && senders.is_empty() && shown.is_empty() {
         return Ok(0);
     }
     let turned = recount(transaction, templates)?;
@@ -219,19 +279,13 @@ pub(super) fn settle(
         rows += classify(transaction, BY_TEMPLATE, [key.as_slice()])?;
     }
     if !messages.is_empty() {
-        transaction.execute_batch(
-            "CREATE TEMP TABLE IF NOT EXISTS screening_target
-                 (message_id INTEGER PRIMARY KEY);
-             DELETE FROM temp.screening_target;",
-        )?;
-        {
-            let mut insert = transaction
-                .prepare_cached("INSERT OR IGNORE INTO temp.screening_target VALUES (?1)")?;
-            for message in messages {
-                insert.execute([message])?;
-            }
-        }
+        load_target(transaction, messages)?;
         rows += classify(transaction, BY_TARGET, [])?;
+    }
+    // Where a message is shown changes only whether it is listed.
+    if !shown.is_empty() {
+        load_target(transaction, shown)?;
+        transaction.run(&relist_sql(SHOWN_TARGET), [])?;
     }
     Ok(rows)
 }
@@ -344,13 +398,6 @@ impl Readiness {
     }
 }
 
-/// A message is listed by class only while a mailbox other than junk and
-/// trash shows it: the census's scope, and where a person reads mail.
-pub(super) const SHOWN: &str = "EXISTS (SELECT 1 FROM observation
-     JOIN mailbox ON mailbox.id = observation.mailbox_id
-     WHERE observation.message_id = screening.message_id AND observation.ended_at IS NULL
-       AND mailbox.role NOT IN ('junk', 'trash'))";
-
 impl Store {
     /// Whether screening can be read, and if not, what it waits for.
     ///
@@ -392,9 +439,9 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn queue_counts(&self) -> Result<(u64, u64), StoreError> {
-        let (messages, senders): (i64, i64) =
-            self.connection
-                .query_row(&queue_sql(), [], |row| Ok((row.get(0)?, row.get(1)?)))?;
+        let (messages, senders): (i64, i64) = self
+            .connection
+            .query_row(QUEUE, [], |row| Ok((row.get(0)?, row.get(1)?)))?;
         Ok((count(messages), count(senders)))
     }
 

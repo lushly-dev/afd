@@ -112,6 +112,32 @@ impl Mail {
             .unwrap()
     }
 
+    fn listed(&self, message: MessageId) -> Option<bool> {
+        self.store
+            .connection
+            .query_row(
+                "SELECT listed FROM screening WHERE message_id = ?1",
+                [message.0],
+                |row| row.get(0),
+            )
+            .optional()
+            .unwrap()
+    }
+
+    fn mailbox(&mut self, key: &'static str, role: Role) -> MailboxId {
+        self.store
+            .upsert_mailbox(
+                self.account,
+                &MailboxSeen {
+                    provider_key: key,
+                    name: key,
+                    role,
+                },
+                NOW,
+            )
+            .unwrap()
+    }
+
     fn decide(&mut self, address: &str, decision: Option<Decision>) -> Decided {
         self.store.decide(address, decision, NOW).unwrap()
     }
@@ -529,10 +555,10 @@ fn a_suggestion_changes_no_class_until_the_person_accepts_it() {
         SuggestionState::Accepted
     );
     assert!(mail.store.accept(second, NOW).unwrap().is_none(), "once");
-    let blocked = mail.store.blocked_since(NOW - DAY).unwrap();
-    assert_eq!(blocked.len(), 1);
+    let (blocked, total) = mail.store.blocked_since(NOW - DAY, 20).unwrap();
+    assert_eq!((blocked.len(), total), (1, 1));
     assert_eq!(blocked[0].1.as_ref().map(|row| row.id), Some(second));
-    assert!(mail.store.blocked_since(NOW + 1).unwrap().is_empty());
+    assert!(mail.store.blocked_since(NOW + 1, 20).unwrap().0.is_empty());
     mail.assert_as_from_nothing();
 }
 
@@ -564,7 +590,7 @@ fn the_person_s_own_decision_supersedes_what_waits_and_a_dismissal_closes_one() 
         .unwrap()
         .unwrap();
     assert_eq!(decision.suggestion, None, "the person's, not an agent's");
-    let blocked = mail.store.blocked_since(0).unwrap();
+    let (blocked, _) = mail.store.blocked_since(0, 20).unwrap();
     assert!(blocked[0].1.is_none());
 
     let c = stored(
@@ -656,9 +682,13 @@ fn every_screening_query_reads_an_index() {
             .unwrap();
         let plan = plan.join("\n");
         for line in plan.lines().filter(|line| line.starts_with("SCAN")) {
-            // The temporary tables are a batch's own few rows.
+            // The temporary tables are a batch's own few rows; the senders
+            // are read in the order of a page, a few thousand at most.
             assert!(
-                line.starts_with("SCAN screening_target") || line.starts_with("SCAN screening_own"),
+                line.starts_with("SCAN screening_target")
+                    || line.starts_with("SCAN screening_own")
+                    || (name == "waiting senders"
+                        && line.starts_with("SCAN sender USING INDEX sender_recent")),
                 "{name}:\n{plan}"
             );
         }
@@ -668,10 +698,115 @@ fn every_screening_query_reads_an_index() {
                 "envelope_template (template_key=?)"
             }
             "by target" | "by target, removed" => "SEARCH envelope USING INTEGER PRIMARY KEY",
-            "class counts" => "COVERING INDEX screening_sender (sender_address=?)",
-            "queue" => "INDEX screening_class (class=?)",
+            "class counts" | "would change" => "COVERING INDEX screening_sender (sender_address=?)",
+            "queue" | "class list" => "INDEX screening_listed (class=?",
+            "relist target" => "SEARCH screening USING INTEGER PRIMARY KEY",
+            "relist mailbox" => "COVERING INDEX observation_mailbox (mailbox_id=?)",
+            "waiting senders" => {
+                "COVERING INDEX screening_sender (sender_address=? AND class=? AND listed=?)"
+            }
+            "blocked since" => "INDEX sender_decision_at (decision=? AND decided_at>?)",
             other => panic!("no plan expected for {other}"),
         };
         assert!(plan.contains(expected), "{name}:\n{plan}");
     }
+}
+
+#[test]
+fn a_message_is_listed_while_a_mailbox_other_than_junk_and_trash_shows_it() {
+    let mut mail = Mail::new();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    let trash = mail.mailbox("Deleted Messages", Role::Trash);
+    let (moved, seen) = mail.add_seen(inbox, "bob@example.org", &[]);
+    let kept = mail.add(archive, "carol@example.org", &[]);
+    assert_eq!(mail.listed(moved), Some(true));
+    // Moved to the trash: still classed, no longer listed.
+    mail.store.record_removed(inbox, "", &["1"], NOW).unwrap();
+    let mut again = seen.clone();
+    again.provider_id = "t1".to_string();
+    mail.store
+        .record_headers(trash, "", std::slice::from_ref(&again), NOW)
+        .unwrap();
+    assert_eq!(mail.class(moved).as_deref(), Some("unknown"));
+    assert_eq!(mail.listed(moved), Some(false));
+    let (messages, senders) = mail.store.queue_counts().unwrap();
+    assert_eq!((messages, senders), (1, 1));
+    mail.assert_as_from_nothing();
+    // Brought back.
+    again.provider_id = "i1".to_string();
+    mail.store
+        .record_headers(inbox, "", std::slice::from_ref(&again), NOW)
+        .unwrap();
+    assert_eq!(mail.listed(moved), Some(true));
+    mail.assert_as_from_nothing();
+
+    // A mailbox that becomes trash, or a new generation that closes what
+    // it showed, takes its messages out of the lists.
+    let archive_role = |mail: &mut Mail, role| {
+        mail.store
+            .upsert_mailbox(
+                mail.account,
+                &MailboxSeen {
+                    provider_key: "Archive",
+                    name: "Archive",
+                    role,
+                },
+                NOW,
+            )
+            .unwrap();
+    };
+    archive_role(&mut mail, Role::Trash);
+    assert_eq!(mail.listed(kept), Some(false));
+    mail.assert_as_from_nothing();
+    archive_role(&mut mail, Role::Archive);
+    assert_eq!(mail.listed(kept), Some(true));
+    mail.store.set_validity(archive, "2", NOW).unwrap();
+    assert_eq!(mail.listed(kept), Some(false));
+    mail.assert_as_from_nothing();
+    mail.store.retire_mailbox(inbox, NOW).unwrap();
+    assert_eq!(mail.listed(moved), Some(false));
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_template_that_falls_below_five_leaves_its_messages_unknown() {
+    let mut mail = Mail::new();
+    let inbox = mail.inbox;
+    let messages: Vec<MessageId> = (0..5)
+        .map(|_| mail.add_whole(inbox, "promo@shop.example", &[]))
+        .collect();
+    assert_eq!(mail.class(messages[0]).as_deref(), Some("bulk"));
+    // A derivation that reads one message's template otherwise, as a new
+    // version of it may.
+    let old: Vec<u8> = mail
+        .store
+        .connection
+        .query_row(
+            "SELECT template_key FROM envelope WHERE message_id = ?1",
+            [messages[4].0],
+            |row| row.get(0),
+        )
+        .unwrap();
+    let new = vec![7_u8; 16];
+    let transaction = mail.store.connection.transaction().unwrap();
+    transaction
+        .execute(
+            "UPDATE envelope SET template_key = ?2 WHERE message_id = ?1",
+            rusqlite::params![messages[4].0, new],
+        )
+        .unwrap();
+    classes::settle(
+        &transaction,
+        &classes::Reclassify {
+            messages: Some(&std::collections::BTreeSet::from([messages[4].0])),
+            templates: Some(&std::collections::BTreeSet::from([old, new])),
+            ..Default::default()
+        },
+    )
+    .unwrap();
+    transaction.commit().unwrap();
+    for message in &messages {
+        assert_eq!(mail.class(*message).as_deref(), Some("unknown"));
+    }
+    mail.assert_as_from_nothing();
 }

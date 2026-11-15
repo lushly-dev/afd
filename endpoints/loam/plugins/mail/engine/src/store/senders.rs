@@ -28,8 +28,8 @@ use crate::derive::HeaderFields;
 /// `Precedence` of bulk, list or junk, or an `Auto-Submitted` other than
 /// `no`. Written as the partial index `envelope_sender_bulk` is, so a count
 /// by sender reads that index alone.
-pub(super) const BULK: &str = "(list_id <> '' OR unsubscribe > 0 \
-     OR precedence IN ('bulk', 'list', 'junk') OR auto_submitted <> '')";
+pub(super) const BULK: &str = "(envelope.list_id <> '' OR envelope.unsubscribe > 0 \
+     OR envelope.precedence IN ('bulk', 'list', 'junk') OR envelope.auto_submitted <> '')";
 
 /// The person's messages, as a join that starts from the sent mailboxes:
 /// `CROSS JOIN` keeps SQLite to that order, so that the work is the
@@ -102,17 +102,26 @@ mod query {
         )
     }
 
-    /// The person's own addresses, as written: the accounts', the senders
-    /// of the person's messages, and those the person added by hand.
-    pub(super) fn own() -> String {
+    /// The person's own addresses by their mail, as written: the
+    /// accounts', and the senders of the person's messages.
+    pub(super) fn own_by_mail() -> String {
         format!(
             "SELECT address FROM account
              UNION
              SELECT CASE WHEN envelope.resent_from <> '' THEN envelope.resent_from
                          ELSE envelope.sender_address END
-                 FROM {PERSONS} CROSS JOIN envelope ON envelope.message_id = mine.message_id
+                 FROM {PERSONS} CROSS JOIN envelope ON envelope.message_id = mine.message_id"
+        )
+    }
+
+    /// The person's own addresses, as written: those by their mail, and
+    /// those the person added by hand.
+    pub(super) fn own() -> String {
+        format!(
+            "{}
              UNION
-             SELECT address FROM sender_decision WHERE decision = 'mine'"
+             SELECT address FROM sender_decision WHERE decision = 'mine'",
+            own_by_mail()
         )
     }
 
@@ -139,6 +148,7 @@ mod query {
             ("written", written()),
             ("answered", answered()),
             ("own", own()),
+            ("own by mail", own_by_mail()),
             ("every", every()),
         ]
     }
@@ -285,7 +295,22 @@ pub(super) fn touch_correspondents(
 pub(super) fn own_addresses(
     connection: &rusqlite::Connection,
 ) -> Result<HashSet<String>, StoreError> {
-    let mut statement = connection.prepare_cached(&query::own())?;
+    addresses_of(connection, &query::own())
+}
+
+/// The person's own addresses by their accounts and their sent mail alone,
+/// not by a decision of theirs, in lower case.
+pub(super) fn own_by_mail(
+    connection: &rusqlite::Connection,
+) -> Result<HashSet<String>, StoreError> {
+    addresses_of(connection, &query::own_by_mail())
+}
+
+fn addresses_of(
+    connection: &rusqlite::Connection,
+    sql: &str,
+) -> Result<HashSet<String>, StoreError> {
+    let mut statement = connection.prepare_cached(sql)?;
     let addresses = statement
         .query_map([], |row| row.get::<_, String>(0))?
         .map(|address| address.map(|address| address.to_lowercase()))
@@ -433,6 +458,8 @@ pub struct SenderQuery<'a> {
     pub waiting: bool,
     /// Only senders with a suggestion waiting for the person.
     pub suggested: bool,
+    /// Only senders the person screened so: in or out.
+    pub decision: Option<super::Decision>,
     /// The `recent` and id of the last sender of the page before.
     pub before: Option<(i64, i64)>,
     /// At most this many.
@@ -463,6 +490,26 @@ fn sender_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<SenderRow> {
 const SENDER_COLUMNS: &str = "id, address, domain, name, messages, bulk, first_received, \
      last_received, written, last_written, answered, recent, \
      (SELECT decision FROM sender_decision WHERE sender_decision.address = sender.address)";
+
+/// The senders a list asks for. Binds the domain, written-to, the cursor,
+/// the limit, waiting, suggested and the decision, in that order.
+pub(super) fn senders_sql() -> String {
+    format!(
+        "SELECT {SENDER_COLUMNS} FROM sender
+         WHERE (?1 IS NULL OR domain = ?1) AND (?2 = 0 OR written > 0)
+           AND (?6 = 0 OR EXISTS (SELECT 1 FROM screening
+                                  WHERE screening.sender_address = sender.address
+                                    AND screening.class = 'unknown' AND screening.listed = 1))
+           AND (?7 = 0 OR EXISTS (SELECT 1 FROM sender_suggestion
+                                  WHERE sender_suggestion.address = sender.address
+                                    AND sender_suggestion.state = 'open'))
+           AND (?8 IS NULL OR EXISTS (SELECT 1 FROM sender_decision
+                                      WHERE sender_decision.address = sender.address
+                                        AND sender_decision.decision = ?8))
+           AND (recent, id) < (?3, ?4)
+         ORDER BY recent DESC, id DESC LIMIT ?5"
+    )
+}
 
 impl Store {
     /// Computes one address's sender row again, in a transaction of its own,
@@ -504,19 +551,7 @@ impl Store {
     /// When the database refuses.
     pub fn senders(&self, query: &SenderQuery<'_>) -> Result<Vec<SenderRow>, StoreError> {
         let (recent, id) = query.before.unwrap_or((i64::MAX, i64::MAX));
-        let shown = super::classes::SHOWN;
-        let mut statement = self.connection.prepare_cached(&format!(
-            "SELECT {SENDER_COLUMNS} FROM sender
-             WHERE (?1 IS NULL OR domain = ?1) AND (?2 = 0 OR written > 0)
-               AND (?6 = 0 OR EXISTS (SELECT 1 FROM screening
-                                      WHERE screening.sender_address = sender.address
-                                        AND screening.class = 'unknown' AND {shown}))
-               AND (?7 = 0 OR EXISTS (SELECT 1 FROM sender_suggestion
-                                      WHERE sender_suggestion.address = sender.address
-                                        AND sender_suggestion.state = 'open'))
-               AND (recent, id) < (?3, ?4)
-             ORDER BY recent DESC, id DESC LIMIT ?5"
-        ))?;
+        let mut statement = self.connection.prepare_cached(&senders_sql())?;
         let rows = statement
             .query_map(
                 params![
@@ -526,7 +561,8 @@ impl Store {
                     id,
                     query.limit,
                     query.waiting,
-                    query.suggested
+                    query.suggested,
+                    query.decision.map(super::Decision::as_str)
                 ],
                 sender_row,
             )?

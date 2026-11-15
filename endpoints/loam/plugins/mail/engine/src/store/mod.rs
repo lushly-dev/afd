@@ -21,7 +21,7 @@ mod tokens;
 
 pub use classes::{Class, ClassCounts, Readiness};
 pub use decisions::{
-    Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
+    Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
@@ -415,13 +415,19 @@ impl Store {
         now: i64,
     ) -> Result<MailboxId, StoreError> {
         let transaction = self.connection.transaction()?;
-        let was_sent: Option<bool> = transaction
+        let was: Option<String> = transaction
             .query_row(
-                "SELECT role = 'sent' FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
+                "SELECT role FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
                 params![account.0, seen.provider_key],
                 |row| row.get(0),
             )
             .optional()?;
+        let was_sent = was.as_deref().map(|role| role == Role::Sent.as_str());
+        // Junk and trash are left out of the lists by class.
+        let unlisted = |role: &str| role == Role::Junk.as_str() || role == Role::Trash.as_str();
+        let listing_turned = was
+            .as_deref()
+            .is_some_and(|role| unlisted(role) != unlisted(seen.role.as_str()));
         transaction.execute(
             "INSERT INTO mailbox (account_id, provider_key, name, role, header_only)
              VALUES (?1, ?2, ?3, ?4, ?5)
@@ -453,6 +459,9 @@ impl Store {
                     ..Default::default()
                 },
             )?;
+        }
+        if listing_turned {
+            classes::relist_mailbox(&transaction, id.0)?;
         }
         transaction.commit()?;
         Ok(id)
@@ -511,6 +520,7 @@ impl Store {
         if closed > 0 {
             // One row for the mailbox: a view of it reads it again in full.
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
+            classes::relist_mailbox(&transaction, mailbox.0)?;
         }
         transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         // The mailbox shows nothing until it is listed again.

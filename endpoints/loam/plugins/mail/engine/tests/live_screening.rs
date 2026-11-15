@@ -234,6 +234,13 @@ fn screening_on_a_copy_of_a_synced_store() {
         .decide(&largest.address, Some(Decision::Out), now())
         .unwrap();
     let decide_ms = decided.elapsed().as_millis();
+    // The first page of blocked mail, with the largest sender's in it.
+    let mut blocked_list = Vec::new();
+    for _ in 0..20 {
+        let at = Instant::now();
+        store.class_messages(Class::Blocked, None, 51).unwrap();
+        blocked_list.push(at.elapsed().as_secs_f64() * 1000.0);
+    }
     let undecided = Instant::now();
     let back = store.decide(&largest.address, None, now()).unwrap();
     let undo_ms = undecided.elapsed().as_millis();
@@ -319,6 +326,7 @@ fn screening_on_a_copy_of_a_synced_store() {
                 "previewMs": preview_ms,
                 "blockChanged": out.changed,
                 "blockMs": decide_ms,
+                "blockedListFiftyP95Ms": p95(blocked_list),
                 "undoChanged": back.changed,
                 "undoMs": undo_ms,
             },
