@@ -147,7 +147,7 @@ Which task needs which pattern:
 - **Arm 1's public skill** is Anthropic's frontend-design, one of the six public skills the
   proposal compared ([5.8](agent-first-design.proposal.md#58-the-skill)), chosen because it
   installs as a Claude Code plugin. A session has no Skill tool, so that no skill built into
-  Claude Code reaches any arm, so arm 1 is given the plugin's `SKILL.md`, at a recorded version
+  Claude Code reaches any arm, and arm 1 is given the plugin's `SKILL.md`, at a recorded version
   and hash, as a file to read and follow.
 - **Arm 2's patterns do not exist yet.** Patterns is a proposal. A throwaway script adds the
   statements to the brief's text. They are written after step 0.1, from the faults the owner
@@ -219,15 +219,16 @@ phase 0 has no step for it.
 
 - **How a session runs,** as in Component Briefs: `claude -p` with the model and effort
   pinned, no web tools and no subagents, in a tree of a commit that holds none of the held
-  material, with each arm's material in a directory of its own. The tree is a plain export
-  with no history, not a worktree, since `git show` in a worktree reads what the export
+  material, with each arm's material in a directory of its own. The tree is a plain export with a fresh one-commit history and none of the repository's, not a
+  worktree, since `git show` in a worktree reads what the export
   leaves out; the owner approved this on 2026-11-15. A session has six built-in tools and a
   strict MCP configuration with the components brief alone: by default a headless session
   also has messaging to other sessions on the machine and the skills built into Claude Code.
 - **A wall, and a check behind it.** Component Briefs recorded that a session can read any
   path on the machine. The held material is on the same machine, because scoring runs there.
   So each session runs inside a sandbox profile that refuses reads of the held material, the
-  runner, every checkout of this repository and other sessions' folders and transcripts, and
+  runner, every other checkout of this repository, the parts of the scoring checkout that
+  name the bench, and other sessions' folders and transcripts, and
   its tool calls are still searched for a path outside its tree and its own arm's directory.
   A run that tried one is thrown out and run again. The wall covers the places named; the
   search is what finds anything else.
@@ -311,8 +312,10 @@ a list of the scenario's steps, and the journal is read against it:
   as the one unit that compares a build with a walk.
 - **The cap is a share of the week's allowance** on the machine that runs the sessions: no
   more than a fifth of a week's allowance in any one week
-  ([ruling 2](#for-the-owner)). The runner adds up each session's reported cost and stops
-  when the week's share is spent, inside a step if it must: step 0.1 alone is 60 sessions.
+  ([ruling 2](#for-the-owner)). The runner enters each session in a ledger at its most,
+  twice its line, before it starts, and at its reported cost when it ends, and starts no
+  session that could take the week past the cap, inside a step if it must: step 0.1 alone is
+  60 sessions.
   Phase 0 also stops for the owner between steps, so it spreads over more than one week.
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
@@ -321,15 +324,16 @@ a list of the scenario's steps, and the journal is read against it:
   from it the share each step will take, which comes back to the owner before step 0.1. If
   four pilots do not move a figure shown in whole percents, the runs pause after the first
   fifteen builds of step 0.1, which are then the measurement, and the estimate comes back to
-  the owner there. If a pilot costs more than twice its line, the runs stop.
+  the owner there. If a pilot, or any later session, costs more than twice its line or
+  reports no cost, the runs stop.
 - **The weekly figure is shared.** Another session of the owner's runs on that machine, so
   the figure also moves for reasons that are not the bench. Each session's reported cost is
   the measure of the bench's own use, and the weekly figure only scales it.
 - **A session has a floor.** On 2026-11-15 a headless call on Opus 5.5 that answered one
   word reported about $0.11 at list prices, nearly all of it for writing the system prompt
   to the cache. A second call on the runner's flags, on the same day, reported $0.055, writing
-  less to the cache, so sessions started within the cache's hour may pay less. At that figure 209 sessions pay about $22 before any work, inside the estimates
-  above.
+  less to the cache, so sessions started within the cache's hour may pay less. At $0.11, 209
+  sessions pay about $22 before any work, inside the estimates above.
 - **Not in the total:** writing the commands, the fixtures, the reference build, the runner
   and the statements, which are ordinary working sessions.
 - **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
