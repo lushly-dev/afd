@@ -269,7 +269,10 @@ export const CEILINGS = Object.freeze({
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
-	sectionsMinified: 45_000,
+	// Raised from 45,000 to 46,200 by AFD #1159 (D115): violet-button resolves its id-list ARIA attributes to
+	// element references on its inner button, so they reach across its shadow root; measured 45,651
+	// (+778 over 44,873), plus a margin.
+	sectionsMinified: 46_200,
 	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,

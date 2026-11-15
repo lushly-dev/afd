@@ -410,7 +410,21 @@ export class VioletMenu extends FASTElement {
 
         trigger.setAttribute("aria-haspopup", "menu");
         trigger.setAttribute("aria-expanded", String(this.open));
-        trigger.setAttribute("aria-controls", this.panelId);
+
+        // The panel is in this shadow root, where an id from the trigger's tree cannot reach it.
+        // Where shadow roots support a reference target, name this host and let its shadow root
+        // forward the reference to the panel; elsewhere set no aria-controls rather than one that
+        // points at nothing (the menu button pattern makes it optional).
+        const root = this.shadowRoot as (ShadowRoot & { referenceTarget?: string | null }) | null;
+        if (root && "referenceTarget" in ShadowRoot.prototype) {
+            root.referenceTarget = this.panelId;
+            if (!this.id) {
+                this.id = `${this.panelId}-host`;
+            }
+            trigger.setAttribute("aria-controls", this.id);
+        } else {
+            trigger.removeAttribute("aria-controls");
+        }
     }
 
     /**

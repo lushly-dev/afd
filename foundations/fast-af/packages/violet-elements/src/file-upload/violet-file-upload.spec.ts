@@ -71,8 +71,12 @@ describe("violet-file-upload", () => {
         const trigger = upload.shadowRoot?.querySelector("violet-button")?.shadowRoot?.querySelector("button");
         expect(trigger).toBeTruthy();
         expect(trigger?.getAttribute("aria-label")).toBe("Upload field map: Browse file");
-        expect(trigger?.getAttribute("aria-describedby")).toContain(upload.summaryId);
-        expect(trigger?.getAttribute("aria-errormessage")).toBe(upload.errorId);
+        // The ids are in the upload's shadow root, the button host's tree, so the inner button gets
+        // the elements themselves.
+        const references = trigger as unknown as Record<"ariaDescribedByElements" | "ariaErrorMessageElements", Element[] | null>;
+        const root = upload.shadowRoot as ShadowRoot;
+        expect(references.ariaDescribedByElements).toContain(root.getElementById(upload.summaryId));
+        expect(references.ariaErrorMessageElements).toEqual([root.getElementById(upload.errorId)]);
     });
 
     it("rejects files that exceed the accepted file count", async () => {

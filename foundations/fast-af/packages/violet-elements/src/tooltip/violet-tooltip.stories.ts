@@ -78,7 +78,8 @@ export const Overview: Story = {
 
         await expect(popup.getAttribute("role")).toBe("tooltip");
         await expect(popup.getAttribute("popover")).toBe("hint");
-        await expect(trigger.getAttribute("aria-describedby")).toBe(tooltip.tooltipId);
+        // The popup's id is in the shadow root, out of the trigger's reach, so the trigger carries the text.
+        await expect(trigger.getAttribute("aria-description")).toBe(tooltip.content);
     },
 };
 

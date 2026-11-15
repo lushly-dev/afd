@@ -100,7 +100,8 @@ export const Overview: Story = {
         await expect(popup.getAttribute("popover")).toBe("auto");
         await expect(trigger.getAttribute("aria-haspopup")).toBe("dialog");
         await expect(trigger.getAttribute("aria-expanded")).toBe("false");
-        await expect(trigger.getAttribute("aria-controls")).toBe(tip.tipId);
+        // The trigger names the host; its shadow root forwards the reference to the tip.
+        await expect(trigger.getAttribute("aria-controls")).toBe(tip.id);
 
         await userEvent.click(trigger);
 
