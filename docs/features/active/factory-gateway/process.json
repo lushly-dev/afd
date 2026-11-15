@@ -116,6 +116,10 @@
 				{
 					"path": ".mcp.json",
 					"names": ["gateway"]
+				},
+				{
+					"path": ".claude/skills/do-prepare-pr/SKILL.md",
+					"names": ["branch-push"]
 				}
 			]
 		},
