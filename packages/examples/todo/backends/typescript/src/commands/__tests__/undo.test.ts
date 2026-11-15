@@ -13,7 +13,9 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { createTodoServerOptions } from '../../server-options.js';
 import { FileStore } from '../../store/file.js';
 import { store } from '../../store/index.js';
+import { HISTORY_LIMIT } from '../../store/memory.js';
 import type { Todo } from '../../types.js';
+import { getHistory } from '../history.js';
 import type { RestoreResult } from '../restore.js';
 import { stampFrom } from '../shared.js';
 
@@ -176,6 +178,10 @@ describe('todo-history', () => {
 		expect(update).toMatchObject({ superseded: true });
 		expect(update).not.toHaveProperty('undoArgs');
 		expect(created).toMatchObject({ superseded: true });
+	});
+
+	it('states the history limit it keeps', () => {
+		expect(getHistory.description).toContain(`latest ${HISTORY_LIMIT} changes`);
 	});
 
 	it('filters by actor and pages', async () => {

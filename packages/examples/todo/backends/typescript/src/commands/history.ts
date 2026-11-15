@@ -10,7 +10,6 @@ import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
-import { HISTORY_LIMIT } from '../store/memory.js';
 import type { ChangeEntry } from '../types.js';
 
 const inputSchema = z.object({
@@ -58,7 +57,10 @@ export function withCurrentUndo(changes: readonly ChangeEntry[]): HistoryEntry[]
 export const getHistory = defineCommand<typeof inputSchema, HistoryResult>({
 	name: 'todo-history',
 	title: 'Todo change history',
-	description: `See the recent changes to the todos, newest first: what changed, who changed it, when, and the undo command and arguments for each change that is still the latest to its todos. Keeps the latest ${HISTORY_LIMIT} changes`,
+	// A literal, so tools that read descriptions without running code (alfred) see it; it states
+	// HISTORY_LIMIT, which undo.test.ts checks.
+	description:
+		'See the recent changes to the todos, newest first: what changed, who changed it, when, and the undo command and arguments for each change that is still the latest to its todos. Keeps the latest 1000 changes',
 	category: 'todo',
 	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
