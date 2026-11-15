@@ -24,8 +24,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
   journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
   2026-11-15. The parts they left open belong to later phases, as the findings table says.
-- **In progress:** phase 3. The FAST-AF page, the shared modules and job 6 on branch
-  `t3/todo-reference-phase3-page`, not yet merged; the React rebuild follows.
+- **In progress:** phase 3. The FAST-AF page, the shared modules and job 6 merged in [#1275](https://github.com/lushly-dev/afd/pull/1275);
+  the React rebuild follows.
 - **Not started:** phases 4 and 5.
 
 ## Plan
@@ -34,7 +34,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
 | 2. The TypeScript reference | Done, but job 6, which waits for phases 3 and 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
-| 3. The Violet frontend | In progress: the FAST-AF page, the shared modules and job 6 on a branch; the React rebuild next | See [phase 3](#phase-3-the-violet-frontend) | The page's pull request merged; then React |
+| 3. The Violet frontend | In progress: the FAST-AF page, the shared modules and job 6 in [#1275](https://github.com/lushly-dev/afd/pull/1275); the React rebuild next | See [phase 3](#phase-3-the-violet-frontend) | The React rebuild |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
 
@@ -190,7 +190,7 @@ Phase 2 is then complete apart from job 6, which waits for the page in phases 3 
 
 ## Phase 3: the Violet frontend
 
-On branch `t3/todo-reference-phase3-page`, 2026-11-15, not yet merged:
+Merged in [#1275](https://github.com/lushly-dev/afd/pull/1275) on 2026-11-15:
 
 - **The page** (`frontends/fast-af`), on `fast-element` and `violet-elements` after
   `health-dashboard`'s pattern, replaces the vanilla frontend. It talks MCP on `/mcp` through
@@ -226,7 +226,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | --- | --- | --- | --- |
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Also needs `pnpm -F @lushly-dev/specimen build:host` for the export (2026-11-15); with the three built it serves. A session whose server failed at startup does not reconnect without `/mcp` |
 | 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Open, phase 5 |
-| 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | The page asks through form elicitation (phase 3, on a branch); React when it is rebuilt |
+| 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | The page asks through form elicitation ([#1275](https://github.com/lushly-dev/afd/pull/1275)); React when it is rebuilt |
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
 
@@ -240,3 +240,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 2 journal | Journal and replay (job 7), title, output and examples on every command, strict surface validation in the tests, `defaultMiddleware()`; in #1256 |
 | 2026-11-15 | Phase 2 CI | Approval suite, six TypeScript-only conformance cases, `afd validate --surface --strict` and `afd scenario run` against the backend in CI, the older scenarios without a clear; in #1260 |
 | 2026-11-15 | Phase 2 SQLite | The SQLite store on local-db (D4), opt-in until phase 5; every job runs on both stores; phase 2 complete but job 6; in #1263 |
+| 2026-11-15 | Phase 3 page | The FAST-AF page on violet-elements with approvals in the page, the shared modules, job 6; the vanilla frontend removed; in #1275 |
