@@ -8,8 +8,9 @@ owner to approve the domain and the budget before any session runs. Read
 ## Status
 
 - **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239), the
-  held material is written, and the runner is written without its walks, readers and
-  statistics ([STATUS.md](STATUS.md#the-runner)); no building session has run.
+  held material is written, the runner is written without its walks, readers and statistics
+  ([STATUS.md](STATUS.md#the-runner)), and the reference build is written and reviewed
+  ([STATUS.md](STATUS.md#the-reference-build)); no building session has run.
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
