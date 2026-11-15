@@ -32,8 +32,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   #1236: seventeen jobs as scenario files and twenty-four commands. The scenario checks
   pass, three readers walked the paths and a fourth reviewed the result. On 2026-11-15 the
   owner decided three of its design points; the list of jobs as a whole is still open.
-- **In progress, not merged:** each bench screen's [task](bench/tasks/README.md) and the
-  results that force its states, drafted 2026-11-15 and reviewed once.
+- **In progress:** each bench screen's [task](bench/tasks/README.md) and the results that
+  force its states, drafted 2026-11-15, reviewed in two passes and merged in #1238.
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
@@ -66,7 +66,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
-| The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed once. Not merged | [`bench/tasks/`](bench/tasks/README.md) |
+| The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: schemas, the application, the held material and the runner | Not started | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
