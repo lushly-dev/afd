@@ -87,8 +87,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   product.
 - **The bench is mostly a specification.** Its application is built and merged in #1239
   (2026-11-15); its checks, planted faults, persona cards, reference build and runner are not.
-  Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
-  and not confirmed.
+  Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its
+  rules for "go" are proposed and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
   once.
