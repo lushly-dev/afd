@@ -278,7 +278,7 @@
 		{
 			"basis": "authored",
 			"id": "date-picker.open",
-			"text": "Open the calendar with show(), toggleOpen() or the open attribute; close it with hide(). open-change fires with detail.open on each change, and once with false when the element connects."
+			"text": "Open the calendar with show(), toggleOpen() or the open attribute; close it with hide(). open-change fires with detail.open on each change, and not when the element connects."
 		},
 		{
 			"basis": "authored",

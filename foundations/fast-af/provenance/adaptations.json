@@ -5771,11 +5771,11 @@
       "upstream_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
       "staged_path": "packages/violet-elements/src/alert/violet-alert.ts",
       "staged_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
-      "current_import_sha256": "c2280e11fb750a2ee7d55d796166510e118de446d743b78d66d6fc72dc7244fd",
+      "current_import_sha256": "33a882f3a66e0eed056a5a59c027b891a1e66eee91fb035507c17aa7fde542a7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/badge/violet-badge.spec.ts",
@@ -5783,11 +5783,11 @@
       "upstream_sha256": "e12bcbe7b2d3d418b80713a3c4234a8923b8ceabb1c97c3bf7a977030161750a",
       "staged_path": "packages/violet-elements/src/badge/violet-badge.spec.ts",
       "staged_sha256": "e12bcbe7b2d3d418b80713a3c4234a8923b8ceabb1c97c3bf7a977030161750a",
-      "current_import_sha256": "e12bcbe7b2d3d418b80713a3c4234a8923b8ceabb1c97c3bf7a977030161750a",
+      "current_import_sha256": "245eefce3deee92db4ae94ba597fab31e4b65b9930cf6d0073b1237955165f76",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/badge/violet-badge.stories.ts",
@@ -5807,11 +5807,11 @@
       "upstream_sha256": "02e0e21baf65d6c8b319b2e05d315ee17478623cdf4327d48906244b64d38af8",
       "staged_path": "packages/violet-elements/src/badge/violet-badge.ts",
       "staged_sha256": "02e0e21baf65d6c8b319b2e05d315ee17478623cdf4327d48906244b64d38af8",
-      "current_import_sha256": "02e0e21baf65d6c8b319b2e05d315ee17478623cdf4327d48906244b64d38af8",
+      "current_import_sha256": "f93f41f8712c0d7c0eaf8649cda76519c1af3471c06de56945d586d52630ff66",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/breadcrumb-item/violet-breadcrumb-item.spec.ts",
@@ -6071,11 +6071,11 @@
       "upstream_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.spec.ts",
       "staged_sha256": "3df008590ca0de3cdf2e29500d784c4639f8451a7c78d9c0b86367b18834b3ba",
-      "current_import_sha256": "6e97533009b32746a9a9332282c250eaac40a725b5b520d205f09f398e21607f",
+      "current_import_sha256": "9518b521a670a0d249909d96176dff5a0d441574c4776f317e6ef421d9d77ad0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #230) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-picker.stories.ts",
@@ -6095,11 +6095,11 @@
       "upstream_sha256": "888d26c37c96bc48906146abe6933eb81ba7e1635d7e10a824e6dcd2e77ab658",
       "staged_path": "packages/violet-elements/src/color-picker/violet-color-picker.ts",
       "staged_sha256": "888d26c37c96bc48906146abe6933eb81ba7e1635d7e10a824e6dcd2e77ab658",
-      "current_import_sha256": "a867af9369f38f5d7c44242033a1b0bcc55887bcad96ee38a71af548b706b760",
+      "current_import_sha256": "8b2fa6cc87f19a027a4bb454641ab6cac56f897b337479e271ea92d88a756bd0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #230) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); the hex input in the panel draws its border from color.field.border too; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); the hex input in the panel draws its border from color.field.border too; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/color-picker/violet-color-utils.ts",
@@ -6155,11 +6155,11 @@
       "upstream_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
       "staged_path": "packages/violet-elements/src/combobox/violet-combobox.spec.ts",
       "staged_sha256": "3914322d5c63782876243342da7094af54e841f7b56aa5567d2facb55853985b",
-      "current_import_sha256": "514ae2772cf12b95ab2ce05bc67aa9d2ab43dfddf41c6c8b8e049e10a08a9ba4",
+      "current_import_sha256": "9b47ca8c78472027b4eec1464822375b9048a72948cbdd4c0cb49ad4be2cc6c7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); #600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before"
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); #600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.stories.ts",
@@ -7451,11 +7451,11 @@
       "upstream_sha256": "bb746c838be7268ac3070ea1912553372072cdd11d745276b36762542bd7d5d4",
       "staged_path": "packages/violet-elements/src/date-picker/violet-date-picker.spec.ts",
       "staged_sha256": "bb746c838be7268ac3070ea1912553372072cdd11d745276b36762542bd7d5d4",
-      "current_import_sha256": "afab4d70b093598e5d794a0acf68ee346407d5e1fbb3e3d58d796b3a5b625561",
+      "current_import_sha256": "c4e4d2c64f8c1aadce1cba7078ffef62a5177e0c298a12513eedd9a06d3e1976",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Added browser tests for closing on focus leaving the picker by Tab, Shift+Tab and focus moves, staying open for focus moves inside, window blur, and presses on the heading or a disabled day inside a tabindex=-1 wrapper or a scrolling violet-dialog (afd#1191); A touch tap moves focus on its compatibility mousedown, after pointerup, so a press inside the picker now ends at the captured click or pointercancel, and a captured keydown also ends it so a keyboard exit always closes; tests tap the heading and a disabled day through the DevTools protocol (afd#1194 second review pass)"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Added browser tests for closing on focus leaving the picker by Tab, Shift+Tab and focus moves, staying open for focus moves inside, window blur, and presses on the heading or a disabled day inside a tabindex=-1 wrapper or a scrolling violet-dialog (afd#1191); A touch tap moves focus on its compatibility mousedown, after pointerup, so a press inside the picker now ends at the captured click or pointercancel, and a captured keydown also ends it so a keyboard exit always closes; tests tap the heading and a disabled day through the DevTools protocol (afd#1194 second review pass); Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-picker/violet-date-picker.stories.ts",
@@ -7475,11 +7475,11 @@
       "upstream_sha256": "47700df16a28f4db46f3942af6cf15cad8353d69eb1238763321a33212763b20",
       "staged_path": "packages/violet-elements/src/date-picker/violet-date-picker.ts",
       "staged_sha256": "47700df16a28f4db46f3942af6cf15cad8353d69eb1238763321a33212763b20",
-      "current_import_sha256": "a9de2f3cab9ec6131d4e281a30b49391daf8e3d8fcb8a01504fbc79ee805c826",
+      "current_import_sha256": "49007cdcacd0489541b498c108ee8bd9a52969592d864826f00e8ac589bc5902",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); Closed the popup when focus moves outside the picker, except while a pointer press inside it hands focus to a focusable ancestor such as a scrolling dialog body (afd#1191); A touch tap moves focus on its compatibility mousedown, after pointerup, so a press inside the picker now ends at the captured click or pointercancel, and a captured keydown also ends it so a keyboard exit always closes; tests tap the heading and a disabled day through the DevTools protocol (afd#1194 second review pass)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); Closed the popup when focus moves outside the picker, except while a pointer press inside it hands focus to a focusable ancestor such as a scrolling dialog body (afd#1191); A touch tap moves focus on its compatibility mousedown, after pointerup, so a press inside the picker now ends at the captured click or pointercancel, and a captured keydown also ends it so a keyboard exit always closes; tests tap the heading and a disabled day through the DevTools protocol (afd#1194 second review pass); Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-range-picker/violet-date-range-picker.spec.ts",
@@ -7487,11 +7487,11 @@
       "upstream_sha256": "9d937a85b73ea70055aea44451499ac5114e8110f4161fbf92fceb1b6a2836cc",
       "staged_path": "packages/violet-elements/src/date-range-picker/violet-date-range-picker.spec.ts",
       "staged_sha256": "9d937a85b73ea70055aea44451499ac5114e8110f4161fbf92fceb1b6a2836cc",
-      "current_import_sha256": "dd4e70279bb9f5ab1a6082b8a6e2a61ffbd4948fd8fe4aad76afa9d0c58e0d23",
+      "current_import_sha256": "6d81287c2d22be8baa9bfee5990e95a4e03e7b3fd9725e0f022518b118f9d998",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-range-picker/violet-date-range-picker.stories.ts",
@@ -7511,11 +7511,11 @@
       "upstream_sha256": "18c3ffb51a6b7d81950915d3ba50c5a501f666f36c1b7ec24469c5c7eff8b14c",
       "staged_path": "packages/violet-elements/src/date-range-picker/violet-date-range-picker.ts",
       "staged_sha256": "18c3ffb51a6b7d81950915d3ba50c5a501f666f36c1b7ec24469c5c7eff8b14c",
-      "current_import_sha256": "13787c3844d0806a4798b7218d1d944072d829bd95ebb24416287d7663bfd65e",
+      "current_import_sha256": "cbeb1751d0e9470cd936897937dcef64faa7dabfdbad39582d2c36f08c65d2a1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4). Then drew the resting border of the field frame from color.field.border and its hover from color.field.border.hover, through --_field-border and --_field-border-hover, instead of color.border.subtle and a literal hover fallback, because Loam's design document decided on 2026-11-01 that the resting field border must meet WCAG 1.4.11's 3:1 (D50; endpoints/loam/docs/design.md, history); Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/date-time/violet-date-utils.ts",
@@ -8423,11 +8423,11 @@
       "upstream_sha256": "3a854ae38451f7062a7bf84589577a7feb3a9ccf53a87dc8067e0591f278d641",
       "staged_path": "packages/violet-elements/src/option-group/violet-option-group.spec.ts",
       "staged_sha256": "3a854ae38451f7062a7bf84589577a7feb3a9ccf53a87dc8067e0591f278d641",
-      "current_import_sha256": "3a854ae38451f7062a7bf84589577a7feb3a9ccf53a87dc8067e0591f278d641",
+      "current_import_sha256": "4ed099ea9955bccab6212e889d0752966401249b0230fb30c3830ae56b6e35dc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option-group/violet-option-group.stories.ts",
@@ -8447,11 +8447,11 @@
       "upstream_sha256": "03e05c12d8dc049dabc960efd8931ad07a5c32038f18e1a76d1f868425a4f97f",
       "staged_path": "packages/violet-elements/src/option-group/violet-option-group.ts",
       "staged_sha256": "03e05c12d8dc049dabc960efd8931ad07a5c32038f18e1a76d1f868425a4f97f",
-      "current_import_sha256": "dbaf0ad58f381ddc535fae71ee3991d3dfbebc230ba8ff694b6639a7ef59a46b",
+      "current_import_sha256": "7135aec27a066151b9227de7f4a4612c33a89e194794c1d105fffcb099b270de",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json"
+      "import_reason": "Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.spec.ts",
@@ -8483,11 +8483,11 @@
       "upstream_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
       "staged_path": "packages/violet-elements/src/option/violet-option.ts",
       "staged_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
-      "current_import_sha256": "8d125b08b3b1bd38c2fdafffc4efe6a3d1fe77eb0a61915064006c2868d747b5",
+      "current_import_sha256": "8e892b215362b22760ca7aca8b345ba98b1040a6181564da5c17cb0938b1748e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/pagination/violet-pagination.spec.ts",
@@ -8603,11 +8603,11 @@
       "upstream_sha256": "c0eb502c5ae4065ee0b3b195a2c54c55d0a014df3d4cc1dab2780d62878168d9",
       "staged_path": "packages/violet-elements/src/progress/violet-progress.spec.ts",
       "staged_sha256": "c0eb502c5ae4065ee0b3b195a2c54c55d0a014df3d4cc1dab2780d62878168d9",
-      "current_import_sha256": "c0eb502c5ae4065ee0b3b195a2c54c55d0a014df3d4cc1dab2780d62878168d9",
+      "current_import_sha256": "2c0797afac1288be8020a9d14df375b8106d3b1529f8a7fa67422e28e3526e36",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/progress/violet-progress.stories.ts",
@@ -8627,11 +8627,11 @@
       "upstream_sha256": "b45643c7aeeef2035a69f5487d1357608a9d83243cd3f7d1a5ba549bed9102cd",
       "staged_path": "packages/violet-elements/src/progress/violet-progress.ts",
       "staged_sha256": "b45643c7aeeef2035a69f5487d1357608a9d83243cd3f7d1a5ba549bed9102cd",
-      "current_import_sha256": "b45643c7aeeef2035a69f5487d1357608a9d83243cd3f7d1a5ba549bed9102cd",
+      "current_import_sha256": "57851a4841dbc3a44b4b4fb01559746baa1d533574f796f922c95dc34c8f7065",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/radio-group/violet-radio-group.spec.ts",
@@ -8747,11 +8747,11 @@
       "upstream_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.spec.ts",
       "staged_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
-      "current_import_sha256": "43fa025ec891478bb9c94812c87915e5d9150a227bcab7eb7b9b68ea56efaee6",
+      "current_import_sha256": "7a1bec8aff1afeff0e8da3a51a592caed159d6419b40d3ac0680cf4a793df312",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #235) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact upstream bytes (fast-af #235)"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/segmented-control/violet-segmented-control.stories.ts",
@@ -8771,11 +8771,11 @@
       "upstream_sha256": "3cc321374770bad06025b14ccf58483a0788090968c291196c2126d19dd486a2",
       "staged_path": "packages/violet-elements/src/segmented-control/violet-segmented-control.ts",
       "staged_sha256": "3cc321374770bad06025b14ccf58483a0788090968c291196c2126d19dd486a2",
-      "current_import_sha256": "3cc321374770bad06025b14ccf58483a0788090968c291196c2126d19dd486a2",
+      "current_import_sha256": "770a030fd367011b1eda8bdcd2c2959c4014718c406c09022d4234afd0f70462",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/select/violet-select.spec.ts",
@@ -8867,11 +8867,11 @@
       "upstream_sha256": "118a72aac54e2743a60f5a3f8fd34fa5f14d0dd96c954253045344ea06149247",
       "staged_path": "packages/violet-elements/src/slider/violet-range-slider.ts",
       "staged_sha256": "118a72aac54e2743a60f5a3f8fd34fa5f14d0dd96c954253045344ea06149247",
-      "current_import_sha256": "23c23977de2a4edde7fadf4f829f2a17375e1637ce95ade730dd209f299c640e",
+      "current_import_sha256": "5675561875da0cc5cd7523cb2886223d9076692881c849f017ce1805555b3961",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-slider.spec.ts",
@@ -8939,11 +8939,11 @@
       "upstream_sha256": "1463bc281d9eabe7803d419aec5d8bde96485b364fdf7cee49ea5450d79f9fa6",
       "staged_path": "packages/violet-elements/src/snackbar/violet-snackbar.ts",
       "staged_sha256": "1463bc281d9eabe7803d419aec5d8bde96485b364fdf7cee49ea5450d79f9fa6",
-      "current_import_sha256": "1463bc281d9eabe7803d419aec5d8bde96485b364fdf7cee49ea5450d79f9fa6",
+      "current_import_sha256": "6cecb70e182ec53e76bc6857077ab77329259a2611d0ffa01dd9d7f6a4d6dc1d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/spinner/violet-spinner.spec.ts",
@@ -9395,11 +9395,11 @@
       "upstream_sha256": "7ca997a5ae9d6fff5dad826d7e444792d1546fb99c7c47432b0043fbffeb5eed",
       "staged_path": "packages/violet-elements/src/toast/violet-toast.spec.ts",
       "staged_sha256": "7ca997a5ae9d6fff5dad826d7e444792d1546fb99c7c47432b0043fbffeb5eed",
-      "current_import_sha256": "7ca997a5ae9d6fff5dad826d7e444792d1546fb99c7c47432b0043fbffeb5eed",
+      "current_import_sha256": "7a9fd327078e5e4f295ba0c74126a36098e19eb05efaed2f00c231f592441cea",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/toast/violet-toast.stories.ts",
@@ -9419,11 +9419,11 @@
       "upstream_sha256": "2cda1d7070a7ef2fd8c22074097a950e5ce7578032b4de4c5838bd178caf0a56",
       "staged_path": "packages/violet-elements/src/toast/violet-toast.ts",
       "staged_sha256": "2cda1d7070a7ef2fd8c22074097a950e5ce7578032b4de4c5838bd178caf0a56",
-      "current_import_sha256": "2cda1d7070a7ef2fd8c22074097a950e5ce7578032b4de4c5838bd178caf0a56",
+      "current_import_sha256": "03e5faf7e21cdee64ed8f67c4cee14ed69980ab2725384c694685e35466571e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.spec.ts",
@@ -9431,11 +9431,11 @@
       "upstream_sha256": "d1358d4077fef17da1b55fe47421eaf67118a705a41b47ee4a63bf4a9d716dfd",
       "staged_path": "packages/violet-elements/src/tooltip/violet-tooltip.spec.ts",
       "staged_sha256": "d1358d4077fef17da1b55fe47421eaf67118a705a41b47ee4a63bf4a9d716dfd",
-      "current_import_sha256": "d1358d4077fef17da1b55fe47421eaf67118a705a41b47ee4a63bf4a9d716dfd",
+      "current_import_sha256": "e8ea4ff819cc8fdabd6f30f5b48b9f6c90d7e4c8bb51487fb8769d70093728ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.stories.ts",
@@ -9455,11 +9455,11 @@
       "upstream_sha256": "0ab06239a8b326527386164825270da9657e405630152b20565481b14b7137b8",
       "staged_path": "packages/violet-elements/src/tooltip/violet-tooltip.ts",
       "staged_sha256": "0ab06239a8b326527386164825270da9657e405630152b20565481b14b7137b8",
-      "current_import_sha256": "0ab06239a8b326527386164825270da9657e405630152b20565481b14b7137b8",
+      "current_import_sha256": "3b814a6c0fa9062b926b15fd61547f58241291b447267da6afd5cc26ae329219",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tree-item/violet-tree-item.spec.ts",
@@ -9875,11 +9875,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8acfbf28a9112e80c12704177ed38263ccc90cc01166fc78eefe64286912065b",
+      "current_import_sha256": "c6524917e01e3bb936c62d1ee1cc954527aa6658270b89488959df98332978f6",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-color-swatch.json",
@@ -10007,11 +10007,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "e24d814200c35faebb1e089554586a54254bcf88b1cc2b985600a3f2acb0643a",
+      "current_import_sha256": "7428b1379f3447c77e8938561a47fe091b125e1b7fc32547788f59d489011b5c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-date-range-picker.json",
@@ -10283,11 +10283,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f617c826ea1b117d04e7cd3a4d2f9b08fe6ca469f93da3bb0318cfb5a6eb60ce",
+      "current_import_sha256": "c60287f973cbde4abd03175208e892c8cc835176216a26692f702cd9fecf6a9f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-radio-group.json",
@@ -10319,11 +10319,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "54f2d467c17d4210fb17adde4888a2805fbe06f1216ab7a909f19c32842a358a",
+      "current_import_sha256": "53422dbe27dedb4ca8ffa0b735a964fac9853edf5396d1cd4cbefa045b553789",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-reasoning-block.json",
@@ -10559,11 +10559,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "b666431f3950647b5451711a1c766742cf1cd6cec54127ad81b455a0f8713521",
+      "current_import_sha256": "070e12c3ebc1325fc0d6af7e44501f040428994ec325988b5c262b403c1c00b8",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-tool-call-card.json",
@@ -10787,11 +10787,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "654e18214ec0259296c0a632b37fdd3bc270978cba3f1584616c9cc2bdc28a20",
+      "current_import_sha256": "21100ab9f7331215b59d163edac5d5534b0fe5063d396d91af160061405cb50d",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/combobox/violet-combobox.guide.json",
@@ -10811,11 +10811,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "49ec49538818cb5c7862e45a50ed94a51455a091edfb487a2d6d8451fea8284d",
+      "current_import_sha256": "a4ad357e261c31f059fe0de0315f556cc43d479e5740e1699be4295d8c6c3e76",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.guide.json",
@@ -11063,11 +11063,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "f112a633016c3b895bbea6ec42b88d926e48250a8c4ad5aa6303f10416484ed7",
+      "current_import_sha256": "725c0eab386aa34bbfd9404d6cf85b70ccaa78295c4b15d6c8536594831bb86c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-slider.guide.json",
@@ -11195,11 +11195,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "c019fdcb4b758dc6c1a06fffb24aeda65272c0d987846a2e0e97538ca2b68c85",
+      "current_import_sha256": "cf490167297153d67ea1351cf1ce6c3bd49ac9f3d3ce30a18ad4640c706faef4",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tooltip/violet-tooltip.guide.json",
@@ -11320,6 +11320,18 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set that retries a failed load, the Node-safe theme-css entry and the grid host's autosize font"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/src/slider/violet-range-slider.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "187aa590e6d3d50c680e210e3814de31fe66827b2acae11d33a48f9f08a6054b",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
     }
   ]
 }

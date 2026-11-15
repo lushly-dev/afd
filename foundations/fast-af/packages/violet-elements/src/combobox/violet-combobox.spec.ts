@@ -271,6 +271,8 @@ describe("violet-combobox", () => {
             expect(getOption(combobox, "reserve").hidden).toBe(false);
             expect(getOption(combobox, "regional").hidden).toBe(true);
             expect(getOption(combobox, "coop").hidden).toBe(true);
+            expect(getComputedStyle(getOption(combobox, "coop")).display).toBe("none");
+            expect(getComputedStyle(getOption(combobox, "reserve")).display).not.toBe("none");
 
             await typeText(combobox, "");
             expect(combobox.options.every(option => !option.hidden)).toBe(true);

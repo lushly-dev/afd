@@ -39,27 +39,27 @@ const styles = css`
     }
 
     :host([color="accent"]) {
-        --_badge-bg: var(--color-control-selected-background);
-        --_badge-text: var(--color-control-selected-foreground);
-        --_badge-border: var(--color-control-selected-border);
+        --_badge-bg: var(--color-control-selected-background, #DDEADF);
+        --_badge-text: var(--color-control-selected-foreground, #244635);
+        --_badge-border: var(--color-control-selected-border, rgba(36, 70, 53, 0.22));
     }
 
     :host([color="success"]) {
-        --_badge-bg: var(--color-state-success-background);
-        --_badge-text: var(--color-state-success-text);
-        --_badge-border: var(--color-state-success-border);
+        --_badge-bg: var(--color-state-success-background, #E3F1E7);
+        --_badge-text: var(--color-state-success-text, #166534);
+        --_badge-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
     }
 
     :host([color="warning"]) {
-        --_badge-bg: var(--color-state-warning-background);
-        --_badge-text: var(--color-state-warning-text);
-        --_badge-border: var(--color-state-warning-border);
+        --_badge-bg: var(--color-state-warning-background, #FDEBCC);
+        --_badge-text: var(--color-state-warning-text, #92400E);
+        --_badge-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
     }
 
     :host([color="danger"]) {
-        --_badge-bg: var(--color-state-danger-background);
-        --_badge-text: var(--color-state-danger-text);
-        --_badge-border: var(--color-state-danger-border);
+        --_badge-bg: var(--color-state-danger-background, #FBE2E2);
+        --_badge-text: var(--color-state-danger-text, #B42318);
+        --_badge-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
     }
 
     .badge {

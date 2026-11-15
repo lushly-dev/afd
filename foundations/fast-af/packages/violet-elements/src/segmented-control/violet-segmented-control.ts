@@ -383,7 +383,11 @@ export class VioletSegmentedControl extends FASTElement {
 
         const shouldBeInvalid = this.invalid || (this.required && !this.value);
         if (shouldBeInvalid) {
-            this.#internals.setValidity({ valueMissing: !this.value }, this.validationMessageText);
+            // `invalid` is the author's verdict, so it fails validation whatever the value is.
+            this.#internals.setValidity(
+                { customError: this.invalid, valueMissing: this.required && !this.value },
+                this.validationMessageText,
+            );
         } else {
             this.#internals.setValidity({});
         }
