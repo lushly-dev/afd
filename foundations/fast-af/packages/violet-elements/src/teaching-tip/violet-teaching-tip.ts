@@ -391,7 +391,21 @@ export class VioletTeachingTip extends FASTElement {
 
         this.#triggerElement.setAttribute("aria-haspopup", "dialog");
         this.#triggerElement.setAttribute("aria-expanded", String(this.open));
-        this.#triggerElement.setAttribute("aria-controls", this.tipId);
+
+        // The tip is in this shadow root, where an id from the trigger's tree cannot reach it.
+        // Where shadow roots support a reference target, name this host and let its shadow root
+        // forward the reference to the tip; elsewhere set no aria-controls rather than one that
+        // points at nothing.
+        const root = this.shadowRoot as (ShadowRoot & { referenceTarget?: string | null }) | null;
+        if (root && "referenceTarget" in ShadowRoot.prototype) {
+            root.referenceTarget = this.tipId;
+            if (!this.id) {
+                this.id = `${this.tipId}-host`;
+            }
+            this.#triggerElement.setAttribute("aria-controls", this.id);
+        } else {
+            this.#triggerElement.removeAttribute("aria-controls");
+        }
     }
 
     #clearTriggerAria(element: HTMLElement): void {

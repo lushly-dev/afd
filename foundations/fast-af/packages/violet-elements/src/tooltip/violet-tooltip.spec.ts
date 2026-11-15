@@ -1,11 +1,59 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cdp, userEvent } from "vitest/browser";
 
+import "../button/violet-button";
 import "./violet-tooltip";
 import type { VioletTooltip } from "./violet-tooltip";
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
+interface AxNode {
+    backendDOMNodeId?: number;
+    role?: { value?: string };
+    name?: { value?: string };
+    description?: { value?: string };
+    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+}
+
+interface FrameTree {
+    frame: { id: string; url: string };
+    childFrames?: FrameTree[];
+}
+
+function findFrame(tree: FrameTree, url: string): string | undefined {
+    if (tree.frame.url === url) {
+        return tree.frame.id;
+    }
+    for (const child of tree.childFrames ?? []) {
+        const found = findFrame(child, url);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * A node of Chromium's accessibility tree, found by role and name, with the nodes its
+ * aria-controls resolves to. The tree resolves references, or drops them, as assistive
+ * technology sees them, which the attributes alone do not show.
+ */
+async function accessibleNode(role: string, name: string): Promise<AxNode & { controls: AxNode[] }> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
+    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+    const frameId = findFrame(frameTree, location.href);
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as { nodes: AxNode[] };
+    const node = nodes.find(candidate => candidate.role?.value === role && candidate.name?.value === name);
+    if (!node) {
+        throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
+    }
+    const byId = new Map(nodes.map(candidate => [candidate.backendDOMNodeId, candidate]));
+    const related = node.properties?.find(property => property.name === "controls")?.value.relatedNodes ?? [];
+    const controls = related.map(entry => byId.get(entry.backendDOMNodeId)).filter(entry => entry !== undefined);
+    return { ...node, controls };
 }
 
 async function renderTooltip(template: string): Promise<VioletTooltip> {
@@ -18,6 +66,59 @@ async function renderTooltip(template: string): Promise<VioletTooltip> {
 describe("violet-tooltip", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+    });
+
+    it("describes its trigger with the content attribute", async () => {
+        const tooltip = await renderTooltip(`
+            <violet-tooltip content="Copies the link">
+                <button type="button">Share</button>
+            </violet-tooltip>
+        `);
+        const trigger = tooltip.querySelector("button") as HTMLButtonElement;
+
+        expect(trigger.getAttribute("aria-description")).toBe("Copies the link");
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies the link");
+        });
+
+        tooltip.content = "Copies a short link";
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Share")).description?.value).toBe("Copies a short link");
+        });
+    });
+
+    it("describes its trigger with slotted content and keeps the trigger's own references", async () => {
+        const tooltip = await renderTooltip(`
+            <p id="share-note">Anyone with the link can view.</p>
+            <violet-tooltip>
+                <button type="button" aria-describedby="share-note">Share</button>
+                <span slot="content">Copies <strong>the link</strong></span>
+            </violet-tooltip>
+        `);
+        const trigger = tooltip.querySelector("button") as HTMLButtonElement;
+        const content = tooltip.querySelector('[slot="content"]') as HTMLElement;
+
+        expect(trigger.getAttribute("aria-describedby")).toBe(`share-note ${content.id}`);
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Share")).description?.value).toBe(
+                "Anyone with the link can view. Copies the link"
+            );
+        });
+
+        content.remove();
+        await vi.waitFor(() => expect(trigger.getAttribute("aria-describedby")).toBe("share-note"));
+    });
+
+    it("describes a violet-button trigger's inner button", async () => {
+        await renderTooltip(`
+            <violet-tooltip content="Saves without closing">
+                <violet-button>Save</violet-button>
+            </violet-tooltip>
+        `);
+
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Save")).description?.value).toBe("Saves without closing");
+        });
     });
 
     it("shows again on hover after Escape closes it", async () => {
@@ -47,17 +148,6 @@ describe("violet-tooltip", () => {
         expect(popup.matches(":popover-open")).toBe(true);
     });
 
-    it("wires aria-describedby to a slotted trigger", async () => {
-        const tooltip = await renderTooltip(`
-            <violet-tooltip content="Helpful details">
-                <button type="button">Trigger</button>
-            </violet-tooltip>
-        `);
-
-        const trigger = tooltip.querySelector("button");
-        expect(trigger?.getAttribute("aria-describedby")).toBe(tooltip.tooltipId);
-    });
-
     it("supports an external anchor trigger by id", async () => {
         const tooltip = await renderTooltip(`
             <button id="outside-anchor" type="button">Anchor</button>
@@ -69,7 +159,13 @@ describe("violet-tooltip", () => {
         await nextFrame();
 
         expect(anchor?.style.getPropertyValue("anchor-name")).toBe("--violet-tooltip-anchor");
-        expect(anchor?.getAttribute("aria-describedby")).toBe(tooltip.tooltipId);
         expect(tooltip.open).toBe(true);
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Anchor")).description?.value).toBe("Helpful details");
+        });
+
+        tooltip.anchor = "";
+        await nextFrame();
+        expect(anchor?.hasAttribute("aria-description")).toBe(false);
     });
 });
