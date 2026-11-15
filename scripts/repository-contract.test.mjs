@@ -155,6 +155,20 @@ test('npm publication requires durable ownership before upload and completion af
 	assert.match(workflow, /registry versions exist without verified finalization/);
 });
 
+test('both npm publishing jobs run in the protected npm environment', () => {
+	const workflow = read('.github/workflows/release.yml');
+	// Trusted publishers match repository, workflow and environment, not the ref, so the publishing
+	// jobs must name the environment whose deployment rule allows only main.
+	for (const name of ['release', 'recover']) {
+		const start = workflow.indexOf(`\n  ${name}:\n`);
+		assert.ok(start >= 0, `missing job ${name}`);
+		const next = workflow.slice(start + 1).search(/\n {2}[a-z][\w-]*:\n/);
+		const job = next < 0 ? workflow.slice(start) : workflow.slice(start, start + 1 + next);
+		assert.match(job, /^ {4}environment: npm$/m, `${name} must run in the npm environment`);
+		assert.match(job, /id-token: write/);
+	}
+});
+
 test('a push to main cannot cancel a recovery dispatch that is waiting', () => {
 	const workflow = read('.github/workflows/release.yml');
 	// One concurrency group keeps a single pending run, and a newer run replaces it. In the pushes'

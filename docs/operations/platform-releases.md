@@ -28,6 +28,8 @@ GitHub refuses a `GITHUB_TOKEN` push of a tag whose commit has different workflo
 
 Changesets' own version/publish branch decision is not a publication-admission mechanism. Never use raw `changeset publish` on the complete workspace. Direct arbitrary shell execution remains trusted operator execution; these tools do not claim to sandbox an operator.
 
+`release.yml`'s two publishing jobs, `release` and `recover`, run in the `npm` environment, whose deployment rule allows only `main`. npm matches a trusted publisher on repository, workflow file and environment, not on the git ref, so each name's trusted publisher names that environment: without it, a branch that edits `release.yml` could upload past the guard. A trusted publisher that names `npm` refuses a job that does not declare it, so the workflow declares it before any publisher requires it. Each name's publishing access is "require two-factor authentication and disallow tokens".
+
 ## Native routes
 
 Existing Python and Rust tag routes remain distinct. Each checks exact admitted unit/route, triggering tag and checked-out source, manifest identity/version, and packaged metadata before authentication/upload. Python validates its complete wheel/sdist set and hashes; Rust validates its packaged Cargo identity and VCS/source data, then rechecks before `cargo publish`. Cargo repackages source during upload, so the local archive receipt is trace evidence rather than proof of the registry's exact bytes.
