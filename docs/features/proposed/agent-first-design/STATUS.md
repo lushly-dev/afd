@@ -34,6 +34,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   owner decided three of its design points; the list of jobs as a whole is still open.
 - **In progress:** each bench screen's [task](bench/tasks/README.md) and the results that
   force its states, drafted 2026-11-15, reviewed in two passes and merged in #1238.
+- **In progress:** the seed library's application, built 2026-11-15 in
+  [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) on
+  `feat/seed-library-example` and not merged: the twenty-four commands with their schemas,
+  an in-memory store, and tests that run all seventeen jobs (113 of 113 steps pass) and check
+  the 74 results against the commands' output schemas. No reader but its author has reviewed it.
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
@@ -49,7 +54,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-15, the link check, the scenario checks on the seed library's
-  jobs, the check of the bench's tasks and results, and the reviews below.
+  jobs, the check of the bench's tasks and results, the reviews below, and the seed library's
+  tests, `pnpm check` and `pnpm verify` on the built application.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -67,7 +73,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
-| The bench: schemas, the application, the held material and the runner | Not started | [`bench.md`](bench.md) |
+| The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, not merged: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
+| The bench: schemas, the application, the held material and the runner | Not started (2026-11-15: the schemas and the application moved to the row above; the held material and the runner are not started) | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -77,8 +84,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is a specification only.** Nothing in it is built, and its cost per session rests
-  on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
+- **The bench is mostly a specification.** Its application is built and not merged
+  (2026-11-15); its checks, planted faults, persona cards, reference build and runner are not.
+  Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
   and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
   direction is one session's draft, written with the owner in conversation and reviewed
@@ -242,6 +250,39 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     did not say which of two walks it used. The author fixed all eleven and read them back.
     No third pass was run.
 
+- **The seed library's application, 2026-11-15, on `feat/seed-library-example` from
+  `03f68dc2`:** on Node 26.13.1, Windows 11.
+  - `pnpm -F @afd/example-seed-library test`: 3 files, 115 tests passed. The scenario test
+    runs fifteen jobs in process as the test actor and jobs 12 and 16 over MCP (the individual
+    tool strategy, `confirmations: 'enforce'`, `createContext` giving a human steward); it
+    checks every successful result against its command's output schema and reports "113 of 113
+    scenario steps passed". The results test passed for all 74 files, with no result or schema
+    changed. Three steps first failed: they compared with an earlier step's result inside
+    `expect`, which the runner never resolves, and now name the ids the fixture's counters
+    give ([What a scenario could not express](bench/seed-library.md#what-a-scenario-could-not-express)).
+  - `node packages/cli/dist/bin.js scenario validate packages/examples/seed-library/scenarios`:
+    "All 17 scenario(s) are valid!".
+  - `afd validate`'s listing check and `--surface`, run from a throwaway script against the
+    library's MCP handler without `afd connect`, which would overwrite the CLI's saved
+    server: 27 tools, 0 errors and 0 warnings, so no `MISSING_APPROVAL_POLICY`; under the
+    grouped strategy, 8 tools and none either. Surface: 0 errors, 30 warnings (25
+    `schema-overlap` between commands that take the same `id`, or `memberId` and
+    `varietyId`, as the design names them, and 5 `schema-complexity`) and 7 infos.
+  - `npx biome check --write packages/examples/seed-library`, `pnpm check:boundaries`
+    (examples are outside `architecture.json`'s scope) and `pnpm check`: all passed, the
+    last over all 50 packages because `pnpm-workspace.yaml` changed.
+  - `pnpm verify --keep-going`: 47 passed and 10 failed, each a platform failure on Windows
+    in code this change does not touch: Specimen's five suites and Loam's `test:browser` and
+    `test:mounted` (the Rust hosts use Unix-only APIs and do not compile: "cannot find unix
+    in os"); Loam's `test:hosted` (POSIX file modes, "expected 438 to be 448", and
+    `ps -o rss=`); `hosted-fixtures` (a SIGTERM test reads a null exit code, "null !== 1");
+    and the C++ todo conformance run (MSVC writes the server to `build/release/Debug/`, and
+    the runner looks in `build/release/`). Linux CI runs those.
+  - Not run: a review by anyone but the author, and a check that the results follow one
+    another. A throwaway script ran each result's `$input` from the fixture's start: 34
+    of the 73 single-command results matched in `data` or error code, and the other 39 record
+    a later state or a list that cannot be read.
+
 ## What was read to write it
 
 Read at `545316f2`, 2026-11-14:
@@ -289,6 +330,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | Independent review of the seed library's jobs | No default pattern covers the approver's side of an approval: the list of held calls, with approve and decline. The proposal's section 5.2 has the requester's side only | Open |
 | 2026-11-15 | The seed library's jobs, the calling-agent walk | The approval middleware's refusal says "Ask the user to approve" (`packages/server/src/approval.ts:495`). Where the approver is somebody other than the user at the client, as a steward is to a desk volunteer, that sends the caller to the wrong person; the application can only add to the text through `summary` | Open |
 | 2026-11-15 | The seed library's jobs | A scenario cannot assert `warnings`, `alternatives`, `sources`, `plan`, `undoCommand` or `undoArgs`, the fields five of the ten default patterns render. The first three are a known limit in the jobs-first guide; the last three are not listed there | Open |
+| 2026-11-15 | The seed library's application | The scenario runner resolves a step reference only in `input` (`packages/testing/src/runner/scenario-runner.ts:308`), but `scenario validate` and the dry run accept one inside `expect` without a word, and it is then compared as literal text. Three of the seed library's steps were written that way and passed every check until they ran. Either the runner resolves them in `expect` too, or validation refuses them, and the jobs-first guide says which | Open; worth an issue |
 | 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |
 
 ## Session log
@@ -307,3 +349,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | Specimen's host on the second machine | At the owner's word, a session on the second machine built Specimen's host with its Rust output on the machine's external drive, as the owner asked. The host rendered a specimen and Specimen's suite passed, so the bench can score builds there. Two follow-ups are recorded: the build script ignores `CARGO_TARGET_DIR`, and the suite needs the TypeScript build first |
 | 2026-11-15 | Specimen's build script | The owner agreed to make `build:host` honour `CARGO_TARGET_DIR`. The fix worked on the second machine, and an independent review then found that it undoes a deliberate pin and lets worktrees that share a target directory use each other's host. It was withdrawn: the machine's cargo `build-dir` setting already keeps the build's bulk on the external drive. Specimen's README now says its suite needs the TypeScript build first |
 | 2026-11-15 | The bench's tasks | The owner accepted three design points of the seed library: approval as a held loan, job 16, and the approval request off T4. Each screen's task and the results that force its states were drafted, 50 states and 74 results, after a review found that the first version hinted at the design, let the bare arm read the states, and could not mount a whole screen. `bench.md` now says what each arm reads. The owner allowed fixes and merges on green without asking |
+| 2026-11-15 | The seed library's application | The application was built in `packages/examples/seed-library` from the drafted commands: 24 commands with schemas, an in-memory store with a fixed clock and counter ids, the approval hook that records a held loan as a request, and the steward's middleware. The scenario files moved beside it. All 113 steps pass, jobs 12 and 16 over MCP with confirmations enforced; three steps that compared with an earlier step inside `expect` now name ids. The 74 results pass the output schemas unchanged. `seed-library.md` records what building it settled. Not merged |
