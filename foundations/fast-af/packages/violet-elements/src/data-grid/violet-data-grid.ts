@@ -177,6 +177,10 @@ export interface VioletDataGridCellTemplateContext<RowData = unknown> {
     editValue?: string;
   editingError?: string;
   editingErrorId?: string;
+    /** The column's `editorHint` for this row while the cell is edited; empty while an error shows. */
+    editingHint?: string;
+    /** Id of the rendered hint, for a custom editor's `aria-describedby`. */
+    editingHintId?: string;
     editorOptions?: VioletDataGridEditorOption[];
 }
 
@@ -199,6 +203,17 @@ export interface VioletDataGridColumn<RowData = unknown> {
     cellTemplate?: VioletDataGridCellTemplate<RowData>;
     editorTemplate?: VioletDataGridCellEditorTemplate<RowData>;
   editorOptions?: VioletDataGridEditorOption[] | ((row: RowData) => VioletDataGridEditorOption[]);
+    /**
+     * Text shown inside this column's open cell editor and linked to the editor as its description,
+     * such as what an edit will change. Return nothing for no hint. An edit error replaces it while
+     * the error shows.
+     */
+    editorHint?: (row: RowData) => string | undefined;
+    /**
+     * A per-cell fact appended to the cell-mode active-cell description for assistive technology.
+     * It never enters the serialized value that copy, paste and autosize read.
+     */
+    describe?: (row: RowData) => string | undefined;
     serialize?: (value: unknown, row: RowData) => string;
     parse?: (value: unknown, row: RowData) => unknown;
 }
@@ -294,6 +309,8 @@ interface VioletPresentedCell {
     editValue: string;
   editingError: string;
   editingErrorId: string;
+    editingHint?: string;
+    editingHintId?: string;
     fillPreview: boolean;
     cellPart?: string;
     cellPartText: string;
@@ -492,6 +509,13 @@ const bodyRowTemplate = html<VioletRenderedRow, VioletDataGrid>`
                               id="${(x) => x.editingErrorId}"
                               role="alert"
                           >${(x) => x.editingError}</span>
+                      `,
+                    )}
+                    ${when(
+                      (x) => x.editing && Boolean(x.editingHint),
+                      html<VioletPresentedCell>`
+                          <span class="cell-editor-hint" id="${(x) => x.editingHintId}"
+                          >${(x) => x.editingHint}</span>
                       `,
                     )}
                     ${when(
@@ -820,7 +844,8 @@ export class VioletDataGrid extends FASTElement {
     /**
      * Optional verb phrase naming what a single-selection radio does, such as "Open". The radio's
      * accessible name becomes "<selection-label> <row label>" ("Open First bed") instead of
-     * "Select row <row label>". Ignored outside `selection-mode="single"`.
+     * "Select row <row label>", and the selection column header takes it as its name ("Open")
+     * instead of "Selected row". Ignored outside `selection-mode="single"`.
      */
   public declare selectionLabel: string | null;
 
@@ -1304,8 +1329,13 @@ export class VioletDataGrid extends FASTElement {
     const columnIndex = this.#columnIndexById.get(this.activeCell.columnId) ?? -1;
         const columnLabel = this.presentedColumns[columnIndex]?.label ?? this.activeCell.columnId;
         const cellText = this.cellTextAt(this.activeCell) || "empty";
+        const description = this.columnAccessoryText(
+            this.activeCell.columnId,
+            this.presentedRows[rowIndex]?.data,
+            "describe",
+        );
 
-        return `Active cell row ${rowIndex + 1}, column ${columnLabel}, value ${cellText}.`;
+        return `Active cell row ${rowIndex + 1}, column ${columnLabel}, value ${cellText}${description ? `, ${description}` : ""}.`;
     }
 
     public get rowSummary(): string {
@@ -1324,7 +1354,8 @@ export class VioletDataGrid extends FASTElement {
             return "Select rows";
         }
 
-        return "Selected row";
+        // Named for what its radios do ("Open"), the same verb that begins each radio's name.
+        return this.selectionLabel?.trim() || "Selected row";
     }
 
     public get selectionControlName(): string {
@@ -2558,6 +2589,9 @@ export class VioletDataGrid extends FASTElement {
         );
         const active = this.isActiveCell(cell.rowId, cell.columnId);
         const editing = this.isEditingCell(cell.rowId, cell.columnId);
+        const editingHint = editing && !this.editingError
+          ? this.columnAccessoryText(cell.columnId, cell.rowData, "editorHint")
+          : "";
 
         return {
           ...cell,
@@ -2568,6 +2602,8 @@ export class VioletDataGrid extends FASTElement {
           editing,
           editValue: editing ? this.editingValue : "",
           editingError: editing ? this.editingError : "",
+          editingHint,
+          editingHintId: editingHint ? this.cellEditorHintIdFor(cell.rowId, cell.columnId) : "",
           resolvedCellPartText: composeCellPartText(cell.cellPartText, {
             selected,
             rangeEdge,
@@ -3830,6 +3866,24 @@ export class VioletDataGrid extends FASTElement {
 
   public cellEditorErrorIdFor(rowId: string, columnId: string): string {
     return `${this.cellIdFor(rowId, columnId)}-edit-error`;
+  }
+
+  public cellEditorHintIdFor(rowId: string, columnId: string): string {
+    return `${this.cellIdFor(rowId, columnId)}-edit-hint`;
+  }
+
+  /** A column's trimmed `editorHint` or `describe` text for a row; never part of the serialized value. */
+  private columnAccessoryText(
+    columnId: string,
+    rowData: unknown,
+    key: "editorHint" | "describe",
+  ): string {
+    const column = this.presentedColumns[this.#columnIndexById.get(columnId) ?? -1]?.source;
+    if (!column || rowData === undefined) {
+      return "";
+    }
+    const text = column[key]?.(rowData);
+    return typeof text === "string" ? text.trim() : "";
   }
 
     private getActiveCellElement(): HTMLTableCellElement | null {
