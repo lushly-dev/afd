@@ -158,8 +158,8 @@ def test_an_owner_authored_branch_uploads_and_hands_off_to_the_lane(gateway, tmp
     )
     assert pushed["success"], pushed
     assert pushed["data"]["changed"] is True
-    stored = (data / "uploads" / f"{uploaded['data']['id']}.bundle").stat().st_mode & 0o777
-    assert stored == 0o600
+    # The bundle is deleted once fetched; its objects are in the mirror.
+    assert list((data / "uploads").iterdir()) == []
 
 
 def test_a_commit_an_agent_authored_is_read_from_the_bundle_and_refused(gateway, tmp_path):
@@ -225,7 +225,6 @@ def test_an_expired_upload_is_forgotten_and_its_bundle_deleted(gateway, tmp_path
     old = upload(client, tokens["cell"], bundle)
     clock.at += timedelta(hours=2)
     upload(client, tokens["cell"], bundle)
-    assert not (data / "uploads" / f"{old['data']['id']}.bundle").exists()
     pushed = call(
         client,
         tokens["cell"],
@@ -244,6 +243,100 @@ def test_an_expired_upload_is_forgotten_and_its_bundle_deleted(gateway, tmp_path
         check=True,
     ).stdout
     assert old["data"]["id"] not in refs
+
+
+def extend(tmp_path: Path, email: str = OWNER) -> tuple[bytes, str]:
+    """One more commit on fix/x, bundled whole."""
+    work = tmp_path / "work"
+    index = len(list(work.glob("f*.txt")))
+    (work / f"f{index}.txt").write_text(str(index), encoding="utf-8")
+    git(work, "add", ".", email=email)
+    git(work, "commit", "--quiet", "-m", f"change {index}", email=email)
+    git(work, "bundle", "create", "--quiet", str(tmp_path / "head.bundle"), "fix/x")
+    return (tmp_path / "head.bundle").read_bytes(), git(work, "rev-parse", "HEAD")
+
+
+def lane_push(client, tokens, data: bytes, head: str, ref="refs/heads/fix/x"):
+    uploaded = upload(client, tokens["lane"], data, route="lane")
+    assert uploaded["success"], uploaded
+    return call(
+        client,
+        tokens["lane"],
+        "lane",
+        "branch-push",
+        repo=REPO,
+        ref=ref,
+        head=head,
+        bundle=uploaded["data"]["id"],
+    )
+
+
+def test_a_branch_moves_forward_from_what_git_says_it_contains(gateway, tmp_path):
+    client, tokens, *_ = gateway
+    first, old = make_bundle(tmp_path, [OWNER])
+    assert lane_push(client, tokens, first, old)["success"]
+    second, new = extend(tmp_path)
+    pushed = lane_push(client, tokens, second, new)
+    assert pushed["success"] and pushed["data"]["changed"], pushed
+
+
+def test_a_bundle_naming_the_current_tip_cannot_rewind_the_branch(gateway, tmp_path):
+    client, tokens, *_ = gateway
+    first, tip = make_bundle(tmp_path, [OWNER])
+    assert lane_push(client, tokens, first, tip)["success"]
+    # An unrelated history whose bundle also carries the branch's tip as a second head.
+    other = tmp_path / "other"
+    other.mkdir()
+    git(other, "init", "--quiet", "--initial-branch=rewrite")
+    (other / "g.txt").write_text("x", encoding="utf-8")
+    git(other, "add", ".")
+    git(other, "commit", "--quiet", "-m", "unrelated")
+    unrelated = git(other, "rev-parse", "HEAD")
+    git(other, "fetch", "--quiet", str(tmp_path / "work"), f"{tip}:refs/heads/tip")
+    git(other, "bundle", "create", "--quiet", str(tmp_path / "both.bundle"), "rewrite", "tip")
+    pushed = lane_push(client, tokens, (tmp_path / "both.bundle").read_bytes(), unrelated)
+    assert pushed["error"]["code"] == "NOT_FAST_FORWARD"
+
+
+def test_an_upload_is_pushed_only_by_the_caller_that_made_it(gateway, tmp_path):
+    client, tokens, data, *_ = gateway
+    store = token_store(data)
+    _, other_cell = store.issue("cell", "agent", "cell-4")
+    bundle, head = make_bundle(tmp_path, [OWNER])
+    uploaded = upload(client, tokens["cell"], bundle)
+    stolen = call(
+        client,
+        other_cell,
+        "cell",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/x",
+        head=head,
+        bundle=uploaded["data"]["id"],
+    )
+    assert stolen["error"]["code"] == "UPLOAD_NOT_FOUND"
+    owner = call(
+        client,
+        tokens["owner"],
+        "owner",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/x",
+        head=head,
+        bundle=uploaded["data"]["id"],
+    )
+    assert owner["success"], owner
+
+
+def test_a_caller_holds_a_bounded_number_of_live_uploads(gateway, tmp_path):
+    from botcore_factory.gateway.uploads import MAX_LIVE_UPLOADS
+
+    client, tokens, *_ = gateway
+    bundle, _ = make_bundle(tmp_path, [OWNER])
+    results = [upload(client, tokens["cell"], bundle) for _ in range(MAX_LIVE_UPLOADS + 1)]
+    assert all(result["success"] for result in results[:-1])
+    assert results[-1]["error"]["code"] == "RATE_LIMITED"
+    assert upload(client, tokens["session"], bundle, route="session")["success"]
 
 
 # ── The operator's CLI ──────────────────────────────────────────────────

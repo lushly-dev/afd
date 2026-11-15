@@ -86,12 +86,17 @@ class Gateway:
         state: GatewayState,
         route: str,
         clock: Callable[[], datetime] | None = None,
+        contains: Callable[[str, str, str], bool] | None = None,
     ) -> None:
         self.github = github
         self.config = config
         self.state = state
         self.route = route
         self._clock = clock
+        #: ``contains(repo, head, commit)``: whether ``head`` contains ``commit``, read from the
+        #: repository's mirror. Without it (the fake GitHub's fixtures) an upload's
+        #: ``ancestors`` list stands in; an upload the server reads never carries one.
+        self._contains = contains
 
     # ── shared rules ──────────────────────────────────────────────────────
 
@@ -541,6 +546,7 @@ class Gateway:
                 f"Upload {bundle} is for {upload['repo']}, not {repo}",
                 f"Upload the bundle to /uploads?repo={repo} and pass that id",
             )
+        self._owns_upload(bundle, upload)
         if head not in upload.get("heads", []):
             raise refuse(
                 "HEAD_NOT_IN_BUNDLE",
@@ -550,11 +556,10 @@ class Gateway:
             )
         self._credit(repo, bundle, upload, head)
         current = self.github.ref(repo, ref)
-        ancestors = set(upload.get("ancestors", [])) | set(upload.get("heads", []))
         if (
             ref.startswith(HEADS_PREFIX)
             and current not in (None, head)
-            and current not in (ancestors)
+            and not self._fast_forward(repo, upload, current, head)
         ):
             raise refuse(
                 "NOT_FAST_FORWARD",
@@ -763,6 +768,26 @@ class Gateway:
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
         )
+
+    def _fast_forward(self, repo: str, upload: dict, current: str, head: str) -> bool:
+        """Whether ``head`` contains ``current``, so the push only moves the branch forward.
+        Decided from git's history, never from what the bundle lists."""
+        if self._contains is not None:
+            return self._contains(repo, head, current)
+        return current in set(upload.get("ancestors", []))
+
+    def _owns_upload(self, bundle: str, upload: dict) -> None:
+        """An upload is pushed by the route and caller that made it; the owner may push any."""
+        if self.route == "owner":
+            return
+        caller = getattr(current_call().actor, "id", None) if current_call() else None
+        made_by = (upload.get("route", self.route), upload.get("by", caller))
+        if made_by != (self.route, caller):
+            raise refuse(
+                "UPLOAD_NOT_FOUND",
+                f"Upload {bundle} was made by another caller; nothing was pushed",
+                "Upload your own bundle on your route and push with the id it returns",
+            )
 
     def _credit(self, repo: str, bundle: str, upload: dict, head: str) -> None:
         """Refuse a push that would add a commit someone other than the owner authored.

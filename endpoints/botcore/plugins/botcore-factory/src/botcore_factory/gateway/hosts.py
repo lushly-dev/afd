@@ -31,6 +31,7 @@ def build_gateway_host(
     state: GatewayState,
     actor: Actor | None = None,
     clock: Callable[[], datetime] | None = None,
+    contains: Callable[[str, str, str], bool] | None = None,
 ) -> CommandHost:
     """Build ``gateway-<route>``. ``context`` must use the ``remote-caller`` profile, whose
     target is the gateway's data directory; ``actor`` is who a call without its own
@@ -41,7 +42,7 @@ def build_gateway_host(
     if context.profile != "remote-caller":
         raise ValueError("A gateway host runs on the remote-caller profile")
     name = f"gateway-{route}"
-    gateway = Gateway(github, config, state, route, clock)
+    gateway = Gateway(github, config, state, route, clock, contains)
     host = CommandHost(name, context, actor=actor)
     for command, handler in make_commands(route, lambda: gateway, name).items():
         host.register(command, handler, POLICIES[command])

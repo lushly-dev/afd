@@ -25,7 +25,7 @@ from botcore_factory.gateway.github import GitHub
 from botcore_factory.gateway.hosts import build_gateway_host
 from botcore_factory.gateway.service import Gateway
 from botcore_factory.gateway.state import GatewayState
-from botcore_factory.gateway.uploads import BundleUploads
+from botcore_factory.gateway.uploads import BundleUploads, mirror_contains
 
 #: The largest bundle the gateway accepts. A branch's own commits are far smaller; a bundle
 #: carrying a repository's whole history is the reason to raise it.
@@ -49,9 +49,19 @@ def build_gateway_app(
     data_dir.mkdir(parents=True, exist_ok=True)
     state = GatewayState(data_dir)
     context = ExecutionContext(data_dir, profile="remote-caller")
+
+    def contains(repo: str, head: str, commit: str) -> bool:
+        return mirror_contains(data_dir, repo, head, commit)
+
     hosts = {
         route: build_gateway_host(
-            route, context, github=github, config=config, state=state, clock=clock
+            route,
+            context,
+            github=github,
+            config=config,
+            state=state,
+            clock=clock,
+            contains=contains,
         )
         for route in ROUTES
     }
