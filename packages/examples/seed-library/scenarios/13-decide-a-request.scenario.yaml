@@ -1,10 +1,10 @@
 # JTBD scenario for the seed library, run by src/scenarios.test.ts.
 # The data is invented. Screen: T4, the steward's
 # requests.
-# Not expressible here: every step runs as the test actor, so the file cannot show a volunteer
-# or an agent refused with FORBIDDEN and the steward allowed. An approval reports its three steps
-# in `plan` and a member who could not be told in `warnings` (code MEMBER_NOT_TOLD); a scenario
-# can assert neither, so the steps check `memberTold`.
+# Not expressible here: every step runs as one person with the steward's role, so the file cannot
+# show a volunteer or an agent refused with FORBIDDEN and the steward allowed. An approval
+# reports its three steps in `plan` and a member who could not be told in `warnings` (code
+# MEMBER_NOT_TOLD); a scenario can assert neither, so the steps check `memberTold`.
 name: Decide a request for rare seed
 description: >-
   When a held loan is waiting for me, I want to see who asked for what and approve or decline it,

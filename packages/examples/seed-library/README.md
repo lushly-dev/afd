@@ -31,10 +31,9 @@ pnpm -F @afd/example-seed-library build
 pnpm -F @afd/example-seed-library start  # MCP and HTTP on port 3100, from scenarios/fixtures/library.json
 ```
 
-The tests run fifteen jobs in process as the scenario runner's test actor, which the library
-treats as the steward. Jobs 12 and 16 begin with a call that must be refused with
-`CONFIRMATION_REQUIRED`, which only a server that enforces confirmations returns, so those two
-run over MCP against one, as a person with the steward's role. `src/results.test.ts` checks
+The tests run fifteen jobs in process as a person with the steward's role. Jobs 12 and 16
+begin with a call that must be refused with `CONFIRMATION_REQUIRED`, which only a server that
+enforces confirmations returns, so those two run over MCP against one, as the same person. `src/results.test.ts` checks
 every file in the bench's
 [`results/`](../../../docs/features/proposed/agent-first-design/bench/results/) against its
 command's `output` schema and refusals.
