@@ -7,11 +7,14 @@
   says, and is kept as such.
 - ``GET /<route>/catalog``: the host's catalog, as its MCP ``start`` tool returns it.
 - ``GET /<route>/docs/<topic>``: a documentation topic.
-- ``POST /<route>/uploads``: raw bytes for the host's ``uploads`` handler (a git bundle, for
-  the factory gateway), which returns a CommandResult.
+- ``POST /<route>/uploads``: raw bytes, with the query string's parameters, for the
+  ``uploads`` handler (a git bundle, for the factory gateway), which returns a CommandResult.
 
 Every answer is a CommandResult, transport refusals included (``UNAUTHORIZED``,
-``FORBIDDEN``, ``NOT_FOUND``, ``PAYLOAD_TOO_LARGE``), so a client reads one shape. A command's
+``FORBIDDEN``, ``NOT_FOUND``, ``PAYLOAD_TOO_LARGE``, ``RATE_LIMITED``), so a client reads one
+shape. The token is checked before anything else, so a caller without one learns nothing about
+the routes. A call's body is capped (``max_call_bytes``), and so are an upload's size and the
+uploads running at once. A command's
 own refusal is HTTP 200: the call reached the host. ``serve_hosts`` binds only to loopback or a
 tailnet address unless the operator says otherwise.
 
@@ -21,6 +24,7 @@ Needs the ``mcp`` extra (Starlette and Uvicorn).
 from __future__ import annotations
 
 import ipaddress
+import json
 from collections.abc import Awaitable, Callable
 from typing import Any
 
@@ -30,10 +34,13 @@ from afd.core.commands import CommandContext
 from botcore.host import CommandHost
 from botcore.host_tokens import TokenRecord, TokenStore
 
-#: Receives the route, the verified caller and the request body; returns a CommandResult.
-UploadHandler = Callable[[str, Actor, bytes], Awaitable[CommandResult]]
+#: Receives the route, the verified caller, the request body and the query string's parameters;
+#: returns a CommandResult.
+UploadHandler = Callable[[str, Actor, bytes, dict], Awaitable[CommandResult]]
 
 DEFAULT_MAX_UPLOAD_BYTES = 256 * 1024 * 1024
+DEFAULT_MAX_CALL_BYTES = 1024 * 1024
+DEFAULT_MAX_CONCURRENT_UPLOADS = 2
 TAILNET_NETWORKS = (
     ipaddress.ip_network("100.64.0.0/10"),
     ipaddress.ip_network("fd7a:115c:a1e0::/48"),
@@ -54,11 +61,17 @@ def _bearer(header: str | None) -> str | None:
 class _HostRoutes:
     """The handlers behind ``create_host_http_app``; each answers with a CommandResult."""
 
-    def __init__(self, hosts, tokens, uploads, max_upload_bytes) -> None:
+    def __init__(
+        self, hosts, tokens, uploads, max_upload_bytes, max_call_bytes, max_concurrent_uploads
+    ) -> None:
+        import asyncio
+
         self.hosts: dict[str, CommandHost] = hosts
         self.tokens: TokenStore = tokens
         self.uploads: UploadHandler | None = uploads
         self.max_upload_bytes = max_upload_bytes
+        self.max_call_bytes = max_call_bytes
+        self.upload_slots = asyncio.Semaphore(max_concurrent_uploads)
 
     @staticmethod
     def json(body: dict, status: int = 200) -> Any:
@@ -70,13 +83,8 @@ class _HostRoutes:
         return self.json(_dump(error(code, message, suggestion=suggestion)), status)
 
     def admit(self, request) -> tuple[str, CommandHost, TokenRecord] | Any:
-        """The route, host and caller, or the refusal: an unknown route, no valid token, or
-        a token for another route."""
-        route = request.path_params["route"]
-        host = self.hosts.get(route)
-        if host is None:
-            routes = ", ".join("/" + name for name in sorted(self.hosts))
-            return self.refused(404, "NOT_FOUND", f"No route /{route}", f"Use one of: {routes}")
+        """The route, host and caller, or the refusal: no valid token (checked first, so no
+        route is named to a caller without one), or a route this token does not open."""
         record = self.tokens.verify(_bearer(request.headers.get("authorization")))
         if record is None:
             return self.refused(
@@ -85,7 +93,9 @@ class _HostRoutes:
                 "No valid bearer token",
                 "Send 'Authorization: Bearer <token>' with the token the operator issued you",
             )
-        if record.route != route:
+        route = request.path_params["route"]
+        host = self.hosts.get(route)
+        if host is None or record.route != route:
             return self.refused(
                 403,
                 "FORBIDDEN",
@@ -96,20 +106,36 @@ class _HostRoutes:
 
     @staticmethod
     def actor(record: TokenRecord, on_behalf_of: Any = None) -> Actor:
-        return Actor(
-            kind=record.kind,
-            id=record.actor,
-            label=record.label,
-            on_behalf_of=on_behalf_of if isinstance(on_behalf_of, str) else None,
-        )
+        claimed = on_behalf_of[:200] if isinstance(on_behalf_of, str) else None
+        return Actor(kind=record.kind, id=record.actor, label=record.label, on_behalf_of=claimed)
+
+    async def body(self, request, limit: int) -> bytes | None:
+        """The request body, or None once it passes ``limit`` bytes (declared or streamed)."""
+        declared = request.headers.get("content-length")
+        if declared is not None and declared.isdigit() and int(declared) > limit:
+            return None
+        received = bytearray()
+        async for chunk in request.stream():
+            received += chunk
+            if len(received) > limit:
+                return None
+        return bytes(received)
 
     async def call(self, request) -> Any:
         admitted = self.admit(request)
         if not isinstance(admitted, tuple):
             return admitted
         _, host, record = admitted
+        raw = await self.body(request, self.max_call_bytes)
+        if raw is None:
+            return self.refused(
+                413,
+                "PAYLOAD_TOO_LARGE",
+                f"A call's body may be at most {self.max_call_bytes} bytes",
+                "Send large content through an upload, or shorten the arguments",
+            )
         try:
-            body = await request.json()
+            body = json.loads(raw)
         except (ValueError, UnicodeDecodeError):
             body = None
         if not isinstance(body, dict) or not isinstance(body.get("command"), str):
@@ -155,22 +181,25 @@ class _HostRoutes:
         route, _, record = admitted
         if self.uploads is None:
             return self.refused(404, "NOT_FOUND", f"/{route} takes no uploads", "Call a command")
-        declared = request.headers.get("content-length")
-        if declared is not None and declared.isdigit() and int(declared) > self.max_upload_bytes:
-            return self.too_large(int(declared))
-        chunks, size = [], 0
-        async for chunk in request.stream():
-            size += len(chunk)
-            if size > self.max_upload_bytes:
-                return self.too_large(size)
-            chunks.append(chunk)
-        return self.json(_dump(await self.uploads(route, self.actor(record), b"".join(chunks))))
+        if self.upload_slots.locked():
+            return self.refused(
+                429,
+                "RATE_LIMITED",
+                "Other uploads are being received",
+                "Retry the upload in a few seconds",
+            )
+        async with self.upload_slots:
+            data = await self.body(request, self.max_upload_bytes)
+            if data is None:
+                return self.too_large()
+            params = dict(request.query_params)
+            return self.json(_dump(await self.uploads(route, self.actor(record), data, params)))
 
-    def too_large(self, size: int) -> Any:
+    def too_large(self) -> Any:
         return self.refused(
             413,
             "PAYLOAD_TOO_LARGE",
-            f"The upload is {size} bytes; this host takes at most {self.max_upload_bytes}",
+            f"The upload is larger than this host takes ({self.max_upload_bytes} bytes)",
             "Bundle only the commits the push needs (git bundle create <file> <base>..<branch>)",
         )
 
@@ -181,12 +210,16 @@ def create_host_http_app(
     *,
     uploads: UploadHandler | None = None,
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
+    max_call_bytes: int = DEFAULT_MAX_CALL_BYTES,
+    max_concurrent_uploads: int = DEFAULT_MAX_CONCURRENT_UPLOADS,
 ) -> Any:
     """A Starlette app serving each host in ``hosts`` under ``/<route>``."""
     from starlette.applications import Starlette
     from starlette.routing import Route
 
-    routes = _HostRoutes(hosts, tokens, uploads, max_upload_bytes)
+    routes = _HostRoutes(
+        hosts, tokens, uploads, max_upload_bytes, max_call_bytes, max_concurrent_uploads
+    )
     return Starlette(
         routes=[
             Route("/{route}/call", routes.call, methods=["POST"]),
@@ -201,7 +234,9 @@ def check_bind_address(address: str, *, allow_any: bool = False) -> None:
     """Refuse an address outside loopback and the tailnet, unless ``allow_any``.
 
     The gateway's routes carry write tokens; binding a wildcard or a LAN address would offer
-    them to every network the machine joins.
+    them to every network the machine joins. The check is by range: ``100.64.0.0/10`` is also
+    carrier-grade NAT space, so pass the address ``tailscale ip -4`` prints, not one from
+    another interface.
     """
     if allow_any:
         return

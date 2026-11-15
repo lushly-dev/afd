@@ -50,8 +50,8 @@ def make_host(tmp_path, name: str) -> CommandHost:
     return host
 
 
-async def keep_upload(route, actor, data: bytes):
-    return success({"route": route, "by": actor.id, "bytes": len(data)})
+async def keep_upload(route, actor, data: bytes, params: dict):
+    return success({"route": route, "by": actor.id, "bytes": len(data), "params": params})
 
 
 @pytest.fixture
@@ -135,10 +135,37 @@ def test_a_token_opens_only_its_own_route(served):
     assert "/cell" in response.json()["error"]["suggestion"]
 
 
-def test_an_unknown_route_is_not_found(served):
+def test_an_unknown_route_is_forbidden_and_names_no_route_without_a_token(served):
     client, _, tokens = served
     response = client.post("/owner/call", headers=auth(tokens["lane"]), json={"command": "x"})
-    assert response.status_code == 404 and response.json()["error"]["code"] == "NOT_FOUND"
+    assert response.status_code == 403 and response.json()["error"]["code"] == "FORBIDDEN"
+    anonymous = client.get("/nowhere/catalog")
+    assert anonymous.status_code == 401
+    assert "/lane" not in json.dumps(anonymous.json()) and "/cell" not in json.dumps(
+        anonymous.json()
+    )
+
+
+def test_a_call_body_over_the_limit_is_refused_even_when_chunked(served):
+    client, _, tokens = served
+
+    def chunks():
+        for _ in range(1100):
+            yield b"x" * 1024
+
+    response = client.post("/lane/call", headers=auth(tokens["lane"]), content=chunks())
+    assert response.status_code == 413
+    assert response.json()["error"]["code"] == "PAYLOAD_TOO_LARGE"
+
+
+def test_on_behalf_of_is_capped(served):
+    client, _, tokens = served
+    response = client.post(
+        "/lane/call",
+        headers=auth(tokens["lane"]),
+        json={"command": "who-am-i", "onBehalfOf": "c" * 1000},
+    )
+    assert len(response.json()["data"]["onBehalfOf"]) == 200
 
 
 def test_a_command_s_own_refusal_is_a_200_with_its_result(served):
@@ -171,8 +198,17 @@ def test_the_catalog_and_docs_are_served_behind_the_token(served):
 
 def test_an_upload_reaches_the_handler_with_the_caller(served):
     client, _, tokens = served
-    response = client.post("/cell/uploads", headers=auth(tokens["cell"]), content=b"x" * 100)
-    assert response.json()["data"] == {"route": "cell", "by": "cell-3", "bytes": 100}
+    response = client.post(
+        "/cell/uploads?repo=example-org/example-repo",
+        headers=auth(tokens["cell"]),
+        content=b"x" * 100,
+    )
+    assert response.json()["data"] == {
+        "route": "cell",
+        "by": "cell-3",
+        "bytes": 100,
+        "params": {"repo": "example-org/example-repo"},
+    }
 
 
 def test_an_upload_over_the_limit_is_refused(served):
@@ -297,3 +333,159 @@ def test_the_operator_cli_issues_lists_and_revokes(tmp_path):
     revoked = runner.invoke(cli, ["host-token", "revoke", "--store", store, record["id"]])
     assert revoked.exit_code == 0 and json.loads(revoked.output)["revokedAt"]
     assert runner.invoke(cli, ["host-token", "revoke", "--store", store, "nope"]).exit_code == 1
+
+
+def test_concurrent_operator_commands_lose_no_token(tmp_path):
+    import subprocess
+    import sys
+
+    store = str(tmp_path / "tokens.json")
+    runs = [
+        subprocess.Popen(
+            [
+                sys.executable,
+                "-m",
+                "botcore",
+                "host-token",
+                "issue",
+                "--store",
+                store,
+                "--route",
+                "lane",
+                "--kind",
+                "service",
+                "--actor",
+                f"lane-{index}",
+            ],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+        for index in range(6)
+    ]
+    issued = [json.loads(run.communicate(timeout=60)[0]) for run in runs]
+    assert all(run.returncode == 0 for run in runs)
+    stored = {record.id for record in TokenStore(tmp_path / "tokens.json").list()}
+    assert stored == {record["id"] for record in issued}
+    leftovers = [
+        p.name for p in tmp_path.iterdir() if p.name not in ("tokens.json", "tokens.json.lock")
+    ]
+    assert leftovers == []
+
+
+def test_a_created_store_directory_is_private(tmp_path):
+    TokenStore(tmp_path / "private" / "tokens.json").issue("lane", "service", "lane")
+    assert stat.S_IMODE((tmp_path / "private").stat().st_mode) == 0o700
+
+
+def test_one_upload_at_a_time_beyond_the_limit_is_rate_limited(tmp_path):
+    import asyncio
+
+    import uvicorn
+
+    started, release = threading.Event(), threading.Event()
+
+    async def slow_upload(route, actor, data, params):
+        started.set()
+        await asyncio.to_thread(release.wait, 10)
+        return success({"bytes": len(data)})
+
+    tokens = TokenStore(tmp_path / "tokens.json")
+    app = create_host_http_app(
+        {"cell": make_host(tmp_path, "gw-cell")},
+        tokens,
+        uploads=slow_upload,
+        max_concurrent_uploads=1,
+    )
+    _, secret = tokens.issue("cell", "agent", "cell-3")
+    port = free_port()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.01)
+    client = HostClient(f"http://127.0.0.1:{port}", "cell", secret)
+    first: dict = {}
+    worker = threading.Thread(target=lambda: first.update(client.upload(b"a")))
+    worker.start()
+    assert started.wait(10)
+    second = client.upload(b"b")
+    release.set()
+    worker.join(10)
+    server.should_exit = True
+    thread.join(5)
+    assert second["error"]["code"] == "RATE_LIMITED"
+    assert first["success"] is True
+
+
+class _Recorder:
+    """Plain HTTP servers: one that redirects, one that records and one that stalls."""
+
+    def __init__(self) -> None:
+        from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+
+        self.seen: list[dict] = []
+        recorder = self
+
+        class Target(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                recorder.seen.append(dict(self.headers))
+                self.send_response(200)
+                self.end_headers()
+                self.wfile.write(b'{"success": true}')
+
+            def log_message(self, *args):
+                pass
+
+        self.target = ThreadingHTTPServer(("127.0.0.1", 0), Target)
+        target_url = f"http://127.0.0.1:{self.target.server_address[1]}"
+
+        class Redirector(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                self.send_response(307)
+                self.send_header("Location", target_url + self.path)
+                self.end_headers()
+
+            def log_message(self, *args):
+                pass
+
+        class Staller(BaseHTTPRequestHandler):
+            def do_POST(self):  # noqa: N802
+                time.sleep(1.5)
+
+            def log_message(self, *args):
+                pass
+
+        self.redirector = ThreadingHTTPServer(("127.0.0.1", 0), Redirector)
+        self.staller = ThreadingHTTPServer(("127.0.0.1", 0), Staller)
+        for server in (self.target, self.redirector, self.staller):
+            threading.Thread(target=server.serve_forever, daemon=True).start()
+
+    def url(self, server) -> str:
+        return f"http://127.0.0.1:{server.server_address[1]}"
+
+    def close(self) -> None:
+        for server in (self.target, self.redirector, self.staller):
+            server.shutdown()
+
+
+def test_the_client_never_follows_a_redirect_with_its_token():
+    servers = _Recorder()
+    try:
+        result = HostClient(servers.url(servers.redirector), "lane", "bct_secret").call("x")
+    finally:
+        servers.close()
+    assert result["error"]["code"] == "HOST_UNAVAILABLE"
+    assert servers.seen == []
+
+
+def test_a_timeout_reports_an_unknown_outcome_and_a_refused_connection_a_known_one():
+    servers = _Recorder()
+    try:
+        stalled = HostClient(servers.url(servers.staller), "lane", "bct_x", timeout=0.3).call("x")
+    finally:
+        servers.close()
+    assert stalled["error"]["details"]["outcomeKnown"] is False
+    assert "may or may not" in stalled["error"]["suggestion"]
+    refused = HostClient(f"http://127.0.0.1:{free_port()}", "lane", "bct_x").call("x")
+    assert refused["error"]["details"]["outcomeKnown"] is True
+    assert "Nothing was sent" in refused["error"]["suggestion"]

@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import json
 import urllib.error
+import urllib.parse
 import urllib.request
 from typing import Any
 
@@ -22,6 +23,16 @@ def _error(code: str, message: str, suggestion: str, **details) -> dict:
     if details:
         body["details"] = details
     return {"success": False, "error": body}
+
+
+class _NoRedirects(urllib.request.HTTPRedirectHandler):
+    """A served host never redirects; following one would carry the token elsewhere."""
+
+    def redirect_request(self, *args, **kwargs):
+        return None
+
+
+_OPENER = urllib.request.build_opener(_NoRedirects)
 
 
 class HostClient:
@@ -56,16 +67,28 @@ class HostClient:
     def docs(self, topic: str) -> dict:
         return self._send("GET", f"docs/{topic}")
 
-    def upload(self, data: bytes) -> dict:
-        return self._send("POST", "uploads", data, "application/octet-stream")
+    def upload(self, data: bytes, params: dict | None = None) -> dict:
+        path = "uploads"
+        if params:
+            path += "?" + urllib.parse.urlencode(params)
+        return self._send("POST", path, data, "application/octet-stream")
 
-    def _unavailable(self, reason: str) -> dict:
+    def _unavailable(self, reason: str, *, reached: bool = False) -> dict:
+        """``reached``: the request may have arrived (a timeout, or a proxy's 502/503/504),
+        so its outcome is unknown; otherwise the connection never opened."""
+        outcome = (
+            "The call may or may not have run. Read the state before acting on it, or retry the "
+            "same call: the factory gateway's writes are idempotent, and a repeated upload only "
+            "returns another id"
+            if reached
+            else "Nothing was sent. Retry the same call when it is back"
+        )
         return _error(
             self.unavailable_code,
             f"{self.base_url}/{self.route} cannot be reached: {reason}",
-            "Nothing was written. Retry the same call when it is back (every write is safe to "
-            "retry); do not write another way",
+            f"{outcome}; do not write another way",
             url=f"{self.base_url}/{self.route}",
+            outcomeKnown=not reached,
         )
 
     def _send(
@@ -74,24 +97,31 @@ class HostClient:
         request = urllib.request.Request(
             f"{self.base_url}/{self.route}/{path}", data=data, method=method
         )
-        request.add_header("Authorization", f"Bearer {self.token}")
+        # Unredirected: never copied onto a redirect, which _NoRedirects refuses anyway.
+        request.add_unredirected_header("Authorization", f"Bearer {self.token}")
         request.add_header("Accept", "application/json")
         if content_type:
             request.add_header("Content-Type", content_type)
         try:
-            with urllib.request.urlopen(request, timeout=self.timeout) as response:
+            with _OPENER.open(request, timeout=self.timeout) as response:
                 return json.loads(response.read() or b"{}")
         except urllib.error.HTTPError as exc:
-            if exc.code in (502, 503, 504):
-                return self._unavailable(f"HTTP {exc.code}")
+            if exc.code in (502, 503, 504) or 300 <= exc.code < 400:
+                return self._unavailable(f"HTTP {exc.code}", reached=True)
             try:
                 return json.loads(exc.read() or b"{}")
             except ValueError:
-                return self._unavailable(f"HTTP {exc.code} without a result")
-        except (urllib.error.URLError, ConnectionError, TimeoutError) as exc:
-            return self._unavailable(str(getattr(exc, "reason", exc)))
+                return self._unavailable(f"HTTP {exc.code} without a result", reached=True)
+        except urllib.error.URLError as exc:
+            reason = exc.reason
+            reached = isinstance(reason, TimeoutError)
+            return self._unavailable(str(reason), reached=reached)
+        except (TimeoutError, ConnectionResetError) as exc:
+            return self._unavailable(str(exc) or type(exc).__name__, reached=True)
+        except ConnectionError as exc:
+            return self._unavailable(str(exc))
         except ValueError:
-            return self._unavailable("an answer that is not JSON")
+            return self._unavailable("an answer that is not JSON", reached=True)
 
 
 def create_remote_cli(
@@ -185,9 +215,13 @@ def create_remote_cli(
 
     @group.command("upload")
     @click.argument("file", type=click.Path(exists=True, dir_okay=False, path_type=Path))
+    @click.option(
+        "--param", "params", multiple=True, help="A query parameter KEY=VALUE (repeatable)"
+    )
     @with_options
-    def upload_cmd(file, url, route, token) -> None:
+    def upload_cmd(file, params, url, route, token) -> None:
         """Upload FILE (a git bundle for the factory gateway); prints its upload id."""
-        emit(client(url, route, token).upload(file.read_bytes()))
+        pairs = dict(param.split("=", 1) for param in params if "=" in param)
+        emit(client(url, route, token).upload(file.read_bytes(), pairs))
 
     return group

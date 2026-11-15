@@ -4,6 +4,11 @@ The store is a JSON file only the operator account reads. It keeps each token's 
 the token, with the route it opens and the actor it names. Tokens are issued, listed and
 revoked from the operator's own shell (``botcore host-token``), never over a route. The file is
 re-read when it changes, so a revocation takes effect on the next call without a restart.
+
+Every change takes an exclusive lock on ``<store>.lock`` (``flock``, so separate CLI runs never
+interleave), writes a fresh temporary file, syncs it and renames it into place, so a reader sees
+the old file or the new one, never a partial one. On a platform without ``fcntl`` only the
+in-process lock applies.
 """
 
 from __future__ import annotations
@@ -12,7 +17,10 @@ import hashlib
 import json
 import os
 import secrets
+import tempfile
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
@@ -62,7 +70,7 @@ class TokenStore:
     def __init__(self, path: Path) -> None:
         self.path = Path(path)
         self._lock = threading.Lock()
-        self._loaded: tuple[float, dict[str, TokenRecord]] | None = None
+        self._loaded: tuple[tuple, dict[str, TokenRecord]] | None = None
 
     # ── file ──────────────────────────────────────────────────────────────
 
@@ -72,18 +80,57 @@ class TokenStore:
         data = json.loads(self.path.read_text(encoding="utf-8"))
         return data.get("tokens", {})
 
+    def _directory(self) -> Path:
+        directory = self.path.parent
+        if not directory.exists():
+            directory.mkdir(parents=True, mode=0o700)
+        return directory
+
+    @contextmanager
+    def _exclusive(self) -> Iterator[None]:
+        """This process's lock, and an flock on ``<store>.lock`` across processes."""
+        with self._lock:
+            descriptor = os.open(
+                self._directory() / f"{self.path.name}.lock",
+                os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
+                0o600,
+            )
+            try:
+                try:
+                    import fcntl
+                except ImportError:  # pragma: no cover - Windows
+                    fcntl = None
+                if fcntl is not None:
+                    fcntl.flock(descriptor, fcntl.LOCK_EX)
+                yield
+            finally:
+                os.close(descriptor)  # Closing releases the flock.
+
     def _write(self, tokens: dict[str, dict]) -> None:
-        self.path.parent.mkdir(parents=True, exist_ok=True)
-        temporary = self.path.with_suffix(".tmp")
-        # Created readable by the owner only, then moved into place.
-        descriptor = os.open(temporary, os.O_WRONLY | os.O_CREAT | os.O_TRUNC, 0o600)
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
-            json.dump({"version": 1, "tokens": tokens}, handle, indent=2, sort_keys=True)
-        os.replace(temporary, self.path)
+        """Replace the store atomically; call inside ``_exclusive``."""
+        directory = self._directory()
+        # mkstemp creates a new file (O_EXCL), readable by the owner only.
+        descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=directory)
+        try:
+            with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+                json.dump({"version": 1, "tokens": tokens}, handle, indent=2, sort_keys=True)
+                handle.flush()
+                os.fsync(handle.fileno())
+            os.replace(temporary, self.path)
+        except BaseException:
+            Path(temporary).unlink(missing_ok=True)
+            raise
         self._loaded = None
 
+    def _stamp(self) -> tuple:
+        try:
+            info = self.path.stat()
+        except FileNotFoundError:
+            return ()
+        return (info.st_ino, info.st_mtime_ns, info.st_size)
+
     def _by_digest(self) -> dict[str, TokenRecord]:
-        stamp = self.path.stat().st_mtime_ns if self.path.exists() else -1.0
+        stamp = self._stamp()
         if self._loaded is None or self._loaded[0] != stamp:
             records = {}
             for digest, row in self._read().items():
@@ -119,7 +166,7 @@ class TokenStore:
             label=label,
             issued_at=_now(),
         )
-        with self._lock:
+        with self._exclusive():
             tokens = self._read()
             tokens[_digest(secret)] = record.public()
             self._write(tokens)
@@ -140,7 +187,7 @@ class TokenStore:
     def revoke(self, token_id: str) -> TokenRecord | None:
         """Revoke the token with ``token_id``; None when there is none. Revoking twice keeps
         the first time."""
-        with self._lock:
+        with self._exclusive():
             tokens = self._read()
             for row in tokens.values():
                 if row["id"] == token_id:
