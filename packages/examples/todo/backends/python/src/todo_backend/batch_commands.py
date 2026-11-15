@@ -8,6 +8,7 @@ from afd import CommandResult, Warning, success
 from afd.server import MCPServer
 
 from todo_backend.commands import MCP, not_found_item
+from todo_backend.contexts import EDIT_CONTEXTS
 from todo_backend.models import BatchCreateInput, BatchIdsInput, BatchToggleInput, Todo
 from todo_backend.store import MemoryStore
 
@@ -22,6 +23,7 @@ def register_batch_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=BatchCreateInput,
         tags=["todo", "create", "write", "batch"],
         mutation=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def create_batch(input: BatchCreateInput) -> CommandResult[Dict[str, Any]]:
@@ -87,6 +89,8 @@ def register_batch_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=BatchIdsInput,
         tags=["todo", "delete", "write", "batch", "destructive"],
         mutation=True,
+        destructive=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def delete_batch(input: BatchIdsInput) -> CommandResult[Dict[str, Any]]:
@@ -145,6 +149,7 @@ def register_batch_commands(server: MCPServer, store: MemoryStore) -> None:
         tags=["todo", "toggle", "write", "batch"],
         requires=["todo-list"],
         mutation=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def toggle_batch(input: BatchToggleInput) -> CommandResult[Dict[str, Any]]:

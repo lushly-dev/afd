@@ -8,6 +8,7 @@
 import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -59,6 +60,7 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 	name: 'todo-create-batch',
 	description: 'Create multiple todos at once with partial failure support',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'create', 'write', 'batch'],
 	mutation: true,

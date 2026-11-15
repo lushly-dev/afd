@@ -5,9 +5,11 @@ This directory contains the shared API contract for the Todo example. All four b
 ## Files
 
 - `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
-  keyed by MCP tool name. The TypeScript, Python and C++ backend test suites fail if it does
-  not list exactly the commands their backend defines; the C++ backend also validates every
-  input against it. The Rust backend has no such check.
+  keyed by MCP tool name, and each command's `metadata`: `mutation`, `destructive`, `contexts`
+  and, on `todo-clear`, `confirmPrompt`. The test suites of all four backends fail if it does not
+  list exactly the commands their backend defines with that metadata (Rust's leaves out
+  `contexts`, which it does not declare yet); the C++ backend also validates every input
+  against it.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
 - `README.md`: This file.
@@ -50,7 +52,7 @@ command is shown to have changed nothing.
 | TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes, every protocol mode |
 | Python | `pnpm test:conformance:py --suite confirmations` | Yes, every protocol mode |
 | Rust | `pnpm test:conformance:rs --suite confirmations --mode modern` | Yes. In legacy mode the accept and decline cases fail by design: a 2025 request over the backend's stateless HTTP has no back channel, so the backend answers `CONFIRMATION_REQUIRED` |
-| C++ | Not yet | Planned |
+| C++ | Not yet | No. `todo-clear` declares the prompt, but the backend's own stdio loop does not enforce confirmations; that waits on the library's `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)) |
 
 ## Data Types
 

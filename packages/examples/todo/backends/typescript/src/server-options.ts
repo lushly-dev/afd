@@ -5,6 +5,7 @@
 
 import { createLoggingMiddleware, type McpHandlerOptions } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
+import { TODO_CONTEXTS } from './contexts.js';
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
@@ -79,6 +80,8 @@ export function createTodoServerOptions(env: Env): McpHandlerOptions {
 		cors: true,
 		allowedOrigins: resolveAllowedOrigins(env),
 		confirmations: resolveConfirmations(env),
+		// Registers afd-context-list, -enter and -exit (src/contexts.ts).
+		contexts: TODO_CONTEXTS,
 
 		// Add logging middleware - verbose in dev mode
 		middleware:

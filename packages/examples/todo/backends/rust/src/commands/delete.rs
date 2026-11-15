@@ -23,6 +23,7 @@ impl Command for Delete {
     const NAME: &'static str = "todo-delete";
     const DESCRIPTION: &'static str = "Delete a todo";
     const MUTATION: bool = true;
+    const DESTRUCTIVE: bool = true;
 
     fn schema() -> Value {
         json!({

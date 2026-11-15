@@ -39,6 +39,8 @@ pub trait Command: Send + Sync + 'static {
     const NAME: &'static str;
     const DESCRIPTION: &'static str;
     const MUTATION: bool;
+    /// Whether the command deletes data, sent to MCP clients as `destructiveHint`.
+    const DESTRUCTIVE: bool = false;
     /// The confirmation question, enforced when the server runs with `CONFIRMATIONS`.
     const CONFIRM_PROMPT: Option<&'static str> = None;
 
@@ -145,10 +147,11 @@ fn definition<C: Command>(command: C) -> (CommandDefinition, Value) {
     if C::MUTATION {
         definition = definition.as_mutation();
     }
+    if C::DESTRUCTIVE {
+        definition = definition.with_destructive(true);
+    }
     if let Some(prompt) = C::CONFIRM_PROMPT {
-        definition = definition
-            .with_destructive(true)
-            .with_confirm_prompt(prompt);
+        definition = definition.with_confirm_prompt(prompt);
     }
     (definition, schema)
 }

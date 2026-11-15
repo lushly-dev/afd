@@ -4,6 +4,7 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -15,6 +16,7 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-toggle',
 	description: 'Toggle the completion status of a todo',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'toggle', 'write', 'single'],
 	mutation: true,
