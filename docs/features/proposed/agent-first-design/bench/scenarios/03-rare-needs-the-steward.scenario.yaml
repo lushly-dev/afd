@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
 # Not expressible here: every step runs as the test actor, so the file cannot show that only the
 # steward may decide. The decision itself is in 13-decide-a-request.

@@ -49,7 +49,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-15, the link check, the scenario checks on the seed library's
-  jobs and the reviews below.
+  jobs, the check of the bench's tasks and results, and the reviews below.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -178,11 +178,14 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   faults failed it. Its last run printed "74 result files, 50 states, 24 commands, 74 mounted"
   and "No problems found". The link script reported no broken link. An independent reviewer
   on Claude Opus 5.5 read the first version (53 states, 49 results) and raised three
-  blockers, all fixed: each task named the pattern of each state, which hints at the design
+  blockers: each task named the pattern of each state, which hints at the design
   and tells arm 2 what to apply; nothing kept the bare arm from reading the states in the
   scenario files and the design document, so `bench.md` now says what each arm reads; and a
   single result could not make a whole screen, so each state names every result its story
-  mounts. No second review was run on the fixes.
+  mounts. A focused second pass found the first and third fixed and the second in part: the
+  scenario files' headers and two sentences the bare arm reads still named the bench, the
+  statements or the confirmation steps. Those were moved or reworded, and it raised a T3 ask
+  its story could not show and a request id from the wrong data, both fixed.
 - **The seed library's jobs, 2026-11-15 at `dfb153b2`:** after
   `pnpm -F "@lushly-dev/afd-cli..." build`, the three checks the jobs-first guide names were
   run on `bench/scenarios`, and run again after the walks changed the files.

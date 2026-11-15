@@ -1,6 +1,6 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
-# requests, which is held back from whoever writes the first pattern statements.
+# requests.
 # Needs a server that enforces confirmations: with them off, the first step would remove the
 # requests. The wording of the question is the command's `confirmPrompt`, which a scenario
 # cannot read. `confirm` is written inside `input`, which is where an individual tool takes it.

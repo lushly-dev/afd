@@ -126,8 +126,10 @@ Which task needs which pattern:
   session's worktree with the files its arm reads and none of the rest of this feature's
   folder: not this file, not the proposal, not another screen's task or results. A session's
   tool calls are checked for a read of anything held back.
-- **A known limit of the bare arm:** the commands table's "Refuses with" column still names
-  the error codes, so a session can infer some states from it.
+- **A known limit of the bare arm:** the commands table and its notes still say what a
+  command returns and refuses, such as the error codes in "Refuses with" and that
+  `donation-import` succeeds when some rows fail, so a session can infer some states from
+  them.
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.

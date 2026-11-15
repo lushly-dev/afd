@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
 # Not expressible here: a batch with failures carries a PARTIAL_SUCCESS entry in `warnings`,
 # which a scenario cannot assert. The steps check the failed rows and the counts.

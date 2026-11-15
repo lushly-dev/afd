@@ -1,4 +1,4 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T3, a variety's page.
 # Needs a server that enforces confirmations: with them off, the first step would retire the
 # variety. The wording of the question is the command's `confirmPrompt`, which a scenario

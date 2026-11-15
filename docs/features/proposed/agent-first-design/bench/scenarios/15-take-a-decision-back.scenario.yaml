@@ -1,6 +1,6 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
-# requests, which is held back from whoever writes the first pattern statements.
+# requests.
 # Not expressible here: a decision's result names its undo in `undoCommand` and `undoArgs`, which
 # a scenario cannot assert. The file runs the command they name.
 name: Take a decision back

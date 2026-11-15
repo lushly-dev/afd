@@ -1,6 +1,6 @@
-# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# Draft JTBD scenario for the seed library.
 # The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
-# requests, which is held back from whoever writes the first pattern statements.
+# requests.
 # Not expressible here: the screen sends the first three decisions as one `afd-batch` call, whose
 # result holds one entry per decision (`spec/wire/batch-result.json`). The scenario runner calls
 # one command a step, so the three are written as three steps.

@@ -48,7 +48,7 @@ steward. Its rules:
 
 ## Outside the four screens
 
-The bench is four screens, not a whole application. Nothing here:
+The application is four screens, not a whole library system. Nothing here:
 
 - creates a member or a variety, or signs anyone in. Fixtures supply the members, the
   varieties and the lots;
@@ -57,7 +57,7 @@ The bench is four screens, not a whole application. Nothing here:
 - tells a member that seed they waited for has come in, or holds a returned packet for
   whoever is first on the waiting list;
 - marks an approved loan as collected;
-- pages a long list. The fixtures are small, and the bench does not test scale.
+- pages a long list. The fixtures are small.
 
 A donated label the library does not keep is corrected to one it does, or left out.
 
@@ -130,10 +130,10 @@ A `?` marks an optional field. No schema is written.
   `donation-settle` on a row already filed moves it to another variety. `donation-correct`
   puts a failed row right or, with `leaveOut`, drops it. Each is refused with `CONFLICT`
   once a packet from the lot has been lent.
-- **Two shapes of a batch, on purpose.** `donation-import` is one command over many rows and
-  reports them in its own `data`, as the todo example's batch command does. Deciding several
+- **Two shapes of a batch.** `donation-import` is one command over many rows and reports
+  them in its own `data`, as the todo example's batch command does. Deciding several
   requests is several `request-decide` calls in one `afd-batch`, whose result is the
-  meta-tool's (`spec/wire/batch-result.json`). A screen meets both.
+  meta-tool's (`spec/wire/batch-result.json`).
 - **Who may decide.** `FORBIDDEN` for anyone but a person with the steward's role is the
   application's authorization, in middleware. It is separate from the `approval` on
   `loan-create`.
@@ -190,13 +190,6 @@ So the application does the rest:
 - **An agent in the application has to be marked as one.** A DirectClient's actor is a person
   unless it is set otherwise (`packages/core/src/actor.ts:18`), and the rule that only a
   person decides rests on the actor.
-- **A scenario runs in process as the test actor,** which the application treats as the
-  steward. That is why no file shows `FORBIDDEN`.
-- **Two steps need a server:** the first steps of jobs 12 and 16, which expect
-  `CONFIRMATION_REQUIRED`. In process they would carry the command out. They pass against a
-  server run with `confirmations: 'enforce'` whose `createContext` gives the runner a person
-  with the steward's role. Without that the server's actor is an agent
-  (`packages/server/README.md:510`), and the steward's commands are refused.
 - **Over MCP an agent can confirm by itself.** Under `enforce` the acknowledgement is the
   caller's, so "knowingly" holds for a person at a screen and not for an agent.
 
@@ -322,7 +315,7 @@ Each file says at its top what it leaves out. Together:
   fields are built from, and run the command an undo names.
 - **`confidence` is a floor.** A step can show that a match is at least 0.5 and cannot show
   that it is below 0.9. That a label was left for a person shows it.
-- **One actor.** In process every step runs as the test actor, which the application treats
+- **One actor.** A scenario runs in process as the test actor, which the application treats
   as the steward. So no file shows a volunteer or an agent refused with `FORBIDDEN`.
 - **A service that fails.** Jobs 6 and 17 are half shown: the empty list, and not the list
   that cannot be read (`SERVICE_UNAVAILABLE`).
@@ -333,8 +326,11 @@ Each file says at its top what it leaves out. Together:
 - **A confirmation.** Its wording is the command's `confirmPrompt`, which a step cannot read.
   It is a fixed string on the command's definition, so it cannot name the variety or the date
   it is about; the screen shows the record beside it.
-  The first steps of jobs 12 and 16 pass only against a server
-  ([Who calls, and through what](#who-calls-and-through-what)). They write `confirm` inside
+  The first steps of jobs 12 and 16, which expect `CONFIRMATION_REQUIRED`, would carry the
+  command out in process. They pass against a server run with `confirmations: 'enforce'`
+  whose `createContext` gives the runner a person with the steward's role; without that the
+  server's actor is an agent (`packages/server/README.md:510`), and the steward's commands
+  are refused. They write `confirm` inside
   `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
   the input.
 
