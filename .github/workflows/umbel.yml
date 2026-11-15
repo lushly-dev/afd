@@ -12,6 +12,8 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
       # The packages the afd CLI is built from: a change there can change what it does to Umbel.
+      # Their third-party dependencies (pnpm-lock.yaml) and the root tsconfig.json are left to the
+      # daily run, so every Dependabot pull request does not start this workflow.
       - 'packages/client/**'
       - 'packages/core/**'
       - 'packages/server/**'
@@ -35,6 +37,8 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/cli/**'
       # The packages the afd CLI is built from: a change there can change what it does to Umbel.
+      # Their third-party dependencies (pnpm-lock.yaml) and the root tsconfig.json are left to the
+      # daily run, so every Dependabot pull request does not start this workflow.
       - 'packages/client/**'
       - 'packages/core/**'
       - 'packages/server/**'
