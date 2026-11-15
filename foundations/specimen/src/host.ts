@@ -23,9 +23,23 @@ export function hostPackageName(
 }
 
 /**
- * The native host binary: `SPECIMEN_HOST_BINARY`; in a source checkout, the release build in
- * `host/`; otherwise the prebuilt platform package `@lushly-dev/specimen` installs as an
- * optional dependency. A fresh source build is preferred over a staged package.
+ * Where `build:host` (`host/build.mjs`) puts a release build, most recent setting first: under
+ * `CARGO_TARGET_DIR`, resolved from `host/` as cargo resolves it, in a source checkout where the
+ * variable is set; and under `host/target`.
+ */
+function sourceBuilds(moduleUrl: string): string[] {
+	const host = fileURLToPath(new URL('../host/', moduleUrl));
+	const builds = [join(host, 'target', 'release', 'specimen-host')];
+	const target = process.env.CARGO_TARGET_DIR;
+	if (target && existsSync(join(host, 'Cargo.toml')))
+		builds.unshift(resolve(host, target, 'release', 'specimen-host'));
+	return builds;
+}
+
+/**
+ * The native host binary: `SPECIMEN_HOST_BINARY`; in a source checkout, the release build
+ * `build:host` made; otherwise the prebuilt platform package `@lushly-dev/specimen` installs as
+ * an optional dependency. A fresh source build is preferred over a staged package.
  */
 export function hostBinaryPath(moduleUrl = import.meta.url): string {
 	const configured = process.env.SPECIMEN_HOST_BINARY;
@@ -35,8 +49,8 @@ export function hostBinaryPath(moduleUrl = import.meta.url): string {
 			throw new Error(`Specimen host is missing at ${path}, where SPECIMEN_HOST_BINARY points`);
 		return path;
 	}
-	const built = fileURLToPath(new URL('../host/target/release/specimen-host', moduleUrl));
-	if (existsSync(built)) return built;
+	const built = sourceBuilds(moduleUrl).find((path) => existsSync(path));
+	if (built) return built;
 	const name = hostPackageName();
 	if (!name)
 		throw new Error(

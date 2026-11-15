@@ -6,7 +6,8 @@
  * Usage: node host/stage.mjs [<platform>] [--binary <path>]
  *        node host/stage.mjs --check <platform>
  *
- * The platform defaults to this machine's; the binary defaults to `host/target/release`. Both
+ * The platform defaults to this machine's; the binary defaults to the release build `build.mjs`
+ * makes, under `CARGO_TARGET_DIR` when it is set and otherwise under `host/target`. Both
  * forms read the binary's header and refuse one built for another system or architecture, so a
  * host built elsewhere (a CI artifact) can be staged but never into the wrong package. Each
  * platform package's `prepack` runs the check, so an unstaged package cannot be packed.
@@ -86,7 +87,9 @@ if (check) {
 	if (!(readFileSync(path).length > 0)) fail(`${path} is empty`);
 	console.log(`ok - ${entry.manifest.name} carries a ${check} host`);
 } else {
-	const binary = resolve(option('--binary') ?? join(specimen, 'host/target/release/specimen-host'));
+	const targetDir = process.env.CARGO_TARGET_DIR || 'target';
+	const built = resolve(specimen, 'host', targetDir, 'release', 'specimen-host');
+	const binary = resolve(option('--binary') ?? built);
 	const libc = process.platform === 'linux' ? '-gnu' : '';
 	const platform = args[0] ?? `${process.platform}-${process.arch}${libc}`;
 	if (args.length > 1) fail(`unexpected arguments: ${args.slice(1).join(' ')}`);

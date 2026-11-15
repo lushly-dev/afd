@@ -501,7 +501,7 @@ The host comes prebuilt, one package per platform, which `@lushly-dev/specimen` 
 The bench looks for the host in this order, then for Playwright's installed headless shell unless `executablePath` is given:
 
 1. `SPECIMEN_HOST_BINARY`, if set.
-2. In a source checkout, the release build beside the package, `host/target/release/specimen-host`. Build it with `pnpm -F @lushly-dev/specimen build:host` (rustup installs the pinned Rust 1.98.0).
+2. In a source checkout, the release build `pnpm -F @lushly-dev/specimen build:host` makes (rustup installs the pinned Rust 1.98.0): `release/specimen-host` under `CARGO_TARGET_DIR` when it is set, resolved from `host/` as cargo resolves it, and otherwise `host/target/release/specimen-host`. A cargo configuration's `build.target-dir` is not followed. The suite needs the TypeScript build too: on a fresh install, run `pnpm -F @lushly-dev/specimen-cli... build` first, as CI does.
 3. The installed platform package. If it is missing, for example after an install that omitted optional dependencies, rendering fails and names it.
 
 `pnpm -F @lushly-dev/specimen stage:host` copies a release build into this platform's package (`node host/stage.mjs <platform> --binary <path>` stages one built elsewhere). It reads the binary's header and refuses one built for another system or architecture. Each platform package checks this again before it is packed, so an empty or mismatched package cannot be packed.
