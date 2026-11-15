@@ -1,0 +1,109 @@
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# Limit: `expect` cannot assert `undoCommand`; src/commands/__tests__/undo.test.ts checks that
+# todo-delete and todo-delete-batch return undoCommand: todo-restore and undoArgs: { ids: <the
+# ids actually deleted> }. A deleted todo is kept, out of every list but
+# `todo-list { deleted: true }`, until todo-clear { deleted: true } or { all: true } removes it.
+# Limit: a step's input must be an object, so these steps pass undoArgs.ids by name where an
+# agent passes the whole undoArgs object.
+name: Undo a delete
+description: >-
+  When a todo, or several, are deleted by mistake, I want them back as they were, so that a
+  wrong delete by me or an agent loses nothing.
+job: undo-a-delete
+tags: [slice, undo]
+steps:
+  - description: A todo exists
+    command: todo-create
+    input: { title: Book the rotavator for April, description: Call the hire shop first, priority: medium }
+    expect:
+      success: true
+  - description: It is deleted
+    command: todo-delete
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        deleted: true
+  - description: It is gone, and the error says how to get it back
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: todo-restore }
+  - description: The result's undo arguments restore it
+    command: todo-restore
+    input: { ids: "${{ steps[1].undoArgs.ids }}" }
+    expect:
+      success: true
+      data:
+        restoredIds: { length: 1 }
+        summary:
+          successCount: 1
+          failureCount: 0
+  - description: It reads exactly as before, description included
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        title: Book the rotavator for April
+        description: Call the hire shop first
+        priority: medium
+        completed: false
+        deletedAt: { notExists: true }
+  - description: Two more todos exist
+    command: todo-create-batch
+    input:
+      todos:
+        - { title: Net the brassicas }
+        - { title: Sow the broad beans }
+    expect:
+      success: true
+      data:
+        summary:
+          successCount: 2
+  - description: Both are deleted at once
+    command: todo-delete-batch
+    input:
+      ids:
+        - "${{ steps[5].data.succeeded[0].id }}"
+        - "${{ steps[5].data.succeeded[1].id }}"
+    expect:
+      success: true
+      data:
+        summary:
+          successCount: 2
+  - description: One undo brings both back
+    command: todo-restore
+    input: { ids: "${{ steps[6].undoArgs.ids }}" }
+    expect:
+      success: true
+      data:
+        restoredIds: { length: 2 }
+  - description: The first is back
+    command: todo-get
+    input: { id: "${{ steps[5].data.succeeded[0].id }}" }
+    expect:
+      success: true
+      data:
+        title: Net the brassicas
+  - description: So is the second
+    command: todo-get
+    input: { id: "${{ steps[5].data.succeeded[1].id }}" }
+    expect:
+      success: true
+      data:
+        title: Sow the broad beans
+  - description: An id that was never deleted is reported, not restored, with the way forward
+    command: todo-restore
+    input: { ids: [todo-that-never-existed] }
+    expect:
+      success: true
+      data:
+        restoredIds: { length: 0 }
+        summary:
+          successCount: 0
+          failureCount: 1

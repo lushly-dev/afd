@@ -8,7 +8,7 @@ What each AFD implementation provides, where they differ, and which differences 
 | Reviewed at | Stabilization `f19257e` (#367); Python 0.9.0 published from `4e16a06` (#372); npm 2.1.0 published from `0148d22` (#338); C++ and Rust 0.1.0 published from `a311562` (#377); fresh consumers verified |
 | Implementations | TypeScript (reference), Python, Rust, C++ |
 | Replaces | The export counts in the [Python](./features/active/python-parity/python-parity.plan.md) and [Rust](./features/complete/rust-parity/plan.md) parity plans, which now link here |
-| Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/active/versioning/versioning.plan.md) covers each implementation's version and the contract version |
+| Plans | [Parity closure](./features/active/parity-closure/parity-closure.plan.md) closes the gaps listed here; [Versioning and release](./features/complete/versioning/versioning.plan.md) covers each implementation's version and the contract version |
 | Related | [`spec/wire`](../spec/wire/README.md), [`spec/pipeline-variables.md`](../spec/pipeline-variables.md), [`spec/command-metadata.md`](../spec/command-metadata.md), [`spec/validation.md`](../spec/validation.md), [`spec/error-codes.md`](../spec/error-codes.md), [`spec/vectors`](../spec/vectors/README.md), [C++ proposal](./features/complete/cpp-support/proposal.md), [2026-09-23 quality review](./reviews/2026-09-23-quality-review.md) |
 
 The implementation rows below include the stabilization merged in #367. Python 0.9.0 is published: all 12 fresh published-wheel installs passed across Python 3.10–3.12 and base/client/server/CLI, including the original base-import reproduction; [#347](https://github.com/lushly-dev/afd/issues/347) is closed. All nine npm packages are published at 2.1.0 after verified historical 2.0.0 recovery; [#369](https://github.com/lushly-dev/afd/issues/369) is closed. See the [publication record](./operations/stabilization-release.md) for exact commits, registry consumers and workflow receipts. The historical export measurement below remains dated separately.
@@ -52,18 +52,18 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/journal-context-cap.json`, 19 cases | The journal's 4096-byte cap on a declared context field's value, measured with JavaScript's number spelling (#578) | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
-| Todo conformance, 35 cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes | Yes | Yes | Yes |
+| Todo conformance, 35 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes, plus 6 of its own and the approval suite | Yes | Yes | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 75 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 
 Limits of these checks:
 
-- **The conformance suite tests the todo domain, not the AFD protocol.** Its 35 cases call todo commands and check result fields. They do not exercise:
+- **The conformance suite tests the todo domain, not the AFD protocol.** Its 35 shared cases call todo commands and check result fields. They do not exercise:
   - meta-tools, bootstrap or discovery;
   - exposure;
   - the batch, pipeline or stream executors;
   - unknown-command handling.
-- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 97 names short, but 61 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
+- **Name parity is not behavioral parity.** Rust is 9 names short of TypeScript but has no stream executor. Python is 88 names short, but 56 of those exist and are just not exported (see [Name parity](#name-parity-alfred-parity)).
 - **The behavior vectors cover pipeline references, conditions, executor controls, validation (loaded by all four implementations) and the error-code catalog.** Streams and single-command dispatch have no vectors yet, so a change there can still drift unnoticed.
 
 ## Capability matrix
@@ -295,7 +295,7 @@ Ordered by how much an agent or a security boundary is affected.
 
 ### Priority 3: reference decisions that affect every language
 
-17. **The TypeScript server does not speak MCP Streamable HTTP (fixed).** The [MCP 2026-07-28 upgrade](./features/active/mcp-2026-07-28/proposal.md) added `/mcp` and dual-era stdio on the official SDK (#391) and a `streamable-http` client transport (#392). All four todo backends pass the conformance suite in `legacy`, `auto` and `modern` mode.
+17. **The TypeScript server does not speak MCP Streamable HTTP (fixed).** The [MCP 2026-07-28 upgrade](./features/complete/mcp-2026-07-28/proposal.md) added `/mcp` and dual-era stdio on the official SDK (#391) and a `streamable-http` client transport (#392). All four todo backends pass the conformance suite in `legacy`, `auto` and `modern` mode.
 18. **Unknown and unexposed commands (decided: D4).** [`spec/error-codes.md`](../spec/error-codes.md#unknown-and-unexposed-commands-d4) writes the TypeScript split down as the rule: remote MCP gives `COMMAND_NOT_FOUND` for both, an in-process registry called with an interface gives `COMMAND_NOT_EXPOSED`, and `DirectClient` gives `UNKNOWN_TOOL` with a `suggestion`. Suggestions name only tools the host provides. Fixed to match:
     - **TypeScript and Python:** the router's unreachable `COMMAND_NOT_EXPOSED` branch in `afd-call` is gone.
     - **Python:** `afd-batch` and `afd-pipe` no longer reveal a private command with `COMMAND_NOT_EXPOSED`, and the context check no longer reveals it through tools/call. `INVALID_INTERFACE` is gone: an unknown interface exposes nothing, and an empty one is no interface. `DirectClient`'s `UNKNOWN_TOOL` has a `suggestion` and `retryable: false`. The core registry's `COMMAND_NOT_IN_CONTEXT` names the command's contexts instead of the `afd-context-*` tools it lacks.
@@ -315,6 +315,12 @@ Ordered by how much an agent or a security boundary is affected.
 | Python `auto_reconnect` was dead code | `python/src/afd/client.py` | Fixed in candidate; Priority 2 item 15 |
 
 ## Name parity (`alfred parity`)
+
+Fresh measurement, 2026-11-13 on `main` at `1024546b`:
+`uv run --project alfred alfred --workspace . parity --path .` reports 228 TypeScript,
+233 Python, 313 Rust and 216 C++ exports, with 88, 9 and 76 names missing respectively.
+The wire/vector loader coverage checks report zero gaps, and all four contract constants
+match `1.0-rc`. This inspects source; it does not run the implementations' suites.
 
 Measured at `0777217`: TypeScript 186 exports, Python 179, Rust 225, C++ 158. The Rust row was re-measured after `execution_failure` was exported, after #401 (Rust then had 251 exports), after #426 and after #421 (Rust then had 285 exports), and the Python row after #348, #400, #425 and #420 (Python then had 230 exports).
 

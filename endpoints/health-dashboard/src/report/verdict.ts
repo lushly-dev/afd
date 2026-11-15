@@ -1,6 +1,6 @@
 /**
  * Overall verdict under the platform's documented aggregate rule
- * (docs/features/active/platform-monorepo/proposal.md, "Quality verdicts and command
+ * (docs/features/complete/platform-monorepo/proposal.md, "Quality verdicts and command
  * effects"). Health writes the same verdict into report 1.2; the dashboard recomputes it
  * for its explanation and rejects a report whose verdict disagrees (see validate.ts).
  *

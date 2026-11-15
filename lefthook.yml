@@ -45,6 +45,8 @@ commit-msg:
   commands:
     commitlint:
       run: npx commitlint --edit {1}
+    commit-credit:
+      run: node scripts/commit-credit.mjs --message {1}
 
 pre-push:
   # A clean checkout that `pnpm verify` passed on, pushing exactly that commit, has already run

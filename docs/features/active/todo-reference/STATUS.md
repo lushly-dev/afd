@@ -18,19 +18,21 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **State:** active. The owner asked on 2026-11-14 to save the proposal and start the work, and
   decided D1 to D3 the same day (the proposal's [decisions](todo-reference.proposal.md#decisions)):
   React stays beside the FAST-AF frontend, both on `violet-elements`.
-- **Last verified:** 2026-11-15 on branch `t3/refresh-todo-afd-examples`, based on `main` at
-  `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
-- **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). The parts it left open belong to
-  later phases, as the findings table says.
-- **In progress:** nothing. Phase 2 is next.
-- **Not started:** phases 2 to 5.
+- **Last verified:** 2026-11-15 on branch `t3/todo-reference-phase2-localdb`, based on `main` at
+  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed.
+- **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). Phase 2, in the
+  TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
+  journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
+  2026-11-15. The parts they left open belong to later phases, as the findings table says.
+- **In progress:** nothing. Job 6 (the view) waits for the page in phases 3 and 4; phase 3 is next.
+- **Not started:** phases 3 to 5.
 
 ## Plan
 
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | Not started | None | Phase 1 merged; jobs written as scenarios first |
+| 2. The TypeScript reference | Done, but job 6, which waits for phases 3 and 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -105,9 +107,90 @@ component-loader tests looked for their `.wasm` fixtures in the wrong place. Rer
 build directories the same (fixtures and `hello-mcp` rebuilt there first, `--no-fail-fast`), every
 test target passed.
 
+## Phase 2: the TypeScript reference
+
+Merged in [#1251](https://github.com/lushly-dev/afd/pull/1251) on 2026-11-15 (`06f22645`):
+
+- **Undo.** Every change's result names its undo (`undoCommand`, `undoArgs`) and the command
+  declares `undoable`: create (`todo-delete`), update and toggle (`todo-update`, setting the
+  previous values), toggle-batch when one call can undo it (a mixed toggle warns
+  `NO_SINGLE_UNDO`), delete and delete-batch (`todo-restore`).
+- **Deleted todos.** A delete keeps the todo, out of every live read; `todo-list { deleted: true }`
+  lists them (with `deletedAt`, sortable), and the not-found error says so. `todo-restore` (new)
+  brings them back. The file store keeps them in `todos.deleted.json`, so the Python backend,
+  sharing `todos.json`, never sees one as live.
+- **History.** `todo-history` (new) reads a change log that `src/history.ts`'s middleware records
+  from each successful change: actor, time, ids and undo, with an undo offered only while it is a
+  todo's latest change; the latest 1,000 kept, in `todos.history.json` for the file store.
+- **Approval.** `todo-clear` is held for any caller that is not a person
+  (`createApprovalMiddleware`, `relay: 'mcp-elicitation'`), with a summary of what would go;
+  `{ deleted: true }` empties the deleted todos. `APPROVALS=off` holds nothing, and the
+  conformance runner sets it.
+- **Context.** Handlers take their time and ids from `context.clock` and `context.random`.
+- **Spec.** `todo-restore` and `todo-history` are in `spec/commands.schema.json` with
+  `implementedBy: ["typescript"]`, the new inputs with `x-implementedBy`; the Python, Rust and C++
+  tests check only their own commands, and the C++ backend, whose schema compiler refuses unknown
+  keywords, leaves the TypeScript-only inputs out of its schemas.
+- **Jobs.** Jobs 1 to 5, 8 and 9 moved to `backends/typescript/scenarios/` and run in
+  `src/scenarios.test.ts`, in-process through the server's middleware (job 5 through
+  `createDirectRegistry` in `todo-reading`). Removing the approval middleware fails job 4, and
+  running job 5 with no context fails it.
+
+Merged in [#1256](https://github.com/lushly-dev/afd/pull/1256) on 2026-11-15:
+
+- **Journal and replay (job 7).** `TODO_JOURNAL` records each call past the approval hold through
+  `createJournalMiddleware`, with the clock and random values it read; held calls are not
+  recorded, so no approval token reaches a journal. `src/registry.ts` is the module
+  `afd replay --module` loads: a fresh in-memory store and the same middleware without the
+  approval hold, which every journaled call already passed. Importing the store module touches
+  no data file; the server chooses its store at startup. `src/replay.test.ts` records job 7 and
+  an approved agent clear and replays both to the same results, finds a changed session, and
+  checks the replay module creates no data file; the CLI replay of a recorded session matched.
+- **Metadata.** Every command declares a `title`, an `output` schema and `examples`, and every
+  mutation an `approval` policy. `src/surface.test.ts` runs strict surface validation: four input
+  overlaps are suppressed with their reason (the single-id commands, and `todo-restore` as
+  `todo-delete-batch`'s undo); seven descriptions were rewritten.
+- **Middleware.** `defaultMiddleware()` replaces the hand-built logging.
+
+Merged in [#1260](https://github.com/lushly-dev/afd/pull/1260) on 2026-11-15:
+
+- **Approval suite.** `spec/approval-cases.json` (`--suite approvals`, `APPROVALS=agents`): an
+  agent's clear held with its suggestion, a delete not held, a clear a person approves through
+  form elicitation, and one a person declines. It resets by deleting, since a clear is held.
+  TypeScript passes it in both MCP eras, in CI.
+- **New conformance cases.** Six cases in `spec/test-cases.json` marked
+  `implementedBy: ["typescript"]` (undo metadata, delete and restore, an id that cannot be
+  restored, emptying the deleted todos, history); the runner keeps each backend to its
+  language's cases and fails a suite that leaves it none. The other backends run the 35 shared
+  ones unchanged.
+- **Scenarios and surface in CI.** `pnpm test:scenarios:ts` (`dx/run-scenarios.ts`) serves the
+  backend over Streamable HTTP and runs `afd validate --surface --strict` (the four overlaps
+  suppressed, from one list shared with `surface.test.ts`) and `afd scenario run` on every
+  scenario not tagged `deterministic` or `contexts`: ten pass. The four older scenarios no longer
+  start by clearing, and `filter-by-priority` cleans up after itself.
+- **CI.** `conformance.yml` runs both and triggers on `packages/cli`, `packages/client` and
+  `packages/testing`; `scripts/affected/suites.mjs` lists the same steps for `pnpm verify`.
+
+Merged in [#1263](https://github.com/lushly-dev/afd/pull/1263) on 2026-11-15:
+
+- **SQLite storage (D4).** `TODO_STORE_TYPE=sqlite` stores the todos, the deleted todos and the
+  history in one database through `@lushly-dev/local-db`'s SQLite adapter (`src/store/sqlite.ts`).
+  Each write runs through the adapter's `batch`, one transaction, so a delete or restore moves its
+  todo all or nothing, and a write to a todo another process removed meanwhile rolls back; the
+  history entry is a separate write after it. The filtering, sorting (ties in insertion order, as
+  the in-memory store) and undo rules are the in-memory store's, reused.
+  The store is asynchronous, so every command awaits the store, and a middleware outside the
+  approval hold reads the counts `todo-clear`'s approval summary shows. The backend's tests run
+  every job against both the in-memory and the SQLite store.
+- **The default stays the JSON file** until phase 5's Python pull request reads the same
+  database, so TypeScript and Python keep sharing data throughout (D4's timing).
+
+Phase 2 is then complete apart from job 6, which waits for the page in phases 3 and 4.
+
 ## Open questions
 
-None. The owner decided D1 to D3 on 2026-11-14.
+None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
+app is a reference first: where a choice is close it leans toward making the system visible.
 
 ## Follow-ups not yet issues
 
@@ -115,10 +198,17 @@ None. The owner decided D1 to D3 on 2026-11-14.
 | --- | --- | --- | --- |
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Open, phase 3 |
 | 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Open, phase 5 |
-| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open |
+| 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Open, phase 3 |
+| 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it | Open |
+| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
 
 ## Session log
 
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-14 | Review and phase 1 | Reviewed the examples against current AFD; wrote the proposal and this file; phase 1 written and verified locally |
+| 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; the owner decided D6 to D10 |
+| 2026-11-15 | Phase 2 slice | Built undo, deleted todos, `todo-restore`, `todo-history` and the clear approval in TypeScript; jobs 1 to 5, 8 and 9 run in the backend's tests |
+| 2026-11-15 | Phase 2 journal | Journal and replay (job 7), title, output and examples on every command, strict surface validation in the tests, `defaultMiddleware()`; in #1256 |
+| 2026-11-15 | Phase 2 CI | Approval suite, six TypeScript-only conformance cases, `afd validate --surface --strict` and `afd scenario run` against the backend in CI, the older scenarios without a clear; in #1260 |
+| 2026-11-15 | Phase 2 SQLite | The SQLite store on local-db (D4), opt-in until phase 5; every job runs on both stores; phase 2 complete but job 6; in #1263 |

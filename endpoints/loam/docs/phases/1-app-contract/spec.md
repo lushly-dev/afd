@@ -4,7 +4,7 @@
 | --- | --- |
 | Phase | 1, app contract ([architecture section 9](../../architecture.md#9-phases)) |
 | Owner | The coordinator approves under the owner's delegation of 2026-11-01, after an independent review; the phase 1 owning agent implements |
-| Read first | [STATUS.md](../../STATUS.md), the [phase 0 specification](../0-kernel-chrome/spec.md), the [architecture](../../architecture.md), the [decision log](../../decisions.md) and the [shared plugin manifest proposal](../../../../../docs/features/active/plugin-manifest/plugin-manifest.proposal.md) |
+| Read first | [STATUS.md](../../STATUS.md), the [phase 0 specification](../0-kernel-chrome/spec.md), the [architecture](../../architecture.md), the [decision log](../../decisions.md) and the [shared plugin manifest proposal](../../../../../docs/features/complete/plugin-manifest/plugin-manifest.proposal.md) |
 | Elevation | Exact shapes, names, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
 
 ## Status

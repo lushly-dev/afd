@@ -1,5 +1,7 @@
 # Chat History Panel
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed; no implementation of this session-history panel was found. Loam's shell is tracked separately, and the chat example remains a WebSocket server. The whole proposed panel remains open.
+
 Status: Proposed  
 Created: 2026-01-12  
 Updated: 2026-02-24

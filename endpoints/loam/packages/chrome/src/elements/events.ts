@@ -15,6 +15,7 @@ export type ChromeAction =
 	| { action: 'maximize'; maximized: boolean }
 	| { action: 'sign-in' }
 	| { action: 'sign-out' }
+	| { action: 'invitations' }
 	/** A `provider` deployment's account button: the account menu (phase 3 specification, 5.1). */
 	| { action: 'account-menu' };
 

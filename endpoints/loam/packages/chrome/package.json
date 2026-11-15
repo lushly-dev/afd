@@ -17,6 +17,10 @@
 			"types": "./dist/apps/index.d.ts",
 			"import": "./dist/apps/index.js"
 		},
+		"./account": {
+			"types": "./dist/identity/account.d.ts",
+			"import": "./dist/identity/account.js"
+		},
 		"./view": {
 			"types": "./dist/view/view.d.ts",
 			"import": "./dist/view/view.js"

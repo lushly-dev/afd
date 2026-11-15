@@ -16,6 +16,16 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKENDS = ['ts', 'py', 'rs', 'cpp', 'umbel', 'umbel-mounted'] as const;
 type Backend = (typeof BACKENDS)[number];
 
+/** Each backend's language, as `implementedBy` names it; the Umbel todo plugin is the Rust backend. */
+const LANGUAGE: Record<Backend, string> = {
+	ts: 'typescript',
+	py: 'python',
+	rs: 'rust',
+	cpp: 'cpp',
+	umbel: 'rust',
+	'umbel-mounted': 'rust',
+};
+
 /**
  * How the runner negotiates the MCP protocol revision:
  *
@@ -235,7 +245,14 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 	if (target === 'umbel' || target === 'umbel-mounted') {
 		return startUmbel(target, extraEnv);
 	}
-	const env = { ...process.env, ...extraEnv, TODO_STORE_TYPE: 'memory' } as Record<string, string>;
+	// The shared suites test the contract every language meets, without approvals until the
+	// to-do reference plan's phase 5, so they run with APPROVALS=off, as they set CONFIRMATIONS.
+	const env = {
+		...process.env,
+		APPROVALS: 'off',
+		...extraEnv,
+		TODO_STORE_TYPE: 'memory',
+	} as Record<string, string>;
 	if (target === 'ts') {
 		return {
 			transport: new StdioClientTransport({
@@ -296,9 +313,20 @@ async function connect(
 		}
 	);
 	if (answer) {
-		client.setRequestHandler('elicitation/create', async () =>
-			answer === 'accept' ? { action: 'accept', content: { confirm: true } } : { action: 'decline' }
-		);
+		// Accept says yes to whatever is asked: each boolean field of the form (a confirmation's
+		// `confirm`, an approval's `approve`) is answered true.
+		client.setRequestHandler('elicitation/create', async (request) => {
+			if (answer === 'decline') return { action: 'decline' };
+			const schema = (request.params as { requestedSchema?: { properties?: object } })
+				.requestedSchema;
+			const fields = Object.entries(schema?.properties ?? {}).filter(
+				([, field]) => (field as { type?: string }).type === 'boolean'
+			);
+			return {
+				action: 'accept',
+				content: Object.fromEntries(fields.map(([name]) => [name, true])),
+			};
+		});
 	}
 	try {
 		await client.connect(transport);
@@ -342,7 +370,19 @@ function toolCaller(client: Client) {
 	};
 }
 
-const SUITES = ['todo', 'confirmations'] as const;
+const SUITES = ['todo', 'confirmations', 'approvals'] as const;
+
+/** Empty the live list without a clear, which the approvals suite's agent cannot run unasked. */
+async function resetByDeleting(
+	call: (name: string, args: unknown) => Promise<{ success: boolean; data?: unknown }>
+): Promise<{ success: boolean; error?: { message: string } }> {
+	const listed = await call('todo-list', { limit: 100 });
+	const ids = ((listed.data as { todos?: { id: string }[] } | undefined)?.todos ?? []).map(
+		(todo) => todo.id
+	);
+	if (ids.length === 0) return listed;
+	return call('todo-delete-batch', { ids });
+}
 type Suite = (typeof SUITES)[number];
 
 async function run() {
@@ -364,7 +404,8 @@ async function run() {
 		try {
 			results.push(
 				...(await new ConformanceRunner(toolCaller(session.client)).run(
-					path.join(__dirname, '../spec/test-cases.json')
+					path.join(__dirname, '../spec/test-cases.json'),
+					{ language: LANGUAGE[target] }
 				))
 			);
 		} finally {
@@ -373,22 +414,30 @@ async function run() {
 	} else {
 		// One backend per client kind: a client declares its capabilities once, so the
 		// elicitation and acknowledgement paths need separate connections.
+		const approvals = suite === 'approvals';
 		for (const kind of CONFIRMATION_CLIENTS) {
 			const session = await connect(
 				target,
 				mode,
-				{ CONFIRMATIONS: 'enforce' },
+				approvals ? { APPROVALS: 'agents' } : { CONFIRMATIONS: 'enforce' },
 				kind === 'acknowledge' ? undefined : kind
 			);
 			try {
 				const runner = new ConformanceRunner(toolCaller(session.client), {
-					// The reset itself is confirm-gated: acknowledge it.
-					reset: (call) => call('todo-clear', { all: true, confirm: true }),
+					reset: approvals
+						? // A clear is held for an agent, so empty the live list with a batch delete
+							resetByDeleting
+						: // The reset itself is confirm-gated: acknowledge it.
+							(call) => call('todo-clear', { all: true, confirm: true }),
 				});
 				results.push(
-					...(await runner.run(path.join(__dirname, '../spec/confirmation-cases.json'), {
-						client: kind,
-					}))
+					...(await runner.run(
+						path.join(
+							__dirname,
+							approvals ? '../spec/approval-cases.json' : '../spec/confirmation-cases.json'
+						),
+						{ client: kind, language: LANGUAGE[target] }
+					))
 				);
 			} finally {
 				await session.close();

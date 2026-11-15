@@ -51,7 +51,11 @@ describe('FileStore', () => {
 
 		const reopened = new FileStore(path);
 		expect(reopened.get(created.id)?.title).toBe('Persisted');
-		expect(readdirSync(dir)).toEqual(['todos.json']);
+		expect(readdirSync(dir).sort()).toEqual([
+			'todos.deleted.json',
+			'todos.history.json',
+			'todos.json',
+		]);
 	});
 
 	it('reads the older { id: todo } object format', () => {

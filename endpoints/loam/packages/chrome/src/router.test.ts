@@ -49,6 +49,18 @@ describe.each([`${ORIGIN}/`, `${ORIGIN}/loam/`])('P2-E8: the URL scheme under %s
 		expect(formatRoute(parseRoute(at(path), base), base)).toBe(at(path));
 	});
 
+	it('P3-E7: reads the account section at the workspace, its tab as the rest, and never under a project (5.1)', () => {
+		expect(parseRoute(at('acme/~/account/passkeys'), base)).toEqual({
+			kind: 'section',
+			workspace: 'acme',
+			section: 'account',
+			rest: ['passkeys'],
+		});
+		expect(parseRoute(at('acme/p/atlas/~/account'), base)).toEqual({ kind: 'not-found' });
+		// The join and recovery pages sit at the root, outside every workspace: the shell's router never takes them.
+		expect(parseRoute(at('~/join'), base)).toEqual({ kind: 'not-found' });
+	});
+
 	it('P2-E8: reads /index.html as the root, and a relative URL against the base', () => {
 		expect(parseRoute(at('index.html'), base)).toEqual({ kind: 'root' });
 		expect(parseRoute('acme', base)).toEqual({ kind: 'workspace', workspace: 'acme' });

@@ -53,7 +53,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Step | State | Evidence | Next gate |
 | --- | --- | --- | --- |
-| 0. `spec/` | Written (Umbel phase 2 step 0a) | New [`spec/output-budgets.md`](../../../../spec/output-budgets.md) and [`spec/output-budgets.json`](../../../../spec/output-budgets.json); amendments to `command-metadata.md`, `context-fields.md`, `journal.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merge |
+| 0. `spec/` | Done (#630) | New [`spec/output-budgets.md`](../../../../spec/output-budgets.md) and [`spec/output-budgets.json`](../../../../spec/output-budgets.json); amendments to `command-metadata.md`, `context-fields.md`, `journal.md`, `error-codes.md`, `protocol-conformance.md`, `vectors/README.md` and `CHANGELOG.md`; parity rows Planned. `spec/VERSION` stays `1.0-rc` | Merged as `f1f8ff79` |
 | 1. Rust | Done (Umbel phase 2 step 0b) | `packages/rust` `src/output_budget.rs`, `tests/output_budget.rs`; the error code in all four languages | Merge |
 | 2. TypeScript | Not started | None | Step 1 is done: the error-code constant `ErrorCodes.OUTPUT_BUDGET_EXCEEDED` exists |
 | 3. Python | Not started | None | Step 1 is done: `ErrorCodes.OUTPUT_BUDGET_EXCEEDED` exists |

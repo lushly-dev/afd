@@ -1,5 +1,7 @@
 # Python Parity Closure Plan
 
+> **Current status (2026-11-13):** [STATUS.md](STATUS.md) records partial completion and ownership under the broader parity plan. Historical counts below are not current measurements.
+
 ## Overview
 
 The Python AFD package already covers the result model, telemetry basics, handoff primitives, direct client support, platform helpers, and connector implementations, but it still lags the TypeScript core barrel in several shared contract areas.
@@ -7,7 +9,7 @@ The Python AFD package already covers the result model, telemetry basics, handof
 The canonical name check is:
 
 ```bash
-uv run --project alfred alfred parity --path .
+uv run --project alfred alfred --workspace . parity --path .
 ```
 
 Counts over time:
@@ -27,9 +29,9 @@ This plan tracks Python name parity only. Behavioral gaps are tracked in the cro
 |---|---|
 | Status | Active |
 | Author | jasfalk |
-| Updated | 2026-09-26 |
+| Updated | 2026-11-13 (status ledger added; historical measurements retained) |
 | Package | `python/src/afd` |
-| Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
+| Source Of Truth | `uv run --project alfred alfred --workspace . parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
 | Depends On | Current TypeScript core barrel and existing Python package foundation |
 
 ## Status by wave (2026-09-26)
@@ -283,7 +285,7 @@ Each wave should include:
 - a parity rerun after each wave:
 
 ```bash
-uv run --project alfred alfred parity --path .
+uv run --project alfred alfred --workspace . parity --path .
 ```
 
 ## Success Criteria

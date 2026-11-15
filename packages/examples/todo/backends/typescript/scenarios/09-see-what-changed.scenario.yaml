@@ -1,0 +1,52 @@
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# todo-history reads the app's change log, kept in the same store from each mutation's result:
+# who made the change (the context's actor), when (the context's clock), which todos, and its
+# undo, offered only while it is that todo's latest change. It is not the journal, which
+# records whole sessions for replay.
+# Limit: steps run as one actor, so this shows reading and undoing the last change, not telling
+# an agent's changes from a person's; the backend's tests filter by actor.
+name: See what changed, and by whom, and take it back
+description: >-
+  When my todos look different from how I left them, I want to see the recent changes, who made
+  each one and how to undo it, so that I can find an agent's mistake and reverse it.
+job: see-what-changed
+tags: [slice, undo, history]
+steps:
+  - description: A todo exists
+    command: todo-create
+    input: { title: Turn the compost heap, priority: low }
+    expect:
+      success: true
+  - description: It is marked done
+    command: todo-toggle
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+  - description: The latest change says what it was, who made it, when, and how to undo it
+    command: todo-history
+    input: { limit: 1 }
+    expect:
+      success: true
+      data:
+        entries:
+          - command: todo-toggle
+            actor: { exists: true }
+            at: { exists: true }
+            ids: { length: 1 }
+            undoCommand: todo-update
+        hasMore: true
+  - description: The listed undo reverses it
+    command: todo-update
+    input:
+      id: "${{ steps[2].data.entries[0].undoArgs.id }}"
+      completed: "${{ steps[2].data.entries[0].undoArgs.completed }}"
+    expect:
+      success: true
+  - description: The todo the agent changed is open again
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        completed: false

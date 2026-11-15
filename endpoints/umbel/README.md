@@ -38,7 +38,7 @@ proposals that a person approves at a terminal ([below](#run-the-curator)). Both
 `umbel-first-party` binary. Access filtering is exact only for embedders until phase 5
 (see [below](#access-is-not-a-security-boundary-yet)). Nothing is released or published; the
 crate is `publish = false` and its release unit is quarantined with no route under the
-[platform migration](../../docs/features/active/platform-monorepo/) rules.
+[platform migration](../../docs/features/complete/platform-monorepo/) rules.
 [STATUS.md](docs/STATUS.md) says exactly what is done.
 
 ## Build and run

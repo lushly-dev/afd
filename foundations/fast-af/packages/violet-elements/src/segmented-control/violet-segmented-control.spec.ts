@@ -45,6 +45,19 @@ describe("violet-segmented-control", () => {
         document.body.innerHTML = "";
     });
 
+    it("fails validation when invalid, even with a value, and passes once invalid is cleared", async () => {
+        const control = await renderControl();
+        control.invalid = true;
+        await nextFrame();
+        expect(control.value).toBe("overview");
+        expect(control.checkValidity()).toBe(false);
+        expect(control.validity.customError).toBe(true);
+
+        control.invalid = false;
+        await nextFrame();
+        expect(control.checkValidity()).toBe(true);
+    });
+
     it("selects a segment on click", async () => {
         const control = await renderControl();
         const segments = control.querySelectorAll("violet-segment");

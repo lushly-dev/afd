@@ -1,5 +1,7 @@
 # Feature Proposal: Semantic Quality Validation
 
+> **Status (2026-11-13):** Complete: the implemented surface validation rules live in `packages/testing/src/surface`. This document is the archived design.
+
 > **Spec:** [semantic-quality-validation.spec.md](./semantic-quality-validation.spec.md)
 
 ## 1. Summary

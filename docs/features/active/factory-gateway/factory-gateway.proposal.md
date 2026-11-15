@@ -15,7 +15,7 @@ the claims themselves.
   GitHub, like the one [Entire](https://entire.com) adds, could make GitHub work better for
   agents. The answer was yes, but not as a parallel forge: as the agents' only route to GitHub,
   built from the AFD pieces that already exist.
-- **Relation to the [Software Factory](../../proposed/software-factory/software-factory.proposal.md):**
+- **Relation to the [Software Factory](../software-factory/software-factory.proposal.md):**
   this is the factory's GitHub side. The factory's commands stay as they are; the GitHub calls
   inside them (claims in `cells.py`, the queue push in `queue.py`, the reads and writes in
   `real_world.GhGitHub`) go through the gateway.
@@ -40,6 +40,15 @@ The owner's answers of 2026-11-14.
 | How it is built | An MVP first, then features in milestones | [Milestones](#milestones) G0 to G5, each with jobs, an exit, and the process it changes |
 | Process | As each milestone lands, update the skills, tools and `AGENTS.md` that tell agents how to use it | Each milestone has a process manifest and none is done until its files change and the checks pass ([Keeping the process current](#keeping-the-process-current)) |
 | Lifecycle | Goes in `active/`; work starts when the proposal is done | The owner ranks and cuts the jobs before G1 starts |
+
+The owner's answers of 2026-11-15.
+
+| Question | Decision | What it changes |
+|---|---|---|
+| Credit | Work reaching GitHub is credited to the owner as its main contributor; agents are listed as supporting (an email-free `Assisted-by:` trailer), never as author or co-author | `branch-push` refuses a commit whose author is not one of the owner's emails (`COMMIT_AUTHOR_NOT_OWNER`); `pr-merge` uses each repository's merge method (merge commits in AFD, which keep the original authors); G0 reads how GitHub credits an App's squash merge in Lushly, and rebase merging is enabled there only if it credits the App. Both repositories' `ci-ok` refuse agent authors and co-authors (afd#1250, lushly#2403) |
+| Sessions and `main` | Interactive sessions hand their branches to the lane through the gateway instead of merging them themselves; a documentation-only pull request may still merge directly | The `/session` route gains `branch-push` to `refs/factory/queue/<branch>` in G1, and the prepare-PR skills in both repositories default to handing off. The part of G5 that keeps `main` from moving under a running validation lands in G1; the rest of G5 is unchanged |
+| Where the lane runs | `random`, beside the gateway, instead of the Mac, which is not always on | `gateway-status` reports the lane (`lane { host, running, queued, lastMergeAt }`), so a stopped lane is seen rather than stalling every handoff; the lane's validation checkouts need space on `random`'s dev drive |
+| Other people | Nothing is set up for other people until there are other people; G4 stays the last milestone | G4's separate operating-system users are for the agents and validation on the owner's machines, not for other people, and need no second GitHub account |
 
 ## The problem
 
@@ -74,7 +83,7 @@ which has run a fleet since 2026-11-11, shows what that costs:
   rerun".
 
 None of this limits merge throughput, which local validation sets (the factory's
-[Capacity](../../proposed/software-factory/software-factory.proposal.md#capacity)). It limits trust,
+[Capacity](../software-factory/software-factory.proposal.md#capacity)). It limits trust,
 cost and the record: anything that can write can write anything, every agent re-derives GitHub's
 rules and spends the owner's request budget, and nobody can say afterwards which agent did what.
 
@@ -102,7 +111,7 @@ and it does not change how fast the lane validates.
 | Fact | Where it was read |
 |---|---|
 | botcore's `CommandHost` builds the CLI (`catalog`, `call`), the MCP tools and a DirectClient from one registry; every command has a `CommandPolicy` of effects, a host may narrow and never widen it, and an unadmitted effect is refused with `EFFECT_DENIED`; on any profile but `trusted-local` every effect other than `inspect` is refused | `endpoints/botcore/src/botcore/host.py`; `endpoints/botcore/docs/host-composition.md` |
-| The host registers each command under its Python function's name (`issue_claim`); an unknown name fails with `COMMAND_NOT_FOUND` and "Inspect the host catalog". The factory proposal already plans catalog and wrong-case changes for its Phase 1 | `host.py`, `build_host` and `execute`; the factory proposal, [The plugin and its host](../../proposed/software-factory/software-factory.proposal.md#the-plugin-and-its-host) |
+| The host registers each command under its Python function's name (`issue_claim`); an unknown name fails with `COMMAND_NOT_FOUND` and "Inspect the host catalog". The factory proposal already plans catalog and wrong-case changes for its Phase 1 | `host.py`, `build_host` and `execute`; the factory proposal, [The plugin and its host](../software-factory/software-factory.proposal.md#the-plugin-and-its-host) |
 | The MCP surface is a plain FastMCP server with three tools (`<host>-start`, `-call`, `-docs`) and no authentication hook; its `call` passes no context to `host.execute`, so AFD's journal middleware, which writes to the context, cannot run behind it as it stands | `endpoints/botcore/src/botcore/host_surfaces.py`; `python/src/afd/server/journal.py` |
 | Confirmations, approvals and output budgets belong to AFD's MCP server, which botcore's host does not use | [`spec/command-metadata.md`](../../../../spec/command-metadata.md); [`spec/output-budgets.md`](../../../../spec/output-budgets.md); `host_surfaces.py` |
 | The factory separates callers by host (`factory-cell`, `factory`), wraps `gh` in `GhGitHub`, claims with a label and a `botcore-factory:claim {branch, machine, leaseUntil}` comment (`claims.py`, `cells.py`), and `lane-enqueue` pushes the cell's head to `refs/factory/queue/<branch>` from the cell's worktree | `botcore-factory/src/botcore_factory/hosts.py`, `real_world.py`, `claims.py`, `cells.py`, `queue.py` |
@@ -150,7 +159,7 @@ own route:
 | Route | Host | Caller | May do |
 |---|---|---|---|
 | `/cell` | `gateway-cell` | Cells | Read; push its head to `refs/factory/queue/<branch>`; record its review (G2) |
-| `/session` | `gateway-session` | Interactive sessions outside a fleet (Lushly's `do-init-lushly`, AFD's `start-session`) | Read; claim and release their own issues. Everything else stays on the owner's `gh` sign-in until G5 |
+| `/session` | `gateway-session` | Interactive sessions outside a fleet (Lushly's `do-init-lushly`, AFD's `start-session`) | Read; claim and release their own issues; push their head to `refs/factory/queue/<branch>` to hand it to the lane (from G1, by the owner's decision of 2026-11-15). Everything else stays on the owner's `gh` sign-in until G5 |
 | `/foreman` | `gateway-foreman` | The foreman, and the factory commands it calls (`cell-register`, `cell-park`, `lane-drop`) | Read; claim and release; label, comment and file issues; open revert pull requests; set the lane-host variable; read the audit; wait for events |
 | `/lane` | `gateway-lane` | The lane process | Read; claim, renew and release; push branches; open pull requests; record validation; merge; revert; file flakes; wait for events |
 | `/owner` | `gateway-owner` | The owner's CLI | Everything, and the overrides only he has (`issue-release` with `force`) |
@@ -251,7 +260,7 @@ the caller's own route, returning an id that lasts an hour; an MCP result cannot
 and pushes one ref from it through a bare mirror of the repository on `random`. It refuses `main`
 and protected refs, a head the bundle does not contain, and a non-fast-forward to a branch people
 see (`NOT_FAST_FORWARD`, whose suggestion is to merge `main` in and validate again). On the cell's
-route it pushes only to `refs/factory/queue/<branch>`, which is what the factory's `lane-enqueue`
+and session's routes it pushes only to `refs/factory/queue/<branch>`, which is what the factory's `lane-enqueue`
 does today from the cell's worktree, so cells need no push credential from G1. The upload route and
 the bundle steps are in the `factory` docs topic and in `branch-push`'s description.
 
@@ -261,7 +270,7 @@ the bundle steps are in the `factory` docs topic and in `branch-push`'s descript
   summary, published as the `factory/verification` check. `pr-merge` refuses a head with no passed
   record (`VALIDATION_MISSING`), whoever calls, so a merge cannot skip the lane. For a validated head
   it merges at once when the pull request is already clean with its required check passed (GitHub
-  will not enable auto-merge then) and otherwise enables squash auto-merge bound to the head.
+  will not enable auto-merge then) and otherwise enables auto-merge bound to the head, by the repository's merge method (`mergeMethods`; a merge commit unless the repository allows only squash).
 - **Review (G2).** A cell records its review lanes' verdicts against its head with `review-record`.
   When that head is pushed, the gateway publishes the `factory/review` check from the record, with
   the conclusion the record holds, so no caller chooses it. The verdicts are still the cell's own
@@ -357,7 +366,7 @@ O owner.
 
 | Command | Routes | Input | Result `data` | Refusals | From |
 |---|---|---|---|---|---|
-| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `repos[]`, `rateLimit { remaining, resetAt }`, `ages { appKey, token, readOnlyToken }`, `journal { bytes, oldest }`, `lastEvent?` | — | G0 |
+| `gateway-status` | all | — | `host`, `writes[]` (this route's write commands), `identity`, `repos[]`, `rateLimit { remaining, resetAt }`, `ages { appKey, token, readOnlyToken }`, `journal { bytes, oldest }`, `lastEvent?`, `lane { host, running, queued, lastMergeAt }` (G1) | — | G0 |
 | `issue-get` | all | `number` | `state`, `title`, `labels[]`, `assignees[]`, `claim?`, `author { login, association }`, `body { trust, text }`, `linkedPrs[]` | `NOT_FOUND` | G1 |
 | `comment-list` | all | `number`, `limit?`, `cursor?` | `comments[] { id, author, association, trust, text, at }`, `nextCursor?` | `NOT_FOUND` | G1 |
 | `claim-list` | all | `stale?` | `claims[] { number, holder { branch, machine }, leaseUntil, stale, legacy, labelMatches }` | — | G1 |
@@ -367,10 +376,10 @@ O owner.
 | `issue-label` | F O | `number`, `add?`, `remove?` | `labels[]`, `previous[]` | `LABEL_UNKNOWN`, `NOT_FOUND` | G1 |
 | `issue-comment` | F L O | `number`, `body`, `dedupe_key?` | `url`, `deduplicated` | `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `issue-create` | F L O | `title`, `body`, `labels[]`, `dedupe_key?` | `number`, `created` | `LABEL_UNKNOWN`, `SECRET_IN_BODY` | G1 |
-| `branch-push` | C L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD` | G1 |
+| `branch-push` | C S L O | `ref`, `head`, `bundle` | `ref`, `head`, `changed`, `by`, `checksPublished[]` (G2) | `PROTECTED_REF`, `REF_NOT_ALLOWED`, `HEAD_NOT_IN_BUNDLE`, `NOT_FAST_FORWARD`, `COMMIT_AUTHOR_NOT_OWNER` (a commit the push adds, not already on `main`, authored by someone other than the owner), `UPLOAD_INCOMPLETE` (the upload does not list the commits leading to `head`) | G1 |
 | `pr-open` | L O | `branch`, `title`, `body`, `closes[]` | `number`, `created`, `updated`, `closes[]`, `author`: opens the pull request for the branch, or updates the open one's title, body and closing lines, which the gateway writes | `NO_BRANCH`, `CLAIM_LOST`, `SECRET_IN_BODY` | G1 |
 | `verification-record` | L O | `head`, `result` (`passed` or `failed`), `summary` | `check { name, conclusion }` | `NOT_FOUND` (head not on GitHub), `SECRET_IN_BODY` | G1 |
-| `pr-merge` | L O | `number`, `head`, `cancel?` | `state` (`merged`, or `queued` under squash auto-merge bound to `head`; with `cancel`, `open` with auto-merge off, as the lane does when it ejects the branch), `autoMerge`, `changed` | In this order: `HEAD_MOVED`, `VALIDATION_MISSING`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE` | G1 |
+| `pr-merge` | L O | `number`, `head`, `cancel?` | `state` (`merged`, or `queued` under auto-merge bound to `head`, by the repository's merge method; with `cancel`, `open` with auto-merge off, as the lane does when it ejects the branch), `autoMerge`, `changed` | In this order: `HEAD_MOVED`, `VALIDATION_MISSING`, `CLAIM_LOST`, `CHECK_NOT_REQUIRED` (the required check is not required on `main`, so auto-merge would not wait), `NOT_MERGEABLE`; `MERGE_METHOD_NOT_ALLOWED` when GitHub refuses the configured method | G1 |
 | `pr-revert` | F L O | `numbers[]`, `reason` | `revertPrs[] { reverts, number, created }` | `NOT_MERGED`, `NOT_FOUND`, `SECRET_IN_BODY` | G1 |
 | `variable-set` | F O | `name`, `value` | `name`, `value`, `previous` | `VARIABLE_NOT_ALLOWED`, `SECRET_IN_BODY` | G1 |
 | `gateway-audit` | F O | `issue?`, `pr?`, `since?`, `actor?`, `limit?`, `cursor?` | `entries[] { seq, timestamp, command, actor, target, success }`, `outside[] { at, kind, target, by, label? }`, `nextCursor?` | — | G1 |
@@ -410,15 +419,19 @@ must pass, the process it changes and its exit.
 - **Builds:** every G1 command on the five routes; botcore's host changes 3, 5, 6 and 7; the
   issue-events and comments reader behind `gateway-audit`; the factory plugin's claims, queue push
   and lane steps on the gateway; Lushly's claim script, lane steps and flake filer on the gateway;
-  the cutover rule; the cells' read-only token and the hooks.
+  the cutover rule; the cells' read-only token and the hooks. By the owner's decisions of
+  2026-11-15: the `/session` route's queue push and sessions handing off to the lane by default;
+  the lane on `random`, reported in `gateway-status`; `COMMIT_AUTHOR_NOT_OWNER` and each
+  repository's merge method.
 - **Jobs:** `mvp` (01 to 11, and 15).
 - **Process** (the manifest's G1 entry):
   - AFD: `AGENTS.md` (factory agents reach GitHub through the gateway, never `gh` writes);
-    `triage-issues`; `prepare-pr` lane mode; the factory's `run-fleet`; botcore's `factory` docs
+    `triage-issues`; `prepare-pr` lane mode, the default for sessions; the factory's `run-fleet`; botcore's `factory` docs
     topic and catalog descriptions; the cell hook and its Codex equivalent; the MCP configuration
     that registers the gateway's routes.
   - Lushly: `AGENTS.md`'s "Claim an issue before starting it" line; `INIT.md`'s claiming section;
-    `do-init-lushly` (sessions claim on `/session`), `do-triage`, `do-run-fleet`, `do-end-session`;
+    `do-init-lushly` (sessions claim on `/session`), `do-prepare-pr` (sessions hand off to the
+    lane by default), `do-triage`, `do-run-fleet`, `do-end-session`;
     `Docs/operations/merge-lane.md`; the scripts above (`issue-claim.mjs`, `merge-lane-worker.mjs`,
     `merge-lane-operations.mjs`, `merge-lane-ci.mjs`, `final-validation-flakes.mjs`); its MCP and
     hook configuration; a `skill-seed --update` for any seeded Botcore skill that changed.
@@ -475,7 +488,8 @@ the `/session` route from G1, but every other write they make (pushes, pull requ
 authorised merges) still uses the owner's `gh` sign-in after G4, so a write from his account is
 still ambiguous. G5 widens the `/session` route to those writes, including merging its own pull
 request when authorised, so the owner's account writes only as the owner. It is specified when G4
-exits, unless the owner ranks it earlier.
+exits, unless the owner ranks it earlier. Handing a branch to the lane moved to G1 (the owner's
+decision of 2026-11-15), so sessions no longer merge to `main` themselves from G1 on.
 
 ## Keeping the process current
 
@@ -694,8 +708,10 @@ them, the cutover's start, a created issue referenced by step).
    Phase 4.
 4. **Sessions (G5).** Leave interactive sessions' writes other than claims on the owner's sign-in
    until G4 exits, or rank G5 earlier so that writes from his account are his alone sooner. Leaving it is recommended, since
-   the fleet is where agents write at volume.
+   the fleet is where agents write at volume. *Answered in part on 2026-11-15:* sessions hand off
+   to the lane from G1 ([Decisions](#decisions)); their other writes stay as recommended.
 5. **Webhooks.** Events by polling with conditional requests (recommended: no public endpoint), or
    GitHub webhooks through Tailscale Funnel on one path of `random` for faster events.
 6. **G4's separate users.** An operating-system user for agents and one for validation on each
-   machine that runs them, which is operator work on each.
+   machine that runs them, which is operator work on each. *Answered on 2026-11-15:* G4 stays
+   last and nothing is set up for other people until there are some ([Decisions](#decisions)).

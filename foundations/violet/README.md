@@ -1,6 +1,6 @@
 # Violet foundation
 
-Violet's native token engine and web runtime, imported from [lushly-dev/violet](https://github.com/lushly-dev/violet) main `59b4bfa6` in platform migration Phase 3. File-level hashes and the reason for every adaptation are in [`provenance`](./provenance/provenance.json); the public contract changes are in the [transition notes](../../docs/features/active/platform-monorepo/violet-transition.md).
+Violet's native token engine and web runtime, imported from [lushly-dev/violet](https://github.com/lushly-dev/violet) main `59b4bfa6` in platform migration Phase 3. File-level hashes and the reason for every adaptation are in [`provenance`](./provenance/provenance.json); the public contract changes are in the [transition notes](../../docs/features/complete/platform-monorepo/violet-transition.md).
 
 | Unit | Layer | Path | Contract |
 | --- | --- | --- | --- |
@@ -25,4 +25,4 @@ The Violet API, web, Figma applications, the test workspace and the patched FAST
 
 ## Release
 
-All five distributions are one `violet-npm` unit in [`scripts/release/inventory.json`](../../scripts/release/inventory.json), fixed like the upstream Changesets group. Since the owner's approval on 2026-11-14 it is admitted on the `npm-prerelease` route: AFD's `release.yml` publishes it under the npm tag `preview` (`npm install @lushly-dev/violet-core@preview`); once the maintainer has created each name with its `0.0.0-bootstrap.0` placeholder, `latest` stays on that placeholder. The manifests are at the seed `0.3.0-preview`, so the first preview is `0.3.0-preview.0`. The [handoff record](../../docs/features/active/platform-monorepo/violet-handoff.md) moves publishing from the Violet repository, which never published, and lists the owner's steps.
+All five distributions are one `violet-npm` unit in [`scripts/release/inventory.json`](../../scripts/release/inventory.json), fixed like the upstream Changesets group. Since the owner's approval on 2026-11-14 it is admitted on the `npm-prerelease` route: AFD's `release.yml` publishes it under the npm tag `preview` (`npm install @lushly-dev/violet-core@preview`); once the maintainer has created each name with its `0.0.0-bootstrap.0` placeholder, `latest` stays on that placeholder. The manifests are at the seed `0.3.0-preview`, so the first preview is `0.3.0-preview.0`. The [handoff record](../../docs/features/complete/platform-monorepo/violet-handoff.md) moves publishing from the Violet repository, which never published, and lists the owner's steps.

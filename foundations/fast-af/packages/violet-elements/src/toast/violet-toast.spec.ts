@@ -45,6 +45,26 @@ describe("violet-toast", () => {
         expect(bodyText?.includes("Seed-source defaults")).toBe(true);
     });
 
+    it("closes itself after its timeout by default, keeping its dismiss button", async () => {
+        const toast = await renderToast(`<violet-toast open timeout="20">Saved.</violet-toast>`);
+        expect(toast.dismissible).toBe(true);
+        const reasons: string[] = [];
+        toast.addEventListener("dismiss", event =>
+            reasons.push((event as CustomEvent<{ reason: string }>).detail.reason),
+        );
+
+        await new Promise(resolve => window.setTimeout(resolve, 60));
+
+        expect(toast.open).toBe(false);
+        expect(reasons).toEqual(["timeout"]);
+    });
+
+    it("stays open with timeout 0", async () => {
+        const toast = await renderToast(`<violet-toast open timeout="0">Saved.</violet-toast>`);
+        await new Promise(resolve => window.setTimeout(resolve, 60));
+        expect(toast.open).toBe(true);
+    });
+
     it("does not auto-dismiss when actions are present", async () => {
         const toast = await renderToast(`
             <violet-toast open timeout="20">

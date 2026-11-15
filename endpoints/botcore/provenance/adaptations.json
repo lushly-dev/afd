@@ -7,7 +7,7 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "717c37fde540edf37e76689b4b88f9e7d2b62440750dab01d83ce7bc1406172f",
+      "current_import_sha256": "5018b3c535390041a7c95dc6eda9a1c9587479388d9296577bc91ff8cac97c19",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",

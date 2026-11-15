@@ -1,9 +1,11 @@
 # Part 1: AFD Rust Implementation
 
-> **Historical proposal:** The released `afd` 0.1.0 crate is an in-process core
-> library. General-purpose MCP transports and proc macros sketched here are not
-> shipped API. Use the [current README](../../../../packages/rust/README.md) and
-> [release receipt](../../../operations/native-first-releases.md).
+> **Status (2026-11-13): partially implemented; broader scope still proposed.** The crate
+> ships the core, WASM and an optional `server` feature (stdio and Streamable HTTP); Rust 0.2.1
+> is recorded as published in the [release receipt](../../../operations/native-first-releases.md).
+> The proc macro, sketched examples, cargo-dist distribution and named-client interop are not
+> established by that release. Use the [current README](../../../../packages/rust/README.md)
+> for APIs; the sketches below are historical design.
 
 
 > **Goal**: Add Rust as a third language implementation to AFD, enabling native binary and WASM distribution targets.

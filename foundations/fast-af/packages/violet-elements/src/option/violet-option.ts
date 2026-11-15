@@ -7,6 +7,11 @@ let violetOptionId = 0;
 const styles = css`
     ${violetActionTokenDefaults}
 
+    /* An author style beats the user agent's [hidden] rule, so a filtered-out option needs its own. */
+    :host([hidden]) {
+        display: none;
+    }
+
     :host {
         display: block;
         --_surface-hover: var(--color-surface-subtle, #f0efe6);

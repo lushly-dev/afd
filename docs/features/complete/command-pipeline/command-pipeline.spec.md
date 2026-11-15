@@ -1,5 +1,7 @@
 # Command Pipeline Specification
 
+> **Status (2026-11-13):** Complete: pipeline execution is implemented; this is the archived design. Current wire and variable behavior live in [`spec/pipeline-variables.md`](../../../../spec/pipeline-variables.md).
+
 > Chain commands where the output of one becomes the input of the next.
 
 ## Summary

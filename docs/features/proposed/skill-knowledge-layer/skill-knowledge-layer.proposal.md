@@ -1,5 +1,7 @@
 # Feature Proposal: Command Skill / Knowledge Layer
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed; the per-command `skill` option, `validateCommandSkills()` and `skill-docs` convention remain unimplemented. MCP resource/Agent Skills delivery in Rust and TypeScript is separate, as the reconciliation below explains.
+
 > **Disposition (2026-10-25, audit #349):** **Proposed.** `@lushly-dev/afd-server` has no `skill` command option, `validateCommandSkills()` or `skill-docs` bootstrap command, and no merged PR adds them. Nothing shipped; remaining scope is the whole proposal and its [spec](./skill-knowledge-layer.spec.md).
 
 

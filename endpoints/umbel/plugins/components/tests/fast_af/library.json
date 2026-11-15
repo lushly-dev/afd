@@ -80,7 +80,7 @@
 			"tag": "violet-checkbox"
 		},
 		{
-			"digest": "sha256:8acfbf28a9112e80c12704177ed38263ccc90cc01166fc78eefe64286912065b",
+			"digest": "sha256:c6524917e01e3bb936c62d1ee1cc954527aa6658270b89488959df98332978f6",
 			"status": "stable",
 			"summary": "Swatch button that opens a color editor popover with a hex field, HSL sliders and preset swatches; use to choose one color as a hex value.",
 			"tag": "violet-color-picker"
@@ -137,7 +137,7 @@
 			"tag": "violet-data-grid-reference-picker"
 		},
 		{
-			"digest": "sha256:e24d814200c35faebb1e089554586a54254bcf88b1cc2b985600a3f2acb0643a",
+			"digest": "sha256:7428b1379f3447c77e8938561a47fe091b125e1b7fc32547788f59d489011b5c",
 			"status": "stable",
 			"summary": "Date field: a native date input plus a button that opens a calendar popup. Use for one calendar date; the value is an ISO date string.",
 			"tag": "violet-date-picker"
@@ -265,7 +265,7 @@
 			"tag": "violet-popover"
 		},
 		{
-			"digest": "sha256:f617c826ea1b117d04e7cd3a4d2f9b08fe6ca469f93da3bb0318cfb5a6eb60ce",
+			"digest": "sha256:c60287f973cbde4abd03175208e892c8cc835176216a26692f702cd9fecf6a9f",
 			"status": "stable",
 			"summary": "Linear progress bar on the native progress element, determinate or indeterminate.",
 			"tag": "violet-progress"
@@ -283,7 +283,7 @@
 			"tag": "violet-radio-group"
 		},
 		{
-			"digest": "sha256:54f2d467c17d4210fb17adde4888a2805fbe06f1216ab7a909f19c32842a358a",
+			"digest": "sha256:53422dbe27dedb4ca8ffa0b735a964fac9853edf5396d1cd4cbefa045b553789",
 			"status": "stable",
 			"summary": "Two-thumb range input for choosing a low and a high bound, such as a price range, with a built-in label and supporting text.",
 			"tag": "violet-range-slider"
@@ -398,7 +398,7 @@
 			"tag": "violet-time-picker"
 		},
 		{
-			"digest": "sha256:b666431f3950647b5451711a1c766742cf1cd6cec54127ad81b455a0f8713521",
+			"digest": "sha256:070e12c3ebc1325fc0d6af7e44501f040428994ec325988b5c262b403c1c00b8",
 			"status": "stable",
 			"summary": "Transient notification fixed to a corner of the viewport, shown while its open attribute is set.",
 			"tag": "violet-toast"
@@ -432,7 +432,7 @@
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:ae4d1e4063e14cfbc44114d3436cecda4439c9367bc03f3d8e97eae746a1468c",
+	"digest": "sha256:4dc6b871e462307344fa7e828cb0873a285768777d5c8723fbb9e9806d92e9e9",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {

@@ -10,7 +10,7 @@ argument-hint: check | limit:<n>
 
 Triage records **whether** an issue runs and **how**; it never runs anything. This
 skill decides; the factory's cells execute the recorded decision without
-re-triaging ([software factory](../../../docs/features/proposed/software-factory/software-factory.proposal.md#intake)).
+re-triaging ([software factory](../../../docs/features/active/software-factory/software-factory.proposal.md#intake)).
 
 Label definitions live in `.github/labels.json` (`legacy: true` marks a label you
 replace and never apply); the rules between labels live in

@@ -16,7 +16,7 @@ context's clock, random and actor, tool strategies, the DirectClient tool surfac
 `@lushly-dev/local-db`, the testing package's scenario runner and surface validation, or the
 `violet-*` components. Some of what they say and do is now wrong.
 
-The to-do app is also the cross-language parity vehicle: [Language Parity](../../language-parity.md)
+The to-do app is also the cross-language parity vehicle: [Language Parity](../../../language-parity.md)
 counts its suite as a parity check, the C++ backend is C++'s only MCP surface, and the Umbel
 `todo` plugin is the Rust backend. An example that lags makes the parity check weaker too.
 
@@ -68,6 +68,12 @@ It leaves handoff to `examples/chat`, sign-in and surface-validation demonstrati
 `examples/showcase`, and defers MCP authorization, output budgets (not in TypeScript yet) and
 tasks. Pipelines stay in showcase; one to-do pipeline scenario is cheap and is in scope.
 
+**A reference first, a to-do app second** (owner, 2026-11-15). The app exists to show how AFD
+works, so where a choice is close it leans toward making the system visible: results say what
+they did, why and how to undo it, metadata is complete, and changes are recorded where a person
+or agent can read them. Some choices are not what a shipping to-do app would make, and that is
+accepted when they show AFD more clearly.
+
 ## Decisions
 
 The owner asked on 2026-11-14 to save this proposal and start the work, and answered the review's
@@ -79,8 +85,13 @@ make deletes undoable (D3).
 | D1 | Two frontends on `violet-elements`: a FAST-AF page following `health-dashboard`, and the React frontend rebuilt on the same elements, which React 19 renders directly, for React developers. The vanilla frontend retires | Owner, 2026-11-14 (the review recommended FAST-AF only; the owner kept React) | Phase 3 |
 | D2 | Python, Rust and C++ get the new behaviour in this effort, one pull request per language after the TypeScript reference; C++'s MCP work waits on `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)) | Owner, 2026-11-14 | Phase 5 |
 | D3 | Deleting a todo can be undone, through a new `todo-restore` command in all four languages and the Umbel plugin | Owner, 2026-11-14 | Phases 2 and 5 |
-| D4 | The TypeScript store moves onto `@lushly-dev/local-db`'s SQLite adapter; the Python backend reads the same database through the standard library's `sqlite3`, which keeps the shared-data story without a JSON file store in each language | Settled in this proposal | Phase 2 |
+| D4 | The TypeScript store moves onto `@lushly-dev/local-db`'s SQLite adapter; the Python backend reads the same database through the standard library's `sqlite3`, which keeps the shared-data story without a JSON file store in each language. Phase 2 adds the SQLite store as `TODO_STORE_TYPE=sqlite`; the default moves to it in phase 5's Python pull request, so TypeScript and Python never stop sharing data | Settled in this proposal; timing 2026-11-15 | Phases 2 and 5 |
 | D5 | todo-directclient imports the main example's commands instead of keeping its own copy | Settled in this proposal | Phase 4 |
+| D6 | Approval holds only `todo-clear`, the one change with no undo, for any caller that is not a person; deletes are undoable instead of held | Owner, 2026-11-15 | Phase 2 |
+| D7 | A deleted todo is kept, findable with `todo-list { deleted: true }`, until `todo-clear { deleted: true }` or `{ all: true }` empties them; nothing purges on a timer | Owner, 2026-11-15 | Phase 2 |
+| D9 | A `todo-history` command shows recent changes with their actor and undo (job 9) | Owner, 2026-11-15 | Phase 2 |
+| D10 | Phase 2's first slice is jobs 1, 3, 4 and 9 (tagged `slice`): undo a completion, undo a delete, clearing waits for a person, and history with undo; jobs 2, 5, 7 and 8 follow in phase 2, and job 6 in phases 3 and 4 | Owner, 2026-11-15 | Phase 2 |
+| D8 | Python lint findings and a lint step for the example go in phase 5's Python pull request | Owner, 2026-11-15 | Phase 5 |
 
 ## Plan
 
@@ -110,20 +121,166 @@ The frontends' half of W5 and W7 is phase 3, which replaces them.
 ### Phase 2: the TypeScript reference
 
 Jobs first: write the jobs the new behaviour serves as scenarios in `scenarios/`
-before the commands change (undo a completion, undo a delete, a destructive command waits for
-approval, replay a session from its journal, an agent narrows the view, an agent reviews the
-todos without being able to change them). Then:
+before the commands change ([Phase 2 jobs](#phase-2-jobs)). Then:
 
 - Every command gets `output`, `examples`, `title`, accurate `destructive`, `undoable` where it is
   reversible, shared `ErrorCodes`, and an `approval` policy on each mutation.
-- `todo-restore` (D3).
+- `todo-restore` (D3), `todo-list { deleted: true }` (D7) and `todo-history` (D9).
 - `context.clock`, `context.random` and `context.actor` in the handlers; `createJournalMiddleware`
   and a replay walk-through.
 - `defaultMiddleware()` in place of the hand-built logging.
 - Storage on `@lushly-dev/local-db` (D4).
-- Optionally the hybrid strategy with `todo-list` and `todo-create` first-class.
 - CI runs `afd scenario run` and `afd validate --surface --strict` against the TypeScript backend.
 - Conformance cases for each new behaviour that every language must share.
+
+#### Phase 2 jobs
+
+Written as scenario files on 2026-11-15, before any command changes, and revised after two readers
+walked them (below). Each job moves beside the backend once it is built
+([`backends/typescript/scenarios/`](../../../../packages/examples/todo/backends/typescript/scenarios/),
+run by `src/scenarios.test.ts`); until then it waits, checked but not run, in
+[`scenarios/`](scenarios/). Jobs 1 to 5 and 7 to 9 are built; job 6 waits for the page.
+
+| # | Job | File | Tags |
+|---|-----|------|------|
+| 1 | Undo a completion, single or batch: take a mistaken "done" back in one step | [01](../../../../packages/examples/todo/backends/typescript/scenarios/01-undo-a-completion.scenario.yaml) | `slice`, `undo` |
+| 2 | Undo an edit: put back what a todo said before | [02](../../../../packages/examples/todo/backends/typescript/scenarios/02-undo-an-edit.scenario.yaml) | `undo` |
+| 3 | Undo a delete, single or batch; an id never deleted is reported, not restored | [03](../../../../packages/examples/todo/backends/typescript/scenarios/03-undo-a-delete.scenario.yaml) | `slice`, `undo` |
+| 4 | Clearing, the one change with no way back, waits for a person when an agent asks | [04](../../../../packages/examples/todo/backends/typescript/scenarios/04-clear-waits-for-approval.scenario.yaml) | `slice`, `approval` |
+| 5 | An agent asked only to review is offered only the reading commands | [05](../../../../packages/examples/todo/backends/typescript/scenarios/05-review-without-changing.scenario.yaml) | `contexts` |
+| 6 | An agent narrows the view on screen instead of copying the list into the chat | [06](scenarios/06-narrow-the-view.scenario.yaml) | `view` |
+| 7 | A developer turns an agent session's journal into a regression test | [07](../../../../packages/examples/todo/backends/typescript/scenarios/07-replay-a-session.scenario.yaml) | `journal`, `deterministic`, `developer` |
+| 8 | Find a deleted todo long after the delete and bring it back | [08](../../../../packages/examples/todo/backends/typescript/scenarios/08-find-a-deleted-todo.scenario.yaml) | `undo` |
+| 9 | See what changed, who changed it, and undo it from there | [09](../../../../packages/examples/todo/backends/typescript/scenarios/09-see-what-changed.scenario.yaml) | `slice`, `undo`, `history` |
+
+Keeping an agent from changing anything at all is a phase 4 job, served by DirectClient's
+`allow`: contexts narrow what an agent is offered and are not a security boundary
+(`packages/server/README.md`, "Contexts").
+
+#### Phase 2 drafted commands
+
+Only what changes. Every command also gains `output`, `examples` and `title`, and every mutation
+an `approval` policy. `destructive` stays as phase 1 set it: an undoable delete still deletes, and
+the shared `spec/commands.schema.json` metadata does not change in phase 2.
+
+| Command | Change | Undo (`undoCommand`, `undoArgs`) | Approval |
+|---------|--------|----------------------------------|----------|
+| `todo-create` | `id` from `context.random`, `createdAt` from `context.clock`; `undoable` | `todo-delete`, `{ id }` | `not-required` |
+| `todo-create-batch` | As `todo-create` | `todo-delete-batch`, `{ ids }` | `not-required` |
+| `todo-get`, `todo-update`, `todo-toggle`, `todo-delete` | `NOT_FOUND` for a deleted todo, suggesting `todo-list { deleted: true }` and `todo-restore`; the batch commands report a deleted id as `failed` with the same error | | |
+| `todo-list` | Leaves deleted todos out; new `deleted: true` lists only them; a deleted todo carries `deletedAt`, and `sortBy` gains `deletedAt` | | |
+| `todo-stats` | Leaves deleted todos out | | |
+| `todo-update` | `undoable` | `todo-update`, `{ id, <previous value of each changed field> }`; an empty description comes back as `""`, which the store treats as none | `not-required` |
+| `todo-toggle` | `undoable`; reopening clears `completedAt` | `todo-update`, `{ id, completed: <previous> }`, so undoing twice is harmless; undoing a reopen stamps a new `completedAt` | `not-required` |
+| `todo-toggle-batch` | `undoable` when `completed` is given and something changed | `todo-toggle-batch`, `{ ids: <those it changed>, completed: <their previous value> }`; none when nothing changed; a plain toggle of mixed states has no single undo, and its result warns so | `not-required` |
+| `todo-delete` | Keeps the todo, out of every list but `deleted: true`, until `todo-clear { deleted: true }` or `{ all: true }`; `undoable`; the "cannot be undone" warning goes | `todo-restore`, `{ ids: [id] }` | `not-required`: it can be undone |
+| `todo-delete-batch` | As `todo-delete` | `todo-restore`, `{ ids: <deletedIds> }` | `not-required` |
+| `todo-restore` (new, D3) | `{ ids }` (1 to 100) to `{ restoredIds, failed, summary }`, like `todo-delete-batch`: an id not restored is a `failed` entry whose error is `NOT_FOUND`, suggesting `todo-list { deleted: true }`; `mutation`, context `todo-editing`, `undoable` | `todo-delete-batch`, `{ ids: <restoredIds> }` | `not-required` |
+| `todo-history` (new) | `{ limit?, offset?, actor?: <actor kind>, todoId? }` to `{ entries: [{ at, actor, command, ids, undoCommand?, undoArgs? }], total, hasMore }`, newest first, from a change log the app keeps in its store from each mutation's result, the latest 1,000 changes; an entry offers its undo only while it is the latest change to each of its todos, so undoing an old entry never overwrites a later edit; context `todo-reading` | | |
+| `todo-clear` | `{}` removes completed todos for good, as now; new `{ deleted: true }` empties the deleted todos; `{ all: true }` removes every todo, deleted ones included; keeps `destructive` and `confirmPrompt` | None | `required` unless `context.actor.kind` is `human`; the approval's `summarize` says what goes and how many ("Remove 3 completed todos for good") |
+| `view-state-get`, `view-state-set` | From `@lushly-dev/afd-view-state`, hosted by the page (phases 3 and 4), with one view, `todo-filter`: `{ status, priority, search }`, with `replace` support | `view-state-set` with `previous` and `replace: true` | |
+
+The server adds `createApprovalMiddleware` with `relay: 'mcp-elicitation'`, so a stdio client or a
+modern `/mcp` client that declares form elicitation asks its person, and a held clear is reachable
+from those before phase 3's page exists. A 2025 HTTP client, and a clear inside `afd-batch` or
+`afd-pipe`, get `APPROVAL_REQUIRED` with no token. `APPROVALS` (`agents` by default, or `off`)
+switches the hold, as `CONFIRMATIONS` switches confirmations. It adds `createJournalMiddleware` for each session; and `defaultMiddleware()` in place of the
+hand-built logging. The hybrid tool strategy is dropped: a first-class command that declares
+contexts draws a warning, which `afd validate --surface --strict` fails.
+
+`undoCommand` names a command, not a tool. Under the default `grouped` strategy the tool is
+`todo` with an `action`, so the commands' descriptions and the README say to run an undo through
+`afd-call` (or the group tool) with `undoArgs` as its input.
+
+**Conformance.** The suites reset each case with `todo-clear { all: true }`, two cases in
+`spec/test-cases.json` expect a clear to succeed, and the confirmation suite
+(`spec/confirmation-cases.json`, run in both modes in CI) exercises `todo-clear`'s confirmation
+with clients that accept, decline or declare no elicitation. Every one of those would be held,
+since an MCP caller's default actor is `agent`. They test the shared contract that Python, Rust
+and C++ meet without approvals until phase 5, so they run with `APPROVALS=off`, exactly as they
+set `CONFIRMATIONS`. A new `spec/approval-cases.json` suite runs with `APPROVALS=agents`: a clear
+held with its suggestion, a client that declares form elicitation and answers `approve: true` (the
+approval field, which the runner's current `confirm: true` handler does not set), one that
+declines, and a clear inside `afd-batch`. It runs against TypeScript in phase 2 and every language
+in phase 5. The four scenarios in `packages/examples/todo/scenarios/` and the testing package's
+`todo` fixture adapter (`clearFirst`) also start by clearing: phase 2 rewrites the four so they
+need no clear, and the new jobs use titles of their own instead of an empty store.
+
+#### What writing and walking the jobs changed
+
+Writing them:
+
+- **Undo of a completion is `todo-update`, not `todo-toggle`.** Toggling again is undo only if
+  nothing toggled in between; setting the previous value is safe to repeat.
+- **A delete keeps the todo.** Otherwise `todo-restore` would need the whole todo as input, which
+  the agent would have to read and send back. Keeping it lets `undoArgs` be just the ids.
+- **Approval only where there is no way back.** Once deletes can be undone, holding them would
+  interrupt the person for a change that costs nothing to reverse. Only `todo-clear` is held (D6).
+- **The view job runs against the page, not the backend**, since view state is the page's; exit
+  criterion 1 leaves the `view` scenarios to phases 3 and 4.
+
+One fresh reader (Opus 5.5, `high`) walked them on 2026-11-15 from all three seats: the job list,
+the person, and the calling agent against the TypeScript server's code. What that changed:
+
+- **Job 5 promised what contexts cannot give.** On `/mcp` (MCP 2026-07-28) a context is per-request
+  `_meta`, `afd-context-enter` stores nothing, and contexts are not a security boundary. The job is
+  now "offered only the reading commands", out of the slice and run in-process; "cannot change
+  anything" moves to phase 4's `allow`.
+- **A deleted todo could not be found again** once the delete's result was gone: `todo-list
+  { deleted: true }` and job 8 added.
+- **Holding `todo-clear` would have broken the conformance suite** and left clear unreachable over
+  MCP until phase 3: the elicitation relay and the conformance client's approval above.
+- **Job 7 was a developer's job presented as the person's**, and replay starts from a fresh store,
+  so it cannot show what happened to a real list. It is now the developer's regression-test job,
+  and job 9 with `todo-history` gives the person "what changed, who did it, and the undo".
+- **Bulk mistakes had no undo:** `todo-create(-batch)` and `todo-toggle-batch` now declare one.
+- **`todo-restore` matched the other batch commands**, reporting unrestored ids as `failed`
+  instead of failing the call; its `undoArgs` use the ids actually deleted or restored.
+- **The hybrid strategy conflicted with the strict gate**, and was dropped.
+- **Corrections to the limits below:** a whole-string reference keeps its type (job 6 now passes
+  `previous` whole with `replace`), and steps over `--server` run as `agent`, not `test`.
+- **Jobs 1 and 3 now check their whole "so that"**: `completedAt` cleared, and both batch-restored
+  todos read back.
+
+A second fresh reader (Opus 5.5, `high`) walked what the first walk added. What that changed:
+
+- **The conformance plan would have broken the confirmation suite**, and the runner's elicitation
+  handler answers `confirm`, not `approve`: replaced by `APPROVALS=off` for the shared suites and a
+  new approval suite.
+- **`todo-clear {}` would have purged deleted todos** whenever someone cleared completed ones, so a
+  routine clear ended job 8's promise: purging is now its own `{ deleted: true }`, and the
+  approval names what goes and how many.
+- **Jobs 8 and 9 could pass while missing their point**: job 8 now reads the original id back and
+  lists newest deletion first, and job 9 asserts the entry's command, actor, time and undo and
+  reads the changed todo back.
+- **History needed paging, filters and a limit**, and undoing an old entry could overwrite a later
+  edit: `offset`, `actor`, `todoId`, `total`, the latest 1,000 changes, and undo only on a todo's
+  latest change.
+- **Deleted todos needed `deletedAt`** and a defined `NOT_FOUND` from every command, and
+  `todo-toggle-batch` no undo when nothing changed.
+
+Declined: purging a single deleted todo (no job needs it; `{ deleted: true }` empties them all),
+and grouping a plain mixed `todo-toggle-batch` into two undo calls (one undo per result is the
+contract; the result warns instead). The first reader's estimate of a 6,000 to 9,000-token tool list per session is not
+measured; phase 2 measures it with `afd tools` once the metadata is added.
+
+#### What a scenario cannot show here
+
+- `undoCommand` is outside `expect`, so a step names the undo command itself; and a step's
+  `input` must be an object, so steps pass `undoArgs` fields (or `ids`) by name where an agent
+  passes the whole object.
+- No step can set `context.approval`, so job 4 shows the hold; a person approving and the retry
+  are in the backend's tests.
+- `afd replay` is a CLI step, not a command: job 7 is the session, and a backend test replays its
+  journal. Its fixed clock and seeded random need the in-process runner; `afd scenario run
+  --server` can set neither.
+- `afd scenario run` sends no `_meta`, so job 5 runs in-process with an active context.
+- One scenario runs as one actor, so job 9 cannot show an agent's change beside a person's; the
+  backend's tests filter `todo-history` by actor. The clock cannot move, so job 8 shows "long
+  after" only as not having the delete's result to hand.
+- **Open for phase 3:** with no sign-in, the server cannot tell the person at the page from an
+  agent, so the page's own `todo-clear` is held too. How the page records a person's approval and
+  retries is phase 3's design.
 
 ### Phase 3: the Violet frontend
 
@@ -167,7 +324,10 @@ One pull request each, against the phase 2 conformance cases (D2).
 
 ## Exit criteria
 
-1. Every scenario in `scenarios/` passes against the TypeScript backend in CI.
+1. Every scenario in `scenarios/` passes against the TypeScript backend in CI: those tagged
+   `deterministic` or `contexts` in-process, the rest also through `afd scenario run --server`.
+   Those tagged `view` pass against the page's host in phases 3 and 4. A first slice is the
+   scenarios tagged `slice`.
 2. Every case in `spec/test-cases.json` and `spec/confirmation-cases.json`, including the new ones,
    passes against all four backends and both Umbel modes, except cases a language cannot yet run,
    each named in [STATUS.md](STATUS.md) with its blocker.

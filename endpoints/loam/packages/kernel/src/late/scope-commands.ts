@@ -33,7 +33,20 @@ import type {
 import type { ScopeRuntime } from '../scope/runtime.js';
 import type { ShellState } from '../shell-state.js';
 import { canOpen, setMain } from './main-state.js';
+import { isOwner } from './owners.js';
 import type { ShellStores } from './stores.js';
+
+/**
+ * #852's rules (phase 3 specification, 7.3; D87, D110): who may create a project a team instance serves, and who may
+ * change a project's members. In a browser they are right answers for honest people, and they bind a team from step
+ * 10, when the hosted server's kernel holds `ProjectV1.access` (2.5).
+ */
+const OWNER_LISTED =
+	'Only an owner can create or change the members of a project a team instance serves';
+const OWNER_MEMBERS = "Only an owner or the project's creator can change who is in it";
+const ASK_OWNER = 'Ask an owner of the workspace';
+/** Agent ids, and the agent interface's names, that a project's members never hold: persons only (7.3). */
+const NOT_A_PERSON = /^(agt_|shell-agent$|signed-out$)/;
 
 export interface ScopeCommandDeps {
 	scope: ScopeRuntime;
@@ -130,7 +143,8 @@ const scopeSetInput = z.strictObject({
 	app: z.optional(z.nullable(ref)),
 });
 const sectionInput = z.strictObject({
-	section: z.enum(['projects', 'documents']),
+	// The account section runs at workspace level and shows nothing of any project (phase 3 specification, 5.1).
+	section: z.enum(['projects', 'documents', 'account']),
 	path: z.optional(z.string()),
 });
 const routeInput = z.strictObject({ instance: ref, path: z.string() });
@@ -263,12 +277,60 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		});
 	}
 
+	/** Whether `slug` is one a `workspace-app` record still listed names in `projects` (7.3). */
+	const listedSlug = (slug: string): boolean =>
+		scope.workspaceApps
+			.all()
+			.some((app) => app.listed !== null && (app.projects ?? []).includes(slug));
+	const ownerOf = (context: CommandContext): boolean =>
+		isOwner(scope.membership, personKey(context.actor));
+	/**
+	 * An owner's exemptions from the members rules (D96): leaving themselves out of a restricted project, and finding
+	 * one they cannot see to add themselves. `provider` mode's: in `local` mode every actor is an owner, and phase 2's
+	 * rules stand unchanged (2.1, E12).
+	 */
+	const exemptOwner = (context: CommandContext): boolean =>
+		scope.membership.mode === 'provider' && ownerOf(context);
+	/**
+	 * An agent's `project-create` of a listed slug, and any agent's `project-create` or `project-update` whose input has
+	 * `access`, is `HUMAN_REQUIRED` (3.4's fifth row): no agent changes who is in a project, however Q2 was answered.
+	 */
+	const agentRefusal = (
+		context: CommandContext,
+		asks: boolean
+	): CommandResult<never> | undefined =>
+		asks && context.actor?.kind === 'agent'
+			? kernelFailure(
+					'HUMAN_REQUIRED',
+					'An agent cannot choose who is in a project, or create one a team instance serves',
+					'A person must do this in the shell'
+				)
+			: undefined;
+
+	/**
+	 * A member list that names someone twice (the review of step 4's B1): refused for every caller, so no rule that reads
+	 * the list, D110's "remove only yourself" above all, is decided on a count.
+	 */
+	const duplicateRefusal = (
+		asked: ProjectAccessV1 | undefined
+	): CommandResult<never> | undefined =>
+		asked?.mode === 'restricted' && new Set(asked.members).size !== asked.members.length
+			? kernelFailure(
+					'VALIDATION_ERROR',
+					"A project's members name each person once",
+					'List each member once, with no repeated id'
+				)
+			: undefined;
+
 	/** Name, icon and access, each checked; a refusal, or undefined. */
 	function checkFields(
 		fields: { name?: string; icon?: string; access?: ProjectAccessV1 },
-		context: CommandContext
+		context: CommandContext,
+		selfExempt = false
 	): CommandResult<never> | undefined {
 		const { name, icon, access: asked } = fields;
+		const repeated = duplicateRefusal(asked);
+		if (repeated) return repeated;
 		if (name !== undefined && (name.trim() === '' || name.length > 80)) {
 			return kernelFailure(
 				'PROJECT_NAME_INVALID',
@@ -283,7 +345,21 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 				'Use one of ICONS_V1, such as system/folder'
 			);
 		}
-		if (asked?.mode === 'restricted' && !asked.members.includes(personOf(context))) {
+		if (asked?.mode === 'restricted' && asked.members.some((member) => NOT_A_PERSON.test(member))) {
+			return kernelFailure(
+				'PROJECT_MEMBER_NOT_PERSON',
+				"A project's members are people: an agent member enters through its own access",
+				'List person ids in members; give an agent member access to the project with agent-member-update'
+			);
+		}
+		// An owner may leave themselves out, since an owner can always enter (D96); a member removing only themselves
+		// may too (D110).
+		if (
+			asked?.mode === 'restricted' &&
+			!selfExempt &&
+			!exemptOwner(context) &&
+			!asked.members.includes(personOf(context))
+		) {
 			return kernelFailure(
 				'PROJECT_MEMBER_SELF_REQUIRED',
 				'A restricted project must list you among its members',
@@ -324,20 +400,28 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			const slug = input.slug ?? slugOf(input.name);
+			const listed = listedSlug(slug);
+			const agent = agentRefusal(context, listed || input.access !== undefined);
+			if (agent) return agent;
+			if (listed && !ownerOf(context)) {
+				return kernelFailure('OWNER_REQUIRED', OWNER_LISTED, ASK_OWNER);
+			}
 			const refused = checkFields(input, context);
 			if (refused) return refused;
-			const slug = input.slug ?? slugOf(input.name);
-			if (!PROJECT_SLUG.test(slug) || slug === 'all') {
+			if (!PROJECT_SLUG.test(slug)) {
 				return kernelFailure(
 					'PROJECT_SLUG_INVALID',
 					`'${slug.slice(0, 64)}' is not a project slug`,
 					'Use 1 to 63 lower-case letters, digits and inner hyphens, other than all'
 				);
 			}
-			if (scope.projects.all().some((project) => project.slug === slug)) {
+			// One answer for a slug any project holds, visible or restricted, and a reserved one (7.3): a non-member
+			// learns only that the slug is held, never by what (accepted by the coordinator).
+			if (slug === 'all' || scope.projects.all().some((project) => project.slug === slug)) {
 				return kernelFailure(
-					'PROJECT_SLUG_TAKEN',
-					`A project already has the slug '${slug}'`,
+					'PROJECT_SLUG_UNAVAILABLE',
+					"That slug can't be used. Choose another",
 					'Choose another slug; a slug cannot change once created'
 				);
 			}
@@ -433,9 +517,42 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const project = named(input.project, context);
+			const agent = agentRefusal(context, input.access !== undefined);
+			if (agent) return agent;
+			const owner = ownerOf(context);
+			// An owner may add themselves to any project, a restricted one they cannot see included (D96).
+			const project =
+				named(input.project, context) ??
+				(exemptOwner(context) && input.access !== undefined
+					? scope.project(input.project)
+					: undefined);
 			if (!project) return projectNotFound();
-			const refused = checkFields(input, context);
+			let selfExempt = false;
+			const repeated = duplicateRefusal(input.access);
+			if (repeated) return repeated;
+			if (input.access !== undefined && !owner) {
+				if (listedSlug(project.slug))
+					return kernelFailure('OWNER_REQUIRED', OWNER_LISTED, ASK_OWNER);
+				// D110: the project's creator; any other member may only remove themselves.
+				const person = personOf(context);
+				const held = project.access.mode === 'restricted' ? project.access.members : [];
+				const asked = input.access;
+				// As sets: what was held, less the caller, is exactly what is asked (B1).
+				const kept = new Set(held.filter((member) => member !== person));
+				const wanted = new Set(asked.mode === 'restricted' ? asked.members : []);
+				const leavesOnly =
+					project.access.mode === 'restricted' &&
+					asked.mode === 'restricted' &&
+					held.includes(person) &&
+					!wanted.has(person) &&
+					wanted.size === kept.size &&
+					[...wanted].every((member) => kept.has(member));
+				if (project.createdBy !== person && !leavesOnly) {
+					return kernelFailure('OWNER_REQUIRED', OWNER_MEMBERS, ASK_OWNER);
+				}
+				selfExempt = leavesOnly;
+			}
+			const refused = checkFields(input, context, selfExempt);
 			if (refused) return refused;
 			const { project: _ref, ...changes } = input;
 			const next: ProjectV1 = {
@@ -585,7 +702,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 	>({
 		name: 'section-open',
 		title: 'Open a section',
-		description: 'Show the projects or documents section in main; the active app closes',
+		description: 'Show the projects, documents or account section in main; the active app closes',
 		category: 'section',
 		mutation: true,
 		executionTime: 'instant',
@@ -593,7 +710,7 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 		jsonSchema: {
 			type: 'object',
 			properties: {
-				section: { type: 'string', enum: ['projects', 'documents'] },
+				section: { type: 'string', enum: ['projects', 'documents', 'account'] },
 				path: STRING,
 			},
 			required: ['section'],
@@ -720,6 +837,14 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 			additionalProperties: false,
 		},
 		async handler(input, context) {
+			// An owner command (7.4, D73's consequence), on the membership read again before it (7.6).
+			if (!ownerOf(context)) {
+				return kernelFailure(
+					'OWNER_REQUIRED',
+					"Only an owner can change the workspace's apps",
+					ASK_OWNER
+				);
+			}
 			const record = scope.workspaceApps.get(input.instance);
 			if (!record) {
 				return kernelFailure(

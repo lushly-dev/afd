@@ -1,8 +1,8 @@
 ---
-status: approved
+status: complete
 author: System
 created: 2026-01-24
-updated: 2026-01-24
+updated: 2026-11-13
 priority: P2
 depends-on: command-trust-config (complete)
 review-round: 2
@@ -261,5 +261,5 @@ Pass new fields through in `defineCommand`.
 
 ## Related
 
-- [Command Trust Config](../active/command-trust-config/command-trust-config.spec.md) — `destructive`, `confirmPrompt`
-- [FAST-AF Command Safety Behaviors](../../../../../../fast-af/docs/features/active/command-safety/proposal.md) — UI implementations
+- [Command Trust Config](../command-trust-config/command-trust-config.spec.md) — `destructive`, `confirmPrompt`
+- [FAST-AF Command Safety Behaviors](https://github.com/lushly-dev/fast-af/blob/main/docs/features/active/command-safety/proposal.md) — UI implementations

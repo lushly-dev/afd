@@ -9,7 +9,9 @@ export { type BatchCreateResult, createBatch, type FailedItem } from './create-b
 export { type DeleteResult, deleteTodo } from './delete.js';
 export { type BatchDeleteResult, deleteBatch, type FailedDelete } from './delete-batch.js';
 export { getTodo } from './get.js';
+export { getHistory, type HistoryEntry, type HistoryResult } from './history.js';
 export { type ListResult, listTodos } from './list.js';
+export { type RestoreResult, restoreTodos } from './restore.js';
 export { getStats } from './stats.js';
 export { toggleTodo } from './toggle.js';
 export { type BatchToggleResult, type FailedToggle, toggleBatch } from './toggle-batch.js';
@@ -23,7 +25,9 @@ import { createBatch } from './create-batch.js';
 import { deleteTodo } from './delete.js';
 import { deleteBatch } from './delete-batch.js';
 import { getTodo } from './get.js';
+import { getHistory } from './history.js';
 import { listTodos } from './list.js';
+import { restoreTodos } from './restore.js';
 import { getStats } from './stats.js';
 import { toggleTodo } from './toggle.js';
 import { toggleBatch } from './toggle-batch.js';
@@ -45,4 +49,7 @@ export const allCommands: ZodCommandDefinition[] = [
 	createBatch,
 	deleteBatch,
 	toggleBatch,
+	// Undo and history
+	restoreTodos,
+	getHistory,
 ];

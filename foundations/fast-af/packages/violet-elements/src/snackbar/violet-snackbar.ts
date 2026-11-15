@@ -42,24 +42,24 @@ const styles = css`
     }
 
     :host([tone="success"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-success-background) 78%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-success-border);
-        --_snackbar-emphasis: var(--color-state-success-text);
-        --_snackbar-action: var(--color-state-success-text);
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-success-background, #E3F1E7) 78%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
+        --_snackbar-emphasis: var(--color-state-success-text, #166534);
+        --_snackbar-action: var(--color-state-success-text, #166534);
     }
 
     :host([tone="warning"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-warning-background) 82%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-warning-border);
-        --_snackbar-emphasis: var(--color-state-warning-text);
-        --_snackbar-action: var(--color-state-warning-text);
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-warning-background, #FDEBCC) 82%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_snackbar-emphasis: var(--color-state-warning-text, #92400E);
+        --_snackbar-action: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_snackbar-surface: color-mix(in srgb, var(--color-state-danger-background) 82%, var(--_surface-card));
-        --_snackbar-border: var(--color-state-danger-border);
-        --_snackbar-emphasis: var(--color-state-danger-text);
-        --_snackbar-action: var(--color-state-danger-text);
+        --_snackbar-surface: color-mix(in srgb, var(--color-state-danger-background, #FBE2E2) 82%, var(--_surface-card));
+        --_snackbar-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+        --_snackbar-emphasis: var(--color-state-danger-text, #B42318);
+        --_snackbar-action: var(--color-state-danger-text, #B42318);
     }
 
     .frame {

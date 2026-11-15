@@ -19,7 +19,7 @@ from botcore_factory.fixture_world import FixtureWorld, load_fixture, open_run
 from botcore_factory.hosts import build_factory_host
 
 REPO_ROOT = Path(__file__).resolve().parents[5]
-SCENARIOS = REPO_ROOT / "docs/features/proposed/software-factory/scenarios"
+SCENARIOS = REPO_ROOT / "docs/features/active/software-factory/scenarios"
 FIXTURES = SCENARIOS / "fixtures"
 EXAMPLE = Path(__file__).resolve().parents[1] / "scenarios" / "repository"
 

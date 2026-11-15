@@ -168,7 +168,7 @@ test('every imported Violet file is present, recorded and unchanged since review
 		'endpoints/violet-cli',
 		'endpoints/violet-server',
 		'tests/consumers/violet',
-		'docs/features/active/platform-monorepo/violet-transition.md',
+		'docs/features/complete/platform-monorepo/violet-transition.md',
 	])
 		.toString()
 		.split('\n')

@@ -13,7 +13,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D64](../../../../endpoints/umbel/docs/decisions.md) and step 0a of its [phase 2 plan](../../../../endpoints/umbel/docs/phases/2-knowledge/spec.md#step-0-afd-first-d25-d64): the knowledge plugin's search, open and graph commands can return arbitrarily large results, and Umbel's principle 12 asks for small, measured surfaces. Under Umbel's D25 it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
-| Related | [Declared context fields](../../complete/declared-context-fields/proposal.md), whose plumbing the ask reuses; [MCP resources, skills and tool `_meta`](../mcp-resources-skills/mcp-resources-skills.proposal.md), whose key rule keeps `dev.afd/` keys AFD's and whose shape this follows; [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
+| Related | [Declared context fields](../../complete/declared-context-fields/proposal.md), whose plumbing the ask reuses; [MCP resources, skills and tool `_meta`](../mcp-resources-skills/mcp-resources-skills.proposal.md), whose key rule keeps `dev.afd/` keys AFD's and whose shape this follows; [Hybrid tool strategy](../../complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md); [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
 
 ## Problem
 

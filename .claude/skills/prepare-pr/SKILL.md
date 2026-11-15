@@ -72,7 +72,7 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Merge only when authorized.** `main` has no branch protection or required checks, so nothing stops a red merge and auto-merge would not wait for CI: never enable it. With the user's authorization and every check on the exact head green, bind the merge to that head:
+9. **Merge only when authorized.** `main`'s one required check is `ci-ok`, the verdict that every workflow on the head passed ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would merge whatever head is there when `ci-ok` passes, not the one you reviewed (the factory lane's pinned auto-merge is the exception, because the lane owns every push). Never merge with `--admin`, which skips `ci-ok`. With the user's authorization and every check on the exact head green, bind the merge to that head:
 
    ```bash
    gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8>

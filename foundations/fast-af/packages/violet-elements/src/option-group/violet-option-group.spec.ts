@@ -33,4 +33,27 @@ describe("violet-option-group", () => {
         expect(group.getAttribute("label")).toBe("Current suppliers");
         expect(group.querySelectorAll("violet-option")).toHaveLength(1);
     });
+
+    it("disables and re-enables its options when disabled changes after render", async () => {
+        document.body.innerHTML = `
+            <violet-listbox label="Suppliers">
+                <violet-option-group label="Current suppliers">
+                    <violet-option value="regional">Regional catalog</violet-option>
+                </violet-option-group>
+            </violet-listbox>
+        `;
+        await customElements.whenDefined("violet-option-group");
+        await nextFrame();
+        const group = document.querySelector("violet-option-group") as VioletOptionGroup;
+        const option = document.querySelector("violet-option") as VioletOption;
+        expect(option.isDisabled).toBe(false);
+
+        group.disabled = true;
+        await nextFrame();
+        expect(option.isDisabled).toBe(true);
+
+        group.disabled = false;
+        await nextFrame();
+        expect(option.isDisabled).toBe(false);
+    });
 });

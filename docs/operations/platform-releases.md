@@ -1,6 +1,6 @@
 # Platform release controls
 
-The [platform migration](../features/active/platform-monorepo/) separates source admission from publishing. `scripts/release/inventory.json` records exact units, distribution identities, source paths, protocols, authority, routes, states, and required gates. The current nine AFD npm packages remain one coordinated unit. Registry scope alone does not make a package part of that unit.
+The [platform migration](../features/complete/platform-monorepo/) separates source admission from publishing. `scripts/release/inventory.json` records exact units, distribution identities, source paths, protocols, authority, routes, states, and required gates. The current nine AFD npm packages remain one coordinated unit. Registry scope alone does not make a package part of that unit.
 
 ## Importing source safely
 
@@ -31,7 +31,7 @@ for name in specimen specimen-host-darwin-arm64 specimen-host-darwin-x64 specime
 done
 ```
 
-Then `npm view @lushly-dev/<name> dist-tags` shows `latest: 0.0.0-bootstrap.0` beside `preview`. The Violet handoff ([violet-handoff.md](../features/active/platform-monorepo/violet-handoff.md)) creates its six names the same way.
+Then `npm view @lushly-dev/<name> dist-tags` shows `latest: 0.0.0-bootstrap.0` beside `preview`. The Violet handoff ([violet-handoff.md](../features/complete/platform-monorepo/violet-handoff.md)) creates its six names the same way.
 
 The npm workflow checks pending version intent independently from held fragments. Before any upload it creates a durable GitHub commit-status claim for the exact intent digest. A pending or failed claim holds later runs, including runs where every version reached npm but tag/release finalization did not finish. Success is recorded only after artifact integrity and finalization verification. Restoring identical intent bytes must preserve their existing claim. Runner receipts, plans and tarballs are retained as additional evidence; they are not the durable claim store.
 
@@ -39,11 +39,13 @@ GitHub refuses a `GITHUB_TOKEN` push of a tag whose commit has different workflo
 
 Changesets' own version/publish branch decision is not a publication-admission mechanism. Never use raw `changeset publish` on the complete workspace. Direct arbitrary shell execution remains trusted operator execution; these tools do not claim to sandbox an operator.
 
+`release.yml`'s two publishing jobs, `release` and `recover`, run in the `npm` environment, whose deployment rule allows only `main`. npm matches a trusted publisher on repository, workflow file and environment, not on the git ref, so each name's trusted publisher names that environment: without it, a branch that edits `release.yml` could upload past the guard. A trusted publisher that names `npm` refuses a job that does not declare it, so the workflow declares it before any publisher requires it. Each name's publishing access is "require two-factor authentication and disallow tokens".
+
 ## Native routes
 
 Existing Python and Rust tag routes remain distinct. Each checks exact admitted unit/route, triggering tag and checked-out source, manifest identity/version, and packaged metadata before authentication/upload. Python validates its complete wheel/sdist set and hashes; Rust validates its packaged Cargo identity and VCS/source data, then rechecks before `cargo publish`. Cargo repackages source during upload, so the local archive receipt is trace evidence rather than proof of the registry's exact bytes.
 
-Botcore's `lushly-botcore` has its own PyPI route, `pypi-botcore`: a `botcore-vX.Y.Z` tag runs `publish-botcore.yml`, which applies the same guard as the Python route (`scripts/release-native.py --unit botcore`), runs `botcore.yml`, and publishes from the `pypi-botcore` environment. Its wheel and sdist file names and the sdist root use the normalized stem `lushly_botcore`; the metadata keeps `Name: lushly-botcore`. The route is a publisher handoff from `lushly-dev/botcore`, recorded in [botcore-handoff.md](../features/active/platform-monorepo/botcore-handoff.md); the other five Botcore distributions stay quarantined with no route.
+Botcore's `lushly-botcore` has its own PyPI route, `pypi-botcore`: a `botcore-vX.Y.Z` tag runs `publish-botcore.yml`, which applies the same guard as the Python route (`scripts/release-native.py --unit botcore`), runs `botcore.yml`, and publishes from the `pypi-botcore` environment. Its wheel and sdist file names and the sdist root use the normalized stem `lushly_botcore`; the metadata keeps `Name: lushly-botcore`. The route is a publisher handoff from `lushly-dev/botcore`, recorded in [botcore-handoff.md](../features/complete/platform-monorepo/botcore-handoff.md); the other five Botcore distributions stay quarantined with no route.
 
 C++ remains a source distribution. Immutable tags, `packages/cpp`, `afd::afd`, FetchContent, installed find_package, and vendoring contracts remain intact. Any relocation needs the migration's explicit compatibility decision and external consumer evidence.
 

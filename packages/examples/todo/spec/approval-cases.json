@@ -1,0 +1,79 @@
+{
+	"description": "Approval holds (spec/command-metadata.md, \"Approvals\") against a backend started with APPROVALS=agents, where todo-clear, the one change nothing undoes, is held for any caller that is not a person and an MCP caller is an agent. Each case names the client it needs: \"acknowledge\" declares no elicitation, so a held call fails with APPROVAL_REQUIRED; \"accept\" and \"decline\" declare form elicitation, so the server asks the person, and the client answers every question that way. The runner resets the live list with todo-delete-batch, since a clear would be held; \"then\" checks the state afterwards. TypeScript implements approvals so far; the others follow in the to-do reference plan's phase 5.",
+	"tests": [
+		{
+			"name": "An agent's clear is held",
+			"description": "With no one to ask, the clear fails before anything is removed, with a suggestion to ask the person",
+			"client": "acknowledge",
+			"implementedBy": ["typescript"],
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
+				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
+			],
+			"command": "todo-clear",
+			"input": {},
+			"expect": {
+				"success": false,
+				"error.code": "APPROVAL_REQUIRED",
+				"error.suggestion": { "exists": true }
+			},
+			"then": {
+				"command": "todo-list",
+				"input": { "completed": true },
+				"expect": { "data.total": 1 }
+			}
+		},
+		{
+			"name": "A delete is not held",
+			"description": "A delete can be undone with todo-restore, so it runs without approval",
+			"client": "acknowledge",
+			"implementedBy": ["typescript"],
+			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" }, "capture": "todo" }],
+			"command": "todo-delete",
+			"input": { "id": "$todo.id" },
+			"expect": { "success": true, "data.deleted": true },
+			"then": { "command": "todo-list", "input": {}, "expect": { "data.total": 0 } }
+		},
+		{
+			"name": "An approved clear runs",
+			"description": "The server asks the person, who approves, and the clear removes the completed todo",
+			"client": "accept",
+			"implementedBy": ["typescript"],
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
+				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
+			],
+			"command": "todo-clear",
+			"input": {},
+			"expect": { "success": true, "data.cleared": 1 },
+			"then": {
+				"command": "todo-list",
+				"input": { "completed": true },
+				"expect": { "data.total": 0 }
+			}
+		},
+		{
+			"name": "A declined clear does not run",
+			"description": "The server asks the person, who declines, and nothing is removed",
+			"client": "decline",
+			"implementedBy": ["typescript"],
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
+				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
+			],
+			"command": "todo-clear",
+			"input": {},
+			"expect": {
+				"success": false,
+				"error.code": "APPROVAL_REQUIRED",
+				"error.details.reason": "declined",
+				"error.suggestion": { "exists": true }
+			},
+			"then": {
+				"command": "todo-list",
+				"input": { "completed": true },
+				"expect": { "data.total": 1 }
+			}
+		}
+	]
+}

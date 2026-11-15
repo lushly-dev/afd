@@ -1,0 +1,56 @@
+# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# Runs against the host of the frontend's view-state commands (phase 4's DirectClient page, or a
+# phase 3 test registry), not the backend: view state is the page's, not the store's. The draft
+# registers one view, `todo-filter`, with state { status, priority, search }.
+# Limit: a scenario cannot see the screen; the page's own tests check that it follows the state.
+name: An agent narrows the view
+description: >-
+  When I ask the copilot to show only my urgent open todos, I want the list on screen to change
+  to them, so that I see the answer in the app instead of a copy of it in the chat.
+job: narrow-the-view
+tags: [view]
+steps:
+  - description: The view starts unfiltered
+    command: view-state-get
+    input: { id: todo-filter }
+    expect:
+      success: true
+      data:
+        state:
+          status: all
+          priority: all
+  - description: The agent narrows it to open high-priority todos
+    command: view-state-set
+    input:
+      id: todo-filter
+      state: { status: pending, priority: high }
+    expect:
+      success: true
+      data:
+        state:
+          status: pending
+          priority: high
+        previous:
+          status: all
+          priority: all
+  - description: The view reads as narrowed
+    command: view-state-get
+    input: { id: todo-filter }
+    expect:
+      success: true
+      data:
+        state:
+          status: pending
+          priority: high
+  - description: The person can have the old view back
+    command: view-state-set
+    input:
+      id: todo-filter
+      state: "${{ steps[1].data.previous }}"
+      replace: true
+    expect:
+      success: true
+      data:
+        state:
+          status: all
+          priority: all

@@ -50,7 +50,7 @@ What is here:
 
 Nothing is released. Every TypeScript package is `private: true`, and every
 release unit, the mail engine included, is quarantined with no route under the
-[platform migration](../../docs/features/active/platform-monorepo/) rules.
+[platform migration](../../docs/features/complete/platform-monorepo/) rules.
 The name was decided on 2026-10-30 (decision D22 in the
 [decision log](docs/decisions.md)).
 
