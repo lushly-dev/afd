@@ -30,7 +30,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 
 	examples: [{ title: 'One todo by id', input: { id: 'todo-1700000000000-abc1234' } }],
 	async handler(input) {
-		const todo = store.get(input.id);
+		const todo = await store.get(input.id);
 
 		if (!todo) {
 			return failure(todoNotFound(input.id));

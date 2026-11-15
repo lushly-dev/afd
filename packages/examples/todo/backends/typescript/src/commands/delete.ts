@@ -43,7 +43,7 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 		},
 	],
 	async handler(input, context) {
-		const deleted = store.delete(input.id, stampFrom(context).now);
+		const deleted = await store.delete(input.id, stampFrom(context).now);
 		if (!deleted) {
 			return failure(todoNotFound(input.id));
 		}

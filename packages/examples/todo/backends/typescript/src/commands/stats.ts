@@ -27,7 +27,7 @@ export const getStats = defineCommand<typeof inputSchema, TodoStats>({
 	output: TodoStatsSchema,
 	examples: [{ title: 'Counts by status and priority', input: {} }],
 	async handler() {
-		const stats = store.getStats();
+		const stats = await store.getStats();
 
 		// Build reasoning with summary
 		const parts: string[] = [];

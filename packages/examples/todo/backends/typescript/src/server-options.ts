@@ -12,7 +12,7 @@ import {
 	defaultMiddleware,
 	type McpHandlerOptions,
 } from '@lushly-dev/afd-server';
-import { summarizeClear } from './commands/clear.js';
+import { createClearCountsMiddleware, summarizeClear } from './commands/clear.js';
 import { allCommands } from './commands/index.js';
 import { TODO_CONTEXTS } from './contexts.js';
 import { createHistoryMiddleware } from './history.js';
@@ -103,13 +103,15 @@ export interface TodoServerDeps {
  *
  * 1. `defaultMiddleware()`: a trace ID for each call, logging (with inputs and results in dev
  *    mode or at `LOG_LEVEL=debug`) and a warning for slow calls.
- * 2. The approval hold, so a held call never runs.
- * 3. The journal, when there is one: it records each call that got past the hold, failures
+ * 2. For `todo-clear`, the counts its approval summary shows, read here because the store is
+ *    asynchronous and the approval middleware's `summarize` is not (when approvals are on).
+ * 3. The approval hold, so a held call never runs.
+ * 4. The journal, when there is one: it records each call that got past the hold, failures
  *    included, with the clock and random values the call read, so `afd replay` can run the
  *    session again. A held call is not recorded: its result carries an approval token and an
  *    expiry from the approval middleware's own clock, which no replay can reproduce and a
  *    journal should not keep. Once approved, the call is recorded like any other.
- * 4. The change history, which records each change that did run.
+ * 5. The change history, which records each change that did run.
  */
 export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): CommandMiddleware[] {
 	const devMode = env.NODE_ENV === 'development';
@@ -118,6 +120,8 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 		logging: devMode || logLevel === 'debug' ? { logInput: true, logResult: true } : {},
 	});
 	if (resolveApprovals(env) === 'agents') {
+		// The store is asynchronous and the approval summary is not: read the counts first
+		middleware.push(createClearCountsMiddleware());
 		middleware.push(
 			createApprovalMiddleware({
 				secret: resolveApprovalSecret(env),
@@ -125,8 +129,8 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 				// An MCP client that declares form elicitation asks its person; any other caller
 				// gets APPROVAL_REQUIRED with a suggestion to ask the person.
 				relay: 'mcp-elicitation',
-				summarize: (command, input) =>
-					command === 'todo-clear' ? summarizeClear(input) : undefined,
+				summarize: (command, input, context) =>
+					command === 'todo-clear' ? summarizeClear(input, context) : undefined,
 			})
 		);
 	}

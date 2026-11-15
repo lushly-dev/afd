@@ -17,7 +17,7 @@
 import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 import { createTodoServerOptions } from './server-options.js';
-import { createStore, setStore } from './store/index.js';
+import { createStore, SqliteStore, setStore } from './store/index.js';
 
 // Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
@@ -34,7 +34,10 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 async function main() {
 	// Browser access: the dev frontends from the README (ports 3000, 5173 and 5174)
 	// plus ALLOWED_ORIGINS. See server-options.ts.
-	setStore(createStore(process.env));
+	const store = createStore(process.env);
+	// A SQLite database that cannot be opened fails here, not on the first command
+	if (store instanceof SqliteStore) await store.check();
+	setStore(store);
 	const options = createTodoServerOptions(process.env);
 	const server = createMcpServer({ ...options, transport: TRANSPORT });
 

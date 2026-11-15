@@ -108,7 +108,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 			if (!id) continue;
 
 			// Check if todo exists
-			const existing = store.get(id);
+			const existing = await store.get(id);
 			if (!existing) {
 				failed.push({
 					index: i,
@@ -123,7 +123,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 			if (setMode) {
 				// Set to specific state - only update if different
 				if (existing.completed !== targetState) {
-					updated = store.update(id, { completed: targetState }, now);
+					updated = await store.update(id, { completed: targetState }, now);
 					if (updated) changed.push({ id, previous: existing.completed });
 				} else {
 					// Already in desired state, just return as-is
@@ -131,7 +131,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 				}
 			} else {
 				// Toggle current state
-				updated = store.toggle(id, now);
+				updated = await store.toggle(id, now);
 				if (updated) changed.push({ id, previous: existing.completed });
 			}
 

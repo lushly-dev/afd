@@ -105,8 +105,8 @@ The TypeScript and Python backends support file-based storage (default) or in-me
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory |
-| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file. A custom path starts empty. |
+| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory, `sqlite` (TypeScript) for a SQLite database through `@lushly-dev/local-db` |
+| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file, or to the database (`data/todos.db`). A custom path starts empty. |
 
 `data/todos.json` is gitignored, so running the example does not change the working tree. The
 TypeScript backend also keeps deleted todos in `data/todos.deleted.json` and the change history in
