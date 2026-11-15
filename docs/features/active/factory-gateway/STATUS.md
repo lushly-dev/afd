@@ -67,6 +67,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Date | Decision |
 |---|---|
 | 2026-11-14 | The gateway lives in `botcore-factory`; it runs on the always-on machine, `random`; it is built as an MVP and then milestones, each updating the skills, tools and `AGENTS.md` that use it as it lands; the proposal goes in `active/` |
+| 2026-11-15 | Work that reaches GitHub is credited to the owner as its main contributor: the commits the gateway pushes and merges carry his authorship, whichever account opens or merges the pull request. How the gateway guarantees that is open (below) |
+| 2026-11-15 | Setup for other people waits until there are other people: the project has one developer and no second account to test with |
 | Open | The six questions in [For the owner](factory-gateway.proposal.md#for-the-owner), the ranking of the jobs first |
 
 ## Session log
