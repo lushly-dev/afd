@@ -9671,11 +9671,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "bc00b82acb3503558d11128dc04c0299441b6e30ef9b6a08d6c40d21aabd77e5",
+      "current_import_sha256": "4add200947afd9770786e4dc37bfe6a5ed38842e15a5e62ca242cdced59238b4",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; start pnpm and tar portably so the consumer check runs on windows"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen/plugins.ts",

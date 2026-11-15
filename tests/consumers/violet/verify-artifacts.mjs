@@ -33,6 +33,7 @@ import { tmpdir } from 'node:os';
 import { dirname, extname, join, normalize, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import semver from 'semver';
+import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const argument = (name) => {
@@ -84,7 +85,7 @@ const packs = {};
 for (const path of sources) {
 	const manifest = JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
 	assert(existsSync(join(repository, path, 'dist')), `${path} is not built`);
-	execFileSync('pnpm', ['pack', '--pack-destination', artifacts], {
+	execTool('pnpm', ['pack', '--pack-destination', artifacts], {
 		cwd: join(repository, path),
 		stdio: 'pipe',
 	});
@@ -97,10 +98,10 @@ for (const path of sources) {
 const file = (name) => `file:${packs[name]}`;
 const packedManifest = (name) =>
 	JSON.parse(
-		execFileSync('tar', ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
+		execFileSync(tarCommand(), ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
 	);
 const packedFiles = (name) =>
-	execFileSync('tar', ['-tzf', packs[name]], { encoding: 'utf8' }).trim().split('\n');
+	execFileSync(tarCommand(), ['-tzf', packs[name]], { encoding: 'utf8' }).trim().split(/\r?\n/);
 
 async function install(
 	name,
@@ -129,7 +130,7 @@ async function install(
 		'--config.auto-install-peers=false',
 		...(optional ? [] : ['--no-optional']),
 	];
-	const result = spawnSync('pnpm', args, { cwd: root, encoding: 'utf8' });
+	const result = spawnTool('pnpm', args, { cwd: root, encoding: 'utf8' });
 	const log = `${result.stdout}${result.stderr}`;
 	await writeFile(join(root, 'install.log'), log);
 	assert.equal(result.status === 0, expected, `${name} install outcome:\n${log}`);
@@ -186,7 +187,7 @@ assert(!Object.keys(core.scripts ?? {}).some((key) => /^(pre|post)?install$|^pre
 const coreFiles = packedFiles(CORE);
 assert(!coreFiles.some((path) => path.startsWith('package/dist/commands/')), 'commands packed');
 for (const path of coreFiles.filter((entry) => /\.(?:js|d\.ts)$/.test(entry))) {
-	const text = execFileSync('tar', ['-xzOf', packs[CORE], path], { encoding: 'utf8' });
+	const text = execFileSync(tarCommand(), ['-xzOf', packs[CORE], path], { encoding: 'utf8' });
 	// Code and declarations only: comments may point readers at the integration.
 	const code = text.replace(/\/\*[\s\S]*?\*\/|\/\/.*$/gm, '');
 	assert(!/@lushly-dev\/afd/.test(code), `${path} references AFD`);
@@ -667,7 +668,7 @@ const invocations = [
 ];
 const binary = join(endpointRoot, 'node_modules/.bin/violet');
 const outputs = invocations.map((args) => {
-	const result = spawnSync(binary, args, { cwd: endpointRoot, encoding: 'utf8' });
+	const result = spawnTool(binary, args, { cwd: endpointRoot, encoding: 'utf8' });
 	return { args, status: result.status, stdout: result.stdout, stderr: result.stderr };
 });
 await writeFile(join(output, 'violet-cli-outputs.json'), `${JSON.stringify(outputs, null, 2)}\n`);
@@ -705,9 +706,13 @@ if (baseline) {
 	);
 }
 
+// The installed bin's own script, started with Node: on Windows the .bin entry is a .cmd shim,
+// and stopping cmd.exe would leave the server running.
+const serverRoot = join(endpointRoot, 'node_modules/@lushly-dev/violet-server');
+const serverBin = JSON.parse(readFileSync(join(serverRoot, 'package.json'), 'utf8')).bin;
 const mcp = spawn(
-	join(endpointRoot, 'node_modules/.bin/violet-mcp'),
-	['--db', join(endpointRoot, 'mcp.db')],
+	process.execPath,
+	[join(serverRoot, serverBin['violet-mcp']), '--db', join(endpointRoot, 'mcp.db')],
 	{
 		cwd: endpointRoot,
 		stdio: ['pipe', 'pipe', 'pipe'],

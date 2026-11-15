@@ -5,9 +5,9 @@
  * shims, which Node starts only through cmd.exe (`shell: true`). cmd.exe splits unquoted
  * paths at spaces and expands `%VAR%` and `^ & | < >`, so on Windows each argument is
  * quoted and an argument holding one of those characters is refused, never escaped.
- * Elsewhere, and for any other command, this is `execFileSync` unchanged.
+ * Elsewhere, and for any other command, these are `execFileSync` and `spawnSync` unchanged.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
 
@@ -43,6 +43,13 @@ export function execTool(command, args = [], options = {}) {
 	const { file, shell } = toolCommand(command);
 	if (!shell) return execFileSync(file, args, options);
 	return execFileSync(windowsCommandLine(file, args), { ...options, shell: true });
+}
+
+/** `spawnSync(command, args, options)`, starting Windows `.cmd` shims through cmd.exe. */
+export function spawnTool(command, args = [], options = {}) {
+	const { file, shell } = toolCommand(command);
+	if (!shell) return spawnSync(file, args, options);
+	return spawnSync(windowsCommandLine(file, args), { ...options, shell: true });
 }
 
 /** The bsdtar Windows ships, which reads a drive-letter path as a drive; Git's GNU tar reads it as a host. */
