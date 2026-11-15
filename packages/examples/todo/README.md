@@ -63,7 +63,11 @@ pnpm test:conformance:cpp
 
 The runner spawns the TypeScript, Python and C++ backends over stdio with `TODO_STORE_TYPE=memory`,
 and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
-case in [spec/test-cases.json](./spec/test-cases.json) and exits non-zero if any case fails.
+case in [spec/test-cases.json](./spec/test-cases.json) that the backend's language implements and
+exits non-zero if any case fails. The TypeScript backend also has an approval suite
+(`pnpm test:conformance:ts --suite approvals`) and a run of AFD's own `validate --surface
+--strict` and `scenario run` against it (`pnpm test:scenarios:ts`); the
+[spec README](./spec/README.md) explains each.
 
 ### 3. Start a Backend (Manual)
 

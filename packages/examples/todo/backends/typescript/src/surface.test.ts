@@ -6,23 +6,13 @@
 import { validateCommandSurface } from '@lushly-dev/afd-testing';
 import { describe, expect, it } from 'vitest';
 import { allCommands } from './commands/index.js';
-
-/**
- * Findings kept on purpose, each with its reason. The single-id commands all take `{ id }`,
- * and todo-restore takes the ids todo-delete-batch removed, because it is its undo.
- */
-const SURFACE_SUPPRESSIONS = [
-	'schema-overlap:todo-get:todo-toggle',
-	'schema-overlap:todo-get:todo-delete',
-	'schema-overlap:todo-toggle:todo-delete',
-	'schema-overlap:todo-delete-batch:todo-restore',
-];
+import { SURFACE_SUPPRESSIONS } from './surface-suppressions.js';
 
 describe('the command surface', () => {
 	it('passes strict surface validation', () => {
 		const result = validateCommandSurface(allCommands, {
 			strict: true,
-			suppressions: SURFACE_SUPPRESSIONS,
+			suppressions: [...SURFACE_SUPPRESSIONS],
 		});
 		const problems = result.findings
 			.filter((finding) => !finding.suppressed && finding.severity !== 'info')

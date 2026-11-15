@@ -703,6 +703,112 @@
 				"data.summary.markedComplete": 1,
 				"data.summary.markedIncomplete": 1
 			}
+		},
+		{
+			"name": "toggle_names_its_undo",
+			"description": "A toggle names todo-update with the previous state as its undo",
+			"implementedBy": ["typescript"],
+			"setup": [{ "command": "todo-create", "input": { "title": "Undo me" }, "capture": "todo" }],
+			"command": "todo-toggle",
+			"input": { "id": "$todo.id" },
+			"expect": {
+				"success": true,
+				"undoCommand": "todo-update",
+				"undoArgs.id": { "exists": true },
+				"undoArgs.completed": false
+			}
+		},
+		{
+			"name": "delete_keeps_the_todo_for_restore",
+			"description": "A deleted todo leaves the live list, appears with deleted: true, and names todo-restore as its undo",
+			"implementedBy": ["typescript"],
+			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" }, "capture": "todo" }],
+			"command": "todo-delete",
+			"input": { "id": "$todo.id" },
+			"expect": {
+				"success": true,
+				"data.deleted": true,
+				"undoCommand": "todo-restore",
+				"undoArgs.ids.length": 1
+			},
+			"then": {
+				"command": "todo-list",
+				"input": { "deleted": true },
+				"expect": { "data.total": 1, "data.todos.0.deletedAt": { "exists": true } }
+			}
+		},
+		{
+			"name": "restore_brings_a_deleted_todo_back",
+			"description": "todo-restore returns a deleted todo to the live list as it was",
+			"implementedBy": ["typescript"],
+			"setup": [
+				{
+					"command": "todo-create",
+					"input": { "title": "Bring me back", "priority": "high" },
+					"capture": "todo"
+				},
+				{ "command": "todo-delete", "input": { "id": "$todo.id" } }
+			],
+			"command": "todo-restore",
+			"input": { "ids": ["$todo.id"] },
+			"expect": { "success": true, "data.summary.successCount": 1, "data.summary.failureCount": 0 },
+			"then": {
+				"command": "todo-get",
+				"input": { "id": "$todo.id" },
+				"expect": {
+					"success": true,
+					"data.priority": "high",
+					"data.deletedAt": { "exists": false }
+				}
+			}
+		},
+		{
+			"name": "restore_reports_an_id_it_cannot_restore",
+			"description": "An id with no deleted todo is reported as failed with NOT_FOUND and a suggestion, and the call succeeds",
+			"implementedBy": ["typescript"],
+			"setup": [],
+			"command": "todo-restore",
+			"input": { "ids": ["todo-never-deleted"] },
+			"expect": {
+				"success": true,
+				"data.summary.failureCount": 1,
+				"data.failed.0.error.code": "NOT_FOUND",
+				"data.failed.0.error.suggestion": { "exists": true }
+			}
+		},
+		{
+			"name": "clear_deleted_empties_the_deleted_todos",
+			"description": "todo-clear with deleted: true removes the deleted todos for good and leaves live ones",
+			"implementedBy": ["typescript"],
+			"setup": [
+				{ "command": "todo-create", "input": { "title": "Stay" } },
+				{ "command": "todo-create", "input": { "title": "Go for good" }, "capture": "gone" },
+				{ "command": "todo-delete", "input": { "id": "$gone.id" } }
+			],
+			"command": "todo-clear",
+			"input": { "deleted": true },
+			"expect": { "success": true, "data.cleared": 1, "data.remaining": 1 },
+			"then": {
+				"command": "todo-list",
+				"input": { "deleted": true },
+				"expect": { "data.total": 0 }
+			}
+		},
+		{
+			"name": "history_records_the_latest_change",
+			"description": "todo-history lists the latest change first with its command, actor, time and undo",
+			"implementedBy": ["typescript"],
+			"setup": [{ "command": "todo-create", "input": { "title": "Watch me" } }],
+			"command": "todo-history",
+			"input": { "limit": 1 },
+			"expect": {
+				"success": true,
+				"data.entries.length": 1,
+				"data.entries.0.command": "todo-create",
+				"data.entries.0.actor.kind": { "exists": true },
+				"data.entries.0.at": { "exists": true },
+				"data.entries.0.undoCommand": "todo-delete"
+			}
 		}
 	]
 }
