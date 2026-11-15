@@ -185,6 +185,7 @@ const HANDLED: &[(&str, &str)] = &[
     ("link", "message"),
     ("recipient", "message"),
     ("screening", "message"),
+    ("story_member", "message"),
     ("thread_place", "mailbox"),
 ];
 

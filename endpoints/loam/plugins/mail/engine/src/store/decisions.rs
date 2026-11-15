@@ -269,6 +269,7 @@ fn decide_in(
             senders: Some(&turned),
             ..Default::default()
         },
+        now,
     )?;
     note_change(transaction, now, "sender", sender_id(address))?;
     Ok(Decided { previous, changed })

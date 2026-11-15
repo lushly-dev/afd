@@ -1,7 +1,8 @@
 //! Steps C1's and C2's report on the owner's mail (the specification's 6.3,
-//! 7.1 and 7.2): Q2 as the engine computes it beside the census's figure, how
-//! many stream stories each grouping gives, and what screening classes the
-//! mail falls into, with what classing it and deciding on a sender cost.
+//! 7.1, 7.2 and 8): Q2 as the engine computes it beside the census's figure,
+//! how many stream stories each grouping gives, what screening classes the
+//! mail falls into and what stories it makes, with what classing it,
+//! reading stories and deciding on a sender cost.
 //! Ignored: it runs only when asked, on a copy of a synced store whose
 //! directory it is given.
 //!
@@ -25,7 +26,10 @@ use std::path::Path;
 use std::time::Instant;
 
 use loam_mail::home::Home;
-use loam_mail::store::{Class, Decision, ScreeningCounts, SenderQuery, Store, sender_id};
+use loam_mail::store::{
+    Class, Decision, KINDS_SHOWN, ScreeningCounts, SenderQuery, Store, StoryCursor, StoryMessages,
+    sender_id,
+};
 use serde_json::json;
 
 /// The census's Q2 on the same account (the prototype's README): the whole
@@ -201,6 +205,33 @@ fn screening_on_a_copy_of_a_synced_store() {
     }
     let templates = count("SELECT count(*) FROM template");
     let recurring = count("SELECT count(*) FROM template WHERE messages >= 5");
+    // Stories (step C2's second pull request), made with the classes.
+    let story_counts = json!({
+        "stories": count("SELECT count(*) FROM story WHERE messages >= 5"),
+        "byList": count("SELECT count(*) FROM story WHERE messages >= 5 AND list_id <> ''"),
+        "bySender": count("SELECT count(*) FROM story WHERE messages >= 5 AND list_id = ''"),
+        "streams": count("SELECT count(*) FROM story"),
+        "bulkListed": count("SELECT count(*) FROM story_member"),
+        "inStories": count("SELECT coalesce(sum(messages), 0) FROM story WHERE messages >= 5"),
+        "exceptions": count("SELECT coalesce(sum(exceptions), 0) FROM story WHERE messages >= 5"),
+        "withExceptions": count("SELECT count(*) FROM story WHERE messages >= 5 AND exceptions > 0"),
+        "withoutAUsualShape": count(
+            "SELECT count(*) FROM story WHERE messages >= 5 AND usual = 0",
+        ),
+        "kinds": count("SELECT coalesce(sum(kinds), 0) FROM story WHERE messages >= 5"),
+        "withOneKind": count("SELECT count(*) FROM story WHERE messages >= 5 AND kinds = 1"),
+        "largestMessages": count("SELECT coalesce(max(messages), 0) FROM story"),
+        "largestKinds": count("SELECT coalesce(max(kinds), 0) FROM story WHERE messages >= 5"),
+    });
+    let largest_story: Option<(i64, i64)> = connection
+        .query_row(
+            "SELECT id, (SELECT message_id FROM story_member WHERE story_id = story.id
+                         ORDER BY date DESC, message_id DESC LIMIT 1)
+             FROM story ORDER BY messages DESC, id LIMIT 1",
+            [],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .ok();
     drop(connection);
     let (queue_messages, queue_senders) = store.queue_counts().unwrap();
     let mut lists = serde_json::Map::new();
@@ -225,6 +256,48 @@ fn screening_on_a_copy_of_a_synced_store() {
             .unwrap();
         waiting.push(at.elapsed().as_secs_f64() * 1000.0);
     }
+    let mut story_list = Vec::new();
+    let mut story_changes = Vec::new();
+    // Every change since the store's first: the most a caller can ask for.
+    let from_the_first = StoryCursor {
+        seq: 0,
+        ..store.story_changes(None, 1).unwrap().now
+    };
+    for _ in 0..20 {
+        let at = Instant::now();
+        store.stories(None, 51).unwrap();
+        story_list.push(at.elapsed().as_secs_f64() * 1000.0);
+        let at = Instant::now();
+        store.story_changes(Some(from_the_first), 101).unwrap();
+        story_changes.push(at.elapsed().as_secs_f64() * 1000.0);
+    }
+    // The largest story: opened (its card, its kinds and a page of its
+    // messages), its exceptions, and computed again as a batch that brings
+    // it one message would.
+    let (mut open_story, mut open_exceptions, mut recompute_story) =
+        (Vec::new(), Vec::new(), Vec::new());
+    if let Some((story, newest)) = largest_story {
+        for _ in 0..20 {
+            let at = Instant::now();
+            store.story(story).unwrap();
+            store.story_kinds(story, KINDS_SHOWN).unwrap();
+            store
+                .story_messages(story, &StoryMessages::Every, None, 51)
+                .unwrap();
+            open_story.push(at.elapsed().as_secs_f64() * 1000.0);
+            let at = Instant::now();
+            store
+                .story_messages(story, &StoryMessages::Exceptions, None, 51)
+                .unwrap();
+            open_exceptions.push(at.elapsed().as_secs_f64() * 1000.0);
+            let at = Instant::now();
+            store
+                .recompute_stories(&[loam_mail::store::MessageId(newest)], now())
+                .unwrap();
+            recompute_story.push(at.elapsed().as_secs_f64() * 1000.0);
+        }
+    }
+    let story_ms = |samples: Vec<f64>| (!samples.is_empty()).then(|| p95(samples));
     let before_decision = store.class_counts(&largest.address).unwrap();
     let preview = Instant::now();
     let would = store.would_change(&largest.address, Decision::Out).unwrap();
@@ -318,7 +391,14 @@ fn screening_on_a_copy_of_a_synced_store() {
             "queue": { "messages": queue_messages, "senders": queue_senders },
             "templates": templates,
             "recurringTemplates": recurring,
+            // Classing every message from nothing, and making every story.
             "classifyEverythingMs": classify_ms,
+            "stories": story_counts,
+            "storyListFiftyP95Ms": p95(story_list),
+            "storyChangesHundredP95Ms": p95(story_changes),
+            "largestStoryOpenP95Ms": story_ms(open_story),
+            "largestStoryExceptionsP95Ms": story_ms(open_exceptions),
+            "largestStoryRecomputeP95Ms": story_ms(recompute_story),
             "listFiftyP95Ms": lists,
             "sendersWaitingFiftyP95Ms": p95(waiting),
             "largestSender": {
