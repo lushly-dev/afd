@@ -21,6 +21,7 @@ import {
 	optional,
 	strictObject,
 	string,
+	union,
 	unknown,
 } from 'zod/mini';
 import { kernelFailure } from '../errors.js';
@@ -71,6 +72,7 @@ export const DOCUMENT_KIT = Object.freeze({
 		optional,
 		strictObject,
 		string,
+		union,
 		unknown,
 	}),
 });

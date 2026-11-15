@@ -432,6 +432,17 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		required: ['workspace', 'projects'],
 		additionalProperties: false,
 	} as unknown as JsonSchema;
+	const access = z.optional(
+		z.strictObject({
+			workspace: z.boolean(),
+			projects: z.union([
+				z
+					.array(z.string().check(z.minLength(1), z.maxLength(256)))
+					.check(z.maxLength(AGENT_PROJECTS_MAX)),
+				z.enum(['sponsor']),
+			]),
+		})
+	);
 	const description = z.optional(z.nullable(z.string().check(z.maxLength(500))));
 	const guidance = z.optional(z.nullable(z.string().check(z.maxLength(GUIDANCE_MAX_BYTES))));
 
@@ -457,7 +468,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	const addInput = z.strictObject({
 		name,
 		sponsor: id,
-		access: z.optional(z.unknown()),
+		access,
 		description,
 		guidance,
 		id: z.optional(z.string().check(z.minLength(1), z.maxLength(64))),
@@ -530,7 +541,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		agent: id,
 		name: z.optional(name),
 		description,
-		access: z.optional(z.unknown()),
+		access,
 		guidance,
 		sponsor: z.optional(id),
 	});
