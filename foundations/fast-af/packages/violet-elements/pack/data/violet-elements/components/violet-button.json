@@ -15,7 +15,7 @@
 			{
 				"basis": "authored",
 				"id": "button.idrefs",
-				"text": "ariaLabelledby, ariaDescribedby and ariaErrormessage are script-only properties. Like aria-controls, their ids are written inside the shadow root, where ids from the page do not resolve."
+				"text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description is forwarded."
 			}
 		]
 	},
@@ -34,12 +34,33 @@
 			},
 			{
 				"basis": "observed",
-				"description": "Optional controls reference forwarded to the inner button.",
+				"description": "Ids of the elements the button controls, in the host's tree, forwarded as element references.",
 				"name": "aria-controls",
 				"property": "ariaControls",
 				"rules": [
 					"taxonomy.aria-controls"
 				],
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"description": "Ids of the elements that describe the button, in the host's tree, forwarded as element references.",
+				"name": "aria-describedby",
+				"property": "ariaDescribedby",
+				"type": "string | null"
+			},
+			{
+				"basis": "declared",
+				"description": "Plain-text description forwarded to the inner button.",
+				"name": "aria-description",
+				"property": "ariaDescription",
+				"type": "string | null"
+			},
+			{
+				"basis": "observed",
+				"description": "Id of the element holding the button's error message, in the host's tree, forwarded as an element reference.",
+				"name": "aria-errormessage",
+				"property": "ariaErrormessage",
 				"type": "string | null"
 			},
 			{
@@ -60,6 +81,13 @@
 				"rules": [
 					"taxonomy.aria-haspopup"
 				],
+				"type": "string | null"
+			},
+			{
+				"basis": "declared",
+				"description": "Ids of the elements that label the button, in the host's tree. The inner button gets them as element references, because ids do not resolve across a shadow root.",
+				"name": "aria-labelledby",
+				"property": "ariaLabelledby",
 				"type": "string | null"
 			},
 			{
@@ -181,6 +209,16 @@
 		},
 		{
 			"kind": "unobserved",
+			"name": "aria-description",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
+			"name": "aria-labelledby",
+			"section": "attributes"
+		},
+		{
+			"kind": "unobserved",
 			"name": "aria-pressed",
 			"section": "attributes"
 		}
@@ -209,7 +247,7 @@
 		{
 			"basis": "authored",
 			"id": "button.popup-toggle",
-			"text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) are forwarded to the inner button. Use them for disclosure, menu and toggle buttons."
+			"text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) reach the inner button. Use them for disclosure, menu and toggle buttons."
 		},
 		{
 			"basis": "authored",

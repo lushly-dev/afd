@@ -1,4 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cdp } from "vitest/browser";
 
 import "../button/violet-button";
 import "./violet-teaching-tip";
@@ -8,6 +9,53 @@ import { resolveVioletIcon } from "../icon/icon-registry";
 import type { VioletIcon } from "../icon/violet-icon";
 
 registerSystemSearchIcon();
+
+interface AxNode {
+    backendDOMNodeId?: number;
+    role?: { value?: string };
+    name?: { value?: string };
+    description?: { value?: string };
+    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+}
+
+interface FrameTree {
+    frame: { id: string; url: string };
+    childFrames?: FrameTree[];
+}
+
+function findFrame(tree: FrameTree, url: string): string | undefined {
+    if (tree.frame.url === url) {
+        return tree.frame.id;
+    }
+    for (const child of tree.childFrames ?? []) {
+        const found = findFrame(child, url);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * A node of Chromium's accessibility tree, found by role and name, with the nodes its
+ * aria-controls resolves to. The tree resolves references, or drops them, as assistive
+ * technology sees them, which the attributes alone do not show.
+ */
+async function accessibleNode(role: string, name: string): Promise<AxNode & { controls: AxNode[] }> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
+    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+    const frameId = findFrame(frameTree, location.href);
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as { nodes: AxNode[] };
+    const node = nodes.find(candidate => candidate.role?.value === role && candidate.name?.value === name);
+    if (!node) {
+        throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
+    }
+    const byId = new Map(nodes.map(candidate => [candidate.backendDOMNodeId, candidate]));
+    const related = node.properties?.find(property => property.name === "controls")?.value.relatedNodes ?? [];
+    const controls = related.map(entry => byId.get(entry.backendDOMNodeId)).filter(entry => entry !== undefined);
+    return { ...node, controls };
+}
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => requestAnimationFrame(() => resolve()));
@@ -58,12 +106,18 @@ describe("violet-teaching-tip", () => {
         const trigger = tip.querySelector("button");
         expect(trigger?.getAttribute("aria-haspopup")).toBe("dialog");
         expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-        expect(trigger?.getAttribute("aria-controls")).toBe(tip.tipId);
+        // The tip is in the shadow root: the trigger names the host, whose shadow root forwards
+        // the reference to the tip.
+        expect(trigger?.getAttribute("aria-controls")).toBe(tip.id);
 
         tip.show();
         await nextFrame();
 
         expect(trigger?.getAttribute("aria-expanded")).toBe("true");
+        await vi.waitFor(async () => {
+            const controls = (await accessibleNode("button", "Show tip")).controls;
+            expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["dialog: Title"]);
+        });
     });
 
     it("supports an external anchor by id", async () => {
@@ -78,7 +132,7 @@ describe("violet-teaching-tip", () => {
 
         expect(anchor?.style.getPropertyValue("anchor-name")).toBe("--violet-teaching-tip-anchor");
         expect(anchor?.getAttribute("aria-haspopup")).toBe("dialog");
-        expect(anchor?.getAttribute("aria-controls")).toBe(tip.tipId);
+        expect(anchor?.getAttribute("aria-controls")).toBe(tip.id);
     });
 
     it("renders the close glyph through the icon attribute with search also registered", async () => {

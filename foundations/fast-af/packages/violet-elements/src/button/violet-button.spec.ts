@@ -1,5 +1,5 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { userEvent } from "vitest/browser";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { cdp, userEvent } from "vitest/browser";
 
 import "./violet-button";
 import type { VioletButton } from "./violet-button";
@@ -26,6 +26,55 @@ async function renderButton(
 
     return button;
 }
+
+interface AxNode {
+    backendDOMNodeId?: number;
+    role?: { value?: string };
+    name?: { value?: string };
+    description?: { value?: string };
+    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+}
+
+interface FrameTree {
+    frame: { id: string; url: string };
+    childFrames?: FrameTree[];
+}
+
+function findFrame(tree: FrameTree, url: string): string | undefined {
+    if (tree.frame.url === url) {
+        return tree.frame.id;
+    }
+    for (const child of tree.childFrames ?? []) {
+        const found = findFrame(child, url);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * A node of Chromium's accessibility tree, found by role and name, with the nodes its
+ * aria-controls resolves to. The tree resolves references, or drops them, as assistive
+ * technology sees them, which the attributes alone do not show.
+ */
+async function accessibleNode(role: string, name: string): Promise<AxNode & { controls: AxNode[] }> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
+    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+    const frameId = findFrame(frameTree, location.href);
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as { nodes: AxNode[] };
+    const node = nodes.find(candidate => candidate.role?.value === role && candidate.name?.value === name);
+    if (!node) {
+        throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
+    }
+    const byId = new Map(nodes.map(candidate => [candidate.backendDOMNodeId, candidate]));
+    const related = node.properties?.find(property => property.name === "controls")?.value.relatedNodes ?? [];
+    const controls = related.map(entry => byId.get(entry.backendDOMNodeId)).filter(entry => entry !== undefined);
+    return { ...node, controls };
+}
+
+type References = Record<"ariaDescribedByElements" | "ariaControlsElements", Element[] | null>;
 
 function control(button: VioletButton): HTMLButtonElement {
     const native = button.shadowRoot?.querySelector("button");
@@ -150,16 +199,12 @@ describe("violet-button", () => {
     it("forwards aria properties to the native control", async () => {
         const button = await renderButton(el => {
             el.ariaLabel = "Save draft";
-            el.ariaDescribedby = "hint";
-            el.ariaControls = "panel";
             el.ariaExpanded = "false";
             el.ariaHasPopup = "menu";
         });
         const native = control(button);
 
         expect(native.getAttribute("aria-label")).toBe("Save draft");
-        expect(native.getAttribute("aria-describedby")).toBe("hint");
-        expect(native.getAttribute("aria-controls")).toBe("panel");
         expect(native.getAttribute("aria-expanded")).toBe("false");
         expect(native.getAttribute("aria-haspopup")).toBe("menu");
 
@@ -172,17 +217,61 @@ describe("violet-button", () => {
         expect(native.hasAttribute("aria-expanded")).toBe(false);
     });
 
-    it("forwards aria attributes set on the host for controls, expanded and haspopup", async () => {
+    it("forwards aria attributes set on the host for expanded and haspopup", async () => {
         const button = await renderButton(el => {
             el.setAttribute("aria-expanded", "true");
-            el.setAttribute("aria-controls", "menu");
             el.setAttribute("aria-haspopup", "listbox");
         });
         const native = control(button);
 
         expect(native.getAttribute("aria-expanded")).toBe("true");
-        expect(native.getAttribute("aria-controls")).toBe("menu");
         expect(native.getAttribute("aria-haspopup")).toBe("listbox");
+    });
+
+    it("resolves aria-describedby and aria-controls on the host to elements in the host's tree", async () => {
+        document.body.innerHTML = `
+            <p id="save-hint">Saves a copy you can restore.</p>
+            <div id="save-panel"></div>
+            <violet-button aria-describedby="save-hint" aria-controls="save-panel">Save</violet-button>
+        `;
+        await customElements.whenDefined("violet-button");
+        await nextFrame();
+        const native = control(document.querySelector("violet-button") as VioletButton) as unknown as References;
+
+        expect(native.ariaControlsElements).toEqual([document.getElementById("save-panel")]);
+        await vi.waitFor(async () => {
+            const node = await accessibleNode("button", "Save");
+            expect(node.description?.value).toBe("Saves a copy you can restore.");
+        });
+    });
+
+    it("resolves references set as properties and clears them", async () => {
+        document.body.innerHTML = `<p id="draft-hint">Keeps your changes.</p>`;
+        const button = document.createElement("violet-button") as VioletButton;
+        button.textContent = "Keep";
+        document.body.append(button);
+        await customElements.whenDefined("violet-button");
+        await nextFrame();
+        const native = control(button) as unknown as References;
+
+        button.ariaDescribedby = "draft-hint";
+        expect(native.ariaDescribedByElements).toEqual([document.getElementById("draft-hint")]);
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Keep")).description?.value).toBe("Keeps your changes.");
+        });
+
+        button.ariaDescribedby = null;
+        expect(native.ariaDescribedByElements ?? []).toEqual([]);
+    });
+
+    it("forwards aria-description to the native control", async () => {
+        await renderButton(el => {
+            el.setAttribute("aria-description", "Opens in a new window.");
+        }, "Preview");
+
+        await vi.waitFor(async () => {
+            expect((await accessibleNode("button", "Preview")).description?.value).toBe("Opens in a new window.");
+        });
     });
 
     it("forwards aria-pressed to the native control", async () => {

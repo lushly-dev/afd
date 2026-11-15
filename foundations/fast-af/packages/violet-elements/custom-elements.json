@@ -1114,6 +1114,31 @@
               ]
             },
             {
+              "kind": "method",
+              "name": "#forwardReference",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "name",
+                  "type": {
+                    "text": "ReferenceAttribute"
+                  }
+                },
+                {
+                  "name": "value",
+                  "type": {
+                    "text": "string | null | undefined"
+                  }
+                }
+              ],
+              "description": "Sets an id-list attribute's elements on the inner button as element references, found by id\nin the tree that holds the host. The ids are resolved when the value changes and when the\nbutton connects, so the elements they name should exist by then."
+            },
+            {
               "kind": "field",
               "name": "appearance",
               "type": {
@@ -1132,7 +1157,7 @@
                 "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional controls reference forwarded to the inner button.",
+              "description": "Ids of the elements the button controls, in the host's tree, forwarded as element references.",
               "attribute": "aria-controls",
               "reflects": true
             },
@@ -1164,21 +1189,82 @@
               "kind": "field",
               "name": "ariaDescribedby",
               "type": {
-                "text": "string"
+                "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional describedby reference forwarded to the inner button.",
-              "default": "\"\""
+              "description": "Ids of the elements that describe the button, in the host's tree, forwarded as element references.",
+              "attribute": "aria-describedby",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "ariaDescribedbyChanged",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "_previous",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
+            },
+            {
+              "kind": "field",
+              "name": "ariaDescription",
+              "type": {
+                "text": "string | null"
+              },
+              "privacy": "public",
+              "description": "Plain-text description forwarded to the inner button.",
+              "attribute": "aria-description",
+              "reflects": true
             },
             {
               "kind": "field",
               "name": "ariaErrormessage",
               "type": {
-                "text": "string"
+                "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional errormessage reference forwarded to the inner button.",
-              "default": "\"\""
+              "description": "Id of the element holding the button's error message, in the host's tree, forwarded as an\nelement reference.",
+              "attribute": "aria-errormessage",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "ariaErrormessageChanged",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "_previous",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
             },
             {
               "kind": "field",
@@ -1264,11 +1350,36 @@
               "kind": "field",
               "name": "ariaLabelledby",
               "type": {
-                "text": "string"
+                "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional labelledby reference forwarded to the inner button.",
-              "default": "\"\""
+              "description": "Ids of the elements that label the button, in the host's tree. The inner button gets them as\nelement references, because ids do not resolve across a shadow root.",
+              "attribute": "aria-labelledby",
+              "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "ariaLabelledbyChanged",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "_previous",
+                  "type": {
+                    "text": "string | null"
+                  }
+                },
+                {
+                  "name": "next",
+                  "type": {
+                    "text": "string | null"
+                  }
+                }
+              ]
             },
             {
               "kind": "field",
@@ -1364,12 +1475,44 @@
               "fieldName": "disabled"
             },
             {
+              "name": "aria-labelledby",
+              "description": "Ids of the elements that label the button, in the host's tree. The inner button gets them as\nelement references, because ids do not resolve across a shadow root.",
+              "type": {
+                "text": "string | null"
+              },
+              "fieldName": "ariaLabelledby"
+            },
+            {
+              "name": "aria-describedby",
+              "description": "Ids of the elements that describe the button, in the host's tree, forwarded as element references.",
+              "type": {
+                "text": "string | null"
+              },
+              "fieldName": "ariaDescribedby"
+            },
+            {
+              "name": "aria-errormessage",
+              "description": "Id of the element holding the button's error message, in the host's tree, forwarded as an\nelement reference.",
+              "type": {
+                "text": "string | null"
+              },
+              "fieldName": "ariaErrormessage"
+            },
+            {
               "name": "aria-controls",
-              "description": "Optional controls reference forwarded to the inner button.",
+              "description": "Ids of the elements the button controls, in the host's tree, forwarded as element references.",
               "type": {
                 "text": "string | null"
               },
               "fieldName": "ariaControls"
+            },
+            {
+              "name": "aria-description",
+              "description": "Plain-text description forwarded to the inner button.",
+              "type": {
+                "text": "string | null"
+              },
+              "fieldName": "ariaDescription"
             },
             {
               "name": "aria-expanded",
@@ -40814,6 +40957,16 @@
             },
             {
               "kind": "method",
+              "name": "#clearDescription",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
+              "kind": "method",
               "name": "#clearTimers",
               "privacy": "private",
               "return": {
@@ -40821,6 +40974,26 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "field",
+              "name": "#describedByIds",
+              "privacy": "private",
+              "type": {
+                "text": "string[]"
+              },
+              "default": "[]",
+              "description": "The ids this tooltip added to its trigger's aria-describedby, so it removes only those."
+            },
+            {
+              "kind": "field",
+              "name": "#description",
+              "privacy": "private",
+              "type": {
+                "text": "string | null"
+              },
+              "default": "null",
+              "description": "The aria-description this tooltip set on its trigger."
             },
             {
               "kind": "method",
@@ -40984,6 +41157,16 @@
               "reflects": true
             },
             {
+              "kind": "method",
+              "name": "contentChanged",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              }
+            },
+            {
               "kind": "field",
               "name": "delay",
               "type": {
@@ -41035,6 +41218,17 @@
               "default": "\"above\"",
               "attribute": "positioning",
               "reflects": true
+            },
+            {
+              "kind": "method",
+              "name": "syncDescription",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Describes the trigger with content in the trigger's own tree, since an id inside this\ntooltip's shadow root does not resolve from outside it: elements slotted into `content` are\nnamed in aria-describedby, and the `content` attribute alone becomes aria-description."
             },
             {
               "kind": "field",
