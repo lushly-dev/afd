@@ -612,8 +612,8 @@ the decision card, as amendments to the proposals that own them. The jobs in
 them.
 
 **Exit:** the owner has accepted or refused each amendment, and each job in the first slice the
-owner confirms is a scenario file whose paths readers have walked. A part that has moved takes its exit from the
-proposal that owns it.
+owner confirms is a scenario file whose paths readers have walked. A part that has moved takes
+its exit from the proposal that owns it.
 
 ### Phase B. Defaults
 
@@ -634,8 +634,8 @@ has gone from the panel to a decision card to a person's approval in the pre-shi
 
 ### Phase D. Adoption and improvement
 
-Reports that name what went unmeasured. Counts of changed copied patterns. The draft, preview and stable
-states for a default. Topics moving from the skill into Umbel.
+Reports that name what went unmeasured. Counts of changed copied patterns. The draft, preview
+and stable states for a default. Topics moving from the skill into Umbel.
 
 **Exit:** a product with commands only gets a report that names what went unmeasured, and one
 topic is served from Umbel with its reference deleted from the skill.
