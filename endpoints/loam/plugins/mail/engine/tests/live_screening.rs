@@ -216,9 +216,7 @@ fn screening_on_a_copy_of_a_synced_store() {
         "exceptions": count("SELECT coalesce(sum(exceptions), 0) FROM story WHERE messages >= 5"),
         "withExceptions": count("SELECT count(*) FROM story WHERE messages >= 5 AND exceptions > 0"),
         "withoutAUsualShape": count(
-            "SELECT count(*) FROM story WHERE messages >= 5 AND NOT EXISTS
-                 (SELECT 1 FROM story_shape WHERE story_shape.story_id = story.id
-                  AND story_shape.messages >= 5)",
+            "SELECT count(*) FROM story WHERE messages >= 5 AND usual = 0",
         ),
         "kinds": count("SELECT coalesce(sum(kinds), 0) FROM story WHERE messages >= 5"),
         "withOneKind": count("SELECT count(*) FROM story WHERE messages >= 5 AND kinds = 1"),

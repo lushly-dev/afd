@@ -471,29 +471,29 @@ pub(super) const MIGRATIONS: &[&str] = &[
         body_shape BLOB CHECK (body_shape IS NULL OR length(body_shape) = 16),
         exception INTEGER NOT NULL CHECK (exception IN (0, 1))
     ) STRICT;
-    CREATE INDEX story_member_date ON story_member (story_id, date DESC, message_id DESC);
-    CREATE INDEX story_member_shape ON story_member (story_id, body_shape)
-        WHERE body_shape IS NOT NULL;
-    CREATE INDEX story_member_kind ON story_member (story_id, template_key, date DESC, message_id DESC)
-        WHERE template_key IS NOT NULL;
+    -- A story's members by date, with each one's kind and shape: a body that arrives rewrites
+    -- its entry in place, near its story's newest, so an import writes no page an index keyed by
+    -- a hash would scatter it across. A kind's or a shape's members are read from the story's
+    -- range.
+    CREATE INDEX story_member_date
+        ON story_member (story_id, date DESC, message_id DESC, template_key, body_shape);
     CREATE INDEX story_member_exception ON story_member (story_id, date DESC, message_id DESC)
         WHERE exception = 1;
 
-    -- How many of a stream's members have each body shape, and each template key.
+    -- How many of a stream's members have each body shape, and each template key. A count
+    -- that reaches nothing is removed in the statement after.
     CREATE TABLE story_shape (
         story_id INTEGER NOT NULL,
         shape BLOB NOT NULL CHECK (length(shape) = 16),
-        messages INTEGER NOT NULL CHECK (messages > 0),
+        messages INTEGER NOT NULL CHECK (messages >= 0),
         PRIMARY KEY (story_id, shape)
     ) STRICT, WITHOUT ROWID;
-    CREATE INDEX story_shape_messages ON story_shape (story_id, messages);
     CREATE TABLE story_kind (
         story_id INTEGER NOT NULL,
         template_key BLOB NOT NULL CHECK (length(template_key) = 16),
-        messages INTEGER NOT NULL CHECK (messages > 0),
+        messages INTEGER NOT NULL CHECK (messages >= 0),
         PRIMARY KEY (story_id, template_key)
     ) STRICT, WITHOUT ROWID;
-    CREATE INDEX story_kind_most ON story_kind (story_id, messages DESC, template_key);
 
     -- A stream with members, and a story from its fifth: its counts are kept by what each batch
     -- changes, since a story of a large folder is too large to count again for each. Its id is
@@ -510,6 +510,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
         messages INTEGER NOT NULL CHECK (messages > 0),
         exceptions INTEGER NOT NULL CHECK (exceptions >= 0),
         kinds INTEGER NOT NULL CHECK (kinds >= 0),
+        usual INTEGER NOT NULL CHECK (usual >= 0),
         first_date INTEGER NOT NULL,
         last_date INTEGER NOT NULL
     ) STRICT;

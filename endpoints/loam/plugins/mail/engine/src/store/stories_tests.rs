@@ -749,15 +749,17 @@ fn every_story_query_reads_an_index() {
             "newest in target" => "story_member_date (story_id=?",
             "stream" => "USING COVERING INDEX sqlite_autoindex_stream_1 (key=?)",
             "prune" => "SCAN envelope",
-            "exceptions of a shape" => "story_member_shape (story_id=? AND body_shape=?",
-            "exceptions of a story" => "story_member_shape (story_id=?",
+            "exceptions of a shape" | "exceptions of a story" => "story_member_date (story_id=?",
+            "exceptions of a shape now usual" | "exceptions of a story with none usual" => {
+                "story_member_exception (story_id=?"
+            }
             "first" | "last" | "newest" | "story messages" => "story_member_date (story_id=?",
-            "has usual" => "story_shape_messages (story_id=? AND messages>?)",
+            "set usual" => "",
             "story exceptions" => "story_member_exception (story_id=?",
             "member" => "SEARCH story_member USING INTEGER PRIMARY KEY",
-            "kind newest" | "story kind" => "story_member_kind (story_id=? AND template_key=?",
+            "kind newest" | "story kind" => "story_member_date (story_id=?",
             "story list" => "story_recent",
-            "story kinds" => "story_kind_most (story_id=?",
+            "story kinds" => "SEARCH story_kind USING PRIMARY KEY (story_id=?)",
             "story changes" => "change_kind (kind=? AND seq>?)",
             "stories of" => "SEARCH story_member USING INTEGER PRIMARY KEY",
             other => panic!("no plan expected for {other}"),
