@@ -230,7 +230,9 @@ class AlfredHost(CommandHost):
         return self.explicit_target or _explicit_selection.get()
 
     def resolve_command(self, name):
-        return ALIASES.get(name, name)
+        # The registered name, so target selection below sees it whichever spelling was called.
+        name = ALIASES.get(name, name)
+        return self.resolve(name) or name
 
     def has_command(self, name):
         return super().has_command(self.resolve_command(name))
