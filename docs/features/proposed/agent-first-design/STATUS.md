@@ -45,7 +45,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
   checks and the two held-back jobs, is frozen; the SHA-256 of its manifest is
   `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Its second stage, the
   faults, the persona cards and the walk scripts, is drafted and is frozen before the first
-  walk ([bench.md](bench.md#status)).
+  counted walk ([bench.md](bench.md#status)).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
@@ -82,7 +82,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
-| The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first walk, once the reference build exists | [`bench.md`](bench.md#status) |
+| The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first counted walk, once the reference build exists | [`bench.md`](bench.md#status) |
 | The bench: the runner, the reference build and the pilots | Not started. The runner comes next, then the reference build, as the owner decided | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
@@ -94,7 +94,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
 - **The bench is mostly a specification.** Its application is built and merged in #1239
-  (2026-11-15); its checks, planted faults, persona cards, reference build and runner are not.
+  (2026-11-15), and its checks and held-back jobs are written and frozen outside the
+  repository; its faults, persona cards and walk scripts are drafted there, and its reference
+  build and runner are not written.
   Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its
   rules for "go" are proposed and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
@@ -302,22 +304,25 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   - The two held-back jobs ran against the application from source through the package's own
     harness, 10 of 10 steps, and `afd scenario validate` found both valid. A temporary test
     file was used and deleted; nothing was committed.
-  - *Independent review, first pass:* five blockers. The pair counts behind step 0.4 were
-    wrong; one fault's proof also held on a clean build; two screen-reader faults could reach
-    sighted personas; the 250-character rule counted a row's text twice; and the screen-reader
-    persona had no way to read a page. Among the improvements, some checks could pass on an
-    empty story or on a control's own name, some were too narrow, the walk scripts gave steps,
-    the persona stances named fault classes, and both held-back jobs sat in what the builders'
-    extract lists as outside the four screens. All were fixed: the jobs were replaced, and the
-    faults, cards and walks became a second stage, frozen once the reference build exists.
-  - *Second pass, on stage 1 only:* two blockers. A fix script had written four patterns'
-    word boundaries as JSON backspaces, so those checks could never pass; and "nobody" also
-    matched an empty waiting list. Both were fixed and the repaired patterns tested; ids such
-    as `req-2` no longer count as numbers, and the matching rules were made exact.
+  - *Independent review, first pass:* five blockers, by kind: a miscount behind step 0.4's
+    rule, a fault whose proof also held on a clean build, faults that could reach personas of
+    another modality, a matching rule that counted some text twice, and a persona with no way
+    to read a page. Among the improvements: checks that a screen could pass without showing the
+    state's point, checks too narrow for fair wordings, walk scripts that gave steps, persona
+    stances that named what to look for, and held-back jobs that were not fair tests. All were
+    fixed: the jobs were replaced, and the faults, cards and walks became a second stage,
+    frozen once the reference build exists.
+  - *Second pass, on stage 1 only:* two blockers, both in checks that could never pass or that
+    passed on the wrong state, from an escaping mistake in a fix script and a pattern that was
+    too broad. Both were fixed and the repaired patterns tested, and the matching rules were
+    made exact.
   - *Placing it:* a task on the second machine fetched the packed folder over the private
     network from a one-file server on this machine, limited to that machine's address and a
     random path, and stopped after one request. There the archive's hash matched, every file of
-    the manifest checked out, and the folder is readable by its owner only.
+    the manifest checked out, and the folder is readable by its owner only. The working copy on
+    this machine was then deleted, so that folder is the only one.
+  - *A review of this record* found that its first wording of the reviews above gave away
+    details of three checks, and that "What is not done" was stale. Both were fixed.
 - **Review of the seed library's application, 2026-11-15:** an independent reviewer found one
   blocker and seven improvements, all fixed the same day. *Blocker:* a DirectClient whose
   `onApprovalNeeded` approved the hold lent rare seed past the steward, and left the request

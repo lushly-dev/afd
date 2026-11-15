@@ -7,7 +7,8 @@ owner to approve the domain and the budget before any session runs. Read
 
 ## Status
 
-- **State:** drafted 2026-11-14 against `fd0781e4`. Nothing is built and no session has run.
+- **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239) and the
+  held material is written; no session has run.
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
@@ -28,10 +29,11 @@ owner to approve the domain and the budget before any session runs. Read
   with its tasks and checks. This file gives their shape and their counts.
 - **They are frozen in two stages.** The checks and the held-back jobs were frozen on
   2026-11-15, before any build. The faults, the persona cards and the walk scripts are frozen
-  before the first walk: a fault names elements of the reference build, which does not exist
-  yet. Each stage has a manifest of SHA-256 hashes, and the hash of each manifest is in
-  [STATUS.md](STATUS.md), so the record committed later can be checked against what the runs
-  used.
+  before the first counted walk: a fault names elements of the reference build, which does not
+  exist yet. The two pilot walks run on the clean build with the drafts, and what they change
+  is recorded with the freeze. Each stage has a manifest of SHA-256 hashes, and the hash of
+  each manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked
+  against what the runs used.
 
 ## What it has to do
 
@@ -192,6 +194,8 @@ else.
   how many faults a panel finds is measured without a second thing varying. The overlap it
   reports is therefore within one family, and the proposal's point about reviewers of
   different families waits for phase C.
+- **A walk script for each screen:** the job walked there, put as the person would meet it,
+  and its starting state, without its steps. Four in all.
 - **Two jobs held back for the panel loop** are written now and first used in phase C.
 
 ## Runs
@@ -264,11 +268,13 @@ a list of the scenario's steps, and the journal is read against it:
   search. A failed read counts as failed.
 - **A refusal the steps expect is a step,** not a failed command, such as a loan refused
   because the seed has run out.
-- **A batch is one command.** The journal records an `afd-batch` as one entry with its inner
-  results, so deciding a set one at a time adds commands outside the steps.
+- **A batch is one command.** The journal is to record an `afd-batch` as one entry with its
+  inner results, so deciding a set one at a time adds commands outside the steps.
 - **A repeat** is a mutation of the same command on the same record as an earlier one in the
-  walk, whatever its input, and an undo of an earlier mutation is one too. So a return recorded
-  wrong, taken back and recorded again adds two.
+  walk, whatever its input, and an undo of an earlier mutation is one too, beyond what the
+  steps themselves contain. A mutation's record is the one it names, or for a create the
+  member and variety it is for. So a return recorded wrong, taken back and recorded again adds
+  two.
 - **A walk is capped** at 60 actions or 30 minutes, and one that reaches the cap or ends
   without saying it is done ends where its journal ends. The pilots check that the clean
   build's walks finish well inside the cap.
@@ -384,4 +390,4 @@ the fifth is open.
    and nothing is installed here or added to CI. Specimen's host was built there and its
    suite passed on 2026-11-15.
 5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
-   the first run of step 0.1, after the pilots.
+   the first run of step 0.1, after the pilots, together with how step 0.4 reads a path.
