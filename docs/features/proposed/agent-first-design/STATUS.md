@@ -46,13 +46,19 @@ shape of the [Patterns status](../patterns/STATUS.md).
   `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Its second stage, the
   faults, the persona cards and the walk scripts, is drafted and is frozen before the first
   counted walk ([bench.md](bench.md#status)).
+- **In progress:** the bench's runner, written 2026-11-15 and kept, like the held material,
+  outside the repository on the second machine's external drive, as a local repository with no
+  remote: its code that matches the checks shows how builds are scored. It sets up each
+  session, runs it, checks its tool calls for leaks, keeps the budget and scores the story file
+  through Specimen. Its walks, readers and statistics are not written. See
+  [the runner](#the-runner).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner confirming the bench's rules for "go". That is due before the
-  first run of step 0.1 and does not hold up building the bench, whose domain and budget the
-  owner approved. Before any session of phase 0 runs, the runner and the reference build are
+- **Blocked on:** the owner confirming the bench's rules for "go". That is due before the first
+  run of step 0.1 and does not hold up building the bench, whose domain and budget the owner
+  approved. Before any session of phase 0 runs, the runner is finished and the reference build
   written, the faults, persona cards and walks are settled against that build and frozen, and
   the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
   and block nothing yet.
@@ -60,10 +66,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-15, the link check, the scenario checks on the seed library's
-  jobs, the check of the bench's tasks and results, the reviews below, and the seed library's
-  tests, `pnpm check` and `pnpm verify` on the built application, and the held-back jobs
-  run against it.
+- **Last verified:** 2026-11-15, the runner's tests and dry runs on the second machine, the
+  link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
+  and results, the reviews below, and the seed library's tests, `pnpm check` and `pnpm verify`
+  on the built application, and the held-back jobs run against it.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -83,7 +89,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
 | The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first counted walk, once the reference build exists | [`bench.md`](bench.md#status) |
-| The bench: the runner, the reference build and the pilots | Not started. The runner comes next, then the reference build, as the owner decided | [`bench.md`](bench.md) |
+| The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and one smoke session ran. Walks, readers and step 0.2's statistics are not. Recorded in #1253 | [The runner](#the-runner) |
+| The bench: the reference build and the pilots | Not started. The reference build comes next, as the owner decided | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -96,7 +103,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 - **The bench is mostly a specification.** Its application is built and merged in #1239
   (2026-11-15), and its checks and held-back jobs are written and frozen outside the
   repository; its faults, persona cards and walk scripts are drafted there, and its reference
-  build and runner are not written.
+  build is not written, and its runner is written without walks, readers or statistics.
   Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its
   rules for "go" are proposed and not confirmed.
 - **No reader has walked the proposal's jobs.** There are no commands to walk. The design
@@ -128,7 +135,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
     step 0.1;
   - on 2026-11-15, for the bench's held material: it is kept in a private folder on the second
     machine's external drive, outside every checkout, until the last run; and it is written
-    first, then the runner, then the reference build.
+    first, then the runner, then the reference build;
+  - on 2026-11-15, for the bench's runner: its design as proposed, with a session's tree a
+    plain export of the pinned commit and not a git worktree; building Umbel's components
+    server on the second machine for the brief every arm has; and one smoke session.
 
 ## How it was checked
 
@@ -339,6 +349,83 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   files, 119 tests, 113 of 113 steps), `node --test scripts/affected.test.mjs` (18 passed),
   `pnpm check` and the link check.
 
+## The runner
+
+Written 2026-11-15 against `4a77c273` on the second machine, in a local repository on its
+external drive with no remote. It is committed to this repository with the held material after
+the last run of phase 0. What it does, without its check matching:
+
+- **A session's tree** is a plain export with a fresh one-commit history and none of the
+  repository's, from the pinned commit, not a git worktree, whose history would let `git show`
+  read every screen's task and this folder without a path outside the tree. The export loses
+  this folder except the files the arm reads ([bench.md](bench.md#what-a-session-is-given)),
+  the other screens' scenario files (all of them for the bare arm), the seed library's tests,
+  which read every task and result, and the features index's row for this proposal, and a
+  tooling test that names the tasks; the builder's extract is written at its path. A guard
+  fails the setup if another screen's file or name, a held file's name or a mention of the
+  bench in the extract is left. The session's folder has an opaque name, because a session sees
+  its working directory.
+- **A session** is `claude -p` on Opus 5.5 at `medium`, streaming JSON, six built-in tools
+  (read, search, write, edit and an allowlist of shell commands), no skills or commands, and a
+  strict MCP configuration that holds only Umbel's components brief. Arm 1 is given its
+  plugin's `SKILL.md` as a file to read and follow, since the Skill tool is off for every arm.
+- **A wall and a check.** Each session runs inside a macOS sandbox profile that refuses reads
+  of the held folder, the runner, every other checkout of the repository and its git directory,
+  the parts of the scoring checkout that name the bench, other sessions' folders, and saved
+  transcripts and scratch of other sessions on the machine. The leak check then searches every
+  tool call's input, and every tool result, for the held folder's path and its files' names,
+  and every file path, shell path and path in written content for one outside the session's
+  tree and its own material. A run with one is thrown out, its cost kept in the ledger, and run
+  again, at most twice; a third stops the runs.
+- **The budget** enters each session in a ledger at its most, twice its line, before it
+  starts, and at its reported cost at list prices when it ends; a session that reports no cost
+  stays at its most. No session starts that could take the week's spend past the cap, a
+  dollar figure set from the pilots, which has no default. A session that reports more than
+  twice its line, or no cost, stops the runs. One runner runs at a time.
+- **Scoring** loads the checks only after stage 1's manifest verifies, refuses a control
+  character and compiles every pattern. A story's mount, console and settled accessibility
+  check come from Specimen's own run. What Specimen's capture does not carry, the runner
+  reads from a second render of the story, from Specimen's static build in the Chromium
+  Specimen pins, in UTC and `en-US`; each verdict notes any role and name the two renders do
+  not share. Where the frozen rules leave a choice, the runner records the choice it took,
+  applied to every arm alike, and those are committed with the record. One is open for the
+  owner. The bare arm is never told the states' names, so
+  its builds are matched to states by its reader and not scored by name.
+- **Reads of neighbouring proposals,** Patterns, Design Decisions, Screens from Jobs, Pointing,
+  Scales and Component Briefs, which are in every arm's tree, are counted for each run and do
+  not throw it out.
+- **Checked on 2026-11-15** on the second machine, with no building session: stage 1's manifest
+  verified and the 308 checks loaded; 23 unit tests passed; an invented story scored against
+  invented checks through Specimen gave the expected verdict on all 38; dry runs with a
+  stand-in for `claude`, inside the sandbox, ran clean on three screens and the three arms that
+  are ready and threw out and reran four planted leaks; a story file with no stories passed
+  none of T1's checks; and the sandbox refused each place it closes and served the components
+  brief. Umbel's components server and Specimen's host were built for the pinned commit, their
+  Rust intermediates on the external drive.
+- **Independent review, 2026-11-15:** a fresh reviewer on Claude Opus 5.5 read the runner
+  against the frozen rules, this folder's specification and Specimen, and reproduced its
+  findings by running the code. Two blockers: the probe read some page text differently from
+  how a person reads it, which scored real screens wrongly both ways; and the leak check could
+  be passed by a script the session wrote, a path in another case, a shell variable or a
+  relative pattern. Both were fixed, the second with the sandbox as a wall under the check. Of
+  eight improvements, seven were taken: false positives that would throw out honest runs, the
+  budget's reserve and its unknown costs, the bare arm's builds kept out of scoring by name, a
+  gap in the accessibility check, content naming other screens, the pinned plugin's hashes, and
+  smaller choices; the eighth became a question for the owner. A focused second pass by the
+  same reviewer found seven fixed, three fixed in part and no new blocker; the three parts were
+  then closed, the widest by walling off the rest of the scoring checkout that names the
+  bench's jobs and results.
+- **The smoke session,** at the owner's word: one `claude -p` call with the runner's flags,
+  asked for a word in a file, reported $0.055 at list prices, with the components server
+  connected and a clean leak check. Its tool list showed that a headless session also had
+  messaging to other sessions on the machine, schedules, worktrees and the built-in skills,
+  among them one for design, which would have reached every arm; the runner now names its
+  tools and turns skills off. That narrower set, and the sandbox, have not yet run against the
+  real `claude`; a second smoke session would show both.
+- **Not written:** walks with the personas through Botcore's `cdp_*` commands, the journal and
+  reading a path for step 0.4; the readers of steps 0.1 and 0.3; step 0.2's statistics; arm 2's
+  statements in the brief and arm 3's skill.
+
 ## What was read to write it
 
 Read at `545316f2`, 2026-11-14:
@@ -388,6 +475,9 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The seed library's jobs | A scenario cannot assert `warnings`, `alternatives`, `sources`, `plan`, `undoCommand` or `undoArgs`, the fields five of the ten default patterns render. The first three are a known limit in the jobs-first guide; the last three are not listed there | Open |
 | 2026-11-15 | The seed library's application | The scenario runner resolves a step reference only in `input` (`packages/testing/src/runner/scenario-runner.ts:308`), but `scenario validate` and the dry run accept one inside `expect` without a word, and it is then compared as literal text. Three of the seed library's steps were written that way and passed every check until they ran. Either the runner resolves them in `expect` too, or validation refuses them, and the jobs-first guide says which | Open; worth an issue |
 | 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |
+| 2026-11-15 | The bench's runner | Specimen's capture records each element's role, name and focus but not everything the checks read, so the runner renders each story a second time. A capture channel for the rest would let it render once; what it needs is recorded with the runner | Open |
+| 2026-11-15 | Independent review of the bench's runner | One way a build can render a control is scored strictly until the owner decides how the frozen checks read it. The question, which would give away a check, is kept with the held material and put to the owner directly | Open; for the owner |
+| 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Open; for the owner |
 
 ## Session log
 
@@ -408,3 +498,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The seed library's application | The application was built in `packages/examples/seed-library` from the drafted commands: 24 commands with schemas, an in-memory store with a fixed clock and counter ids, the approval hook that records a held loan as a request, and the steward's middleware. The scenario files moved beside it. All 113 steps pass, jobs 12 and 16 over MCP with confirmations enforced; three steps that compared with an earlier step inside `expect` now name ids. The 74 results pass the output schemas unchanged. `seed-library.md` records what building it settled. Not merged |
 | 2026-11-15 | The seed library's application, after review | An independent review found that a DirectClient approving its own hold could lend rare seed; `loan-create` now refuses rare seed, which leaves only through `request-decide`. The test actor is no longer the steward, a reopened request cannot make a second waiting one, and the bench's results and tasks now select the package's tests. Not merged |
 | 2026-11-15 | The bench's held material | The owner agreed to keep the held material in a private folder on the second machine's external drive and to write it before the runner and the reference build. It was written outside the repository: checks for every state, twelve faults, five persona cards, a walk script for each screen and two held-back jobs. Two reviews changed it: the faults, cards and walks now wait to be frozen until the reference build exists, the held-back jobs were replaced, and the checks were tightened. The checks and the held-back jobs were frozen, their manifest's hash recorded here, and the folder placed on the second machine. `bench.md` now proposes how step 0.4 reads a path |
+| 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how the probe read some page text and in what the leak check missed, both fixed, the second with a sandbox under every session, and eight improvements, seven taken and one put to the owner. Walks, readers and statistics are not written |
