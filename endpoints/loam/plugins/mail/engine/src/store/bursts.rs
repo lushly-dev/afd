@@ -2,16 +2,28 @@
 //! senders never seen before, found for each account.
 //!
 //! - **A first contact** is a message from a sender whose first message
-//!   the provider received at most 24 hours before it, and who is new to
-//!   the person: not one they have written to or screened in. It counts in each
-//!   account whose mailboxes have shown it, junk and trash included, and
-//!   mail deleted since: a flood the provider filed away, or the person
-//!   threw away, was still a flood.
+//!   the provider received less than 24 hours before it, and who was new to
+//!   the person when it came: they had not written to it, or screened it in,
+//!   before. It counts in each account whose mailboxes have shown it, junk
+//!   and trash included, and mail deleted since: a flood the provider filed
+//!   away, or the person threw away, was still a flood.
 //! - **A burst** is found where an account's first contacts in any 24 hours
 //!   (a window that starts at one of them) are at least [`LEAST`] and at
 //!   least [`TIMES`] times the median of its daily first contacts over the
 //!   [`MEDIAN_DAYS`] days before. Windows that overlap are one burst, which
 //!   holds every first contact in them, whatever its class.
+//! - **Days with no history** are not quiet days. The median is taken only
+//!   over the days the account's history covers: from its earliest first
+//!   contact, and from the earliest one each junk and trash mailbox still
+//!   holds, since providers empty those. A window with fewer than
+//!   [`COVERED_LEAST`] covered days before it is no burst.
+//! - **An account is read for bursts once its mailboxes are listed**, and
+//!   not while a rebuild runs: sync fetches newest first, so until then each
+//!   sender's oldest message so far looks like its first. Its first contacts
+//!   and daily counts are kept meanwhile; its bursts are found when its last
+//!   mailbox is listed, or when a rebuild ends. A new generation of a
+//!   mailbox's ids makes its account unlisted, and its bursts go until it is
+//!   listed again.
 //! - A burst's messages that are `unknown` or `bulk` and listed form its
 //!   story ([`super::stories`]), in place of a queue entry or a stream story
 //!   each; a `known` sender's mail is never in one.
@@ -24,8 +36,12 @@
 //! only where they changed; each account's count for each day is counted
 //! again for the days that changed. An account's bursts are found again
 //! from all its first contacts only when a changed day could start or end
-//! one: when two days in a row near it hold [`LEAST`] or more, or a burst
-//! already lies there. Otherwise nothing is read.
+//! one: when two days in a row near it hold enough to pass the thresholds
+//! with the median counted from the daily counts alone, or a burst already
+//! lies there. Otherwise nothing more is read. Only the bursts that changed
+//! are written. A burst's id is its story's, made from its account and its
+//! first message's time: a burst that grows back in time takes a new one,
+//! and the old id is dropped by the next rebuild.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -46,33 +62,43 @@ pub const WINDOW: i64 = 24 * 60 * 60 * 1000;
 /// How many days before a window its median is taken over.
 pub const MEDIAN_DAYS: i64 = 90;
 
+/// How many of those days the account's history must cover for a window to
+/// be a burst.
+pub const COVERED_LEAST: i64 = 30;
+
 /// A day, in milliseconds.
 const DAY: i64 = 24 * 60 * 60 * 1000;
+
+/// An hour, in milliseconds: the margin around a burst that the known
+/// senders who wrote during it are read with.
+const HOUR: i64 = 60 * 60 * 1000;
 
 /// The `engine_state` key that marks a store whose mail was held before
 /// bursts existed: they are found when it is next opened.
 const FILL: &str = "burst-fill";
 
-/// Whether `sender` (a row of `sender`) is new to the person: they have not
-/// written to it or screened it in. A sender they know is not a stranger on
-/// its first message.
-const NEW_TO_THE_PERSON: &str = "sender.written = 0
+/// Whether the sender (a row of `sender`) of a message of `envelope` was
+/// new to the person when the message came: they had not written to it,
+/// nor screened it in, before. A sender they knew is no stranger.
+const NEW_WHEN_IT_CAME: &str = "(sender.first_written IS NULL
+          OR sender.first_written > envelope.received)
      AND NOT EXISTS (SELECT 1 FROM sender_decision
                      WHERE sender_decision.address = sender.address
-                       AND sender_decision.decision = 'in')";
+                       AND sender_decision.decision = 'in'
+                       AND sender_decision.decided_at < envelope.received)";
 
 /// A sender's first contacts as they should be: each of its messages the
 /// provider received within a day of its first, in each account that has
-/// shown it, while the sender is new to the person.
+/// shown it, while the sender was new to the person.
 fn desired_sql() -> String {
     format!(
         "SELECT DISTINCT mailbox.account_id, envelope.message_id, envelope.received
          FROM sender
          JOIN envelope ON envelope.sender_address = sender.address
-                      AND envelope.received < sender.first_received + 86400000
+                      AND envelope.received < sender.first_received + {WINDOW}
          JOIN observation ON observation.message_id = envelope.message_id
          JOIN mailbox ON mailbox.id = observation.mailbox_id
-         WHERE sender.address = ?1 AND {NEW_TO_THE_PERSON}"
+         WHERE sender.address = ?1 AND {NEW_WHEN_IT_CAME}"
     )
 }
 
@@ -101,6 +127,22 @@ const HELD: &str = "SELECT burst.id, burst.first, burst.last, burst_message.mess
      FROM burst JOIN burst_message ON burst_message.burst_id = burst.id
      WHERE burst.account_id = ?1";
 
+/// Where an account's history starts: its earliest first contact, or later
+/// the earliest one a junk or trash mailbox of it still holds.
+const COVERED_FROM: &str = "SELECT max(earliest) FROM (
+         SELECT min(received) AS earliest FROM first_contact WHERE account_id = ?1
+         UNION ALL
+         SELECT min(first_contact.received) FROM first_contact
+             JOIN observation ON observation.message_id = first_contact.message_id
+             JOIN mailbox ON mailbox.id = observation.mailbox_id
+         WHERE first_contact.account_id = ?1 AND mailbox.account_id = ?1
+           AND mailbox.role IN ('junk', 'trash')
+         GROUP BY mailbox.id)";
+
+/// Whether every mailbox of an account still there has been listed.
+const LISTED: &str = "SELECT NOT EXISTS (SELECT 1 FROM mailbox
+     WHERE account_id = ?1 AND gone_at IS NULL AND cursor IS NULL)";
+
 /// The day a time falls in.
 fn day_of(at: i64) -> i64 {
     at.div_euclid(DAY)
@@ -108,6 +150,11 @@ fn day_of(at: i64) -> i64 {
 
 /// A first contact: its account, message and when the provider received it.
 type Contact = (i64, i64, i64);
+
+/// Whether an account's bursts can be read: every mailbox it has is listed.
+fn listed(transaction: &Transaction<'_>, account: i64) -> Result<bool, StoreError> {
+    Ok(transaction.one(LISTED, [account], |row| row.get(0))?)
+}
 
 /// Computes again the first contacts of `senders`, the daily counts of the
 /// days that changed, and the bursts those could change. Returns the
@@ -171,68 +218,129 @@ pub(super) fn settle(
             )?;
         }
     }
-    // A changed day changes the windows that start the day before it or on
-    // it, and the medians of the windows that start in the days after it.
-    let mut ranges: BTreeMap<i64, (i64, i64)> = BTreeMap::new();
+    // A rebuild finds every account's bursts when it ends.
+    if super::derived::rebuild_cursor(transaction)?.is_some() {
+        return Ok(BTreeSet::new());
+    }
+    // Each account's changed days, in runs that lie near enough to share a
+    // window or a median.
+    let mut runs: BTreeMap<i64, Vec<(i64, i64)>> = BTreeMap::new();
     for (account, day) in &days {
-        let range = ranges.entry(*account).or_insert((*day, *day));
-        range.0 = range.0.min(*day);
-        range.1 = range.1.max(*day);
+        let account_runs = runs.entry(*account).or_default();
+        match account_runs.last_mut() {
+            Some(run) if *day <= run.1 + MEDIAN_DAYS + 2 => run.1 = *day,
+            _ => account_runs.push((*day, *day)),
+        }
     }
     let mut changed = BTreeSet::new();
-    for (account, (low, high)) in ranges {
-        let (from, to) = (low - 1, high + MEDIAN_DAYS);
-        if could_hold_a_burst(transaction, account, from, to + 1)?
-            || transaction.one(
-                BURST_NEAR,
-                params![account, from * DAY, (to + 2) * DAY],
-                |row| row.get::<_, bool>(0),
-            )?
-        {
-            changed.extend(find(transaction, account)?);
+    for (account, account_runs) in runs {
+        if !listed(transaction, account)? {
+            continue;
+        }
+        for (low, high) in account_runs {
+            if could_change_a_burst(transaction, account, low, high)? {
+                changed.extend(find(transaction, account)?);
+                break;
+            }
         }
     }
     Ok(changed)
 }
 
-/// Whether two days in a row from `from` to `to` hold [`LEAST`] first
-/// contacts or more: a window of a day spans two at most.
-fn could_hold_a_burst(
+/// Whether a change to an account's days from `low` to `high` could make,
+/// change or end a burst. It changes the windows that start the day before
+/// or on a changed day, and the medians of those that start in the
+/// [`MEDIAN_DAYS`] after; a window spans two days at most. With the median
+/// counted from the daily counts alone, days with no history counted as
+/// nothing, it is the lowest it can be, so a pair of days that does not
+/// pass it cannot pass the burst's own test.
+fn could_change_a_burst(
+    transaction: &Transaction<'_>,
+    account: i64,
+    low: i64,
+    high: i64,
+) -> Result<bool, StoreError> {
+    let near: bool = transaction.one(
+        BURST_NEAR,
+        params![account, (low - 1) * DAY, (high + MEDIAN_DAYS + 2) * DAY],
+        |row| row.get(0),
+    )?;
+    if near {
+        return Ok(true);
+    }
+    let counts = day_counts(
+        transaction,
+        account,
+        low - 1 - MEDIAN_DAYS,
+        high + MEDIAN_DAYS + 1,
+    )?;
+    let mut medians = Medians::new(&counts, i64::MIN);
+    Ok((low - 1..=high + MEDIAN_DAYS).any(|day| {
+        let pair =
+            counts.get(&day).copied().unwrap_or(0) + counts.get(&(day + 1)).copied().unwrap_or(0);
+        pair >= LEAST && (pair as f64) >= TIMES as f64 * medians.of(day).unwrap_or(0.0)
+    }))
+}
+
+/// An account's daily counts from `from` to `to`.
+fn day_counts(
     transaction: &Transaction<'_>,
     account: i64,
     from: i64,
     to: i64,
-) -> Result<bool, StoreError> {
-    let counts: BTreeMap<i64, i64> = transaction
+) -> Result<BTreeMap<i64, i64>, StoreError> {
+    Ok(transaction
         .prepare_cached(DAYS)?
         .query_map(params![account, from, to], |row| {
             Ok((row.get(0)?, row.get(1)?))
         })?
-        .collect::<Result<_, _>>()?;
-    Ok(counts.iter().any(|(day, messages)| {
-        messages + counts.get(&(day + 1)).copied().unwrap_or(0) >= LEAST
-            || messages + counts.get(&(day - 1)).copied().unwrap_or(0) >= LEAST
-    }))
+        .collect::<Result<_, _>>()?)
 }
 
-/// The median of an account's daily first contacts over the
-/// [`MEDIAN_DAYS`] days before `day`, days with none counted as nothing.
-fn median_before(counts: &BTreeMap<i64, i64>, day: i64) -> f64 {
-    let mut days: Vec<i64> = (day - MEDIAN_DAYS..day)
-        .map(|before| counts.get(&before).copied().unwrap_or(0))
-        .collect();
-    days.sort_unstable();
-    let middle = days.len() / 2;
-    if days.len().is_multiple_of(2) {
-        (days[middle - 1] + days[middle]) as f64 / 2.0
-    } else {
-        days[middle] as f64
+/// The medians of an account's daily first contacts over the days before
+/// each day, worked out once a day.
+struct Medians<'a> {
+    counts: &'a BTreeMap<i64, i64>,
+    /// The first day the account's history covers.
+    covered_from: i64,
+    known: BTreeMap<i64, Option<f64>>,
+}
+
+impl<'a> Medians<'a> {
+    fn new(counts: &'a BTreeMap<i64, i64>, covered_from: i64) -> Self {
+        Self {
+            counts,
+            covered_from,
+            known: BTreeMap::new(),
+        }
+    }
+
+    /// The median over the covered days of the [`MEDIAN_DAYS`] before `day`,
+    /// days with no first contact counted as nothing; `None` when fewer
+    /// than [`COVERED_LEAST`] of them are covered.
+    fn of(&mut self, day: i64) -> Option<f64> {
+        let (counts, covered_from) = (self.counts, self.covered_from);
+        *self.known.entry(day).or_insert_with(|| {
+            let mut days: Vec<i64> = ((day - MEDIAN_DAYS).max(covered_from)..day)
+                .map(|before| counts.get(&before).copied().unwrap_or(0))
+                .collect();
+            if i64::try_from(days.len()).unwrap_or(0) < COVERED_LEAST.min(MEDIAN_DAYS) {
+                return None;
+            }
+            days.sort_unstable();
+            let middle = days.len() / 2;
+            Some(if days.len().is_multiple_of(2) {
+                (days[middle - 1] + days[middle]) as f64 / 2.0
+            } else {
+                days[middle] as f64
+            })
+        })
     }
 }
 
 /// The bursts in an account's first contacts, in order: each its first and
 /// last time and its messages.
-fn bursts_in(contacts: &[(i64, i64)], counts: &BTreeMap<i64, i64>) -> Vec<(i64, i64, Vec<i64>)> {
+fn bursts_in(contacts: &[(i64, i64)], medians: &mut Medians<'_>) -> Vec<(i64, i64, Vec<i64>)> {
     let mut found: Vec<(usize, usize)> = Vec::new();
     let mut end = 0;
     for start in 0..contacts.len() {
@@ -244,7 +352,10 @@ fn bursts_in(contacts: &[(i64, i64)], counts: &BTreeMap<i64, i64>) -> Vec<(i64, 
         if held < LEAST {
             continue;
         }
-        if (held as f64) < TIMES as f64 * median_before(counts, day_of(contacts[start].0)) {
+        let Some(median) = medians.of(day_of(contacts[start].0)) else {
+            continue;
+        };
+        if (held as f64) < TIMES as f64 * median {
             continue;
         }
         match found.last_mut() {
@@ -268,29 +379,34 @@ fn bursts_in(contacts: &[(i64, i64)], counts: &BTreeMap<i64, i64>) -> Vec<(i64, 
         .collect()
 }
 
-/// Finds an account's bursts again from all its first contacts, and writes
-/// them where they changed. Returns the messages whose bursts changed.
+/// A burst as found: its first and last time and its messages.
+type Found = (i64, i64, BTreeSet<i64>);
+
+/// Finds an account's bursts again from all its first contacts, none when
+/// its mailboxes are not all listed, and writes those that changed.
+/// Returns the messages whose bursts changed.
 fn find(transaction: &Transaction<'_>, account: i64) -> Result<BTreeSet<i64>, StoreError> {
-    let contacts: Vec<(i64, i64)> = transaction
-        .prepare_cached(ALL)?
-        .query_map([account], |row| Ok((row.get(0)?, row.get(1)?)))?
-        .collect::<Result<_, _>>()?;
-    let counts: BTreeMap<i64, i64> = transaction
-        .prepare_cached(DAYS)?
-        .query_map(params![account, i64::MIN, i64::MAX], |row| {
-            Ok((row.get(0)?, row.get(1)?))
-        })?
-        .collect::<Result<_, _>>()?;
-    let mut new: BTreeMap<i64, (i64, i64, BTreeSet<i64>)> = BTreeMap::new();
-    for (first, last, messages) in bursts_in(&contacts, &counts) {
-        let key = format!("burst {account} {first}");
-        transaction.run("INSERT OR IGNORE INTO stream (key) VALUES (?1)", [&key])?;
-        let id: i64 = transaction.one("SELECT id FROM stream WHERE key = ?1", [&key], |row| {
-            row.get(0)
-        })?;
-        new.insert(id, (first, last, messages.into_iter().collect()));
+    let mut new: BTreeMap<i64, Found> = BTreeMap::new();
+    if listed(transaction, account)? {
+        let contacts: Vec<(i64, i64)> = transaction
+            .prepare_cached(ALL)?
+            .query_map([account], |row| Ok((row.get(0)?, row.get(1)?)))?
+            .collect::<Result<_, _>>()?;
+        let counts = day_counts(transaction, account, i64::MIN / DAY, i64::MAX / DAY)?;
+        let covered_from: Option<i64> =
+            transaction.one(COVERED_FROM, [account], |row| row.get(0))?;
+        let mut medians = Medians::new(&counts, covered_from.map_or(i64::MAX, day_of));
+        for (first, last, messages) in bursts_in(&contacts, &mut medians) {
+            let key = format!("burst {account} {first}");
+            transaction.run("INSERT OR IGNORE INTO stream (key) VALUES (?1)", [&key])?;
+            let id: i64 =
+                transaction.one("SELECT id FROM stream WHERE key = ?1", [&key], |row| {
+                    row.get(0)
+                })?;
+            new.insert(id, (first, last, messages.into_iter().collect()));
+        }
     }
-    let mut old: BTreeMap<i64, (i64, i64, BTreeSet<i64>)> = BTreeMap::new();
+    let mut old: BTreeMap<i64, Found> = BTreeMap::new();
     {
         let mut statement = transaction.prepare_cached(HELD)?;
         let rows = statement.query_map([account], |row| {
@@ -304,29 +420,23 @@ fn find(transaction: &Transaction<'_>, account: i64) -> Result<BTreeSet<i64>, St
                 .insert(message);
         }
     }
-    if old == new {
-        return Ok(BTreeSet::new());
-    }
-    let membership = |bursts: &BTreeMap<i64, (i64, i64, BTreeSet<i64>)>| {
-        bursts
-            .iter()
-            .flat_map(|(id, (_, _, messages))| messages.iter().map(move |message| (*message, *id)))
-            .collect::<BTreeMap<i64, i64>>()
-    };
-    let (was, is) = (membership(&old), membership(&new));
-    let changed: BTreeSet<i64> = was
-        .keys()
-        .chain(is.keys())
-        .filter(|message| was.get(message) != is.get(message))
-        .copied()
-        .collect();
-    for id in old.keys() {
-        transaction.run("DELETE FROM burst_message WHERE burst_id = ?1", [id])?;
-        transaction.run("DELETE FROM burst WHERE id = ?1", [id])?;
+    let mut changed = BTreeSet::new();
+    for (id, (_, _, messages)) in &old {
+        if !new.contains_key(id) {
+            transaction.run("DELETE FROM burst_message WHERE burst_id = ?1", [id])?;
+            transaction.run("DELETE FROM burst WHERE id = ?1", [id])?;
+            changed.extend(messages);
+        }
     }
     for (id, (first, last, messages)) in &new {
+        let was = old.get(id);
+        if was.is_some_and(|(f, l, m)| (f, l, m) == (first, last, messages)) {
+            continue;
+        }
         transaction.run(
-            "INSERT INTO burst (id, account_id, first, last, messages) VALUES (?1, ?2, ?3, ?4, ?5)",
+            "INSERT INTO burst (id, account_id, first, last, messages) VALUES (?1, ?2, ?3, ?4, ?5)
+             ON CONFLICT (id) DO UPDATE SET first = excluded.first, last = excluded.last,
+                 messages = excluded.messages",
             params![
                 id,
                 account,
@@ -335,14 +445,51 @@ fn find(transaction: &Transaction<'_>, account: i64) -> Result<BTreeSet<i64>, St
                 i64::try_from(messages.len()).unwrap_or(i64::MAX)
             ],
         )?;
-        for message in messages {
+        let held = was.map(|(_, _, held)| held.clone()).unwrap_or_default();
+        for message in held.difference(messages) {
+            transaction.run(
+                "DELETE FROM burst_message WHERE burst_id = ?1 AND message_id = ?2",
+                params![id, message],
+            )?;
+            changed.insert(*message);
+        }
+        for message in messages.difference(&held) {
             transaction.run(
                 "INSERT INTO burst_message (burst_id, message_id) VALUES (?1, ?2)",
                 params![id, message],
             )?;
+            changed.insert(*message);
         }
     }
     Ok(changed)
+}
+
+/// Finds every account's bursts again: when a rebuild ends, and from
+/// nothing. Returns the messages whose bursts changed.
+pub(super) fn find_all(transaction: &Transaction<'_>) -> Result<BTreeSet<i64>, StoreError> {
+    let accounts: Vec<i64> = transaction
+        .prepare("SELECT account_id FROM contact_day UNION SELECT account_id FROM burst")?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<_, _>>()?;
+    let mut changed = BTreeSet::new();
+    for account in accounts {
+        changed.extend(find(transaction, account)?);
+    }
+    Ok(changed)
+}
+
+/// After an account's mailbox has been listed: when every mailbox of the
+/// account now is, its bursts are found. And after a mailbox's ids start
+/// again: its account's bursts go until it is listed again. Returns the
+/// messages whose bursts changed.
+pub(super) fn listing_changed(
+    transaction: &Transaction<'_>,
+    account: i64,
+) -> Result<BTreeSet<i64>, StoreError> {
+    if super::derived::rebuild_cursor(transaction)?.is_some() {
+        return Ok(BTreeSet::new());
+    }
+    find(transaction, account)
 }
 
 /// Finds every first contact and every burst from nothing: what a store
@@ -359,29 +506,22 @@ pub(super) fn compose_all(transaction: &Transaction<'_>) -> Result<(), StoreErro
                     envelope.received
              FROM sender
              JOIN envelope ON envelope.sender_address = sender.address
-                          AND envelope.received < sender.first_received + 86400000
+                          AND envelope.received < sender.first_received + {WINDOW}
              JOIN observation ON observation.message_id = envelope.message_id
              JOIN mailbox ON mailbox.id = observation.mailbox_id
-             WHERE {NEW_TO_THE_PERSON};
+             WHERE {NEW_WHEN_IT_CAME};
          INSERT INTO contact_day (account_id, day, messages)
-             SELECT account_id, received / 86400000 - (received % 86400000 < 0), count(*)
+             SELECT account_id, received / {DAY} - (received % {DAY} < 0), count(*)
              FROM first_contact GROUP BY 1, 2;"
     ))?;
-    let accounts: Vec<i64> = transaction
-        .prepare("SELECT DISTINCT account_id FROM contact_day")?
-        .query_map([], |row| row.get(0))?
-        .collect::<Result<_, _>>()?;
-    for account in accounts {
-        if could_hold_a_burst(transaction, account, i64::MIN / DAY, i64::MAX / DAY)? {
-            find(transaction, account)?;
-        }
-    }
+    find_all(transaction)?;
     Ok(())
 }
 
 /// Finds the bursts of the mail a store held before they existed, once,
-/// when the store is opened after migration 10, and gives its stories again
-/// from them.
+/// when the store is opened after migration 10: each sender's row again
+/// first, for when the person first wrote to it, then the bursts, then the
+/// stories, which they change.
 pub(super) fn fill_if_marked(connection: &mut Connection) -> Result<(), StoreError> {
     let marked: bool = connection.query_row(
         "SELECT EXISTS (SELECT 1 FROM engine_state WHERE key = ?1)",
@@ -392,6 +532,7 @@ pub(super) fn fill_if_marked(connection: &mut Connection) -> Result<(), StoreErr
         return Ok(());
     }
     let transaction = connection.transaction()?;
+    super::senders::settle_every_sender(&transaction, super::wall_clock())?;
     compose_all(&transaction)?;
     super::stories::compose_all(&transaction, super::wall_clock())?;
     transaction.execute("DELETE FROM engine_state WHERE key = ?1", [FILL])?;
@@ -400,7 +541,7 @@ pub(super) fn fill_if_marked(connection: &mut Connection) -> Result<(), StoreErr
 }
 
 /// What a rebuild throws away of bursts: it finds them again a batch at a
-/// time.
+/// time, and every account's bursts when it ends.
 pub(super) const CLEAR: &str = "DELETE FROM burst_message;
      DELETE FROM burst;
      DELETE FROM contact_day;
@@ -418,7 +559,9 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("burst near", BURST_NEAR.to_string()),
         ("all", ALL.to_string()),
         ("held", HELD.to_string()),
-        ("known during", KNOWN_DURING.to_string()),
+        ("covered from", COVERED_FROM.to_string()),
+        ("listed", LISTED.to_string()),
+        ("known during", known_during_sql()),
         ("latest", LATEST.to_string()),
     ]
 }
@@ -430,7 +573,7 @@ pub struct BurstRow {
     pub id: i64,
     /// The account it was found in.
     pub account: i64,
-    /// When the provider received its first and last first contact.
+    /// When the provider received its first first contact.
     pub first: i64,
     /// When the provider received its last first contact.
     pub last: i64,
@@ -438,15 +581,24 @@ pub struct BurstRow {
     pub messages: u64,
 }
 
-/// The `known` senders an account's lists show mail from, dated within a
-/// burst: those a flood may have been sent to hide (7.4).
-const KNOWN_DURING: &str = "SELECT DISTINCT screening.sender_address FROM screening
-     WHERE screening.class = 'known' AND screening.listed = 1
-       AND screening.date >= ?2 AND screening.date <= ?3
-       AND EXISTS (SELECT 1 FROM observation JOIN mailbox ON mailbox.id = observation.mailbox_id
-                   WHERE observation.message_id = screening.message_id
-                     AND mailbox.account_id = ?1)
-     ORDER BY screening.sender_address";
+/// The `known` senders whose mail an account's lists show, received
+/// within an hour of a burst: those a flood may have been sent to hide
+/// (7.4). Read from the known mail dated within a day of it, whose received
+/// time is then compared.
+fn known_during_sql() -> String {
+    format!(
+        "SELECT DISTINCT screening.sender_address FROM screening
+         JOIN envelope ON envelope.message_id = screening.message_id
+         WHERE screening.class = 'known' AND screening.listed = 1
+           AND screening.date >= ?2 - {DAY} AND screening.date <= ?3 + {DAY}
+           AND envelope.received >= ?2 - {HOUR} AND envelope.received <= ?3 + {HOUR}
+           AND EXISTS (SELECT 1 FROM observation
+                       JOIN mailbox ON mailbox.id = observation.mailbox_id
+                       WHERE observation.message_id = screening.message_id
+                         AND mailbox.account_id = ?1)
+         ORDER BY screening.sender_address"
+    )
+}
 
 /// The bursts that ended at or after a time, the latest first.
 const LATEST: &str = "SELECT id, account_id, first, last, messages FROM burst
@@ -511,7 +663,7 @@ impl Store {
     pub fn known_during(&self, burst: &BurstRow) -> Result<Vec<String>, StoreError> {
         Ok(self
             .connection
-            .prepare_cached(KNOWN_DURING)?
+            .prepare_cached(&known_during_sql())?
             .query_map(params![burst.account, burst.first, burst.last], |row| {
                 row.get(0)
             })?

@@ -1116,6 +1116,10 @@ impl Store {
             self.commit_index()?;
             let transaction = self.connection.transaction()?;
             transaction.execute("DELETE FROM engine_state WHERE key = ?1", [REBUILD])?;
+            // Every account's bursts, which batches leave while a rebuild
+            // runs, and the stories they change.
+            let changed = super::bursts::find_all(&transaction)?;
+            super::stories::settle(&transaction, &changed, now)?;
             transaction.execute_batch(&super::stories::prune_sql())?;
             note_change(&transaction, now, "rebuilt", 0)?;
             transaction.commit()?;

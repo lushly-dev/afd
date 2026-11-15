@@ -1025,6 +1025,8 @@ fn every_story_query_reads_an_index() {
             }
             "members" | "streams" => "SEARCH screening USING INTEGER PRIMARY KEY",
             "newest in target" => "story_member_date (story_id=?",
+            "bursts in target" => "SEARCH burst USING INTEGER PRIMARY KEY",
+            "burst senders" => "story_member_date (story_id=?",
             "stream" => "USING COVERING INDEX sqlite_autoindex_stream_1 (key=?)",
             "prune" => "SCAN envelope",
             "exceptions of a shape" | "exceptions of a story" => "story_member_date (story_id=?",

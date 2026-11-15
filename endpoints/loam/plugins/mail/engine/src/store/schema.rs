@@ -530,6 +530,10 @@ pub(super) const MIGRATIONS: &[&str] = &[
     // the senders each batch touches. A store that held mail before has its bursts found once
     // when it is next opened.
     "
+    -- When the person first wrote to a sender: a sender they wrote to after its mail came was
+    -- new to them when it came (section 7.4). Filled with the bursts when the store is opened.
+    ALTER TABLE sender ADD COLUMN first_written INTEGER;
+
     -- A first contact: a message from a sender whose first message the provider received at
     -- most 24 hours before it, in each account whose mailboxes have shown it, junk and trash and
     -- what was deleted since included.

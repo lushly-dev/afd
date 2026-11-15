@@ -51,6 +51,17 @@ pub const USUAL_SHAPE: i64 = 5;
 /// message, a burst whatever its size. The index of stories by date holds
 /// these alone, so a query names them in these words.
 const SHOWN: &str = "(messages >= 5 OR kind = 'burst')";
+
+#[cfg(test)]
+#[test]
+fn the_shown_stories_are_those_of_the_index_and_the_least() {
+    assert_eq!(
+        LEAST_MESSAGES, 5,
+        "the words below and the index's are of five"
+    );
+    assert!(super::schema::MIGRATIONS[9].contains(&format!("WHERE {SHOWN};")));
+    assert!(SHOWN_JOINED.contains("story.messages >= 5"));
+}
 const SHOWN_JOINED: &str = "(story.messages >= 5 OR story.kind = 'burst')";
 
 /// How many of a story's kinds its card names, the most common first.
@@ -176,6 +187,12 @@ const NEWEST_IN_TARGET: &str = "SELECT DISTINCT story_member.story_id FROM temp.
          (SELECT newest.message_id FROM story_member AS newest
           WHERE newest.story_id = story_member.story_id
           ORDER BY newest.date DESC, newest.message_id DESC LIMIT 1)";
+
+/// The bursts a member of `temp.story_target` is in, whose titles count
+/// their senders: a message derived again may bring another.
+const BURSTS_IN_TARGET: &str = "SELECT DISTINCT story_member.story_id FROM temp.story_target
+     CROSS JOIN story_member ON story_member.message_id = story_target.message_id
+     JOIN burst ON burst.id = story_member.story_id";
 
 /// Whether a member of `story_member` is an exception: it has a body
 /// shape, its story has a usual one (its row counts them), and its own is
@@ -451,7 +468,16 @@ fn row_with(
             kind: "burst",
             list_id: String::new(),
             sender_address: String::new(),
-            title: format!("{} messages from {senders} new senders", counts.messages),
+            title: format!(
+                "{} {} from {senders} new {}",
+                counts.messages,
+                if counts.messages == 1 {
+                    "message"
+                } else {
+                    "messages"
+                },
+                if senders == 1 { "sender" } else { "senders" }
+            ),
             messages: counts.messages,
             exceptions: counts.exceptions,
             kinds: counts.kinds,
@@ -628,10 +654,10 @@ pub(super) fn settle(
         }
         deltas.count(&(now_in.0, now_in.1.clone(), now_in.2.clone(), false), 1);
     }
-    {
-        let mut statement = transaction.prepare_cached(NEWEST_IN_TARGET)?;
-        let newest = statement.query_map([], |row| row.get::<_, i64>(0))?;
-        for story in newest {
+    for sql in [NEWEST_IN_TARGET, BURSTS_IN_TARGET] {
+        let mut statement = transaction.prepare_cached(sql)?;
+        let stories = statement.query_map([], |row| row.get::<_, i64>(0))?;
+        for story in stories {
             deltas.stories.insert(story?);
         }
     }
@@ -954,6 +980,8 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("streams", streams_sql()),
         ("members", member_sql()),
         ("newest in target", NEWEST_IN_TARGET.to_string()),
+        ("bursts in target", BURSTS_IN_TARGET.to_string()),
+        ("burst senders", BURST_SENDERS.to_string()),
         ("prune", prune_sql()),
         ("stream", STREAM_ID.to_string()),
         ("exceptions of the target", except_sql(EXCEPT_TARGET)),

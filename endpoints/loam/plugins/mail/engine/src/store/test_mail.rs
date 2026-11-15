@@ -44,6 +44,10 @@ impl Mail {
         let inbox = mailbox("INBOX", Role::Inbox);
         let sent = mailbox("Sent Messages", Role::Sent);
         let archive = mailbox("Archive", Role::Archive);
+        // Listed, as sync leaves a mailbox it has gone through.
+        for listed in [inbox, sent, archive] {
+            store.set_cursor(listed, Some("listed"), NOW).unwrap();
+        }
         Self {
             _directory: directory,
             store,
@@ -55,8 +59,6 @@ impl Mail {
         }
     }
 
-    /// Records a message's headers in `mailbox`. `fields` are header lines
-    /// after `From`, `Message-ID`, the date and the subject, `s<number>`.
     /// The same mail with its store closed and opened again, as a program
     /// that stops and starts does.
     pub(super) fn reopen(self) -> Self {
@@ -82,6 +84,8 @@ impl Mail {
         }
     }
 
+    /// Records a message's headers in `mailbox`. `fields` are header lines
+    /// after `From`, `Message-ID`, the date and the subject, `s<number>`.
     pub(super) fn add(&mut self, mailbox: MailboxId, from: &str, fields: &[&str]) -> MessageId {
         self.add_seen(mailbox, from, fields).0
     }
@@ -165,8 +169,10 @@ impl Mail {
             .unwrap()
     }
 
+    /// A mailbox, listed as sync leaves one it has gone through.
     pub(super) fn mailbox(&mut self, key: &'static str, role: Role) -> MailboxId {
-        self.store
+        let mailbox = self
+            .store
             .upsert_mailbox(
                 self.account,
                 &MailboxSeen {
@@ -176,7 +182,9 @@ impl Mail {
                 },
                 NOW,
             )
-            .unwrap()
+            .unwrap();
+        self.store.set_cursor(mailbox, Some("listed"), NOW).unwrap();
+        mailbox
     }
 
     pub(super) fn decide(&mut self, address: &str, decision: Option<Decision>) -> Decided {

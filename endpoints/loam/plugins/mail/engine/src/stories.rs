@@ -116,7 +116,6 @@ pub(crate) fn burst_json(burst: &BurstRow, known: &[String]) -> Value {
         "first": burst.first,
         "last": burst.last,
         "firstContacts": burst.messages,
-        "flagged": !known.is_empty(),
         "knownDuring": known.iter().map(|address| sender_id(address)).collect::<Vec<_>>(),
         "content": content(json!({ "knownDuring": known })),
     })

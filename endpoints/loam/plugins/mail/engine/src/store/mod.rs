@@ -22,7 +22,8 @@ mod sync;
 mod tokens;
 
 pub use bursts::{
-    BurstRow, LEAST as BURST_LEAST, MEDIAN_DAYS, TIMES as BURST_TIMES, WINDOW as BURST_WINDOW,
+    BurstRow, COVERED_LEAST, LEAST as BURST_LEAST, MEDIAN_DAYS, TIMES as BURST_TIMES,
+    WINDOW as BURST_WINDOW,
 };
 pub use classes::{Class, ClassCounts, Readiness};
 pub use decisions::{
@@ -546,6 +547,14 @@ impl Store {
             "UPDATE mailbox SET validity = ?2, cursor = NULL WHERE id = ?1",
             params![mailbox.0, validity],
         )?;
+        // Its account is no longer listed: its bursts go until it is.
+        let account: i64 = transaction.one(
+            "SELECT account_id FROM mailbox WHERE id = ?1",
+            [mailbox.0],
+            |row| row.get(0),
+        )?;
+        let changed = bursts::listing_changed(&transaction, account)?;
+        stories::settle(&transaction, &changed, now)?;
         transaction.commit()?;
         Ok(true)
     }
@@ -560,15 +569,29 @@ impl Store {
         cursor: Option<&str>,
         now: i64,
     ) -> Result<(), StoreError> {
-        let changed = self.connection.execute(
+        let transaction = self.connection.transaction()?;
+        let before: Option<(Option<String>, i64)> = transaction
+            .one(
+                "SELECT cursor, account_id FROM mailbox WHERE id = ?1",
+                [mailbox.0],
+                |row| Ok((row.get(0)?, row.get(1)?)),
+            )
+            .optional()?;
+        let Some((was, account)) = before else {
+            return Err(StoreError::NotFound("mailbox"));
+        };
+        transaction.run(
             "UPDATE mailbox SET cursor = ?2, last_pass_at = ?3, last_error = NULL WHERE id = ?1",
             params![mailbox.0, cursor, now],
         )?;
-        if changed == 0 {
-            Err(StoreError::NotFound("mailbox"))
-        } else {
-            Ok(())
+        // A mailbox listed for the first time, or no longer, may make its
+        // account's bursts readable, or not (7.4).
+        if was.is_none() != cursor.is_none() {
+            let changed = bursts::listing_changed(&transaction, account)?;
+            stories::settle(&transaction, &changed, now)?;
         }
+        transaction.commit()?;
+        Ok(())
     }
 
     /// Records why a mailbox's last pass failed, in the engine's own words:

@@ -12,8 +12,9 @@ use serde_json::{Value, json};
 use support::imap::World;
 use support::synced::{Fixture, assert_labelled, mail};
 
-/// A friend the person wrote to; forty new senders within the hour; the
-/// friend writing during it; and a stranger a week before.
+/// A friend the person wrote to; a list months before; forty new senders
+/// within the hour; the friend writing during it; and a stranger a week
+/// before.
 fn world(world: &mut World) {
     world.mailbox("INBOX", &[]);
     world.mailbox("Sent Messages", &["\\Sent"]);
@@ -23,6 +24,13 @@ fn world(world: &mut World) {
         mail("person@example.com", "p1", "To: friend@example.org\r\n"),
         &["\\Seen"],
         " 1-Mar-2026 09:00:00 +0000",
+    );
+    // A history: the months before the flood are known to be quiet.
+    world.add_received(
+        "INBOX",
+        mail("news@example.net", "h1", "List-Id: <news.example.net>\r\n"),
+        &[],
+        " 2-Jan-2026 09:00:00 +0000",
     );
     world.add_received(
         "INBOX",
@@ -71,9 +79,18 @@ fn a_flood_is_one_flagged_story_in_place_of_its_queue_entries() {
     assert_eq!(screening["queue"], json!({ "messages": 1, "senders": 1 }));
     let bursts = &screening["bursts"];
     assert_eq!(bursts["total"], 1, "{bursts}");
-    let burst = &bursts["latest"][0];
+    // March 2026 is long before the engine's own clock in this test: the
+    // burst counts in all time, not in the last 30 days.
+    assert_eq!(bursts["latelyTotal"], 0, "{bursts}");
+    let opened_story = fixture.ok("mail-story-list", json!({}));
+    let burst = opened_story["stories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|story| story["by"] == "burst")
+        .expect("a burst story")["burst"]
+        .clone();
     assert_eq!(burst["firstContacts"], 40);
-    assert_eq!(burst["flagged"], true, "the friend wrote during it");
     assert_eq!(
         burst["knownDuring"],
         json!([sender_id("friend@example.org")])
@@ -84,7 +101,14 @@ fn a_flood_is_one_flagged_story_in_place_of_its_queue_entries() {
     );
 
     // Its story: one card for the forty, listed with the others.
-    let story = burst["story"].as_i64().unwrap();
+    let story = opened_story["stories"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .find(|story| story["by"] == "burst")
+        .unwrap()["story"]
+        .as_i64()
+        .unwrap();
     let opened = fixture.ok("mail-story-open", json!({ "story": story, "limit": 5 }));
     assert_eq!(opened["story"]["kind"], "burst");
     assert_eq!(opened["story"]["by"], "burst");
@@ -93,10 +117,12 @@ fn a_flood_is_one_flagged_story_in_place_of_its_queue_entries() {
         opened["story"]["content"]["title"],
         "40 messages from 40 new senders"
     );
-    assert_eq!(opened["story"]["burst"]["flagged"], true);
+    assert_eq!(
+        opened["story"]["burst"]["knownDuring"],
+        json!([sender_id("friend@example.org")]),
+        "the friend wrote during it"
+    );
     assert_eq!(opened["messages"][0]["class"], "unknown");
-    let listed = fixture.ok("mail-story-list", json!({}));
-    assert_eq!(listed["stories"][0]["story"], story);
 
     // The unknown list holds the stranger alone; the friend is in the inbox.
     let unknown = fixture.ok("mail-message-list", json!({ "class": "unknown" }));

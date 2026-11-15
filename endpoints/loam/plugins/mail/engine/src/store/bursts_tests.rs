@@ -13,8 +13,34 @@ const HOUR: i64 = 60 * 60 * 1000;
 const FLOOD: i64 = BASE + 500 * DAY;
 
 impl Mail {
+    /// Mail with a history: one message from a list four months before the
+    /// floods, so that the days before them are known to be quiet. A flood
+    /// in an account's first month is not read as one (7.4).
+    fn with_history() -> Self {
+        let mut mail = Self::new();
+        let archive = mail.archive;
+        mail.add_at(
+            archive,
+            "history@example.org",
+            &["List-Id: <history.example>"],
+            FLOOD - 120 * DAY,
+        );
+        mail
+    }
+
     /// Records a message's headers in `mailbox`, received at `at`.
     fn add_at(&mut self, mailbox: MailboxId, from: &str, fields: &[&str], at: i64) -> MessageId {
+        self.add_at_seen(mailbox, from, fields, at).0
+    }
+
+    /// As [`Mail::add_at`], with what the provider listed.
+    fn add_at_seen(
+        &mut self,
+        mailbox: MailboxId,
+        from: &str,
+        fields: &[&str],
+        at: i64,
+    ) -> (MessageId, HeaderSeen) {
         let number = self.next;
         self.next += 1;
         let mut seen = header(number, from, fields);
@@ -36,10 +62,12 @@ impl Mail {
         self.store
             .record_headers(mailbox, "", std::slice::from_ref(&seen), NOW)
             .unwrap();
-        self.store
+        let message = self
+            .store
             .find_message(&seen.header_block, seen.reported_size)
             .unwrap()
-            .unwrap()
+            .unwrap();
+        (message, seen)
     }
 
     /// `n` messages from `n` new senders, a minute apart from `at`, each
@@ -79,7 +107,7 @@ impl Mail {
 
 #[test]
 fn a_flood_of_new_senders_is_one_burst_in_place_of_their_queue_entries() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     let flood = mail.flood(inbox, "s", &[], 40, FLOOD);
     let bursts = mail.bursts();
@@ -112,7 +140,7 @@ fn a_flood_of_new_senders_is_one_burst_in_place_of_their_queue_entries() {
 
 #[test]
 fn twenty_nine_in_a_day_is_no_burst() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     mail.flood(inbox, "s", &[], 29, FLOOD);
     assert!(mail.bursts().is_empty());
@@ -129,7 +157,7 @@ fn twenty_nine_in_a_day_is_no_burst() {
 
 #[test]
 fn a_busy_account_needs_ten_times_its_median_day() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     // Five new senders a day for the ninety days before: a median of five.
     for day in 1..=90 {
@@ -149,7 +177,7 @@ fn a_busy_account_needs_ten_times_its_median_day() {
 
 #[test]
 fn list_mail_in_a_burst_is_its_story_and_in_no_stream_story() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     // Sign-up confirmations: each a new sender, all through one list.
     let signups = mail.flood(inbox, "s", &["List-Id: <signup.example>"], 35, FLOOD);
@@ -160,11 +188,12 @@ fn list_mail_in_a_burst_is_its_story_and_in_no_stream_story() {
     // the flood was one, but is no story.
     let stream = mail.store.list_story("signup.example").unwrap().unwrap();
     assert_eq!(mail.store.story(stream).unwrap(), None, "no stream of them");
-    assert!(
+    assert_eq!(
         mail.store
             .class_messages(Class::Bulk, None, 50)
             .unwrap()
-            .is_empty(),
+            .len(),
+        1,
         "in place of a row each"
     );
     // Later list mail, after the flood, is the list's stream again.
@@ -183,7 +212,7 @@ fn list_mail_in_a_burst_is_its_story_and_in_no_stream_story() {
 
 #[test]
 fn a_known_sender_is_never_in_a_burst_and_the_flag_names_it() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let (inbox, sent) = (mail.inbox, mail.sent);
     mail.add(sent, PERSON, &["To: bank@example.org"]);
     let flood = mail.flood(inbox, "s", &[], 40, FLOOD);
@@ -211,8 +240,10 @@ fn a_known_sender_is_never_in_a_burst_and_the_flag_names_it() {
 
 #[test]
 fn a_flood_in_junk_is_a_burst_with_no_story() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let junk = mail.mailbox("Junk", Role::Junk);
+    // Junk that holds months, as a provider that keeps it does.
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 100 * DAY);
     mail.flood(junk, "s", &[], 35, FLOOD);
     let bursts = mail.bursts();
     assert_eq!(
@@ -226,7 +257,7 @@ fn a_flood_in_junk_is_a_burst_with_no_story() {
 
 #[test]
 fn floods_that_overlap_are_one_burst_and_those_apart_two() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     mail.flood(inbox, "a", &[], 30, FLOOD);
     mail.flood(inbox, "b", &[], 30, FLOOD + 20 * HOUR);
@@ -243,8 +274,9 @@ fn floods_that_overlap_are_one_burst_and_those_apart_two() {
 
 #[test]
 fn a_rebuild_finds_the_same_bursts() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let (inbox, junk) = (mail.inbox, mail.mailbox("Junk", Role::Junk));
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 100 * DAY);
     mail.flood(inbox, "a", &["List-Id: <signup.example>"], 20, FLOOD);
     mail.flood(junk, "b", &[], 20, FLOOD + HOUR);
     mail.flood(inbox, "c", &[], 25, FLOOD + 40 * DAY);
@@ -259,7 +291,7 @@ fn a_rebuild_finds_the_same_bursts() {
 
 #[test]
 fn a_store_that_held_mail_before_bursts_has_them_when_opened() {
-    let mut mail = Mail::new();
+    let mut mail = Mail::with_history();
     let inbox = mail.inbox;
     let flood = mail.flood(inbox, "s", &[], 40, FLOOD);
     let bursts = mail.bursts();
@@ -282,6 +314,304 @@ fn a_store_that_held_mail_before_bursts_has_them_when_opened() {
         "SELECT count(*) FROM engine_state WHERE key = 'burst-fill'",
     );
     assert_eq!(marks, [vec![Value::Integer(0)]]);
+}
+
+#[test]
+fn mail_that_comes_after_a_burst_and_is_older_can_end_it() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    mail.flood(inbox, "a", &["List-Id: <news.example>"], 40, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    // Sync fetches newest first: the months before come later, and show the
+    // account was never quiet.
+    for day in 1..=90 {
+        mail.flood(inbox, &format!("d{day}x"), &[], 5, FLOOD - day * DAY);
+    }
+    assert!(mail.bursts().is_empty(), "forty is not ten times five");
+    // The list's mail is its stream's again.
+    let stream = mail.store.list_story("news.example").unwrap().unwrap();
+    assert_eq!(mail.store.story(stream).unwrap().unwrap().messages, 40);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_flood_across_midnight_is_one_burst() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    let midnight = FLOOD.div_euclid(DAY) * DAY + DAY;
+    mail.flood(inbox, "s", &[], 40, midnight - 20 * 60_000);
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    assert_eq!(bursts[0].messages, 40);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn bursts_wait_for_an_account_to_be_listed() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    // A mailbox still being listed: its account's oldest mail may be to come.
+    let new = mail
+        .store
+        .upsert_mailbox(
+            mail.account,
+            &MailboxSeen {
+                provider_key: "New",
+                name: "New",
+                role: Role::None,
+            },
+            NOW,
+        )
+        .unwrap();
+    mail.flood(inbox, "s", &[], 40, FLOOD);
+    assert!(mail.bursts().is_empty());
+    assert_eq!(mail.store.queue_counts().unwrap(), (40, 40));
+    mail.assert_as_from_nothing();
+    mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+    assert_eq!(mail.bursts().len(), 1);
+    assert_eq!(mail.store.queue_counts().unwrap(), (0, 0));
+    // A new generation of a mailbox's ids: its account is listed again first.
+    mail.store.set_validity(new, "2", NOW).unwrap();
+    assert!(mail.bursts().is_empty());
+    mail.assert_as_from_nothing();
+    mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_message_two_accounts_hold_is_in_the_story_of_its_earliest_burst() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    let other = mail
+        .store
+        .add_account("icloud", "other@example.com", NOW)
+        .unwrap();
+    let other_inbox = mail
+        .store
+        .upsert_mailbox(
+            other,
+            &MailboxSeen {
+                provider_key: "INBOX",
+                name: "INBOX",
+                role: Role::Inbox,
+            },
+            NOW,
+        )
+        .unwrap();
+    mail.store
+        .set_cursor(other_inbox, Some("listed"), NOW)
+        .unwrap();
+    // Its own history, months before.
+    let archive = mail.archive;
+    let (_, mut history) = mail.add_at_seen(
+        archive,
+        "old@example.org",
+        &["List-Id: <old.example>"],
+        FLOOD - 130 * DAY,
+    );
+    history.provider_id = "oh".to_string();
+    mail.store
+        .record_headers(other_inbox, "", std::slice::from_ref(&history), NOW)
+        .unwrap();
+    // Forty messages, each in both accounts.
+    let mut flood = Vec::new();
+    for i in 0..40 {
+        let (message, mut seen) = mail.add_at_seen(
+            inbox,
+            &format!("s{i}@flood.example"),
+            &[],
+            FLOOD + i * 60_000,
+        );
+        seen.provider_id = format!("o{i}");
+        mail.store
+            .record_headers(other_inbox, "", std::slice::from_ref(&seen), NOW)
+            .unwrap();
+        flood.push(message);
+    }
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 2, "one in each account");
+    let earliest = bursts
+        .iter()
+        .map(|burst| (burst.first, burst.id))
+        .min()
+        .unwrap()
+        .1;
+    assert_eq!(mail.story_of(flood[0]), Some(earliest));
+    let other_burst = bursts.iter().find(|burst| burst.id != earliest).unwrap();
+    assert_eq!(
+        mail.store.story(other_burst.id).unwrap(),
+        None,
+        "its mail is the earliest burst's"
+    );
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_sender_screened_in_before_a_flood_is_not_new_and_one_after_still_counts() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    // Screened in before the flood: no stranger then.
+    mail.store
+        .decide("s0@flood.example", Some(Decision::In), FLOOD - DAY)
+        .unwrap();
+    let flood = mail.flood(inbox, "s", &[], 40, FLOOD);
+    assert_eq!(mail.bursts()[0].messages, 39);
+    // Screened in after it: its mail leaves the story, yet still counts.
+    mail.store
+        .decide("s1@flood.example", Some(Decision::In), FLOOD + DAY)
+        .unwrap();
+    assert_eq!(mail.class(flood[1]).as_deref(), Some("known"));
+    assert_eq!(mail.story_of(flood[1]), None);
+    let burst = mail.bursts()[0].clone();
+    assert_eq!(burst.messages, 39);
+    assert_eq!(mail.store.story(burst.id).unwrap().unwrap().messages, 38);
+    // An address the person says is theirs is no sender at all.
+    mail.store
+        .decide("s2@flood.example", Some(Decision::Mine), FLOOD + DAY)
+        .unwrap();
+    assert_eq!(mail.bursts()[0].messages, 38);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_mailbox_that_turns_sent_makes_its_senders_the_person_s() {
+    let mut mail = Mail::with_history();
+    let account = mail.account;
+    let other = mail.mailbox("Other", Role::None);
+    mail.flood(other, "s", &[], 40, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.store
+        .upsert_mailbox(
+            account,
+            &MailboxSeen {
+                provider_key: "Other",
+                name: "Other",
+                role: Role::Sent,
+            },
+            NOW,
+        )
+        .unwrap();
+    assert!(
+        mail.bursts().is_empty(),
+        "the person's own mail is no flood"
+    );
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_message_derived_again_with_another_time_leaves_the_burst() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    let flood = mail.flood(inbox, "s", &[], 31, FLOOD);
+    assert_eq!(mail.bursts()[0].messages, 31);
+    let transaction = mail.store.connection.transaction().unwrap();
+    for message in &flood[..2] {
+        transaction
+            .execute(
+                "UPDATE envelope SET received = received + 30 * 86400000 WHERE message_id = ?1",
+                [message.0],
+            )
+            .unwrap();
+    }
+    let senders = std::collections::BTreeSet::from([
+        "s0@flood.example".to_string(),
+        "s1@flood.example".to_string(),
+    ]);
+    super::senders::settle_senders(&transaction, &senders, NOW).unwrap();
+    classes::settle(
+        &transaction,
+        &classes::Reclassify {
+            messages: Some(&flood[..2].iter().map(|message| message.0).collect()),
+            contacts: Some(&senders),
+            ..Default::default()
+        },
+        NOW,
+    )
+    .unwrap();
+    transaction.commit().unwrap();
+    assert!(mail.bursts().is_empty(), "twenty-nine left in the day");
+    mail.assert_as_from_nothing();
+}
+
+/// A small deterministic generator, so a failing run can be repeated.
+struct Steps(u64);
+
+impl Steps {
+    fn below(&mut self, n: u64) -> u64 {
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (self.0 >> 33) % n
+    }
+}
+
+#[test]
+fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
+    for seed in [1_u64, 2, 3] {
+        let mut mail = Mail::with_history();
+        let mut steps = Steps(seed);
+        let (inbox, archive, sent) = (mail.inbox, mail.archive, mail.sent);
+        let junk = mail.mailbox("Junk", Role::Junk);
+        let restarting = mail.mailbox("Restarting", Role::None);
+        mail.add_at(junk, "spam@example.biz", &[], FLOOD - 100 * DAY);
+        let mut floods = 0;
+        for step in 0..40_u32 {
+            match steps.below(8) {
+                0..=2 => {
+                    // A flood, some of it through a list, some of it junk.
+                    let mailbox = [inbox, inbox, junk][steps.below(3) as usize];
+                    let fields: &[&str] = if steps.below(2) == 0 {
+                        &["List-Id: <news.example>"]
+                    } else {
+                        &[]
+                    };
+                    let at = FLOOD + i64::from(steps.below(60) as u8) * DAY;
+                    let n = 10 + steps.below(30) as i64;
+                    mail.flood(mailbox, &format!("f{floods}x"), fields, n, at);
+                    floods += 1;
+                }
+                3 => {
+                    // Quiet days before, as newest-first sync brings them.
+                    let day = 1 + steps.below(90) as i64;
+                    mail.flood(archive, &format!("q{step}x"), &[], 3, FLOOD - day * DAY);
+                }
+                4 if floods > 0 => {
+                    let address =
+                        format!("f{}x{}@flood.example", steps.below(floods), steps.below(10));
+                    let decision = match steps.below(3) {
+                        0 => Some(Decision::In),
+                        1 => Some(Decision::Mine),
+                        _ => None,
+                    };
+                    let at = FLOOD + i64::from(steps.below(90) as u8) * DAY;
+                    mail.store.decide(&address, decision, at).unwrap();
+                }
+                5 if floods > 0 => {
+                    // The person writes to one of them.
+                    let address =
+                        format!("f{}x{}@flood.example", steps.below(floods), steps.below(10));
+                    mail.add(sent, PERSON, &[&format!("To: {address}")]);
+                }
+                6 => {
+                    // A mailbox's ids start again, and it is listed again.
+                    mail.store
+                        .set_validity(restarting, &format!("{step}"), NOW)
+                        .unwrap();
+                    mail.assert_as_from_nothing();
+                    mail.store
+                        .set_cursor(restarting, Some("listed"), NOW)
+                        .unwrap();
+                }
+                7 if step % 20 == 0 => {
+                    mail.store.rebuild(NOW, |_| {}).unwrap();
+                }
+                _ => {}
+            }
+            mail.assert_as_from_nothing();
+        }
+    }
 }
 
 #[test]
@@ -316,6 +646,8 @@ fn every_burst_query_reads_an_index() {
             "burst near" | "held" => "burst_account (account_id=?",
             "known during" => "screening_listed (class=? AND date>? AND date<?)",
             "latest" => "burst_latest",
+            "covered from" => "first_contact_received (account_id=?",
+            "listed" => "",
             other => panic!("no plan expected for {other}"),
         };
         if !plan.contains(expected) {
