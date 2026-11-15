@@ -4,10 +4,12 @@
  */
 
 import { randomBytes } from 'node:crypto';
-import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import type { CommandMiddleware, JournalSink } from '@lushly-dev/afd-core';
+import { FileJournalSink } from '@lushly-dev/afd-core/journal-file';
 import {
 	createApprovalMiddleware,
-	createLoggingMiddleware,
+	createJournalMiddleware,
+	defaultMiddleware,
 	type McpHandlerOptions,
 } from '@lushly-dev/afd-server';
 import { summarizeClear } from './commands/clear.js';
@@ -87,18 +89,34 @@ export function resolveApprovalSecret(env: Env): string | Uint8Array {
 	return secret;
 }
 
+/** What the server is built with besides the environment, for tests and the replay module. */
+export interface TodoServerDeps {
+	/**
+	 * Where the journal goes. Default: a JSON Lines file at `TODO_JOURNAL` when it is set,
+	 * else no journal.
+	 */
+	journal?: JournalSink;
+}
+
 /**
- * The middleware, outermost first: logging; then the approval hold, so a held call never runs;
- * then the change history, which records each change that did run.
+ * The middleware, outermost first:
+ *
+ * 1. `defaultMiddleware()`: a trace ID for each call, logging (with inputs and results in dev
+ *    mode or at `LOG_LEVEL=debug`) and a warning for slow calls.
+ * 2. The approval hold, so a held call never runs.
+ * 3. The journal, when there is one: it records each call that got past the hold, failures
+ *    included, with the clock and random values the call read, so `afd replay` can run the
+ *    session again. A held call is not recorded: its result carries an approval token and an
+ *    expiry from the approval middleware's own clock, which no replay can reproduce and a
+ *    journal should not keep. Once approved, the call is recorded like any other.
+ * 4. The change history, which records each change that did run.
  */
-export function createTodoMiddleware(env: Env): CommandMiddleware[] {
+export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): CommandMiddleware[] {
 	const devMode = env.NODE_ENV === 'development';
 	const logLevel = env.LOG_LEVEL ?? 'info';
-	const middleware: CommandMiddleware[] = [
-		devMode || logLevel === 'debug'
-			? createLoggingMiddleware({ logInput: true, logResult: true })
-			: createLoggingMiddleware(),
-	];
+	const middleware: CommandMiddleware[] = defaultMiddleware({
+		logging: devMode || logLevel === 'debug' ? { logInput: true, logResult: true } : {},
+	});
 	if (resolveApprovals(env) === 'agents') {
 		middleware.push(
 			createApprovalMiddleware({
@@ -109,6 +127,16 @@ export function createTodoMiddleware(env: Env): CommandMiddleware[] {
 				relay: 'mcp-elicitation',
 				summarize: (command, input) =>
 					command === 'todo-clear' ? summarizeClear(input) : undefined,
+			})
+		);
+	}
+	const journal =
+		deps.journal ?? (env.TODO_JOURNAL ? new FileJournalSink(env.TODO_JOURNAL) : undefined);
+	if (journal) {
+		middleware.push(
+			createJournalMiddleware(journal, {
+				recordFailures: true,
+				onError: (error) => console.error('[Journal]', error.message),
 			})
 		);
 	}
@@ -123,7 +151,7 @@ export function createTodoMiddleware(env: Env): CommandMiddleware[] {
  * accepts any browser origin. Otherwise only same-origin requests and the
  * origins from {@link resolveAllowedOrigins} are accepted.
  */
-export function createTodoServerOptions(env: Env): McpHandlerOptions {
+export function createTodoServerOptions(env: Env, deps: TodoServerDeps = {}): McpHandlerOptions {
 	const devMode = env.NODE_ENV === 'development';
 	const logLevel = env.LOG_LEVEL ?? 'info';
 
@@ -144,7 +172,7 @@ export function createTodoServerOptions(env: Env): McpHandlerOptions {
 		// Registers afd-context-list, -enter and -exit (src/contexts.ts).
 		contexts: TODO_CONTEXTS,
 
-		middleware: createTodoMiddleware(env),
+		middleware: createTodoMiddleware(env, deps),
 
 		// Log command execution
 		onCommand(command, input, result) {

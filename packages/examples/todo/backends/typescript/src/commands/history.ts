@@ -60,7 +60,7 @@ export const getHistory = defineCommand<typeof inputSchema, HistoryResult>({
 	// A literal, so tools that read descriptions without running code (alfred) see it; it states
 	// HISTORY_LIMIT, which undo.test.ts checks.
 	description:
-		'See the recent changes to the todos, newest first: what changed, who changed it, when, and the undo command and arguments for each change that is still the latest to its todos. Keeps the latest 1000 changes',
+		'List the recent changes to the todos, newest first: what changed, who changed it, when, and the undo command and arguments for each change that is still the latest to its todos. Keeps the latest 1000 changes',
 	category: 'todo',
 	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },

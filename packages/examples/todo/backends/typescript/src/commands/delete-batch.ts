@@ -8,6 +8,7 @@ import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
+import { BatchSummarySchema, FailedByIdSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import { stampFrom, todoNotFound } from './shared.js';
 
@@ -48,8 +49,9 @@ export interface BatchDeleteResult {
 
 export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>({
 	name: 'todo-delete-batch',
+	title: 'Delete several todos',
 	description:
-		'Delete multiple todos at once. They are kept with the deleted todos, and todo-restore brings them back until todo-clear empties them',
+		'Remove up to 100 todos in one call, reporting each id that fails. They stay restorable with todo-restore until todo-clear empties the deleted todos',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
@@ -63,6 +65,17 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],
 
+	output: z.object({
+		deletedIds: z.string().array(),
+		failed: FailedByIdSchema.array(),
+		summary: BatchSummarySchema,
+	}),
+	examples: [
+		{
+			title: 'Delete two todos',
+			input: { ids: ['todo-1700000000000-abc1234', 'todo-1700000000000-def5678'] },
+		},
+	],
 	async handler(input, context) {
 		const now = stampFrom(context).now;
 		const deletedIds: string[] = [];

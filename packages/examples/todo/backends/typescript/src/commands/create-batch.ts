@@ -9,6 +9,7 @@ import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
+import { BatchSummarySchema, FailedCreateSchema, TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 import { stampFrom } from './shared.js';
@@ -59,6 +60,7 @@ export interface BatchCreateResult {
 
 export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>({
 	name: 'todo-create-batch',
+	title: 'Create several todos',
 	description: 'Create multiple todos at once with partial failure support',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
@@ -71,6 +73,19 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 	input: inputSchema,
 	errors: ['VALIDATION_ERROR', 'PARTIAL_FAILURE'],
 
+	output: z.object({
+		succeeded: TodoSchema.array(),
+		failed: FailedCreateSchema.array(),
+		summary: BatchSummarySchema,
+	}),
+	examples: [
+		{
+			title: 'Two todos at once',
+			input: {
+				todos: [{ title: 'Net the brassicas' }, { title: 'Sow the broad beans', priority: 'low' }],
+			},
+		},
+	],
 	async handler(input, context) {
 		const stamp = stampFrom(context);
 		const succeeded: Todo[] = [];

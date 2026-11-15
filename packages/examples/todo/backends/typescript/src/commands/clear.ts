@@ -61,6 +61,7 @@ export function summarizeClear(input: unknown): string {
 
 export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	name: 'todo-clear',
+	title: 'Clear todos for good',
 	description:
 		'Remove todos for good: completed ones, or the deleted todos with deleted: true, or every todo with all: true. A caller that is not a person waits for a person to approve',
 	category: 'todo',
@@ -77,6 +78,11 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	version: '1.0.0',
 	input: inputSchema,
 
+	output: z.object({ cleared: z.number(), remaining: z.number(), clearedIds: z.string().array() }),
+	examples: [
+		{ title: 'Remove the completed todos', input: {} },
+		{ title: 'Empty the deleted todos', input: { deleted: true } },
+	],
 	async handler(input) {
 		const what = scope(input);
 		const result =

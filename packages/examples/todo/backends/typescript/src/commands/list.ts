@@ -37,6 +37,7 @@ export interface ListResult {
 
 export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	name: 'todo-list',
+	title: 'List todos',
 	description: 'List todos with optional filtering and pagination',
 	category: 'todo',
 	contexts: TODO_READ_CONTEXTS,
@@ -51,6 +52,10 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		hasMore: z.boolean(),
 	}),
 
+	examples: [
+		{ title: 'Open high-priority todos', input: { completed: false, priority: 'high' } },
+		{ title: 'Deleted todos, most recent first', input: { deleted: true, sortBy: 'deletedAt' } },
+	],
 	async handler(input) {
 		const todos = store.list({
 			deleted: input.deleted,

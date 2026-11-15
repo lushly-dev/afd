@@ -16,6 +16,7 @@ const inputSchema = z.object({
 
 export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-get',
+	title: 'Get a todo',
 	description: 'Get a single todo by ID',
 	category: 'todo',
 	contexts: TODO_READ_CONTEXTS,
@@ -27,6 +28,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	output: TodoSchema,
 	errors: ['NOT_FOUND'],
 
+	examples: [{ title: 'One todo by id', input: { id: 'todo-1700000000000-abc1234' } }],
 	async handler(input) {
 		const todo = store.get(input.id);
 

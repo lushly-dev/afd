@@ -39,12 +39,20 @@ export function createStore(): Store {
 }
 
 /**
- * Singleton store instance.
+ * The store every command uses, chosen at startup.
  *
  * This ensures all commands within a single process share the same store.
  * For file-based storage, multiple processes will share the same JSON file.
  */
-export const store = createStore();
+export let store: Store = createStore();
+
+/**
+ * Replace the store the commands use, for a replay or a test that needs a fresh one. Commands
+ * read the `store` binding on each call, so the change applies to every command at once.
+ */
+export function setStore(next: Store): void {
+	store = next;
+}
 
 export { FileStore } from './file.js';
 export { TodoStoreCorruptError } from './json-file.js';
