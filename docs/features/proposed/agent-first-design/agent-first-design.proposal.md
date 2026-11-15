@@ -9,15 +9,14 @@ defaults. Agents review early and often, and a person decides at the points that
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`. It states
   the problem, what exists, a model, draft jobs, a design direction and the owner's decisions.
   It has no drafted commands and no scenario files, following the order the
-  [Scales scaffold](../scales/STATUS.md) set: the owner answers the direction and ranks the jobs
-  first. [STATUS.md](STATUS.md) tracks progress.
+  [Scales scaffold](../scales/STATUS.md) set for them: the owner answers the direction and ranks
+  the jobs first. Unlike Scales, it carries a design direction, marked unverified.
+  [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
 - **Not verified:**
   - Everything in [Design direction](#5-design-direction). It is a direction to write jobs
     against.
-  - Whether Patterns' refusal of a statement id stated twice applies within one library or
-    across a space ([5.1](#51-customizing-a-default)).
   - The Python, Rust and C++ copies of the confidence guidance
     ([5.3](#53-default-opinions-move-out-of-the-contract)). Only TypeScript's was read.
   - How much result handling Loam repeats. A text search for `undoCommand` or `.suggestion`
@@ -32,14 +31,15 @@ defaults. Agents review early and often, and a person decides at the points that
     Interface Guidelines. [Section 5.8](#58-the-skill) says what was taken.
   - The owner's earlier design-engine brainstorm and its app specification, in a private
     repository. Nothing here depends on them, and none of their text or data is used.
-- **Next:** the owner answers [For the owner](#9-for-the-owner), starting with whether this
-  stays one proposal or is folded into the five it draws on.
+- **Next:** the owner confirms or changes the [proposed rank](#proposed-rank) of the jobs, and
+  answers the questions still open in [For the owner](#9-for-the-owner): 4, 7, 8, 9 and 10.
+  Phase 0 starts with the bench's specification and its budget.
 
 | Field | Value |
 | --- | --- |
 | Epic | None yet. Opening one is the owner's call |
 | Units likely touched | The `afd` skill and `packages/core` documentation; `foundations/specimen` and `integrations/specimen-afd` (a persona runner, statuses, a decision card); `endpoints/umbel` (its `components` plugin, later a copy plugin); `packages/examples` (the bench); a new local skill |
-| Related | [Patterns](../patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../active/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md) |
+| Related | [Patterns](../patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md) |
 | Rank | Not ranked. It frames the five design proposals and adds what none of them covers |
 
 ## 1. Problem
@@ -99,7 +99,7 @@ Read first-hand on 2026-11-14 at `545316f2`.
   safe" and 0.7 to 0.9 is "show as recommendation" (`packages/core/src/result.ts:63`). The
   `afd` skill repeats the bands (`.claude/skills/afd/references/command-schema.md:56`), and the
   whitepaper adds that an interface "can show confidence meters"
-  (`docs/whitepaper/AFD-Whitepaper.md:322`, `:393`).
+  (`docs/whitepaper/AFD-Whitepaper.md:322`) and repeats the bands (`:393`).
 - **The skill tells the interface what to show.** Step 4 of the workflow reads "the UI calls the
   command and shows its `reasoning`, `confidence` and `warnings`"
   (`.claude/skills/afd/SKILL.md:34`). Step 3 reads "Don't start the UI until the CLI call works"
@@ -111,8 +111,10 @@ Read first-hand on 2026-11-14 at `545316f2`.
   command name (`references/jobs-first.md`).
 - **Trust metadata exists.** `destructive`, `confirmPrompt`, `approval`, `expose` and `undoable`
   (`references/command-trust-config.md`). An approval can depend on the actor's kind.
-- **Journals record every executed command,** in all four languages (`spec/journal.md`), and
-  the browser registry has one ([Browser-Safe Direct Registry](../../complete/browser-direct-registry/STATUS.md)).
+- **Journals record executed commands,** in all four languages (`spec/journal.md`). A recorder
+  may skip calls, and the TypeScript and Python recorders skip `auth-*` commands by default.
+  The browser registry has a journal too
+  ([Browser-Safe Direct Registry](../../complete/browser-direct-registry/STATUS.md)).
 - **View state is already commands.** `@lushly-dev/afd-view-state` exposes panels, selections
   and tool modes (`packages/view-state/README.md`).
 - **Jobs are scenario files,** and fresh readers walk a proposal from three seats before the
@@ -174,7 +176,7 @@ drawing tool. The Patterns status file already asks whether to retire or rewrite
 
 - **Component Briefs' prototype:** a brief scored 66 of 75 against 61 for today's route, which
   is inside "as good". It cost 40% less than handing over the whole pack (p < 0.001). Two faults
-  in the library capped every arm (`docs/features/active/component-briefs/prototype.md`). Its
+  in the library capped every arm (`docs/features/complete/component-briefs/prototype.md`). Its
   75 sessions cost $18.91, as Patterns records.
 - **Simulated users are not users.** The Agent Engine research found simulated behavior
   "unlike real people" and says to "treat simulations as probes and hypotheses, not participant
@@ -236,7 +238,7 @@ adds and ranks them ([For the owner](#9-for-the-owner)).
 | --- | --- | --- |
 | 1 | Product builder | When I start a product on AFD, I want patterns, voice and guidance that are good without setup, so that my first screens are sound before I have written any rules of my own |
 | 2 | Product builder | When my company does something differently from a default, I want my own copy of that pattern with its source recorded, so that I can change it and nothing changes it for me |
-| 3 | Product builder | When a default does not suit my product at all, I want to replace it with my own and have that shown wherever the default would have been, so that agents build to my rule |
+| 3 | Product builder | When a default does not suit my product at all, I want to name my own pattern where the default was named, so that agents build to my rule |
 | 4 | Product builder | When I remove something a default requires, I want to give a reason and see it reported, so that a dropped requirement is never invisible |
 | 5 | Product builder | When a default I copied is changed upstream, I want to see what changed, statement by statement, and take it after review, so that an improvement reaches me by my choice |
 | 6 | Building agent | When I build a screen for a job, I want every state the commands can produce named, with the pattern for each, so that no error, empty or pending state is left undesigned |
@@ -251,6 +253,35 @@ adds and ranks them ([For the owner](#9-for-the-owner)).
 
 Jobs 4, 8 and 11 hold refusals or limits. Job 14 is the quiet one.
 
+### Proposed rank
+
+Proposed on 2026-11-14 at the owner's request. The owner has not confirmed it.
+
+| Rank | Job | Why here |
+| --- | --- | --- |
+| 1 | 6. Every state named, with its pattern | The main new value, and what step 0.2 tests |
+| 2 | 1. Good defaults with no setup | The way in for a product. Job 6 and the default set deliver most of it |
+| 3 | 10. One view before release | The owner's requirement that a person approves what ships |
+| 4 | 8. A reviewer held to one modality | The panel rests on it, and step 0.3 tests it |
+| 5 | 9. Only the points that need a decision | Needs job 8. Carries the split trigger |
+| 6 | 2. A copied pattern with its source | The customizing the owner decided |
+| 7 | 5. See what changed upstream and take it | Needs job 2 |
+| 8 | 12. How often a person would have disagreed | Without it, agents' agreement is taken on trust |
+| 9 | 7. Commands say what applies, with no skill | The path from a skill to an Umbel tool |
+| 10 | 14. Reports name what went unmeasured | A property of every report |
+| 11 | 4. A dropped requirement has a reason | Small once job 2 exists |
+
+Ranks 1 to 5 are the first slice.
+
+- **Merge job 3 into job 2.** Replacing a default is one row of the table in
+  [5.1](#51-customizing-a-default).
+- **Fold job 11 into job 10.** Why a change was turned down is a field on the decision card.
+- **Defer job 13.** It needs sight of other companies' repositories, which AFD does not have.
+  It works only inside one company's space.
+- **Add a job for the loop's last step,** which no job covers: "When a change I approved has
+  been in use, I want the journal read against what it was meant to fix, so that I know whether
+  it worked." Ranked last for now, since it needs a released application with a journal.
+
 ## 5. Design direction
 
 ### 5.1 Customizing a default
@@ -260,45 +291,54 @@ Patterns are not layered. The owner's rule is Patterns' decision 2 applied to th
 itself: what is managed centrally and takes updates is a component, and a pattern is a copy
 that its holder owns.
 
+**A term.** In Patterns, "copy", "revision" and "provenance marker" belong to a saved region of
+a screen. This section is about a pattern file copied into another library, and calls it a
+**copied pattern**. It needs its own record of its source.
+
 | A product wants to | How | When the default changes |
 | --- | --- | --- |
-| Use a default as it is | Name it as `<library>/<pattern>`, as Patterns' question 4 proposes | It arrives when the product takes a new version of the default library |
-| Change a default | Copy the pattern file into its own library, with a line naming the source pattern and its revision, and edit the copy | Nothing changes. A comparison reports what moved |
+| Use a default as it is | Name it as `<library>/<pattern>` at a version, as Patterns' question 4 proposes | It arrives when the product takes a new version of the default library |
+| Change a default | Copy the pattern file into its own library, with a line naming the source pattern and its revision, and edit it | Nothing changes. A comparison reports what moved |
 | Add a pattern | Write it in its own library | Nothing |
 | Replace a default | Name its own pattern where the default was named | Nothing |
 
 - **Nothing reaches a product without a change in the product's own repository.** A named
-  default is named at a version, and changes when the product takes a new one. A copy changes when someone edits it.
-  Both are changes a person reviews before release ([5.5](#55-review)).
-- **A copy is the whole file.** A pattern file holds its statements and their gates together
-  (Patterns, section 5.1), so a changed `keep` statement and its gate change in one place.
-- **A company's library** holds its copies and its own patterns. Its products name the
+  default changes when the product takes a new version. A copied pattern changes when someone
+  edits it. Both are changes a person reviews before release ([5.5](#55-review)).
+- **A copied pattern is the whole file.** A pattern file holds its statements and their gates
+  together (Patterns, section 5.1), so a changed `keep` statement and its gate change in one
+  place.
+- **Statement ids carry over.** Ids are unique within a library, not across a pack
+  (`foundations/specimen/docs/pack-format.md:202`), so a copied pattern in another library
+  keeps its source's ids and the comparison matches on them.
+- **A company's library** holds its copied patterns and its own. Its products name the
   company's patterns or copy them. Nothing computes a combined result.
 - **Tokens are not affected.** Violet's hierarchy stays as it is. Whether copy voice is named
   or copied is for the Umbel plugin that will carry it.
 
-**Seeing what changed, and taking it.** A comparison between a copy and its source reports
-each statement, by its id, as unchanged, changed here, changed upstream, changed in both,
-dropped here or added upstream. A person or an agent can run it at any time. Taking a change is
-an edit to the copy, proposed on a decision card like any other change to guidance. An agent
-can do the merge; a person approves it.
+**Seeing what changed, and taking it.** A comparison between a copied pattern and its source
+reports each statement, by its id, as unchanged, changed here, changed upstream, changed in
+both, dropped here or added upstream. A person or an agent can run it at any time. Taking a
+change is an edit to the copied pattern, proposed on a decision card like any other change to
+guidance. An agent can do the merge; a person approves it.
 
-**Dropping a requirement.** A copy that removes a `keep` statement records a reason, and the
-comparison reports it as a waiver. Specimen's coverage waivers already carry a reason
+**Dropping a requirement.** A copied pattern that removes a `keep` statement records a reason,
+and the comparison reports it as a waiver. Specimen's coverage waivers already carry a reason
 (`foundations/specimen/src/schema.ts:582-589`, as Screens from Jobs cites it; not reread
 here).
 
 **What Patterns lacks for this.** Each is an amendment
 ([section 6](#6-what-this-changes-elsewhere)):
 
-- **Provenance on a pattern file.** Today only a saved region carries a marker.
+- **A record of source on a pattern file.** Today only a saved region carries a marker.
 - **Its outdated-copies job extended to a copied pattern,** with the comparison above.
-- **A rule for statement ids in a copy.** `specimen-validate` refuses an id stated twice.
-  Whether that holds within a library or across a space was not checked. The comparison needs
-  a copy's statements to stay matched to the source's.
 - **The source as it was.** Telling "changed here" from "changed upstream" needs the source at
   the recorded revision. The catalog holds a digest per pattern and not the old text, so a
-  copy may need to record a digest per statement when it is made. Not designed here.
+  copied pattern may need to record a digest per statement when it is made. Not designed here.
+- **Which pattern a product's screens are held to.** A component claims a pattern in its guide
+  with `implements` (Patterns, section 5.3). A library such as `violet-elements` would still
+  claim the default, so nothing yet says how a product's screens are held to the gates of its
+  copied pattern. Not designed here.
 
 **Considered and dropped: layering.** The first draft recommended that a product hold only its
 differences (override, add, subtract) and that a resolver combine them with the defaults, as
@@ -313,12 +353,12 @@ Violet does for tokens. It was dropped for three reasons:
 
 Patterns asks who owns a pattern that several libraries implement. For the states a command
 result can produce, the answer is AFD, because the states come from AFD's contract and from no
-library.
+library. The owner decided this on 2026-11-14 ([question 3](#9-for-the-owner)).
 
 | Candidate pattern | Contract fields it renders | Setup starts from |
 | --- | --- | --- |
 | An error with its recovery | `error.code`, `message`, `suggestion`, `retryable` | `spec/wire/result-failure.json` |
-| An undo offer | `undoable`, `undoCommand`, `undoArgs` | `spec/wire/result-success-full.json` |
+| An undo offer | `undoCommand` and `undoArgs`, with the command's `undoable` | `spec/wire/result-success-full.json` and the command's definition |
 | A confirmation before a destructive command | `destructive`, `confirmPrompt` | The command's definition |
 | An approval request | `approval` | The command's definition |
 | Progress | `plan` | `spec/wire/result-success-full.json` |
@@ -361,12 +401,13 @@ Two points this section does not settle:
 
 ### 5.4 Status: proposed, approved, deprecated
 
-Having a pattern, a copy or a statement must not mean it is approved.
+Having a pattern, a saved copy or a statement must not mean it is approved. "Saved copy" is
+Patterns' copy: the saved markup and styles of a region.
 
-- **A pattern, a copy and a statement each carry a status.** Something an agent proposes carries
-  no weight until a person approves it.
+- **A pattern, a saved copy and a statement each carry a status.** Something an agent proposes
+  carries no weight until a person approves it.
 - **This is separate from what Patterns records.** `complete` and `draft` say whether a copy
-  could be saved whole. `verified` and `authored` say whether a gate ran.
+  could be saved whole. `verified` and `authored` say whether a gate ran and held.
 - **Only approved content is served by default.** Proposed content is listed for review.
 
 ### 5.5 Review
@@ -403,21 +444,25 @@ Having a pattern, a copy or a statement must not mean it is approved.
   judgement about how a person would feel is a *hypothesis*, and stays one until evidence from
   people supports it.
 - **A panel gives coverage, not votes.** Agreement among agents is not evidence that they are
-  right: runs of one model share its blind spots. Reviewers differ in model family and in
+  right. Runs of one model may share its blind spots, which is a hypothesis here and not a
+  finding. Reviewers differ in model family and in
   seat, and each round reports how far their findings overlap.
 
-**When a person is asked.**
+**When a person is asked.** The owner agreed these triggers and their numbers on 2026-11-14
+([question 6](#9-for-the-owner)). The numbers are a starting point, not a finding.
 
 | Trigger | Why |
 | --- | --- |
-| Reviewers split close to evenly | The owner's rule. The split is the signal |
+| Reviewers split close to evenly | The split is the signal. With a panel of five, a 3 to 2 split asks the person |
 | Reviewers agree, against a recorded decision | `decision-check` finds it |
 | No earlier answer covers this kind of question | The first answer sets the precedent, and later ones settle by it |
 | The change is to guidance | One statement alters every later screen |
 | The change cannot be undone, or goes to other products as a default | The cost of being wrong |
 
-**What agents may settle.** Agents can send work back without asking anyone. Only a person
-accepts a change for release. No class of change has standing approval.
+**What agents may settle.** Agents can send work back without asking anyone. A panel may
+answer a review item provisionally; the author of the change may not
+([question 5](#9-for-the-owner), decided). Only a person accepts a change for release. No class
+of change has standing approval.
 
 **The decision card.** One per proposed change, or per tight group.
 
@@ -461,14 +506,14 @@ unmeasured and what would measure it.
 | Jobs as scenarios | Job scripts for the panel, and states taken from job steps |
 | Specimens of its screens | Gates, captures and review |
 | A journal | Paths measured against scenarios, and work ranked by real use |
-| Its own library | Its patterns served where it replaced a default, and its changes to copied defaults reported |
+| Its own library | Its own patterns, named where it replaced a default, and its changes to copied patterns reported |
 
 A report never fails because a product set up less.
 
 ### 5.7 How a default improves
 
-- **A changed copy is a lead, not a verdict.** A group of products changing the same statement
-  of one default starts an investigation, with their reasons.
+- **A changed copied pattern is a lead, not a verdict.** A group of products changing the same
+  statement of one default starts an investigation, with their reasons.
 - **A change to a default moves through three states:** draft, then preview, where products opt
   in, then stable or withdrawn.
 - **A change records what it was meant to fix,** and the next reading of the journal says
@@ -488,13 +533,17 @@ which instrument to use when, and the judgements no pattern owns and no gate can
   2. a skill served by an Umbel plugin, which the host already does for its plugins;
   3. a tool that selects what applies, as the copy plugin will for voice.
 - **The skill says to prefer the tool once it exists,** and the reference is then deleted.
-- **What was taken from the six public skills** is their judgement, sorted by where it belongs:
+- **What the six public skills hold, sorted by kind.** The table says where content of each
+  kind belongs. It writes no statement: a statement comes only from the owner or from a fault
+  seen in phase 0 ([5.2](#52-the-default-pattern-set)). The public skills reach a building
+  agent only as arm 1 of the bench. Only the direction and motion references draw on them, and
+  what those hold stays `authored`.
 
-  | Kind of content | Goes to |
+  | Kind of content | Where that kind belongs |
   | --- | --- |
-  | When to use a piece of interface and when not ("a modal for a task that needs no interruption") | `avoidWhen` and `useWhen` statements on the pattern |
+  | When to use a piece of interface and when not ("a modal for a task that needs no interruption") | `avoidWhen` and `useWhen` statements on a pattern |
   | Behaviour every implementation must keep ("Escape closes and returns focus") | A `keep` statement with a gate |
-  | Motion and style rules a gate cannot read (how often something is seen decides whether it animates) | The motion reference, as statements that stay `authored` |
+  | Motion and style rules a gate cannot read (how often something is seen decides whether it animates) | The motion reference |
   | Judgement about a whole screen (ground the design in its subject; spend boldness in one place) | The direction reference |
   | The looks a model falls back on | A check on rendered output, not text in a prompt, as the audit concluded for prose |
   | Textbook material and each skill's own process | Dropped |
@@ -531,9 +580,9 @@ Each is an amendment for the owner to accept, not an edit made here.
 
 | Document | Change |
 | --- | --- |
-| Patterns | Question 4 answered for result states: AFD owns them. The inheritance non-goal stays. Provenance on a pattern file, the outdated-copies job extended to a copied pattern, a rule for statement ids in a copy, and a reason for a dropped `keep` ([5.1](#51-customizing-a-default)). A status on patterns, copies and statements ([5.4](#54-status-proposed-approved-deprecated)) |
-| Design Decisions | A panel may answer a review item provisionally; the author of a change may not. `decidedBy` gains a third kind for a panel, with its reviewers and its split. A review item gains the decision card's why, effect and risk. Variants should differ in mechanism, where its example differs in density |
-| Screens from Jobs | Its captures are what the panel walks. Its stated limit on judging layout and hierarchy gains a partial check: the measured path |
+| Patterns | Question 4 answered for result states: AFD owns them. The inheritance non-goal stays. A record of source on a pattern file, the outdated-copies job extended to a copied pattern, the source as it was, how a product's screens are held to a copied pattern, and a reason for a dropped `keep` ([5.1](#51-customizing-a-default)). A status on patterns, saved copies and statements ([5.4](#54-status-proposed-approved-deprecated)) |
+| Design Decisions | A panel may answer a review item provisionally; the author of a change may not (decided, question 5). Its recommendation 7, that an answer given through the CLI settles a review item, conflicts with "only a person accepts a change for release" ([5.5](#55-review)); the owner rules on it there. `decidedBy` gains a third kind for a panel, with its reviewers and its split. A review item gains the decision card's why, effect and risk. Variants should differ in mechanism, where its example differs in density |
+| Screens from Jobs | The panel walks the running application, and its paths are read from the journal. Screens from Jobs' captures supply the decision card's before and after. Its stated limit on judging layout and hierarchy gains a partial check: the measured path |
 | Pointing | No change. Its question about pointing in the running application stands |
 | `afd` skill, `command-schema.md`, `result.ts` comments, the whitepaper | The edits in [5.3](#53-default-opinions-move-out-of-the-contract) |
 | Design to Code | Retire or rewrite it; the owner's call, already raised in the Patterns status file |
@@ -542,10 +591,12 @@ Each is an amendment for the owner to accept, not an edit made here.
 
 ### Phase 0. Prove it
 
-Throwaway scripts; only the record is merged. Each step fixes its rule for "go" before it runs.
+The owner said on 2026-11-14 to run it. The bench is kept. The scripts that run the arms are
+throwaway, and only their record is merged. Each step fixes its rule for "go" before it runs.
 
 | Step | Question | How |
 | --- | --- | --- |
+| 0.0 | Is there a bench? | Write the bench's specification ([5.9](#59-the-bench)): an invented domain, its commands and fixtures, the seeded faults, the held-out jobs, the persona cards, a run count and a cost estimate. The owner approves the domain and the budget before any session runs |
 | 0.1 | What goes wrong today? | Arms 0 and 1 on the bench. The owner reviews the results blind and names the faults. Those faults, and no others, become the first statements |
 | 0.2 | Do the default patterns help? | Arm 2 against arm 0, scored on the result states |
 | 0.3 | Can a panel find planted faults? | Seed faults in one build. Measure recall and judged precision per modality, and the overlap between reviewers |
@@ -560,30 +611,44 @@ the decision card, as amendments to the proposals that own them. The jobs in
 [section 4](#4-draft-jobs) become scenario files against drafted commands, and readers walk
 them.
 
+**Exit:** the owner has accepted or refused each amendment, and each job in the first slice is
+a scenario file whose paths readers have walked. A part that has moved takes its exit from the
+proposal that owns it.
+
 ### Phase B. Defaults
 
 The result-state pattern set, with Loam as its first implementation. The edits in
 [5.3](#53-default-opinions-move-out-of-the-contract). The skill, if step 0.5 says so.
+
+**Exit:** every pattern in [5.2](#52-the-default-pattern-set) has gates that hold on Loam's
+implementation and fail on a seeded fault, and the edits in 5.3 are merged wherever the opinion
+is repeated.
 
 ### Phase C. Review
 
 The persona runner with enforced modalities, the triggers, the decision card and the pre-ship
 view.
 
+**Exit:** on the bench's seeded faults the panel meets the rule step 0.3 fixed, and one change
+has gone from the panel to a decision card to a person's approval.
+
 ### Phase D. Adoption and improvement
 
 Reports that name what went unmeasured. Counts of changed copies. The draft, preview and stable
 states for a default. Topics moving from the skill into Umbel.
 
+**Exit:** a product with commands only gets a report that names what went unmeasured, and one
+topic is served from Umbel with its reference deleted from the skill.
+
 ## 8. Risks and open points
 
 | Risk or open point | Response |
 | --- | --- |
-| A sixth design proposal, when the owner has decided nothing in the other five | It drafts no commands until ranked, and [question 1](#9-for-the-owner) asks whether to fold it into the others |
+| A sixth design proposal, when the owner has decided little in the other five | [Question 1](#9-for-the-owner) is decided: it stays the frame, and each part moves into the proposal that owns it. It drafts no commands until the jobs are ranked |
 | Agents' findings are read as what users think | Evidence classes on every finding; a hypothesis stays one |
 | The loop fits its own reviewers | Held-out jobs, seeded faults, a sample of agreement, and the owner's blind review |
 | A brief grows. Loam's is already 88,400 bytes, over its target (Patterns, section 3) | A statement moves from a guide to a pattern and is sent once. Phase 0 measures it, as Patterns' step 0.4 does |
-| A copy falls behind its source | The comparison is a command an agent can run in the loop, and taking a change is an agent's merge and a person's approval. A copy nobody compares stays as it was; it never changes unasked |
+| A copied pattern falls behind its source | The comparison is a command an agent can run in the loop, and taking a change is an agent's merge and a person's approval. One that nobody compares stays as it was; it never changes unasked |
 | Specimen does not run on Windows | The panel can drive a browser through Botcore's `cdp_*` commands. Gates and captures wait on a Windows host |
 | Non-web applications | Patterns' gates read Chromium's accessibility tree. Statements still apply to an engine or native interface; gates do not. Open ([question 8](#9-for-the-owner)) |
 | The skill is one more description in a full listing | One skill; a description under 300 characters; step 0.5 can cancel it |
@@ -605,17 +670,19 @@ Each recommendation is for the owner to decide.
    rewritten. One point followed from it: whether a product that changes nothing names the
    defaults at a version, or copies the whole set when it starts. **Decided 2026-11-14: it
    names them at a version.** A new version is then the only way an unchanged default moves,
-   and a product's copies are exactly what it changed.
+   and a product's copied patterns are exactly what it changed.
 3. **Who owns the result-state patterns.** *Recommendation: AFD, as a default set every library
    names.* This answers Patterns' question 4 for these patterns only.
+   **Decided 2026-11-14: agreed.**
 4. **Which opinions move out of the contract.** *Recommendation: all four in
    [5.3](#53-default-opinions-move-out-of-the-contract).* The suggestion question and the
    philosophy page are separate and yours.
 5. **Whether a panel may answer provisionally.** *Recommendation: yes, never the author of the
    change, and never for release.* Design Decisions says agents do not answer review items.
+   **Decided 2026-11-14: agreed.**
 6. **The triggers and their numbers.** *Recommendation: the five triggers in
    [5.5](#55-review), a panel of five, and a person asked on a 3 to 2 split.* The numbers are a
-   starting point, not a finding.
+   starting point, not a finding. **Decided 2026-11-14: agreed.**
 7. **The bench application.** The owner ruled out building on the todo example on 2026-11-14:
    it is out of date and has no approval, undo or plan ([section 2](#loam-and-the-skills)).
    The bench is a new specification. *Recommendation: an invented domain whose jobs need every
@@ -625,8 +692,12 @@ Each recommendation is for the owner to decide.
 9. **The skill.** *Recommendation: one skill with a reference per topic, written only if step
    0.5 shows it helps.* Its name is open; `afd-design` fits the existing names.
 10. **Design to Code.** Retire it, or rewrite it around the rendered screen.
-11. **The jobs.** Cut, add and rank the fourteen.
-12. **Phase 0.** Whether to run it, and its budget.
+11. **The jobs.** Cut, add and rank the fourteen. The owner asked for a proposal on
+    2026-11-14; it is the [proposed rank](#proposed-rank), with two merges, one deferral and
+    one added job. Not yet confirmed.
+12. **Phase 0.** Whether to run it, and its budget. **Decided 2026-11-14: run it.** The budget
+    comes with the bench's specification (step 0.0), for the owner to approve before any
+    session runs.
 
 ## 10. Out of scope
 
