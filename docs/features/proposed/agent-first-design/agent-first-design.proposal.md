@@ -565,7 +565,8 @@ recommended domain and a budget, is [bench.md](bench.md).
 - **The commands are the data contract,** and scenario fixtures force each state.
 - **It exercises every pattern in [5.2](#52-the-default-pattern-set).**
 - **Two folders.** The builder sees the specification. The seeded faults, the held-out jobs and
-  the persona cards are kept where the builder cannot read them.
+  the persona cards are kept outside the builder's worktree. That is not a wall, so each
+  session's tool calls are checked for a read of them ([bench.md](bench.md#runs)).
 - **Arms, with the rule for "go" fixed before any run:**
 
   | Arm | The building agent gets |
@@ -580,7 +581,7 @@ recommended domain and a budget, is [bench.md](bench.md).
   The owner approved it on 2026-11-15.
 
 - **Results are reported check by check,** with what was measured, excluded and unmeasured.
-  There is no single score. The owner's blind choice between arms is the judgement measure.
+  No single score ranks the arms. The owner's blind choice between arms is the judgement measure.
 - **Runs per arm follow Component Briefs:** fifteen.
 
 ## 6. What this changes elsewhere
@@ -706,9 +707,9 @@ Each recommendation is for the owner to decide.
    0.5 shows it helps.* Its name is open; `afd-design` fits the existing names.
 10. **Design to Code.** Retire it, or rewrite it around the rendered screen.
 11. **The jobs.** Cut, add and rank the fourteen jobs of the first draft. The owner asked for
-    a proposal on 2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with job 3 merged into
-    job 2, job 11 folded into job 10, job 13 deferred and job 15 added. Ranks 1 to 5 are the
-    first slice.
+    a proposal on 2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with
+    job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added.
+    Ranks 1 to 5 are the first slice.
 12. **Phase 0.** Whether to run it, and its budget. **Decided 2026-11-14: run it.** The budget
     is in the [bench specification](bench.md) (step 0.0). **Decided 2026-11-15:** the sessions
     run on Opus 5.5 at `medium` on a second machine of the owner's, draw on its subscription

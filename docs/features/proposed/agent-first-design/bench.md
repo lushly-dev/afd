@@ -14,7 +14,7 @@ owner to approve the domain and the budget before any session runs. Read
   of a week's allowance in any one week.
 - **Not approved:** the rest of this file, and above all the
   [rules for "go"](#rules-for-go), which the owner confirms before the first run of step 0.1.
-  The owner was asked about the three points above and about nothing else here.
+  The owner was asked three questions, which cover the points above, and nothing else here.
 - **Measured:** the cost and size of a page-building session, from the
   [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
   in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
@@ -22,7 +22,7 @@ owner to approve the domain and the budget before any session runs. Read
   reader; step 0.1's first readers measure one.
 - **Deliberately not in this file:** the planted faults, the checks, the persona cards and the
   two jobs held back for the panel loop. A session that could read them would be scored on
-  what it had read. They are written now that the domain is decided, kept outside the
+  what it had read. They are to be written now that the domain is decided, kept outside the
   repository until the last run has finished, and committed then as the record, as Component
   Briefs did with its tasks and checks. This file gives their shape and their counts.
 
@@ -96,9 +96,11 @@ Which task needs which pattern:
 
 ## What a session is given
 
-- **Every arm gets the same task:** the jobs, the commands and their fixtures, the states of
-  the screen with what the user must be able to do in each, and what counts as done. It writes
-  one story file with a named story per state, from `violet-elements` where a component fits.
+- **Every arm but the bare one gets the same task:** the jobs, the commands and their
+  fixtures, the states of the screen with what the user must be able to do in each, and what
+  counts as done. It writes one story file with a named story per state, from
+  `violet-elements` where a component fits. The bare arm gets the jobs and the commands
+  only ([ruling 3](#for-the-owner)).
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.
@@ -134,7 +136,7 @@ else.
   difference between the two arms' means, and a two-sided permutation test that shuffles the
   arm labels within each screen, because the screens have different checks.
 - **What fifteen runs can show is not known.** Component Briefs ran a permutation test on
-  median tokens, and with fifteen runs an arm a saving of 22.5 % reached only p = 0.17.
+  median tokens, and with fifteen runs an arm, a saving of 22.5 % reached only p = 0.17.
   Nothing yet says how much runs of one arm differ on these checks. Step 0.1 shows that
   spread, and with it whether fifteen runs can resolve the difference step 0.2 asks for.
 
@@ -202,7 +204,7 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 | 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on. If runs of one arm differ so much that fifteen cannot resolve 15 points, the owner chooses, before arm 2 runs, whether both arms get more runs |
 | 0.2 | On T1 to T3, arm 2's mean share of checks passed is at least 15 points above arm 0's, at p < 0.05 by the test in [Scoring](#scoring). Arm 2's median tokens are no more than 20 % above arm 0's. T4 is reported beside it and is not part of the rule: five runs against five cannot resolve it |
 | 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement |
-| 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path on the seeded build is worse than on the clean one. In the pairs that meet none, if there are any, a seeded walk differs from the clean walk by no more than the two seeded walks differ from each other |
+| 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other |
 | 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
 
 ## Budget
@@ -243,10 +245,10 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 - **Not in the total:** writing the commands, the fixtures, the reference build, the runner
   and the statements, which are ordinary working sessions.
 - **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
-  faults in a blind sample of 12 of step 0.1's builds, two an arm for each screen; approving
-  the statements; looking at the reference build; checking 20 of the readers' matches and
-  judging up to 30 findings in step 0.3; choosing between 12 pairs in step 0.5; the decision
-  in step 0.6.
+  faults in a blind sample of 12 of step 0.1's builds, two each from arms 0 and 1 for each
+  screen; approving the statements; looking at the reference build; checking 20 of the
+  readers' matches and judging up to 30 findings in step 0.3; choosing between 12 pairs in
+  step 0.5; the decision in step 0.6.
 
 ## When it runs
 
@@ -292,10 +294,11 @@ the fifth is open.
 1. **Domain.** **Decided: the seed library,** because every result state arises from the
    subject and a judge needs no expertise. The tool library was the fallback.
 2. **Model, budget and cap.** **Decided: Opus 5.5 at `medium`, on the subscription allowance
-   of a second machine, and no more than a fifth of a week's allowance in any one week, with
-   the pilots run first to measure what a session takes.** The session counts are firm. The
-   size of a session rests on two assumptions the pilots replace, and the fifth is a guess
-   until the pilots give the conversion, so both come back to the owner before step 0.1.
+   of a second machine, and no more than a fifth of a week's allowance in any one week.**
+   The pilots run first to measure what a session takes. The session counts are firm. The
+   size of a session rests on assumptions the pilots replace, and the fifth is a guess until
+   the pilots give the conversion. Both come back to the owner before step 0.1, or after its
+   first fifteen builds if the pilots do not move the weekly figure.
 3. **The bare arm.** **Decided: step 0.1 has one.** The proposal's section 5.9 has every task
    list the screen's states. Phase 0 would then test how well each state is rendered, and
    not whether an agent leaves states undesigned when nobody lists them, which is half of

@@ -135,14 +135,40 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   checked and 0 broken. Read first-hand for it: that Specimen does not support Windows
   (`foundations/specimen/README.md:499`), that `wsl.exe -l` on the author's machine reports no
   Linux subsystem, and that Botcore's `cdp_emulate` has no option for forced colours
-  (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:716`). It has had no independent
-  review.
+  (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:716`). It had no independent
+  review then (superseded by the review of 2026-11-15 below).
 - **The bench specification, 2026-11-15:** read first-hand through T3 Code, that the owner's
   second machine answers, is an Apple silicon Mac and has a checkout of this repository, and
   from Specimen's README that a host exists for that platform. Not checked: that the host
   builds there, that the `claude` command there is signed in, and what share of a week's
   allowance a session takes. The link script was run again over the same four files.
-- **Independent review of the bench specification, 2026-11-15:** REVIEWTEXT
+- **Independent review of the bench specification, 2026-11-15:** a fresh read-only reviewer on
+  Claude Opus 5.5, asked for at `high`, briefed as `review-code` describes and given the
+  owner's words as the only source for a decision, read the three files in this folder and
+  the features index against the tree after the merge of `8da5804b`. It reproduced the
+  session counts, the dollar sums and the link check, and found the jobs table and the rank
+  table in agreement. It raised six blockers and a list of improvements, all traced by
+  reading:
+  - *Blockers, fixed:* the files said the owner had approved the bench and ruled on four
+    points, where the owner had answered three questions; the session log still called the
+    cap open; a figure from Component Briefs was given as a test on checks, where it was a
+    test on median tokens; step 0.2's rule could be set after the builds it is compared with
+    were seen; the proposal did not carry the bare arm, and gave arm 0 nothing where the
+    bench gives it the components brief.
+  - *Improvements, taken:* the rules for steps 0.3, 0.4 and 0.5 restated so that they can be
+    computed, with 0.5 raised from 8 to 10 of 12 pairs; T4 reported and no longer part of a
+    rule; the cap applied inside a step; the separation of held material stated as not a
+    wall; the command sketch marked incomplete and the jobs-first order corrected; an
+    unmarked assumption about tokens marked; `cdp_emulate` described as taking two options
+    it does not apply.
+  - *Second pass:* a second fresh reviewer on Claude Opus 5.5, asked for at `high` and
+    reporting that it ran at low effort, checked each item against the fixes. It found five
+    blockers fixed and one in part: the session log still called the question of where to
+    score settled. It rechecked the session counts, the dollar sums, the chance of 10 of 12
+    pairs and the links (174 checked, 0 broken). It raised ten smaller points, among them a
+    blind sample counted for two arms where step 0.1 has three, and a rule for step 0.4 that
+    did not say which of two walks it used. The author fixed all eleven and read them back.
+    No third pass was run.
 
 ## What was read to write it
 
@@ -195,5 +221,5 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft, continued | The owner ruled on the point question 2 left open: a product that changes nothing names the defaults at a version, and does not copy the whole set |
 | 2026-11-14 | First draft, continued | The owner asked for it to be committed and merged, and answered questions 3, 5, 6 and 12: agreed, agreed, agreed, and run phase 0. The owner asked for a proposed rank of the jobs, which is in the proposal's section 4 and not yet confirmed. `main` was merged at `dd080235`, which moved Component Briefs to `complete/`, and two paths were corrected. An independent review raised four blockers and eleven improvements; all four blockers and the improvements were applied |
 | 2026-11-14 | After the merge of #1223 | The owner confirmed the rank of the jobs as proposed. Section 4 of the proposal now carries it: job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added, with the numbers kept. The bench specification was drafted as step 0.0 of phase 0: a seed library, four screens of which one is held back from whoever writes the statements, 209 sessions, an estimate of about $260 at list prices with a proposed cap of $400, rules for "go", and four points for the owner. Checking it settled one point the proposal had left unverified: Botcore cannot emulate forced colours |
-| 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled. The budget's cap became a share of the week, proposed at a fifth and open (superseded by the next row, where the owner accepted the fifth), with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
-| 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. All were fixed, and the rules for "go" stay unconfirmed |
+| 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled (superseded: it was not a ruling of the owner's, and it holds only once Specimen's host builds there; see item 4 of For the owner in the bench specification). The budget's cap became a share of the week, proposed at a fifth and open (superseded by the next row, where the owner accepted the fifth), with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
+| 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. The six blockers and the improvements were fixed. A second pass found one more place that called scoring settled and ten smaller points, and those were fixed too. The rules for "go" stay unconfirmed |
