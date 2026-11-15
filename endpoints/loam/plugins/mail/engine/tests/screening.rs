@@ -531,8 +531,13 @@ fn an_agent_s_suggestion_waits_for_the_person_s_approval_at_the_terminal() {
     assert_eq!(fixture.senders_of("blocked"), [STRANGER, STRANGER]);
 
     // Once only, and the block is seen in the status, with who proposed it.
-    let again = fixture.cli("mail-sender-accept", json!({ "suggestion": id }));
-    assert_eq!(again["error"]["code"], "PROPOSAL_NOT_OPEN", "{again}");
+    let again = fixture.person("mail-sender-show", json!({ "suggestion": id }));
+    assert_eq!(again["data"]["preview"]["acceptable"], false, "{again}");
+    assert_eq!(again["data"]["preview"]["refusal"], "PROPOSAL_NOT_OPEN");
+    let (status, _, said, asked) = fixture.terminal(&args, true);
+    assert_eq!(status, EXIT_FAILED, "{said}");
+    assert!(asked.is_empty(), "not asked again: {asked:?}");
+    assert!(said.contains("Nothing was done"), "{said}");
     let status = fixture.agent("a", "mail-status", json!({}));
     assert_labelled(&status, FROM_MESSAGES);
     let screening = &status["data"]["screening"];
@@ -637,13 +642,13 @@ fn screening_waits_while_messages_wait_to_be_derived_again() {
     let shown = fixture.agent("a", "mail-sender-show", json!({ "suggestion": id }));
     assert_eq!(shown["data"]["classes"], Value::Null, "{shown}");
     assert_eq!(shown["data"]["preview"]["changes"], Value::Null);
-    // Accepting is refused without asking the person: the preview's counts
-    // could be wrong.
-    let accepted = fixture.cli("mail-sender-accept", json!({ "suggestion": id }));
-    assert_eq!(
-        accepted["error"]["code"], "SCREENING_NOT_READY",
-        "{accepted}"
-    );
+    // The person is not asked: the preview's counts could be wrong.
+    assert_eq!(shown["data"]["preview"]["acceptable"], false);
+    assert_eq!(shown["data"]["preview"]["refusal"], "SCREENING_NOT_READY");
+    let input = format!(r#"{{"suggestion": {id}}}"#);
+    let (status, _, said, asked) = fixture.terminal(&["mail-sender-accept", input.as_str()], true);
+    assert_eq!(status, EXIT_FAILED, "{said}");
+    assert!(asked.is_empty(), "{asked:?}");
     let status = fixture.agent("a", "mail-status", json!({}));
     assert_eq!(status["data"]["screening"]["ready"], false);
     assert_eq!(status["data"]["screening"]["queue"], Value::Null);
@@ -694,7 +699,7 @@ fn stdio_s_one_caller_dismisses_its_own_and_a_script_only_its_own() {
 }
 
 #[test]
-fn an_accept_the_person_was_not_asked_about_is_refused() {
+fn every_accept_is_held_and_an_approved_one_is_refused_when_it_cannot_go_ahead() {
     let fixture = Fixture::new();
     let id = fixture.agent(
         "token-a",
@@ -703,9 +708,20 @@ fn an_accept_the_person_was_not_asked_about_is_refused() {
     )["data"]["suggestion"]
         .as_i64()
         .unwrap();
-    // A registry with no approval middleware runs the handler with no
-    // approval, as one does when a suggestion became acceptable after the
-    // policy found it was not.
+    // Held whatever it names, so the person's approval is checked every time.
+    for suggestion in [id, 999] {
+        let held = fixture.person("mail-sender-accept", json!({ "suggestion": suggestion }));
+        assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED", "{held}");
+        assert!(
+            !held["error"]["details"]["summary"]
+                .as_str()
+                .unwrap()
+                .contains("example"),
+            "{held}"
+        );
+    }
+    // Past the approval (a registry with no approval middleware runs the
+    // handler as an approved call does), what cannot go ahead is refused.
     let bare = CommandRegistry::new();
     bare.register(loam_mail::screening::accept(Arc::clone(&fixture.engine)))
         .unwrap();
@@ -713,18 +729,26 @@ fn an_accept_the_person_was_not_asked_about_is_refused() {
         .enable_all()
         .build()
         .unwrap();
-    let context = CommandContext::new()
-        .with_interface(CommandInterface::Cli)
-        .with_actor(ActorKind::Human);
-    let result = runtime.block_on(bare.execute(
-        "mail-sender-accept",
-        json!({ "suggestion": id }),
-        Some(context),
-    ));
-    let result = serde_json::to_value(&result).unwrap();
-    assert_eq!(result["error"]["code"], "CONFLICT", "{result}");
-    assert_eq!(result["error"]["retryable"], true);
+    let approved = |suggestion: i64| {
+        let context = CommandContext::new()
+            .with_interface(CommandInterface::Cli)
+            .with_actor(ActorKind::Human);
+        let result = runtime.block_on(bare.execute(
+            "mail-sender-accept",
+            json!({ "suggestion": suggestion }),
+            Some(context),
+        ));
+        serde_json::to_value(&result).unwrap()
+    };
+    fixture.make_stale();
+    let refused = approved(id);
+    assert_eq!(refused["error"]["code"], "SCREENING_NOT_READY", "{refused}");
+    assert_eq!(approved(999)["error"]["code"], "PROPOSAL_NOT_OPEN");
+    let synced = fixture.cli("mail-sync", json!({}));
+    assert_eq!(synced["success"], true, "{synced}");
     assert_eq!(fixture.senders_of("unknown").len(), 2, "nothing changed");
+    assert_eq!(approved(id)["data"]["decision"], "out");
+    assert_eq!(approved(id)["error"]["code"], "PROPOSAL_NOT_OPEN", "once");
 }
 
 /// Runs commands as the registry does, but fails the preview of an accept.

@@ -253,7 +253,7 @@ fn run_command(
                 let Some(lines) = preview(name, &input, runner, &runtime) else {
                     writeln!(
                         err,
-                        "{PROGRAM}: what `{name}` would do could not be read. Nothing was done."
+                        "{PROGRAM}: `{name}` cannot go ahead now, or what it would do could not be read; `mail-sender-show` with the suggestion says why. Nothing was done."
                     )?;
                     return Ok(EXIT_FAILED);
                 };
@@ -412,6 +412,11 @@ fn preview(
         None,
     ));
     let shown = shown.data.filter(|_| shown.success)?;
+    // A suggestion that cannot be accepted now (closed, screening not
+    // ready, or its address now the person's) is not asked about.
+    if shown.pointer("/preview/acceptable") != Some(&serde_json::Value::Bool(true)) {
+        return None;
+    }
     let text = |pointer: &str| {
         shown
             .pointer(pointer)

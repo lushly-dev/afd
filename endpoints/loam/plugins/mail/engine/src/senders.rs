@@ -189,8 +189,8 @@ struct Shown {
     classes: ClassCounts,
     suggestions: Vec<SuggestionRow>,
     /// The suggestion asked about, with how many held messages accepting it
-    /// would change.
-    preview: Option<(SuggestionRow, u64)>,
+    /// would change, and why it cannot be accepted now, if it cannot.
+    preview: Option<(SuggestionRow, u64, Option<String>)>,
     tokens: Vec<crate::store::TokenRow>,
 }
 
@@ -232,7 +232,10 @@ fn read_shown(
     let preview = match asked {
         Some(asked) => {
             let changes = store.would_change(&address, asked.decision)?;
-            Some((asked, changes))
+            let refusal = crate::screening::acceptable(store, asked.id)?
+                .err()
+                .map(|error| error.code);
+            Some((asked, changes, refusal))
         }
         None => None,
     };
@@ -309,8 +312,12 @@ fn shown_json(shown: &Shown) -> Value {
         .iter()
         .map(|suggestion| suggestion_json(suggestion, &shown.tokens))
         .collect();
-    if let Some((asked, changes)) = &shown.preview {
+    if let Some((asked, changes, refusal)) = &shown.preview {
         item["preview"] = json!({
+            // Whether accepting it now would go ahead, and if not, the code
+            // mail-sender-accept would refuse it with.
+            "acceptable": refusal.is_none(),
+            "refusal": refusal,
             "suggestion": suggestion_json(asked, &shown.tokens),
             "decision": asked.decision.as_str(),
             "proposer": proposer_json(&asked.proposer, &shown.tokens),

@@ -478,7 +478,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `recipient` | An address a message was sent to, from its `To`, `Cc` and `Bcc` (step C1) | Yes |
 | `sender` | An address that is not the person's, and its history with them ([7.1](#71-senders)): its domain, the name on its newest message, its messages and how many carry a list or bulk header, when the first and last arrived, how many of the person's messages went to it and when the last did, and how many of its messages the person answered. Fixed by step C1. The person's decisions on senders are step C2's, in `sender_decision`, which is not derived | Yes |
 | `template` | A template key and how many held messages have it, wherever they are (step C2, migration 8) | Yes |
-| `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision` and `observation` |
+| `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision`, the person's own addresses (`account` and the sent mailboxes), `observation` and `mailbox.role` |
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
 | `story`, `story_member` | Stories and their messages ([section 8](#8-stories)) | Stream and burst stories yes |
@@ -1164,13 +1164,14 @@ A decision on a sender is in, out or undecided, and is the person's alone.
   token's id over HTTP, the one agent of stdio, or a person or script at the command line. A 21st
   waiting is refused with `POLICY_LIMIT`.
 - **A suggestion is in or out.** An agent cannot suggest that an address is the person's.
-- **`mail-sender-accept`** is held only when the suggestion can be accepted now: it is open,
-  screening is ready, so the preview's count is right, and its address is still a stranger's.
-  Otherwise the command refuses it without asking (`PROPOSAL_NOT_OPEN`, `SCREENING_NOT_READY`,
-  `SENDER_NOT_FOUND`). The command itself accepts only a call the person approved: one that
-  became acceptable after its policy found it was not, so the person was never asked, is
-  refused with `CONFLICT`, which can be retried, and asks when run again. If the preview
-  cannot be read, the command line does not ask and does nothing. At the terminal the command line reads the preview, `mail-sender-show`
+- **`mail-sender-accept`** is held for approval every time (`ApprovalPolicy::Required`), so the
+  middleware checks the person's approval of each call, and nothing that changes between a
+  check and the run can let one through unasked. After the approval it refuses what cannot be
+  accepted now: a suggestion not open (`PROPOSAL_NOT_OPEN`), screening not ready, so the
+  preview's count could be wrong (`SCREENING_NOT_READY`), or an address now the person's
+  (`SENDER_NOT_FOUND`). The preview says whether it can (`acceptable`, and `refusal` with the
+  code), and the command line asks nothing, and does nothing, when it cannot or when the preview
+  cannot be read. At the terminal the command line reads the preview, `mail-sender-show`
   with the suggestion, and shows the sender's address and name, each named as written in its
   mail and with control characters and the marks that reorder text replaced, whether the person
   has written to it, and who suggested it, before the summary and the question.
@@ -1185,8 +1186,9 @@ A decision on a sender is in, out or undecided, and is the person's alone.
 - **`mail-status`** gives `screening`: whether it is ready, the queue, how many suggestions wait,
   and the 20 latest of the senders blocked in the last 30 days (`blockedLately`, with
   `blockedLatelyTotal` for all of them), each with the person or the suggestion and proposer it
-  came from, and its address in a labelled part; `mail-sender-list` with `decision` gives them
-  all.
+  came from, and its address in a labelled part. `mail-sender-list` with `decision` gives every
+  sender with mail that the person screened out, at any time; an address screened before any of
+  its mail arrived has no sender row, and is found by `mail-sender-show` with its id.
 
 ### 7.4 Bursts
 

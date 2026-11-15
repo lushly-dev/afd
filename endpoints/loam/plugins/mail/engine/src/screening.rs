@@ -24,9 +24,8 @@
 use std::sync::Arc;
 
 use afd::{
-    ApprovalDecision, ApprovalPolicy, CommandContext, CommandDefinition, CommandError,
-    CommandHandler, CommandInterface, CommandParameter, CommandResult, JsonSchemaType, failure,
-    success,
+    ApprovalPolicy, CommandContext, CommandDefinition, CommandError, CommandHandler,
+    CommandInterface, CommandParameter, CommandResult, JsonSchemaType, failure, success,
 };
 use async_trait::async_trait;
 use serde_json::{Value, json};
@@ -409,7 +408,10 @@ pub fn suggest(engine: Arc<Engine>) -> CommandDefinition {
 
 /// Whether suggestion `id` can be accepted now: it is open, screening can
 /// be read for its preview, and its address is still a stranger's.
-fn acceptable(store: &Store, id: i64) -> Result<Result<SuggestionRow, CommandError>, StoreError> {
+pub(crate) fn acceptable(
+    store: &Store,
+    id: i64,
+) -> Result<Result<SuggestionRow, CommandError>, StoreError> {
     let Some(row) = store.suggestion(id)? else {
         return Ok(Err(suggestion_not_found()));
     };
@@ -432,15 +434,22 @@ fn acceptable(store: &Store, id: i64) -> Result<Result<SuggestionRow, CommandErr
 
 /// What the person is asked to approve for `mail-sender-accept`: the
 /// suggestion, what it does and how many held messages change class, and no
-/// address, which came from mail (the specification's 7.3). `None` when it
-/// cannot be accepted now: the command refuses it without asking.
+/// address, which came from mail (the specification's 7.3). A suggestion
+/// that cannot be accepted now says so: the command refuses it even if
+/// approved.
 #[must_use]
 pub fn approval_summary(engine: &Engine, input: &Value) -> Option<String> {
     let id = integer(input, "suggestion").ok()??;
     engine
         .with_store(|store| {
-            let Ok(row) = acceptable(store, id)? else {
-                return Ok(None);
+            let row = match acceptable(store, id)? {
+                Ok(row) => row,
+                Err(why) => {
+                    return Ok(Some(format!(
+                        "Accept suggestion {id}, which cannot be accepted now ({}): nothing will change",
+                        why.code
+                    )));
+                }
             };
             let changes = store.would_change(&row.address, row.decision)?;
             let what = match row.decision {
@@ -475,16 +484,6 @@ impl CommandHandler for Accept {
             if let Err(error) = acceptable(store, id)? {
                 return Ok(Err(error));
             }
-            // It became acceptable after the approval policy found it was
-            // not, so the person was never asked: ask now.
-            if context.approval.is_none() {
-                return Ok(Err(CommandError::new(
-                    afd::error_codes::CONFLICT,
-                    format!("suggestion {id} became one the person can accept while the command ran, and they were not asked"),
-                )
-                .with_suggestion("Run `loam-mail mail-sender-accept` again at a terminal; it asks for approval.")
-                .with_retryable(true)));
-            }
             Ok(Ok(store.accept(id, now)?))
         });
         match done {
@@ -515,7 +514,6 @@ impl CommandHandler for Accept {
 /// asks.
 #[must_use]
 pub fn accept(engine: Arc<Engine>) -> CommandDefinition {
-    let policy_engine = Arc::clone(&engine);
     CommandDefinition::new(
         ACCEPT,
         "Accept an agent's suggestion to screen a sender in or out",
@@ -529,24 +527,11 @@ pub fn accept(engine: Arc<Engine>) -> CommandDefinition {
     )
     .as_mutation()
     .with_confirm_prompt("Accept the suggestion and screen the sender as it says")
-    // A suggestion that cannot be accepted now is refused by the handler
-    // without asking the person about it.
-    .with_approval(ApprovalPolicy::when(move |input, _context| {
-        let open = integer(input, "suggestion")
-            .ok()
-            .flatten()
-            .and_then(|id| {
-                policy_engine
-                    .with_store(|store| Ok(acceptable(store, id)?.is_ok()))
-                    .ok()
-            })
-            .unwrap_or(false);
-        if open {
-            ApprovalDecision::Required
-        } else {
-            ApprovalDecision::NotRequired
-        }
-    }))
+    // Every call is held, so the middleware checks the person's approval of
+    // each one; what cannot be accepted is refused after it. The command
+    // line reads the preview first and asks nothing of a suggestion that
+    // cannot be accepted.
+    .with_approval(ApprovalPolicy::Required)
     .with_expose(command_line_only())
 }
 
