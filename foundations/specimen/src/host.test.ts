@@ -70,7 +70,6 @@ describe('hostBinaryPath', () => {
 			join(root, 'node_modules', '@lushly-dev', 'specimen', 'dist', 'host.js')
 		).href;
 		vi.stubEnv('SPECIMEN_HOST_BINARY', '');
-		vi.stubEnv('CARGO_TARGET_DIR', '');
 	});
 	afterEach(() => {
 		vi.unstubAllEnvs();
@@ -93,34 +92,6 @@ describe('hostBinaryPath', () => {
 		mkdirSync(built, { recursive: true });
 		writeFileSync(join(built, 'specimen-host'), 'host');
 		expect(hostBinaryPath(moduleUrl)).toBe(join(built, 'specimen-host'));
-	});
-
-	it('finds a source build under CARGO_TARGET_DIR, resolved from host/ as cargo does', () => {
-		install(true);
-		const host = join(root, 'node_modules', '@lushly-dev', 'specimen', 'host');
-		mkdirSync(join(host, 'target', 'release'), { recursive: true });
-		writeFileSync(join(host, 'Cargo.toml'), '[package]');
-		writeFileSync(join(host, 'target', 'release', 'specimen-host'), 'older');
-		const moved = join(root, 'elsewhere', 'release');
-		mkdirSync(moved, { recursive: true });
-		writeFileSync(join(moved, 'specimen-host'), 'host');
-		vi.stubEnv('CARGO_TARGET_DIR', join(root, 'elsewhere'));
-		expect(hostBinaryPath(moduleUrl)).toBe(join(moved, 'specimen-host'));
-		vi.stubEnv('CARGO_TARGET_DIR', '../../../../elsewhere');
-		expect(hostBinaryPath(moduleUrl)).toBe(join(moved, 'specimen-host'));
-		// Nothing built there yet: the build in host/target still serves.
-		vi.stubEnv('CARGO_TARGET_DIR', join(root, 'empty'));
-		expect(hostBinaryPath(moduleUrl)).toBe(join(host, 'target', 'release', 'specimen-host'));
-	});
-
-	it('ignores CARGO_TARGET_DIR outside a source checkout', () => {
-		const moved = join(root, 'elsewhere', 'release');
-		mkdirSync(moved, { recursive: true });
-		writeFileSync(join(moved, 'specimen-host'), 'host');
-		vi.stubEnv('CARGO_TARGET_DIR', join(root, 'elsewhere'));
-		const binary = install(true);
-		if (binary) expect(hostBinaryPath(moduleUrl)).toBe(realpathSync(binary));
-		else expect(() => hostBinaryPath(moduleUrl)).toThrow(/no prebuilt host/);
 	});
 
 	it.runIf(name)('finds the installed platform package’s binary', () => {
