@@ -25,8 +25,17 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
-          sparse-checkout: scripts/ci-verdict.mjs
+          sparse-checkout: |
+            scripts/ci-verdict.mjs
+            scripts/commit-credit.mjs
           sparse-checkout-cone-mode: false
+
+      # The owner is the credited contributor: no commit names an agent as author or co-author.
+      - name: Check commit credit
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+        run: node scripts/commit-credit.mjs
 
       - name: Wait for the head commit's workflows
         env:
