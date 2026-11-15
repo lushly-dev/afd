@@ -20,15 +20,20 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 ## Status block
 
-- **State:** active by the owner's direction of 2026-11-14; the proposal is in review, and the
-  owner's ranking of the jobs is next. Nothing is built.
-- **Last verified:** 2026-11-14 against `main` at `dd080235`: the fifteen scenarios pass
-  `afd scenario validate` and the dry-run check with fixtures resolved; the coverage report uses
-  19 of 20 drafted commands and 17 of 24 error codes
-  ([Checks](factory-gateway.proposal.md#checks)). Every path in `process.json` exists in its
-  repository except the files a milestone creates (G0's runbook,
-  `docs/operations/factory-gateway.md`). No code was built or run.
-- **Done:** nothing yet.
+- **State:** active by the owner's direction of 2026-11-14. The proposal merged on 2026-11-14 as
+  [#1222](https://github.com/lushly-dev/afd/pull/1222) (merge commit `57397cdb`), so it is no
+  longer in review. Work started on 2026-11-14 in a session on `random`, the machine the gateway
+  will run on: botcore's host changes and G1's command skeleton against a fake GitHub, which need
+  no GitHub App. The owner's ranking of the jobs, the six questions in
+  [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
+- **Last verified:** 2026-11-14 against `main` at `57397cdb`: the proposal, `process.json`, the
+  fifteen scenarios and their fixtures are on `main` as #1222 merged them. The scenario checks
+  were last run by the proposal session against `dd080235` (15 files, 70 steps; 19 of 20 drafted
+  commands and 17 of 24 error codes covered,
+  [Checks](factory-gateway.proposal.md#checks)). No gateway code is on `main` yet.
+- **Done:** the proposal, jobs and manifest (#1222).
+- **In progress:** botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs))
+  and the G1 command skeleton; their pull requests are linked in the session log as they open.
 - **Not done:** every milestone below.
 
 ## Milestones
@@ -36,7 +41,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
 | G0: stand it up | Open; needs the owner to create and install the App | — | — |
-| G1: one writer (MVP) | Open | `mvp` (01–11, 15) | — |
+| G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes and the command skeleton against a fake GitHub; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
 | G4: no credential outside the door | Open | unit tests and the exit | — |
@@ -62,9 +67,25 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   four new improvements and five nits; all were fixed. See the proposal's
   [Review](factory-gateway.proposal.md#review). Checks rerun after it: 15 files, 70 steps.
 
+- 2026-11-14: proposal merged as #1222 (`57397cdb`). A new session on `random` took the work over
+  from the proposal session on Hero. Overlap check against open AFD pull requests and the four
+  branches in flight on Hero, read 2026-11-14:
+  - `feat/botcore-host-catalog` merged as #1181 (plugin policies, input schemas in the catalog,
+    named refusals), `feat/factory-plugin-intake` as #1183 and `feat/factory-plugin-queue` as
+    #1185. These are on `main`; the host changes build on them.
+  - `feat/factory-lane-loop` (`1ba67bb3`, 2026-11-13) is pushed with no pull request. It changes
+    only `botcore-factory` (the lane process, loop, hosts and report, and a rewrite of
+    `real_world.py`), not botcore's host. The gateway is added as new modules so the two do not
+    collide; its claims, queue push and lane steps move onto the gateway after it lands.
+  - No open pull request touches `endpoints/botcore/`.
+  - So this work does the host changes once, for the gateway and the factory's Phase 1 together
+    (the follow-up below).
+- 2026-11-14: filed [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392), Lushly's side
+  of G1 (claim script, lane steps, flake filer, process files and checks), as G1 started.
+
 ## Follow-ups not yet issues
 
 | Raised | By | Follow-up |
 |---|---|---|
-| 2026-11-14 | Proposal session | A Lushly issue tracking Lushly's side of G1 (claim script, lane steps, flake filer, process files and checks), filed when G1 starts |
-| 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both |
+| 2026-11-14 | Proposal session | ~~A Lushly issue tracking Lushly's side of G1, filed when G1 starts~~. Superseded: filed as [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) on 2026-11-14 |
+| 2026-11-14 | Proposal session | botcore's host changes ([What botcore needs](factory-gateway.proposal.md#what-botcore-needs)) overlap the factory's Phase 1 host changes; whichever starts first does them once for both. Taken 2026-11-14 by the gateway's G1 session on `random`: the gateway's host changes are done once, for both |
