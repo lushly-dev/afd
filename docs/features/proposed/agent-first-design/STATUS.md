@@ -16,29 +16,33 @@ shape of the [Patterns status](../patterns/STATUS.md).
 ## Status block
 
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`.
-  One independent reader reviewed it. The owner has decided nine of its points and not approved
-  the whole.
+  One independent reader reviewed it. The owner has answered eight of its twelve questions and
+  not approved the whole.
 - **Epic:** none. Opening one is the owner's call.
 - **Done:** the problem, what exists today, the model, thirteen draft jobs as sentences with the
   rank the owner confirmed, a design direction, the amendments it implies for other documents,
   phases, twelve questions for the owner with eight answered, and an independent review in two
   passes.
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
-  2026-11-14. The owner ruled on its four points on 2026-11-15. Nothing in it is built.
+  2026-11-14. On 2026-11-15 the owner decided its domain, its model and budget, and its bare
+  arm, and an independent reader reviewed it. Its rules for "go" are not confirmed. Nothing
+  in it is built.
 - **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
   owner's remaining answers, moving each part into the proposal that owns it, and everything in
   the phases. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** nothing from the owner for the bench to be built. Before any session of
-  phase 0 runs, the bench's commands, fixtures, checks, planted faults, persona cards,
-  reference build and runner are written, the four pilots give what a session takes, and the
-  owner confirms the rule for "go" of the step about to run. Questions 4, 8, 9 and 10 of the
-  proposal are open and block nothing yet.
+- **Blocked on:** the owner confirming the bench's rules for "go". That is due before the
+  first run of step 0.1 and does not hold up building the bench, whose domain and budget the
+  owner approved. Before any session of phase 0 runs, the bench's commands, fixtures, checks,
+  planted faults, persona cards, reference build and runner are written, and the four pilots
+  give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open and block
+  nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-14, the link check and the review below.
+- **Last verified:** 2026-11-15, the link check and the review of the bench specification
+  below.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -53,8 +57,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
-| Phase 0, step 0.0: the bench's specification | In progress. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner ruled on its four points on 2026-11-15: a seed library, Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week, and a bare arm in step 0.1. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
-| Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming its rule for "go" | Proposal, section 7 |
+| Phase 0, step 0.0: the bench's specification | In progress. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
+| Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
@@ -138,6 +142,7 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   from Specimen's README that a host exists for that platform. Not checked: that the host
   builds there, that the `claude` command there is signed in, and what share of a week's
   allowance a session takes. The link script was run again over the same four files.
+- **Independent review of the bench specification, 2026-11-15:** REVIEWTEXT
 
 ## What was read to write it
 
@@ -178,6 +183,7 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft | Specimen does not observe animation, so no motion rule can be a gate. A rule about duration or easing stays `authored` | Open |
 | 2026-11-14 | Bench specification | No forced-colours emulation exists in Specimen or in Botcore's `cdp_emulate`, so no persona can be held to that modality | Open |
 | 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Open |
+| 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |
 
 ## Session log
 
@@ -189,4 +195,5 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft, continued | The owner ruled on the point question 2 left open: a product that changes nothing names the defaults at a version, and does not copy the whole set |
 | 2026-11-14 | First draft, continued | The owner asked for it to be committed and merged, and answered questions 3, 5, 6 and 12: agreed, agreed, agreed, and run phase 0. The owner asked for a proposed rank of the jobs, which is in the proposal's section 4 and not yet confirmed. `main` was merged at `dd080235`, which moved Component Briefs to `complete/`, and two paths were corrected. An independent review raised four blockers and eleven improvements; all four blockers and the improvements were applied |
 | 2026-11-14 | After the merge of #1223 | The owner confirmed the rank of the jobs as proposed. Section 4 of the proposal now carries it: job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added, with the numbers kept. The bench specification was drafted as step 0.0 of phase 0: a seed library, four screens of which one is held back from whoever writes the statements, 209 sessions, an estimate of about $260 at list prices with a proposed cap of $400, rules for "go", and four points for the owner. Checking it settled one point the proposal had left unverified: Botcore cannot emulate forced colours |
-| 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled. The budget's cap became a share of the week, proposed at a fifth and open, with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
+| 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled. The budget's cap became a share of the week, proposed at a fifth and open (superseded by the next row, where the owner accepted the fifth), with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
+| 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. All were fixed, and the rules for "go" stay unconfirmed |

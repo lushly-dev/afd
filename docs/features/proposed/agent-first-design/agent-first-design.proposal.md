@@ -30,9 +30,9 @@ defaults. Agents review early and often, and a person decides at the points that
     Interface Guidelines. [Section 5.8](#58-the-skill) says what was taken.
   - The owner's earlier design-engine brainstorm and its app specification, in a private
     repository. Nothing here depends on them, and none of their text or data is used.
-- **Next:** the bench in the [bench specification](bench.md) is built, which the owner
-  approved in its domain and budget on 2026-11-15, and the owner answers the questions still
-  open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
+- **Next:** the bench in the [bench specification](bench.md) is built. The owner approved
+  its domain and its budget on 2026-11-15 and has not confirmed its rules for "go". The owner
+  also answers the questions still open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
 
 | Field | Value |
 | --- | --- |
@@ -436,7 +436,8 @@ Patterns' copy: the saved markup and styles of a region.
   | Low vision | Screenshots at high zoom and at 320 px wide | Pointer and keys |
 
   A forced-colors modality needs emulation, and neither has it. Specimen has none. Botcore's
-  `cdp_emulate` sets a colour scheme, a viewport, a user agent, offline and CPU throttling
+  `cdp_emulate` sets a colour scheme, a viewport and offline, and takes a user agent and CPU
+  throttling without applying them
   (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:716`, read 2026-11-14 at
   `fd0781e4`).
 - **A job script is the scenario's sentence and starting state, without its steps.** The steps
@@ -569,11 +570,14 @@ recommended domain and a budget, is [bench.md](bench.md).
 
   | Arm | The building agent gets |
   | --- | --- |
-  | 0 | Nothing |
+  | 0 | Nothing beyond what a session in this repository has today, which includes the components brief |
   | 1 | A general public design skill |
   | 2 | The default patterns through the brief |
   | 3 | Arm 2 and this proposal's skill |
   | 4 | Arm 3 and the panel loop |
+
+  The [bench specification](bench.md) adds a bare arm to step 0.1, given no list of states.
+  The owner approved it on 2026-11-15.
 
 - **Results are reported check by check,** with what was measured, excluded and unmeasured.
   There is no single score. The owner's blind choice between arms is the judgement measure.
@@ -597,14 +601,15 @@ Each is an amendment for the owner to accept, not an edit made here.
 ### Phase 0. Prove it
 
 The owner said on 2026-11-14 to run it. The bench is kept. The scripts that run the arms are
-throwaway, and only their record is merged. Each step fixes its rule for "go" before it runs.
+throwaway, and only their record is merged. Every rule for "go" is fixed before the first run,
+because later steps reuse earlier steps' builds ([bench.md](bench.md#rules-for-go)).
 No step here runs arm 4: the panel loop is built in phase C, and step 0.3 tests first whether
 a panel finds faults at all.
 
 | Step | Question | How |
 | --- | --- | --- |
 | 0.0 | Is there a bench? | Write the bench's specification ([5.9](#59-the-bench), drafted in [bench.md](bench.md)): an invented domain, its commands and fixtures, the seeded faults, the held-out jobs, the persona cards, a run count and a cost estimate. The owner approves the domain and the budget before any session runs |
-| 0.1 | What goes wrong today? | Arms 0 and 1 on the bench. The owner reviews the results blind and names the faults. Those faults, and no others, become the first statements |
+| 0.1 | What goes wrong today? | Arms 0 and 1 on the bench, and a bare arm given no list of states. The owner reviews the results blind and names the faults. Those faults, and no others, become the first statements |
 | 0.2 | Do the default patterns help? | Arm 2 against arm 0, scored on the result states |
 | 0.3 | Can a panel find planted faults? | Seed faults in one build. Measure recall and judged precision per modality, and the overlap between reviewers |
 | 0.4 | Does the measured path tell a good screen from a bad one? | The same job on a clean build and a seeded one; compare the paths read from the journal |
@@ -700,14 +705,15 @@ Each recommendation is for the owner to decide.
 9. **The skill.** *Recommendation: one skill with a reference per topic, written only if step
    0.5 shows it helps.* Its name is open; `afd-design` fits the existing names.
 10. **Design to Code.** Retire it, or rewrite it around the rendered screen.
-11. **The jobs.** Cut, add and rank the fourteen. The owner asked for a proposal on
-    2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with job 3 merged into
+11. **The jobs.** Cut, add and rank the fourteen jobs of the first draft. The owner asked for
+    a proposal on 2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with job 3 merged into
     job 2, job 11 folded into job 10, job 13 deferred and job 15 added. Ranks 1 to 5 are the
     first slice.
 12. **Phase 0.** Whether to run it, and its budget. **Decided 2026-11-14: run it.** The budget
     is in the [bench specification](bench.md) (step 0.0). **Decided 2026-11-15:** the sessions
-    draw on a subscription allowance, no more than a fifth of a week's allowance in any one
-    week.
+    run on Opus 5.5 at `medium` on a second machine of the owner's, draw on its subscription
+    allowance, and take no more than a fifth of a week's allowance in any one week. The rules
+    for "go" are not confirmed.
 
 ## 10. Out of scope
 

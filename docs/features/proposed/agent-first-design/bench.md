@@ -1,8 +1,9 @@
 # Agent-First Design: the bench
 
 The specification of the bench for phase 0 of the
-[proposal](agent-first-design.proposal.md#phase-0-prove-it), written for the owner's approval.
-It is step 0.0. Read [STATUS.md](STATUS.md) first.
+[proposal](agent-first-design.proposal.md#phase-0-prove-it). It is step 0.0, which asks the
+owner to approve the domain and the budget before any session runs. Read
+[STATUS.md](STATUS.md) first.
 
 ## Status
 
@@ -11,17 +12,19 @@ It is step 0.0. Read [STATUS.md](STATUS.md) first.
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
   of a week's allowance in any one week.
-- **Not yet confirmed:** the [rules for "go"](#rules-for-go). The owner confirms each before
-  its step runs.
+- **Not approved:** the rest of this file, and above all the
+  [rules for "go"](#rules-for-go), which the owner confirms before the first run of step 0.1.
+  The owner was asked about the three points above and about nothing else here.
 - **Measured:** the cost and size of a page-building session, from the
   [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
-  in [Budget](#budget) is an assumption, marked as one, that two pilot sessions of each kind
-  replace before the full runs.
+  in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
+  replace the assumptions about a build and a walk before the full runs. Nothing pilots a
+  reader; step 0.1's first readers measure one.
 - **Deliberately not in this file:** the planted faults, the checks, the persona cards and the
   two jobs held back for the panel loop. A session that could read them would be scored on
-  what it had read. They are written after approval, kept outside the repository until the
-  last run has finished, and committed then as the record, as Component Briefs did with its
-  tasks and checks. This file gives their shape and their counts.
+  what it had read. They are written now that the domain is decided, kept outside the
+  repository until the last run has finished, and committed then as the record, as Component
+  Briefs did with its tasks and checks. This file gives their shape and their counts.
 
 ## What it has to do
 
@@ -78,11 +81,16 @@ Which task needs which pattern:
 
 - **A limit.** Alternatives, warnings and evidence are not on T4, so a statement about them is
   tested only on a screen it may have been written from.
-- **The commands are the data contract.** Their names, as a sketch: `variety-list`,
+- **The commands are the data contract.** Their names, as a first sketch: `variety-list`,
   `variety-get`, `variety-retire`, `loan-create`, `loan-return`, `loan-list`,
-  `request-list`, `request-decide`, `donation-import`, `donation-match` and `member-list`. No
-  schema is drafted. The bench's own jobs are written as scenario files first, as the `afd`
-  skill requires, and a fixture forces each state.
+  `request-list`, `request-decide`, `donation-import`, `donation-match` and `member-list`.
+  The sketch is incomplete and no schema is drafted. Nothing in it yet joins a waiting list,
+  asks the steward for a rare variety, lists a variety's lots, or takes back a loan, a
+  return or a decision.
+- **The order is jobs first,** as the `afd` skill's
+  [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets it: the bench's jobs
+  as sentences, then the commands drafted with their inputs, results and error codes, then
+  each job as a scenario file written against them. A fixture forces each state.
 - **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
   kept after phase 0.
 
@@ -94,8 +102,9 @@ Which task needs which pattern:
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.
-- **Arm 1's public skill** is Anthropic's frontend-design, the one of the six already
-  installable as a Claude Code plugin.
+- **Arm 1's public skill** is Anthropic's frontend-design, one of the six public skills the
+  proposal compared ([5.8](agent-first-design.proposal.md#58-the-skill)), chosen because it
+  installs as a Claude Code plugin.
 - **Arm 2's patterns do not exist yet.** Patterns is a proposal. A throwaway script adds the
   statements to the brief's text. They are written after step 0.1, from the faults the owner
   names on T1 to T3 and from no other source, and the owner approves them before step 0.2.
@@ -106,7 +115,10 @@ Which task needs which pattern:
 
 ## Scoring
 
-Reported check by check, with what was measured, excluded and unmeasured. No single score.
+Reported check by check, with what was measured, excluded and unmeasured. No single score
+ranks the arms. Step 0.2's rule needs one number for a run, the share of its screen's checks
+that the run passed, and that number is used for that rule and for step 0.5's and nowhere
+else.
 
 - **Checks on a build,** frozen before the first run and independent of any statement, so that
   arm 2 is not scored on rules written from arm 0's faults:
@@ -118,9 +130,13 @@ Reported check by check, with what was measured, excluded and unmeasured. No sin
 - **Judgement:** the owner's blind choice between two builds of the same task.
 - **Walks:** which planted faults a persona reported, what else it reported, and the path the
   journal recorded against the scenario's steps.
-- **Statistics:** a permutation test on each run's count of passed checks, as Component Briefs
-  used. Fifteen runs an arm resolved a 22.5 % difference there only to p = 0.17, so a small
-  effect will not show.
+- **Statistics,** for step 0.2: each run's share of its screen's checks passed, the
+  difference between the two arms' means, and a two-sided permutation test that shuffles the
+  arm labels within each screen, because the screens have different checks.
+- **What fifteen runs can show is not known.** Component Briefs ran a permutation test on
+  median tokens, and with fifteen runs an arm a saving of 22.5 % reached only p = 0.17.
+  Nothing yet says how much runs of one arm differ on these checks. Step 0.1 shows that
+  spread, and with it whether fifteen runs can resolve the difference step 0.2 asks for.
 
 ## Faults, personas and held-back jobs
 
@@ -133,12 +149,10 @@ Reported check by check, with what was measured, excluded and unmeasured. No sin
   commands. The screen-reader persona gets the accessibility tree after each key press. Live
   announcements are read from that tree, which is an approximation; capturing them as a
   screen reader speaks them is not built.
-- **One model family in phase 0.** A session runs on one provider
-  ([model routing](../../../operations/model-routing.md)), so the panel is five Claude
-  sessions. The overlap it reports is therefore within one family, and the proposal's point
-  about reviewers of different families waits for phase C. The machine that runs the
-  sessions has a second provider connected, so a mixed panel is possible there when phase C
-  wants one.
+- **One model family in phase 0,** by choice. The five personas are Claude sessions, so that
+  how many faults a panel finds is measured without a second thing varying. The overlap it
+  reports is therefore within one family, and the proposal's point about reviewers of
+  different families waits for phase C.
 - **Two jobs held back for the panel loop** are written now and first used in phase C.
 
 ## Runs
@@ -160,32 +174,42 @@ phase 0 has no step for it.
 - **How a session runs,** as in Component Briefs: `claude -p` with the model and effort
   pinned, no web tools and no subagents, in a worktree reset to a commit that holds none of
   the held material, with each arm's material in a directory of its own.
+- **That is not a wall.** Component Briefs recorded that a session can read any path on the
+  machine. The held material is on the same machine, because scoring runs there. Each
+  session's tool calls are searched for a path outside its worktree and its own arm's
+  directory, and a run that read one is thrown out and run again.
 - **Where:** a second machine of the owner's, an Apple silicon Mac reached through T3 Code,
   which has a checkout of this repository. Builds, walks and scoring all run there: Specimen
-  ships a host for that platform and none for Windows
-  (`foundations/specimen/README.md:499`). Not checked yet: that the host builds there from
-  source, and that the `claude` command on it is signed in to the subscription.
+  has a host for that platform and none for Windows (`foundations/specimen/README.md:499`).
+  Until Specimen's packages are released, the host is built from source. Not checked yet:
+  that it builds there, and that the `claude` command on that machine is signed in to the
+  subscription.
 - **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
   an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
 
 ## Rules for "go"
 
-Proposed here. The owner confirms each rule before its step runs, and it is not changed after
-that step's first run. The numbers are starting points, as the review triggers are.
+Proposed here and not confirmed. The numbers are starting points, as the review triggers are.
+
+- **The owner confirms all of them before the first run of step 0.1,** and none changes after
+  it. Step 0.2 compares arm 2 with the arm 0 builds of step 0.1, and step 0.5 compares arm 3
+  with the arm 2 builds of step 0.2. A rule set after its comparison's first half has been
+  seen proves little.
+- **Arms that are compared run at one pinned commit.**
 
 | Step | Go when |
 | --- | --- |
-| 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on |
-| 0.2 | On T1 to T3, arm 2 passes at least 15 points more of the checks than arm 0, at p < 0.05. On T4 the difference has the same sign. Arm 2's median tokens are no more than 20 % above arm 0's |
-| 0.3 | The panel reports at least 8 of the 12 planted faults, and each modality at least 2 of its 3. At least half of a sample of its other findings, up to 30, are real in the owner's judgement |
-| 0.4 | Where a job meets a planted fault, the path on the seeded build has more wrong turns, repeats and errors than on the clean build in at least three of four persona and job pairs. Where it meets none, the paths do not differ by more than repeats of the same build do |
-| 0.5 | The owner, blind, prefers arm 3's build in at least 8 of 12 pairs with arm 2's, and arm 3 passes no fewer checks. Otherwise the skill is not written |
+| 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on. If runs of one arm differ so much that fifteen cannot resolve 15 points, the owner chooses, before arm 2 runs, whether both arms get more runs |
+| 0.2 | On T1 to T3, arm 2's mean share of checks passed is at least 15 points above arm 0's, at p < 0.05 by the test in [Scoring](#scoring). Arm 2's median tokens are no more than 20 % above arm 0's. T4 is reported beside it and is not part of the rule: five runs against five cannot resolve it |
+| 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement |
+| 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path on the seeded build is worse than on the clean one. In the pairs that meet none, if there are any, a seeded walk differs from the clean walk by no more than the two seeded walks differ from each other |
+| 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
 
 ## Budget
 
 | Line | Basis | Estimate |
 | --- | --- | --- |
-| A build session | Component Briefs measured about $0.25 a session on Sonnet 5.5 at `medium`, with a median of 309 000 to 517 000 tokens. Opus 5.5 lists at twice Sonnet 5.5's price for input, output and cache reads (list prices as of 2026-11-03), so about $0.50 for the same tokens. **Assumed:** a screen with its states is three times a Component Briefs page | $1.50 |
+| A build session | Component Briefs measured about $0.25 a session on Sonnet 5.5 at `medium`, with a median of 309 000 to 517 000 tokens. Opus 5.5 lists at twice Sonnet 5.5's price for input, output and cache reads (list prices as of 2026-11-03), so about $0.50 for the same tokens. **Assumed:** Opus 5.5 at `medium` uses as many tokens as Sonnet 5.5 at `medium` did, and a screen with its states is three times a Component Briefs page | $1.50 |
 | A walk | **Assumed** equal to a build. Nothing in this repository measures one, and screenshots add tokens | $1.50 |
 | A reader | **Assumed** the size of a Component Briefs session | $0.50 |
 
@@ -203,23 +227,26 @@ that step's first run. The numbers are starting points, as the review triggers a
   as the one unit that compares a build with a walk.
 - **The cap is a share of the week's allowance** on the machine that runs the sessions: no
   more than a fifth of a week's allowance in any one week
-  ([ruling 2](#for-the-owner)). Phase 0 stops for the owner between steps, so it spreads
-  over more than one week without a rule to make it.
+  ([ruling 2](#for-the-owner)). The runner adds up each session's reported cost and stops
+  when the week's share is spent, inside a step if it must: step 0.1 alone is 60 sessions.
+  Phase 0 also stops for the owner between steps, so it spreads over more than one week.
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
   recorded. That gives the share a dollar at list price takes, and from it the share each
   step will take, which comes back to the owner before step 0.1. If four pilots do not move
-  a figure shown in whole percents, the first fifteen builds of step 0.1 are the
-  measurement. If a pilot costs more than twice its line, the runs stop.
+  a figure shown in whole percents, the runs pause after the first fifteen builds of step
+  0.1, which are then the measurement, and the estimate comes back to the owner there. If a
+  pilot costs more than twice its line, the runs stop.
 - **The weekly figure is shared.** Another session of the owner's runs on that machine, so
   the figure also moves for reasons that are not the bench. Each session's reported cost is
   the measure of the bench's own use, and the weekly figure only scales it.
 - **Not in the total:** writing the commands, the fixtures, the reference build, the runner
   and the statements, which are ordinary working sessions.
-- **The owner's time,** which no session replaces: approving this file; naming the faults in a
-  blind sample of step 0.1's builds; approving the statements; looking at the reference
-  build; judging up to 30 findings in step 0.3; choosing between 12 pairs in step 0.5; the
-  decision in step 0.6.
+- **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
+  faults in a blind sample of 12 of step 0.1's builds, two an arm for each screen; approving
+  the statements; looking at the reference build; checking 20 of the readers' matches and
+  judging up to 30 findings in step 0.3; choosing between 12 pairs in step 0.5; the decision
+  in step 0.6.
 
 ## When it runs
 
@@ -229,9 +256,10 @@ the owner's review between them. They are not the cost of a bench run.
 After phase 0 the bench is kept, and it runs again only as follows. *Proposed; none of it is
 built.*
 
-- **The checks that need no model** run whenever the bench's package changes: on the
-  reference build each story mounts, each contract field reaches the screen, and Specimen's
-  accessibility check passes.
+- **The checks that need no model** can run whenever the bench's package changes, since they
+  take no allowance: on the reference build each story mounts, each contract field reaches
+  the screen, and Specimen's accessibility check passes. No workflow runs them. Adding one
+  is a change to CI and is not proposed here.
 - **Sessions run on a named event,** never on a schedule and never in CI. Each rerun is a
   subset with its own estimate, approved before it starts:
 
@@ -258,7 +286,8 @@ built.*
 
 ## For the owner
 
-The owner ruled on all four on 2026-11-15.
+The owner ruled on the first three on 2026-11-15. The fourth was not put to the owner, and
+the fifth is open.
 
 1. **Domain.** **Decided: the seed library,** because every result state arises from the
    subject and a judge needs no expertise. The tool library was the fallback.
@@ -273,8 +302,11 @@ The owner ruled on all four on 2026-11-15.
    the first-ranked job. The bare arm is given the jobs and the commands with no list of
    states and no fixtures, and is scored on one question: which states have a story. It is
    15 builds and 15 readers, in the total above.
-4. **Where scoring runs.** **Settled 2026-11-15** by the owner's choice of machine. Specimen
-   does not support Windows (`foundations/specimen/README.md:499`), and the machine this
-   file was written on has no Linux subsystem installed. The machine that runs the sessions
-   is an Apple silicon Mac, which Specimen supports, so the checks run there too and nothing
-   is installed here or added to CI. Not checked yet: that Specimen's host builds there.
+4. **Where scoring runs.** **Not a ruling: it follows from the owner's choice of machine.**
+   Specimen does not support Windows (`foundations/specimen/README.md:499`), and the machine
+   this file was written on has no Linux subsystem installed. The machine that runs the
+   sessions is an Apple silicon Mac, which Specimen supports, so the checks can run there too
+   and nothing is installed here or added to CI. It holds only if Specimen's host builds
+   there, which is not checked.
+5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
+   the first run of step 0.1, after the pilots.
