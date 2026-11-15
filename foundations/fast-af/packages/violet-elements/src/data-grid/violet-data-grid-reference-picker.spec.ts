@@ -264,6 +264,8 @@ describe("violet-data-grid-reference-picker", () => {
     expect(element.open).toBe(true);
     expect(grid.editingCell).toEqual({ rowId: "row", columnId: "tags" });
     expect(change).not.toHaveBeenCalled();
+    // The selection change renamed the trigger; settle the render first (see openPicker).
+    await Updates.next();
     await userEvent.click(trigger);
     await vi.waitFor(() => expect(grid.editingCell).toBeNull());
     expect(change).toHaveBeenCalledTimes(1);
@@ -300,6 +302,8 @@ describe("violet-data-grid-reference-picker", () => {
     await userEvent.click(control);
     expect(element.selectedValues).toEqual(["record-gh-04", "unknown"]);
     await userEvent.click(control);
+    // The selection change renamed the trigger; settle the render first (see openPicker).
+    await Updates.next();
     await userEvent.click(trigger);
     expect(element.open).toBe(false);
     expect(change).toHaveBeenCalledTimes(1);
