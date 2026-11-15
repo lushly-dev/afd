@@ -24,9 +24,9 @@ shape of the [Patterns status](../patterns/STATUS.md).
   phases, twelve questions for the owner with eight answered, and an independent review in two
   passes.
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
-  2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and budget, and its bare
-  arm, and an independent reader reviewed it. Its rules for "go" are not confirmed. Nothing
-  in it is built.
+  2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
+  budget, and its bare arm, and an independent reader reviewed it. Its rules for "go" are not
+  confirmed. Nothing in it is built.
 - **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
   owner's remaining answers, moving each part into the proposal that owns it, and everything in
   the phases. See
