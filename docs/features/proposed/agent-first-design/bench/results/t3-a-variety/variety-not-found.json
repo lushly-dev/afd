@@ -1,0 +1,16 @@
+{
+	"$command": "variety-get",
+	"$input": {
+		"id": "var-quince"
+	},
+	"success": false,
+	"error": {
+		"code": "NOT_FOUND",
+		"message": "The library has no variety var-quince",
+		"suggestion": "Call variety-list to find the variety",
+		"retryable": false,
+		"details": {
+			"id": "var-quince"
+		}
+	}
+}

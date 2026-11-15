@@ -1,0 +1,17 @@
+{
+	"$command": "loan-return",
+	"$input": {
+		"id": "loan-1"
+	},
+	"success": false,
+	"error": {
+		"code": "CONFLICT",
+		"message": "loan-1 was already returned, on 2030-03-09",
+		"suggestion": "If the return was wrong, call loan-reopen with id loan-1 to take it back, then record it again with loan-return",
+		"retryable": false,
+		"details": {
+			"id": "loan-1",
+			"status": "returned"
+		}
+	}
+}

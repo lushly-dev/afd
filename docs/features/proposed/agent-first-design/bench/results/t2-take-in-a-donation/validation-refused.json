@@ -1,0 +1,21 @@
+{
+	"$command": "donation-import",
+	"$input": {
+		"rows": []
+	},
+	"success": false,
+	"error": {
+		"code": "VALIDATION_ERROR",
+		"message": "Invalid input: rows must hold at least 1 row",
+		"suggestion": "Add at least one row, then call donation-import again",
+		"retryable": false,
+		"details": {
+			"errors": [
+				{
+					"path": "rows",
+					"message": "Array must contain at least 1 element(s)"
+				}
+			]
+		}
+	}
+}

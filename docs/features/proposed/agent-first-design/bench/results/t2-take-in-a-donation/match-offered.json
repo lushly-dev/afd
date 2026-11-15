@@ -1,0 +1,50 @@
+{
+	"$command": "donation-match",
+	"$input": {
+		"donationId": "don-2",
+		"index": 0
+	},
+	"success": true,
+	"data": {
+		"variety": {
+			"id": "var-runner",
+			"name": "Scarlet runner bean"
+		},
+		"label": "runner bean"
+	},
+	"confidence": 0.62,
+	"reasoning": "The label says runner bean and names no colour. Scarlet runner bean is the commonest runner bean in the library",
+	"sources": [
+		{
+			"type": "catalogue",
+			"id": "var-runner",
+			"title": "Scarlet runner bean, in the library catalogue"
+		}
+	],
+	"alternatives": [
+		{
+			"data": {
+				"variety": {
+					"id": "var-painted",
+					"name": "Painted Lady runner bean"
+				},
+				"label": "runner bean"
+			},
+			"reason": "A runner bean; the label names no colour",
+			"confidence": 0.3,
+			"label": "Painted Lady runner bean"
+		},
+		{
+			"data": {
+				"variety": {
+					"id": "var-czar",
+					"name": "Czar runner bean"
+				},
+				"label": "runner bean"
+			},
+			"reason": "A runner bean; the label names no colour",
+			"confidence": 0.25,
+			"label": "Czar runner bean"
+		}
+	]
+}

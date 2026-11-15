@@ -1,0 +1,18 @@
+{
+	"$command": "loan-create",
+	"$input": {
+		"memberId": "mem-ines",
+		"varietyId": "var-runner"
+	},
+	"success": false,
+	"error": {
+		"code": "OUT_OF_STOCK",
+		"message": "Scarlet runner bean has no packets left",
+		"suggestion": "Call substitute-suggest with varietyId var-runner for a close substitute, or waitlist-join to put the member on the waiting list",
+		"retryable": false,
+		"details": {
+			"varietyId": "var-runner",
+			"packetsAvailable": 0
+		}
+	}
+}

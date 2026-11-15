@@ -100,7 +100,7 @@ A `?` marks an optional field. No schema is written.
 | `variety-get` | Query | `id` | `id`, `name`, `kind`, `rare`, `packetsAvailable`, `waiting` (`member`, `position`), `retired`, `retiredAt?` | | `NOT_FOUND` | |
 | `variety-retire` | Mutation | `id` | `id`, `retired`, `retiredAt`, `packetsWithdrawn` | | `NOT_FOUND`, `CONFLICT`, `CONFIRMATION_REQUIRED`, `FORBIDDEN` | `destructive`, `confirmPrompt`; a person with the steward's role |
 | `lot-list` | Query | `varietyId` | `lots` (`id`, `harvestYear`, `packets`, `source`, `germination`), `total` | `reasoning`, `confidence`, `sources`, `warnings` (`OLD_SEED`) | `NOT_FOUND` | |
-| `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
+| `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `reasoning`, `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
 | `member-list` | Query | `query?` | `members` (`id`, `name`, `number`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED` | `approval` for a rare variety; `undoable` |
 | `loan-cancel` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
@@ -109,7 +109,7 @@ A `?` marks an optional field. No schema is written.
 | `loan-list` | Query | `varietyId?`, `memberId?`, `status?` | `loans` (`id`, `member`, `variety`, `lentAt`, `status`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `waitlist-join` | Mutation | `memberId`, `varietyId` | `position` | `undoCommand` (`waitlist-leave`), `undoArgs` | `NOT_FOUND`, `ALREADY_EXISTS`, `CONFLICT` | `undoable` |
 | `waitlist-leave` | Mutation | `memberId`, `varietyId` | `left` | | `NOT_FOUND` | |
-| `request-list` | Query | `status?`, `memberId?` | `requests` (`id`, `member`, `variety`, `summary`, `askedAt`, `expiresAt`, `status`, `packetsAvailable`), `total` | | `SERVICE_UNAVAILABLE` | |
+| `request-list` | Query | `status?` (a status, or `closed` for every status but `pending`), `memberId?` | `requests` (`id`, `member`, `variety`, `summary`, `askedAt`, `expiresAt`, `status`, `packetsAvailable`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `request-withdraw` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
 | `request-decide` | Mutation | `id`, `decision`, `reason?` | `id`, `status`, `decidedAt`, `loanId?`, `memberTold` | `plan`, `undoCommand` (`request-reopen`), `undoArgs`, `warnings` (`MEMBER_NOT_TOLD`) | `NOT_FOUND`, `CONFLICT`, `OUT_OF_STOCK`, `REQUEST_EXPIRED`, `FORBIDDEN` | `undoable`; a person with the steward's role |
 | `request-reopen` | Mutation | `id` | `id`, `status`, `expiresAt`, `loanCancelled?` | | `NOT_FOUND`, `CONFLICT`, `FORBIDDEN` | A person with the steward's role |
@@ -146,11 +146,14 @@ The values a scenario asserts, which the commands table does not spell out:
 | --- | --- |
 | A loan's `status` | `out`, `returned`, `cancelled` |
 | A request's `status` | `pending`, `approved`, `declined`, `expired`, `withdrawn`. Every one but `pending` is closed, and `request-clear` removes closed requests |
-| A donation's `status` | `complete`, `needs-attention`, `cancelled` |
+| A donation's `status` | `in-progress` while its rows are worked through, then `complete` or `needs-attention`; `cancelled` once taken back |
 | A row's `outcome` | `succeeded`, `unsettled`, `failed`, `left-out` |
 | A donation's `summary` | `total`, `successCount`, `unsettledCount`, `failureCount`, `leftOutCount` |
 | A failed row's `error.code` | `INVALID_INPUT` for a value that cannot be right, such as a harvest year in the future; `NOT_FOUND` for a label the library does not keep |
-| A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age` |
+| A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age`. On a `variety-list` row it is the freshest lot's, and absent when the variety has no packets |
+| A donation's rows | `succeeded`: `index`, `label`, `varietyId`, `lotId`, `packets`. `unsettled`: `index`, `label`, `packets`. `failed`: `index`, `label`, `error`. A row that waits for a person is a `pending` step in the batch's `plan` |
+| A `member` or `variety` inside a list entry | `id` and `name` |
+| A donation's `confidence` | `successCount / total`, so 0 for a box whose rows all wait for a person |
 
 ## What the application asks of the host
 
@@ -163,8 +166,10 @@ So the application does the rest:
 - **It says where the request went.** The hold's `summary` is the request's summary followed
   by where it waits: with the steward, in `request-list`. The refusal's `suggestion` quotes
   the summary (`packages/server/src/approval.ts:495`). The rest of that suggestion is the
-  host's and tells the caller to ask the user to approve, and at the desk the user is the
-  volunteer.
+  host's, and both its halves are wrong here: it tells the caller to ask the user to approve,
+  and at the desk the user is the volunteer; and it says the application retries the call
+  once the approval is recorded, where here `request-decide` makes the loan and nothing is
+  retried.
 - **It does not ask the person at the client.** `relay` stays off. With it on, the volunteer
   would be asked to approve rare seed for themselves.
 - **`request-decide` makes the loan itself.** The held call's token is never retried, and
@@ -325,13 +330,16 @@ Each file says at its top what it leaves out. Together:
 - **Work in progress.** The commands answer at once, so no step shows a batch that is still
   running.
 - **A confirmation.** Its wording is the command's `confirmPrompt`, which a step cannot read.
+  It is a fixed string on the command's definition, so it cannot name the variety or the date
+  it is about; the screen shows the record beside it.
   The first steps of jobs 12 and 16 pass only against a server
   ([Who calls, and through what](#who-calls-and-through-what)). They write `confirm` inside
   `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
   the input.
 
 A screen's builder is given a fixture of each result as well, so the fields a scenario cannot
-assert still reach the screen. Those fixtures are not written.
+assert still reach the screen. They are in [`results/`](results/), one for each state of
+each screen's [task](tasks/README.md).
 
 ## Checks
 
@@ -348,10 +356,11 @@ they are after the walks. Nothing is built, so the files are checked and not run
 
 ## Not done
 
+- **The tasks and results for building sessions are drafted** in [`tasks/`](tasks/README.md)
+  and [`results/`](results/): four screens, 53 states, 49 results. No reader other than their
+  author and one reviewer has read them.
+
 - **No schema.** Inputs and results are names in a table.
-- **The tasks a building session is given** are not written: for each screen, its states and
-  what the user must be able to do in each.
-- **The result fixtures** that force each state are not written.
 - **The application** in `packages/examples/seed-library` does not exist.
 
 ## For the owner

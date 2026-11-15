@@ -1,0 +1,122 @@
+{
+	"$command": "variety-list",
+	"$input": {},
+	"success": true,
+	"data": {
+		"varieties": [
+			{
+				"id": "var-borlotti",
+				"name": "Borlotti bean",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 6,
+				"germination": {
+					"estimate": 0.9,
+					"basis": "tested"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-runner",
+				"name": "Scarlet runner bean",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 0,
+				"retired": false
+			},
+			{
+				"id": "var-painted",
+				"name": "Painted Lady runner bean",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 3,
+				"germination": {
+					"estimate": 0.8,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-czar",
+				"name": "Czar runner bean",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 1,
+				"germination": {
+					"estimate": 0.7,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-glassgem",
+				"name": "Glass Gem corn",
+				"kind": "vegetable",
+				"rare": true,
+				"packetsAvailable": 2,
+				"germination": {
+					"estimate": 0.85,
+					"basis": "tested"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-crimson",
+				"name": "Crimson-flowered broad bean",
+				"kind": "vegetable",
+				"rare": true,
+				"packetsAvailable": 1,
+				"germination": {
+					"estimate": 0.75,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-calendula",
+				"name": "Pot marigold",
+				"kind": "flower",
+				"rare": false,
+				"packetsAvailable": 4,
+				"germination": {
+					"estimate": 0.45,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-nigella",
+				"name": "Love-in-a-mist",
+				"kind": "flower",
+				"rare": false,
+				"packetsAvailable": 2,
+				"germination": {
+					"estimate": 0.6,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-parsnip",
+				"name": "Parsnip",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 2,
+				"germination": {
+					"estimate": 0.3,
+					"basis": "age"
+				},
+				"retired": false
+			},
+			{
+				"id": "var-salsify",
+				"name": "Salsify",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 0,
+				"retired": false
+			}
+		],
+		"total": 10
+	}
+}

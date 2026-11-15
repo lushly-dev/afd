@@ -92,7 +92,10 @@ Which task needs which pattern:
   against the commands, in the order the `afd` skill's
   [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets. Three readers
   walked them. No schema is written.
-- **A fixture of each result forces each state** of a screen. They are not written.
+- **A fixture of each result forces each state** of a screen. Each screen's task, its states
+  and their results are drafted in [`bench/tasks/`](bench/tasks/README.md), 53 states and 49
+  results across the four screens. A task lists the screen's states, so it is held material
+  for the bare arm.
 - **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
   kept after phase 0.
 

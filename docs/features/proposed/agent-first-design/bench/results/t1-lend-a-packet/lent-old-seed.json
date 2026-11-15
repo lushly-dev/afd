@@ -1,0 +1,37 @@
+{
+	"$command": "loan-create",
+	"$input": {
+		"memberId": "mem-tobias",
+		"varietyId": "var-calendula"
+	},
+	"success": true,
+	"data": {
+		"id": "loan-2",
+		"status": "out",
+		"lentAt": "2030-03-09T10:00:00Z",
+		"lot": {
+			"id": "lot-calendula-24",
+			"harvestYear": 2024,
+			"germination": {
+				"estimate": 0.45,
+				"basis": "age"
+			}
+		}
+	},
+	"warnings": [
+		{
+			"code": "OLD_SEED",
+			"message": "This packet of Pot marigold is from 2024; about 45% of its seed is expected to germinate, judged by its age",
+			"severity": "caution",
+			"details": {
+				"lotId": "lot-calendula-24",
+				"estimate": 0.45,
+				"basis": "age"
+			}
+		}
+	],
+	"undoCommand": "loan-cancel",
+	"undoArgs": {
+		"id": "loan-2"
+	}
+}
