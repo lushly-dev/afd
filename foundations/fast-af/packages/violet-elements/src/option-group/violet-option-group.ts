@@ -84,6 +84,12 @@ export class VioletOptionGroup extends FASTElement {
     }
 
     public disabledChanged(): void {
+        // Reach the options now: the list around them resyncs only on its next selection change.
+        for (const option of this.querySelectorAll("violet-option")) {
+            if (option.closest("violet-option-group") === this) {
+                (option as { groupDisabled?: boolean }).groupDisabled = this.disabled;
+            }
+        }
         this.$emit("group-state-change", { disabled: this.disabled });
     }
 

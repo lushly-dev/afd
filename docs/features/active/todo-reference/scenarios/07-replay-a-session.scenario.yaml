@@ -1,0 +1,43 @@
+# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# Run in-process with context { clock: fixedClock('2026-11-15T09:00:00Z'),
+# random: seededRandom('todo-reference') } and createJournalMiddleware, as the backend's tests
+# will. The file is the session; the replay is a CLI step (`afd replay <journal>
+# --module dist/registry.js`), not a command, so it cannot be a step. The backend's replay test
+# runs it on this session's journal and expects every result to match.
+# Replay starts from a fresh store (spec/journal.md, "Replay"), so the session creates
+# everything it touches.
+name: Turn an agent session into a regression test
+description: >-
+  When a bug report comes with the journal of the agent session that hit it, I want to replay
+  that session against the example and get the same results, so that the session becomes a
+  test that fails until the bug is fixed.
+job: replay-a-session
+tags: [journal, deterministic, developer]
+steps:
+  - description: A todo is created; its id and time come from the session's context, not the machine
+    command: todo-create
+    input: { title: Prune the gooseberries, priority: medium }
+    expect:
+      success: true
+      data:
+        id: { matches: '^todo-' }
+        createdAt: '2026-11-15T09:00:00.000Z'
+  - description: It is renamed
+    command: todo-update
+    input: { id: "${{ steps[0].data.id }}", title: Prune the gooseberries and redcurrants }
+    expect:
+      success: true
+      data:
+        updatedAt: '2026-11-15T09:00:00.000Z'
+  - description: It is done
+    command: todo-toggle
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        completed: true
+  - description: It is deleted
+    command: todo-delete
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true

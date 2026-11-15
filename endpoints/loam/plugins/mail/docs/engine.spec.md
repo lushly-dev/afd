@@ -1319,9 +1319,34 @@ migration 9):
   each message's story.
 - **A store that held mail before** is given its stories once when it is next opened after
   migration 9.
-- **Not yet**: a burst's messages leave their streams with step C3 ([7.4](#74-bursts)); and the
-  stories are not yet made or timed on the owner's mail (`engine/tests/live_screening.rs`
-  reports them), which waits for the copy of the store.
+- **Not yet**: a burst's messages leave their streams with step C3 ([7.4](#74-bursts)).
+
+**Measured on the owner's mail** on 2026-11-15, with `engine/tests/live_screening.rs` in a release
+build on a copy of the iCloud store the B7 server keeps, made by the copying rules and kept in an
+encrypted image ([the counts](live-icloud-c2.results.json)). The copy's 294 086 messages were all
+derived again by the current derivation (21 minutes), then classed and given their stories from
+nothing (18 seconds for both).
+
+| Classes | Held | Listed |
+| --- | --- | --- |
+| `known` | 5 231 | 5 229 |
+| `bulk` | 279 930 | 278 654 |
+| `unknown` (the queue) | 4 889 | 4 793, from 1 610 senders |
+| `blocked` | 0 | 0 |
+
+- **Stories**: 447 (132 by list, 315 by sender) of 1 403 streams hold 277 173 of the 278 654
+  listed bulk messages, 99.5%. The largest holds 94 274 messages and 10 748 kinds; 106 have one
+  kind. 266 have no usual shape, and so no exceptions; the 129 with exceptions have 26 266, a
+  tenth of the mail in stories.
+- **Reads**, at the 95th percentile: a page of 50 stories 0.07 ms, what changed since the store's
+  first change (100 stories) 0.15 ms, the largest story opened as `mail-story-open` reads it
+  10.02 ms (its kinds are sorted from 10 748 at each open), its exceptions 0.29 ms, and a batch's
+  work on it 0.18 ms. The lists by class, 50 messages, 0.13 to 0.54 ms.
+- **A decision on the largest sender** (272 282 messages, every one changing class) took 12.8 s to
+  block and 18.7 s to undo, its preview 8 ms: the person's command at a terminal, which waits that
+  long for one so large.
+- **The database** grew from 1.52 GB to 1.93 GB, 1.54 GB once packed: deriving every message
+  again rewrites rows, as step C1 found.
 
 ## 9. Changing the mailbox
 

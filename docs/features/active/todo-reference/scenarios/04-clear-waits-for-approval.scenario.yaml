@@ -1,0 +1,40 @@
+# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# The caller here is not a person: over `afd scenario run --server` steps run as the server's
+# default actor { kind: agent }, and in-process as { kind: test }. Both are held.
+# Limit: a step can read the approval token through a reference to error.details, but no step
+# can set context.approval, so a person approving and the retry cannot be written here. The
+# backend's tests cover them, and over MCP the server asks the person by form elicitation.
+name: Clearing waits for a person
+description: >-
+  When an agent asks to clear todos, the one change that cannot be undone, I want it held until
+  I approve it, so that nothing is lost for good without my saying so.
+job: clear-waits-for-approval
+tags: [slice, approval]
+steps:
+  - description: A todo exists
+    command: todo-create
+    input: { title: Lift the last of the leeks, priority: low }
+    expect:
+      success: true
+  - description: It is marked done
+    command: todo-toggle
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        completed: true
+  - description: An agent's clear is held before anything is removed, and told to ask the person
+    command: todo-clear
+    input: {}
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+        suggestion: { contains: approve }
+  - description: The done todo is still there
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        completed: true

@@ -30,6 +30,11 @@ describe("violet-progress", () => {
         expect(progress.shadowRoot?.querySelector(".value-label")?.textContent?.trim()).toBe("48%");
     });
 
+    it("has a fill colour with no theme installed", async () => {
+        const progress = await renderProgress();
+        expect(getComputedStyle(progress).getPropertyValue("--_progress-fill").trim().toLowerCase()).toBe("#244635");
+    });
+
     it("omits the value attribute for indeterminate progress", async () => {
         const progress = await renderProgress(`<violet-progress label="Loading summary" value=""></violet-progress>`);
         const native = progress.shadowRoot?.querySelector("progress") as HTMLProgressElement | null;

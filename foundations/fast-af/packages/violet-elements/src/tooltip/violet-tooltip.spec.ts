@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { userEvent } from "vitest/browser";
 
 import "./violet-tooltip";
 import type { VioletTooltip } from "./violet-tooltip";
@@ -17,6 +18,33 @@ async function renderTooltip(template: string): Promise<VioletTooltip> {
 describe("violet-tooltip", () => {
     afterEach(() => {
         document.body.innerHTML = "";
+    });
+
+    it("shows again on hover after Escape closes it", async () => {
+        const tooltip = await renderTooltip(`
+            <violet-tooltip content="Helpful details" delay="10">
+                <button type="button">Trigger</button>
+            </violet-tooltip>
+        `);
+        const trigger = tooltip.querySelector("button") as HTMLButtonElement;
+        const popup = tooltip.shadowRoot?.querySelector(".tooltip") as HTMLElement;
+
+        trigger.focus();
+        await nextFrame();
+        expect(tooltip.open).toBe(true);
+        expect(popup.matches(":popover-open")).toBe(true);
+
+        await userEvent.keyboard("{Escape}");
+        await nextFrame();
+        expect(popup.matches(":popover-open")).toBe(false);
+        expect(tooltip.open).toBe(false);
+
+        // The tooltip listens on its anchor wrapper, and mouseenter does not bubble.
+        tooltip.shadowRoot?.querySelector(".anchor")?.dispatchEvent(new MouseEvent("mouseenter"));
+        await new Promise(resolve => setTimeout(resolve, 60));
+        await nextFrame();
+        expect(tooltip.open).toBe(true);
+        expect(popup.matches(":popover-open")).toBe(true);
     });
 
     it("wires aria-describedby to a slotted trigger", async () => {

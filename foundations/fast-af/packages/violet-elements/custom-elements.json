@@ -3351,6 +3351,16 @@
             },
             {
               "kind": "field",
+              "name": "#defaultValue",
+              "privacy": "private",
+              "type": {
+                "text": "string"
+              },
+              "default": "\"\"",
+              "description": "The value when the picker was connected, which a form reset restores."
+            },
+            {
+              "kind": "field",
               "name": "#handleViewportChange",
               "privacy": "private",
               "readonly": true
@@ -19869,6 +19879,25 @@
               "default": "1"
             },
             {
+              "kind": "method",
+              "name": "#applyOpenState",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "changed",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ],
+              "description": "Shows or hides the panel for `open`. Only a change announces itself and moves focus into the\ncalendar; connecting applies the state quietly."
+            },
+            {
               "kind": "field",
               "name": "#defaultValue",
               "privacy": "private",
@@ -20681,6 +20710,25 @@
                 "text": "number"
               },
               "default": "1"
+            },
+            {
+              "kind": "method",
+              "name": "#applyOpenState",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "changed",
+                  "type": {
+                    "text": "boolean"
+                  }
+                }
+              ],
+              "description": "Shows or hides the panel for `open`. Only a change announces itself and moves focus into the\ncalendar; connecting applies the state quietly."
             },
             {
               "kind": "field",
@@ -34026,6 +34074,26 @@
             },
             {
               "kind": "field",
+              "name": "labelEndId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`violet-range-slider-${violetRangeSliderCount}-label-end`"
+            },
+            {
+              "kind": "field",
+              "name": "labelId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`violet-range-slider-${violetRangeSliderCount}-label`"
+            },
+            {
+              "kind": "field",
               "name": "labelStart",
               "type": {
                 "text": "string"
@@ -34034,6 +34102,16 @@
               "default": "\"Minimum\"",
               "attribute": "label-start",
               "reflects": true
+            },
+            {
+              "kind": "field",
+              "name": "labelStartId",
+              "type": {
+                "text": "string"
+              },
+              "privacy": "public",
+              "readonly": true,
+              "default": "`violet-range-slider-${violetRangeSliderCount}-label-start`"
             },
             {
               "kind": "field",
@@ -34222,6 +34300,25 @@
               "privacy": "public",
               "readonly": true,
               "default": "`violet-range-slider-${violetRangeSliderCount}-supporting`"
+            },
+            {
+              "kind": "method",
+              "name": "thumbLabelledBy",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "string"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "thumb",
+                  "type": {
+                    "text": "\"start\" | \"end\""
+                  }
+                }
+              ],
+              "description": "A thumb's name: the visible label, when there is one, then the thumb's own label, so a\nscreen reader says \"Price Minimum\" and voice control can use the visible label (WCAG 2.5.3)."
             },
             {
               "kind": "field",
@@ -40772,6 +40869,12 @@
               "kind": "field",
               "name": "#handleMouseLeave",
               "privacy": "private"
+            },
+            {
+              "kind": "field",
+              "name": "#handleToggle",
+              "privacy": "private",
+              "description": "The browser closes a hint popover itself, on Escape or a light dismiss. Follow it, so `open`\nsays what is shown and the next hover or focus shows the tooltip again."
             },
             {
               "kind": "field",

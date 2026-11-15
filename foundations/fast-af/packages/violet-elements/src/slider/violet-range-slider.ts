@@ -303,9 +303,11 @@ const template = html<VioletRangeSlider>`
         ${when(
             x => Boolean(x.label),
             html<VioletRangeSlider>`
-                <label class="label" part="label" for="${x => x.inputStartId}">${x => x.label}</label>
+                <label id="${x => x.labelId}" class="label" part="label" for="${x => x.inputStartId}">${x => x.label}</label>
             `,
         )}
+        <span id="${x => x.labelStartId}" hidden>${x => x.labelStart}</span>
+        <span id="${x => x.labelEndId}" hidden>${x => x.labelEnd}</span>
         <div class="control-shell" part="control-shell" style="${x => x.controlStyle}">
             <input
                 id="${x => x.inputStartId}"
@@ -319,7 +321,7 @@ const template = html<VioletRangeSlider>`
                 :value="${x => x.value}"
                 ?disabled="${x => x.effectiveDisabled}"
                 ?required="${x => x.required}"
-                aria-label="${x => x.labelStart}"
+                aria-labelledby="${x => x.thumbLabelledBy("start")}"
                 aria-valuemin="${x => x.min}"
                 aria-valuemax="${x => x.valueEnd}"
                 aria-valuenow="${x => x.valueStart}"
@@ -341,7 +343,7 @@ const template = html<VioletRangeSlider>`
                 name="${x => x.name}"
                 :value="${x => x.valueEnd}"
                 ?disabled="${x => x.effectiveDisabled}"
-                aria-label="${x => x.labelEnd}"
+                aria-labelledby="${x => x.thumbLabelledBy("end")}"
                 aria-valuemin="${x => x.valueStart}"
                 aria-valuemax="${x => x.max}"
                 aria-valuenow="${x => x.valueEnd}"
@@ -409,6 +411,9 @@ export class VioletRangeSlider extends FASTElement {
     public readonly inputEndId: string;
     public readonly supportingTextId: string;
     public readonly errorTextId: string;
+    public readonly labelId: string;
+    public readonly labelStartId: string;
+    public readonly labelEndId: string;
 
     declare public label: string;
     declare public supportingText: string;
@@ -445,6 +450,9 @@ export class VioletRangeSlider extends FASTElement {
         this.inputEndId = `violet-range-slider-${violetRangeSliderCount}-end`;
         this.supportingTextId = `violet-range-slider-${violetRangeSliderCount}-supporting`;
         this.errorTextId = `violet-range-slider-${violetRangeSliderCount}-error`;
+        this.labelId = `violet-range-slider-${violetRangeSliderCount}-label`;
+        this.labelStartId = `violet-range-slider-${violetRangeSliderCount}-label-start`;
+        this.labelEndId = `violet-range-slider-${violetRangeSliderCount}-label-end`;
         this.#defaultValueStart = "";
         this.#defaultValueEnd = "";
         this.#activeThumb = null;
@@ -563,6 +571,15 @@ export class VioletRangeSlider extends FASTElement {
 
     public get validationMessageText(): string {
         return this.invalid ? this.errorText || "Please choose a valid range." : "";
+    }
+
+    /**
+     * A thumb's name: the visible label, when there is one, then the thumb's own label, so a
+     * screen reader says "Price Minimum" and voice control can use the visible label (WCAG 2.5.3).
+     */
+    public thumbLabelledBy(thumb: "start" | "end"): string {
+        const own = thumb === "start" ? this.labelStartId : this.labelEndId;
+        return this.label ? `${this.labelId} ${own}` : own;
     }
 
     public get describedByIds(): string {
