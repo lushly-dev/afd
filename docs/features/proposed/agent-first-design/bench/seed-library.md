@@ -7,12 +7,17 @@ commands. Read the [bench specification](../bench.md) first.
 
 ## Status
 
-- **State:** draft, 2026-11-15, against `dfb153b2`. Nothing is built. The commands are a
-  draft to write scenarios against, not a specification.
-- **Done:** seventeen jobs, each a scenario file in [`scenarios/`](scenarios/), and
-  twenty-four drafted commands. The three checks pass ([Checks](#checks)). Three readers
-  who did not write them walked the paths, and a fourth reviewed the result and walked the
-  two commands the walks had added ([What the walks changed](#what-the-walks-changed)).
+- **State:** built, 2026-11-15, against `03f68dc2`, and not merged. The application is
+  [`packages/examples/seed-library`](../../../../../packages/examples/seed-library/README.md):
+  the twenty-four commands below with their schemas, an in-memory store and the host's part.
+  Its tests run all seventeen jobs, and all 113 steps pass. The drafted commands were a draft
+  to write scenarios against; the code is now their specification
+  ([What building it settled](#what-building-it-settled)).
+- **Done:** seventeen jobs, each a scenario file, which moved beside the code to
+  [`scenarios/`](../../../../../packages/examples/seed-library/scenarios/) once it was built,
+  and twenty-four commands. The three checks pass ([Checks](#checks)). Three readers who did
+  not write them walked the paths, and a fourth reviewed the result and walked the two
+  commands the walks had added ([What the walks changed](#what-the-walks-changed)).
 - **Decided by the owner on 2026-11-15:** three design points ([For the owner](#for-the-owner)).
   The list of jobs as a whole is still open. See [Not done](#not-done).
 - **Not in this folder, on purpose:** the two jobs held back for the panel loop, and the
@@ -34,8 +39,10 @@ steward. Its rules:
 - **A rare variety is lent only with the steward's agreement.** `loan-create` for a rare
   variety is held, whoever asks. The application records the held loan as a request, one for
   a member and a variety however often it is asked. A request waits as long as its hold,
-  which is set to twenty-four hours. The steward's approval makes the loan. A waiting request
-  can be withdrawn at the desk.
+  which is set to twenty-four hours. The steward's approval makes the loan, and nothing else
+  does: a hold cleared at the client (a DirectClient's `onApprovalNeeded`) reaches
+  `loan-create`, which refuses rare seed with `FORBIDDEN`, and the request still waits. A
+  waiting request can be withdrawn at the desk.
 - **Only a person with the steward's role decides,** retires a variety or removes closed
   requests. A volunteer, or an agent acting for anyone, is refused.
 - **A returned loan may bring saved seed,** which becomes a new lot.
@@ -68,23 +75,23 @@ pattern statements.
 
 | # | Screen | Job | Seat | Sentence |
 | --- | --- | --- | --- | --- |
-| 1 | T1 | [`lend-a-packet`](scenarios/01-lend-a-packet.scenario.yaml) | Desk volunteer | When a member asks at the desk for a variety, I want to find the member and the variety and lend a packet in one go, so that the member leaves with seed and the count on the shelf is right |
-| 2 | T1 | [`out-of-seed`](scenarios/02-out-of-seed.scenario.yaml) | Desk volunteer | When the variety a member wants has run out, I want to offer a close substitute or put the member on the waiting list, so that they do not leave with nothing |
-| 3 | T1 | [`rare-needs-the-steward`](scenarios/03-rare-needs-the-steward.scenario.yaml) | Desk volunteer | When a member asks for a rare variety, I want to ask the steward for it and see that it is waiting, so that rare seed leaves the library only with the steward's agreement |
-| 4 | T1 | [`take-back-a-loan`](scenarios/04-take-back-a-loan.scenario.yaml) | Desk volunteer | When I lend the wrong packet or lend to the wrong member, I want to take the loan back at once, so that the count and the member's record are right again |
-| 5 | T1 | [`warn-about-old-seed`](scenarios/05-warn-about-old-seed.scenario.yaml) | Desk volunteer | When the only packets left of a variety are old, I want to be told as I lend one, so that the member can sow more thickly or choose something else before they leave |
-| 6 | T1 | [`nothing-to-show`](scenarios/06-nothing-to-show.scenario.yaml) | Desk volunteer | When a search finds nothing, or the catalogue cannot be read, I want to be told which of the two it is, so that I know whether to search again or to wait |
-| 7 | T2 | [`take-in-a-donation`](scenarios/07-take-in-a-donation.scenario.yaml) | Intake volunteer | When someone hands in a box of packets, I want to enter them as one batch and see it worked through row by row, so that the shelf count is right without my entering each packet twice |
-| 8 | T2 | [`settle-an-unclear-label`](scenarios/08-settle-an-unclear-label.scenario.yaml) | Intake volunteer | When a handwritten label could be several varieties, I want to see the likely matches, why each was offered, and choose one, so that seed is not shelved under the wrong name |
-| 9 | T2 | [`fix-the-rows-that-failed`](scenarios/09-fix-the-rows-that-failed.scenario.yaml) | Intake volunteer | When some rows of a batch could not be taken in, I want to see which and why, and put them right without entering the rest again, so that one bad label does not hold up the box |
-| 10 | T3 | [`see-a-variety`](scenarios/10-see-a-variety.scenario.yaml) | Desk volunteer | When I open a variety, I want its lots, how well each is expected to germinate and on what evidence, and who has it out, so that I can tell a member what to expect |
-| 11 | T3 | [`record-a-return`](scenarios/11-record-a-return.scenario.yaml) | Desk volunteer | When a member brings back saved seed, I want to record the return and the new lot it makes, and to take it back if I got it wrong, so that the library grows by what members return |
-| 12 | T3 | [`retire-a-variety`](scenarios/12-retire-a-variety.scenario.yaml) | Steward | When a variety has stopped coming true, I want to retire it knowingly, since it cannot be brought back, so that nobody lends seed the library no longer stands behind |
-| 13 | T4 | [`decide-a-request`](scenarios/13-decide-a-request.scenario.yaml) | Steward | When a held loan is waiting for me, I want to see who asked for what and approve or decline it, so that each packet of rare seed goes to a member I chose |
-| 14 | T4 | [`decide-several-at-once`](scenarios/14-decide-several-at-once.scenario.yaml) | Steward | When many requests are waiting, I want to decide a set of them in one go and see which did not go through and why, so that an evening's requests take minutes |
-| 15 | T4 | [`take-a-decision-back`](scenarios/15-take-a-decision-back.scenario.yaml) | Steward | When I approve or decline the wrong request, I want to reopen it, so that a slip of mine does not cost a member their seed |
-| 16 | T4 | [`clear-a-past-season`](scenarios/16-clear-a-past-season.scenario.yaml) | Steward | When a season is over, I want its closed requests removed knowingly, since they hold members' names against what they asked for and cannot be brought back, so that the library keeps no more about its members than it needs |
-| 17 | T4 | [`nothing-waiting`](scenarios/17-nothing-waiting.scenario.yaml) | Steward | When nothing is waiting for me, I want the list to say so plainly, so that I do not wonder whether it failed to load |
+| 1 | T1 | [`lend-a-packet`](../../../../../packages/examples/seed-library/scenarios/01-lend-a-packet.scenario.yaml) | Desk volunteer | When a member asks at the desk for a variety, I want to find the member and the variety and lend a packet in one go, so that the member leaves with seed and the count on the shelf is right |
+| 2 | T1 | [`out-of-seed`](../../../../../packages/examples/seed-library/scenarios/02-out-of-seed.scenario.yaml) | Desk volunteer | When the variety a member wants has run out, I want to offer a close substitute or put the member on the waiting list, so that they do not leave with nothing |
+| 3 | T1 | [`rare-needs-the-steward`](../../../../../packages/examples/seed-library/scenarios/03-rare-needs-the-steward.scenario.yaml) | Desk volunteer | When a member asks for a rare variety, I want to ask the steward for it and see that it is waiting, so that rare seed leaves the library only with the steward's agreement |
+| 4 | T1 | [`take-back-a-loan`](../../../../../packages/examples/seed-library/scenarios/04-take-back-a-loan.scenario.yaml) | Desk volunteer | When I lend the wrong packet or lend to the wrong member, I want to take the loan back at once, so that the count and the member's record are right again |
+| 5 | T1 | [`warn-about-old-seed`](../../../../../packages/examples/seed-library/scenarios/05-warn-about-old-seed.scenario.yaml) | Desk volunteer | When the only packets left of a variety are old, I want to be told as I lend one, so that the member can sow more thickly or choose something else before they leave |
+| 6 | T1 | [`nothing-to-show`](../../../../../packages/examples/seed-library/scenarios/06-nothing-to-show.scenario.yaml) | Desk volunteer | When a search finds nothing, or the catalogue cannot be read, I want to be told which of the two it is, so that I know whether to search again or to wait |
+| 7 | T2 | [`take-in-a-donation`](../../../../../packages/examples/seed-library/scenarios/07-take-in-a-donation.scenario.yaml) | Intake volunteer | When someone hands in a box of packets, I want to enter them as one batch and see it worked through row by row, so that the shelf count is right without my entering each packet twice |
+| 8 | T2 | [`settle-an-unclear-label`](../../../../../packages/examples/seed-library/scenarios/08-settle-an-unclear-label.scenario.yaml) | Intake volunteer | When a handwritten label could be several varieties, I want to see the likely matches, why each was offered, and choose one, so that seed is not shelved under the wrong name |
+| 9 | T2 | [`fix-the-rows-that-failed`](../../../../../packages/examples/seed-library/scenarios/09-fix-the-rows-that-failed.scenario.yaml) | Intake volunteer | When some rows of a batch could not be taken in, I want to see which and why, and put them right without entering the rest again, so that one bad label does not hold up the box |
+| 10 | T3 | [`see-a-variety`](../../../../../packages/examples/seed-library/scenarios/10-see-a-variety.scenario.yaml) | Desk volunteer | When I open a variety, I want its lots, how well each is expected to germinate and on what evidence, and who has it out, so that I can tell a member what to expect |
+| 11 | T3 | [`record-a-return`](../../../../../packages/examples/seed-library/scenarios/11-record-a-return.scenario.yaml) | Desk volunteer | When a member brings back saved seed, I want to record the return and the new lot it makes, and to take it back if I got it wrong, so that the library grows by what members return |
+| 12 | T3 | [`retire-a-variety`](../../../../../packages/examples/seed-library/scenarios/12-retire-a-variety.scenario.yaml) | Steward | When a variety has stopped coming true, I want to retire it knowingly, since it cannot be brought back, so that nobody lends seed the library no longer stands behind |
+| 13 | T4 | [`decide-a-request`](../../../../../packages/examples/seed-library/scenarios/13-decide-a-request.scenario.yaml) | Steward | When a held loan is waiting for me, I want to see who asked for what and approve or decline it, so that each packet of rare seed goes to a member I chose |
+| 14 | T4 | [`decide-several-at-once`](../../../../../packages/examples/seed-library/scenarios/14-decide-several-at-once.scenario.yaml) | Steward | When many requests are waiting, I want to decide a set of them in one go and see which did not go through and why, so that an evening's requests take minutes |
+| 15 | T4 | [`take-a-decision-back`](../../../../../packages/examples/seed-library/scenarios/15-take-a-decision-back.scenario.yaml) | Steward | When I approve or decline the wrong request, I want to reopen it, so that a slip of mine does not cost a member their seed |
+| 16 | T4 | [`clear-a-past-season`](../../../../../packages/examples/seed-library/scenarios/16-clear-a-past-season.scenario.yaml) | Steward | When a season is over, I want its closed requests removed knowingly, since they hold members' names against what they asked for and cannot be brought back, so that the library keeps no more about its members than it needs |
+| 17 | T4 | [`nothing-waiting`](../../../../../packages/examples/seed-library/scenarios/17-nothing-waiting.scenario.yaml) | Steward | When nothing is waiting for me, I want the list to say so plainly, so that I do not wonder whether it failed to load |
 
 - **Refusals and limits:** jobs 2, 3, 12 and 16. Each has a refusal as its first step.
 - **Quiet ones:** jobs 6 and 17. An empty list is a success and says so.
@@ -92,7 +99,8 @@ pattern statements.
 ## Drafted commands
 
 Names, inputs, what `data` holds, the other result fields a command fills, and its refusals.
-A `?` marks an optional field. No schema is written.
+A `?` marks an optional field. The schemas are the application's, in
+[`src/schemas.ts`](../../../../../packages/examples/seed-library/src/schemas.ts).
 
 | Command | Kind | Input | `data` | Also returns | Refuses with | Trust |
 | --- | --- | --- | --- | --- | --- | --- |
@@ -102,7 +110,7 @@ A `?` marks an optional field. No schema is written.
 | `lot-list` | Query | `varietyId` | `lots` (`id`, `harvestYear`, `packets`, `source`, `germination`), `total` | `reasoning`, `confidence`, `sources`, `warnings` (`OLD_SEED`) | `NOT_FOUND` | |
 | `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `reasoning`, `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
 | `member-list` | Query | `query?` | `members` (`id`, `name`, `number`), `total` | | `SERVICE_UNAVAILABLE` | |
-| `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED` | `approval` for a rare variety; `undoable` |
+| `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED`, `FORBIDDEN` | `approval` for a rare variety; `undoable` |
 | `loan-cancel` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
 | `loan-return` | Mutation | `id`, `savedSeed?` (`packets`, `harvestYear`) | `id`, `status`, `returnedAt`, `lot?` (`id`, `packets`) | `undoCommand` (`loan-reopen`), `undoArgs` | `NOT_FOUND`, `CONFLICT` | `undoable` |
 | `loan-reopen` | Mutation | `id` | `id`, `status`, `lotRemoved?` | | `NOT_FOUND`, `CONFLICT` | |
@@ -315,8 +323,10 @@ Each file says at its top what it leaves out. Together:
   fields are built from, and run the command an undo names.
 - **`confidence` is a floor.** A step can show that a match is at least 0.5 and cannot show
   that it is below 0.9. That a label was left for a person shows it.
-- **One actor.** A scenario runs in process as the test actor, which the application treats
-  as the steward. So no file shows a volunteer or an agent refused with `FORBIDDEN`.
+- **One actor.** A scenario runs as one actor. The application's tests give every step a person
+  with the steward's role, in place of the runner's test actor, which the application treats as
+  nobody's. So no file shows a volunteer or an agent refused with `FORBIDDEN`; the
+  application's own tests do.
 - **A service that fails.** Jobs 6 and 17 are half shown: the empty list, and not the list
   that cannot be read (`SERVICE_UNAVAILABLE`).
 - **One call a step.** Job 14's three decisions are three steps where the screen sends one
@@ -329,10 +339,14 @@ Each file says at its top what it leaves out. Together:
   The first steps of jobs 12 and 16, which expect `CONFIRMATION_REQUIRED`, would carry the
   command out in process. They pass against a server run with `confirmations: 'enforce'`
   whose `createContext` gives the runner a person with the steward's role; without that the
-  server's actor is an agent (`packages/server/README.md:510`), and the steward's commands
+  server's actor is an agent (`packages/server/src/server-types.ts:193`), and the steward's commands
   are refused. They write `confirm` inside
   `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
   the input.
+- **An earlier step's result in `expect`.** The runner resolves a step reference only in
+  `input`, and the parse and dry-run checks accept one in `expect` without saying so. Three
+  steps compared a result with an earlier step's (jobs 1, 11 and 15); running them showed it,
+  and they now name the id the fixture's counters give: `loan-2` and `lot-borlotti-29-r1`.
 
 A screen's builder is given a fixture of each result as well, so the fields a scenario cannot
 assert still reach the screen. They are in [`results/`](results/), and each state of a
@@ -351,14 +365,60 @@ they are after the walks. Nothing is built, so the files are checked and not run
   - errors: 10 of 12 shown. `SERVICE_UNAVAILABLE` and `FORBIDDEN` are the two a scenario
     cannot express.
 
+Since the application was built, its tests run the files instead
+([What building it settled](#what-building-it-settled)).
+
+## What building it settled
+
+Built 2026-11-15 in `packages/examples/seed-library`. The commands, fields, refusals, trust
+metadata, states and the host's part are as drafted above. Where the draft was silent, the
+code chose the reading the scenarios and the results need:
+
+- **Who is the steward.** A person (`actor.kind` `human`) whose id is one of the application's
+  steward ids. Nobody else is: not an agent, not the scenario runner's test actor, and not a
+  call with no actor.
+- **Rare seed only through `request-decide`.** `loan-create` refuses a rare variety with
+  `FORBIDDEN` when a cleared hold reaches it, naming `request-list` and the steward's
+  `request-decide`. `FORBIDDEN` because the caller is known and not allowed this way, whoever
+  it is; `CONFLICT` would say the state is wrong, and it is not.
+- **A call with no actor** is held, as a policy fails closed, whatever the variety. For a rare
+  variety the hold is the usual one: it records the request and its summary says it waits for
+  the steward. For any other variety it records nothing, and its summary says it was held
+  because the call names no actor; the same call with an actor lends.
+- **One waiting request a member and variety.** `request-reopen` refuses with `CONFLICT`, naming
+  `request-withdraw`, while another request for the pair waits.
+- **Asking again** for a request that is waiting moves its `expiresAt` to the new hold's, so
+  the expiry a refusal shows stays the request's. A reopened request waits a day from the
+  reopening; no hold is made for it.
+- **A request expires when it is next read or decided** after its hold ran out.
+  `request-clear` takes a closed request's time as its decision, its withdrawal or the end of
+  its hold, and `closedBefore` takes a date or a time.
+- **The freshest lot** is the newest harvest, the better estimate first. A lot made by the
+  library has an estimate from its age: 0.9 in its first year and 0.05 less each year after,
+  so a 2029 lot is 0.85 in 2030. `lot-list`'s confidence weighs a tested lot at 0.9 and one
+  judged by age at 0.6, by packets.
+- **Ids** come from a counter per prefix (`loan-2`, `req-1`, `don-1`); a donated row's lot is
+  `lot-<donation>-<index>`, and a return's lot is its loan's lot with `-r<n>`. A returned
+  loan's own packet does not come back to the shelf; its saved seed does.
+- **A label** matches a variety whose name it is, at a confidence of 1, or one the
+  fixture's label matches offer; a retired variety's name fails the row with `NOT_FOUND`. A
+  donated row without a harvest year is taken as last year's.
+- **Moving a filed row** moves its lot, which keeps its id. A correction that is still wrong
+  leaves the row as it was; one whose new label is unclear leaves the row for a person.
+- **More refusals of the drafted kinds:** `loan-reopen` when packets of the return's lot have
+  been lent, `request-reopen` when the approval's loan was returned, `waitlist-join` for a
+  retired variety, each `CONFLICT`.
+- **A list that cannot be read** is a flag on the store that only a test sets.
+
 ## Not done
 
 - **The tasks and results for building sessions are drafted** in [`tasks/`](tasks/README.md)
   and [`results/`](results/): four screens, 50 states, 74 results. No reader other than their
-  author and one reviewer has read them.
+  author and one reviewer has read them. A test in the application checks each result against
+  its command's output schema and refusals; it does not check that the results follow one
+  another.
 
-- **No schema.** Inputs and results are names in a table.
-- **The application** in `packages/examples/seed-library` does not exist.
+- **The application is not merged,** and no reader other than its author has reviewed it.
 
 ## For the owner
 

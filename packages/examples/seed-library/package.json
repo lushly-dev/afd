@@ -1,0 +1,35 @@
+{
+	"name": "@afd/example-seed-library",
+	"private": true,
+	"version": "0.1.0",
+	"description": "Example: the seed library, the application the Agent-First Design bench is built on",
+	"type": "module",
+	"main": "dist/index.js",
+	"types": "dist/index.d.ts",
+	"exports": {
+		".": {
+			"import": "./dist/index.js",
+			"types": "./dist/index.d.ts"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"start": "node dist/serve.js",
+		"dev": "tsx src/serve.ts",
+		"test": "vitest run",
+		"test:watch": "vitest"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/afd-testing": "workspace:*",
+		"zod": "^4.6.6"
+	},
+	"devDependencies": {
+		"@lushly-dev/afd-client": "workspace:*",
+		"tsx": "^4.23.15",
+		"typescript": "^7.0.2",
+		"vitest": "^5.1.0"
+	}
+}

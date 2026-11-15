@@ -1,8 +1,10 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T4, the steward's
 # requests.
 # Not expressible here: a decision's result names its undo in `undoCommand` and `undoArgs`, which
 # a scenario cannot assert. The file runs the command they name.
+# The runner resolves step references only in `input`, so a step that compares with an earlier
+# step's result names the id the fixture's counters give it.
 name: Take a decision back
 description: >-
   When I approve or decline the wrong request, I want to reopen it, so that a slip of mine does
@@ -28,7 +30,7 @@ steps:
       success: true
       data:
         status: pending
-        loanCancelled: "${{ steps[0].data.loanId }}"
+        loanCancelled: loan-2
         expiresAt: { exists: true }
   - description: The packet is back on the shelf
     command: variety-get

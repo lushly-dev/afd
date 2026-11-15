@@ -1,5 +1,5 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T1, lend a packet.
 # Not expressible here: the loan's result names its undo in `undoCommand` and `undoArgs`, which
 # a scenario cannot assert. The file runs the command they name.
 name: Take back a loan made by mistake

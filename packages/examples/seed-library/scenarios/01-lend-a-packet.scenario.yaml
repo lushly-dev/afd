@@ -1,5 +1,7 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T1, lend a packet.
+# The runner resolves step references only in `input`, so a step that compares with an earlier
+# step's result names the id the fixture's counters give it.
 name: Lend a packet at the desk
 description: >-
   When a member asks at the desk for a variety, I want to find the member and the variety and
@@ -55,7 +57,7 @@ steps:
       data:
         total: 1
         loans:
-          - { id: "${{ steps[2].data.id }}", variety: { id: var-borlotti } }
+          - { id: loan-2, variety: { id: var-borlotti } }
   - description: A loan to someone who is not a member is refused, with where to look
     command: loan-create
     input: { memberId: mem-nobody, varietyId: var-borlotti }

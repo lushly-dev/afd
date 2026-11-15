@@ -10,15 +10,15 @@ variety that was held when the desk asked for it; it waits until its hold expire
 later. The steward's approval makes the loan. The screen serves five jobs. Each scenario file
 runs the job against the commands:
 
-- [decide-a-request](../scenarios/13-decide-a-request.scenario.yaml): see who asked for what,
+- [decide-a-request](../../../../../../packages/examples/seed-library/scenarios/13-decide-a-request.scenario.yaml): see who asked for what,
   and approve or decline it.
-- [decide-several-at-once](../scenarios/14-decide-several-at-once.scenario.yaml): decide a set
+- [decide-several-at-once](../../../../../../packages/examples/seed-library/scenarios/14-decide-several-at-once.scenario.yaml): decide a set
   in one go and see which did not go through and why.
-- [take-a-decision-back](../scenarios/15-take-a-decision-back.scenario.yaml): reopen a request
+- [take-a-decision-back](../../../../../../packages/examples/seed-library/scenarios/15-take-a-decision-back.scenario.yaml): reopen a request
   approved or declined by mistake.
-- [clear-a-past-season](../scenarios/16-clear-a-past-season.scenario.yaml): remove a past
+- [clear-a-past-season](../../../../../../packages/examples/seed-library/scenarios/16-clear-a-past-season.scenario.yaml): remove a past
   season's closed requests, knowingly, since they cannot be brought back.
-- [nothing-waiting](../scenarios/17-nothing-waiting.scenario.yaml): be told plainly that
+- [nothing-waiting](../../../../../../packages/examples/seed-library/scenarios/17-nothing-waiting.scenario.yaml): be told plainly that
   nothing is waiting.
 
 ## Commands
@@ -32,8 +32,8 @@ and the values they take in [States](../seed-library.md#states).
 - `afd-batch`, to send several `request-decide` calls as one; its result has one entry per
   call, shaped as [`spec/wire/batch-result.json`](../../../../../../spec/wire/batch-result.json)
 
-The application's data is [`steward.json`](../scenarios/fixtures/steward.json) on top of
-[`library.json`](../scenarios/fixtures/library.json).
+The application's data is [`steward.json`](../../../../../../packages/examples/seed-library/scenarios/fixtures/steward.json) on top of
+[`library.json`](../../../../../../packages/examples/seed-library/scenarios/fixtures/library.json).
 
 ## Clearing asks first
 

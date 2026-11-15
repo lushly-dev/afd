@@ -9,11 +9,11 @@ A desk volunteer, telling a member what to expect of a variety and recording ret
 steward, who retires a variety that has stopped coming true. The screen serves three jobs.
 Each scenario file runs the job against the commands:
 
-- [see-a-variety](../scenarios/10-see-a-variety.scenario.yaml): see the variety's lots, how
+- [see-a-variety](../../../../../../packages/examples/seed-library/scenarios/10-see-a-variety.scenario.yaml): see the variety's lots, how
   well each is expected to germinate and on what evidence, and who has it out.
-- [record-a-return](../scenarios/11-record-a-return.scenario.yaml): record a return and the
+- [record-a-return](../../../../../../packages/examples/seed-library/scenarios/11-record-a-return.scenario.yaml): record a return and the
   new lot its saved seed makes, and take the return back if it was wrong.
-- [retire-a-variety](../scenarios/12-retire-a-variety.scenario.yaml): retire the variety
+- [retire-a-variety](../../../../../../packages/examples/seed-library/scenarios/12-retire-a-variety.scenario.yaml): retire the variety
   knowingly, since it cannot be brought back.
 
 ## Commands
@@ -26,7 +26,7 @@ and the values they take in [States](../seed-library.md#states).
 - `loan-return`, `loan-reopen`
 - `variety-retire`, which only a person with the steward's role may call
 
-The application's data is in [`library.json`](../scenarios/fixtures/library.json).
+The application's data is in [`library.json`](../../../../../../packages/examples/seed-library/scenarios/fixtures/library.json).
 
 ## Retiring asks first
 

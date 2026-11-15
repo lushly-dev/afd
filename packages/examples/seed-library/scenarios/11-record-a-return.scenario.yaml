@@ -1,7 +1,9 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T3, a variety's page.
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T3, a variety's page.
 # Not expressible here: the return's result names its undo in `undoCommand` and `undoArgs`, which
 # a scenario cannot assert. The file runs the command they name.
+# The runner resolves step references only in `input`, so a step that compares with an earlier
+# step's result names the id the fixture's counters give it.
 name: Record a return, and take it back if it was wrong
 description: >-
   When a member brings back saved seed, I want to record the return and the new lot it makes, and
@@ -41,7 +43,7 @@ steps:
       success: true
       data:
         status: out
-        lotRemoved: "${{ steps[0].data.lot.id }}"
+        lotRemoved: lot-borlotti-29-r1
   - description: The new lot is gone and the loan is out again
     command: lot-list
     input: { varietyId: var-borlotti }
