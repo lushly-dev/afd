@@ -47,7 +47,7 @@ The owner reviewed the index on 2026-11-04 ("Index looks good, nice and simple")
 
 **Optional, and not needed for cutover:** T09, T10 and T11, along with pixel comparison.
 
-**Component packs (T12):** Specimen's half of [Component Briefs](../component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is done (#968), and B2 (guide statements as the `guides@1` obligation set, with `claim()`'s check) is done; B2a (capture 0.9, each element's computed role and name) is done; B3 is done (#1028); B4 is done (#1041): the FAST-AF plugin wired into `violet-elements` as its own commit, with what moved recorded; guide sources, a fifth plugin point that runs in Node; `violet-elements`' pack (77 records, 153 rules, `pack/GAPS.md`) and `pack-check` in `test:stories`. FAST-AF's records were built on macOS and the Linux stories job's `pack-check` matched them. At Component Briefs step C4 the format became version 1, and exporting FAST-AF's pack for Umbel found three faults, fixed there: a catalog in path order, a guide with two roles for one state, and the FAST-AF plugin preferring a property's description to its attribute's. All need only Specimen and FAST-AF. Not needed for cutover.
+**Component packs (T12):** Specimen's half of [Component Briefs](../../complete/component-briefs/STATUS.md). The pack format, version 0, is merged (#949). The owner approved that plan's step A2 on 2026-11-10 (#964); step B1 (guide files) is done (#968), and B2 (guide statements as the `guides@1` obligation set, with `claim()`'s check) is done; B2a (capture 0.9, each element's computed role and name) is done; B3 is done (#1028); B4 is done (#1041): the FAST-AF plugin wired into `violet-elements` as its own commit, with what moved recorded; guide sources, a fifth plugin point that runs in Node; `violet-elements`' pack (77 records, 153 rules, `pack/GAPS.md`) and `pack-check` in `test:stories`. FAST-AF's records were built on macOS and the Linux stories job's `pack-check` matched them. At Component Briefs step C4 the format became version 1, and exporting FAST-AF's pack for Umbel found three faults, fixed there: a catalog in path order, a guide with two roles for one state, and the FAST-AF plugin preferring a property's description to its attribute's. All need only Specimen and FAST-AF. Not needed for cutover.
 
 ### Handoff, 2026-11-02: resume here
 
@@ -134,7 +134,7 @@ The native core is `foundations/specimen`; AFD bindings are `integrations/specim
 | [Full runner](t06-full-runner.md) | T06: full-suite agreement, suites, accessibility, profile, matrix, events, budgets and the capture manifest |
 | [Coverage](t07-coverage.md) | T07: coverage, claims and waivers, the story contract, retirement records and `specimen-suggest` |
 | [Cutover](t08-cutover.md) | T08: the owner's decisions, native helpers, AFD's stories, qualifying pairs, rollback and what is left |
-| [Component Briefs](../component-briefs/STATUS.md) | T12's plan and status: the pack format, guides, `specimen-pack`, and the Umbel plugin that serves packs |
+| [Component Briefs](../../complete/component-briefs/STATUS.md) | T12's plan and status: the pack format, guides, `specimen-pack`, and the Umbel plugin that serves packs |
 
 ## Workstream progress
 

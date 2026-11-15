@@ -18,6 +18,8 @@ export default defineConfig({
     include: ["src/**/*.spec.ts"],
     browser: {
       enabled: true,
+      // Never open a window on a developer desktop; the run reports results either way.
+      headless: true,
       provider: playwright(),
       instances: [
         {
