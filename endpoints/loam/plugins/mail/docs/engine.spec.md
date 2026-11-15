@@ -481,7 +481,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision`, the person's own addresses (`account` and the sent mailboxes), `observation` and `mailbox.role` |
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
-| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream of five messages or more, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams of mail no longer held |
+| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream with members, a story from its fifth, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams of mail no longer held |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
@@ -1245,15 +1245,20 @@ migration 9):
   is the list's id, the one inside `List-Id` in lower case, or else the sender's address, as
   step C1 grouped them. Every such message has a member row from the first; a stream is a story,
   listed and opened, from its fifth.
-- **Stories are derived like classes**: never adjusted, computed again for what each batch
-  changed, so a rebuild gives the same rows, which tests compare after each change and against
-  making every story from nothing. Each message derived again, or whose class or place in the
-  lists changed, has its membership computed again; a message whose flags alone changed is not
-  read. Each story a member left, joined or changed in has its counts and row computed again
-  from an index of its own members, as a sender's row is, and is noted in `change`; so is a
-  story whose newest member was derived again, whose title it gives, when the row changes.
-  `story_shape` and `story_kind` count each story's body shapes and template keys, a pair at a
-  time.
+- **Stories are derived**, so a rebuild gives the same rows. Each message derived again, or
+  whose class or place in the lists changed, has its membership computed again; a message whose
+  flags alone changed is not read. Unlike a class or a sender's row, a stream's counts (its
+  members, each body shape's and template key's in `story_shape` and `story_kind`, its kinds
+  and its exceptions) are kept by what each batch changed rather than counted again: every
+  made-up message of the 4.4 harness carries a list header, so its largest senders' stories hold
+  tens of thousands, and counting each touched story's members again for each batch took the
+  import from 565 messages a second to 320, under the limit (measured 2026-11-15 on the owner's
+  external drive, `main` and this step one after the other on an idle machine). The tests
+  compare every row with making every story from nothing after each change and across a
+  rebuild. A story's first and last dates are read from the two ends of its index, and its
+  title from its newest member. Each story a member left, joined or changed in is noted in
+  `change`; so is one whose newest member was derived again when its row changes. Every stream
+  with members has a row; the commands show those of five or more.
 - **A story's id** is its stream's, from `stream`, which is not derived: an id once given to a
   list or a sender is kept, so a rebuild keeps it and no two streams share one (an id made from
   a hash of the stream would let a sender who searched for a collision join another's story). A

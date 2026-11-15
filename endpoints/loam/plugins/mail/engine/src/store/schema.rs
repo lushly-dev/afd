@@ -495,8 +495,9 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ) STRICT, WITHOUT ROWID;
     CREATE INDEX story_kind_most ON story_kind (story_id, messages DESC, template_key);
 
-    -- A story. Its id is its stream's. `list_id` is
-    -- '' for a story by sender; `sender_address` is its sender, or for a list the sender of its
+    -- A stream with members, and a story from its fifth: its counts are kept by what each batch
+    -- changes, since a story of a large folder is too large to count again for each. Its id is
+    -- its stream's. `list_id` is '' for a story by sender; `sender_address` is its sender, or for a list the sender of its
     -- newest message; `title` is the list's id, or the name on the newest message, or else the
     -- address. `kinds` counts its template keys and `exceptions` its exceptions. A burst
     -- (section 7.4) is step C3's.
@@ -512,7 +513,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
         first_date INTEGER NOT NULL,
         last_date INTEGER NOT NULL
     ) STRICT;
-    CREATE INDEX story_recent ON story (last_date DESC, id DESC);
+    CREATE INDEX story_recent ON story (last_date DESC, id DESC) WHERE messages >= 5;
 
     -- What changed since a cursor is read by kind.
     CREATE INDEX change_kind ON change (kind, seq);

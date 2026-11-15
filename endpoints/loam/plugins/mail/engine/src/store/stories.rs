@@ -26,7 +26,7 @@
 //! once given to a list or a sender is kept, so a rebuild gives the story
 //! the same one and no two streams share one.
 
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -105,8 +105,8 @@ fn member_sql() -> String {
 }
 
 /// What the messages of `temp.story_target` were in before.
-const BEFORE: &str = "SELECT message_id, story_id, body_shape, template_key FROM story_member
-     WHERE message_id IN (SELECT message_id FROM temp.story_target)";
+const BEFORE: &str = "SELECT message_id, story_id, body_shape, template_key, exception
+     FROM story_member WHERE message_id IN (SELECT message_id FROM temp.story_target)";
 
 /// The messages of `temp.story_target` that are no longer bulk mail a
 /// mailbox other than junk and trash shows.
@@ -115,7 +115,7 @@ const REMOVE: &str = "DELETE FROM story_member
        AND NOT EXISTS (SELECT 1 FROM screening
                        WHERE screening.message_id = story_member.message_id
                          AND screening.class = 'bulk' AND screening.listed = 1)
-     RETURNING message_id, story_id, body_shape, template_key";
+     RETURNING message_id, story_id, body_shape, template_key, exception";
 
 /// The stories whose newest member is in `temp.story_target`, whose title
 /// it gives: a message derived again may bring another name.
@@ -149,12 +149,13 @@ const EXCEPT_SHAPE: &str = "story_member.story_id = ?1 AND story_member.body_sha
 const EXCEPT_STORY: &str = "story_member.story_id = ?1 AND story_member.body_shape IS NOT NULL";
 
 /// The statement that computes `exception` again for the members `filter`
-/// selects.
+/// selects, and returns each member it changed.
 fn except_sql(filter: &str) -> String {
     let exception = exception_expression();
     format!(
         "UPDATE story_member SET exception = {exception}
-         WHERE ({filter}) AND exception <> {exception}"
+         WHERE ({filter}) AND exception <> {exception}
+         RETURNING message_id, story_id, exception"
     )
 }
 
@@ -167,11 +168,9 @@ fn has_usual_sql() -> String {
     )
 }
 
-/// A story's members, their first and last dates.
-const SPAN: &str = "SELECT count(*), min(date), max(date) FROM story_member WHERE story_id = ?1";
-
-/// A story's exceptions.
-const EXCEPTIONS: &str = "SELECT count(*) FROM story_member WHERE story_id = ?1 AND exception = 1";
+/// A story's first and last dates, each read from one end of an index.
+const FIRST: &str = "SELECT min(date) FROM story_member WHERE story_id = ?1";
+const LAST: &str = "SELECT max(date) FROM story_member WHERE story_id = ?1";
 
 /// A story's newest member, which names it.
 const NEWEST: &str = "SELECT envelope.list_id, envelope.sender_address, envelope.sender_name
@@ -179,52 +178,79 @@ const NEWEST: &str = "SELECT envelope.list_id, envelope.sender_address, envelope
      WHERE story_member.story_id = ?1
      ORDER BY story_member.date DESC, story_member.message_id DESC LIMIT 1";
 
-/// How many of a story's members have a shape, and a template key.
-const SHAPE_COUNT: &str =
-    "SELECT count(*) FROM story_member WHERE story_id = ?1 AND body_shape = ?2";
-const KIND_COUNT: &str =
-    "SELECT count(*) FROM story_member WHERE story_id = ?1 AND template_key = ?2";
+/// A member's story and whether it is an exception.
+const MEMBER: &str = "SELECT story_id, exception FROM story_member WHERE message_id = ?1";
 
-/// A member's story, shape and template key.
-type Membership = (i64, Option<Vec<u8>>, Option<Vec<u8>>);
+/// A member's story, shape, template key and whether it is an exception.
+type Membership = (i64, Option<Vec<u8>>, Option<Vec<u8>>, bool);
 
-/// What a batch changed of stories.
-#[derive(Debug, Default)]
-struct Touched {
-    /// Stories whose row is computed again: those a member left, joined or
-    /// changed in, and those whose newest member was derived again.
-    stories: BTreeSet<i64>,
-    /// Stories a member left, joined or changed in.
-    moved: BTreeSet<i64>,
-    /// Shapes and template keys whose count in a story changed.
-    shapes: BTreeSet<(i64, Vec<u8>)>,
-    kinds: BTreeSet<(i64, Vec<u8>)>,
-}
-
-impl Touched {
-    /// Notes a membership a member had or has now.
-    fn note(&mut self, (story, shape, kind): Membership) {
-        self.stories.insert(story);
-        self.moved.insert(story);
-        if let Some(shape) = shape {
-            self.shapes.insert((story, shape));
-        }
-        if let Some(kind) = kind {
-            self.kinds.insert((story, kind));
-        }
-    }
-}
-
-/// The rows `sql` returns: a message, then its membership.
+/// The rows `sql` returns: a message, then its membership. The upsert has
+/// no exception to return; it reads as none.
 fn memberships(
     transaction: &Transaction<'_>,
     sql: &str,
 ) -> Result<Vec<(i64, Membership)>, StoreError> {
     let mut statement = transaction.prepare_cached(sql)?;
+    let columns = statement.column_count();
     let rows = statement.query_map([], |row| {
-        Ok((row.get(0)?, (row.get(1)?, row.get(2)?, row.get(3)?)))
+        let exception = if columns > 4 { row.get(4)? } else { false };
+        Ok((
+            row.get(0)?,
+            (row.get(1)?, row.get(2)?, row.get(3)?, exception),
+        ))
     })?;
     Ok(rows.collect::<Result<_, _>>()?)
+}
+
+/// What a batch changed of stories: how many members each story, each of
+/// its shapes and each of its template keys gained or lost, and how many
+/// exceptions each story gained or lost.
+#[derive(Debug, Default)]
+struct Deltas {
+    /// Stories whose row is written again: those a member left, joined or
+    /// changed in, and those whose newest member was derived again.
+    stories: BTreeSet<i64>,
+    /// Stories a member left, joined or changed in.
+    moved: BTreeSet<i64>,
+    messages: BTreeMap<i64, i64>,
+    exceptions: BTreeMap<i64, i64>,
+    kinds: BTreeMap<i64, i64>,
+    shapes: BTreeMap<(i64, Vec<u8>), i64>,
+    templates: BTreeMap<(i64, Vec<u8>), i64>,
+}
+
+impl Deltas {
+    /// Counts a member out of (`by` -1) or into (`by` 1) a membership.
+    fn count(&mut self, (story, shape, kind, exception): &Membership, by: i64) {
+        self.stories.insert(*story);
+        self.moved.insert(*story);
+        *self.messages.entry(*story).or_default() += by;
+        if *exception {
+            *self.exceptions.entry(*story).or_default() += by;
+        }
+        if let Some(shape) = shape {
+            *self.shapes.entry((*story, shape.clone())).or_default() += by;
+        }
+        if let Some(kind) = kind {
+            *self.templates.entry((*story, kind.clone())).or_default() += by;
+        }
+    }
+}
+
+/// Runs a statement of [`except_sql`], adding each member it changed, with
+/// its story and its exception now, to `out`.
+fn flips(
+    transaction: &Transaction<'_>,
+    sql: &str,
+    bound: impl rusqlite::Params,
+    out: &mut Vec<(i64, i64, bool)>,
+) -> Result<(), StoreError> {
+    let mut statement = transaction.prepare_cached(sql)?;
+    let rows = statement.query_map(bound, |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?;
+    for row in rows {
+        out.push(row?);
+    }
+    Ok(())
 }
 
 /// Fills `temp.story_target` with `messages`.
@@ -241,15 +267,14 @@ fn load_target(transaction: &Transaction<'_>, messages: &BTreeSet<i64>) -> Resul
     Ok(())
 }
 
-/// Counts again one shape or template key of a story in `table`, and
-/// returns how many held it before and after.
-fn recount(
+/// Adds `by` to one shape's or template key's count in a story in
+/// `table`, and returns the count before and after.
+fn add_count(
     transaction: &Transaction<'_>,
     table: &str,
     column: &str,
-    counted: &str,
-    story: i64,
-    value: &[u8],
+    (story, value): &(i64, Vec<u8>),
+    by: i64,
 ) -> Result<(i64, i64), StoreError> {
     let before: i64 = transaction
         .one(
@@ -259,13 +284,13 @@ fn recount(
         )
         .optional()?
         .unwrap_or(0);
-    let after: i64 = transaction.one(counted, params![story, value], |row| row.get(0))?;
-    if after == 0 {
+    let after = before + by;
+    if after <= 0 {
         transaction.run(
             &format!("DELETE FROM {table} WHERE story_id = ?1 AND {column} = ?2"),
             params![story, value],
         )?;
-    } else if after != before {
+    } else {
         transaction.run(
             &format!(
                 "INSERT INTO {table} (story_id, {column}, messages) VALUES (?1, ?2, ?3)
@@ -274,26 +299,63 @@ fn recount(
             params![story, value, after],
         )?;
     }
-    Ok((before, after))
+    Ok((before, after.max(0)))
 }
 
-/// Computes a story's row again from its members. Returns whether the row
-/// changed (made, altered or removed) and whether there is one now.
-fn compute_story(transaction: &Transaction<'_>, story: i64) -> Result<(bool, bool), StoreError> {
-    let (messages, first, last): (i64, Option<i64>, Option<i64>) =
-        transaction.one(SPAN, [story], |row| {
-            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
-        })?;
-    if messages < LEAST_MESSAGES {
-        let removed = transaction.run("DELETE FROM story WHERE id = ?1", [story])?;
-        return Ok((removed > 0, false));
+/// A stream's row: its list, sender, title, counts and dates.
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct Row {
+    list_id: String,
+    sender_address: String,
+    title: String,
+    messages: i64,
+    exceptions: i64,
+    kinds: i64,
+    first_date: i64,
+    last_date: i64,
+}
+
+impl Row {
+    fn is_story(&self) -> bool {
+        self.messages >= LEAST_MESSAGES
     }
-    let exceptions: i64 = transaction.one(EXCEPTIONS, [story], |row| row.get(0))?;
-    let kinds: i64 = transaction.one(
-        "SELECT count(*) FROM story_kind WHERE story_id = ?1",
-        [story],
-        |row| row.get(0),
-    )?;
+}
+
+/// A stream's row as it is stored, if it has one.
+fn stored_row(transaction: &Transaction<'_>, story: i64) -> Result<Option<Row>, StoreError> {
+    Ok(transaction
+        .one(
+            "SELECT list_id, sender_address, title, messages, exceptions, kinds, first_date,
+                    last_date
+             FROM story WHERE id = ?1",
+            [story],
+            |row| {
+                Ok(Row {
+                    list_id: row.get(0)?,
+                    sender_address: row.get(1)?,
+                    title: row.get(2)?,
+                    messages: row.get(3)?,
+                    exceptions: row.get(4)?,
+                    kinds: row.get(5)?,
+                    first_date: row.get(6)?,
+                    last_date: row.get(7)?,
+                })
+            },
+        )
+        .optional()?)
+}
+
+/// A stream's row with the counts given: its dates read from the ends of
+/// its index, and its title from its newest member.
+fn row_with(
+    transaction: &Transaction<'_>,
+    story: i64,
+    messages: i64,
+    exceptions: i64,
+    kinds: i64,
+) -> Result<Row, StoreError> {
+    let first: Option<i64> = transaction.one(FIRST, [story], |row| row.get(0))?;
+    let last: Option<i64> = transaction.one(LAST, [story], |row| row.get(0))?;
     let (list_id, address, name): (String, String, String) =
         transaction.one(NEWEST, [story], |row| {
             Ok((row.get(0)?, row.get(1)?, row.get(2)?))
@@ -305,37 +367,69 @@ fn compute_story(transaction: &Transaction<'_>, story: i64) -> Result<(bool, boo
     } else {
         address.clone()
     };
-    let written = transaction.run(
-        "INSERT INTO story (id, kind, list_id, sender_address, title, messages, exceptions, kinds,
-                            first_date, last_date)
-         VALUES (?1, 'stream', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
-         ON CONFLICT (id) DO UPDATE SET
-             list_id = excluded.list_id, sender_address = excluded.sender_address,
-             title = excluded.title, messages = excluded.messages,
-             exceptions = excluded.exceptions, kinds = excluded.kinds,
-             first_date = excluded.first_date, last_date = excluded.last_date
-         WHERE story.list_id <> excluded.list_id OR story.sender_address <> excluded.sender_address
-            OR story.title <> excluded.title OR story.messages <> excluded.messages
-            OR story.exceptions <> excluded.exceptions OR story.kinds <> excluded.kinds
-            OR story.first_date <> excluded.first_date OR story.last_date <> excluded.last_date",
-        params![
-            story,
-            list_id,
-            address,
-            title,
-            messages,
-            exceptions,
-            kinds,
-            first.unwrap_or(0),
-            last.unwrap_or(0)
-        ],
-    )?;
-    Ok((written > 0, true))
+    Ok(Row {
+        list_id,
+        sender_address: address,
+        title,
+        messages,
+        exceptions,
+        kinds,
+        first_date: first.unwrap_or(0),
+        last_date: last.unwrap_or(0),
+    })
+}
+
+/// Writes a stream's row, or removes it when it has no members. Returns
+/// whether a story changed: one that is a story, was one, or both, and
+/// whose row is not what it was.
+fn write_row(
+    transaction: &Transaction<'_>,
+    story: i64,
+    old: Option<&Row>,
+    new: Option<&Row>,
+) -> Result<bool, StoreError> {
+    if old == new {
+        return Ok(false);
+    }
+    match new {
+        None => {
+            transaction.run("DELETE FROM story WHERE id = ?1", [story])?;
+        }
+        Some(row) => {
+            transaction.run(
+                "INSERT INTO story (id, kind, list_id, sender_address, title, messages, exceptions,
+                                    kinds, first_date, last_date)
+                 VALUES (?1, 'stream', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9)
+                 ON CONFLICT (id) DO UPDATE SET
+                     list_id = excluded.list_id, sender_address = excluded.sender_address,
+                     title = excluded.title, messages = excluded.messages,
+                     exceptions = excluded.exceptions, kinds = excluded.kinds,
+                     first_date = excluded.first_date, last_date = excluded.last_date",
+                params![
+                    story,
+                    row.list_id,
+                    row.sender_address,
+                    row.title,
+                    row.messages,
+                    row.exceptions,
+                    row.kinds,
+                    row.first_date,
+                    row.last_date
+                ],
+            )?;
+        }
+    }
+    Ok(old.is_some_and(Row::is_story) || new.is_some_and(Row::is_story))
 }
 
 /// Computes again the membership of `messages`, then the counts,
 /// exceptions and rows of every story a member left, joined or changed in,
 /// and notes each story that changed.
+///
+/// A story's counts are kept by what each batch changed, not counted again:
+/// a story of a large folder holds hundreds of thousands of messages, and
+/// counting them for each batch halved the import rate. The tests compare
+/// them, after each change, with making every story from nothing.
 pub(super) fn settle(
     transaction: &Transaction<'_>,
     messages: &BTreeSet<i64>,
@@ -350,76 +444,122 @@ pub(super) fn settle(
     transaction.run(&streams_sql(), [])?;
     let written = memberships(transaction, &member_sql())?;
     // Only the members that left, joined or changed count: the rest of the
-    // target is as it was.
-    let mut touched = Touched::default();
-    for (message, membership) in removed.into_iter().chain(written) {
-        if let Some(was_in) = before.get(&message) {
-            touched.note(was_in.clone());
+    // target is as it was. A written member is counted into its story once
+    // its exception is known, below.
+    let mut deltas = Deltas::default();
+    let mut moved: HashSet<i64> = HashSet::new();
+    for (message, was_in) in &removed {
+        moved.insert(*message);
+        deltas.count(was_in, -1);
+    }
+    for (message, now_in) in &written {
+        moved.insert(*message);
+        if let Some(was_in) = before.get(message) {
+            deltas.count(was_in, -1);
         }
-        touched.note(membership);
+        deltas.count(&(now_in.0, now_in.1.clone(), now_in.2.clone(), false), 1);
     }
     {
         let mut statement = transaction.prepare_cached(NEWEST_IN_TARGET)?;
         let newest = statement.query_map([], |row| row.get::<_, i64>(0))?;
         for story in newest {
-            touched.stories.insert(story?);
+            deltas.stories.insert(story?);
         }
     }
-    if touched.stories.is_empty() {
+    if deltas.stories.is_empty() {
         return Ok(());
     }
     let has_usual = has_usual_sql();
     let mut usual_before = BTreeMap::new();
-    for story in &touched.moved {
+    for story in &deltas.moved {
         let usual: bool = transaction.one(&has_usual, [story], |row| row.get(0))?;
         usual_before.insert(*story, usual);
     }
     let mut turned = Vec::new();
-    for (story, shape) in &touched.shapes {
-        let (before, after) = recount(
-            transaction,
-            "story_shape",
-            "shape",
-            SHAPE_COUNT,
-            *story,
-            shape,
-        )?;
+    for (pair, by) in &deltas.shapes {
+        if *by == 0 {
+            continue;
+        }
+        let (before, after) = add_count(transaction, "story_shape", "shape", pair, *by)?;
         if (before >= USUAL_SHAPE) != (after >= USUAL_SHAPE) {
-            turned.push((*story, shape.as_slice()));
+            turned.push(pair);
         }
     }
-    for (story, kind) in &touched.kinds {
-        recount(
-            transaction,
-            "story_kind",
-            "template_key",
-            KIND_COUNT,
-            *story,
-            kind,
-        )?;
+    let mut kinds = BTreeMap::new();
+    for (pair, by) in &deltas.templates {
+        if *by == 0 {
+            continue;
+        }
+        let (before, after) = add_count(transaction, "story_kind", "template_key", pair, *by)?;
+        *kinds.entry(pair.0).or_insert(0) += i64::from(after > 0) - i64::from(before > 0);
     }
+    deltas.kinds = kinds;
     // A story that gained its first usual shape, or lost its last, has
     // every shaped member's exception computed again; a shape that became
     // usual, or stopped being, has its members'; and the messages changed
-    // have theirs.
+    // have theirs. A member that moved is counted below, from where it is
+    // now; any other whose exception turned counts here.
+    let mut flipped_exceptions = Vec::new();
     let (by_story, by_shape) = (except_sql(EXCEPT_STORY), except_sql(EXCEPT_SHAPE));
     let mut flipped = BTreeSet::new();
     for (story, before) in &usual_before {
         let after: bool = transaction.one(&has_usual, [story], |row| row.get(0))?;
         if after != *before {
             flipped.insert(*story);
-            transaction.run(&by_story, [story])?;
+            flips(transaction, &by_story, [story], &mut flipped_exceptions)?;
         }
     }
     for (story, shape) in turned {
-        if !flipped.contains(&story) {
-            transaction.run(&by_shape, params![story, shape])?;
+        if !flipped.contains(story) {
+            flips(
+                transaction,
+                &by_shape,
+                params![story, shape],
+                &mut flipped_exceptions,
+            )?;
         }
     }
-    transaction.run(&except_sql(EXCEPT_TARGET), [])?;
-    for story in &touched.stories {
-        let (changed, exists) = compute_story(transaction, *story)?;
-        if changed || (exists && touched.moved.contains(story)) {
+    flips(
+        transaction,
+        &except_sql(EXCEPT_TARGET),
+        [],
+        &mut flipped_exceptions,
+    )?;
+    for (message, story, exception) in flipped_exceptions {
+        if !moved.contains(&message) {
+            *deltas.exceptions.entry(story).or_default() += if exception { 1 } else { -1 };
+        }
+    }
+    {
+        let mut member = transaction.prepare_cached(MEMBER)?;
+        for (message, _) in &written {
+            let (story, exception): (i64, bool) =
+                member.query_row([message], |row| Ok((row.get(0)?, row.get(1)?)))?;
+            if exception {
+                *deltas.exceptions.entry(story).or_default() += 1;
+            }
+        }
+    }
+    for story in &deltas.stories {
+        let old = stored_row(transaction, *story)?;
+        let (messages, exceptions, kinds) = old
+            .as_ref()
+            .map_or((0, 0, 0), |row| (row.messages, row.exceptions, row.kinds));
+        let messages = messages + deltas.messages.get(story).copied().unwrap_or(0);
+        let new = if messages > 0 {
+            Some(row_with(
+                transaction,
+                *story,
+                messages,
+                exceptions + deltas.exceptions.get(story).copied().unwrap_or(0),
+                kinds + deltas.kinds.get(story).copied().unwrap_or(0),
+            )?)
+        } else {
+            None
+        };
+        let changed = write_row(transaction, *story, old.as_ref(), new.as_ref())?;
+        let is_story = new.as_ref().is_some_and(Row::is_story);
+        if changed || (is_story && deltas.moved.contains(story)) {
             note_change(transaction, now, "story", *story)?;
         }
     }
@@ -451,19 +591,39 @@ pub(super) fn compose_all(transaction: &Transaction<'_>, now: i64) -> Result<(),
              WHERE template_key IS NOT NULL GROUP BY story_id, template_key;
          UPDATE story_member SET exception = {exception} WHERE exception <> {exception};"
     ))?;
-    let stories: Vec<i64> = {
-        let mut statement = transaction.prepare(&format!(
-            "SELECT id FROM story
-             UNION
-             SELECT story_id FROM story_member GROUP BY story_id
-             HAVING count(*) >= {LEAST_MESSAGES}"
-        ))?;
+    // Every stream's counts, counted; the old rows, to see what changed.
+    let counted: BTreeMap<i64, (i64, i64, i64)> = {
+        let mut statement = transaction.prepare(
+            "SELECT story_id, count(*), sum(exception),
+                    (SELECT count(*) FROM story_kind WHERE story_kind.story_id = story_member.story_id)
+             FROM story_member GROUP BY story_id",
+        )?;
+        statement
+            .query_map([], |row| {
+                Ok((row.get(0)?, (row.get(1)?, row.get(2)?, row.get(3)?)))
+            })?
+            .collect::<Result<_, _>>()?
+    };
+    let old_ids: Vec<i64> = {
+        let mut statement = transaction.prepare("SELECT id FROM story")?;
         statement
             .query_map([], |row| row.get(0))?
             .collect::<Result<_, _>>()?
     };
-    for story in stories {
-        if compute_story(transaction, story)?.0 {
+    let ids: BTreeSet<i64> = old_ids.into_iter().chain(counted.keys().copied()).collect();
+    for story in ids {
+        let old = stored_row(transaction, story)?;
+        let new = match counted.get(&story) {
+            Some((messages, exceptions, kinds)) => Some(row_with(
+                transaction,
+                story,
+                *messages,
+                *exceptions,
+                *kinds,
+            )?),
+            None => None,
+        };
+        if write_row(transaction, story, old.as_ref(), new.as_ref())? {
             note_change(transaction, now, "story", story)?;
         }
     }
@@ -526,19 +686,18 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("exceptions of a shape", except_sql(EXCEPT_SHAPE)),
         ("exceptions of a story", except_sql(EXCEPT_STORY)),
         ("has usual", has_usual_sql()),
-        ("span", SPAN.to_string()),
-        ("exceptions", EXCEPTIONS.to_string()),
+        ("first", FIRST.to_string()),
+        ("last", LAST.to_string()),
+        ("member", MEMBER.to_string()),
         ("newest", NEWEST.to_string()),
-        ("shape count", SHAPE_COUNT.to_string()),
-        ("kind count", KIND_COUNT.to_string()),
-        ("story list", STORY_LIST.to_string()),
+        ("story list", story_list_sql()),
         ("story kinds", KINDS.to_string()),
         ("kind newest", KIND_NEWEST.to_string()),
         ("story messages", story_messages_sql(Only::Every)),
         ("story exceptions", story_messages_sql(Only::Exceptions)),
         ("story kind", story_messages_sql(Only::Kind)),
         ("story changes", CHANGES.to_string()),
-        ("stories of", STORY_OF.to_string()),
+        ("stories of", story_of_sql()),
     ]
 }
 
@@ -587,10 +746,15 @@ fn story_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoryRow> {
     })
 }
 
-/// The stories, newest first.
-const STORY_LIST: &str = "SELECT id, kind, list_id, sender_address, title, messages, exceptions,
-     kinds, first_date, last_date FROM story
-     WHERE (last_date, id) < (?1, ?2) ORDER BY last_date DESC, id DESC LIMIT ?3";
+/// The stories, newest first, from the index of the streams that are
+/// stories.
+fn story_list_sql() -> String {
+    format!(
+        "SELECT {STORY_COLUMNS} FROM story
+         WHERE messages >= {LEAST_MESSAGES} AND (last_date, id) < (?1, ?2)
+         ORDER BY last_date DESC, id DESC LIMIT ?3"
+    )
+}
 
 /// One kind of mail in a story.
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -669,9 +833,13 @@ const CHANGES: &str = "SELECT subject, max(seq) AS last FROM change
      WHERE kind = 'story' AND seq > ?1 GROUP BY subject ORDER BY last LIMIT ?2";
 
 /// The story a message is in, if it is in one.
-const STORY_OF: &str = "SELECT story_member.story_id FROM story_member
-     JOIN story ON story.id = story_member.story_id
-     WHERE story_member.message_id = ?1";
+fn story_of_sql() -> String {
+    format!(
+        "SELECT story_member.story_id FROM story_member
+         JOIN story ON story.id = story_member.story_id AND story.messages >= {LEAST_MESSAGES}
+         WHERE story_member.message_id = ?1"
+    )
+}
 
 /// The id a stream's story has.
 const STREAM_ID: &str = "SELECT id FROM stream WHERE key = ?1";
@@ -733,7 +901,7 @@ impl Store {
         limit: u32,
     ) -> Result<Vec<StoryRow>, StoreError> {
         let (date, id) = before.unwrap_or((i64::MAX, i64::MAX));
-        let mut statement = self.connection.prepare_cached(STORY_LIST)?;
+        let mut statement = self.connection.prepare_cached(&story_list_sql())?;
         let rows = statement.query_map(params![date, id, limit], story_row)?;
         Ok(rows.collect::<Result<_, _>>()?)
     }
@@ -745,7 +913,9 @@ impl Store {
     pub fn story(&self, id: i64) -> Result<Option<StoryRow>, StoreError> {
         Ok(self
             .connection
-            .prepare_cached(&format!("SELECT {STORY_COLUMNS} FROM story WHERE id = ?1"))?
+            .prepare_cached(&format!(
+                "SELECT {STORY_COLUMNS} FROM story WHERE id = ?1 AND messages >= {LEAST_MESSAGES}"
+            ))?
             .query_row([id], story_row)
             .optional()?)
     }
@@ -755,9 +925,11 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn story_count(&self) -> Result<u64, StoreError> {
-        let stories: i64 = self
-            .connection
-            .query_row("SELECT count(*) FROM story", [], |row| row.get(0))?;
+        let stories: i64 = self.connection.query_row(
+            &format!("SELECT count(*) FROM story WHERE messages >= {LEAST_MESSAGES}"),
+            [],
+            |row| row.get(0),
+        )?;
         Ok(count(stories))
     }
 
@@ -924,7 +1096,7 @@ impl Store {
         &self,
         messages: &[MessageId],
     ) -> Result<HashMap<MessageId, i64>, StoreError> {
-        let mut statement = self.connection.prepare_cached(STORY_OF)?;
+        let mut statement = self.connection.prepare_cached(&story_of_sql())?;
         let mut stories = HashMap::new();
         for message in messages {
             let story: Option<i64> = statement

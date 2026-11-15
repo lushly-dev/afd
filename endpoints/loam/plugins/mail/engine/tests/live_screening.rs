@@ -207,23 +207,23 @@ fn screening_on_a_copy_of_a_synced_store() {
     let recurring = count("SELECT count(*) FROM template WHERE messages >= 5");
     // Stories (step C2's second pull request), made with the classes.
     let story_counts = json!({
-        "stories": count("SELECT count(*) FROM story"),
-        "byList": count("SELECT count(*) FROM story WHERE list_id <> ''"),
-        "bySender": count("SELECT count(*) FROM story WHERE list_id = ''"),
-        "streams": count("SELECT count(DISTINCT story_id) FROM story_member"),
+        "stories": count("SELECT count(*) FROM story WHERE messages >= 5"),
+        "byList": count("SELECT count(*) FROM story WHERE messages >= 5 AND list_id <> ''"),
+        "bySender": count("SELECT count(*) FROM story WHERE messages >= 5 AND list_id = ''"),
+        "streams": count("SELECT count(*) FROM story"),
         "bulkListed": count("SELECT count(*) FROM story_member"),
-        "inStories": count("SELECT coalesce(sum(messages), 0) FROM story"),
-        "exceptions": count("SELECT coalesce(sum(exceptions), 0) FROM story"),
-        "withExceptions": count("SELECT count(*) FROM story WHERE exceptions > 0"),
+        "inStories": count("SELECT coalesce(sum(messages), 0) FROM story WHERE messages >= 5"),
+        "exceptions": count("SELECT coalesce(sum(exceptions), 0) FROM story WHERE messages >= 5"),
+        "withExceptions": count("SELECT count(*) FROM story WHERE messages >= 5 AND exceptions > 0"),
         "withoutAUsualShape": count(
-            "SELECT count(*) FROM story WHERE NOT EXISTS
+            "SELECT count(*) FROM story WHERE messages >= 5 AND NOT EXISTS
                  (SELECT 1 FROM story_shape WHERE story_shape.story_id = story.id
                   AND story_shape.messages >= 5)",
         ),
-        "kinds": count("SELECT coalesce(sum(kinds), 0) FROM story"),
-        "withOneKind": count("SELECT count(*) FROM story WHERE kinds = 1"),
+        "kinds": count("SELECT coalesce(sum(kinds), 0) FROM story WHERE messages >= 5"),
+        "withOneKind": count("SELECT count(*) FROM story WHERE messages >= 5 AND kinds = 1"),
         "largestMessages": count("SELECT coalesce(max(messages), 0) FROM story"),
-        "largestKinds": count("SELECT coalesce(max(kinds), 0) FROM story"),
+        "largestKinds": count("SELECT coalesce(max(kinds), 0) FROM story WHERE messages >= 5"),
     });
     let largest_story: Option<(i64, i64)> = connection
         .query_row(
