@@ -1,5 +1,5 @@
 {
-	"about": "Step 0.1's page set (docs/features/active/component-briefs/baseline.md): each page and the tags its sources name, as baseline.mjs lists them (the same counts as the record), and the bytes of those components' manifest declarations as baseline.md recorded them at cfb70942, which are below today's. Criterion 2: a brief is at most half of `declarations`.",
+	"about": "Step 0.1's page set (docs/features/complete/component-briefs/baseline.md): each page and the tags its sources name, as baseline.mjs lists them (the same counts as the record), and the bytes of those components' manifest declarations as baseline.md recorded them at cfb70942, which are below today's. Criterion 2: a brief is at most half of `declarations`.",
 	"pages": [
 		{
 			"page": "Loam chrome",
