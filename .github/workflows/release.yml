@@ -105,6 +105,8 @@ jobs:
       contains(fromJSON('["success", "skipped"]'), needs.specimen-hosts.result)
     name: Version or Publish
     runs-on: ubuntu-latest
+    # npm trusted publishers name this environment, which deploys only from main (platform-releases.md).
+    environment: npm
     permissions:
       contents: write
       pull-requests: write
@@ -292,6 +294,8 @@ jobs:
     if: github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main'
     name: Reconcile held npm publication
     runs-on: ubuntu-latest
+    # npm trusted publishers name this environment, which deploys only from main (platform-releases.md).
+    environment: npm
     permissions:
       contents: write
       actions: read
