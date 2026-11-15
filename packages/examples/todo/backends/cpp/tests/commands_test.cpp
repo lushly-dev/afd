@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <fstream>
 #include <iterator>
+#include <optional>
 #include <string>
 #include <vector>
 
@@ -22,6 +23,26 @@ TEST_CASE("the registered commands are exactly those in commands.schema.json") {
     std::sort(specified.begin(), specified.end());
     CHECK(registered == specified);
     CHECK(registered.size() == 11);
+}
+
+TEST_CASE("each command declares the metadata in commands.schema.json") {
+    Fixture fixture;
+    for (const auto& command : fixture.registry->list()) {
+        const auto& definition = command->definition;
+        CAPTURE(definition.name);
+        const auto& metadata = todo::spec()["commands"][definition.name]["metadata"];
+        CHECK(definition.mutation == metadata["mutation"].get<bool>());
+        CHECK(definition.destructive == metadata["destructive"].get<bool>());
+        auto contexts = definition.contexts;
+        auto expected = metadata["contexts"].get<std::vector<std::string>>();
+        std::sort(contexts.begin(), contexts.end());
+        std::sort(expected.begin(), expected.end());
+        CHECK(contexts == expected);
+        std::optional<std::string> prompt;
+        if (metadata.contains("confirmPrompt"))
+            prompt = metadata["confirmPrompt"].get<std::string>();
+        CHECK(definition.confirm_prompt == prompt);
+    }
 }
 
 TEST_CASE("the embedded contract is the file on disk") {

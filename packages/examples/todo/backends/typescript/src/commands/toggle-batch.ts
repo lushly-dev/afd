@@ -8,6 +8,7 @@
 import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -59,6 +60,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 	name: 'todo-toggle-batch',
 	description: 'Toggle completion status of multiple todos, or set all to a specific state',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'toggle', 'write', 'batch'],
 	requires: ['todo-list'],

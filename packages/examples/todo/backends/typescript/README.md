@@ -9,7 +9,10 @@ pnpm install
 pnpm start
 ```
 
-Server runs at `http://localhost:3100`.
+From a terminal the server listens on `http://localhost:3100`, with MCP at `/mcp`
+(`afd connect http://localhost:3100/mcp`). When its standard input is not a terminal, as when an
+MCP client spawns it, it speaks MCP over stdio instead. `TRANSPORT=http` or `TRANSPORT=stdio`
+forces one.
 
 ## Storage Configuration
 

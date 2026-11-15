@@ -105,6 +105,14 @@ fn the_manifests_schemas_and_effects_equal_the_backends_definitions() {
             definition.confirm_prompt.as_deref(),
             "{name}"
         );
+        assert_eq!(
+            declared
+                .get("destructive")
+                .and_then(toml::Value::as_bool)
+                .unwrap_or(false),
+            definition.destructive.unwrap_or(false),
+            "{name}"
+        );
     }
     assert_eq!(
         manifest["plugin"]["domains"],
