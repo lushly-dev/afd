@@ -20,16 +20,16 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   React stays beside the FAST-AF frontend, both on `violet-elements`.
 - **Last verified:** 2026-11-15 on branch `t3/refresh-todo-afd-examples`, based on `main` at
   `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
-- **Done:** nothing merged yet.
-- **In progress:** phase 1 on `t3/refresh-todo-afd-examples`, in [#1231](https://github.com/lushly-dev/afd/pull/1231), which
-  is not yet merged.
+- **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). The parts it left open belong to
+  later phases, as the findings table says.
+- **In progress:** nothing. Phase 2 is next.
 - **Not started:** phases 2 to 5.
 
 ## Plan
 
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
-| 1. Fix what is wrong | In progress: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7 are written and pass locally | See [phase 1](#phase-1-fix-what-is-wrong) | Pull request merged |
+| 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
 | 2. The TypeScript reference | Not started | None | Phase 1 merged; jobs written as scenarios first |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
@@ -39,19 +39,20 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Finding | State |
 | --- | --- |
-| W1 `total` capped at 100 in TypeScript | Fixed on the branch |
-| W2 contexts declared but not served | TypeScript and Python fixed on the branch. C++ declares them but serves no context tools (its own stdio loop, phase 5). Rust declares none (phase 5) |
-| W3 deletes not marked destructive | Fixed on the branch in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes still advertise `destructiveHint: false`, because a mounted tool cannot declare `destructive` (see follow-ups) |
-| W4 no confirmation gate in C++ | Prompt declared on the branch; enforcement open, phase 5 with `afd::mcp_stdio` |
-| W5 deprecated `/message` and `/sse` | Backend text fixed on the branch; the frontends still use `/message` until phase 3 replaces them |
-| W6 README errors | Fixed on the branch |
-| W7 small defects | `todo-clear`'s debug logging removed on the branch. The React `FETCH_ERROR`, vanilla `innerHTML` (phase 3) and todo-directclient text (phase 4) are open |
+| W1 `total` capped at 100 in TypeScript | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
+| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231). C++ declares them but serves no context tools (its own stdio loop, phase 5). Rust declares none (phase 5) |
+| W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes still advertise `destructiveHint: false`, because a mounted tool cannot declare `destructive` (see follow-ups) |
+| W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforcement open, phase 5 with `afd::mcp_stdio` |
+| W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
+| W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
+| W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR`, vanilla `innerHTML` (phase 3) and todo-directclient text (phase 4) are open |
 | W8 todo-directclient's copied commands and hand-written tools | Open, phase 4 |
 | W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). Alternatives, ordering ties, ID formats and tool lists open, phase 5 |
 
 ## Phase 1: fix what is wrong
 
-On branch `t3/refresh-todo-afd-examples`, 2026-11-14:
+Written on branch `t3/refresh-todo-afd-examples` on 2026-11-14 and merged in
+[#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15:
 
 - **W1.** The TypeScript stores return every match when no `limit` is given
   (`backends/typescript/src/store/memory.ts`, `file.ts`), so `todo-list` counts past 100. New
