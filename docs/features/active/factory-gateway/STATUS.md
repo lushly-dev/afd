@@ -39,8 +39,15 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [lushly#2403](https://github.com/lushly-dev/lushly/pull/2403)).
 - **In review:** `COMMIT_AUTHOR_NOT_OWNER` (a push adding a commit the owner did not author,
   checked only for commits GitHub does not already have), each repository's merge method
-  (`mergeMethods`, a merge commit by default) and the `/session` route's push to its queue ref;
-  job 15 gained the author step.
+  (`mergeMethods`, a merge commit by default; `MERGE_METHOD_NOT_ALLOWED` when GitHub refuses
+  it) and the `/session` route's push to its queue ref; job 15 gained the author step
+  ([#1265](https://github.com/lushly-dev/afd/pull/1265)). An independent review (Opus 5.5) found
+  three blockers, all fixed: an upload without a commit list passed the check (now
+  `UPLOAD_INCOMPLETE`), "GitHub already has it" exempted agent commits on any branch (now only
+  commits on `main` are exempt, through the port's `on_main`), and the auto-merge path's method
+  was untested. Its upload route (botcore change 4) must read commits and authors from the bundle,
+  never from the caller. Open: a session or cell can overwrite another branch's queue ref, since
+  the fast-forward rule covers only `refs/heads/`.
 - **Next, in order:** botcore's changes 4 and 7 (the HTTP surface with tokens and
   uploads, the client CLI); change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the App-backed adapter (needs G0's App); the lane on `random`

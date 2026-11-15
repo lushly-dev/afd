@@ -9,7 +9,7 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 #: Writes per hour each kind of caller may make before WRITE_BUDGET_EXCEEDED; None is no limit.
 DEFAULT_WRITES_PER_HOUR: dict[str, int | None] = {
@@ -77,6 +77,15 @@ class GatewayConfig(_Model):
     )
     #: Most milliseconds gateway-wait blocks on one call over MCP.
     wait_max_ms: int = Field(300_000, alias="waitMaxMs")
+
+    @model_validator(mode="after")
+    def _merge_methods_name_served_repositories(self) -> GatewayConfig:
+        unknown = sorted(set(self.merge_methods) - set(self.repositories))
+        if unknown:
+            raise ValueError(
+                f"mergeMethods names repositories the gateway does not serve: {', '.join(unknown)}"
+            )
+        return self
 
     def merge_method(self, repo: str) -> str:
         return self.merge_methods.get(repo, "merge")

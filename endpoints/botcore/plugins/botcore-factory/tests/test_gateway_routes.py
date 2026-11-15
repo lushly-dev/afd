@@ -232,21 +232,33 @@ def test_a_session_hands_its_branch_to_the_lane_and_pushes_nothing_else(run):
 
 @pytest.mark.parametrize("route", ["cell", "session", "lane", "owner"])
 def test_no_route_pushes_a_commit_an_agent_authored(run, route):
-    result = run()(
-        route,
+    gateway = run()
+    ref = "refs/factory/queue/fix/agent"
+    result = gateway(
+        route, "branch-push", repo=REPO, ref=ref, head=AGENT_HEAD, bundle="bundle-agent"
+    )
+    assert result.error.code == "COMMIT_AUTHOR_NOT_OWNER"
+    assert "noreply@anthropic.com" in result.error.message
+    assert "Assisted-by" in result.error.suggestion
+    assert ref not in gateway.github()["refs"]
+
+
+def test_commits_already_on_main_are_not_the_push_s_to_credit(run):
+    # A bundle carries main's history, others' merged work included; only new commits count.
+    gateway = run(mainHistory=[AGENT_HEAD])
+    result = gateway(
+        "cell",
         "branch-push",
         repo=REPO,
         ref="refs/factory/queue/fix/agent",
         head=AGENT_HEAD,
         bundle="bundle-agent",
     )
-    assert result.error.code == "COMMIT_AUTHOR_NOT_OWNER"
-    assert "noreply@anthropic.com" in result.error.message
-    assert "Assisted-by" in result.error.suggestion
+    assert result.success
 
 
-def test_commits_github_already_has_are_not_the_push_s_to_credit(run):
-    # A bundle carries main's history, others' merged work included; only new commits count.
+def test_an_agent_commit_on_another_branch_is_still_refused(run):
+    # Being on some branch or queue ref is not being merged: it would land with this push.
     gateway = run()
     gateway.edit(lambda d: d["refs"].update({"refs/heads/elsewhere": AGENT_HEAD}))
     result = gateway(
@@ -257,7 +269,23 @@ def test_commits_github_already_has_are_not_the_push_s_to_credit(run):
         head=AGENT_HEAD,
         bundle="bundle-agent",
     )
-    assert result.success
+    assert result.error.code == "COMMIT_AUTHOR_NOT_OWNER"
+
+
+@pytest.mark.parametrize(
+    "upload",
+    [
+        {"heads": [AGENT_HEAD], "expiresAt": "2030-02-03T11:00:00Z"},
+        {"heads": [AGENT_HEAD], "expiresAt": "2030-02-03T11:00:00Z", "commits": []},
+    ],
+    ids=["no commit list", "commit list without the head"],
+)
+def test_an_upload_that_does_not_list_its_commits_pushes_nothing(run, upload):
+    gateway = run(uploads={"bundle-x": upload})
+    ref = "refs/factory/queue/fix/agent"
+    result = gateway("cell", "branch-push", repo=REPO, ref=ref, head=AGENT_HEAD, bundle="bundle-x")
+    assert result.error.code == "UPLOAD_INCOMPLETE"
+    assert ref not in gateway.github()["refs"]
 
 
 def test_owner_emails_match_without_regard_to_case(run):
@@ -271,6 +299,43 @@ def test_owner_emails_match_without_regard_to_case(run):
         bundle="bundle-9",
     )
     assert result.success
+
+
+def test_auto_merge_is_queued_by_the_repository_s_method(run):
+    gateway = run(mergeMethods={REPO: "squash"})
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR47_HEAD, result="passed", summary="ok"
+    ).success
+    queued = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
+    assert queued.data["state"] == "queued"
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == 47)
+    assert pull["autoMergeMethod"] == "squash"
+
+
+@pytest.mark.parametrize(("number", "head"), [(44, PR44_HEAD), (47, PR47_HEAD)])
+def test_a_merge_method_the_repository_refuses_is_a_refusal(run, number, head):
+    gateway = run(allowedMergeMethods=["squash"])
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=head, result="passed", summary="ok"
+    ).success
+    result = gateway("lane", "pr-merge", repo=REPO, number=number, head=head)
+    assert result.error.code == "MERGE_METHOD_NOT_ALLOWED"
+    assert "mergeMethods" in result.error.suggestion
+    pull = next(p for p in gateway.github()["pullRequests"] if p["number"] == number)
+    assert pull["state"] != "merged" and not pull.get("autoMerge")
+
+
+def test_merge_methods_name_only_served_repositories():
+    with pytest.raises(ValueError, match="does not serve"):
+        GatewayConfig.model_validate(
+            {
+                "bot": "b",
+                "owner": "o",
+                "ownerEmails": ["o@example.com"],
+                "repositories": [REPO],
+                "mergeMethods": {"example-org/typo": "squash"},
+            }
+        )
 
 
 def test_a_configuration_without_owner_emails_is_refused():
