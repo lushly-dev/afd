@@ -142,13 +142,15 @@ On branch `t3/todo-reference-phase2-journal`, 2026-11-15, not yet merged:
 - **Journal and replay (job 7).** `TODO_JOURNAL` records each call past the approval hold through
   `createJournalMiddleware`, with the clock and random values it read; held calls are not
   recorded, so no approval token reaches a journal. `src/registry.ts` is the module
-  `afd replay --module` loads: a fresh in-memory store and the same middleware.
-  `src/replay.test.ts` records job 7 and replays it to the same results, and finds a changed
-  session; the CLI replay of a recorded session matched all five calls.
+  `afd replay --module` loads: a fresh in-memory store and the same middleware without the
+  approval hold, which every journaled call already passed. Importing the store module touches
+  no data file; the server chooses its store at startup. `src/replay.test.ts` records job 7 and
+  an approved agent clear and replays both to the same results, finds a changed session, and
+  checks the replay module creates no data file; the CLI replay of a recorded session matched.
 - **Metadata.** Every command declares a `title`, an `output` schema and `examples`, and every
   mutation an `approval` policy. `src/surface.test.ts` runs strict surface validation: four input
   overlaps are suppressed with their reason (the single-id commands, and `todo-restore` as
-  `todo-delete-batch`'s undo); five descriptions were rewritten.
+  `todo-delete-batch`'s undo); seven descriptions were rewritten.
 - **Middleware.** `defaultMiddleware()` replaces the hand-built logging.
 
 Left in phase 2: storage on local-db (D4); the approval conformance suite; `afd scenario run` and

@@ -92,18 +92,25 @@ Each change's result names its undo in `undoCommand` and `undoArgs`; the example
 ## Recording and replaying a session
 
 `TODO_JOURNAL` records every call that gets past the approval hold (failures included, held calls
-not) with the clock and random values it read, through `createJournalMiddleware`. `afd replay` runs
-the file again against a fresh in-memory store from `src/registry.ts` and reports, per call,
-whether the result is the same:
+not, approved ones once approved) with the clock and random values it read, through
+`createJournalMiddleware`. `afd replay` runs the file again against a fresh in-memory store from
+`src/registry.ts`, with the same middleware but no approval hold (each recorded call already got
+past it), and reports, per call, whether the result is the same:
 
 ```bash
+pnpm -F "@lushly-dev/afd-cli..." build    # once, from the repository root: the afd CLI
 pnpm build
-TODO_JOURNAL=session.jsonl TODO_STORE_TYPE=memory pnpm start   # record, then stop it
+TODO_JOURNAL=session.jsonl TODO_STORE_TYPE=memory TRANSPORT=http pnpm start
+# in another terminal, make some calls, then stop the server:
+node ../../../../cli/dist/bin.js connect http://localhost:3100/mcp
+node ../../../../cli/dist/bin.js call todo-create '{"title":"Recorded"}'
+# replay:
 node ../../../../cli/dist/bin.js replay session.jsonl --module dist/registry.js
 ```
 
 Replay starts from an empty store, so record from an empty one (`TODO_STORE_TYPE=memory`): a
-session that reads todos it did not create diverges at the first such read. Ids and times come
+session that reads todos it did not create diverges at the first such read. Loading the replay
+module touches no data file. Ids and times come
 from the command context's random and clock, which the journal records, so they replay exactly.
 `src/replay.test.ts` records job 7 this way and replays it.
 

@@ -4,6 +4,10 @@
  * `registry.ts`, the module `afd replay` loads.
  */
 
+import { spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
 import { createMcpServer, replayJournal } from '@lushly-dev/afd-server';
@@ -84,6 +88,48 @@ describe('replaying a session (job 7)', () => {
 			['todo-clear', 'human'],
 		]);
 		expect(JSON.stringify(entries)).not.toContain('approvalToken');
+	});
+
+	it('replays an agent call that a person approved', async () => {
+		const journal = new MemoryJournalSink();
+		const server = createMcpServer(createTodoServerOptions({}, { journal }));
+		const agent = { actor: { kind: 'agent' as const } };
+		const created = await server.execute('todo-create', { title: 'Approve me' }, agent);
+		await server.execute('todo-toggle', { id: (created.data as { id: string }).id }, agent);
+		const held = await server.execute('todo-clear', {}, agent);
+		const token = (held.error?.details as { approvalToken?: string } | undefined)?.approvalToken;
+		expect(token).toBeDefined();
+		const approved = await server.execute('todo-clear', {}, { ...agent, approval: token });
+		expect(approved.success).toBe(true);
+
+		const entries = await journal.read();
+		expect(entries.map((entry) => entry.command)).toEqual([
+			'todo-create',
+			'todo-toggle',
+			'todo-clear',
+		]);
+		const report = await replayJournal(createReplayRegistry(), entries);
+		expect(report.entries.filter((entry) => entry.status !== 'same')).toEqual([]);
+	});
+
+	it('loads the replay module without touching the data file', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'todo-replay-'));
+		try {
+			const path = join(dir, 'todos.json');
+			const child = spawnSync(
+				process.execPath,
+				['--import', 'tsx', '--input-type=module', '-e', "await import('./src/registry.ts');"],
+				{
+					cwd: fileURLToPath(new URL('..', import.meta.url)),
+					env: { ...process.env, TODO_STORE_TYPE: 'file', TODO_STORE_PATH: path },
+					encoding: 'utf8',
+				}
+			);
+			expect(child.status, child.stderr).toBe(0);
+			expect(existsSync(path)).toBe(false);
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('finds a session that no longer behaves the same', async () => {

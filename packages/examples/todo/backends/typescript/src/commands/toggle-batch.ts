@@ -61,7 +61,8 @@ export interface BatchToggleResult {
 export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>({
 	name: 'todo-toggle-batch',
 	title: 'Toggle several todos',
-	description: 'Toggle completion status of multiple todos, or set all to a specific state',
+	description:
+		'Toggle the completion status of the listed todos, or set them all to completed: true or false',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
