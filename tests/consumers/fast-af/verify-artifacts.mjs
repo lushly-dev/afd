@@ -17,7 +17,7 @@
  * dependencies to serve and drive the consumer; the consumer resolves only its own installation.
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, readdirSync } from 'node:fs';
 import { mkdir, mkdtemp, readFile, realpath, writeFile } from 'node:fs/promises';
@@ -26,6 +26,7 @@ import { createServer as createNetServer } from 'node:net';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const argument = (name, fallback) => {
@@ -59,7 +60,7 @@ const packs = {};
 for (const path of [runtimeSource, componentSource]) {
 	const manifest = JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
 	assert(existsSync(join(repository, path, 'dist')), `${path} is not built`);
-	execFileSync('pnpm', ['pack', '--pack-destination', artifacts], {
+	execTool('pnpm', ['pack', '--pack-destination', artifacts], {
 		cwd: join(repository, path),
 		stdio: 'pipe',
 	});
@@ -71,10 +72,13 @@ for (const path of [runtimeSource, componentSource]) {
 }
 const packedManifest = (name) =>
 	JSON.parse(
-		execFileSync('tar', ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
+		execFileSync(tarCommand(), ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
 	);
 const packedFiles = (name) =>
-	execFileSync('tar', ['-tzf', packs[name]], { encoding: 'utf8' }).split('\n').filter(Boolean);
+	execFileSync(tarCommand(), ['-tzf', packs[name]], { encoding: 'utf8' })
+		// Windows' bsdtar ends each listed path with CRLF.
+		.split(/\r?\n/)
+		.filter(Boolean);
 const edges = (manifest) =>
 	Object.keys({
 		...manifest.dependencies,
@@ -112,7 +116,7 @@ for (const manifest of [runtime, component]) {
 	assert(packedFiles(manifest.name).includes('package/LICENSE'), `${manifest.name} LICENSE`);
 }
 const license = (name) =>
-	execFileSync('tar', ['-xzOf', packs[name], 'package/LICENSE'], { encoding: 'utf8' });
+	execFileSync(tarCommand(), ['-xzOf', packs[name], 'package/LICENSE'], { encoding: 'utf8' });
 assert.match(license(runtimeName), /Copyright \(c\) Microsoft Corporation/);
 assert.match(license(componentName), /Copyright \(c\) 2026 Lushly Dev/);
 passed('packed manifests: identities, 38 runtime exports, portable ranges, licenses, no hooks');
@@ -124,7 +128,7 @@ async function install(name, dependencies, { expected = true } = {}) {
 		join(root, 'package.json'),
 		`${JSON.stringify({ name, private: true, type: 'module', dependencies }, null, 2)}\n`
 	);
-	const result = spawnSync(
+	const result = spawnTool(
 		'pnpm',
 		[
 			'install',
