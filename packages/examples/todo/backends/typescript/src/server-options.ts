@@ -3,9 +3,17 @@
  * `server.ts` and the tests.
  */
 
-import { createLoggingMiddleware, type McpHandlerOptions } from '@lushly-dev/afd-server';
+import { randomBytes } from 'node:crypto';
+import type { CommandMiddleware } from '@lushly-dev/afd-core';
+import {
+	createApprovalMiddleware,
+	createLoggingMiddleware,
+	type McpHandlerOptions,
+} from '@lushly-dev/afd-server';
+import { summarizeClear } from './commands/clear.js';
 import { allCommands } from './commands/index.js';
 import { TODO_CONTEXTS } from './contexts.js';
+import { createHistoryMiddleware } from './history.js';
 
 export type Env = Readonly<Record<string, string | undefined>>;
 
@@ -56,6 +64,59 @@ export function resolveConfirmations(env: Env): 'off' | 'enforce' | 'require-hum
 }
 
 /**
+ * Whether calls are held for approval, from `APPROVALS` (default `agents`): `agents` holds
+ * `todo-clear` for any caller that is not a person; `off` holds nothing. The shared conformance
+ * suites run with `off`, as they set `CONFIRMATIONS`.
+ */
+export function resolveApprovals(env: Env): 'agents' | 'off' {
+	const value = env.APPROVALS ?? 'agents';
+	if (value === 'agents' || value === 'off') return value;
+	throw new Error(`APPROVALS must be agents or off, not "${value}"`);
+}
+
+/**
+ * The key that signs approval tokens: `TODO_APPROVAL_SECRET` (at least 32 bytes) when set, so
+ * several processes accept each other's tokens, else a random key for this process.
+ */
+export function resolveApprovalSecret(env: Env): string | Uint8Array {
+	const secret = env.TODO_APPROVAL_SECRET;
+	if (secret === undefined) return randomBytes(32);
+	if (Buffer.byteLength(secret) < 32) {
+		throw new Error('TODO_APPROVAL_SECRET must be at least 32 bytes');
+	}
+	return secret;
+}
+
+/**
+ * The middleware, outermost first: logging; then the approval hold, so a held call never runs;
+ * then the change history, which records each change that did run.
+ */
+export function createTodoMiddleware(env: Env): CommandMiddleware[] {
+	const devMode = env.NODE_ENV === 'development';
+	const logLevel = env.LOG_LEVEL ?? 'info';
+	const middleware: CommandMiddleware[] = [
+		devMode || logLevel === 'debug'
+			? createLoggingMiddleware({ logInput: true, logResult: true })
+			: createLoggingMiddleware(),
+	];
+	if (resolveApprovals(env) === 'agents') {
+		middleware.push(
+			createApprovalMiddleware({
+				secret: resolveApprovalSecret(env),
+				commands: allCommands,
+				// An MCP client that declares form elicitation asks its person; any other caller
+				// gets APPROVAL_REQUIRED with a suggestion to ask the person.
+				relay: 'mcp-elicitation',
+				summarize: (command, input) =>
+					command === 'todo-clear' ? summarizeClear(input) : undefined,
+			})
+		);
+	}
+	middleware.push(createHistoryMiddleware());
+	return middleware;
+}
+
+/**
  * Options for `createMcpServer` (add `transport`) or `createMcpHandler`.
  *
  * Dev mode (`NODE_ENV=development`) enables verbose errors and stack traces and
@@ -83,11 +144,7 @@ export function createTodoServerOptions(env: Env): McpHandlerOptions {
 		// Registers afd-context-list, -enter and -exit (src/contexts.ts).
 		contexts: TODO_CONTEXTS,
 
-		// Add logging middleware - verbose in dev mode
-		middleware:
-			devMode || logLevel === 'debug'
-				? [createLoggingMiddleware({ logInput: true, logResult: true })]
-				: [createLoggingMiddleware()],
+		middleware: createTodoMiddleware(env),
 
 		// Log command execution
 		onCommand(command, input, result) {

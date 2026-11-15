@@ -11,6 +11,7 @@ import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
+import { stampFrom, todoNotFound } from './shared.js';
 
 const inputSchema = z.object({
 	ids: z
@@ -65,15 +66,20 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 	tags: ['todo', 'toggle', 'write', 'batch'],
 	requires: ['todo-list'],
 	mutation: true,
+	undoable: true,
+	approval: 'not-required',
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],
 
-	async handler(input) {
+	async handler(input, context) {
+		const now = stampFrom(context).now;
 		const succeeded: Todo[] = [];
 		const failed: FailedToggle[] = [];
 		let markedComplete = 0;
 		let markedIncomplete = 0;
+		// The todos this call changed, and the state each had before
+		const changed: { id: string; previous: boolean }[] = [];
 
 		// Determine operation mode
 		const setMode = input.completed !== undefined;
@@ -90,11 +96,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 				failed.push({
 					index: i,
 					id,
-					error: {
-						code: 'NOT_FOUND',
-						message: `Todo with ID "${id}" not found`,
-						suggestion: 'Use todo-list to see available todos',
-					},
+					error: todoNotFound(id),
 				});
 				continue;
 			}
@@ -104,14 +106,16 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 			if (setMode) {
 				// Set to specific state - only update if different
 				if (existing.completed !== targetState) {
-					updated = store.update(id, { completed: targetState });
+					updated = store.update(id, { completed: targetState }, now);
+					if (updated) changed.push({ id, previous: existing.completed });
 				} else {
 					// Already in desired state, just return as-is
 					updated = existing;
 				}
 			} else {
 				// Toggle current state
-				updated = store.toggle(id);
+				updated = store.toggle(id, now);
+				if (updated) changed.push({ id, previous: existing.completed });
 			}
 
 			if (updated) {
@@ -173,12 +177,31 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 			});
 		}
 
+		// One call undoes this only when every changed todo had the same state before.
+		const previousStates = new Set(changed.map((item) => item.previous));
+		const singleUndo = previousStates.size === 1;
+		if (previousStates.size > 1) {
+			warnings.push({
+				code: 'NO_SINGLE_UNDO',
+				message:
+					'These todos had different states before, so no single call undoes this. Set each group back with todo-toggle-batch and completed, or each todo with todo-update.',
+				severity: 'info' as const,
+			});
+		}
+
 		return success(
 			{ succeeded, failed, summary },
 			{
 				reasoning,
 				confidence,
 				warnings: warnings.length > 0 ? warnings : undefined,
+				...(singleUndo && {
+					undoCommand: 'todo-toggle-batch',
+					undoArgs: {
+						ids: changed.map((item) => item.id),
+						completed: changed[0]?.previous,
+					},
+				}),
 			}
 		);
 	},

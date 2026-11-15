@@ -25,11 +25,22 @@ async fn create(registry: &CommandRegistry, title: &str) -> String {
         .to_string()
 }
 
-/// The shared contract: `spec/commands.schema.json`.
+/// The shared contract, `spec/commands.schema.json`: the commands Rust implements, those without
+/// `implementedBy` or naming it.
 fn spec_commands() -> serde_json::Map<String, Value> {
     let spec: Value = serde_json::from_str(include_str!("../../../../spec/commands.schema.json"))
         .expect("the spec is JSON");
-    spec["commands"].as_object().expect("commands").clone()
+    spec["commands"]
+        .as_object()
+        .expect("commands")
+        .iter()
+        .filter(|(_, entry)| {
+            entry["implementedBy"]
+                .as_array()
+                .is_none_or(|languages| languages.iter().any(|language| language == "rust"))
+        })
+        .map(|(name, entry)| (name.clone(), entry.clone()))
+        .collect()
 }
 
 #[tokio::test]

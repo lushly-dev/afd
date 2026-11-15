@@ -1,4 +1,5 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
 # todo-history reads the app's change log, kept in the same store from each mutation's result:
 # who made the change (the context's actor), when (the context's clock), which todos, and its
 # undo, offered only while it is that todo's latest change. It is not the journal, which

@@ -8,6 +8,7 @@ import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
+import { todoNotFound } from './shared.js';
 
 const inputSchema = z.object({
 	id: z.string().min(1, 'Todo ID is required'),
@@ -30,11 +31,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 		const todo = store.get(input.id);
 
 		if (!todo) {
-			return failure({
-				code: 'NOT_FOUND',
-				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo-list to see available todos',
-			});
+			return failure(todoNotFound(input.id));
 		}
 
 		return success(todo, {

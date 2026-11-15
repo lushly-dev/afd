@@ -1,44 +1,70 @@
 /**
  * @fileoverview In-memory todo store
  *
- * Simple in-memory storage for todos. In a real app, this would be
- * replaced with a database adapter.
+ * Holds the live todos, the deleted ones (which todo-restore brings back) and the change
+ * history that todo-history reads. All the store's logic is here; `FileStore` loads this state
+ * from its files, runs the same methods and saves the result.
  */
 
-import type { Priority, Todo, TodoFilter, TodoStats } from '../types.js';
+import type { ChangeEntry, Priority, Stamp, Todo, TodoFilter, TodoStats } from '../types.js';
 
-/**
- * Generate a unique ID.
- */
-function generateId(): string {
-	return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+/** How many changes the history keeps; older ones drop off. */
+export const HISTORY_LIMIT = 1000;
+
+/** The state a store holds, as `FileStore` persists it. */
+export interface TodoState {
+	todos: Map<string, Todo>;
+	deleted: Map<string, Todo>;
+	history: ChangeEntry[];
 }
 
-/**
- * Get current ISO timestamp.
- */
-function now(): string {
-	return new Date().toISOString();
+/** A stamp from the system clock and `Math.random`, for callers outside a command. */
+export function systemStamp(): Stamp {
+	const at = Date.now();
+	return {
+		now: new Date(at).toISOString(),
+		newId: () => `todo-${at}-${Math.random().toString(36).slice(2, 9)}`,
+	};
 }
+
+type Editable = Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>>;
+
+const PRIORITY_ORDER: Record<Priority, number> = { high: 3, medium: 2, low: 1 };
 
 /**
  * In-memory todo store.
  */
 export class TodoStore {
-	private todos: Map<string, Todo> = new Map();
+	private todos: Map<string, Todo>;
+	private deleted: Map<string, Todo>;
+	private changes: ChangeEntry[];
+
+	constructor(state?: Partial<TodoState>) {
+		this.todos = state?.todos ?? new Map();
+		this.deleted = state?.deleted ?? new Map();
+		this.changes = state?.history ?? [];
+	}
+
+	/** The state, for `FileStore` to save. */
+	snapshot(): TodoState {
+		return { todos: this.todos, deleted: this.deleted, history: this.changes };
+	}
 
 	/**
 	 * Create a new todo.
 	 */
-	create(data: { title: string; description?: string; priority?: Priority }): Todo {
+	create(
+		data: { title: string; description?: string; priority?: Priority },
+		stamp: Stamp = systemStamp()
+	): Todo {
 		const todo: Todo = {
-			id: generateId(),
+			id: stamp.newId(),
 			title: data.title,
 			description: data.description,
 			priority: data.priority ?? 'medium',
 			completed: false,
-			createdAt: now(),
-			updatedAt: now(),
+			createdAt: stamp.now,
+			updatedAt: stamp.now,
 		};
 
 		this.todos.set(todo.id, todo);
@@ -46,29 +72,33 @@ export class TodoStore {
 	}
 
 	/**
-	 * Get a todo by ID.
+	 * Get a live todo by ID. A deleted todo is not returned: see {@link getDeleted}.
 	 */
 	get(id: string): Todo | undefined {
 		return this.todos.get(id);
 	}
 
 	/**
-	 * List todos with optional filtering.
+	 * Get a deleted todo by ID.
+	 */
+	getDeleted(id: string): Todo | undefined {
+		return this.deleted.get(id);
+	}
+
+	/**
+	 * List live todos, or deleted ones with `deleted: true`, filtered, sorted and paged.
 	 */
 	list(filter: TodoFilter = {}): Todo[] {
-		let results = Array.from(this.todos.values());
+		let results = Array.from((filter.deleted ? this.deleted : this.todos).values());
 
-		// Filter by completion status
 		if (filter.completed !== undefined) {
 			results = results.filter((t) => t.completed === filter.completed);
 		}
 
-		// Filter by priority
 		if (filter.priority) {
 			results = results.filter((t) => t.priority === filter.priority);
 		}
 
-		// Search in title/description
 		if (filter.search) {
 			const search = filter.search.toLowerCase();
 			results = results.filter(
@@ -77,27 +107,24 @@ export class TodoStore {
 			);
 		}
 
-		// Sort
 		const sortBy = filter.sortBy ?? 'createdAt';
 		const sortOrder = filter.sortOrder ?? 'desc';
-		const priorityOrder: Record<Priority, number> = {
-			high: 3,
-			medium: 2,
-			low: 1,
-		};
 
 		results.sort((a, b) => {
 			let comparison = 0;
 
 			switch (sortBy) {
 				case 'priority':
-					comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
+					comparison = PRIORITY_ORDER[a.priority] - PRIORITY_ORDER[b.priority];
 					break;
 				case 'title':
 					comparison = a.title.localeCompare(b.title);
 					break;
 				case 'updatedAt':
 					comparison = a.updatedAt.localeCompare(b.updatedAt);
+					break;
+				case 'deletedAt':
+					comparison = (a.deletedAt ?? '').localeCompare(b.deletedAt ?? '');
 					break;
 				default:
 					comparison = a.createdAt.localeCompare(b.createdAt);
@@ -106,49 +133,40 @@ export class TodoStore {
 			return sortOrder === 'asc' ? comparison : -comparison;
 		});
 
-		// Pagination
 		// No limit means every match, so a caller can count with list(filter).length.
 		const offset = filter.offset ?? 0;
-		results =
-			filter.limit === undefined
-				? results.slice(offset)
-				: results.slice(offset, offset + filter.limit);
-
-		return results;
+		return filter.limit === undefined
+			? results.slice(offset)
+			: results.slice(offset, offset + filter.limit);
 	}
 
 	/**
-	 * Update a todo.
+	 * Update a live todo.
 	 */
-	update(
-		id: string,
-		data: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>>
-	): Todo | undefined {
+	update(id: string, data: Editable, now: string = systemStamp().now): Todo | undefined {
 		const todo = this.todos.get(id);
 		if (!todo) {
 			return undefined;
 		}
 
-		// Filter out undefined values to avoid overwriting existing properties
-		const filteredData: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>> =
-			{};
-		if (data.title !== undefined) filteredData.title = data.title;
-		if (data.description !== undefined) filteredData.description = data.description;
-		if (data.priority !== undefined) filteredData.priority = data.priority;
-		if (data.completed !== undefined) filteredData.completed = data.completed;
+		// Leave out undefined values so they do not overwrite existing fields
+		const changes: Editable = {};
+		if (data.title !== undefined) changes.title = data.title;
+		if (data.description !== undefined) changes.description = data.description;
+		if (data.priority !== undefined) changes.priority = data.priority;
+		if (data.completed !== undefined) changes.completed = data.completed;
 
-		const updated: Todo = {
-			...todo,
-			...filteredData,
-			updatedAt: now(),
-		};
+		const updated: Todo = { ...todo, ...changes, updatedAt: now };
+		// An empty description is none (an undo of an edit that added one sends "")
+		if (updated.description === '') {
+			delete updated.description;
+		}
 
-		// Handle completedAt timestamp
 		if (data.completed !== undefined) {
 			if (data.completed && !todo.completed) {
-				updated.completedAt = now();
+				updated.completedAt = now;
 			} else if (!data.completed && todo.completed) {
-				updated.completedAt = undefined;
+				delete updated.completedAt;
 			}
 		}
 
@@ -157,59 +175,96 @@ export class TodoStore {
 	}
 
 	/**
-	 * Toggle todo completion status.
+	 * Toggle a live todo's completion status.
 	 */
-	toggle(id: string): Todo | undefined {
+	toggle(id: string, now: string = systemStamp().now): Todo | undefined {
 		const todo = this.todos.get(id);
 		if (!todo) {
 			return undefined;
 		}
 
-		const completed = !todo.completed;
-		const updated: Todo = {
-			...todo,
-			completed,
-			completedAt: completed ? now() : undefined,
-			updatedAt: now(),
-		};
-
-		this.todos.set(id, updated);
-		return updated;
+		return this.update(id, { completed: !todo.completed }, now);
 	}
 
 	/**
-	 * Delete a todo.
+	 * Delete a live todo: it moves to the deleted todos, from which {@link restore} brings it
+	 * back, until {@link clearDeleted} or {@link clearAll} removes it for good.
+	 *
+	 * @returns The deleted todo, or undefined when no live todo has this ID
 	 */
-	delete(id: string): boolean {
-		return this.todos.delete(id);
+	delete(id: string, now: string = systemStamp().now): Todo | undefined {
+		const todo = this.todos.get(id);
+		if (!todo) {
+			return undefined;
+		}
+
+		this.todos.delete(id);
+		const deleted: Todo = { ...todo, deletedAt: now };
+		this.deleted.set(id, deleted);
+		return deleted;
 	}
 
 	/**
-	 * Clear completed todos.
+	 * Bring a deleted todo back exactly as it was before the delete.
+	 *
+	 * @returns The restored todo, or undefined when no deleted todo has this ID
 	 */
-	clearCompleted(): { cleared: number; remaining: number } {
-		let cleared = 0;
+	restore(id: string): Todo | undefined {
+		const deleted = this.deleted.get(id);
+		if (!deleted) {
+			return undefined;
+		}
+
+		this.deleted.delete(id);
+		const { deletedAt: _deletedAt, ...todo } = deleted;
+		this.todos.set(id, todo);
+		return todo;
+	}
+
+	/**
+	 * Remove the completed live todos for good.
+	 */
+	clearCompleted(): { clearedIds: string[]; remaining: number } {
+		const clearedIds: string[] = [];
 		for (const [id, todo] of this.todos) {
 			if (todo.completed) {
 				this.todos.delete(id);
-				cleared++;
+				clearedIds.push(id);
 			}
 		}
-		return { cleared, remaining: this.todos.size };
+		return { clearedIds, remaining: this.todos.size };
 	}
 
 	/**
-	 * Get todo statistics.
+	 * Remove every deleted todo for good.
+	 */
+	clearDeleted(): { clearedIds: string[]; remaining: number } {
+		const clearedIds = Array.from(this.deleted.keys());
+		this.deleted.clear();
+		return { clearedIds, remaining: this.todos.size };
+	}
+
+	/**
+	 * Remove every todo, live and deleted, for good.
+	 */
+	clearAll(): { clearedIds: string[]; remaining: number } {
+		const clearedIds = [...this.todos.keys(), ...this.deleted.keys()];
+		this.todos.clear();
+		this.deleted.clear();
+		return { clearedIds, remaining: 0 };
+	}
+
+	/**
+	 * Statistics over the live todos.
 	 */
 	getStats(): TodoStats {
 		const todos = Array.from(this.todos.values());
 		const completed = todos.filter((t) => t.completed).length;
-		const pending = todos.length - completed;
 
 		return {
 			total: todos.length,
 			completed,
-			pending,
+			pending: todos.length - completed,
 			byPriority: {
 				low: todos.filter((t) => t.priority === 'low').length,
 				medium: todos.filter((t) => t.priority === 'medium').length,
@@ -220,14 +275,36 @@ export class TodoStore {
 	}
 
 	/**
-	 * Clear all todos (for testing).
+	 * Add a change to the history, keeping the latest {@link HISTORY_LIMIT}.
 	 */
-	clear(): void {
-		this.todos.clear();
+	record(change: Omit<ChangeEntry, 'seq'>): ChangeEntry {
+		const last = this.changes[this.changes.length - 1];
+		const entry: ChangeEntry = { seq: (last?.seq ?? 0) + 1, ...change };
+		this.changes.push(entry);
+		if (this.changes.length > HISTORY_LIMIT) {
+			this.changes.splice(0, this.changes.length - HISTORY_LIMIT);
+		}
+		return entry;
 	}
 
 	/**
-	 * Get count of todos.
+	 * The recorded changes, oldest first.
+	 */
+	history(): ChangeEntry[] {
+		return [...this.changes];
+	}
+
+	/**
+	 * Remove everything: live and deleted todos and the history (for tests).
+	 */
+	clear(): void {
+		this.todos.clear();
+		this.deleted.clear();
+		this.changes = [];
+	}
+
+	/**
+	 * Count of live todos.
 	 */
 	count(): number {
 		return this.todos.size;

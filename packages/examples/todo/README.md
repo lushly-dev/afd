@@ -104,7 +104,10 @@ The TypeScript and Python backends support file-based storage (default) or in-me
 | `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory |
 | `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file. A custom path starts empty. |
 
-`data/todos.json` is gitignored, so running the example does not change the working tree.
+`data/todos.json` is gitignored, so running the example does not change the working tree. The
+TypeScript backend also keeps deleted todos in `data/todos.deleted.json` and the change history in
+`data/todos.history.json` beside it, so the Python backend, which reads only `todos.json`, never
+shows a deleted todo as live.
 When it is missing, the stores create it from the committed seed `data/todos.seed.json`; delete
 it to reset. Writes are atomic (temporary file + rename), and a file that is not valid JSON is
 reported as an error instead of being treated as empty.
@@ -233,19 +236,49 @@ The source of truth for this example is the [test-cases.json](./spec/test-cases.
 | `todo-get` | Get a single todo by ID | reading, editing | |
 | `todo-update` | Update a todo's properties | editing | |
 | `todo-toggle` | Toggle completion status | editing | |
-| `todo-delete` | Delete a todo | editing | Yes |
-| `todo-clear` | Clear completed todos (asks for confirmation when the server enforces it) | editing | Yes |
+| `todo-delete` | Delete a todo; TypeScript keeps it for `todo-restore` | editing | Yes |
+| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript holds it for approval) | editing | Yes |
 | `todo-stats` | Get statistics | reading, editing | |
 | `todo-create-batch` | Create multiple todos | editing | |
 | `todo-toggle-batch` | Toggle multiple todos | editing | |
-| `todo-delete-batch` | Delete multiple todos | editing | Yes |
+| `todo-delete-batch` | Delete multiple todos; TypeScript keeps them for `todo-restore` | editing | Yes |
+| `todo-restore` | Bring deleted todos back as they were (TypeScript only so far) | editing | |
+| `todo-history` | Recent changes: who, when, and each change's undo (TypeScript only so far) | reading, editing | |
+
+`todo-restore` and `todo-history` are the first of the
+[to-do reference plan](../../../docs/features/active/todo-reference/todo-reference.proposal.md)'s
+phase 2. The spec marks them `implementedBy: ["typescript"]`, so the other backends' tests leave
+them out until phase 5 adds them there.
+
+### Undo, history and approvals (TypeScript)
+
+Every change says how to take it back. Its result carries `undoCommand` and `undoArgs`: run that
+command with those arguments, through `afd-call` or the `todo` group tool, since `undoCommand` names
+a command, not a tool. Toggling and editing undo with `todo-update`; creating with `todo-delete`;
+deleting with `todo-restore`. A delete keeps the todo out of every list but
+`todo-list { deleted: true }` until `todo-clear { deleted: true }` or `{ all: true }` removes it,
+so a todo deleted by mistake can be found and restored long after.
+
+`todo-history` lists recent changes, newest first, with the actor that made each one (`human`,
+`agent` and so on, from the command context), the time and its undo. An entry offers its undo only
+while it is the latest change to its todos, so undoing an old entry never overwrites a later edit.
+A middleware records each change from its result (`src/history.ts`); the latest 1,000 are kept.
+
+`todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
+to approve it (`createApprovalMiddleware`). An MCP client that declares form elicitation asks its
+person; any other caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
+every caller counts as an agent, so the current frontends' "clear completed" is held too until the
+to-do reference plan's phase 3 gives the page an approval flow. Run the server with
+`APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
+contract every language meets.
 
 ### Contexts
 
 The TypeScript and Python servers configure two contexts, so an agent can scope itself before it
 works:
 
-- `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats`. A command that changes todos
+- `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats` (and `todo-history` in
+  TypeScript). A command that changes todos
   is refused with `COMMAND_NOT_IN_CONTEXT` and a suggestion.
 - `todo-editing` shows every command.
 

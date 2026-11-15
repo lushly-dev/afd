@@ -19,4 +19,5 @@ export const TodoSchema = z.object({
 	createdAt: z.string(),
 	updatedAt: z.string(),
 	completedAt: z.string().optional(),
+	deletedAt: z.string().optional(),
 });

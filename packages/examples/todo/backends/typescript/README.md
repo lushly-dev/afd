@@ -22,7 +22,10 @@ By default, the server uses **file-based storage** (`packages/examples/todo/data
 - The TypeScript and Python backends share the same data
 
 `data/todos.json` is gitignored. When it is missing, it is created from the committed seed
-`data/todos.seed.json`; delete it to reset the data. Writes are atomic (a temporary file renamed
+`data/todos.seed.json`; delete it to reset the data. Deleted todos and the change history are kept
+beside it in `todos.deleted.json` and `todos.history.json` (also gitignored), so the Python
+backend, which shares `todos.json`, never sees a deleted todo as live. Each file's write is atomic,
+but they are separate writes; the planned move to SQLite replaces them with one transaction. Writes are atomic (a temporary file renamed
 over `todos.json`), and a file that is not valid JSON stops the server with an error naming the
 file instead of being treated as empty.
 
@@ -37,6 +40,9 @@ file instead of being treated as empty.
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
 | `ALLOWED_ORIGINS` | (none) | Extra exact browser origins, comma-separated (`*` and `null` are refused) |
 | `NODE_ENV` | | `development` accepts any browser origin and returns verbose errors |
+| `APPROVALS` | `agents` | `agents` holds `todo-clear` for any caller that is not a person; `off` holds nothing |
+| `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several processes accept each other's tokens |
+| `CONFIRMATIONS` | `off` | `enforce` or `require-human` to ask before `todo-clear` |
 
 ### Browser access
 
@@ -69,12 +75,24 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 | `todo-get`         | query    | Get a single todo by ID   |
 | `todo-update`      | mutation | Update todo fields        |
 | `todo-toggle`      | mutation | Toggle completion status  |
-| `todo-delete`      | mutation | Delete a todo             |
-| `todo-clear`       | mutation | Clear all completed todos |
+| `todo-delete`      | mutation | Delete a todo; `todo-restore` brings it back |
+| `todo-clear`       | mutation | Remove completed todos (or deleted ones, or all) for good; held for approval unless a person calls it |
 | `todo-stats`       | query    | Get todo statistics       |
 | `todo-create-batch` | mutation | Create multiple todos     |
 | `todo-delete-batch` | mutation | Delete multiple todos     |
 | `todo-toggle-batch` | mutation | Toggle multiple todos     |
+| `todo-restore`     | mutation | Bring deleted todos back as they were |
+| `todo-history`     | query    | Recent changes: who, when, and each change's undo |
+
+Each change's result names its undo in `undoCommand` and `undoArgs`; the example README's
+[Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript) explains them.
+
+## Jobs
+
+`scenarios/` holds the jobs built so far, one scenario file each, from the
+[to-do reference plan](../../../../../docs/features/active/todo-reference/todo-reference.proposal.md#phase-2-jobs).
+`src/scenarios.test.ts` runs them in-process through the server's own middleware, with a fixed
+clock and seeded random, as part of `pnpm test`.
 
 ## Conformance
 

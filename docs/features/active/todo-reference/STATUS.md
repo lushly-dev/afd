@@ -22,9 +22,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
 - **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). The parts it left open belong to
   later phases, as the findings table says.
-- **In progress:** phase 2. Its jobs are written as nine scenarios in [`scenarios/`](scenarios/),
-  checked and walked twice (the proposal's [Phase 2 jobs](todo-reference.proposal.md#phase-2-jobs));
-  the owner decided D6 to D10 on 2026-11-15; the commands are not started.
+- **In progress:** phase 2. The jobs are written and walked, and the owner decided D6 to D10.
+  On branch `t3/todo-reference-phase2-slice`, not yet merged: the first slice (jobs 1, 3, 4 and 9)
+  and jobs 2, 5 and 8, in the TypeScript backend; see [Phase 2](#phase-2-the-typescript-reference).
 - **Not started:** phases 3 to 5.
 
 ## Plan
@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs written, checked and walked; commands not started | [`scenarios/`](scenarios/); the checks' output is in the jobs pull request | The first slice's commands (D10) |
+| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 built on a branch; 6 waits for phases 3 and 4, 7 for the journal | See [phase 2](#phase-2-the-typescript-reference) | The slice's pull request merged; then the rest of phase 2 |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -107,6 +107,40 @@ component-loader tests looked for their `.wasm` fixtures in the wrong place. Rer
 build directories the same (fixtures and `hello-mcp` rebuilt there first, `--no-fail-fast`), every
 test target passed.
 
+## Phase 2: the TypeScript reference
+
+On branch `t3/todo-reference-phase2-slice`, 2026-11-15, not yet merged:
+
+- **Undo.** Every change's result names its undo (`undoCommand`, `undoArgs`) and the command
+  declares `undoable`: create (`todo-delete`), update and toggle (`todo-update`, setting the
+  previous values), toggle-batch when one call can undo it (a mixed toggle warns
+  `NO_SINGLE_UNDO`), delete and delete-batch (`todo-restore`).
+- **Deleted todos.** A delete keeps the todo, out of every live read; `todo-list { deleted: true }`
+  lists them (with `deletedAt`, sortable), and the not-found error says so. `todo-restore` (new)
+  brings them back. The file store keeps them in `todos.deleted.json`, so the Python backend,
+  sharing `todos.json`, never sees one as live.
+- **History.** `todo-history` (new) reads a change log that `src/history.ts`'s middleware records
+  from each successful change: actor, time, ids and undo, with an undo offered only while it is a
+  todo's latest change; the latest 1,000 kept, in `todos.history.json` for the file store.
+- **Approval.** `todo-clear` is held for any caller that is not a person
+  (`createApprovalMiddleware`, `relay: 'mcp-elicitation'`), with a summary of what would go;
+  `{ deleted: true }` empties the deleted todos. `APPROVALS=off` holds nothing, and the
+  conformance runner sets it.
+- **Context.** Handlers take their time and ids from `context.clock` and `context.random`.
+- **Spec.** `todo-restore` and `todo-history` are in `spec/commands.schema.json` with
+  `implementedBy: ["typescript"]`, the new inputs with `x-implementedBy`; the Python, Rust and C++
+  tests check only their own commands, and the C++ backend, whose schema compiler refuses unknown
+  keywords, leaves the TypeScript-only inputs out of its schemas.
+- **Jobs.** Jobs 1 to 5, 8 and 9 moved to `backends/typescript/scenarios/` and run in
+  `src/scenarios.test.ts`, in-process through the server's middleware (job 5 through
+  `createDirectRegistry` in `todo-reading`). Removing the approval middleware fails job 4, and
+  running job 5 with no context fails it.
+
+Left in phase 2: job 7 with `createJournalMiddleware` and a replay test; `output`, `examples` and
+`title` on every command; `defaultMiddleware()`; storage on local-db (D4); the approval conformance
+suite; `afd scenario run` and `afd validate --surface --strict` in CI, with the four older scenarios
+rewritten so they need no clear; conformance cases for the new behaviour.
+
 ## Open questions
 
 None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
@@ -118,6 +152,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | --- | --- | --- | --- |
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Open, phase 3 |
 | 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Open, phase 5 |
+| 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Open, phase 3 |
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
 
 ## Session log
@@ -126,3 +161,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | --- | --- | --- |
 | 2026-11-14 | Review and phase 1 | Reviewed the examples against current AFD; wrote the proposal and this file; phase 1 written and verified locally |
 | 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; the owner decided D6 to D10 |
+| 2026-11-15 | Phase 2 slice | Built undo, deleted todos, `todo-restore`, `todo-history` and the clear approval in TypeScript; jobs 1 to 5, 8 and 9 run in the backend's tests |

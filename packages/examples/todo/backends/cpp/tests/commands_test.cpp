@@ -45,6 +45,13 @@ TEST_CASE("each command declares the metadata in commands.schema.json") {
     }
 }
 
+TEST_CASE("input properties another language implements are left out") {
+    // spec: todo-list and todo-clear take `deleted` in TypeScript only (x-implementedBy).
+    CHECK_FALSE(todo::input_schema("todo-list")["properties"].contains("deleted"));
+    CHECK_FALSE(todo::input_schema("todo-clear")["properties"].contains("deleted"));
+    CHECK(todo::input_schema("todo-clear")["properties"].contains("all"));
+}
+
 TEST_CASE("the embedded contract is the file on disk") {
     std::ifstream in(TODO_SPEC_PATH, std::ios::binary);
     const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
