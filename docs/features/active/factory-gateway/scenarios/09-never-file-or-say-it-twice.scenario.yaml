@@ -1,5 +1,7 @@
 # Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
 # Runs against the lane endpoint. The fixture's secret pattern stands in for real secret rules.
+# Issues and pull requests share numbers, so the new issue is 105, after issue 104 and pull
+# request 47. `expect` cannot reference an earlier step; only `input` can.
 name: Never file the same issue or post the same comment twice, or post a secret
 description: >-
   When the lane files a flaky test or comments on an issue and then retries after a timeout, or
@@ -23,7 +25,7 @@ steps:
       success: true
       data:
         created: true
-        number: { exists: true }
+        number: 105
   - description: The same flake again returns the open issue instead of a new one
     command: issue-create
     input:
@@ -36,7 +38,7 @@ steps:
       success: true
       data:
         created: false
-        number: "${{ steps[0].data.number }}"
+        number: 105
   - description: A label the repository does not define is refused rather than created
     command: issue-create
     input:

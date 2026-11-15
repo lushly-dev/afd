@@ -1,0 +1,323 @@
+"""The gateway's records: the audit (G1), review records (G2) and events (G3).
+
+The audit answers "who did this" from AFD's journal (and any seeded rows), and lists writes to
+watched targets (claimed issues, the bot's pull requests) that GitHub reports and the journal
+does not hold. Events are derived from the same GitHub reads, and each consumer is given an
+event once.
+"""
+
+from __future__ import annotations
+
+import asyncio
+from typing import Any
+
+from afd import CommandResult, error, success
+
+from botcore_factory.gateway.claims import Claim, iso, parse_time, read_claim
+from botcore_factory.gateway.service import REVIEW, Gateway, refuse
+from botcore_factory.gateway.state import read_journal
+
+#: The commands that write, which the audit lists.
+WRITE_COMMANDS = {
+    "issue-claim",
+    "issue-release",
+    "issue-label",
+    "issue-comment",
+    "issue-create",
+    "branch-push",
+    "pr-open",
+    "verification-record",
+    "pr-merge",
+    "pr-revert",
+    "variable-set",
+    "review-record",
+}
+EVENT_KINDS = (
+    "pr-merged",
+    "checks-passed",
+    "checks-failed",
+    "checks-stalled",
+    "owner-commented",
+    "outside-write",
+)
+_PULL_COMMANDS = {"pr-open", "pr-merge"}
+
+
+def _targets(entry, heads: dict[str, int]) -> list[str]:
+    """What a journaled write touched, from its input and result."""
+    data = entry.input if isinstance(entry.input, dict) else {}
+    result = _result(entry).get("data")
+    result = result if isinstance(result, dict) else {}
+    command = entry.command
+    if command in _PULL_COMMANDS:
+        number = data.get("number") or result.get("number")
+        return [f"pr#{number}"] if number else []
+    if command == "pr-revert":
+        return [f"pr#{n}" for n in data.get("numbers", [])]
+    if command in {"verification-record", "review-record"}:
+        head = data.get("head")
+        return [f"pr#{heads[head]}"] if head in heads else [f"head:{head}"]
+    if command == "branch-push":
+        return [data.get("ref", "")]
+    if "numbers" in data:
+        return [f"issue#{n}" for n in data["numbers"]]
+    if "number" in data:
+        return [f"issue#{data['number']}"]
+    return []
+
+
+def _result(entry) -> dict:
+    result = entry.result
+    if hasattr(result, "model_dump"):
+        result = result.model_dump(mode="json", exclude_none=True)
+    return result if isinstance(result, dict) else {}
+
+
+def _actor(actor) -> dict:
+    if actor is None:
+        return {}
+    row = {"kind": actor.kind, "id": actor.id}
+    if actor.on_behalf_of:
+        row["onBehalfOf"] = actor.on_behalf_of
+        row["onBehalfOfAsserted"] = True  # The caller's word; the token names only id and kind.
+    return {key: value for key, value in row.items() if value is not None}
+
+
+def journal_rows(gateway: Gateway, repo: str) -> list[dict]:
+    heads = {pull["head"]: pull["number"] for pull in gateway.github.pulls(repo)}
+    rows = [{**row, "targets": [row["target"]]} for row in gateway.state.get("auditSeed", [])]
+    for entry in read_journal(gateway.state.journal_dir):
+        if entry.command not in WRITE_COMMANDS:
+            continue
+        if isinstance(entry.input, dict) and entry.input.get("repo") not in (None, repo):
+            continue
+        targets = _targets(entry, heads)
+        rows.append(
+            {
+                "timestamp": entry.timestamp,
+                "command": entry.command,
+                "actor": _actor(entry.actor),
+                "target": targets[0] if targets else None,
+                "targets": targets,
+                "success": bool(_result(entry).get("success")),
+            }
+        )
+    rows.sort(key=lambda row: row["timestamp"])
+    for seq, row in enumerate(rows, start=1):
+        row["seq"] = seq
+    return rows
+
+
+def watched(gateway: Gateway, repo: str) -> set[str]:
+    targets = set()
+    for issue in gateway.github.issues(repo):
+        record = read_claim(
+            issue["number"], issue.get("comments", []), gateway.config, gateway.now()
+        )
+        if isinstance(record, Claim):
+            targets.add(f"issue#{issue['number']}")
+    for pull in gateway.github.pulls(repo):
+        if pull.get("author") == gateway.config.bot:
+            targets.add(f"pr#{pull['number']}")
+    return targets
+
+
+def outside_writes(gateway: Gateway, repo: str, since: str | None) -> list[dict]:
+    """Writes GitHub reports on watched targets that did not come through the gateway."""
+    targets, bot, start = watched(gateway, repo), gateway.config.bot, parse_time(since)
+    found = []
+    for event in gateway.github.issue_events(repo):
+        if event["target"] in targets and event.get("by") != bot:
+            found.append({key: event.get(key) for key in ("at", "kind", "target", "by", "label")})
+    for comment in gateway.github.comment_feed(repo):
+        if comment["target"] in targets and comment.get("by") != bot:
+            found.append(
+                {
+                    "at": comment["at"],
+                    "kind": "commented",
+                    "target": comment["target"],
+                    "by": comment.get("by"),
+                }
+            )
+    pushed = {
+        row["target"]: row
+        for row in journal_rows(gateway, repo)
+        if row["command"] == "branch-push" and row["success"]
+    }
+    for pull in gateway.github.pulls(repo):
+        ref = f"refs/heads/{pull.get('branch')}"
+        ours = pull.get("author") == bot and pull.get("state") == "open" and ref in pushed
+        if ours and gateway.github.ref(repo, ref) != pull["head"]:
+            found.append({"at": None, "kind": "pushed", "target": f"pr#{pull['number']}"})
+    found = [
+        {key: value for key, value in row.items() if value is not None}
+        for row in found
+        if start is None or row.get("at") is None or parse_time(row["at"]) >= start
+    ]
+    return sorted(found, key=lambda row: row.get("at") or "")
+
+
+def gateway_audit(gateway: Gateway, repo: str, filters: dict, limit: int, cursor: str | None):
+    gateway.repo(repo)
+    start = parse_time(filters.get("since"))
+    wanted = {f"issue#{filters['issue']}"} if filters.get("issue") is not None else set()
+    wanted |= {f"pr#{filters['pr']}"} if filters.get("pr") is not None else set()
+    rows = []
+    for row in journal_rows(gateway, repo):
+        if wanted and not wanted & set(row["targets"]):
+            continue
+        if start and parse_time(row["timestamp"]) < start:
+            continue
+        if filters.get("actor") and row["actor"].get("id") != filters["actor"]:
+            continue
+        rows.append({key: value for key, value in row.items() if key != "targets"})
+    offset = int(cursor or 0)
+    data: dict[str, Any] = {
+        "entries": rows[offset : offset + limit],
+        "outside": [
+            row
+            for row in outside_writes(gateway, repo, filters.get("since"))
+            if not wanted or row["target"] in wanted
+        ],
+    }
+    if offset + limit < len(rows):
+        data["nextCursor"] = str(offset + limit)
+    return success(
+        data,
+        reasoning=f"{len(data['entries'])} of {len(rows)} gateway writes, "
+        f"{len(data['outside'])} outside the gateway",
+    )
+
+
+# ── review records (G2) ────────────────────────────────────────────────────
+
+
+def review_record(gateway: Gateway, repo: str, branch: str, head: str, lanes: list[dict]):
+    gateway.repo(repo)
+    gateway.text(
+        **{f"lanes[{i}]": " ".join(str(v) for v in lane.values()) for i, lane in enumerate(lanes)}
+    )
+    verdict = "pass" if lanes and all(lane["verdict"] == "pass" for lane in lanes) else "fail"
+    record = {
+        "head": head,
+        "branch": branch,
+        "verdict": verdict,
+        "lanes": lanes,
+        "recordedAt": iso(gateway.now()),
+    }
+    reviews = dict(gateway.state.get("reviews", {}))
+    reviews[head] = record
+    gateway.spend("review-record")
+    gateway.state.put("reviews", reviews)
+    return success(
+        {"record": {key: record[key] for key in ("head", "verdict", "lanes")}},
+        reasoning=f"Recorded a {verdict} review of {head[:12]}; {REVIEW} is published when "
+        "the head is pushed",
+    )
+
+
+def review_get(gateway: Gateway, repo: str, head: str) -> CommandResult:
+    gateway.repo(repo)
+    record = gateway.state.get("reviews", {}).get(head)
+    if record is None:
+        raise refuse(
+            "NOT_FOUND",
+            f"No review is recorded for {head}",
+            "Record the review with review-record for this exact head; a head that moved "
+            "after review has none",
+        )
+    return success(
+        {key: record[key] for key in ("head", "verdict", "lanes", "recordedAt")},
+        reasoning=f"{head[:12]} was reviewed: {record['verdict']}",
+    )
+
+
+# ── events (G3) ────────────────────────────────────────────────────────────
+
+
+def events(gateway: Gateway, repo: str) -> list[dict]:
+    found = []
+    for pull in gateway.github.pulls(repo):
+        number, state = pull["number"], gateway.pull_state(pull)
+        if state == "merged":
+            found.append(
+                {
+                    "id": f"pr-merged:{number}",
+                    "kind": "pr-merged",
+                    "target": f"pr#{number}",
+                    "at": pull.get("mergedAt"),
+                }
+            )
+        elif state == "open":
+            check = gateway.required_check(repo, pull)
+            if check["state"] in {"passed", "failed", "stalled"}:
+                kind = f"checks-{check['state']}"
+                found.append(
+                    {
+                        "id": f"{kind}:{number}:{pull['head']}",
+                        "kind": kind,
+                        "target": f"pr#{number}",
+                        "at": iso(gateway.now()),
+                        "detail": check,
+                    }
+                )
+    for comment in gateway.github.comment_feed(repo):
+        if comment.get("by") == gateway.config.owner:
+            found.append(
+                {
+                    "id": f"owner-commented:{comment.get('id') or comment['at']}",
+                    "kind": "owner-commented",
+                    "target": comment["target"],
+                    "at": comment["at"],
+                    "sharedAccount": True,
+                }
+            )
+    for row in outside_writes(gateway, repo, None):
+        found.append(
+            {
+                "id": f"outside-write:{row.get('at')}:{row['target']}:{row['kind']}",
+                "kind": "outside-write",
+                "target": row["target"],
+                "at": row.get("at"),
+                "detail": row,
+            }
+        )
+    return sorted(found, key=lambda event: event.get("at") or "")
+
+
+async def gateway_wait(gateway: Gateway, repo: str, consumer: str, kinds, timeout_ms: int):
+    gateway.repo(repo)
+    unknown = sorted(set(kinds or ()) - set(EVENT_KINDS))
+    if unknown:
+        return error(
+            "VALIDATION_ERROR",
+            f"Unknown event kinds: {', '.join(unknown)}",
+            suggestion=f"Use kinds from: {', '.join(EVENT_KINDS)}",
+        )
+    timeout_ms = min(timeout_ms, gateway.config.wait_max_ms)
+    delivered = dict(gateway.state.get("delivered", {}))
+    seen = set(delivered.get(consumer, []))
+
+    def fresh() -> list[dict]:
+        return [
+            event
+            for event in events(gateway, repo)
+            if event["id"] not in seen and (not kinds or event["kind"] in kinds)
+        ]
+
+    found = fresh()
+    if not found:
+        await asyncio.sleep(timeout_ms / 1000)
+        refresh = getattr(gateway.github, "refresh", None)
+        if callable(refresh):
+            refresh()
+        found = fresh()
+    if not found:
+        return success({"events": [], "timedOut": True}, reasoning="Nothing new before the timeout")
+    delivered[consumer] = sorted(seen | {event["id"] for event in found})
+    gateway.state.put("delivered", delivered)
+    rows = [
+        {key: value for key, value in event.items() if key != "id"} | {"id": event["id"]}
+        for event in found
+    ]
+    return success({"events": rows}, reasoning=f"{len(rows)} new events for {consumer}")
