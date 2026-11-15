@@ -98,6 +98,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   - question 11: the rank of the jobs as proposed, with job 3 merged into job 2, job 11 folded
     into job 10, job 13 deferred and job 15 added;
   - question 12: phase 0 runs;
+  - on 2026-11-15, for the seed library's jobs: asking the steward is a held `loan-create`;
+    job 16 stays; and the approval request is off the held-back screen, recorded as a limit;
   - on 2026-11-15, for the bench: a seed library as its domain; Opus 5.5 at `medium`; its
     sessions run on a second machine of the owner's and draw on that machine's subscription
     allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in

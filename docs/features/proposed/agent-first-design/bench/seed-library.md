@@ -13,7 +13,8 @@ commands. Read the [bench specification](../bench.md) first.
   twenty-four drafted commands. The three checks pass ([Checks](#checks)). Three readers
   who did not write them walked the paths, and a fourth reviewed the result and walked the
   two commands the walks had added ([What the walks changed](#what-the-walks-changed)).
-- **Not done:** the owner has not cut, added or ranked the jobs. See [Not done](#not-done).
+- **Decided by the owner on 2026-11-15:** three design points ([For the owner](#for-the-owner)).
+  The list of jobs as a whole is still open. See [Not done](#not-done).
 - **Not in this folder, on purpose:** the two jobs held back for the panel loop, and the
   checks, planted faults and persona cards. The bench specification says why.
 
@@ -355,16 +356,19 @@ they are after the walks. Nothing is built, so the files are checked and not run
 
 ## For the owner
 
+On 2026-11-15 the owner accepted three design points: approval as a held loan, job 16, and the
+approval request off T4, recorded as a limit in the bench specification. The list of jobs as
+a whole is still open.
+
 1. **The jobs.** Cut, add or change them. *Recommendation: keep the seventeen,* because each
    screen then meets every pattern the bench specification gives it, and three readers found
    no job missing inside the four screens. Confidence: medium.
-2. **Job 16.** Removing a past season's closed requests is what gives T4 a command that
-   cannot be undone. *Recommendation: keep it.* Without it a confirmation is tested only on
-   T3, a screen the statements may be written from. Confidence: medium. The alternative is
-   to drop it and add confirmation to the bench specification's limit.
-3. **Approval as a held loan.** The steward's request is a held `loan-create`, not a command
-   of its own. *Recommendation: keep it,* because it tests the contract's `approval` and not
-   a look-alike. Confidence: medium. It has a price, which this design chooses: a request
+2. **Job 16.** **Decided 2026-11-15: kept.** Removing a past season's closed requests is
+   what gives T4 a command that cannot be undone. Without it a confirmation is tested only on
+   T3, a screen the statements may be written from.
+3. **Approval as a held loan.** **Decided 2026-11-15: kept.** The steward's request is a held
+   `loan-create`, not a command of its own, because it tests the contract's `approval` and not
+   a look-alike. It has a price, which this design chooses: a request
    expires with its hold, at most twenty-four hours later, so that the expiry a screen shows
    is the contract's. A request the steward does not decide within a day expires and the
    member asks again. The alternative is a request that outlives its hold and shows an
