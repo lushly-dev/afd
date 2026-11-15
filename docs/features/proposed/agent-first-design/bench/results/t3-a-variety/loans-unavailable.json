@@ -1,0 +1,13 @@
+{
+	"$command": "loan-list",
+	"$input": {
+		"varietyId": "var-borlotti"
+	},
+	"success": false,
+	"error": {
+		"code": "SERVICE_UNAVAILABLE",
+		"message": "The loans cannot be read just now",
+		"suggestion": "Wait a moment, then call loan-list again",
+		"retryable": true
+	}
+}

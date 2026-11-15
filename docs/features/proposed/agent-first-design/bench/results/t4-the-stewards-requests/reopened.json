@@ -1,0 +1,13 @@
+{
+	"$command": "request-reopen",
+	"$input": {
+		"id": "req-1"
+	},
+	"success": true,
+	"data": {
+		"id": "req-1",
+		"status": "pending",
+		"expiresAt": "2030-03-10T10:00:00Z",
+		"loanCancelled": "loan-2"
+	}
+}

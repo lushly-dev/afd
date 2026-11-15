@@ -1,0 +1,22 @@
+{
+	"$command": "donation-import",
+	"$input": {
+		"rows": []
+	},
+	"success": false,
+	"error": {
+		"code": "VALIDATION_ERROR",
+		"message": "Input validation failed",
+		"suggestion": "rows: Too small: expected array to have >=1 items. Expected fields: donor, rows",
+		"details": {
+			"errors": [
+				{
+					"path": "rows",
+					"message": "Too small: expected array to have >=1 items",
+					"code": "too_small"
+				}
+			],
+			"expectedFields": ["donor", "rows"]
+		}
+	}
+}

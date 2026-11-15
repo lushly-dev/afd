@@ -1,0 +1,38 @@
+{
+	"$command": "donation-get",
+	"$input": {
+		"id": "don-2"
+	},
+	"success": true,
+	"data": {
+		"id": "don-2",
+		"status": "complete",
+		"succeeded": [
+			{
+				"index": 0,
+				"label": "runner bean",
+				"packets": 2,
+				"harvestYear": 2029,
+				"varietyId": "var-painted",
+				"lotId": "lot-don-2-0"
+			}
+		],
+		"unsettled": [],
+		"failed": [],
+		"summary": {
+			"total": 1,
+			"successCount": 1,
+			"unsettledCount": 0,
+			"failureCount": 0,
+			"leftOutCount": 0
+		}
+	},
+	"plan": [
+		{
+			"id": "row-0",
+			"action": "Take in row 1: runner bean, 2 packets",
+			"status": "complete",
+			"description": "Filed under Painted Lady runner bean, as the volunteer chose"
+		}
+	]
+}

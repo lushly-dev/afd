@@ -1,0 +1,13 @@
+{
+	"$command": "variety-retire",
+	"$input": {
+		"id": "var-nigella"
+	},
+	"success": true,
+	"data": {
+		"id": "var-nigella",
+		"retired": true,
+		"retiredAt": "2030-03-09T10:00:00Z",
+		"packetsWithdrawn": 2
+	}
+}

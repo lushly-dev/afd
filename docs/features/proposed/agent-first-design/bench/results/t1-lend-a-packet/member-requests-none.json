@@ -1,0 +1,12 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending",
+		"memberId": "mem-ines"
+	},
+	"success": true,
+	"data": {
+		"requests": [],
+		"total": 0
+	}
+}

@@ -1,0 +1,145 @@
+{
+	"$command": "afd-batch",
+	"$input": {
+		"commands": [
+			{
+				"id": "approve-req-1",
+				"command": "request-decide",
+				"input": {
+					"id": "req-1",
+					"decision": "approve"
+				}
+			},
+			{
+				"id": "approve-req-2",
+				"command": "request-decide",
+				"input": {
+					"id": "req-2",
+					"decision": "approve"
+				}
+			},
+			{
+				"id": "approve-req-3",
+				"command": "request-decide",
+				"input": {
+					"id": "req-3",
+					"decision": "approve"
+				}
+			}
+		]
+	},
+	"success": true,
+	"results": [
+		{
+			"id": "approve-req-1",
+			"index": 0,
+			"command": "request-decide",
+			"result": {
+				"success": true,
+				"data": {
+					"id": "req-1",
+					"status": "approved",
+					"decidedAt": "2030-03-09T10:00:00Z",
+					"loanId": "loan-2",
+					"memberTold": true
+				},
+				"plan": [
+					{
+						"id": "check-shelf",
+						"action": "Check the shelf",
+						"status": "complete"
+					},
+					{
+						"id": "make-loan",
+						"action": "Make the loan",
+						"status": "complete",
+						"dependsOn": ["check-shelf"]
+					},
+					{
+						"id": "tell-member",
+						"action": "Tell the member",
+						"status": "complete",
+						"dependsOn": ["make-loan"]
+					}
+				],
+				"undoCommand": "request-reopen",
+				"undoArgs": {
+					"id": "req-1"
+				}
+			},
+			"durationMs": 0
+		},
+		{
+			"id": "approve-req-2",
+			"index": 1,
+			"command": "request-decide",
+			"result": {
+				"success": true,
+				"data": {
+					"id": "req-2",
+					"status": "approved",
+					"decidedAt": "2030-03-09T10:00:00Z",
+					"loanId": "loan-3",
+					"memberTold": true
+				},
+				"plan": [
+					{
+						"id": "check-shelf",
+						"action": "Check the shelf",
+						"status": "complete"
+					},
+					{
+						"id": "make-loan",
+						"action": "Make the loan",
+						"status": "complete",
+						"dependsOn": ["check-shelf"]
+					},
+					{
+						"id": "tell-member",
+						"action": "Tell the member",
+						"status": "complete",
+						"dependsOn": ["make-loan"]
+					}
+				],
+				"undoCommand": "request-reopen",
+				"undoArgs": {
+					"id": "req-2"
+				}
+			},
+			"durationMs": 0
+		},
+		{
+			"id": "approve-req-3",
+			"index": 2,
+			"command": "request-decide",
+			"result": {
+				"success": false,
+				"error": {
+					"code": "OUT_OF_STOCK",
+					"message": "No packets of Glass Gem corn are left",
+					"suggestion": "Call waitlist-join with memberId mem-wren and varietyId var-glassgem, then request-decide with decision decline",
+					"retryable": false,
+					"details": {
+						"varietyId": "var-glassgem",
+						"packetsAvailable": 0
+					}
+				}
+			},
+			"durationMs": 0
+		}
+	],
+	"summary": {
+		"total": 3,
+		"successCount": 2,
+		"failureCount": 1,
+		"skippedCount": 0
+	},
+	"timing": {
+		"totalMs": 0,
+		"averageMs": 0,
+		"startedAt": "2030-03-09T10:00:00.000Z",
+		"completedAt": "2030-03-09T10:00:00.000Z"
+	},
+	"confidence": 0.8333333333333333,
+	"reasoning": "Executed 3 commands: 2 succeeded, 1 failed"
+}

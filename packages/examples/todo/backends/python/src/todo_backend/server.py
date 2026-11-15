@@ -19,6 +19,7 @@ from afd.server import MCPServer, create_server
 
 from todo_backend.batch_commands import register_batch_commands
 from todo_backend.commands import register_commands
+from todo_backend.contexts import TODO_CONTEXTS
 from todo_backend.store import MemoryStore, create_store
 
 
@@ -31,6 +32,8 @@ def create_app(store: MemoryStore) -> MCPServer:
         description="A todo list manager demonstrating AFD patterns",
         # off (default), enforce or require-human (spec/command-metadata.md, "Confirmations").
         confirmations=os.environ.get("CONFIRMATIONS", "off"),
+        # Registers afd-context-list, -enter and -exit (todo_backend/contexts.py).
+        contexts=TODO_CONTEXTS,
     )
     register_commands(server, store)
     register_batch_commands(server, store)

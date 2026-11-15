@@ -1,0 +1,29 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T4, the steward's
+# requests.
+# Not expressible here: the other half of the job. A list that cannot be read fails with
+# SERVICE_UNAVAILABLE (retryable), and a fixture cannot make the service fail.
+name: Nothing waiting is said plainly
+description: >-
+  When nothing is waiting for me, I want the list to say so plainly, so that I do not wonder
+  whether it failed to load.
+job: nothing-waiting
+tags: [t4]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: No request is waiting, which is an empty list and not an error
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 0
+        requests: { length: 0 }
+  - description: Nor has any been decided
+    command: request-list
+    input: {}
+    expect:
+      success: true
+      data:
+        total: 0

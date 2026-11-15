@@ -79,7 +79,7 @@ export interface TodoFilter {
 	/** Sort direction */
 	sortOrder?: 'asc' | 'desc';
 
-	/** Maximum results */
+	/** Maximum results; every match when omitted */
 	limit?: number;
 
 	/** Offset for pagination */

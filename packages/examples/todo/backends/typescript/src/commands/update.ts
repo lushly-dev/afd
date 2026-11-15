@@ -4,6 +4,7 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
@@ -19,6 +20,7 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-update',
 	description: 'Update a todo item',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'update', 'write', 'single'],
 	mutation: true,

@@ -1,0 +1,84 @@
+{
+	"$command": "donation-import",
+	"$input": {
+		"rows": [
+			{
+				"label": "Borlotti bean",
+				"packets": 4,
+				"harvestYear": 2029
+			},
+			{
+				"label": "Pot marigold",
+				"packets": 2,
+				"harvestYear": 2029
+			},
+			{
+				"label": "Parsnip",
+				"packets": 3,
+				"harvestYear": 2029
+			}
+		]
+	},
+	"success": true,
+	"data": {
+		"id": "don-1",
+		"status": "complete",
+		"succeeded": [
+			{
+				"index": 0,
+				"label": "Borlotti bean",
+				"packets": 4,
+				"harvestYear": 2029,
+				"varietyId": "var-borlotti",
+				"lotId": "lot-don-1-0"
+			},
+			{
+				"index": 1,
+				"label": "Pot marigold",
+				"packets": 2,
+				"harvestYear": 2029,
+				"varietyId": "var-calendula",
+				"lotId": "lot-don-1-1"
+			},
+			{
+				"index": 2,
+				"label": "Parsnip",
+				"packets": 3,
+				"harvestYear": 2029,
+				"varietyId": "var-parsnip",
+				"lotId": "lot-don-1-2"
+			}
+		],
+		"unsettled": [],
+		"failed": [],
+		"summary": {
+			"total": 3,
+			"successCount": 3,
+			"unsettledCount": 0,
+			"failureCount": 0,
+			"leftOutCount": 0
+		}
+	},
+	"confidence": 1,
+	"plan": [
+		{
+			"id": "row-0",
+			"action": "Take in row 1: Borlotti bean, 4 packets",
+			"status": "complete"
+		},
+		{
+			"id": "row-1",
+			"action": "Take in row 2: Pot marigold, 2 packets",
+			"status": "complete"
+		},
+		{
+			"id": "row-2",
+			"action": "Take in row 3: Parsnip, 3 packets",
+			"status": "complete"
+		}
+	],
+	"undoCommand": "donation-cancel",
+	"undoArgs": {
+		"id": "don-1"
+	}
+}

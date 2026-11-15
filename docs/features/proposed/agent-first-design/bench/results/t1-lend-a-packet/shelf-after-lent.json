@@ -1,0 +1,24 @@
+{
+	"$command": "variety-list",
+	"$input": {
+		"query": "borlotti"
+	},
+	"success": true,
+	"data": {
+		"varieties": [
+			{
+				"id": "var-borlotti",
+				"name": "Borlotti bean",
+				"kind": "vegetable",
+				"rare": false,
+				"packetsAvailable": 5,
+				"germination": {
+					"estimate": 0.9,
+					"basis": "tested"
+				},
+				"retired": false
+			}
+		],
+		"total": 1
+	}
+}

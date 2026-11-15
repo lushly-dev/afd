@@ -1,0 +1,16 @@
+{
+	"$command": "variety-get",
+	"$input": {
+		"id": "var-parsnip"
+	},
+	"success": true,
+	"data": {
+		"id": "var-parsnip",
+		"name": "Parsnip",
+		"kind": "vegetable",
+		"rare": false,
+		"packetsAvailable": 2,
+		"waiting": [],
+		"retired": false
+	}
+}

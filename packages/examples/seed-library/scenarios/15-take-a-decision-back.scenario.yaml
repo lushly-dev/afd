@@ -1,0 +1,78 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T4, the steward's
+# requests.
+# Not expressible here: a decision's result names its undo in `undoCommand` and `undoArgs`, which
+# a scenario cannot assert. The file runs the command they name.
+# The runner resolves step references only in `input`, so a step that compares with an earlier
+# step's result names the id the fixture's counters give it.
+name: Take a decision back
+description: >-
+  When I approve or decline the wrong request, I want to reopen it, so that a slip of mine does
+  not cost a member their seed.
+job: take-a-decision-back
+tags: [t4]
+fixture:
+  file: fixtures/steward.json
+  base: library.json
+steps:
+  - description: An approval made by mistake
+    command: request-decide
+    input: { id: req-1, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+        loanId: { exists: true }
+  - description: Reopened, the request waits again for a fresh day and the loan it made is cancelled
+    command: request-reopen
+    input: { id: req-1 }
+    expect:
+      success: true
+      data:
+        status: pending
+        loanCancelled: loan-2
+        expiresAt: { exists: true }
+  - description: The packet is back on the shelf
+    command: variety-get
+    input: { id: var-glassgem }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 2
+  - description: A request that is waiting cannot be reopened
+    command: request-reopen
+    input: { id: req-1 }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: request-decide }
+  - description: A decline made by mistake
+    command: request-decide
+    input: { id: req-2, decision: decline }
+    expect:
+      success: true
+      data:
+        status: declined
+  - description: Reopened too
+    command: request-reopen
+    input: { id: req-2 }
+    expect:
+      success: true
+      data:
+        status: pending
+  - description: This time the member gets the seed
+    command: request-decide
+    input: { id: req-2, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+        loanId: { matches: '^loan-' }
+  - description: The other two are still waiting
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 2

@@ -212,6 +212,7 @@ impl Store {
         )?;
         if closed > 0 {
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
+            super::classes::relist_mailbox(&transaction, mailbox.0)?;
         }
         transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         transaction.run(

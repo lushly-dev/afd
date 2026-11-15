@@ -7,7 +7,7 @@ description: >
   changelog.
 metadata:
   source: botcore
-  version: 2.1.1
+  version: 2.2.0
   portable: true
 ---
 
@@ -45,5 +45,9 @@ The `docs_*` checks are Python functions in `botcore.commands`, not `botcore` CL
 
 ## Prose
 
-- Audit a finished draft against a list of AI tells (stock vocabulary, stacked hedges, signposting). Keep the list out of the generation prompt, because naming the words anchors the model toward them; to set a voice, show a short sample and name the audience.
+- Edit substance before wording. A generic claim stays generic however it is phrased: replace it with a fact, a case or a named source, or cut it.
+- Then audit the finished draft for formulas, which outlast word lists: a contrast that corrects a view nobody held ("not X but Y", "rather than"), a reflexive list of three, matched pairs, a punchline closing each paragraph, a flag of importance ("it is worth noting", "this matters because") and one sentence shape repeated. Stock vocabulary changes with every model generation, so date any word list and expect it to expire.
+- Keep such lists out of the generation prompt, because naming the words anchors the model toward them; to set a voice, show a short sample and name the audience.
+- Fix a flagged sentence by rewriting it to say the thing directly. Do not swap in a synonym, add filler or deliberate flaws, or write to a detector's score: detectors misfire in both directions, and a practised reader is the test.
+- After any rewriting pass, compare the result with the version before it: quotations word for word, numbers and names unchanged, and every negation, modal and caveat still saying what it said.
 - Never invent figures, names, dates or quotes to sound specific. Use what the code, the user or a cited source provides; otherwise state the claim plainly, cut it, or mark it `[source needed]`.

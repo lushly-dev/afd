@@ -1,0 +1,12 @@
+{
+	"$command": "loan-reopen",
+	"$input": {
+		"id": "loan-1"
+	},
+	"success": true,
+	"data": {
+		"id": "loan-1",
+		"status": "out",
+		"lotRemoved": "lot-borlotti-29-r1"
+	}
+}

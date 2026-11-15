@@ -6,8 +6,10 @@
  * Usage:
  *   node dist/server.js
  *
- * Then connect with the AFD CLI:
- *   afd connect http://localhost:3100/sse
+ * From a terminal it serves HTTP on port 3100; spawned by an MCP client (stdin is not a
+ * terminal) it speaks stdio. TRANSPORT=http or TRANSPORT=stdio forces one. Then connect with
+ * the AFD CLI:
+ *   afd connect http://localhost:3100/mcp
  *   afd tools
  *   afd call todo-create '{"title": "My first todo"}'
  */
@@ -59,7 +61,7 @@ async function main() {
 		console.error(`Server running at ${server.getUrl()}`);
 		console.error('');
 		console.error('Connect with the AFD CLI:');
-		console.error(`  afd connect ${server.getUrl()}/sse`);
+		console.error(`  afd connect ${server.getUrl()}/mcp`);
 		console.error('');
 		console.error('Or start a frontend (from packages/examples/todo):');
 		console.error('  pnpm dev:web     # http://localhost:3000');

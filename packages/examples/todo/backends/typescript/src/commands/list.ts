@@ -8,6 +8,7 @@
 import type { Alternative } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
@@ -32,6 +33,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	name: 'todo-list',
 	description: 'List todos with optional filtering and pagination',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'list', 'read'],
 	mutation: false,
@@ -42,7 +44,6 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		total: z.number(),
 		hasMore: z.boolean(),
 	}),
-	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todos = store.list({

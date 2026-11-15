@@ -1,0 +1,10 @@
+{
+	"$command": "request-clear",
+	"$input": {
+		"closedBefore": "2030-03-05"
+	},
+	"success": true,
+	"data": {
+		"removed": 2
+	}
+}

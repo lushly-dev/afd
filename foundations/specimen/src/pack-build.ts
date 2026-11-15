@@ -106,6 +106,34 @@ const booleanOnly = (values: readonly SchemaValue[]) =>
 /** The parent's reference: the reference without its last segment. */
 const parentRef = (ref: string) => ref.slice(0, ref.lastIndexOf('/'));
 
+/**
+ * The role an instance shows: its own, or else the role of the one accessible element in its own
+ * open shadow tree, as a component that keeps its control there does (a button's inner `button`).
+ * An element inside a nested component's shadow tree is that component's, not this one's. An
+ * instance with neither and no box is not rendered (one inside a closed dialog, say) and says
+ * nothing; one with neither that is laid out has no role, and two or more accessible elements in
+ * its shadow tree have none that is the component's: both are `ambiguous`, and leave the
+ * component without an observed role.
+ */
+function shownRole(
+	host: ElementObservation,
+	all: readonly ElementObservation[]
+): { role: string; own: boolean } | 'hidden' | 'ambiguous' {
+	if (host.accessibility?.role) return { role: host.accessibility.role, own: true };
+	const inside = `${host.ref}/shadow/`;
+	const accessible = all.filter(
+		(element) =>
+			element.ref.startsWith(inside) &&
+			!element.ref.slice(inside.length).includes('/shadow/') &&
+			element.accessibility?.role
+	);
+	const [only] = accessible;
+	if (only?.accessibility)
+		return accessible.length === 1 ? { role: only.accessibility.role, own: false } : 'ambiguous';
+	// Laid out with no box, it is not rendered; laid out, it is shown and has no role.
+	return host.box?.width === 0 && host.box?.height === 0 ? 'hidden' : 'ambiguous';
+}
+
 /** How an element's accessible name was given, as a reader can repeat it, when it can tell. */
 function nameSource(element: ElementObservation): string | undefined {
 	const name = element.accessibility?.name;
@@ -284,16 +312,27 @@ function componentRecord(
 
 	const associated = elements.some((element) => element.state.formAssociated === true);
 
-	// A role is observed in the default state, when every instance there agrees on it; a guide
-	// states the roles of other states, which stay authored.
+	// A role is observed in the default state, when every instance exposed there agrees on it; a
+	// guide states the roles of other states, which stay authored. An instance's role is its own or
+	// its shadow tree's (shownRole). How the name is given is said only when each role is the
+	// component's own: an element in its shadow tree is named by what the component passes it,
+	// which the component's attributes do not show.
 	const isDefault = inDefaultState(schema);
 	const roles: PackComponent['a11y']['role'] = [];
-	const resting = elements.filter(isDefault);
-	const seen = sorted(resting.flatMap((element) => element.accessibility?.role ?? []));
+	const resting = input.cases.flatMap(({ observation }) =>
+		observation.channels.elements
+			.filter((element) => element.tag === tag && isDefault(element))
+			.map((element) => ({ element, shown: shownRole(element, observation.channels.elements) }))
+			.filter(({ shown }) => shown !== 'hidden')
+	);
+	const shownRoles = resting.map(({ shown }) => (typeof shown === 'object' ? shown : undefined));
+	const seen = sorted(shownRoles.flatMap((shown) => shown?.role ?? []));
 	const role = seen.length === 1 ? seen[0] : undefined;
-	if (role && resting.every((element) => element.accessibility?.role === role)) {
+	if (role && shownRoles.every((shown) => shown?.role === role)) {
 		if (texts.id(role, 'role', 'a11y.role.default')) {
-			const sources = sorted(resting.map((element) => nameSource(element) ?? ''));
+			const sources = shownRoles.every((shown) => shown?.own)
+				? sorted(resting.map(({ element }) => nameSource(element) ?? ''))
+				: [];
 			roles.push({
 				state: 'default',
 				role,

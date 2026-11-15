@@ -1,0 +1,11 @@
+{
+	"$command": "variety-list",
+	"$input": {
+		"query": "quince"
+	},
+	"success": true,
+	"data": {
+		"varieties": [],
+		"total": 0
+	}
+}

@@ -7,6 +7,7 @@
 import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({
@@ -48,9 +49,11 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 	name: 'todo-delete-batch',
 	description: 'Delete multiple todos at once',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'delete', 'write', 'batch', 'destructive'],
 	mutation: true,
+	destructive: true,
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],

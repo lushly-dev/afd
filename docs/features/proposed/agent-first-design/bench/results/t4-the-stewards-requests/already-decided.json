@@ -1,0 +1,18 @@
+{
+	"$command": "request-decide",
+	"$input": {
+		"id": "req-1",
+		"decision": "decline"
+	},
+	"success": false,
+	"error": {
+		"code": "CONFLICT",
+		"message": "req-1 was already approved",
+		"suggestion": "To take the decision back, call request-reopen with id req-1, then decide it again",
+		"retryable": false,
+		"details": {
+			"id": "req-1",
+			"status": "approved"
+		}
+	}
+}

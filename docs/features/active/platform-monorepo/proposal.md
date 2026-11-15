@@ -84,7 +84,7 @@ afd/
   tests/consumers/      # Isolated package/wheel installation fixtures
   spec/                 # AFD wire contracts and vectors, still AFD-owned
   .claude/skills/        # Canonical shared and family skill sources
-  .codex/skills         # Mirror of the shared skill installation
+  .agents/skills        # Mirror of .claude/skills for Codex and other agents
   scripts/              # Shared repository and release orchestration
   docs/                 # Proposal lifecycle, package map, decisions
 ```

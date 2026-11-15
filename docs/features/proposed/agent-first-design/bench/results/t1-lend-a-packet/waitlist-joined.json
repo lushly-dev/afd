@@ -1,0 +1,16 @@
+{
+	"$command": "waitlist-join",
+	"$input": {
+		"memberId": "mem-ines",
+		"varietyId": "var-runner"
+	},
+	"success": true,
+	"data": {
+		"position": 1
+	},
+	"undoCommand": "waitlist-leave",
+	"undoArgs": {
+		"memberId": "mem-ines",
+		"varietyId": "var-runner"
+	}
+}

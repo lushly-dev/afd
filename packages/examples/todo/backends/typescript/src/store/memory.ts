@@ -107,9 +107,12 @@ export class TodoStore {
 		});
 
 		// Pagination
+		// No limit means every match, so a caller can count with list(filter).length.
 		const offset = filter.offset ?? 0;
-		const limit = filter.limit ?? 100;
-		results = results.slice(offset, offset + limit);
+		results =
+			filter.limit === undefined
+				? results.slice(offset)
+				: results.slice(offset, offset + filter.limit);
 
 		return results;
 	}

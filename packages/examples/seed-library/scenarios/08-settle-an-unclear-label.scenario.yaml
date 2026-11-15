@@ -1,0 +1,83 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T2, take in a donation.
+# Not expressible here: the other varieties the label could be come back in `alternatives`, and
+# what the match rests on in `sources`. A scenario can assert neither. The step checks the first
+# choice and its reasoning. A step's `confidence` is a floor, so it shows the match is at
+# least 0.5; that the row was left unsettled shows it is below the 0.9 at which a match applies.
+name: Settle a label that could be several varieties
+description: >-
+  When a handwritten label could be several varieties, I want to see the likely matches, why each
+  was offered, and choose one, so that seed is not shelved under the wrong name.
+job: settle-an-unclear-label
+tags: [t2]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: A label that names no colour is left unsettled, not guessed
+    command: donation-import
+    input:
+      rows:
+        - { label: runner bean, packets: 2, harvestYear: 2029 }
+    expect:
+      success: true
+      data:
+        status: needs-attention
+        summary: { total: 1, successCount: 0, unsettledCount: 1, failureCount: 0 }
+        unsettled:
+          - { index: 0, label: runner bean }
+  - description: The likely match, with how sure it is and why
+    command: donation-match
+    input: { donationId: "${{ steps[0].data.id }}", index: 0 }
+    expect:
+      success: true
+      confidence: 0.5
+      reasoning: runner bean
+      data:
+        variety: { id: var-runner }
+  - description: The volunteer looked at the seed and chooses a different variety
+    command: donation-settle
+    input: { donationId: "${{ steps[0].data.id }}", index: 0, varietyId: var-painted }
+    expect:
+      success: true
+      data:
+        index: 0
+        varietyId: var-painted
+        lotId: { exists: true }
+  - description: The batch is complete
+    command: donation-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: complete
+        summary: { successCount: 1, unsettledCount: 0 }
+  - description: The choice was wrong after all, so the row is filed under another variety
+    command: donation-settle
+    input: { donationId: "${{ steps[0].data.id }}", index: 0, varietyId: var-czar }
+    expect:
+      success: true
+      data:
+        index: 0
+        varietyId: var-czar
+  - description: The packets left the first variety
+    command: lot-list
+    input: { varietyId: var-painted }
+    expect:
+      success: true
+      data:
+        total: 1
+  - description: And are now a lot of the second
+    command: lot-list
+    input: { varietyId: var-czar }
+    expect:
+      success: true
+      data:
+        total: 2
+  - description: A row cannot be filed under a variety the library does not keep
+    command: donation-settle
+    input: { donationId: "${{ steps[0].data.id }}", index: 0, varietyId: var-quince }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: variety-list }
