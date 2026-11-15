@@ -112,6 +112,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		checked++;
 	}
 	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers,
-	// and the label-in-name change (#971) reached six more files, five of them specs.
-	assert(checked > 640, `only ${checked} unchanged upstream files`);
+	// the label-in-name change (#971) reached six more files, five of them specs, and the Lushly
+	// repairs (#1191) reached the data grid, its cell templates and its spec.
+	assert(checked > 639, `only ${checked} unchanged upstream files`);
 });

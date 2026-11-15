@@ -4,7 +4,7 @@
 // server's start), `tools/list`, and `components-brief` on step 0.1's pages, with each answer's
 // bytes. Run from the repository root once the binary and Specimen's CLI are built.
 //
-//   node docs/features/active/component-briefs/first-consumer/measure.mjs [--starts 5] [--calls 5]
+//   node docs/features/complete/component-briefs/first-consumer/measure.mjs [--starts 5] [--calls 5]
 import { spawn } from 'node:child_process';
 import { readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
