@@ -41,7 +41,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 
 | Step | State | Evidence |
 | --- | --- | --- |
-| Scaffold: problem, what exists, model, draft jobs, design direction | Done 2026-11-14 | [`agent-first-design.proposal.md`](agent-first-design.proposal.md) |
+| Scaffold: problem, what exists, model, draft jobs, design direction | Done 2026-11-14, merged in #1223 | [`agent-first-design.proposal.md`](agent-first-design.proposal.md) |
 | Open the epic | Not started; the owner's call | |
 | The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6 and 12, and the todo example in question 7. Open: 4, 8, 9, 10, the bench's domain in 7, and the rank in 11, which is proposed and not confirmed | Proposal, section 9 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
