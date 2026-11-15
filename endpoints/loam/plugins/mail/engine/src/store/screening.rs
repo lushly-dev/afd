@@ -2,10 +2,13 @@
 //! specification's 6.3 and 7.2): the census's Q2 as the engine computes it,
 //! and how many stream stories each of the two groupings would make.
 //!
-//! Counts only. Screening proper, with the person's decisions, is step C2's;
-//! here a sender is `known` when the person has written to it, which is what
-//! the census measured, and every other inbound message is `bulk` when a
-//! lookup decides it (rule 3) and `unknown` otherwise.
+//! Counts only. Screening proper, with the person's decisions, is step C2's
+//! (`classes.rs`); here a sender is `known` when the person has written to
+//! it, which is what the census measured, and every other inbound message is
+//! `bulk` when a lookup decides it (rule 3) and `unknown` otherwise. Since
+//! step C2 the person's own addresses include those they said are theirs
+//! (a `mine` decision), which the census did not have: on a store with such
+//! a decision the report's Q2 leaves that address's mail out.
 
 use serde::Serialize;
 

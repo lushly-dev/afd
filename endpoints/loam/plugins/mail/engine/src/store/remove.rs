@@ -184,6 +184,7 @@ const HANDLED: &[(&str, &str)] = &[
     ("part", "message"),
     ("link", "message"),
     ("recipient", "message"),
+    ("screening", "message"),
     ("thread_place", "mailbox"),
 ];
 

@@ -23,7 +23,8 @@ It is built a step at a time from the specification's section 15. It answers `he
 JSON: `loam-mail <command> [input]`. Its commands so far are `mail-account-add`,
 `mail-account-list`, `mail-sync`, `mail-status`, `mail-rebuild`, and the read commands
 `mail-thread-list`, `mail-thread-open`, `mail-message-open`, `mail-attachment-open`,
-`mail-search`, `mail-sender-list` and `mail-sender-show`. Whatever came from mail, a file's bytes included, sits in a part of a result
+`mail-search`, `mail-sender-list`, `mail-sender-show` and `mail-message-list`, and screening's
+`mail-sender-screen`, `mail-sender-suggest`, `mail-sender-accept` and `mail-sender-dismiss`. Whatever came from mail, a file's bytes included, sits in a part of a result
 labelled `"trust": "content"`. It syncs an iCloud account over IMAP. To add one, at a terminal on macOS, with an
 [app-specific password](https://support.apple.com/en-us/102654):
 
@@ -47,6 +48,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
   showed. `derived.rs` holds what is: a message's fields and parts, its thread, where each
   thread shows, and the rebuild that makes all of it again from the log. `senders.rs` holds each
   sender's history with the person, and `screening.rs` the report of the specification's 6.3.
+  `classes.rs` holds each inbound message's screening class and each template's count, and
+  `decisions.rs` the person's decisions on senders and agents' suggestions (7.2 and 7.3).
 - **What code reads from a message** (`src/derive.rs`, `src/html.rs`): the sender, the subject,
   the date, the ids that join a thread, the parts and the text a person sees, with `mail-parser`
   and `html5ever`; and the evidence of the specification's section 6: hidden text, links, list
@@ -57,8 +60,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
 - **Sync** (`src/sync.rs`): a pass over an account, mailboxes taking turns, resumable after any
   stop; `src/store/sync.rs` is what it reads and records in the store.
 - **The keychain** (`src/secrets.rs`): where an account's sign-in is kept.
-- **The commands** (`src/commands.rs`, the read commands in `src/read.rs` and the sender
-  commands in `src/senders.rs`, over `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
+- **The commands** (`src/commands.rs`, the read commands in `src/read.rs`, the sender
+  commands in `src/senders.rs` and screening's in `src/screening.rs`, over `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
 
 Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the
 specification's section 14 asks for. `tests/live.rs` runs a pass against a real iCloud account,
