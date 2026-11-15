@@ -7,6 +7,7 @@ import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
+import { stampFrom, todoNotFound } from './shared.js';
 
 const inputSchema = z.object({
 	id: z.string().min(1, 'Todo ID is required'),
@@ -20,28 +21,22 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 	expose: { mcp: true },
 	tags: ['todo', 'toggle', 'write', 'single'],
 	mutation: true,
+	undoable: true,
+	approval: 'not-required',
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
 
-	async handler(input) {
+	async handler(input, context) {
 		const existing = store.get(input.id);
 		if (!existing) {
-			return failure({
-				code: 'NOT_FOUND',
-				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo-list to see available todos',
-			});
+			return failure(todoNotFound(input.id));
 		}
 
-		const updated = store.toggle(input.id);
+		const updated = store.toggle(input.id, stampFrom(context).now);
 
 		if (!updated) {
-			return failure({
-				code: 'NOT_FOUND',
-				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo-list to see available todos',
-			});
+			return failure(todoNotFound(input.id));
 		}
 
 		const action = updated.completed ? 'Marked as completed' : 'Marked as pending';
@@ -49,6 +44,9 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 		return success(updated, {
 			reasoning: `${action}: "${updated.title}"`,
 			confidence: 1.0,
+			// Setting the previous value back is safe to repeat; toggling again is not
+			undoCommand: 'todo-update',
+			undoArgs: { id: updated.id, completed: existing.completed },
 		});
 	},
 });

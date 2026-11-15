@@ -235,7 +235,14 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 	if (target === 'umbel' || target === 'umbel-mounted') {
 		return startUmbel(target, extraEnv);
 	}
-	const env = { ...process.env, ...extraEnv, TODO_STORE_TYPE: 'memory' } as Record<string, string>;
+	// The shared suites test the contract every language meets, without approvals until the
+	// to-do reference plan's phase 5, so they run with APPROVALS=off, as they set CONFIRMATIONS.
+	const env = {
+		...process.env,
+		APPROVALS: 'off',
+		...extraEnv,
+		TODO_STORE_TYPE: 'memory',
+	} as Record<string, string>;
 	if (target === 'ts') {
 		return {
 			transport: new StdioClientTransport({

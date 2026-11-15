@@ -1,5 +1,6 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Limit: `expect` cannot assert `undoCommand`, so step 2 names todo-update itself. The draft says
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# Limit: `expect` cannot assert `undoCommand`, so step 2 names todo-update itself, and
 # todo-toggle's result carries undoCommand: todo-update and undoArgs: { id, completed }, and
 # todo-toggle-batch with `completed` given carries undoCommand: todo-toggle-batch and undoArgs:
 # { ids: <those it changed>, completed: <their previous value> }. The steps prove the undoArgs

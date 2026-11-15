@@ -1,8 +1,9 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Limit: `expect` cannot assert `undoCommand`; the draft says todo-delete and todo-delete-batch
-# return undoCommand: todo-restore and undoArgs: { ids: <the ids actually deleted> }. A deleted
-# todo is kept, out of every list but `todo-list { deleted: true }`, until todo-clear { deleted: true }
-# or { all: true } removes it.
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# Limit: `expect` cannot assert `undoCommand`; src/commands/__tests__/undo.test.ts checks that
+# todo-delete and todo-delete-batch return undoCommand: todo-restore and undoArgs: { ids: <the
+# ids actually deleted> }. A deleted todo is kept, out of every list but
+# `todo-list { deleted: true }`, until todo-clear { deleted: true } or { all: true } removes it.
 # Limit: a step's input must be an object, so these steps pass undoArgs.ids by name where an
 # agent passes the whole undoArgs object.
 name: Undo a delete
@@ -52,6 +53,7 @@ steps:
         description: Call the hire shop first
         priority: medium
         completed: false
+        deletedAt: { notExists: true }
   - description: Two more todos exist
     command: todo-create-batch
     input:

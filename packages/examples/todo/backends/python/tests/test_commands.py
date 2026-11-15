@@ -16,6 +16,16 @@ from todo_backend.store import EXAMPLE_ROOT
 SPEC_PATH = EXAMPLE_ROOT / "spec" / "commands.schema.json"
 
 
+def python_spec_commands() -> Dict[str, Any]:
+    """The spec's commands that Python implements: those without ``implementedBy``, or naming it."""
+    commands = json.loads(SPEC_PATH.read_text(encoding="utf-8"))["commands"]
+    return {
+        name: entry
+        for name, entry in commands.items()
+        if "python" in entry.get("implementedBy", ["python"])
+    }
+
+
 @pytest.fixture
 def server():
     return create_app(MemoryStore())
@@ -28,7 +38,7 @@ async def call(server, name: str, args: Dict[str, Any] | None = None) -> Dict[st
 
 
 def test_registers_exactly_the_spec_commands():
-    spec_commands = set(json.loads(SPEC_PATH.read_text(encoding="utf-8"))["commands"])
+    spec_commands = set(python_spec_commands())
     server = create_app(MemoryStore())
 
     registered = {command.name for command in server.list_commands()}
@@ -41,7 +51,7 @@ def test_registers_exactly_the_spec_commands():
 
 
 def test_declares_the_spec_metadata():
-    spec_commands = json.loads(SPEC_PATH.read_text(encoding="utf-8"))["commands"]
+    spec_commands = python_spec_commands()
     for command in create_app(MemoryStore()).list_commands():
         expected = dict(spec_commands[command.name]["metadata"])
         expected["contexts"] = sorted(expected["contexts"])

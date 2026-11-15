@@ -1578,6 +1578,9 @@ importers:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../testing
       tsx:
         specifier: ^4.23.15
         version: 4.23.15

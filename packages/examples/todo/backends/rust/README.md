@@ -1,7 +1,8 @@
 # Rust Todo Backend
 
 Rust implementation of the AFD todo backend, built on the `afd` crate and Axum.
-It implements all eleven commands of [`spec/commands.schema.json`](../../spec/commands.schema.json)
+It implements the eleven commands of [`spec/commands.schema.json`](../../spec/commands.schema.json) that
+every backend shares (not yet those marked `implementedBy`)
 and passes the shared conformance suite (`pnpm test:conformance:rs`).
 
 ## What it is

@@ -9,6 +9,7 @@ import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
+import { stampFrom, todoNotFound } from './shared.js';
 
 const inputSchema = z.object({
 	ids: z
@@ -47,18 +48,23 @@ export interface BatchDeleteResult {
 
 export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>({
 	name: 'todo-delete-batch',
-	description: 'Delete multiple todos at once',
+	description:
+		'Delete multiple todos at once. They are kept with the deleted todos, and todo-restore brings them back until todo-clear empties them',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'delete', 'write', 'batch', 'destructive'],
 	mutation: true,
 	destructive: true,
+	undoable: true,
+	// It can be undone, so it is not held for approval
+	approval: 'not-required',
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],
 
-	async handler(input) {
+	async handler(input, context) {
+		const now = stampFrom(context).now;
 		const deletedIds: string[] = [];
 		const failed: FailedDelete[] = [];
 
@@ -73,17 +79,13 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 				failed.push({
 					index: i,
 					id,
-					error: {
-						code: 'NOT_FOUND',
-						message: `Todo with ID "${id}" not found`,
-						suggestion: 'Use todo-list to see available todos',
-					},
+					error: todoNotFound(id),
 				});
 				continue;
 			}
 
 			// Attempt deletion
-			const deleted = store.delete(id);
+			const deleted = store.delete(id, now);
 			if (deleted) {
 				deletedIds.push(id);
 			} else {
@@ -121,12 +123,13 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 		// Build warnings
 		const warnings = [];
 
-		// Always warn about destructive batch operation
-		warnings.push({
-			code: 'DESTRUCTIVE_BATCH',
-			message: `This operation permanently deleted ${deletedIds.length} todos`,
-			severity: 'caution' as const,
-		});
+		if (deletedIds.length > 0) {
+			warnings.push({
+				code: 'DESTRUCTIVE_BATCH',
+				message: `Deleted ${deletedIds.length} todos; todo-restore brings them back until todo-clear empties the deleted todos`,
+				severity: 'caution' as const,
+			});
+		}
 
 		// Add partial success warning if applicable
 		if (failed.length > 0 && deletedIds.length > 0) {
@@ -142,7 +145,11 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 			{
 				reasoning,
 				confidence,
-				warnings,
+				warnings: warnings.length > 0 ? warnings : undefined,
+				...(deletedIds.length > 0 && {
+					undoCommand: 'todo-restore',
+					undoArgs: { ids: deletedIds },
+				}),
 			}
 		);
 	},
