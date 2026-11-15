@@ -15,7 +15,8 @@
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"dev:ts": "cd backends/typescript && pnpm dev",
 		"dev:py": "uv run --project backends/python todo-server",
-		"dev:web": "cd frontends/vanilla && npx serve .",
+		"dev:web": "pnpm --dir frontends/fast-af dev",
+		"test:page": "pnpm --dir backends/typescript build && pnpm --dir frontends/fast-af build && pnpm --dir frontends/fast-af test:browser",
 		"dev:react": "cd frontends/react && pnpm dev"
 	},
 	"devDependencies": {
