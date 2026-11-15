@@ -39,6 +39,8 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 
 The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 
+**Credit goes to the owner.** Commits are authored by the owner, never by an agent. An agent that helped is listed with an email-free trailer, `Assisted-by: Claude Code`, never `Co-authored-by:`, which GitHub counts as a full contributor. `scripts/commit-credit.mjs` refuses either in the commit-msg hook and in `ci-ok`.
+
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
 
 When asking the user questions at the end of a turn:
