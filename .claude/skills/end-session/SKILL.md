@@ -63,8 +63,8 @@ Every session PR ends merged, or closed with a recorded reason.
   equivalent change; close a redundant PR as superseded.
 - **Red CI** goes back through `prepare-pr`, which owns push and update.
 - **Merge only when the user authorized it**, through `prepare-pr`'s merge step.
-  Bind the merge to the head whose checks you verified, since `ci-ok`, `main`'s
-  one required check, does not pin a head: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
+  Branch protection requires only `ci-ok`, which a newer green head also passes,
+  so bind the merge to the head whose checks you verified: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
   40-character SHA (a short one is rejected).
 - **A wait that would block the close-out indefinitely** switches to `park`.
 
