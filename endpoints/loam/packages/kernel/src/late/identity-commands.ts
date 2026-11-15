@@ -20,6 +20,10 @@ import {
 	OWNER_COMMANDS,
 } from './member-commands.js';
 
+/** `palette-search`'s most and default results (`PALETTE_SEARCH_LIMIT`, a literal here: imported, first paint's module would part). */
+export const SEARCH_MAX = 50;
+export const SEARCH_DEFAULT = 20;
+
 /**
  * Human commands (3.4's second and third rows): an agent never changes or lists a person's credentials,
  * sessions, personas or invitations, so the agent interface is refused `HUMAN_REQUIRED`, and none is served over
@@ -464,16 +468,23 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 			return {
 				...command,
 				async handler(input: unknown, context: CommandContext) {
-					const result = (await command.handler(input, context)) as CommandResult<{
+					if (auth.getSession().status === 'authenticated') return command.handler(input, context);
+					// Searched to the schema's most, then filtered, then cut to the limit asked: filtered after the limit,
+					// the commands a signed-out page cannot run fill it (the empty query lists by name), and none is left.
+					const asked = (input ?? {}) as { limit?: number };
+					const result = (await command.handler(
+						{ ...asked, limit: SEARCH_MAX },
+						context
+					)) as CommandResult<{
 						items: { name: string; kind?: string }[];
 					}>;
-					if (!result.success || auth.getSession().status === 'authenticated') return result;
+					if (!result.success) return result;
 					return {
 						...result,
 						data: {
-							items: (result.data?.items ?? []).filter(
-								(item) => item.kind === undefined && signedOut.includes(item.name)
-							),
+							items: (result.data?.items ?? [])
+								.filter((item) => item.kind === undefined && signedOut.includes(item.name))
+								.slice(0, asked.limit ?? SEARCH_DEFAULT),
 						},
 					};
 				},

@@ -263,8 +263,8 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * (+537) is within its row.
  * Phase 3's step 6 (agent members) raised the two lazy ceilings it passed under D115, each to its measurement plus a
  * margin, against the figures step 4 recorded at `main`'s head (`3c0a3b25`) on the same machine. First paint 299,247
- * and 92,938 gzip, +43 and +18 (the two settle commands' names in `BOOT_ONLY`), within its ceilings, so neither is
- * raised. `lateIdentityMinified` 47,000 to 63,000 (60,450, from 45,777: the seven `agent-member-*` commands with their
+ * and 92,939 gzip, +43 and +19 (the two settle commands' names in `BOOT_ONLY`), within its ceilings, so neither is
+ * raised. `lateIdentityMinified` 47,000 to 63,000 (60,649, from 45,777: the seven `agent-member-*` commands with their
  * schemas, `membership-settle` and `agent-member-settle`, the members read for the sponsor rules and the rows filtered
  * for the caller). `accountMinified` 22,500 to 28,000 (25,727, from 21,046: the members tab's agent table, the
  * sponsor's confirm and decline and an owner's add form). `late` 77,579 (+464: line 4 on every command of an agent

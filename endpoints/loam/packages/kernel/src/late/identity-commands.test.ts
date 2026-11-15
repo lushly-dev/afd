@@ -261,6 +261,20 @@ describe('P3-E1: signed out in `provider` mode (2.1, 4.5)', () => {
 		expect(searched.data?.items.length).toBeGreaterThan(0);
 		for (const item of searched.data?.items ?? [])
 			expect(SIGNED_OUT_COMMANDS as readonly string[]).toContain(item.name);
+		// At the default limit too: the empty query lists by name, and the commands a signed-out page cannot run
+		// (`account-*`, `agent-member-*`, ...) come first, so the filter runs before the limit (step 6).
+		const first = await made.kernel.call<{ items: { name: string }[] }>('palette-search', {
+			query: '',
+		});
+		expect(first.data?.items.map((item) => item.name)).toEqual(
+			expect.arrayContaining(['app-list', 'auth-sign-in'])
+		);
+		expect(first.data?.items.length).toBeLessThanOrEqual(20);
+		const two = await made.kernel.call<{ items: { name: string }[] }>('palette-search', {
+			query: '',
+			limit: 2,
+		});
+		expect(two.data?.items).toHaveLength(2);
 		await signIn(made.kernel, 'bea@example.com');
 		const signedIn = await made.kernel.call<{ items: { name: string }[] }>('palette-search', {
 			query: 'project',
