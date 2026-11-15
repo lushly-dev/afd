@@ -18,14 +18,13 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **State:** active. The owner asked on 2026-11-14 to save the proposal and start the work, and
   decided D1 to D3 the same day (the proposal's [decisions](todo-reference.proposal.md#decisions)):
   React stays beside the FAST-AF frontend, both on `violet-elements`.
-- **Last verified:** 2026-11-15 on branch `t3/refresh-todo-afd-examples`, based on `main` at
-  `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
-- **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). The parts it left open belong to
-  later phases, as the findings table says.
-- **In progress:** phase 2. The jobs are written and walked, and the owner decided D6 to D10.
-  The first slice (jobs 1, 3, 4 and 9) and jobs 2, 5 and 8 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251) on 2026-11-15, in the
-  TypeScript backend; job 7, the rest of the commands' metadata, local-db and CI remain. See
-  [Phase 2](#phase-2-the-typescript-reference).
+- **Last verified:** 2026-11-15 on branch `t3/todo-reference-phase2-localdb`, based on `main` at
+  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed.
+- **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). Phase 2, in the
+  TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
+  journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
+  2026-11-15. The parts they left open belong to later phases, as the findings table says.
+- **In progress:** nothing. Job 6 (the view) waits for the page in phases 3 and 4; phase 3 is next.
 - **Not started:** phases 3 to 5.
 
 ## Plan
@@ -33,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | Phase 2 complete once the SQLite store merges; then phase 3 |
+| 2. The TypeScript reference | Done, but job 6, which waits for phases 3 and 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -172,7 +171,7 @@ Merged in [#1260](https://github.com/lushly-dev/afd/pull/1260) on 2026-11-15:
 - **CI.** `conformance.yml` runs both and triggers on `packages/cli`, `packages/client` and
   `packages/testing`; `scripts/affected/suites.mjs` lists the same steps for `pnpm verify`.
 
-On branch `t3/todo-reference-phase2-localdb`, 2026-11-15, not yet merged:
+Merged in [#1263](https://github.com/lushly-dev/afd/pull/1263) on 2026-11-15:
 
 - **SQLite storage (D4).** `TODO_STORE_TYPE=sqlite` stores the todos, the deleted todos and the
   history in one database through `@lushly-dev/local-db`'s SQLite adapter (`src/store/sqlite.ts`).
@@ -212,3 +211,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 2 slice | Built undo, deleted todos, `todo-restore`, `todo-history` and the clear approval in TypeScript; jobs 1 to 5, 8 and 9 run in the backend's tests |
 | 2026-11-15 | Phase 2 journal | Journal and replay (job 7), title, output and examples on every command, strict surface validation in the tests, `defaultMiddleware()`; in #1256 |
 | 2026-11-15 | Phase 2 CI | Approval suite, six TypeScript-only conformance cases, `afd validate --surface --strict` and `afd scenario run` against the backend in CI, the older scenarios without a clear; in #1260 |
+| 2026-11-15 | Phase 2 SQLite | The SQLite store on local-db (D4), opt-in until phase 5; every job runs on both stores; phase 2 complete but job 6; in #1263 |
