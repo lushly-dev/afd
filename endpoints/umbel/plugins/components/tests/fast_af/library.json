@@ -69,7 +69,7 @@
 			"tag": "violet-chat-composer"
 		},
 		{
-			"digest": "sha256:5eb858b1f570f6f8139906fec731efcea46b07e57d913eb25e1316283974058c",
+			"digest": "sha256:d40d5db4dc4b715428e11dd86f1734fe725bd901f4707c3bd21b738b505be0fb",
 			"status": "stable",
 			"tag": "violet-chat-suggestions"
 		},
@@ -86,7 +86,7 @@
 			"tag": "violet-color-picker"
 		},
 		{
-			"digest": "sha256:a9b689d78c453d709822957669868d7a4f2ea16bfa3bd5e7266b0424319f9d48",
+			"digest": "sha256:fd7c9defbc4807f44b7a5f16daacc5ea984994bc36b51bb69a5594ce1eb25fb5",
 			"status": "stable",
 			"tag": "violet-color-swatch"
 		},
@@ -107,22 +107,22 @@
 			"tag": "violet-data-grid"
 		},
 		{
-			"digest": "sha256:0a1d48b3b23360dd67387fd9950f1a63e182e5b11e2a073583aae18e0062d8a6",
+			"digest": "sha256:2f7a9b8d3a6830bee736bc7e9e9ac068e05cba6fad5f4220ac0fb81a60ca79f1",
 			"status": "stable",
 			"tag": "violet-data-grid-attachment-cell"
 		},
 		{
-			"digest": "sha256:97100d252ff30b2d19918e5491f7236b62c48a662f008559f292492884912186",
+			"digest": "sha256:3ac5326f4357ae582eec222cdeee8713986d8483c0ae0fe4fbaf13cb9bcf4b0b",
 			"status": "stable",
 			"tag": "violet-data-grid-multi-picker"
 		},
 		{
-			"digest": "sha256:27913eb1af4efc96ff80a25f56c9fec21c9a4174d84e7def2393a42c421f4cc6",
+			"digest": "sha256:3f89e3d57b0994e15c588f14c8bbd0192305afb2c1a0b16082e034dc8e66692b",
 			"status": "stable",
 			"tag": "violet-data-grid-persona-picker"
 		},
 		{
-			"digest": "sha256:b3e1c4ef274d1c78e3bce0eee1ab00eb288cccac96e8309365658600b2bd59ba",
+			"digest": "sha256:5ba7142458c6d2b0e4d45c2a11b4d08b7d235690f2bb7190eea6bf970128241e",
 			"status": "stable",
 			"tag": "violet-data-grid-pill-select"
 		},
@@ -132,7 +132,7 @@
 			"tag": "violet-data-grid-rating"
 		},
 		{
-			"digest": "sha256:5aa403908ed0f7f683ceeb943fd99d63498e087226b6218b9db3092416ac58bd",
+			"digest": "sha256:cdf42ff8db6fc9b67a70718d3d32478db9692ae8818b51cd30aafa7405c4f3c2",
 			"status": "stable",
 			"tag": "violet-data-grid-reference-picker"
 		},
@@ -154,7 +154,7 @@
 			"tag": "violet-dialog"
 		},
 		{
-			"digest": "sha256:3e1ccc0b575b0361c184fc149ff5fc625f215599b07709d7c7d2366649c5cd1f",
+			"digest": "sha256:b9645e399d146ddfbe1a6a4d9262922ddfc5cdaee5c588c4fbedbdda41a81fd1",
 			"status": "stable",
 			"summary": "Horizontal or vertical rule between regions; set decorative when the line only adds visual separation.",
 			"tag": "violet-divider"
@@ -194,12 +194,12 @@
 			"tag": "violet-icon-button"
 		},
 		{
-			"digest": "sha256:ae408b7a40776321204c3e70291d74cae07541cf5151caaf155a6aff57d74d96",
+			"digest": "sha256:4dd8117c624b8563d5c6bc3ec91d85eb03395a1bef8c56a40f4b3e80f6fe4976",
 			"status": "stable",
 			"tag": "violet-image"
 		},
 		{
-			"digest": "sha256:26d6fece74672282c756547ebb5d36318983488177cec69a4bd56b88cc1529d8",
+			"digest": "sha256:9fe932f6925989557d233f89d835d8217e6678caa344d90dfd8585841b1ea733",
 			"status": "stable",
 			"summary": "Always-visible list of violet-option children for choosing one value, or several with multiple; not a form field.",
 			"tag": "violet-listbox"
@@ -211,13 +211,13 @@
 			"tag": "violet-menu"
 		},
 		{
-			"digest": "sha256:6c641fa1fcb36ae3d77509e92233295fdc36cadad89882eb00479228da2b9867",
+			"digest": "sha256:d95dccf851008c3b8d1cca2cf2cee26dffc5eb7b5ebff93646750c08be5461c3",
 			"status": "stable",
 			"summary": "One action inside violet-menu, with optional before and after slots for an icon or a shortcut hint.",
 			"tag": "violet-menu-item"
 		},
 		{
-			"digest": "sha256:e3f34f2e3da48edda75504bd804da143b81b9843876e94f579a2862e80eff286",
+			"digest": "sha256:c40202943cb4d828e2c76286ac69432dfd1db8a9806fbd9bf6827ef495abf3e6",
 			"status": "stable",
 			"tag": "violet-message"
 		},
@@ -227,7 +227,7 @@
 			"tag": "violet-message-media"
 		},
 		{
-			"digest": "sha256:192714dd8a14a3ec0763d211ec8ea7d4bbfed74cb0963ab90f00caf2636327ee",
+			"digest": "sha256:560889d73a1dbfe5ea3facae08147795eff38356b946e5f3b50b733364ee83af",
 			"status": "stable",
 			"tag": "violet-message-status"
 		},
@@ -254,7 +254,7 @@
 			"tag": "violet-pagination"
 		},
 		{
-			"digest": "sha256:4c28cfcca1a82355626e9991df4bb648e583fe458f768bca99da508baa3457ff",
+			"digest": "sha256:6f440d3e0ab2834d8e71c25ff238c9b9d66ae91ec7b55bc32e389f8b745f9405",
 			"status": "stable",
 			"tag": "violet-persona"
 		},
@@ -289,12 +289,12 @@
 			"tag": "violet-range-slider"
 		},
 		{
-			"digest": "sha256:c37d0c4e30b276293bbf34c4722875ba13b4ea05f883e6d5c936e4396fc10293",
+			"digest": "sha256:066b32c4ab18bf802a034a1c5582e318d4083b1f91a26bc83cbd17e4fca6634a",
 			"status": "stable",
 			"tag": "violet-reasoning-block"
 		},
 		{
-			"digest": "sha256:567eb7b310e83ad76ef241fe3835dac80885864df6f99257acc5a80e61b35d00",
+			"digest": "sha256:600128a264ab8eebfdfae0b6a55b8cbfbf1e520887966b0d237fc0a8cea88679",
 			"status": "stable",
 			"summary": "One option inside violet-segmented-control: its slotted text is the visible label and its value is what the group selects.",
 			"tag": "violet-segment"
@@ -334,7 +334,7 @@
 			"tag": "violet-source-citation"
 		},
 		{
-			"digest": "sha256:36ec463c5878fc52c83d9a3c404da3f28a649c74ca83cb90ff2bc7cceba4fb2e",
+			"digest": "sha256:ad15a75d5dcc7916b298075d0dd6b225444f1a1240d106da8cf8630b5b640261",
 			"status": "stable",
 			"summary": "Small indeterminate loading indicator for a local wait, such as inside a button or a panel that is loading.",
 			"tag": "violet-spinner"
@@ -352,7 +352,7 @@
 			"tag": "violet-tab"
 		},
 		{
-			"digest": "sha256:5e7a6c45e29d3b80107762051ce9ee45eb7203ed597cd9531e80145fd0f134ae",
+			"digest": "sha256:2e2528d73260ed2cd94571c062742990f2217e4c2dae031c3da9e1092a434f2f",
 			"status": "stable",
 			"summary": "Content region inside violet-tabs, shown while the tab at the same position is active.",
 			"tag": "violet-tab-panel"
@@ -426,13 +426,13 @@
 			"tag": "violet-tree"
 		},
 		{
-			"digest": "sha256:8f6022f45e7d270f38403046ac5f3860cc4270bf1f940f1eed82dd6faf342f81",
+			"digest": "sha256:5b2b2cccbc6aa43f4afa82f026be868330b3455ca1df64f65d9fb4e056dbc5c4",
 			"status": "stable",
 			"summary": "One node of a violet-tree; child violet-tree-item elements make it a branch.",
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:8127062574909a8471002a307b0f83df9ac55d8fa845f342a4e329b9de08368b",
+	"digest": "sha256:ae4d1e4063e14cfbc44114d3436cecda4439c9367bc03f3d8e97eae746a1468c",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {
