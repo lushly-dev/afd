@@ -10,12 +10,12 @@ import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppStoreRecord } from '../apps/store.js';
 import type { AppsRuntime } from '../apps-runtime.js';
-import { BOOT_ONLY } from '../commands.js';
+import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
-import { type AccessActorV1, personOf } from '../scope/access.js';
+import { type AccessActorV1, AGENT_MEMBER_PREFIX, personOf } from '../scope/access.js';
 import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
 import type { PersonalStore } from '../scope/personal.js';
 import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
@@ -51,6 +51,15 @@ export interface LateScopeDeps {
 	settle?(name: string, call: CommandContext): Promise<void> | undefined;
 	/** The kernel's hearing of the adapter, built after this, which needs `applyScopeChange` (phase 3 specification, 4.4). */
 	session?(): SessionSettle | undefined;
+	/**
+	 * Top-level work before a command's handler, after line 0 (phase 3 specification, 4.4): the sponsor's journaled
+	 * membership read before `agent-member-add` and `-update`. A refusal is the call's.
+	 */
+	prepare?(
+		name: string,
+		input: unknown,
+		call: CommandContext
+	): Promise<CommandResult<never> | undefined>;
 	/**
 	 * The shell commands whose whole effect is at the provider (phase 3 specification, 3.4): recorded, so a replay
 	 * answers each from its entry, and one it does not hold stops as `REPLAY_NOT_RECORDED`.
@@ -311,6 +320,18 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				if (refused) return refused;
 			}
 			const requested = call.scope as ScopeV1;
+			// Line 4 for an agent member, on every command but the kernel's own (phase 3 specification, 3.3 and 8.3): its
+			// record must exist and be `active`, act for its sponsor, and hold the call's scope, so a pending, suspended or
+			// unknown one is allowed nothing. Decided on the stamped actor, after afd-auth's middleware (step 5's B1).
+			if (
+				call.actor?.id?.startsWith(AGENT_MEMBER_PREFIX) &&
+				!INTERNAL_COMMANDS.includes(name) &&
+				!scope.allows(call.actor, requested)
+			) {
+				return projectNotFound();
+			}
+			const prepared = await deps.prepare?.(name, input, call);
+			if (prepared) return prepared;
 			const apps = deps.apps();
 			const owner = apps.owners.get(name)?.instance;
 			// A shell command that acts at the call's scope: the access decision on that scope first, so a

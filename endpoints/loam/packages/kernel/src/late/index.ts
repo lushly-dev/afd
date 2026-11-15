@@ -13,12 +13,11 @@ import type { DataAdapter } from '@lushly-dev/local-db';
 import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { createDefaultLayout } from '../layout.js';
-import { type AccessActorV1, personKey } from '../scope/access.js';
-import { createRecordCache } from '../scope/cache.js';
+import { type AccessActorV1, decideAccess, personKey } from '../scope/access.js';
 import { MCP_CONTEXT_FIELDS } from '../scope/field.js';
 import { type LateScope, sessionActor } from '../scope/middleware.js';
 import type { PersonalStore } from '../scope/personal.js';
-import type { AgentMemberV1, ScopeV1 } from '../scope/records.js';
+import type { ScopeV1 } from '../scope/records.js';
 import type { QueuedTicket } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import type {
@@ -56,7 +55,6 @@ import { createScopeCommands } from './scope-commands.js';
 import type { SessionSettle } from './session-settle.js';
 import { createShellCommands, type ShellCommandDeps } from './shell-commands.js';
 import { createShellStores, type ShellStores } from './stores.js';
-import { AGENT_MEMBER_TABLE } from './tables.js';
 
 /**
  * `DOCUMENTS_LAYOUT_ID`'s value, a literal here: imported, the first paint's `shell-state` chunk would export one
@@ -242,6 +240,7 @@ export async function createLateParts(
 		{ createDocumentCommands, trashBefore },
 		{ createEditorParts },
 		{
+			createAgentMembers,
 			createSessionSettle,
 			createIdentityCommands,
 			createMemberCommands,
@@ -268,10 +267,19 @@ export async function createLateParts(
 				? personKey(sessionActor(deps.auth, deps.clock))
 				: (settledFor ?? undefined);
 		});
-	// The `agent-member` table, which line 4 of the access decision reads (phase 3 specification, 3.3).
-	const agents = createRecordCache<AgentMemberV1>(AGENT_MEMBER_TABLE);
-	await agents.load(deps.store);
-	deps.scope.agents = agents;
+	// Agent members (phase 3 specification, 8): the `agent-member` table, which line 4 of the access decision reads
+	// (3.3), and its commands. Boot's own `runBoot` journals the sponsor's read and the suspensions, top-level (4.4).
+	const agentMembers = createAgentMembers({
+		auth: deps.auth,
+		identity: deps.identity,
+		store: deps.store,
+		scope: deps.scope,
+		runBoot: deps.runBoot,
+		replaying: () => deps.internals?.replaying === true,
+		kit: { ...DOCUMENT_KIT, decideAccess, isOwner, membershipUnavailable },
+	});
+	await agentMembers.cache.load(deps.store);
+	deps.scope.agents = agentMembers.cache;
 	// The editor owner after a call that may move it (documents specification, 5.4); built below, with
 	// the scope it needs.
 	let editor: EditorParts | undefined;
@@ -305,7 +313,7 @@ export async function createLateParts(
 		identity: deps.identity,
 		kit: { ...DOCUMENT_KIT, personKey, isOwner },
 		membership: () => deps.scope.membership,
-		agents: () => agents.all(),
+		agents: agentMembers,
 		// Step 5's persona, built below: what other members see, and the active persona's id (step 5's deviation 8).
 		personas: {
 			presentationOf: (person) => persona.presentationOf(person),
@@ -333,6 +341,7 @@ export async function createLateParts(
 		...deps,
 		recorded: PROVIDER_COMMANDS,
 		session: () => sessions,
+		prepare: agentMembers.prepare,
 		documents,
 		async settle(name, call) {
 			await editor?.settle(name, call);
@@ -353,6 +362,7 @@ export async function createLateParts(
 		ports: deps.identityPorts ?? deps.ports,
 		identityCommands,
 		persona,
+		agents: agentMembers,
 		lateScope,
 		drafts,
 		ensureEditor: (project) => editorParts.ensure(project),
@@ -430,6 +440,7 @@ export async function createLateParts(
 			...identityCommands.commands,
 			...memberCommands.commands,
 			...persona.commands,
+			...agentMembers.commands,
 		].map((command) => [command.name, command])
 	);
 	appearance = byName.get('appearance-set');
@@ -512,6 +523,9 @@ export async function createLateParts(
 				after: (name) => {
 					if (name.startsWith('auth-')) sessions?.afterAuth();
 					else if (MEMBERSHIP_CHANGING_COMMANDS.includes(name)) sessions?.membershipChanged();
+					// A sponsor a call found no member, as `member-remove`'s: their agent members are suspended by a
+					// top-level `agent-member-settle` after its entry, and the next call waits for it (4.4, 8.3).
+					if (agentMembers.pending()) sessions?.follow(() => agentMembers.flush());
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),

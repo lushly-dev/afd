@@ -6,7 +6,7 @@
  */
 
 import { createAuthEndpoint, sessionMiddleware } from 'better-auth/api';
-import { type BindingAdapter, readBinding } from './binding.js';
+import { type BindingAdapter, membershipDigest, readBinding } from './binding.js';
 import { linkRefusal } from './enrolment.js';
 import { isOwnerRole, loamRole } from './roles.js';
 
@@ -55,8 +55,9 @@ const notMember = () =>
 /**
  * - `GET <path>/loam/account`: the person's own account (5.1): their organizations, read-only, the bound one marked;
  *   their membership of the workspace; how they sign in; how they could recover (5.7); when they last did.
- * - `GET <path>/loam/members?limit=&offset=`: the bound organization's people (7.2), to a member of it: name, image
- *   and role, and each one's email only when the caller is an owner (D96).
+ * - `GET <path>/loam/members?limit=&offset=`: the bound organization's people (7.2), to a member of it: name, image,
+ *   role and their membership's digest (which `membership-settle` journals for a sponsor, 4.4), and each one's email
+ *   only when the caller is an owner (D96).
  * - `GET <path>/loam/invitations`: the person's own pending invitations, to their verified email (5.3), with each
  *   organization's slug and name, which Better Auth's own list does not carry.
  */
@@ -199,6 +200,8 @@ export function memberEndpoints(deps: MembersDeps) {
 						name: user.name,
 						image: user.image ?? null,
 						role: loamRole(row.role),
+						// What `membership-settle` journals of a sponsor (4.4): a hash of what this answer already shows.
+						digest: membershipDigest(binding.organizationId, row),
 						...(owner ? { email: user.email } : {}),
 					});
 				}
