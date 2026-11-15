@@ -7,7 +7,7 @@ components. Every fact says where it came from. Specimen builds packs from
 what it observes when it runs a library's stories (`bench.pack()`; see
 [How Specimen builds a pack](#how-specimen-builds-a-pack)), and an Umbel plugin
 serves them in batches. The plan is the
-[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/active/component-briefs/component-briefs.proposal.md).
+[Component Briefs proposal](https://github.com/lushly-dev/afd/blob/main/docs/features/complete/component-briefs/component-briefs.proposal.md).
 
 **Version 1 is fixed.** A reader refuses a key it does not know, so any
 change to what a file may hold, an added key included, is a new version

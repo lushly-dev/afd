@@ -1,4 +1,4 @@
-import { html } from "@lushly-dev/fast-element";
+import { html, Updates } from "@lushly-dev/fast-element";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { userEvent } from "vitest/browser";
 import type { VioletListbox } from "../listbox/violet-listbox";
@@ -55,6 +55,11 @@ async function renderMultiPicker(): Promise<VioletDataGridMultiPicker> {
 }
 
 async function openPicker(element: VioletDataGridMultiPicker) {
+  // FAST renders on the next animation frame, and userEvent.click freezes the trigger's
+  // locator from its accessible name when called. A selection set just before opening
+  // would rename the trigger after that, so the locator matches nothing and the click
+  // times out (#1199). Settle pending renders first.
+  await Updates.next();
   const trigger = shadowElement<HTMLButtonElement>(element, ".trigger");
   await userEvent.click(trigger);
   await vi.waitFor(() => {
@@ -230,6 +235,8 @@ describe("violet-data-grid-multi-picker", () => {
     expect(element.open).toBe(true);
     expect(grid.editingCell).toEqual({ rowId: "row", columnId: "tags" });
     expect(change).not.toHaveBeenCalled();
+    // The selection change renamed the trigger; settle the render first (see openPicker).
+    await Updates.next();
     await userEvent.click(trigger);
     await vi.waitFor(() => expect(grid.editingCell).toBeNull());
     expect(change).toHaveBeenCalledTimes(1);
@@ -266,6 +273,8 @@ describe("violet-data-grid-multi-picker", () => {
     await userEvent.click(control);
     expect(element.selectedValues).toEqual(["Priority Crop", "unknown"]);
     await userEvent.click(control);
+    // The selection change renamed the trigger; settle the render first (see openPicker).
+    await Updates.next();
     await userEvent.click(trigger);
     expect(element.open).toBe(false);
     expect(change).toHaveBeenCalledTimes(1);

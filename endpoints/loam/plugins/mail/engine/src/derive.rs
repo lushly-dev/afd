@@ -18,7 +18,11 @@ use sha2::{Digest, Sha256};
 ///
 /// 2: the evidence of the specification's section 6.1, and the visible text
 /// in place of the plain part.
-pub const PARSER_VERSION: u32 = 2;
+///
+/// 3: what a sender's history needs (the specification's 7.1): the key of
+/// the message's own Message-ID and of the one it answers, its recipients,
+/// and when the provider received it.
+pub const PARSER_VERSION: u32 = 3;
 
 /// The key of a Message-ID in the thread table: the first 16 bytes of its
 /// SHA-256.
@@ -62,6 +66,20 @@ pub struct HeaderFields {
     /// The keys of the message's own Message-ID and of every id its
     /// References and In-Reply-To name, each once.
     pub keys: Vec<ThreadKey>,
+    /// The key of the message's own Message-ID, when it has one.
+    pub message_key: Option<ThreadKey>,
+    /// The key of the message it answers: the first id `In-Reply-To` names,
+    /// or else the last of `References`.
+    pub answers_key: Option<ThreadKey>,
+    /// The addresses it was sent to (`To`, `Cc` and `Bcc`), in lower case,
+    /// each once, at most [`RECIPIENTS_LIMIT`] of each kind. A message
+    /// redirected (with a `Resent-From`) was sent to its topmost `Resent-To`,
+    /// `Resent-Cc` and `Resent-Bcc` instead: its `To` names whom the first
+    /// sender wrote to.
+    pub recipients: Vec<String>,
+    /// The topmost `Resent-From` address, in lower case: who redirected the
+    /// message, when someone did. Empty otherwise.
+    pub resent_from: String,
     /// The list it came through: the id inside `List-Id`, in lower case.
     pub list_id: String,
     /// How it can be unsubscribed from: 0 not at all, 1 a
@@ -186,6 +204,20 @@ pub fn body_fields(whole: &[u8]) -> BodyFields {
     }
 }
 
+/// Whether a field's name is one of a redirect's: `Resent-From`,
+/// `Resent-To` and the others.
+fn is_resent(name: &str) -> bool {
+    name.get(..7)
+        .is_some_and(|start| start.eq_ignore_ascii_case("Resent-"))
+}
+
+/// The key of a Message-ID as a header names it, or `None` when it is
+/// blank.
+fn key_of(id: &str) -> Option<ThreadKey> {
+    let id = id.trim();
+    (!id.is_empty()).then(|| thread_key(id))
+}
+
 /// The key of one Message-ID.
 #[must_use]
 pub fn thread_key(message_id: &str) -> ThreadKey {
@@ -286,6 +318,60 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
         let skip = named.len().saturating_sub(REFERENCES_LIMIT);
         named.iter().skip(skip).for_each(&mut add);
     }
+    let message_key = message.message_id().and_then(key_of);
+    let answers_key = message
+        .in_reply_to()
+        .and_then(|named| named.iter().find_map(key_of))
+        .or_else(|| {
+            message
+                .references()
+                .and_then(|named| named.iter().rev().find_map(key_of))
+        });
+    // The topmost redirect's block alone: the run of `Resent-` fields from
+    // the first one. The latest redirect writes its block above the others
+    // (RFC 5322, 3.6.6), and a field from a lower block, which whoever sent
+    // the message could have written, is never read in its place.
+    let resent_block: Vec<_> = headers
+        .iter()
+        .skip_while(|header| !is_resent(header.raw_name()))
+        .take_while(|header| is_resent(header.raw_name()))
+        .collect();
+    let address_list = |name: &str| {
+        resent_block
+            .iter()
+            .find(|header| header.raw_name().eq_ignore_ascii_case(name))
+            .and_then(|header| header.value().as_address())
+    };
+    let resent_from = address_list("Resent-From")
+        .and_then(|list| {
+            list.mailboxes()
+                .find_map(|mailbox| mailbox.address().map(str::to_lowercase))
+        })
+        .map(|address| one_line(&address, SENDER_LIMIT))
+        .unwrap_or_default();
+    let named = if resent_from.is_empty() {
+        [message.to(), message.cc(), message.bcc()]
+    } else {
+        [
+            address_list("Resent-To"),
+            address_list("Resent-Cc"),
+            address_list("Resent-Bcc"),
+        ]
+    };
+    let mut recipients: Vec<String> = Vec::new();
+    for found in named {
+        let Some(list) = found else { continue };
+        for address in list
+            .mailboxes()
+            .take(RECIPIENTS_LIMIT)
+            .filter_map(|mailbox| mailbox.address())
+        {
+            let address = one_line(&address.to_lowercase(), SENDER_LIMIT);
+            if !address.is_empty() && !recipients.contains(&address) {
+                recipients.push(address);
+            }
+        }
+    }
     Some(HeaderFields {
         sent_at: message
             .date()
@@ -304,6 +390,10 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
             .map(|subject| one_line(subject, SUBJECT_LIMIT))
             .unwrap_or_default(),
         keys,
+        message_key,
+        answers_key,
+        recipients,
+        resent_from,
         list_id,
         unsubscribe,
         precedence: token(raw("Precedence")),
@@ -468,7 +558,7 @@ pub struct Recipients {
 }
 
 /// The most recipients of one kind read.
-const RECIPIENTS_LIMIT: usize = 100;
+pub const RECIPIENTS_LIMIT: usize = 100;
 
 /// Who a message is addressed to. This never fails or panics.
 #[must_use]
@@ -1649,6 +1739,58 @@ mod tests {
         let fields = body_fields(whole.as_bytes());
         let places: Vec<&str> = fields.parts.iter().map(|p| p.place.as_str()).collect();
         assert_eq!(places, vec!["1", "2", "2.1"]);
+    }
+
+    #[test]
+    fn a_header_names_its_own_id_the_one_it_answers_and_its_recipients() {
+        let fields = header_fields(
+            b"From: a@example.com\r\n\
+              To: B <B@Example.com>, c@example.com\r\n\
+              Cc: b@example.com\r\n\
+              Bcc: d@example.com\r\n\
+              Message-ID: <own@example.com>\r\n\
+              In-Reply-To: <parent@example.com>\r\n\
+              References: <root@example.com> <parent@example.com>\r\n\r\n",
+        );
+        assert_eq!(fields.message_key, Some(thread_key("own@example.com")));
+        assert_eq!(fields.answers_key, Some(thread_key("parent@example.com")));
+        assert_eq!(
+            fields.recipients,
+            ["b@example.com", "c@example.com", "d@example.com"]
+        );
+        // A redirect was sent to its Resent- recipients, by whoever resent it.
+        let fields = header_fields(
+            b"From: stranger@example.net\r\n\
+              To: person@example.com, other@example.net\r\n\
+              Resent-From: Person <Person@example.com>\r\n\
+              Resent-To: friend@example.org\r\n\
+              Resent-From: earlier@example.net\r\n\
+              Resent-To: earlier-friend@example.net\r\n\r\n",
+        );
+        assert_eq!(fields.sender_address, "stranger@example.net");
+        assert_eq!(fields.resent_from, "person@example.com");
+        assert_eq!(fields.recipients, ["friend@example.org"]);
+        // A lower block, which whoever sent the message could have written,
+        // adds no recipient the top one lacks.
+        let fields = header_fields(
+            b"From: stranger@example.net\r\n\
+              Resent-From: person@example.com\r\n\
+              Resent-To: spouse@example.org\r\n\
+              Received: from somewhere\r\n\
+              Resent-From: x@example.net\r\n\
+              Resent-Cc: planted@example.net\r\n\
+              Resent-Bcc: hidden@example.net\r\n\r\n",
+        );
+        assert_eq!(fields.resent_from, "person@example.com");
+        assert_eq!(fields.recipients, ["spouse@example.org"]);
+        // Without In-Reply-To, the last id of References.
+        let fields = header_fields(
+            b"From: a@example.com\r\n\
+              References: <root@example.com> <near@example.com>\r\n\r\n",
+        );
+        assert_eq!(fields.message_key, None);
+        assert_eq!(fields.answers_key, Some(thread_key("near@example.com")));
+        assert!(fields.recipients.is_empty());
     }
 
     #[test]

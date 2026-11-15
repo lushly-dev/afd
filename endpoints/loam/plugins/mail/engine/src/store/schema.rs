@@ -325,6 +325,126 @@ pub(super) const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL
     ) STRICT;
     ",
+    // 7: senders and their history with the person (section 7.1). Derived from the log like
+    // the rest of `envelope`: rows the derivation wrote before it are stale (their `parser` is
+    // 2) and are derived again, which fills the new columns and `recipient`, and makes each
+    // sender's row.
+    "
+    -- The key of the message's own Message-ID and of the one it answers (as thread_key's).
+    ALTER TABLE envelope ADD COLUMN message_key BLOB CHECK (length(message_key) = 16);
+    ALTER TABLE envelope ADD COLUMN answers_key BLOB CHECK (length(answers_key) = 16);
+    -- When the provider received the message, else when it was first seen. A sender's first
+    -- and last messages are read from it, not from the Date header, which the sender writes.
+    ALTER TABLE envelope ADD COLUMN received INTEGER NOT NULL DEFAULT 0;
+    UPDATE envelope SET received = (SELECT coalesce(received_at, first_seen_at) FROM message
+                                    WHERE message.id = envelope.message_id);
+    -- Who redirected the message (its topmost Resent-From), when someone did.
+    ALTER TABLE envelope ADD COLUMN resent_from TEXT NOT NULL DEFAULT '';
+    CREATE INDEX envelope_message_key ON envelope (message_key) WHERE message_key IS NOT NULL;
+    CREATE INDEX envelope_sender ON envelope (sender_address, received);
+    -- A message with a list or bulk header (7.2's rule 3), by sender.
+    CREATE INDEX envelope_sender_bulk ON envelope (sender_address)
+        WHERE list_id <> '' OR unsubscribe > 0 OR precedence IN ('bulk', 'list', 'junk')
+            OR auto_submitted <> '';
+    -- The lists a sender's messages came through.
+    CREATE INDEX envelope_sender_list ON envelope (sender_address, list_id) WHERE list_id <> '';
+
+    -- Every observation, current or ended, by mailbox: the messages a sent mailbox has shown.
+    CREATE INDEX observation_mailbox ON observation (mailbox_id, message_id);
+
+    -- An address a message was sent to: To, Cc and Bcc.
+    CREATE TABLE recipient (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        address TEXT NOT NULL,
+        PRIMARY KEY (message_id, address)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A sender other than the person, and its history with them. Computed again from the
+    -- messages, never adjusted, like a thread. Its id is made from its address, so a rebuild
+    -- gives it the same one.
+    CREATE TABLE sender (
+        address TEXT PRIMARY KEY,
+        id INTEGER NOT NULL UNIQUE,
+        -- The registrable domain of the address, for grouping on display.
+        domain TEXT NOT NULL,
+        -- The name on its newest message.
+        name TEXT NOT NULL,
+        -- Its messages, and how many of them carry a list or bulk header.
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        bulk INTEGER NOT NULL CHECK (bulk >= 0),
+        first_received INTEGER,
+        last_received INTEGER,
+        -- The person's messages to it: those a sent mailbox has shown.
+        written INTEGER NOT NULL CHECK (written >= 0),
+        last_written INTEGER,
+        -- Its messages that a message of the person's answers.
+        answered INTEGER NOT NULL CHECK (answered >= 0),
+        -- The later of its last message and the person's last to it.
+        recent INTEGER NOT NULL
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX sender_recent ON sender (recent DESC, id DESC);
+    CREATE INDEX sender_domain ON sender (domain, recent DESC, id DESC);
+    ",
+    // 8: screening (sections 7.2 and 7.3). How often each template was seen and each inbound
+    // message's class are derived, computed again for each batch that touches them; the
+    // person's decisions on senders and agents' suggestions are not. A store that held mail
+    // before has its templates and classes filled once when it is next opened.
+    "
+    -- A template key and how many messages the store holds with it, wherever they are.
+    CREATE TABLE template (
+        key BLOB PRIMARY KEY CHECK (length(key) = 16),
+        messages INTEGER NOT NULL CHECK (messages > 0)
+    ) STRICT, WITHOUT ROWID;
+
+    -- An inbound message's screening class: a message not from one of the person's own
+    -- addresses. Its date and sender are the envelope's, kept here for the lists by class, and
+    -- `listed` is whether a mailbox other than junk and trash shows it now, which is what those
+    -- lists show.
+    CREATE TABLE screening (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        class TEXT NOT NULL CHECK (class IN ('blocked', 'known', 'bulk', 'unknown')),
+        date INTEGER NOT NULL,
+        sender_address TEXT NOT NULL,
+        listed INTEGER NOT NULL CHECK (listed IN (0, 1))
+    ) STRICT;
+    CREATE INDEX screening_listed ON screening (class, date DESC, message_id DESC)
+        WHERE listed = 1;
+    CREATE INDEX screening_sender ON screening (sender_address, class, listed);
+
+    -- The person's decision on an address: in, out, or theirs. Never derived, so it survives a
+    -- rebuild. `suggestion` is the agent's suggestion the person accepted, when it came from one.
+    CREATE TABLE sender_decision (
+        address TEXT PRIMARY KEY,
+        -- The address's sender id, so a decision is found by it when the address has no row.
+        id INTEGER NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out', 'mine')),
+        decided_at INTEGER NOT NULL,
+        suggestion INTEGER REFERENCES sender_suggestion (id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX sender_decision_id ON sender_decision (id);
+    CREATE INDEX sender_decision_at ON sender_decision (decision, decided_at);
+
+    -- An agent's suggestion of a decision. It changes no class until the person accepts it.
+    CREATE TABLE sender_suggestion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out')),
+        -- Who proposed it: the kind of caller, and the agent's token id when it had one.
+        proposer_kind TEXT NOT NULL,
+        proposer_id TEXT,
+        created_at INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('open', 'accepted', 'dismissed', 'superseded')),
+        closed_at INTEGER,
+        CHECK ((state = 'open') = (closed_at IS NULL))
+    ) STRICT;
+    CREATE INDEX sender_suggestion_open ON sender_suggestion (address) WHERE state = 'open';
+    CREATE INDEX sender_suggestion_proposer ON sender_suggestion (proposer_kind, proposer_id)
+        WHERE state = 'open';
+
+    -- Classes for the mail already held are filled when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'screening-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

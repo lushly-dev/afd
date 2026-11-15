@@ -219,7 +219,7 @@ const styles = css`
 `;
 
 const template = html<VioletDatePicker>`
-    <div class="field" part="field">
+    <div class="field" part="field" @focusout="${(x, c) => x.handleFocusOut(c.event as FocusEvent)}">
         ${when(
             x => Boolean(x.label),
             html<VioletDatePicker>`<label class="label" part="label" for="${x => x.inputId}">${x => x.label}</label>`,
@@ -309,16 +309,27 @@ export class VioletDatePicker extends FASTElement {
         }
     };
 
+    /**
+     * A pointer press began inside the picker and its click has not arrived yet. Pressing a
+     * non-focusable part of the panel (the month heading, a weekday, a disabled day) moves focus
+     * to the nearest focusable ancestor, such as a scrolling dialog body, which reads as focus
+     * leaving the picker; the focus-out close ignores that until the press ends. A touch tap
+     * moves focus on its compatibility mousedown, after pointerup, so the press ends at the
+     * click (or pointercancel), not at pointerup. A keydown also ends it, so a keyboard exit always
+     * closes even when no click follows, and the next pointerdown resets it.
+     */
+    #pressedInside = false;
+
     readonly #handleDocumentPointerDown = (event: PointerEvent) => {
-        if (!this.open) {
-            return;
+        const inside = event.composedPath().includes(this);
+        this.#pressedInside = inside;
+        if (this.open && !inside) {
+            this.hide();
         }
+    };
 
-        if (event.composedPath().includes(this)) {
-            return;
-        }
-
-        this.hide();
+    readonly #handleDocumentPressEnd = () => {
+        this.#pressedInside = false;
     };
 
     @observable
@@ -383,6 +394,9 @@ export class VioletDatePicker extends FASTElement {
     public connectedCallback(): void {
         super.connectedCallback();
         this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
+        this.ownerDocument.addEventListener("click", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.addEventListener("pointercancel", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.addEventListener("keydown", this.#handleDocumentPressEnd, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
         this.#defaultValue = this.value;
@@ -392,6 +406,10 @@ export class VioletDatePicker extends FASTElement {
 
     public disconnectedCallback(): void {
         this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
+        this.ownerDocument.removeEventListener("click", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.removeEventListener("pointercancel", this.#handleDocumentPressEnd, true);
+        this.ownerDocument.removeEventListener("keydown", this.#handleDocumentPressEnd, true);
+        this.#pressedInside = false;
         window.removeEventListener("resize", this.#handleViewportChange);
         window.removeEventListener("scroll", this.#handleViewportChange, true);
         super.disconnectedCallback();
@@ -523,6 +541,29 @@ export class VioletDatePicker extends FASTElement {
             return false;
         }
 
+        return true;
+    }
+
+    /**
+     * Closes the popup when focus moves to something outside the picker, such as Tab past its last
+     * control, so the open panel never covers the next field. Focus moving between the input, the
+     * toggle and the calendar keeps it open, and so does focus leaving the window (no
+     * `relatedTarget`) and a press inside the picker that hands focus to a focusable ancestor;
+     * a pointer press outside is handled by the document listener.
+     */
+    public handleFocusOut(event: FocusEvent): boolean {
+        const next = event.relatedTarget;
+        if (
+            this.open &&
+            !this.#pressedInside &&
+            next instanceof Node &&
+            next !== this &&
+            !this.shadowRoot?.contains(next)
+        ) {
+            this.hide();
+        }
+
+        // focusout cannot be cancelled; leave the event alone.
         return true;
     }
 

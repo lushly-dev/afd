@@ -194,7 +194,7 @@
 			"tag": "violet-icon-button"
 		},
 		{
-			"digest": "sha256:9c6cde0e9449ab9ecabe60562047951cfba06aba93504550de3ba83b3365d2d4",
+			"digest": "sha256:ae408b7a40776321204c3e70291d74cae07541cf5151caaf155a6aff57d74d96",
 			"status": "stable",
 			"tag": "violet-image"
 		},
@@ -386,7 +386,7 @@
 			"tag": "violet-text-field"
 		},
 		{
-			"digest": "sha256:72e1f378f3238e2eb5185ad5a8505e5abcf6f401907196e76e5b9b4c7a800b79",
+			"digest": "sha256:d46677449fba3f3fe62dca7df18ab680e3fcbc2af9fe11ddadbdd78b825f0b00",
 			"status": "stable",
 			"summary": "Scope element that applies a Violet theme preset (light, dark, high-contrast) to its subtree, such as a dark panel in a light page.",
 			"tag": "violet-theme"
@@ -432,7 +432,7 @@
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:a7cdc265bb70b529cadc98906814fa72f7dd1a496c79b8a6f7e2b495664e4b25",
+	"digest": "sha256:8127062574909a8471002a307b0f83df9ac55d8fa845f342a4e329b9de08368b",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {

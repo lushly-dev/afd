@@ -144,6 +144,7 @@ Each crate's maintenance history was not read.
 | `hyper`, `hyper-util`, `http-body-util` | 1, 0.1, 0.1 | MIT | The command line's call to a running server over loopback | Added by step B5; `axum` uses the same versions. A plain HTTP/1 connection, with no TLS and no pool |
 | `serde` | 1 | MIT or Apache-2.0 | The forwarded call and `server.json` | Added by step B5; already in the lockfile through the `afd` crate |
 | `async-trait`, `serde_json` | 0.1, 1 | MIT or Apache-2.0 | A command's handler and its input and result | The `afd` crate's own |
+| `psl` | 2 | MIT or Apache-2.0; the list it compiles in is MPL-2.0 | A sender's registrable domain ([7.1](#71-senders)) | Added by step C1. Mozilla's Public Suffix List is compiled in unmodified, under MPL-2.0, which the manifest does not say: the owner allowed it by name on 2026-11-14, as for `cssparser`, and the licence check names it. A new suffix needs a new version of the crate, which is republished as the list changes |
 
 Every crate here is permissively licensed. Step B1 added a licence check so a transitive
 dependency cannot change that unnoticed: a test in the crate reads the lockfile's packages and
@@ -461,7 +462,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `account` | An account and its provider | No |
 | `mailbox` | A mailbox, with its provider identity, its role, its sync cursor, how many ids its last listing named, and when the provider stopped listing it | No |
 | `message` | A message's identity: the hash of its header block, the size the provider reports, when it was first seen and when the provider received it | No |
-| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 added its evidence ([6.1](#61-what-is-read)): the list and bulk headers, `Reply-To` and whether it differs from the sender, the topmost authentication header's server and results, how much text is hidden, how many links and how many of them name a host other than their target, the template key and the body's shape | Yes |
+| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 added its evidence ([6.1](#61-what-is-read)): the list and bulk headers, `Reply-To` and whether it differs from the sender, the topmost authentication header's server and results, how much text is hidden, how many links and how many of them name a host other than their target, the template key and the body's shape. Step C1 added the key of its own Message-ID and of the one it answers, when the provider received it (else when it was first seen), which a sender's dates are read from, and who redirected it (its topmost `Resent-From`) | Yes |
 | `link` | A link in a message held whole: its target, its target's host, the host its shown text names, and whether the two differ | Yes |
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
@@ -474,8 +475,11 @@ for later phases are a sketch, fixed by the step that creates each.
 | `thread_key` | A Message-ID a message has or names, as 16 bytes of its SHA-256, and the thread it belongs to ([5.6](#56-threads-on-imap)) | Yes |
 | `thread_place` | A thread in a mailbox: how many of its messages the mailbox currently shows, how many of those are unread (no `\Seen` flag), and the date of the newest of them. Indexed by mailbox and date, newest first | Yes, from `envelope` and `observation` |
 | `index_pending`, `engine_state` | Which messages' documents the index has not yet committed, the highest it has, and how far a rebuild has come | No: the derivation's own bookkeeping |
-| `sender`, `sender_address` | A sender and its history with the person ([section 7](#7-relationships-and-screening)) | Counts yes; the person's decisions no |
-| `template` | A template and how often it was seen | Yes |
+| `recipient` | An address a message was sent to, from its `To`, `Cc` and `Bcc` (step C1) | Yes |
+| `sender` | An address that is not the person's, and its history with them ([7.1](#71-senders)): its domain, the name on its newest message, its messages and how many carry a list or bulk header, when the first and last arrived, how many of the person's messages went to it and when the last did, and how many of its messages the person answered. Fixed by step C1. The person's decisions on senders are step C2's, in `sender_decision`, which is not derived | Yes |
+| `template` | A template key and how many held messages have it, wherever they are (step C2, migration 8) | Yes |
+| `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision`, the person's own addresses (`account` and the sent mailboxes), `observation` and `mailbox.role` |
+| `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
 | `story`, `story_member` | Stories and their messages ([section 8](#8-stories)) | Stream and burst stories yes |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
@@ -923,6 +927,29 @@ screening, which asks only "is this recurring mail", and not for a story's excep
 extractor, which need the bodies to match. Step C1 reports, on the owner's accounts, Q2 as the
 engine computes it beside the census's figure, and how many stream stories each grouping gives.
 
+**Step C1's report** (on the owner's iCloud account, 2026-11-14,
+[the counts](live-icloud-c1.results.json), which `engine/tests/live_screening.rs` writes; Gmail
+waits for step B6). The engine's Q2 is the census's: 98.3% of 283 365 messages from strangers,
+counted as the census counted (every mailbox but junk and trash; census 98.4%), and 60.5% of
+12 121 without the largest mailbox (census 60.9%). A header decides
+almost all of it; a template seen five times decides 1 921 more. Stream stories, of the bulk mail
+from strangers outside the largest mailbox (7 329 messages):
+
+| Grouping | Stories | Messages in them | Groups in all |
+| --- | --- | --- | --- |
+| List id, or else sender and template key | 269 | 2 885 (39%) | 4 367 |
+| List id, or else sender, template key and body shape | 195 | 1 898 (26%) | 5 085 |
+| List id, or else sender alone (not one of section 8's) | 370 | 5 964 (81%) | 1 234 |
+
+The template key holds the subject's shape, so mail whose subject changes with each issue makes a
+group of one each time: by key, most bulk mail is in no story. The body shape splits groups
+further. The owner chose the grouping by sender on 2026-11-14 ([section 8](#8-stories)). One
+difference from the census: the engine counts a template as recurring when the store holds five
+messages with its key, wherever they are, where the census counted among the inbound messages of
+its scope, once for each mailbox showing them; the scopes above choose which messages are
+counted, not where their templates are. Since step C2 the report's own addresses include any the
+person said are theirs ([7.3](#73-the-persons-decisions)), which the census had no way to know.
+
 ### 6.4 Parsing strangers' bytes
 
 - The parser and everything that reads its output are fuzzed (`cargo-fuzz`), with a corpus kept
@@ -993,6 +1020,58 @@ how many of its messages the person answered, when it was first and last seen, a
 mail carries list or bulk headers. The person's own addresses are the account's address, every
 address on a message in a sent mailbox, and any the person adds.
 
+As step C1 built it (`engine/src/store/senders.rs`):
+
+- **The person's messages** are those a sent mailbox has shown, now or before: the provider put
+  them there because the person sent them, and moving one out later does not unsend it. A
+  message's `From` never makes it the person's: otherwise a stranger could write a message "from"
+  the person, copied to themselves, and be taken for someone the person wrote to. A mailbox that
+  becomes a sent mailbox, or stops being one, changes this, and every sender is computed again.
+- **The person's own addresses** are every account's address and the sender of every message of
+  the person's ("every address on a message in a sent mailbox" above means its sender), which
+  covers aliases and send-as addresses, as the census's did. A message the person redirected
+  keeps its first sender's `From`, a stranger's: its `Resent-From` is the person's instead. They
+  have no sender row; a row that goes because its address turned out to be the person's is a
+  change like any other. An address the person adds by hand is a decision of theirs, `mine`
+  ([7.3](#73-the-persons-decisions)); it is theirs from then on, and its mail is not inbound,
+  but its messages do not become the person's, so a stranger who writes "from" it is never
+  taken for someone the person wrote to.
+- **Written to** counts the person's messages with the sender among their `To`, `Cc` and `Bcc`,
+  or, for a message the person redirected, the `Resent-To`, `Resent-Cc` and `Resent-Bcc` of its
+  topmost redirect: the run of `Resent-` fields from the first, never a field from a lower block,
+  which whoever sent the message could have written. A redirect answers nothing of the person's:
+  it keeps its first sender's `In-Reply-To`. **Answered** counts the sender's messages, each Message-ID once, that a message
+  of the person's answers: the one its first `In-Reply-To` id names, or else the last id of its
+  `References`.
+- **First and last seen** are when the provider received its first message and its last (the
+  `INTERNALDATE`, else when the engine first saw it), never the `Date` header, which the sender
+  writes: a flood with old dates would otherwise pass for mail from senders long known
+  ([7.4](#74-bursts)).
+- **List or bulk** counts the sender's messages with a `List-Id`, a `List-Unsubscribe`, a
+  `Precedence` of bulk, list or junk, or an `Auto-Submitted` other than `no`: 7.2's rule 3, as the
+  census read it.
+- **The registrable domain** is read with the public suffix list (`alerts@mail.example.co.uk`
+  gives `example.co.uk`).
+- **A sender's row is derived** like a thread's: never adjusted, computed again from the messages
+  once for each batch that touched it (a message from it, a message of the person's naming it or
+  answering it, before and after the message is derived again), so a rebuild gives the same rows;
+  tests compare them, over one batch and over several. Each count reads the sender's own range of
+  an index, or starts from the sent mailboxes and reads the person's few thousand messages; none
+  reads the whole of the mail, and a test checks the plan of every query. The sender's own range
+  is long for a large sender: 22 milliseconds for each batch that touches the sender of 272 221
+  messages. Its id is the first 52 bits of its address's SHA-256, so a rebuild gives the same id
+  and a JSON reader keeps it exactly.
+- **While messages wait to be derived again** after a new version of the derivation, as after
+  step C1's, their senders' rows count them only once they are; `mail-status` gives how many
+  wait (`stale`). Screening that reads these rows waits for none to, and for no rebuild: as step
+  C2 built it, a read of classes fails with `SCREENING_NOT_READY`, which can be retried, and
+  `mail-status` says `screening.ready`. A decision is recorded whatever waits.
+- **The commands.** `mail-sender-list` gives the senders the most recent first (the later of
+  their last message and the person's last to them), paged by cursor, and filters by registrable
+  domain or to those the person has written to. `mail-sender-show` gives one sender with the
+  mailboxes its messages are in now and the ten lists they came through most. An address, a
+  name, a domain and a list id came from messages, so they sit in a content part ([12.1](#121-content-labels)).
+
 ### 7.2 The screening class
 
 Every inbound message gets one class, by the first rule that matches:
@@ -1011,9 +1090,40 @@ Every inbound message gets one class, by the first rule that matches:
 - A class never moves, deletes or marks a message at the provider.
 - Rules 3 and 4 are the census's Q2, so the figures the owner saw describe this queue.
 
+**As step C2 built it** (`engine/src/store/classes.rs`, migration 8):
+
+- **Inbound** means the sender is not one of the person's own addresses ([7.1](#71-senders)),
+  as the census and step C1 counted. The person's own mail has no class; a result that lists a
+  message gives it `own`.
+- **A class is derived like a thread**: never adjusted, computed again, so a rebuild gives the
+  same rows, which tests compare after each change and against classing everything from
+  nothing. It depends on the message's row, on whether its sender is the person's and whether
+  the person has written to it, on whether its template key has reached five, and on the
+  person's decision. Each batch classes again the messages it derived; a sender for which one
+  of the two turned, a template that reached five or fell below, and a sender the person
+  decided on have every one of their messages classed again. So a batch that adds mail to the
+  sender of 272 221 messages touches none of its others.
+- **Templates are counted** in `template`, wherever their messages are, as step C1 reported. A
+  message held as its headers alone has no template key until its body is held
+  ([6.3](#63-the-template-fingerprint)).
+- **A store that held mail before** is classed once when it is next opened after migration 8.
+- **The lists by class.** `mail-message-list` gives one class's messages, newest first, paged by
+  cursor: `known` is the inbox, `unknown` the queue, `blocked` and `bulk` when asked for. It lists
+  a message only while a mailbox other than junk and trash shows it, the census's scope, so
+  junk does not fill the queue and what the person deleted leaves it; the class itself is kept
+  wherever the message is. Whether a message is listed is a derived flag beside its class, so a
+  list reads a partial index of the listed rows and never looks at where each row's message is:
+  it is computed again for each message whose observations a batch changed, and for every
+  message of a mailbox that closed its observations (a new generation, or gone) or became junk
+  or trash or stopped being. `mail-thread-open` gives each message's class, `own`, or null while
+  screening waits. `mail-status` gives the queue: its messages and how many senders they come
+  from. `mail-sender-list` with `waiting` gives the senders whose mail is in the queue, which is
+  where the person answers once for each.
+
 **What a model adds.** The `unknown` queue is ordered by date. A caller may propose an order or
 a category for its messages as records ([10.1](#101-records)); the engine stores them with their
-proposer and shows them as suggestions. It does not act on them.
+proposer and shows them as suggestions. It does not act on them. Records are step E1's, so until
+then the queue is ordered by date alone.
 
 ### 7.3 The person's decisions
 
@@ -1036,6 +1146,49 @@ A decision on a sender is in, out or undecided, and is the person's alone.
 - `mail-status` lists the senders blocked in the last 30 days and by whom, so a wrong block is
   seen.
 - A decision survives a rebuild.
+
+**As step C2 built it** (`engine/src/store/decisions.rs`, `engine/src/screening.rs`):
+
+- **A decision is in, out or `mine`**, the last for an address the person says is theirs
+  ([7.1](#71-senders)); `undecided` removes one. It is kept by address, with the address's sender
+  id, so an address that is theirs, which has no sender row, is still found by its id.
+- **`mail-sender-screen`** is the person's at a terminal alone: a script at the command line,
+  such as an agent's shell, is refused with `PERSON_REQUIRED`, as every other person's command
+  is through its approval. It takes a sender's id, or an address the person types in full, and a
+  decision. It refuses in or out on an address that is the person's by an account or by their
+  sent mail. It returns the decision before (`previous`), which undoes it, and how many held
+  messages changed class or gained or lost one.
+- **The person's decision closes every suggestion still open for that address**, as superseded:
+  the question is answered. A proposer's new suggestion for an address supersedes its own earlier
+  one, so it never counts twice toward its 20. A caller is the actor of the call: an agent by its
+  token's id over HTTP, the one agent of stdio, or a person or script at the command line. A 21st
+  waiting is refused with `POLICY_LIMIT`.
+- **A suggestion is in or out.** An agent cannot suggest that an address is the person's.
+- **`mail-sender-accept`** is held for approval every time (`ApprovalPolicy::Required`), so the
+  middleware checks the person's approval of each call, and nothing that changes between a
+  check and the run can let one through unasked. After the approval it refuses what cannot be
+  accepted now: a suggestion not open (`PROPOSAL_NOT_OPEN`), screening not ready, so the
+  preview's count could be wrong (`SCREENING_NOT_READY`), or an address now the person's
+  (`SENDER_NOT_FOUND`). The preview says whether it can (`acceptable`, and `refusal` with the
+  code), and the command line asks nothing, and does nothing, when it cannot or when the preview
+  cannot be read. At the terminal the command line reads the preview, `mail-sender-show`
+  with the suggestion, and shows the sender's address and name, each named as written in its
+  mail and with control characters and the marks that reorder text replaced, whether the person
+  has written to it, and who suggested it, before the summary and the question.
+- **`mail-sender-dismiss`** is the person's at a terminal, for any suggestion, and any other
+  caller's for its own alone (`FORBIDDEN` otherwise): an agent's by its token, stdio's one
+  caller's, a script's.
+- **`mail-sender-show`** gives the decision, how many of the sender's messages are in each class
+  (null while screening waits), and its open suggestions; with a suggestion's id in place of a
+  sender's, it is the preview. `mail-sender-list` gives each sender's decision, and filters to
+  the senders whose mail waits to be screened (`waiting`), with a suggestion waiting
+  (`suggested`), or that the person screened in or out (`decision`).
+- **`mail-status`** gives `screening`: whether it is ready, the queue, how many suggestions wait,
+  and the 20 latest of the senders blocked in the last 30 days (`blockedLately`, with
+  `blockedLatelyTotal` for all of them), each with the person or the suggestion and proposer it
+  came from, and its address in a labelled part. `mail-sender-list` with `decision` gives every
+  sender with mail that the person screened out, at any time; an address screened before any of
+  its mail arrived has no sender row, and is found by `mail-sender-show` with its id.
 
 ### 7.4 Bursts
 
@@ -1061,16 +1214,24 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
 
 A story is a view (M9). A message in a story is still in every list it was in.
 
-- **Stream stories** (phase C) are made by code. One story per list id, or per sender and
-  template (key and body shape) where there is no list id. A stream story needs at least five
-  messages.
+- **Stream stories** (phase C) are made by code. One story per list id, or per sender where
+  there is no list id. A stream story needs at least five messages. The template key and the
+  body shape do not split a story: they mark its exceptions. **Decided by the owner on
+  2026-11-14**, with step C1's counts ([6.3](#63-the-template-fingerprint)): outside the largest
+  mailbox, grouping by sender puts 81% of the bulk mail in a story, by sender and template key
+  39%, and with the body shape too 26%, because the template key holds the subject's shape and a
+  newsletter whose subject changes each issue would be a group of one each time. Grouping by
+  sender also keeps an odd message in its sender's story, flagged, where a grouping by template
+  would leave it in no story at all. Built by step C2's second pull request.
 - **Burst stories** (phase C): [7.4](#74-bursts).
 - **Situation and cohort stories** (phase E) are proposed by a caller
   ([10.2](#102-situation-and-cohort-stories)).
 
 A story has a stable id, a kind, a title the engine builds from the sender or list, counts, the
 date of its last change, and its exceptions: members that are not routine. For a stream story an
-exception is a message whose body shape differs from the story's usual ones.
+exception is a message whose body shape differs from the story's usual ones. A story's card also
+gives the kinds of mail in it, by template key, with a count each, so that a sender that sends
+receipts, offers and alerts from one address does not hide one in a single total.
 
 `mail-story-changes` takes a cursor and returns what changed in each story since, from the
 `change` table, with a new cursor. The caller keeps its cursor; the engine stores none.
@@ -1274,11 +1435,12 @@ says otherwise.
 | `mail-attachment-open` | B | Read | cli, mcp | Fetches the attachment if it is not held. Returns a path in the data directory to the command line, and bytes within the budget over MCP. Step B4 opens a file of a message held whole, fetching the message first, and a file of a message held in parts, fetching that part alone when it is not held, up to 256 MiB; its bytes are then decoded on their own (a part of a forwarded message held whole is read from that message), its type read from them and the message derived again. The file at the command line is named by the engine (the part's place, and an ending for what its bytes show), never by the message; over MCP the bytes are base64 inside the content part, a window at a time from `from`, with where the next starts |
 | `mail-search` | B | Read | cli, mcp | Step B4: the best matches first, paged by cursor up to the first 1 000 |
 | `mail-rebuild` | B | Local | cli | Under `serve` it runs in the server and reports through `mail-status` (step B5) |
-| `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | |
-| `mail-sender-screen` | C | Local, undoable; a person | cli | No approval prompt ([7.3](#73-the-persons-decisions)) |
-| `mail-sender-suggest` | C | Local | cli, mcp | Changes no class |
+| `mail-sender-list`, `mail-sender-show` | C | Read | cli, mcp | Step C1 ([7.1](#71-senders)): the list paged by cursor, most recent first, with a domain and a written-to filter; one sender with its mailboxes and lists. Step C2 ([7.3](#73-the-persons-decisions)): each sender's decision; the list's `waiting` and `suggested` filters; the show's classes and suggestions, and the preview of a suggestion by its id |
+| `mail-sender-screen` | C | Local, undoable; a person | cli | No approval prompt ([7.3](#73-the-persons-decisions)). Step C2: in, out, mine or undecided, by a sender's id or a typed address |
+| `mail-sender-suggest` | C | Local | cli, mcp | Changes no class. Step C2: in or out, at most 20 waiting for each caller |
 | `mail-sender-accept` | C | Local, undoable; a person | cli | Accepts an agent's suggestion (M28) |
 | `mail-sender-dismiss` | C | Local | cli, mcp | The person's or the proposer's |
+| `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | |
 | `mail-selection-create` | D | Local | cli, mcp | |
 | `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)) |
@@ -1309,7 +1471,7 @@ Differences from the proposal's draft list:
   agents.
 - `mail-sender-accept`, `mail-sender-dismiss`, `mail-operation-approve` and
   `mail-operation-dismiss` carry the owner's rule that an agent proposes and a person approves.
-- Added: `mail-token-*`, `mail-selection-create`, `mail-operation-*`, `mail-policy-*`,
+- Added: `mail-message-list` (step C2), `mail-token-*`, `mail-selection-create`, `mail-operation-*`, `mail-policy-*`,
   `mail-rebuild`, `mail-draft-discard`, `mail-draft-restore`, `mail-draft-show`, `mail-record-withdraw`,
   `mail-story-propose` and `mail-story-dismiss`.
 - The extractor commands are deferred.
@@ -1359,7 +1521,7 @@ Beside the crate's own codes:
 | `STORE_NEWER` | The store's schema is newer than the program |
 | `STORE_FAILED` | The data directory, the log or the database refused; the message is the engine's own |
 | `INDEX_STALE` | The search index is older than the tables, or gone; `mail-rebuild` makes it again |
-| `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND` | A named thing does not exist |
+| `ACCOUNT_NOT_FOUND`, `MAILBOX_NOT_FOUND`, `MESSAGE_NOT_FOUND`, `THREAD_NOT_FOUND`, `SENDER_NOT_FOUND` | A named thing does not exist. `SENDER_NOT_FOUND` also when a suggestion's address has become one of the person's own |
 | `SIGN_IN_REQUIRED` | The provider refused the stored credential |
 | `PROVIDER_UNAVAILABLE` | The provider could not be reached; retryable |
 | `PROVIDER_LIMIT` | The provider's rate or quota limit; retryable after the time given |
@@ -1371,7 +1533,8 @@ Beside the crate's own codes:
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
 | `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
-| `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired |
+| `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired, or there is none with that id |
+| `SCREENING_NOT_READY` | Classes are read while messages wait to be derived again or a rebuild is under way ([7.1](#71-senders)); retryable |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
 | `RECIPIENT_NOT_ALLOWED` | A recipient the rule does not allow |
 | `SEND_OUTCOME_UNKNOWN` | The send may or may not have gone |
@@ -1462,8 +1625,8 @@ file.
 | B5 | In three pull requests. First: `serve`, tokens, the layer and the two routes, stdio, the command line forwarding to a running server, and the journal ([13.1](#131-the-journal)). Second: sync every five minutes in the background, `mail-sync` and `mail-rebuild` as the server's work reported by `mail-status`, the 60 seconds and 4 MiB of a call ([3.2](#32-modes)), and a store that does not hold every command back during a rebuild. Third: where the 174 seconds of a pass with nothing new go, measured on the owner's account (they did not come back; the pass now asks one request a mailbox, [5.2](#52-imap)), and `mail-account-remove` ([3.5](#35-commands-only-a-person-may-run)) |
 | B6 | Gmail sync through the API, with the scripted API |
 | B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
-| C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)) |
-| C2 | Screening classes, the person's decisions and agents' suggestions, stream stories |
+| C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
+| C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
 | C3 | Bursts, tried on the period the owner names |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |

@@ -1,0 +1,35 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the lane endpoint. The clock cannot move between steps: the fixture's check has been
+# queued with no runner for 25 minutes against a stall threshold of 15. What the lane does with a
+# stall (pause, not eject) is the factory's rule, not this command's.
+name: Treat a GitHub Actions outage as a stall, not a failure
+description: >-
+  When the required check sits queued with no runner because GitHub Actions is having trouble, I
+  want that reported as a stall with its cause, apart from a check that ran and failed, so that the
+  lane can pause instead of ejecting a good branch and nobody repairs code that was never wrong.
+job: an-outage-is-a-stall
+tags: [events]
+fixture:
+  file: fixtures/events.json
+  base: gateway.json
+steps:
+  - description: The pull request's required check reads as stalled, with GitHub's own incident named
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 46 }
+    expect:
+      success: true
+      data:
+        state: open
+        requiredCheck:
+          name: ci-ok
+          state: stalled
+          stalledMinutes: { gte: 15 }
+          cause: { contains: Actions runs delayed }
+  - description: The lane's wait hears it as a stall event, not a failed check
+    command: gateway-wait
+    input: { repo: example-org/example-repo, consumer: lane, kinds: [checks-stalled, checks-failed], timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { kind: checks-stalled, target: pr#46 }

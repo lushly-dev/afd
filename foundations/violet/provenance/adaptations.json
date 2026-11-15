@@ -3686,9 +3686,9 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "df5643ad292eba2b7c6ebfb3fd96377a112a1d464627b71ee6ae2b8727bf50da",
+      "current_import_sha256": "6adb5f82b7c6214a88e7be1850e56624e6d74e1113fb97c660b9f1248d373899",
       "classification": "afd-authored",
-      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b)); Reads the integration peer as the workspace range it packs as (#1192)",
+      "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b)); pnpm, tar and the installed bins start portably so the check runs on Windows (#1200); Reads the integration peer as the workspace range it packs as (#1192)",
       "candidate": {
         "path": null,
         "sha256": null,

@@ -183,6 +183,8 @@ const HANDLED: &[(&str, &str)] = &[
     ("envelope", "message"),
     ("part", "message"),
     ("link", "message"),
+    ("recipient", "message"),
+    ("screening", "message"),
     ("thread_place", "mailbox"),
 ];
 

@@ -2,9 +2,9 @@
 
 | Field | Value |
 | --- | --- |
-| Plugin | `components`, a further first-class plugin ([D18](../../decisions.md)); the serving half of [Component Briefs](../../../../../docs/features/active/component-briefs/component-briefs.proposal.md), its phase C |
+| Plugin | `components`, a further first-class plugin ([D18](../../decisions.md)); the serving half of [Component Briefs](../../../../../docs/features/complete/component-briefs/component-briefs.proposal.md), its phase C |
 | Owner | Repository owner approves; the plugin's owning agent writes and implements |
-| Read first | [STATUS.md](../../STATUS.md), the [Component Briefs proposal](../../../../../docs/features/active/component-briefs/component-briefs.proposal.md) (sections 4 to 6, 9 and 10), [the pack format, version 0](../../../../../foundations/specimen/docs/pack-format.md) and its checker, `foundations/specimen/src/pack.ts` and `src/pack-schema.ts`, which are normative for problem codes and pointers (3.3), the [decision log](../../decisions.md) (D46, D48, D57, D64, D67, D112 and D150 to D156), the [phase 1 specification](../../phases/1-plugin-contract/spec.md) (packs, sections 8 and 9; first-class suggestions, section 8.4) and the [context plugin](../../../plugins/context/) as the nearest working example |
+| Read first | [STATUS.md](../../STATUS.md), the [Component Briefs proposal](../../../../../docs/features/complete/component-briefs/component-briefs.proposal.md) (sections 4 to 6, 9 and 10), [the pack format, version 0](../../../../../foundations/specimen/docs/pack-format.md) and its checker, `foundations/specimen/src/pack.ts` and `src/pack-schema.ts`, which are normative for problem codes and pointers (3.3), the [decision log](../../decisions.md) (D46, D48, D57, D64, D67, D112 and D150 to D156), the [phase 1 specification](../../phases/1-plugin-contract/spec.md) (packs, sections 8 and 9; first-class suggestions, section 8.4) and the [context plugin](../../../plugins/context/) as the nearest working example |
 | Elevation | Exact names, shapes, codes, files, tests and pull requests. An implementing agent needs no further design decision; where it finds one, it stops and amends this document by pull request |
 
 ## Status
@@ -247,7 +247,7 @@ endpoints/umbel/plugins/components/
 Dependencies: `umbel-sdk` (no features), `umbel-scan`, `serde`, `serde_json`, `regex` (the version `umbel-scan`
 pins, default features off, `std` and `perf`), `sha2`. Dev: `umbel` with `store-embedded` and `testkit`, `afd`, `tempfile` and `tokio`, as context's tests use them. No
 `std::fs`, `std::time`, thread or network use in `src/`: the source stays inside what a component may do
-([proposal decision 9](../../../../../docs/features/active/component-briefs/component-briefs.proposal.md#5-decisions-made-in-this-plan)).
+([proposal decision 9](../../../../../docs/features/complete/component-briefs/component-briefs.proposal.md#5-decisions-made-in-this-plan)).
 
 The crate joins the workspace's `members`, and `first-party/src/main.rs` adds
 `.with_compiled(umbel::plugins::sdk(umbel_plugin_components::plugin()))` after context; its doc comment then names

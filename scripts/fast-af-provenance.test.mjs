@@ -112,6 +112,10 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		checked++;
 	}
 	// Most of the import still matches upstream; the 79 story files now import Specimen's helpers,
-	// and the label-in-name change (#971) reached six more files, five of them specs.
-	assert(checked > 640, `only ${checked} unchanged upstream files`);
+	// the label-in-name change (#971) reached six more files, five of them specs, the Lushly
+	// repairs (#1191, merged in #1194) reached the data grid, its cell templates and its spec, and
+	// the token interface (#1190) adapted the files that hard-coded a typeface or read the
+	// generated theme, the Specimen preview and the grid's sizing spec, and the preview prerelease
+	// (#1192) changed fast-element's README install line: 633 together.
+	assert(checked > 632, `only ${checked} unchanged upstream files`);
 });

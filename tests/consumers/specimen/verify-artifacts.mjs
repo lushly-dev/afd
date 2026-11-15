@@ -12,7 +12,7 @@
  *        node tests/consumers/specimen/verify-artifacts.mjs [--output <directory>]
  */
 import assert from 'node:assert/strict';
-import { execFileSync, spawnSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync, realpathSync, rmSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, readdir, readFile, realpath, writeFile } from 'node:fs/promises';
@@ -20,6 +20,7 @@ import { createRequire } from 'node:module';
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execTool, spawnTool, tarCommand } from '../../../scripts/release/exec-tool.mjs';
 
 const repository = resolve(dirname(fileURLToPath(import.meta.url)), '../../..');
 const outputIndex = process.argv.indexOf('--output');
@@ -80,7 +81,7 @@ for (const path of sources) {
 	// The host package carries a binary, which its prepack checks, rather than a dist.
 	const built = manifest.name === hostPackage ? 'bin/specimen-host' : 'dist';
 	assert(existsSync(join(repository, path, built)), `${path} is not built`);
-	execFileSync('pnpm', ['pack', '--pack-destination', artifacts], {
+	execTool('pnpm', ['pack', '--pack-destination', artifacts], {
 		cwd: join(repository, path),
 		stdio: 'pipe',
 	});
@@ -93,7 +94,7 @@ for (const path of sources) {
 const file = (name) => `file:${packs[name]}`;
 const packedManifest = (name) =>
 	JSON.parse(
-		execFileSync('tar', ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
+		execFileSync(tarCommand(), ['-xzOf', packs[name], 'package/package.json'], { encoding: 'utf8' })
 	);
 
 // The other platforms' hosts are not packed here, so their optional dependencies are removed.
@@ -122,7 +123,7 @@ async function install(
 		},
 	};
 	await writeFile(join(root, 'package.json'), `${JSON.stringify(manifest, null, 2)}\n`);
-	const result = spawnSync(
+	const result = spawnTool(
 		'pnpm',
 		[
 			'install',
@@ -225,9 +226,9 @@ assert.deepEqual(cli.bin, { specimen: './dist/bin.js' });
 const host = packedManifest(hostPackage);
 assert.equal(host.version, native.version);
 assert.equal(host.scripts?.install ?? host.scripts?.postinstall, undefined);
-const hostFiles = execFileSync('tar', ['-tvzf', packs[hostPackage]], { encoding: 'utf8' })
+const hostFiles = execFileSync(tarCommand(), ['-tvzf', packs[hostPackage]], { encoding: 'utf8' })
 	.trim()
-	.split('\n');
+	.split(/\r?\n/);
 assert.deepEqual(hostFiles.map((line) => line.split(/\s+/).at(-1)).sort(), [
 	'package/LICENSE',
 	'package/README.md',
@@ -241,11 +242,11 @@ assert.match(
 );
 for (const manifest of [native, integration, cli, host])
 	assert(!JSON.stringify(manifest).includes('workspace:'), `${manifest.name} leaks workspace:`);
-const nativeFiles = execFileSync('tar', ['-tzf', packs['@lushly-dev/specimen']], {
+const nativeFiles = execFileSync(tarCommand(), ['-tzf', packs['@lushly-dev/specimen']], {
 	encoding: 'utf8',
 })
 	.trim()
-	.split('\n');
+	.split(/\r?\n/);
 assert(!nativeFiles.some((path) => /(?:commands|cli|bin)\.(?:js|d\.ts)$/.test(path)));
 passed('packed manifests: native has no cross-family edge, peers keep their ranges, no workspace:');
 passed(`packed ${hostPackage}: an executable host at Specimen's version, and nothing else`);
@@ -521,7 +522,7 @@ for (const [args, status, code] of [
 	[['wat'], 1, 'SPECIMEN_CLI_ERROR'],
 	[['diff', 'missing.json', 'other.json'], 1, 'SPECIMEN_CLI_ERROR'],
 ]) {
-	const result = spawnSync(binary, args, { cwd: fullRoot, encoding: 'utf8' });
+	const result = spawnTool(binary, args, { cwd: fullRoot, encoding: 'utf8' });
 	assert.equal(result.status, status, result.stderr);
 	const lines = result.stdout.trim().split('\n');
 	assert.equal(lines.length, 1);

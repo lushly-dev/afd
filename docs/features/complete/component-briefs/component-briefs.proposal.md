@@ -6,7 +6,7 @@ Umbel plugin serves it in batches.
 
 ## Status
 
-- **State:** active, with phases 0 to C done and phase D deferred
+- **State:** complete, with phases 0 to C done and phase D in issues
   (2026-11-13; [STATUS.md](STATUS.md) has the exact state). The rest of
   this block is as of step A2.
   Written 2026-11-09 against `main` at `cfb70942`, and revised the same day
@@ -15,7 +15,7 @@ Umbel plugin serves it in batches.
   Specimen (2026-11-10, #949). Step A2's specifications were written
   and approved by the owner 2026-11-10 (#964): the
   [`components` plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md)
-  and Specimen's [T12](../specimens/implementation.md#ordered-implementation-queue).
+  and Specimen's [T12](../../active/specimens/implementation.md#ordered-implementation-queue).
   Nothing else is implemented, and nothing is approved beyond the owner's
   decision to go on to phase A. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were
@@ -44,7 +44,7 @@ Umbel plugin serves it in batches.
 | Field | Value |
 | --- | --- |
 | Units touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, `integrations/specimen-fast-af`, `foundations/fast-af/packages/violet-elements`, `endpoints/umbel` (a new plugin crate), `endpoints/loam` (its design record) and `.claude/skills/loam-design` (step C5) |
-| Related | [Specimens status](../specimens/STATUS.md), [Umbel status](../../../../endpoints/umbel/docs/STATUS.md), [Umbel architecture](../../../../endpoints/umbel/docs/architecture.md), [Output budgets](../../../../spec/output-budgets.md) |
+| Related | [Specimens status](../../active/specimens/STATUS.md), [Umbel status](../../../../endpoints/umbel/docs/STATUS.md), [Umbel architecture](../../../../endpoints/umbel/docs/architecture.md), [Output budgets](../../../../spec/output-budgets.md) |
 
 ## 1. Problem and goal
 
@@ -722,7 +722,7 @@ costlier, or as good and cheaper. The first rule that matches decides.
 | Step | Deliverable | Exit |
 | --- | --- | --- |
 | A1. Pack format, version 0 | In Specimen: the format's description, its schema exported from the package, and fixture packs (the valid example library in both forms, and each invalid case named, including an identifier that fails its pattern). A changeset. Gate: `pnpm test:specimen`, since the package's files and exports change and its packed-artifact consumers must still pass | The fixtures validate against the schema in Specimen's browser-free tests. Done 2026-11-10: [the format](../../../../foundations/specimen/docs/pack-format.md), `@lushly-dev/specimen/pack` and its JSON Schema files, and `foundations/specimen/fixtures/pack/` with 25 invalid cases that cover all 16 problem codes `checkPack` reports. The example has four components, one deprecated with its replacement and no summary, so a reader has a valid record of each kind |
-| A2. Specifications | The Umbel plugin's specification with its decisions in the Umbel decision log; a Specimen workstream entry (T12; T09 to T11 are taken) in the [implementation plan](../specimens/implementation.md) and status; this folder moved to `active/` with a `STATUS.md`. Each gets an independent review and a revision before the owner's approval | Approved by the owner by pull request (D24). Written 2026-11-10: the [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) with D150 to D156, [T12](../specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status, and this folder in `active/` with [STATUS.md](STATUS.md); approved 2026-11-10 in #964 |
+| A2. Specifications | The Umbel plugin's specification with its decisions in the Umbel decision log; a Specimen workstream entry (T12; T09 to T11 are taken) in the [implementation plan](../../active/specimens/implementation.md) and status; this folder moved to `active/` with a `STATUS.md`. Each gets an independent review and a revision before the owner's approval | Approved by the owner by pull request (D24). Written 2026-11-10: the [plugin specification](../../../../endpoints/umbel/docs/plugins/components/spec.md) with D150 to D156, [T12](../../active/specimens/implementation.md#ordered-implementation-queue) in the Specimens plan and status, and this folder in `active/` with [STATUS.md](STATUS.md); approved 2026-11-10 in #964 |
 
 ### Phase B. Specimen builds packs
 

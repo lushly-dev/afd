@@ -454,13 +454,15 @@ export const Good = {
 			const loaded: string[] = [];
 			page.on('response', (response) => loaded.push(new URL(response.url()).pathname.slice(1)));
 			await page.goto(server.url);
-			expect(await page.getByRole('heading', { name: 'Specimens' }).count()).toBe(1);
-			expect(
-				await page
-					.getByRole('region', { name: 'Feasibility' })
-					.getByRole('link', { name: 'Baseline' })
-					.count()
-			).toBe(1);
+			// The index renders only after its stylesheet loads; wait for it, or a slow runner counts nothing.
+			const heading = page.getByRole('heading', { name: 'Specimens' });
+			const baseline = page
+				.getByRole('region', { name: 'Feasibility' })
+				.getByRole('link', { name: 'Baseline' });
+			await heading.waitFor();
+			await baseline.waitFor();
+			expect(await heading.count()).toBe(1);
+			expect(await baseline.count()).toBe(1);
 			await page.goto(`${server.url}/specimen.html?id=baseline`);
 			await page.frameLocator('iframe').getByRole('button', { name: 'Save' }).waitFor();
 			expect(errors).toEqual([]);

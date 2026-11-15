@@ -3,7 +3,7 @@ import { expect, waitFor } from "@lushly-dev/specimen/test";
 
 import "../button/violet-button";
 import "./violet-theme";
-import type { VioletThemePreset } from "./generated/violet-theme.generated";
+import type { VioletBuiltInThemePreset as VioletThemePreset } from "./violet-theme-runtime";
 
 type ScopedThemeArgs = {
     preset: VioletThemePreset;
