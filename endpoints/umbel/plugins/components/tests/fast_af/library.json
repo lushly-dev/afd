@@ -194,7 +194,7 @@
 			"tag": "violet-icon-button"
 		},
 		{
-			"digest": "sha256:9c6cde0e9449ab9ecabe60562047951cfba06aba93504550de3ba83b3365d2d4",
+			"digest": "sha256:ae408b7a40776321204c3e70291d74cae07541cf5151caaf155a6aff57d74d96",
 			"status": "stable",
 			"tag": "violet-image"
 		},
@@ -432,7 +432,7 @@
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:2838cfa023086b819c09f53fd0dc9af0279725d9805e6073beb082fc8b1aa9ea",
+	"digest": "sha256:8127062574909a8471002a307b0f83df9ac55d8fa845f342a4e329b9de08368b",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {
