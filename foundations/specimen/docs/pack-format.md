@@ -318,12 +318,21 @@ writer of the format may choose its own.
   **commands** take their coverage level, and **CSS properties** are
   `declared`. `form` is present, `observed`, when a case showed the element
   form-associated, and `verified` when a claim proved its participation.
-- **Roles.** In the default state, every instance a case showed has to have
-  the same computed role (capture 0.9); the role is then `observed`. Its
-  `name` says how the name was given when every instance agrees: `from the
-  <attribute> attribute` when an attribute holds the name, `from its text`
-  otherwise, and nothing when the element names others with
-  `aria-labelledby`. A guide's `roles` give the roles of other states, which
+- **Roles.** In the default state, every instance a case showed rendered has
+  to have the same computed role (capture 0.9); the role is then `observed`.
+  An instance's role is its own or, when it has none, that of the one
+  accessible element in its own open shadow tree, as a component that keeps
+  its control there has (a button's inner `button`). An element inside a
+  nested component's shadow tree is that component's. An instance with
+  neither and no box (inside a closed dialog, say) was not rendered and is
+  not counted; one that is laid out with neither, or whose shadow tree holds
+  two or more accessible elements, leaves the component without an observed
+  role. Its `name` says how the name was
+  given when every instance agrees and each role is the component's own:
+  `from the <attribute> attribute` when an attribute holds the name, `from
+  its text` otherwise, and nothing when the element names others with
+  `aria-labelledby`. A role from the shadow tree has no `name`, since the
+  component's attributes do not show how it names that element. A guide's `roles` give the roles of other states, which
   stay `authored`, and a guide's default-state role only where none was
   observed.
 - **The accessibility check** counts for the component a case is about, the

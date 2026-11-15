@@ -1,0 +1,79 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T4, the steward's
+# requests.
+# Not expressible here: every step runs as one person with the steward's role, so the file cannot
+# show a volunteer or an agent refused with FORBIDDEN and the steward allowed. An approval
+# reports its three steps in `plan` and a member who could not be told in `warnings` (code
+# MEMBER_NOT_TOLD); a scenario can assert neither, so the steps check `memberTold`.
+name: Decide a request for rare seed
+description: >-
+  When a held loan is waiting for me, I want to see who asked for what and approve or decline it,
+  so that each packet of rare seed goes to a member I chose.
+job: decide-a-request
+tags: [t4]
+fixture:
+  file: fixtures/steward.json
+  base: library.json
+steps:
+  - description: What is waiting, oldest first, with how many packets there are to give
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 3
+        requests:
+          - id: req-1
+            member: { name: Ines Marlow }
+            variety: { id: var-glassgem }
+            packetsAvailable: 2
+            summary: { contains: Glass Gem corn }
+          - { id: req-2 }
+          - { id: req-3 }
+  - description: Approved, the loan is made and the member is told
+    command: request-decide
+    input: { id: req-1, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+        loanId: { matches: '^loan-' }
+        memberTold: true
+  - description: Declined, with the reason the member will see
+    command: request-decide
+    input: { id: req-2, decision: decline, reason: "Two packets left, and both are promised" }
+    expect:
+      success: true
+      data:
+        status: declined
+  - description: Approved for a member the library cannot reach, which the result says
+    command: request-decide
+    input: { id: req-3, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+        memberTold: false
+  - description: Nothing is waiting now
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: A decided request cannot be decided again, and the refusal names the way back
+    command: request-decide
+    input: { id: req-1, decision: decline }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: request-reopen }
+  - description: A request that waited too long has expired, and the member has to ask again
+    command: request-decide
+    input: { id: req-4, decision: approve }
+    expect:
+      success: false
+      error:
+        code: REQUEST_EXPIRED
+        suggestion: { contains: loan-create }

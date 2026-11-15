@@ -114,3 +114,77 @@ describe('browser access (production mode)', () => {
 		expect((await callTool(base, 'http://localhost:8080')).status).toBe(200);
 	});
 });
+
+describe('contexts (src/contexts.ts)', () => {
+	const MODERN = '2026-07-28';
+	const META = {
+		'io.modelcontextprotocol/protocolVersion': MODERN,
+		'io.modelcontextprotocol/clientCapabilities': {},
+		'io.modelcontextprotocol/clientInfo': { name: 'todo-test', version: '0' },
+	};
+
+	/** One stateless MCP 2026-07-28 request on /mcp, scoped by `context` when given. */
+	async function mcp(
+		base: string,
+		method: string,
+		params: Record<string, unknown>,
+		context?: string
+	) {
+		const res = await fetch(`${base}/mcp`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json, text/event-stream',
+				'MCP-Protocol-Version': MODERN,
+				'Mcp-Method': method,
+				...(typeof params.name === 'string' ? { 'Mcp-Name': params.name } : {}),
+			},
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method,
+				params: {
+					...params,
+					_meta: { ...META, ...(context ? { 'dev.afd/context': context } : {}) },
+				},
+			}),
+		});
+		const text = await res.text();
+		const data = /^data: (.*)$/m.exec(text)?.[1];
+		return JSON.parse(data ?? text) as { result?: Record<string, unknown> };
+	}
+
+	it('registers the context tools and hides the writes while reading', async () => {
+		const base = await start();
+		// The default grouped strategy: one tool per category, its commands as `action` values.
+		const actions = async (tool: string, context?: string) => {
+			const { result } = await mcp(base, 'tools/list', {}, context);
+			const tools = (result?.tools ?? []) as Array<{
+				name: string;
+				inputSchema: { properties: { action: { enum: string[] } } };
+			}>;
+			return tools.find((entry) => entry.name === tool)?.inputSchema.properties.action.enum ?? [];
+		};
+
+		expect(await actions('bootstrap')).toEqual(
+			expect.arrayContaining(['context-list', 'context-enter', 'context-exit'])
+		);
+		expect(await actions('todo')).toContain('create');
+		expect((await actions('todo', 'todo-reading')).sort()).toEqual(['get', 'list', 'stats']);
+	});
+
+	it('refuses a change while reading', async () => {
+		const base = await start();
+		const { result } = await mcp(
+			base,
+			'tools/call',
+			{ name: 'todo-create', arguments: { title: 'Not now' } },
+			'todo-reading'
+		);
+		const content = result?.content as Array<{ text: string }>;
+		expect(JSON.parse(content[0]?.text ?? '{}')).toMatchObject({
+			success: false,
+			error: { code: 'COMMAND_NOT_IN_CONTEXT', suggestion: expect.any(String) },
+		});
+	});
+});

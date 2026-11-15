@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Optional
 from afd import Alternative, CommandResult, ExposeOptions, Warning, error, success
 from afd.server import MCPServer
 
+from todo_backend.contexts import EDIT_CONTEXTS, READ_CONTEXTS
 from todo_backend.models import (
     ClearTodosInput,
     CreateTodoInput,
@@ -54,7 +55,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=CreateTodoInput,
         tags=["todo", "create", "write", "single"],
         mutation=True,
-        contexts=["todo-editing"],
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def create_todo(input: CreateTodoInput) -> CommandResult[Todo]:
@@ -71,7 +72,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         category="todo",
         input_schema=ListTodosInput,
         tags=["todo", "list", "read"],
-        contexts=["todo-editing", "todo-reading"],
+        contexts=READ_CONTEXTS,
         expose=MCP,
     )
     async def list_todos(input: ListTodosInput) -> CommandResult[Dict[str, Any]]:
@@ -146,7 +147,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         category="todo",
         input_schema=IdInput,
         tags=["todo", "get", "read", "single"],
-        contexts=["todo-editing", "todo-reading"],
+        contexts=READ_CONTEXTS,
         expose=MCP,
     )
     async def get_todo(input: IdInput) -> CommandResult[Todo]:
@@ -162,6 +163,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=UpdateTodoInput,
         tags=["todo", "update", "write", "single"],
         mutation=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def update_todo(input: UpdateTodoInput) -> CommandResult[Todo]:
@@ -203,6 +205,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=IdInput,
         tags=["todo", "toggle", "write", "single"],
         mutation=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def toggle_todo(input: IdInput) -> CommandResult[Todo]:
@@ -219,6 +222,8 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=IdInput,
         tags=["todo", "delete", "write", "single", "destructive"],
         mutation=True,
+        destructive=True,
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def delete_todo(input: IdInput) -> CommandResult[Dict[str, Any]]:
@@ -242,6 +247,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         destructive=True,
         # Enforced when the server runs with CONFIRMATIONS=enforce (spec/confirmation-cases.json).
         confirm_prompt="Delete these todos? This cannot be undone.",
+        contexts=EDIT_CONTEXTS,
         expose=MCP,
     )
     async def clear_todos(input: ClearTodosInput) -> CommandResult[Dict[str, int]]:
@@ -275,6 +281,7 @@ def register_commands(server: MCPServer, store: MemoryStore) -> None:
         input_schema=EmptyInput,
         tags=["todo", "stats", "read", "safe"],
         requires=["todo-list"],
+        contexts=READ_CONTEXTS,
         expose=MCP,
     )
     async def todo_stats(input: EmptyInput) -> CommandResult[Dict[str, Any]]:

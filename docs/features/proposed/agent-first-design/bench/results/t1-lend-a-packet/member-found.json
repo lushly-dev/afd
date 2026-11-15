@@ -1,0 +1,17 @@
+{
+	"$command": "member-list",
+	"$input": {
+		"query": "Marlow"
+	},
+	"success": true,
+	"data": {
+		"members": [
+			{
+				"id": "mem-ines",
+				"name": "Ines Marlow",
+				"number": "M-014"
+			}
+		],
+		"total": 1
+	}
+}

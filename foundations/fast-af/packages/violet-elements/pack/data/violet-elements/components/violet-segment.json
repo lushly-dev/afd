@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "radio",
+				"state": "default"
+			}
+		],
 		"statements": [
 			{
 				"basis": "authored",
@@ -108,11 +114,7 @@
 		}
 	],
 	"format": 1,
-	"gaps": [
-		{
-			"kind": "role"
-		}
-	],
+	"gaps": [],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
 		"a11y.managed",

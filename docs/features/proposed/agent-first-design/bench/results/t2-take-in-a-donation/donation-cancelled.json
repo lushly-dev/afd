@@ -1,0 +1,12 @@
+{
+	"$command": "donation-cancel",
+	"$input": {
+		"id": "don-1"
+	},
+	"success": true,
+	"data": {
+		"id": "don-1",
+		"cancelled": true,
+		"lotsRemoved": 3
+	}
+}

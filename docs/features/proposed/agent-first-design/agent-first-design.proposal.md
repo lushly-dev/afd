@@ -8,10 +8,10 @@ defaults. Agents review early and often, and a person decides at the points that
 
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`. It states
   the problem, what exists, a model, draft jobs, a design direction and the owner's decisions.
-  It has no drafted commands and no scenario files, following the order the
-  [Scales scaffold](../scales/STATUS.md) set for them: the owner answers the direction and ranks
-  the jobs first. Unlike Scales, it carries a design direction, marked unverified.
-  [STATUS.md](STATUS.md) tracks progress.
+  It has no drafted commands and no scenario files. The owner answered the direction and ranked
+  the jobs first, the order the [Scales scaffold](../scales/STATUS.md) set; commands and
+  scenarios are phase A's, after phase 0's decision. Unlike Scales, it carries a design
+  direction, marked unverified. [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
 - **Not verified:**
@@ -22,7 +22,6 @@ defaults. Agents review early and often, and a person decides at the points that
   - How much result handling Loam repeats. A text search for `undoCommand` or `.suggestion`
     matched 43 source files outside tests across its packages, 18 of them in the chrome; none
     was read.
-  - Whether Botcore's `cdp_*` commands can emulate forced colors.
   - The claims about agents as test users in [5.5](#55-review) that have no citation here. They
     come from the owner's earlier brainstorm and were not rechecked.
 - **Read for ideas, from outside this repository:**
@@ -31,9 +30,9 @@ defaults. Agents review early and often, and a person decides at the points that
     Interface Guidelines. [Section 5.8](#58-the-skill) says what was taken.
   - The owner's earlier design-engine brainstorm and its app specification, in a private
     repository. Nothing here depends on them, and none of their text or data is used.
-- **Next:** the owner confirms or changes the [proposed rank](#proposed-rank) of the jobs, and
-  answers the questions still open in [For the owner](#9-for-the-owner): 4, 7, 8, 9 and 10.
-  Phase 0 starts with the bench's specification and its budget.
+- **Next:** the bench in the [bench specification](bench.md) is built. The owner approved
+  its domain and its budget on 2026-11-15 and has not confirmed its rules for "go". The owner
+  also answers the questions still open in [For the owner](#9-for-the-owner): 4, 8, 9 and 10.
 
 | Field | Value |
 | --- | --- |
@@ -231,31 +230,34 @@ ceremony for every change.
 
 ## 4. Draft jobs
 
-Sentences only. No commands are drafted and no scenario files are written yet. The owner cuts,
-adds and ranks them ([For the owner](#9-for-the-owner)).
+Sentences only. No commands are drafted and no scenario files are written yet. The owner
+confirmed the list and its [rank](#rank) on 2026-11-14
+([question 11](#9-for-the-owner)). A job keeps its number, so a merged job leaves a gap.
 
-| # | Seat | Sentence |
-| --- | --- | --- |
-| 1 | Product builder | When I start a product on AFD, I want patterns, voice and guidance that are good without setup, so that my first screens are sound before I have written any rules of my own |
-| 2 | Product builder | When my company does something differently from a default, I want my own copy of that pattern with its source recorded, so that I can change it and nothing changes it for me |
-| 3 | Product builder | When a default does not suit my product at all, I want to name my own pattern where the default was named, so that agents build to my rule |
-| 4 | Product builder | When I remove something a default requires, I want to give a reason and see it reported, so that a dropped requirement is never invisible |
-| 5 | Product builder | When a default I copied is changed upstream, I want to see what changed, statement by statement, and take it after review, so that an improvement reaches me by my choice |
-| 6 | Building agent | When I build a screen for a job, I want every state the commands can produce named, with the pattern for each, so that no error, empty or pending state is left undesigned |
-| 7 | Building agent | When I have no skill installed, I want the commands to tell me what applies, so that the guidance reaches me in any harness |
-| 8 | Reviewing agent | When I walk a job as a kind of user, I want only that user's way of perceiving and acting, so that what I find is what they would meet |
-| 9 | Person | When agents have reviewed a change, I want to see only the points that need my decision, each with the evidence for both sides, so that my time goes on choosing |
-| 10 | Person | When a change to guidance or interface is ready to ship, I want one view of what changed, why, and what it affects, so that nothing reaches users that I did not approve |
-| 11 | Person | When I turn a proposal down, I want to say whether it is unsafe, wrong here or not a priority now, so that it is not proposed again for the wrong reason |
-| 12 | Person | When agents agree with each other, I want to know how often I would have disagreed, so that I know whether their agreement means anything |
-| 13 | Default's owner | When many products change the same default, I want to be told, with their reasons, so that I can ask whether the default is wrong |
-| 14 | Product builder | When I have not set something up, I want reports to say what went unmeasured and what would measure it, so that I add things because they help |
+| # | Rank | Seat | Sentence |
+| --- | --- | --- | --- |
+| 1 | 2 | Product builder | When I start a product on AFD, I want patterns, voice and guidance that are good without setup, so that my first screens are sound before I have written any rules of my own |
+| 2 | 6 | Product builder | When a default does not suit my company or my product, I want my own copy of that pattern with its source recorded, or my own pattern named where the default was, so that agents build to my rule and nothing changes it for me |
+| 3 | | | Merged into job 2 |
+| 4 | 11 | Product builder | When I remove something a default requires, I want to give a reason and see it reported, so that a dropped requirement is never invisible |
+| 5 | 7 | Product builder | When a default I copied is changed upstream, I want to see what changed, statement by statement, and take it after review, so that an improvement reaches me by my choice |
+| 6 | 1 | Building agent | When I build a screen for a job, I want every state the commands can produce named, with the pattern for each, so that no error, empty or pending state is left undesigned |
+| 7 | 9 | Building agent | When I have no skill installed, I want the commands to tell me what applies, so that the guidance reaches me in any harness |
+| 8 | 4 | Reviewing agent | When I walk a job as a kind of user, I want only that user's way of perceiving and acting, so that what I find is what they would meet |
+| 9 | 5 | Person | When agents have reviewed a change, I want to see only the points that need my decision, each with the evidence for both sides, so that my time goes on choosing |
+| 10 | 3 | Person | When a change to guidance or interface is ready to ship, I want one view of what changed, why, and what it affects, and to say why when I turn one down, so that nothing reaches users that I did not approve and nothing is proposed again for the wrong reason |
+| 11 | | | Folded into job 10 |
+| 12 | 8 | Person | When agents agree with each other, I want to know how often I would have disagreed, so that I know whether their agreement means anything |
+| 13 | Deferred | Default's owner | When many products change the same default, I want to be told, with their reasons, so that I can ask whether the default is wrong |
+| 14 | 10 | Product builder | When I have not set something up, I want reports to say what went unmeasured and what would measure it, so that I add things because they help |
+| 15 | 12 | Person | When a change I approved has been in use, I want the journal read against what it was meant to fix, so that I know whether it worked |
 
-Jobs 4, 8 and 11 hold refusals or limits. Job 14 is the quiet one.
+Thirteen jobs: twelve ranked and one deferred. Jobs 4, 8 and 10 hold refusals or limits. Job 14
+is the quiet one.
 
-### Proposed rank
+### Rank
 
-Proposed on 2026-11-14 at the owner's request. The owner has not confirmed it.
+Proposed on 2026-11-14 at the owner's request, and confirmed by the owner the same day.
 
 | Rank | Job | Why here |
 | --- | --- | --- |
@@ -270,17 +272,17 @@ Proposed on 2026-11-14 at the owner's request. The owner has not confirmed it.
 | 9 | 7. Commands say what applies, with no skill | The path from a skill to an Umbel tool |
 | 10 | 14. Reports name what went unmeasured | A property of every report |
 | 11 | 4. A dropped requirement has a reason | Small once job 2 exists |
+| 12 | 15. Whether an approved change worked | The loop's last step. It needs a released application with a journal |
 
 Ranks 1 to 5 are the first slice.
 
-- **Merge job 3 into job 2.** Replacing a default is one row of the table in
+- **Job 3 is merged into job 2.** Replacing a default is one row of the table in
   [5.1](#51-customizing-a-default).
-- **Fold job 11 into job 10.** Why a change was turned down is a field on the decision card.
-- **Defer job 13.** It needs sight of other companies' repositories, which AFD does not have.
-  It works only inside one company's space.
-- **Add a job for the loop's last step,** which no job covers: "When a change I approved has
-  been in use, I want the journal read against what it was meant to fix, so that I know whether
-  it worked." Ranked last for now, since it needs a released application with a journal.
+- **Job 11 is folded into job 10.** Why a change was turned down is a field on the decision
+  card.
+- **Job 13 is deferred.** It needs sight of other companies' repositories, which AFD does not
+  have. It works only inside one company's space.
+- **Job 15 is added** for the loop's last step, which no job covered.
 
 ## 5. Design direction
 
@@ -433,8 +435,11 @@ Patterns' copy: the saved markup and styles of a region.
   | Screen reader | The accessibility tree and announcements only | Keys only |
   | Low vision | Screenshots at high zoom and at 320 px wide | Pointer and keys |
 
-  A forced-colors modality needs emulation. Specimen has none, and Botcore's `cdp_*` commands
-  were not checked for it.
+  A forced-colors modality needs emulation, and neither has it. Specimen has none. Botcore's
+  `cdp_emulate` sets a colour scheme, a viewport and offline, and takes a user agent and CPU
+  throttling without applying them
+  (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:716`, read 2026-11-14 at
+  `fd0781e4`).
 - **A job script is the scenario's sentence and starting state, without its steps.** The steps
   are the path the persona is not shown.
 - **The path is measured, not only the outcome.** The journal records which commands the
@@ -551,7 +556,8 @@ which instrument to use when, and the judgements no pattern owns and no gate can
 ### 5.9 The bench
 
 A new reference application that both proves the defaults and calibrates the panel. The todo
-example is not its base ([question 7](#9-for-the-owner)).
+example is not its base ([question 7](#9-for-the-owner)). Its draft specification, with a
+recommended domain and a budget, is [bench.md](bench.md).
 
 - **A specification that states needs, not components.** It lists jobs, screens, the states of
   each with what the user must be able to do, and what counts as done. Choosing components,
@@ -559,19 +565,23 @@ example is not its base ([question 7](#9-for-the-owner)).
 - **The commands are the data contract,** and scenario fixtures force each state.
 - **It exercises every pattern in [5.2](#52-the-default-pattern-set).**
 - **Two folders.** The builder sees the specification. The seeded faults, the held-out jobs and
-  the persona cards are kept where the builder cannot read them.
+  the persona cards are kept outside the builder's worktree. That is not a wall, so each
+  session's tool calls are checked for a read of them ([bench.md](bench.md#runs)).
 - **Arms, with the rule for "go" fixed before any run:**
 
   | Arm | The building agent gets |
   | --- | --- |
-  | 0 | Nothing |
+  | 0 | Nothing beyond what a session in this repository has today, which includes the components brief |
   | 1 | A general public design skill |
   | 2 | The default patterns through the brief |
   | 3 | Arm 2 and this proposal's skill |
   | 4 | Arm 3 and the panel loop |
 
+  The [bench specification](bench.md) adds a bare arm to step 0.1, given no list of states.
+  The owner approved it on 2026-11-15.
+
 - **Results are reported check by check,** with what was measured, excluded and unmeasured.
-  There is no single score. The owner's blind choice between arms is the judgement measure.
+  No single score ranks the arms. The owner's blind choice between arms is the judgement measure.
 - **Runs per arm follow Component Briefs:** fifteen.
 
 ## 6. What this changes elsewhere
@@ -592,12 +602,15 @@ Each is an amendment for the owner to accept, not an edit made here.
 ### Phase 0. Prove it
 
 The owner said on 2026-11-14 to run it. The bench is kept. The scripts that run the arms are
-throwaway, and only their record is merged. Each step fixes its rule for "go" before it runs.
+throwaway, and only their record is merged. Every rule for "go" is fixed before the first run,
+because later steps reuse earlier steps' builds ([bench.md](bench.md#rules-for-go)).
+No step here runs arm 4: the panel loop is built in phase C, and step 0.3 tests first whether
+a panel finds faults at all.
 
 | Step | Question | How |
 | --- | --- | --- |
-| 0.0 | Is there a bench? | Write the bench's specification ([5.9](#59-the-bench)): an invented domain, its commands and fixtures, the seeded faults, the held-out jobs, the persona cards, a run count and a cost estimate. The owner approves the domain and the budget before any session runs |
-| 0.1 | What goes wrong today? | Arms 0 and 1 on the bench. The owner reviews the results blind and names the faults. Those faults, and no others, become the first statements |
+| 0.0 | Is there a bench? | Write the bench's specification ([5.9](#59-the-bench), drafted in [bench.md](bench.md)): an invented domain, its commands and fixtures, the seeded faults, the held-out jobs, the persona cards, a run count and a cost estimate. The owner approves the domain and the budget before any session runs |
+| 0.1 | What goes wrong today? | Arms 0 and 1 on the bench, and a bare arm given no list of states. The owner reviews the results blind and names the faults. Those faults, and no others, become the first statements |
 | 0.2 | Do the default patterns help? | Arm 2 against arm 0, scored on the result states |
 | 0.3 | Can a panel find planted faults? | Seed faults in one build. Measure recall and judged precision per modality, and the overlap between reviewers |
 | 0.4 | Does the measured path tell a good screen from a bad one? | The same job on a clean build and a seeded one; compare the paths read from the journal |
@@ -687,17 +700,21 @@ Each recommendation is for the owner to decide.
    it is out of date and has no approval, undo or plan ([section 2](#loam-and-the-skills)).
    The bench is a new specification. *Recommendation: an invented domain whose jobs need every
    pattern in [5.2](#52-the-default-pattern-set).* Which domain is yours to choose.
+   **Decided 2026-11-15: a seed library,** as the [bench specification](bench.md) describes.
 8. **Non-web applications.** Whether statements without gates are enough for an engine or a
    native interface, for now.
 9. **The skill.** *Recommendation: one skill with a reference per topic, written only if step
    0.5 shows it helps.* Its name is open; `afd-design` fits the existing names.
 10. **Design to Code.** Retire it, or rewrite it around the rendered screen.
-11. **The jobs.** Cut, add and rank the fourteen. The owner asked for a proposal on
-    2026-11-14; it is the [proposed rank](#proposed-rank), with two merges, one deferral and
-    one added job. Not yet confirmed.
+11. **The jobs.** Cut, add and rank the fourteen jobs of the first draft. The owner asked for
+    a proposal on 2026-11-14. **Decided 2026-11-14: the [rank](#rank) as proposed,** with
+    job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added.
+    Ranks 1 to 5 are the first slice.
 12. **Phase 0.** Whether to run it, and its budget. **Decided 2026-11-14: run it.** The budget
-    comes with the bench's specification (step 0.0), for the owner to approve before any
-    session runs.
+    is in the [bench specification](bench.md) (step 0.0). **Decided 2026-11-15:** the sessions
+    run on Opus 5.5 at `medium` on a second machine of the owner's, draw on its subscription
+    allowance, and take no more than a fifth of a week's allowance in any one week. The rules
+    for "go" are not confirmed.
 
 ## 10. Out of scope
 

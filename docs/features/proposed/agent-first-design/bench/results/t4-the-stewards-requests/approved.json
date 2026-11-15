@@ -1,0 +1,38 @@
+{
+	"$command": "request-decide",
+	"$input": {
+		"id": "req-1",
+		"decision": "approve"
+	},
+	"success": true,
+	"data": {
+		"id": "req-1",
+		"status": "approved",
+		"decidedAt": "2030-03-09T10:00:00Z",
+		"loanId": "loan-2",
+		"memberTold": true
+	},
+	"plan": [
+		{
+			"id": "check-shelf",
+			"action": "Check the shelf",
+			"status": "complete"
+		},
+		{
+			"id": "make-loan",
+			"action": "Make the loan",
+			"status": "complete",
+			"dependsOn": ["check-shelf"]
+		},
+		{
+			"id": "tell-member",
+			"action": "Tell the member",
+			"status": "complete",
+			"dependsOn": ["make-loan"]
+		}
+	],
+	"undoCommand": "request-reopen",
+	"undoArgs": {
+		"id": "req-1"
+	}
+}

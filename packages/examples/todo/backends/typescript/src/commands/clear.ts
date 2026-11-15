@@ -4,6 +4,7 @@
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({
@@ -19,6 +20,7 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	name: 'todo-clear',
 	description: 'Clear completed todos (or all if specified)',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'clear', 'write', 'batch', 'destructive'],
 	mutation: true,
@@ -29,10 +31,8 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	input: inputSchema,
 
 	async handler(input: z.infer<typeof inputSchema>) {
-		console.error(`[todo-clear] input:`, JSON.stringify(input));
 		if (input.all) {
 			const count = store.count();
-			console.error(`[todo-clear] Clearing all ${count} todos`);
 			store.clear();
 			return success(
 				{ cleared: count, remaining: 0 },

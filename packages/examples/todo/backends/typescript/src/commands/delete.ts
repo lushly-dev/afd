@@ -4,6 +4,7 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 
 const inputSchema = z.object({
@@ -19,9 +20,11 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	name: 'todo-delete',
 	description: 'Delete a todo item',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'delete', 'write', 'single', 'destructive'],
 	mutation: true,
+	destructive: true,
 	version: '1.0.0',
 	input: inputSchema,
 	errors: ['NOT_FOUND'],

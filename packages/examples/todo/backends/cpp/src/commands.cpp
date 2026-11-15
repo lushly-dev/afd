@@ -100,6 +100,10 @@ afd::CommandDefinition command(const char* name, const char* description,
     definition.version = "1.0.0";
     definition.tags = std::move(tags);
     definition.mutation = mutation;
+    // The same contexts as the TypeScript backend's src/contexts.ts: reads are visible in
+    // both, changes only while editing.
+    definition.contexts = mutation ? std::vector<std::string>{"todo-editing"}
+                                   : std::vector<std::string>{"todo-reading", "todo-editing"};
     definition.expose = afd::ExposeOptions{.mcp = true};
     return definition;
 }
@@ -121,7 +125,6 @@ std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry
                                                     " with " + priority + " priority"});
         });
     create.errors = {"VALIDATION_ERROR"};
-    create.contexts = {"todo-editing"};
     commands.push_back(std::move(create));
 
     auto get = command("todo-get", "Get a single todo by ID", {"todo", "get", "read", "single"},
@@ -136,7 +139,6 @@ std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry
                                        .reasoning = "Retrieved todo " + in_quotes(todo->title)});
                        });
     get.errors = {"NOT_FOUND"};
-    get.contexts = {"todo-editing", "todo-reading"};
     commands.push_back(std::move(get));
 
     auto list = command(
@@ -229,7 +231,6 @@ std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry
             return afd::success(Json{{"todos", todos}, {"total", total}, {"hasMore", has_more}},
                                 std::move(options));
         });
-    list.contexts = {"todo-editing", "todo-reading"};
     commands.push_back(std::move(list));
 
     auto update = command(
@@ -338,6 +339,9 @@ std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry
                                 std::move(options));
         });
     clear.destructive = true;
+    // Declared like the other backends. This stdio loop does not enforce confirmations yet:
+    // that comes with the library's afd::mcp_stdio (#341).
+    clear.confirm_prompt = "Delete these todos? This cannot be undone.";
     commands.push_back(std::move(clear));
 
     auto stats_command =

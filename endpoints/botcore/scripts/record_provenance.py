@@ -62,8 +62,9 @@ IMPORT_REASONS = {
         "Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record "
         "the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog"
         " input schemas and argument refusals; Record that a host does not warn about "
-        "unselected plugin sections; Record either-spelling command names, kebab_names, typed"
-        " inputs, a context per call and the remote-caller profile"
+        "unselected plugin sections; Record the docs-manager prose guidance; Record either-"
+        "spelling command names, kebab_names, typed inputs, a context per call and the "
+        "remote-caller profile"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"

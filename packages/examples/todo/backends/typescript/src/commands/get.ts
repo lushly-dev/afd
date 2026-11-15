@@ -4,6 +4,7 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
@@ -16,6 +17,7 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-get',
 	description: 'Get a single todo by ID',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'get', 'read', 'single'],
 	mutation: false,
@@ -23,7 +25,6 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	input: inputSchema,
 	output: TodoSchema,
 	errors: ['NOT_FOUND'],
-	contexts: ['todo-editing', 'todo-reading'],
 
 	async handler(input) {
 		const todo = store.get(input.id);

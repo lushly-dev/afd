@@ -1,0 +1,13 @@
+{
+	"$command": "donation-correct",
+	"$input": {
+		"donationId": "don-3",
+		"index": 2,
+		"leaveOut": true
+	},
+	"success": true,
+	"data": {
+		"index": 2,
+		"outcome": "left-out"
+	}
+}

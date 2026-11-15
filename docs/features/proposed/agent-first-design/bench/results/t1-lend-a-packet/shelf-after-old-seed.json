@@ -1,0 +1,24 @@
+{
+	"$command": "variety-list",
+	"$input": {
+		"query": "marigold"
+	},
+	"success": true,
+	"data": {
+		"varieties": [
+			{
+				"id": "var-calendula",
+				"name": "Pot marigold",
+				"kind": "flower",
+				"rare": false,
+				"packetsAvailable": 3,
+				"germination": {
+					"estimate": 0.45,
+					"basis": "age"
+				},
+				"retired": false
+			}
+		],
+		"total": 1
+	}
+}

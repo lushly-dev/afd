@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "button",
+				"state": "default"
+			}
+		],
 		"statements": []
 	},
 	"api": {
@@ -159,9 +165,6 @@
 		},
 		{
 			"kind": "a11y-statement"
-		},
-		{
-			"kind": "role"
 		},
 		{
 			"kind": "example"

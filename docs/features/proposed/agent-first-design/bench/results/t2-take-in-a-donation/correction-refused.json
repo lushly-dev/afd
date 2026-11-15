@@ -1,0 +1,19 @@
+{
+	"$command": "donation-correct",
+	"$input": {
+		"donationId": "don-3",
+		"index": 1,
+		"harvestYear": 2032
+	},
+	"success": false,
+	"error": {
+		"code": "INVALID_INPUT",
+		"message": "The harvest year 2032 is in the future",
+		"suggestion": "Call donation-correct again with a harvest year of 2030 or earlier",
+		"retryable": false,
+		"details": {
+			"index": 1,
+			"harvestYear": 2032
+		}
+	}
+}

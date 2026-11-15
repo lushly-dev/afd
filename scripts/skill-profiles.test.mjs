@@ -40,7 +40,7 @@ async function fixture(t) {
 		profiles: {
 			afd: {
 				root: '.claude/skills',
-				mirror: '.codex/skills',
+				mirror: '.agents/skills',
 				listingBudget: 1000,
 				projections: [{ name: 'review-code', canonical: 'code-reviewer' }],
 				overrides: [{ name: 'do-commit', canonical: 'commit', owner: 'afd' }],
@@ -62,12 +62,12 @@ async function fixture(t) {
 	);
 	await put('.claude/skills/do-commit/references/local.md', 'Preserved local resource.');
 	await put('.claude/skills/afd/SKILL.md', 'Local AFD guidance.');
-	await mkdir(path.join(root, '.codex'));
-	await symlink('../.claude/skills', path.join(root, '.codex/skills'));
+	await mkdir(path.join(root, '.agents'));
+	await symlink('../.claude/skills', path.join(root, '.agents/skills'));
 	return { root, put, manifest, save: () => put('skills/exports.json', JSON.stringify(manifest)) };
 }
 
-test('complete-tree projections are deterministic and preserve aliases, overrides, assets, and Codex mirror', async (t) => {
+test('complete-tree projections are deterministic and preserve aliases, overrides, assets, and the .agents/skills mirror', async (t) => {
 	const { root } = await fixture(t);
 	assert.equal((await syncProfiles(root)).length, 3);
 	await syncProfiles(root, { write: true });
@@ -89,7 +89,7 @@ test('complete-tree projections are deterministic and preserve aliases, override
 		'---\nname: do-commit\nsource: afd\n---\nPreserved workflow.\n'
 	);
 	assert.equal(
-		(await readlink(path.join(root, '.codex/skills'))).replaceAll(path.sep, '/'),
+		(await readlink(path.join(root, '.agents/skills'))).replaceAll(path.sep, '/'),
 		'../.claude/skills'
 	);
 });
@@ -153,11 +153,11 @@ test('rejects traversal, external paths, symlink resources and redirected mirror
 	await symlink('guide.md', path.join(root, 'bundled/code-reviewer/references/linked.md'));
 	await assert.rejects(syncProfiles(root, { write: true }), /Symlink in skill tree/);
 	await rm(path.join(root, 'bundled/code-reviewer/references/linked.md'));
-	await rm(path.join(root, '.codex/skills'));
-	await symlink('../bundled', path.join(root, '.codex/skills'));
+	await rm(path.join(root, '.agents/skills'));
+	await symlink('../bundled', path.join(root, '.agents/skills'));
 	await assert.rejects(syncProfiles(root, { write: true }), /Invalid skill mirror/);
-	await rm(path.join(root, '.codex/skills'));
-	await symlink('../.claude/skills', path.join(root, '.codex/skills'));
+	await rm(path.join(root, '.agents/skills'));
+	await symlink('../.claude/skills', path.join(root, '.agents/skills'));
 	await put('.claude/skills/review-code/references/guide.md', 'local');
 	await rm(path.join(root, '.claude/skills/review-code/references/guide.md'));
 	await symlink(

@@ -209,6 +209,19 @@ test('spec prose reaches no package; the files beside it reach their readers', (
 	assert.ok(scope(['spec/VERSION']).changed.includes('@lushly-dev/loam-manifest'));
 });
 
+test("the bench's results and tasks reach the seed library, and its other prose none", () => {
+	const root = join(import.meta.dirname, '..');
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	const bench = 'docs/features/proposed/agent-first-design/bench';
+	for (const file of [
+		`${bench}/results/t1-lend-a-packet/lent.json`,
+		`${bench}/tasks/t3-a-variety.md`,
+	]) {
+		assert.deepEqual(scope([file]).changed, ['@afd/example-seed-library'], file);
+	}
+	assert.deepEqual(scope([`${bench}/seed-library.md`]).affected, []);
+});
+
 test('a test file reaches its package and not the dependents', (t) => {
 	const { root } = fixture(t);
 	const scope = (files) => resolveScope({ root, files, git: () => '' });
@@ -538,7 +551,7 @@ test('workflow path filters are read and matched like GitHub Actions', () => {
 	assert.equal(matchesFilters(filters, 'endpoints/umbel/docs/STATUS.md'), false);
 	assert.equal(matchesFilters(filters, 'scripts/release-claim.mjs'), true);
 	assert.equal(matchesFilters(filters, 'scripts/release/claim.mjs'), false);
-	assert.equal(matchesFilters(['.codex/skills'], '.codex/skills'), true);
+	assert.equal(matchesFilters(['.agents/skills'], '.agents/skills'), true);
 
 	const block = `on:
   push:

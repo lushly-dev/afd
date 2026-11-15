@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "image",
+				"state": "default"
+			}
+		],
 		"statements": []
 	},
 	"api": {
@@ -129,7 +135,7 @@
 		{
 			"basis": "observed",
 			"from": "components-image--error-fallback",
-			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image alt=\"Fallback planting image\" fit=\"cover\" loading=\"lazy\" ratio=\"landscape\" shape=\"rounded\" src=\"https://invalid.invalid/missing-image.jpg\">\n                <violet-text as=\"span\" slot=\"fallback\" tone=\"muted\" variant=\"caption\">Image unavailable</violet-text>\n            </violet-image>\n        </div>"
+			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image alt=\"Fallback planting image\" fit=\"cover\" loading=\"lazy\" ratio=\"landscape\" shape=\"rounded\" src=\"data:image/png;base64,AAAA\">\n                <violet-text as=\"span\" slot=\"fallback\" tone=\"muted\" variant=\"caption\">Image unavailable</violet-text>\n            </violet-image>\n        </div>"
 		}
 	],
 	"format": 1,
@@ -142,9 +148,6 @@
 		},
 		{
 			"kind": "a11y-statement"
-		},
-		{
-			"kind": "role"
 		},
 		{
 			"kind": "unobserved",
