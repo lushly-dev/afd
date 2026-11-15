@@ -12,7 +12,16 @@ import { existsSync } from 'node:fs';
 import { win32 } from 'node:path';
 
 /** Commands Windows installs only as `.cmd` shims. */
-export const SHIMS = new Set(['pnpm', 'npm', 'npx', 'lefthook', 'changeset']);
+export const SHIMS = new Set([
+	'pnpm',
+	'npm',
+	'npx',
+	'pnpx',
+	'corepack',
+	'yarn',
+	'lefthook',
+	'changeset',
+]);
 const UNSAFE = /["%^&|<>\r\n]/;
 
 /** What to start and whether it needs cmd.exe, for a command on a platform. */

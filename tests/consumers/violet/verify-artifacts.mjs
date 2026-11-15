@@ -710,6 +710,12 @@ if (baseline) {
 // and stopping cmd.exe would leave the server running.
 const serverRoot = join(endpointRoot, 'node_modules/@lushly-dev/violet-server');
 const serverBin = JSON.parse(readFileSync(join(serverRoot, 'package.json'), 'utf8')).bin;
+const mcpCommand = join(
+	endpointRoot,
+	'node_modules/.bin',
+	process.platform === 'win32' ? 'violet-mcp.cmd' : 'violet-mcp'
+);
+assert.ok(existsSync(mcpCommand), `the install exposes the violet-mcp command at ${mcpCommand}`);
 const mcp = spawn(
 	process.execPath,
 	[join(serverRoot, serverBin['violet-mcp']), '--db', join(endpointRoot, 'mcp.db')],

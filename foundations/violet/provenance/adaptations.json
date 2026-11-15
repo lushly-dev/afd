@@ -3686,7 +3686,7 @@
       "path": "tests/consumers/violet/verify-artifacts.mjs",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "b722b45b7a1c9b8c8f57796f39daed5eb4d8e9657b418de7cf8ac04627bd5af5",
+      "current_import_sha256": "5bcf42130d9c21ffa9caf383779acbb77a55d1e9fcc508853cb7794a2b405522",
       "classification": "afd-authored",
       "reason": "Packed-artifact consumers outside the workspace (Phase 3 evidence); afd-core is packed from the workspace and shared with the consumer after the move to AFD 2.x; reads the fixed-group version and the integration peer range from the workspace manifests, so a version step needs no edit; the static server answers a directory request with 404 instead of crashing on EISDIR; in Chromium, the packed runtime applies the same resolved tokens from a preloaded source with no token request, and ThemeManager follows prefers-color-scheme, prefers-contrast and forced-colors to a high-contrast theme; the declarations accept either a source or a token server, never both (Loam D50 and phase 0 spec section 3 (step 0b)); pnpm, tar and the installed bins start portably so the check runs on Windows (#1200)",
       "candidate": {
