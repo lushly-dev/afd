@@ -107,7 +107,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 				// Set to specific state - only update if different
 				if (existing.completed !== targetState) {
 					updated = store.update(id, { completed: targetState }, now);
-					changed.push({ id, previous: existing.completed });
+					if (updated) changed.push({ id, previous: existing.completed });
 				} else {
 					// Already in desired state, just return as-is
 					updated = existing;
@@ -115,7 +115,7 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 			} else {
 				// Toggle current state
 				updated = store.toggle(id, now);
-				changed.push({ id, previous: existing.completed });
+				if (updated) changed.push({ id, previous: existing.completed });
 			}
 
 			if (updated) {

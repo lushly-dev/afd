@@ -53,6 +53,7 @@ steps:
         description: Call the hire shop first
         priority: medium
         completed: false
+        deletedAt: { notExists: true }
   - description: Two more todos exist
     command: todo-create-batch
     input:

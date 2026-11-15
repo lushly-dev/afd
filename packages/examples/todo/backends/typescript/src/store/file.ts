@@ -60,8 +60,9 @@ export function historyPathFor(filePath: string): string {
  * store's method on them and saves what changed.
  *
  * Each file's write is atomic (temp file + rename), but the three are separate writes, not one
- * transaction: a crash between them can leave a todo in both the live and the deleted file. The
- * move to `@lushly-dev/local-db`'s SQLite store (the to-do reference plan's D4) replaces this.
+ * transaction. The file a todo moves into is written first, so a crash between the writes leaves
+ * it in both files rather than neither, and loading keeps the live copy of a todo found in both.
+ * The move to `@lushly-dev/local-db`'s SQLite store (the to-do reference plan's D4) replaces this.
  * A file that cannot be parsed throws a `TodoStoreCorruptError` rather than being treated as
  * empty.
  */
@@ -93,15 +94,19 @@ export class FileStore {
 	 * @throws TodoStoreCorruptError when a file exists but cannot be parsed
 	 */
 	private load(): TodoStore {
+		const todos = readOrEmpty(
+			() => readTodoFile(this.filePath),
+			() => new Map<string, Todo>()
+		);
+		const deleted = readOrEmpty(
+			() => readTodoFile(this.deletedPath),
+			() => new Map<string, Todo>()
+		);
+		// In both files only after a crash between the writes of a delete or restore: keep it live
+		for (const id of todos.keys()) deleted.delete(id);
 		return new TodoStore({
-			todos: readOrEmpty(
-				() => readTodoFile(this.filePath),
-				() => new Map()
-			),
-			deleted: readOrEmpty(
-				() => readTodoFile(this.deletedPath),
-				() => new Map()
-			),
+			todos,
+			deleted,
 			history: readOrEmpty(
 				() => readHistoryFile(this.historyPath),
 				() => []
@@ -117,10 +122,18 @@ export class FileStore {
 	/** Run a change against the files' current state, then save the state atomically. */
 	private change<T>(operation: (store: TodoStore) => T): T {
 		const store = this.load();
+		const deletedBefore = new Set(store.snapshot().deleted.keys());
 		const result = operation(store);
 		const state = store.snapshot();
-		writeTodoFile(this.filePath, state.todos);
-		writeTodoFile(this.deletedPath, state.deleted);
+		// Write the file a todo moved into first (see the class comment)
+		const intoDeleted = [...state.deleted.keys()].some((id) => !deletedBefore.has(id));
+		if (intoDeleted) {
+			writeTodoFile(this.deletedPath, state.deleted);
+			writeTodoFile(this.filePath, state.todos);
+		} else {
+			writeTodoFile(this.filePath, state.todos);
+			writeTodoFile(this.deletedPath, state.deleted);
+		}
 		writeJsonFile(this.historyPath, state.history);
 		return result;
 	}

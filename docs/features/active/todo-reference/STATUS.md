@@ -129,7 +129,8 @@ On branch `t3/todo-reference-phase2-slice`, 2026-11-15, not yet merged:
 - **Context.** Handlers take their time and ids from `context.clock` and `context.random`.
 - **Spec.** `todo-restore` and `todo-history` are in `spec/commands.schema.json` with
   `implementedBy: ["typescript"]`, the new inputs with `x-implementedBy`; the Python, Rust and C++
-  tests check only their own commands.
+  tests check only their own commands, and the C++ backend, whose schema compiler refuses unknown
+  keywords, leaves the TypeScript-only inputs out of its schemas.
 - **Jobs.** Jobs 1 to 5, 8 and 9 moved to `backends/typescript/scenarios/` and run in
   `src/scenarios.test.ts`, in-process through the server's middleware (job 5 through
   `createDirectRegistry` in `todo-reading`). Removing the approval middleware fails job 4, and

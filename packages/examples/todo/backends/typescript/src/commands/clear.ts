@@ -39,8 +39,8 @@ function scope(input: ClearInput): 'all' | 'deleted' | 'completed' {
 }
 
 /**
- * The text a person approves: what goes for good and how many, read from the store when the
- * call is held.
+ * The text a person approves: what goes for good, and how many that is when the call is held.
+ * The approval covers the call's input, not those todos, so the text says the count is as of now.
  */
 export function summarizeClear(input: unknown): string {
 	const parsed = inputSchema.safeParse(input);
@@ -51,11 +51,11 @@ export function summarizeClear(input: unknown): string {
 	const plural = (count: number) => `${count} ${count === 1 ? 'todo' : 'todos'}`;
 	switch (what) {
 		case 'all':
-			return `Remove all ${plural(live + deleted)} for good (${live} live, ${deleted} deleted)`;
+			return `Remove every todo for good, live and deleted (${plural(live + deleted)} now)`;
 		case 'deleted':
-			return `Remove ${plural(deleted)} from the deleted todos for good`;
+			return `Empty the deleted todos for good (${plural(deleted)} now)`;
 		default:
-			return `Remove ${completed} completed ${completed === 1 ? 'todo' : 'todos'} for good`;
+			return `Remove the completed todos for good (${plural(completed)} now)`;
 	}
 }
 

@@ -79,6 +79,15 @@ TEST_CASE("every todo input schema compiles with its shared definitions") {
     for (auto it = commands.begin(); it != commands.end(); ++it) {
         CAPTURE(it.key());
         afd::Json schema = it.value().at("input");
+        // A property marked x-implementedBy is not yet part of every language's schema; the C++
+        // backend leaves it out, as here, since afd-cpp refuses unknown keywords.
+        if (schema.contains("properties")) {
+            auto& properties = schema["properties"];
+            for (auto property = properties.begin(); property != properties.end();) {
+                property = property.value().contains("x-implementedBy") ? properties.erase(property)
+                                                                         : std::next(property);
+            }
+        }
         schema["definitions"] = spec->at("definitions");
         const auto compiled = afd::CompiledSchema::compile(schema);
         CHECK_MESSAGE(compiled.has_value(), (compiled.has_value() ? "" : compiled.error()));

@@ -3,7 +3,7 @@
  * cannot assert (undoCommand, warnings, other actors).
  */
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import type { CommandResult } from '@lushly-dev/afd-core';
@@ -107,6 +107,32 @@ describe('todo-restore and deleted todos', () => {
 		expect(listed.data?.todos[0]?.deletedAt).toBeDefined();
 	});
 
+	it('lists the most recently deleted first, and restores without deletedAt', async () => {
+		const first = await create('Deleted first');
+		const second = await create('Deleted second');
+		await run(
+			'todo-delete',
+			{ id: first.id },
+			{ ...agent, clock: fixedClock('2026-11-15T09:00:00Z') }
+		);
+		await run(
+			'todo-delete',
+			{ id: second.id },
+			{ ...agent, clock: fixedClock('2026-11-15T10:00:00Z') }
+		);
+
+		const newest = await run<{ todos: Todo[] }>('todo-list', {
+			deleted: true,
+			sortBy: 'deletedAt',
+			sortOrder: 'desc',
+		});
+		expect(newest.data?.todos.map((todo) => todo.id)).toEqual([second.id, first.id]);
+
+		const restored = await run<RestoreResult>('todo-restore', { ids: [first.id] });
+		expect(restored.data?.restored[0]).not.toHaveProperty('deletedAt');
+		expect(store.get(first.id)).not.toHaveProperty('deletedAt');
+	});
+
 	it('reports a live id and an unknown id as failed, each with its way forward', async () => {
 		const todo = await create('Net the currants');
 		const result = await run<RestoreResult>('todo-restore', { ids: [todo.id, 'todo-unknown'] });
@@ -187,7 +213,7 @@ describe('todo-clear', () => {
 
 		const held = await run('todo-clear', {});
 		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
-		expect(held.error?.suggestion).toContain('Remove 1 completed todo for good');
+		expect(held.error?.suggestion).toContain('Remove the completed todos for good (1 todo now)');
 		expect(store.get(todo.id)).toBeDefined();
 	});
 
@@ -231,6 +257,25 @@ describe('the stamp and the file store', () => {
 		});
 		expect(first.now).toBe('2026-11-15T09:00:00.000Z');
 		expect(first.newId()).toBe(again.newId());
+	});
+
+	it('keeps a todo found in both files live (a crash between writes)', () => {
+		const dir = mkdtempSync(join(tmpdir(), 'todo-both-'));
+		try {
+			const path = join(dir, 'todos.json');
+			const files = new FileStore(path);
+			const todo = files.create({ title: 'In both' });
+			writeFileSync(
+				files.deletedPath,
+				JSON.stringify([{ ...todo, deletedAt: '2026-11-15T09:00:00.000Z' }])
+			);
+
+			const reopened = new FileStore(path);
+			expect(reopened.get(todo.id)?.title).toBe('In both');
+			expect(reopened.getDeleted(todo.id)).toBeUndefined();
+		} finally {
+			rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('keeps deleted todos and the history across instances', () => {
