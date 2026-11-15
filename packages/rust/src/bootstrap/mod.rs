@@ -14,6 +14,28 @@ mod afd_docs;
 mod afd_help;
 mod afd_schema;
 
+/// Shared by the bootstrap commands' unit tests.
+#[cfg(test)]
+mod test_support {
+    use crate::commands::{CommandContext, CommandHandler};
+    use crate::result::{success, CommandResult};
+    use async_trait::async_trait;
+
+    /// A handler that ignores its input and returns `{"test": true}`.
+    pub(super) struct TestHandler;
+
+    #[async_trait]
+    impl CommandHandler for TestHandler {
+        async fn execute(
+            &self,
+            _input: serde_json::Value,
+            _context: CommandContext,
+        ) -> CommandResult<serde_json::Value> {
+            success(serde_json::json!({"test": true}))
+        }
+    }
+}
+
 pub use afd_docs::{create_afd_docs_command, AfdDocsHandler, DocsInput, DocsOutput};
 pub use afd_help::{create_afd_help_command, AfdHelpHandler, CommandInfo, HelpInput, HelpOutput};
 pub use afd_schema::{

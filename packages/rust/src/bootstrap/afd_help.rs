@@ -249,20 +249,7 @@ pub(super) fn command(handler: AfdHelpHandler) -> CommandDefinition {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::result::success;
-
-    struct TestHandler;
-
-    #[async_trait]
-    impl CommandHandler for TestHandler {
-        async fn execute(
-            &self,
-            _input: serde_json::Value,
-            _context: CommandContext,
-        ) -> CommandResult<serde_json::Value> {
-            success(serde_json::json!({"test": true}))
-        }
-    }
+    use crate::bootstrap::test_support::TestHandler;
 
     fn create_test_registry() -> Arc<CommandRegistry> {
         let registry = CommandRegistry::new();
