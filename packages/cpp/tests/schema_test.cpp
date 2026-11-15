@@ -85,7 +85,7 @@ TEST_CASE("every todo input schema compiles with its shared definitions") {
             auto& properties = schema["properties"];
             for (auto property = properties.begin(); property != properties.end();) {
                 property = property.value().contains("x-implementedBy") ? properties.erase(property)
-                                                                         : std::next(property);
+                                                                        : std::next(property);
             }
         }
         schema["definitions"] = spec->at("definitions");

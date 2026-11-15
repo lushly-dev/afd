@@ -26,7 +26,8 @@ std::vector<std::string> spec_command_names() {
         const auto& entry = it.value();
         if (entry.contains("implementedBy")) {
             const auto& languages = entry["implementedBy"];
-            if (std::find(languages.begin(), languages.end(), "cpp") == languages.end()) continue;
+            if (std::find(languages.begin(), languages.end(), "cpp") == languages.end())
+                continue;
         }
         names.push_back(it.key());
     }
