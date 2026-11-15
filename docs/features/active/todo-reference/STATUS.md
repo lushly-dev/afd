@@ -24,7 +24,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   later phases, as the findings table says.
 - **In progress:** phase 2. Its jobs are written as nine scenarios in [`scenarios/`](scenarios/),
   checked and walked twice (the proposal's [Phase 2 jobs](todo-reference.proposal.md#phase-2-jobs));
-  D6, D7 and D9 wait for the owner, and the commands are not started.
+  the owner decided D6 to D10 on 2026-11-15; the commands are not started.
 - **Not started:** phases 3 to 5.
 
 ## Plan
@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs written, checked and walked; commands not started | [`scenarios/`](scenarios/); the checks' output is in the jobs pull request | The owner's D6, D7 and D9 and ranking of the jobs; then the commands |
+| 2. The TypeScript reference | In progress: jobs written, checked and walked; commands not started | [`scenarios/`](scenarios/); the checks' output is in the jobs pull request | The first slice's commands (D10) |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -109,13 +109,8 @@ test target passed.
 
 ## Open questions
 
-The owner decided D1 to D3 on 2026-11-14 and D8 on 2026-11-15. Open, from phase 2's jobs (the
-proposal's [decisions](todo-reference.proposal.md#decisions)):
-
-- D6: approval holds only `todo-clear`, for any caller that is not a person.
-- D7: deleted todos are kept until emptied, with no purge on a timer.
-- D9: a `todo-history` command for what changed, by whom, with its undo.
-- The ranking of the nine jobs, and which are the first slice (now 1, 3, 4 and 9).
+None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
+app is a reference first: where a choice is close it leans toward making the system visible.
 
 ## Follow-ups not yet issues
 
@@ -130,4 +125,4 @@ proposal's [decisions](todo-reference.proposal.md#decisions)):
 | Date | Session | What changed |
 | --- | --- | --- |
 | 2026-11-14 | Review and phase 1 | Reviewed the examples against current AFD; wrote the proposal and this file; phase 1 written and verified locally |
-| 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; D6, D7 and D9 proposed, D8 decided |
+| 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; the owner decided D6 to D10 |

@@ -68,6 +68,12 @@ It leaves handoff to `examples/chat`, sign-in and surface-validation demonstrati
 `examples/showcase`, and defers MCP authorization, output budgets (not in TypeScript yet) and
 tasks. Pipelines stay in showcase; one to-do pipeline scenario is cheap and is in scope.
 
+**A reference first, a to-do app second** (owner, 2026-11-15). The app exists to show how AFD
+works, so where a choice is close it leans toward making the system visible: results say what
+they did, why and how to undo it, metadata is complete, and changes are recorded where a person
+or agent can read them. Some choices are not what a shipping to-do app would make, and that is
+accepted when they show AFD more clearly.
+
 ## Decisions
 
 The owner asked on 2026-11-14 to save this proposal and start the work, and answered the review's
@@ -81,9 +87,10 @@ make deletes undoable (D3).
 | D3 | Deleting a todo can be undone, through a new `todo-restore` command in all four languages and the Umbel plugin | Owner, 2026-11-14 | Phases 2 and 5 |
 | D4 | The TypeScript store moves onto `@lushly-dev/local-db`'s SQLite adapter; the Python backend reads the same database through the standard library's `sqlite3`, which keeps the shared-data story without a JSON file store in each language | Settled in this proposal | Phase 2 |
 | D5 | todo-directclient imports the main example's commands instead of keeping its own copy | Settled in this proposal | Phase 4 |
-| D6 | Approval holds only `todo-clear`, the one change with no undo, for any caller that is not a person; deletes are undoable instead of held | Proposed 2026-11-15; for the owner | Phase 2 |
-| D7 | A deleted todo is kept, findable with `todo-list { deleted: true }`, until `todo-clear { deleted: true }` or `{ all: true }` empties them; nothing purges on a timer | Proposed 2026-11-15; for the owner | Phase 2 |
-| D9 | A `todo-history` command shows recent changes with their actor and undo (job 9) | Proposed 2026-11-15 after the walk; for the owner | Phase 2 |
+| D6 | Approval holds only `todo-clear`, the one change with no undo, for any caller that is not a person; deletes are undoable instead of held | Owner, 2026-11-15 | Phase 2 |
+| D7 | A deleted todo is kept, findable with `todo-list { deleted: true }`, until `todo-clear { deleted: true }` or `{ all: true }` empties them; nothing purges on a timer | Owner, 2026-11-15 | Phase 2 |
+| D9 | A `todo-history` command shows recent changes with their actor and undo (job 9) | Owner, 2026-11-15 | Phase 2 |
+| D10 | Phase 2's first slice is jobs 1, 3, 4 and 9 (tagged `slice`): undo a completion, undo a delete, clearing waits for a person, and history with undo; jobs 2, 5, 7 and 8 follow in phase 2, and job 6 in phases 3 and 4 | Owner, 2026-11-15 | Phase 2 |
 | D8 | Python lint findings and a lint step for the example go in phase 5's Python pull request | Owner, 2026-11-15 | Phase 5 |
 
 ## Plan
