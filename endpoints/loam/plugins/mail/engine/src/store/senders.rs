@@ -499,7 +499,10 @@ pub(super) fn senders_sql() -> String {
          WHERE (?1 IS NULL OR domain = ?1) AND (?2 = 0 OR written > 0)
            AND (?6 = 0 OR EXISTS (SELECT 1 FROM screening
                                   WHERE screening.sender_address = sender.address
-                                    AND screening.class = 'unknown' AND screening.listed = 1))
+                                    AND screening.class = 'unknown' AND screening.listed = 1
+                                    AND NOT EXISTS (SELECT 1 FROM burst_message
+                                                    WHERE burst_message.message_id
+                                                        = screening.message_id)))
            AND (?7 = 0 OR EXISTS (SELECT 1 FROM sender_suggestion
                                   WHERE sender_suggestion.address = sender.address
                                     AND sender_suggestion.state = 'open'))

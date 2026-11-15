@@ -523,6 +523,21 @@ pub(super) fn settle(
         compute_place(transaction, *mailbox, *thread)?;
     }
     let turned = super::senders::settle_senders(transaction, &touched.senders, now)?;
+    // First contacts change with a sender's messages and with the accounts
+    // that show them.
+    let mut contacts = touched.senders.clone();
+    {
+        let mut sender_of = transaction
+            .prepare_cached("SELECT sender_address FROM envelope WHERE message_id = ?1")?;
+        for message in &touched.shown {
+            if let Some(address) = sender_of
+                .query_row([message], |row| row.get::<_, String>(0))
+                .optional()?
+            {
+                contacts.insert(address);
+            }
+        }
+    }
     super::classes::settle(
         transaction,
         &super::classes::Reclassify {
@@ -530,6 +545,7 @@ pub(super) fn settle(
             templates: Some(&touched.templates),
             senders: Some(&turned),
             shown: Some(&touched.shown),
+            contacts: Some(&contacts),
         },
         now,
     )?;
@@ -953,6 +969,7 @@ impl Store {
         )?;
         transaction.execute_batch(super::classes::CLEAR)?;
         transaction.execute_batch(super::stories::CLEAR)?;
+        transaction.execute_batch(super::bursts::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;

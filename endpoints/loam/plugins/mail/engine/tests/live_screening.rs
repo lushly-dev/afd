@@ -1,8 +1,8 @@
 //! Steps C1's and C2's report on the owner's mail (the specification's 6.3,
 //! 7.1, 7.2 and 8): Q2 as the engine computes it beside the census's figure,
 //! how many stream stories each grouping gives, what screening classes the
-//! mail falls into and what stories it makes, with what classing it,
-//! reading stories and deciding on a sender cost.
+//! mail falls into and what stories and bursts it makes, with what classing
+//! it, reading stories and deciding on a sender cost.
 //! Ignored: it runs only when asked, on a copy of a synced store whose
 //! directory it is given.
 //!
@@ -223,6 +223,22 @@ fn screening_on_a_copy_of_a_synced_store() {
         "largestMessages": count("SELECT coalesce(max(messages), 0) FROM story"),
         "largestKinds": count("SELECT coalesce(max(kinds), 0) FROM story WHERE messages >= 5"),
     });
+    // Bursts (step C3): first contacts, and the busiest 24 hours of them in
+    // any account, beside the rule's 30.
+    let busiest: i64 = count(
+        "SELECT coalesce(max((SELECT count(*) FROM first_contact AS later
+                              WHERE later.account_id = first_contact.account_id
+                                AND later.received >= first_contact.received
+                                AND later.received < first_contact.received + 86400000)), 0)
+         FROM first_contact",
+    );
+    let burst_counts = json!({
+        "firstContacts": count("SELECT count(*) FROM first_contact"),
+        "busiestDayOfFirstContacts": busiest,
+        "bursts": count("SELECT count(*) FROM burst"),
+        "inBursts": count("SELECT count(*) FROM burst_message"),
+        "largestBurst": count("SELECT coalesce(max(messages), 0) FROM burst"),
+    });
     let largest_story: Option<(i64, i64)> = connection
         .query_row(
             "SELECT id, (SELECT message_id FROM story_member WHERE story_id = story.id
@@ -394,6 +410,7 @@ fn screening_on_a_copy_of_a_synced_store() {
             // Classing every message from nothing, and making every story.
             "classifyEverythingMs": classify_ms,
             "stories": story_counts,
+            "bursts": burst_counts,
             "storyListFiftyP95Ms": p95(story_list),
             "storyChangesHundredP95Ms": p95(story_changes),
             "largestStoryOpenP95Ms": story_ms(open_story),

@@ -52,6 +52,10 @@ pub(super) struct Reclassify<'a> {
     /// Messages a mailbox started or stopped showing, whose `listed` is
     /// computed again.
     pub(super) shown: Option<&'a BTreeSet<i64>>,
+    /// Addresses whose first contacts are computed again, with every
+    /// address in `senders`: the senders of the messages a batch derived or
+    /// a mailbox started showing ([`super::bursts`]).
+    pub(super) contacts: Option<&'a BTreeSet<String>>,
 }
 
 /// Whether a mailbox other than junk and trash shows the message whose id
@@ -249,8 +253,12 @@ const CLASS_COUNTS: &str =
     "SELECT class, count(*) FROM screening WHERE sender_address = ?1 GROUP BY class";
 
 /// The queue's messages and senders.
+/// The queue's messages and senders: a burst's are its story's, not the
+/// queue's (7.4).
 const QUEUE: &str = "SELECT count(*), count(DISTINCT sender_address) FROM screening
-     WHERE class = 'unknown' AND listed = 1";
+     WHERE class = 'unknown' AND listed = 1
+       AND NOT EXISTS (SELECT 1 FROM burst_message
+                       WHERE burst_message.message_id = screening.message_id)";
 
 /// Counts again each template in `keys`, and returns those that reached
 /// [`RECURRING`] or fell below it.
@@ -302,7 +310,19 @@ pub(super) fn settle(
     let templates = changed.templates.unwrap_or(&empty_templates);
     let senders = changed.senders.unwrap_or(&empty_senders);
     let shown = changed.shown.unwrap_or(&empty_messages);
-    if messages.is_empty() && templates.is_empty() && senders.is_empty() && shown.is_empty() {
+    let contacts: BTreeSet<String> = changed
+        .contacts
+        .into_iter()
+        .flatten()
+        .chain(senders)
+        .cloned()
+        .collect();
+    if messages.is_empty()
+        && templates.is_empty()
+        && senders.is_empty()
+        && shown.is_empty()
+        && contacts.is_empty()
+    {
         return Ok(0);
     }
     let turned = recount(transaction, templates)?;
@@ -337,6 +357,8 @@ pub(super) fn settle(
             Some(&mut storied),
         )?;
     }
+    // A message whose burst changed has its story computed again too.
+    storied.extend(super::bursts::settle(transaction, &contacts)?);
     super::stories::settle(transaction, &storied, now)?;
     Ok(rows)
 }
@@ -505,6 +527,7 @@ impl Store {
     pub fn classify_everything(&mut self) -> Result<(), StoreError> {
         let transaction = self.connection.transaction()?;
         classify_all(&transaction)?;
+        super::bursts::compose_all(&transaction)?;
         super::stories::compose_all(&transaction, super::wall_clock())?;
         transaction.commit()?;
         Ok(())

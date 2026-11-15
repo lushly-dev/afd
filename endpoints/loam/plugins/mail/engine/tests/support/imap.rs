@@ -150,6 +150,24 @@ impl World {
         uid
     }
 
+    /// Adds a message the provider received at `internal_date`, written as
+    /// IMAP writes it (`15-Mar-2026 10:05:00 +0000`), and returns its UID.
+    pub fn add_received(
+        &mut self,
+        mailbox: &str,
+        bytes: Vec<u8>,
+        flags: &[&str],
+        internal_date: &str,
+    ) -> u32 {
+        let uid = self.add(mailbox, bytes, flags);
+        self.find(mailbox)
+            .messages
+            .get_mut(&uid)
+            .expect("the message was just added")
+            .internal_date = internal_date.to_string();
+        uid
+    }
+
     pub fn set_flags(&mut self, mailbox: &str, uid: u32, flags: &[&str]) {
         self.modseq += 1;
         let modseq = self.modseq;

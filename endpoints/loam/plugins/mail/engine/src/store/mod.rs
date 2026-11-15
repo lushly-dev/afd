@@ -7,6 +7,7 @@
 //! its thread, where a thread shows, the search index) is in `derived`, and
 //! is written in the same transaction as the bytes it is read from.
 
+mod bursts;
 mod classes;
 mod decisions;
 mod derived;
@@ -20,6 +21,9 @@ mod stories;
 mod sync;
 mod tokens;
 
+pub use bursts::{
+    BurstRow, LEAST as BURST_LEAST, MEDIAN_DAYS, TIMES as BURST_TIMES, WINDOW as BURST_WINDOW,
+};
 pub use classes::{Class, ClassCounts, Readiness};
 pub use decisions::{
     Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
@@ -341,6 +345,7 @@ impl Store {
         if migrations.len() >= schema::MIGRATIONS.len() {
             classes::fill_if_marked(&mut connection)?;
             stories::fill_if_marked(&mut connection)?;
+            bursts::fill_if_marked(&mut connection)?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
@@ -1156,6 +1161,8 @@ fn restrict_to_owner(path: &std::path::Path) -> Result<(), StoreError> {
     Ok(())
 }
 
+#[cfg(test)]
+mod bursts_tests;
 #[cfg(test)]
 mod classes_tests;
 #[cfg(test)]

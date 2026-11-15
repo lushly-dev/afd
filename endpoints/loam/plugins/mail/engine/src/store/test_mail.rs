@@ -57,6 +57,31 @@ impl Mail {
 
     /// Records a message's headers in `mailbox`. `fields` are header lines
     /// after `From`, `Message-ID`, the date and the subject, `s<number>`.
+    /// The same mail with its store closed and opened again, as a program
+    /// that stops and starts does.
+    pub(super) fn reopen(self) -> Self {
+        let Self {
+            _directory,
+            store,
+            account,
+            inbox,
+            sent,
+            archive,
+            next,
+        } = self;
+        drop(store);
+        let store = Store::open(&Home::at(_directory.path().join("data"))).unwrap();
+        Self {
+            _directory,
+            store,
+            account,
+            inbox,
+            sent,
+            archive,
+            next,
+        }
+    }
+
     pub(super) fn add(&mut self, mailbox: MailboxId, from: &str, fields: &[&str]) -> MessageId {
         self.add_seen(mailbox, from, fields).0
     }
@@ -176,6 +201,19 @@ impl Mail {
                 "SELECT * FROM story_kind ORDER BY story_id, template_key",
             ),
             table(&self.store, "SELECT * FROM story ORDER BY id"),
+            table(
+                &self.store,
+                "SELECT * FROM first_contact ORDER BY account_id, message_id",
+            ),
+            table(
+                &self.store,
+                "SELECT * FROM contact_day ORDER BY account_id, day",
+            ),
+            table(&self.store, "SELECT * FROM burst ORDER BY id"),
+            table(
+                &self.store,
+                "SELECT * FROM burst_message ORDER BY burst_id, message_id",
+            ),
         ]
     }
 

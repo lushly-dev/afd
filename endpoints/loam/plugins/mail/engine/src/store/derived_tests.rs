@@ -128,6 +128,10 @@ fn derived(store: &Store) -> Vec<(String, Vec<Vec<Value>>)> {
         ("story_shape", "story_id, shape"),
         ("story_kind", "story_id, template_key"),
         ("story", "id"),
+        ("first_contact", "account_id, message_id"),
+        ("contact_day", "account_id, day"),
+        ("burst", "id"),
+        ("burst_message", "burst_id, message_id"),
     ]
     .iter()
     .map(|(table, order)| {
@@ -421,12 +425,13 @@ fn a_rebuild_reproduces_every_derived_table_and_the_index() {
     let (mut store, inbox, _) = busy(&home);
     store.commit_index().unwrap();
     let before = derived(&store);
-    // A story needs five messages of one stream, which this store has not;
-    // the tests of stories rebuild those.
+    // A story needs five messages of one stream, and a burst thirty first
+    // contacts in a day, which this store has not; the tests of stories and
+    // of bursts rebuild those.
     assert!(
-        before
-            .iter()
-            .all(|(table, rows)| table == "story" || !rows.is_empty()),
+        before.iter().all(|(table, rows)| {
+            ["story", "burst", "burst_message"].contains(&table.as_str()) || !rows.is_empty()
+        }),
         "{before:?}"
     );
     let listed = store.list_threads(inbox, None, 50).unwrap();

@@ -693,6 +693,22 @@ pub fn message_list(engine: Arc<Engine>) -> CommandDefinition {
     .with_expose(read_exposure())
 }
 
+/// How many bursts `mail-status` names, the latest first.
+const BURSTS_SHOWN: u32 = 20;
+
+/// The latest bursts, each with its story and flag, and how many there are.
+fn bursts_json(store: &Store) -> Result<Value, StoreError> {
+    let (bursts, total) = store.bursts_since(i64::MIN, BURSTS_SHOWN)?;
+    let mut latest = Vec::with_capacity(bursts.len());
+    for burst in &bursts {
+        let known = store.known_during(burst)?;
+        let mut item = crate::stories::burst_json(burst, &known);
+        item["story"] = json!(burst.id);
+        latest.push(item);
+    }
+    Ok(json!({ "latest": latest, "total": total }))
+}
+
 /// What `mail-status` says of screening: whether it can be read, the queue,
 /// the suggestions waiting, and the senders blocked in the last 30 days and
 /// by whom, so that a wrong block is seen (the specification's 7.3).
@@ -741,6 +757,9 @@ pub fn status_json(store: &Store, now: i64) -> Result<Value, StoreError> {
         // How many times a batch found a story counted wrong and counted it
         // again whole: nothing, unless the engine has a bug (section 8).
         "storiesRecounted": store.story_recounts()?,
+        // The latest bursts, each flagged when a known sender wrote during
+        // it, and how many there are (7.4); they wait with the classes.
+        "bursts": if ready { bursts_json(store)? } else { Value::Null },
         "blockedLately": blocked,
         // Every block of the 30 days, of which `blockedLately` is the latest;
         // `mail-sender-list` with `decision` gives them all.
