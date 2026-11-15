@@ -6935,11 +6935,11 @@
       "upstream_sha256": "e1d751632538e78006d91973a781ba784aeec39042d43fff7b6830c4ff55be86",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.spec.ts",
       "staged_sha256": "e1d751632538e78006d91973a781ba784aeec39042d43fff7b6830c4ff55be86",
-      "current_import_sha256": "c4e659ff87e098d7df47696e3d47cbd1a1df9998a06c2d0e3e4d0d8541c2e973",
+      "current_import_sha256": "1341e29bb83a768513167a6d3437085958321653b1c15c7bbfbfdf7d89ce3d40",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #237) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; settle pending renders before picker specs click the trigger (#1199)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-multi-picker.stories.ts",
@@ -7187,11 +7187,11 @@
       "upstream_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.spec.ts",
       "staged_sha256": "a7fc1834efcf685a481030fe44a2eb00890a2a9796a83a85e2449f403979b192",
-      "current_import_sha256": "7272a05de80a437ec05354ecd99dd337cb25325628350eb98e536ca7ff30a3d2",
+      "current_import_sha256": "5c459b3b55c5b00f0f25c50ed00961b985eef2aa8ce0ae78790930b49ce1b3e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #237) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow"
+      "import_reason": "#600: Biome 2.5 (the workspace's version, replacing upstream 2.4.8) reports noUnsafeOptionalChaining where an optional chain feeds a type assertion whose result is dereferenced; the chain could not prevent the TypeError, so it becomes a non-null assertion (allowed in spec files by the FAST-AF Biome override) and a missing call or shadow root fails the test as before; Label in name (WCAG 2.5.3, #971), which axe-core 4.14 checks: the color picker, date range picker and the four data-grid pickers name their trigger by its label and then by the text it shows; the file explorer keeps a row's visible name and metadata together in its name; the persona draws its initials through CSS, as they are decorative; the attachment cell's thumbnail falls back to an icon; specs, a story and the custom elements manifest follow; settle pending renders before picker specs click the trigger (#1199)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-reference-picker.stories.ts",
