@@ -1,11 +1,9 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Run in-process with context { clock: fixedClock('2026-11-15T09:00:00Z'),
-# random: seededRandom('todo-reference') } and createJournalMiddleware, as the backend's tests
-# will. The file is the session; the replay is a CLI step (`afd replay <journal>
-# --module dist/registry.js`), not a command, so it cannot be a step. The backend's replay test
-# runs it on this session's journal and expects every result to match.
-# Replay starts from a fresh store (spec/journal.md, "Replay"), so the session creates
-# everything it touches.
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference).
+# src/replay.test.ts runs it in-process with a fixed clock and seeded random through the server's
+# journal middleware, then replays the journal against src/registry.ts, the module
+# `afd replay <journal> --module dist/registry.js` loads, and expects every result to match.
+# The replay is a CLI step, not a command, so it cannot be a step here. Replay starts from a
+# fresh store (spec/journal.md, "Replay"), so the session creates everything it touches.
 name: Turn an agent session into a regression test
 description: >-
   When a bug report comes with the journal of the agent session that hit it, I want to replay

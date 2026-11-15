@@ -5,6 +5,7 @@
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
+import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 import { stampFrom, todoNotFound } from './shared.js';
@@ -19,7 +20,9 @@ const inputSchema = z.object({
 
 export const updateTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-update',
-	description: 'Update a todo item',
+	title: 'Update a todo',
+	description:
+		"Update a todo's title, description, priority or completion; the result names the undo",
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
@@ -31,6 +34,17 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'NO_CHANGES'],
 
+	output: TodoSchema,
+	examples: [
+		{
+			title: 'Rename and reprioritise',
+			input: {
+				id: 'todo-1700000000000-abc1234',
+				title: 'Order seed potatoes and onions',
+				priority: 'high',
+			},
+		},
+	],
 	async handler(input, context) {
 		const { id, ...updates } = input;
 

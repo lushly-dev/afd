@@ -33,7 +33,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 6 waits for phases 3 and 4, 7 for the journal | See [phase 2](#phase-2-the-typescript-reference) | Job 7 and the rest of phase 2 |
+| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | The rest of phase 2: local-db, the approval suite, CI |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -137,10 +137,25 @@ Merged in [#1251](https://github.com/lushly-dev/afd/pull/1251) on 2026-11-15 (`0
   `createDirectRegistry` in `todo-reading`). Removing the approval middleware fails job 4, and
   running job 5 with no context fails it.
 
-Left in phase 2: job 7 with `createJournalMiddleware` and a replay test; `output`, `examples` and
-`title` on every command; `defaultMiddleware()`; storage on local-db (D4); the approval conformance
-suite; `afd scenario run` and `afd validate --surface --strict` in CI, with the four older scenarios
-rewritten so they need no clear; conformance cases for the new behaviour.
+Merged in [#1256](https://github.com/lushly-dev/afd/pull/1256) on 2026-11-15:
+
+- **Journal and replay (job 7).** `TODO_JOURNAL` records each call past the approval hold through
+  `createJournalMiddleware`, with the clock and random values it read; held calls are not
+  recorded, so no approval token reaches a journal. `src/registry.ts` is the module
+  `afd replay --module` loads: a fresh in-memory store and the same middleware without the
+  approval hold, which every journaled call already passed. Importing the store module touches
+  no data file; the server chooses its store at startup. `src/replay.test.ts` records job 7 and
+  an approved agent clear and replays both to the same results, finds a changed session, and
+  checks the replay module creates no data file; the CLI replay of a recorded session matched.
+- **Metadata.** Every command declares a `title`, an `output` schema and `examples`, and every
+  mutation an `approval` policy. `src/surface.test.ts` runs strict surface validation: four input
+  overlaps are suppressed with their reason (the single-id commands, and `todo-restore` as
+  `todo-delete-batch`'s undo); seven descriptions were rewritten.
+- **Middleware.** `defaultMiddleware()` replaces the hand-built logging.
+
+Left in phase 2: storage on local-db (D4); the approval conformance suite; `afd scenario run` and
+`afd validate --surface --strict` in CI, with the four older scenarios rewritten so they need no
+clear; conformance cases for the new behaviour.
 
 ## Open questions
 
@@ -163,3 +178,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Review and phase 1 | Reviewed the examples against current AFD; wrote the proposal and this file; phase 1 written and verified locally |
 | 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; the owner decided D6 to D10 |
 | 2026-11-15 | Phase 2 slice | Built undo, deleted todos, `todo-restore`, `todo-history` and the clear approval in TypeScript; jobs 1 to 5, 8 and 9 run in the backend's tests |
+| 2026-11-15 | Phase 2 journal | Journal and replay (job 7), title, output and examples on every command, strict surface validation in the tests, `defaultMiddleware()`; in #1256 |

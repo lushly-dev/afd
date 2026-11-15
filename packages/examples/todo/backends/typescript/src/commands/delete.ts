@@ -19,8 +19,9 @@ export interface DeleteResult {
 
 export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	name: 'todo-delete',
+	title: 'Delete a todo',
 	description:
-		'Delete a todo item. It is kept with the deleted todos, and todo-restore brings it back until todo-clear empties them',
+		'Delete one todo by its id. It is kept with the deleted todos, and todo-restore brings it back until todo-clear empties them',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
@@ -34,6 +35,13 @@ export const deleteTodo = defineCommand<typeof inputSchema, DeleteResult>({
 	input: inputSchema,
 	errors: ['NOT_FOUND'],
 
+	output: z.object({ deleted: z.boolean(), id: z.string() }),
+	examples: [
+		{
+			title: 'Delete one todo; todo-restore brings it back',
+			input: { id: 'todo-1700000000000-abc1234' },
+		},
+	],
 	async handler(input, context) {
 		const deleted = store.delete(input.id, stampFrom(context).now);
 		if (!deleted) {

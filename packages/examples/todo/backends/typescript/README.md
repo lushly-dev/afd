@@ -43,6 +43,8 @@ file instead of being treated as empty.
 | `APPROVALS` | `agents` | `agents` holds `todo-clear` for any caller that is not a person; `off` holds nothing |
 | `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several processes accept each other's tokens |
 | `CONFIRMATIONS` | `off` | `enforce` or `require-human` to ask before `todo-clear` |
+| `TODO_JOURNAL` | (none) | Path of a JSON Lines file to record every call to, for `afd replay` |
+| `LOG_LEVEL` | `info` | `debug` logs each call's input and result |
 
 ### Browser access
 
@@ -87,12 +89,42 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 Each change's result names its undo in `undoCommand` and `undoArgs`; the example README's
 [Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript) explains them.
 
+## Recording and replaying a session
+
+`TODO_JOURNAL` records every call that gets past the approval hold (failures included, held calls
+not, approved ones once approved) with the clock and random values it read, through
+`createJournalMiddleware`. `afd replay` runs the file again against a fresh in-memory store from
+`src/registry.ts`, with the same middleware but no approval hold (each recorded call already got
+past it), and reports, per call, whether the result is the same:
+
+```bash
+pnpm -F "@lushly-dev/afd-cli..." build    # once, from the repository root: the afd CLI
+pnpm build
+TODO_JOURNAL=session.jsonl TODO_STORE_TYPE=memory TRANSPORT=http pnpm start
+# in another terminal, make some calls, then stop the server:
+node ../../../../cli/dist/bin.js connect http://localhost:3100/mcp
+node ../../../../cli/dist/bin.js call todo-create '{"title":"Recorded"}'
+# replay:
+node ../../../../cli/dist/bin.js replay session.jsonl --module dist/registry.js
+```
+
+Replay starts from an empty store, so record from an empty one (`TODO_STORE_TYPE=memory`): a
+session that reads todos it did not create diverges at the first such read. Loading the replay
+module touches no data file. Ids and times come
+from the command context's random and clock, which the journal records, so they replay exactly.
+`src/replay.test.ts` records job 7 this way and replays it.
+
+The middleware runs in this order: `defaultMiddleware()` (a trace id, logging, a slow-call
+warning), the approval hold, the journal, then the change history (`src/server-options.ts`).
+
 ## Jobs
 
 `scenarios/` holds the jobs built so far, one scenario file each, from the
 [to-do reference plan](../../../../../docs/features/active/todo-reference/todo-reference.proposal.md#phase-2-jobs).
 `src/scenarios.test.ts` runs them in-process through the server's own middleware, with a fixed
-clock and seeded random, as part of `pnpm test`.
+clock and seeded random, as part of `pnpm test`. `src/surface.test.ts` runs AFD's strict surface
+validation over the commands and checks each declares a title, an output, an example and, when it
+changes todos, an approval policy.
 
 ## Conformance
 

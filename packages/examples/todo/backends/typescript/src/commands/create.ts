@@ -18,6 +18,7 @@ const inputSchema = z.object({
 
 export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-create',
+	title: 'Create a todo',
 	description: 'Create a new todo item',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
@@ -31,6 +32,9 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	output: TodoSchema,
 	errors: ['VALIDATION_ERROR'],
 
+	examples: [
+		{ title: 'A todo with a priority', input: { title: 'Order seed potatoes', priority: 'high' } },
+	],
 	async handler(input, context) {
 		const todo = store.create(
 			{

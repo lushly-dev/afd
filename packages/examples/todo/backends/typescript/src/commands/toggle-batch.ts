@@ -9,6 +9,7 @@ import type { CommandError } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
+import { BatchSummarySchema, FailedByIdSchema, TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 import { stampFrom, todoNotFound } from './shared.js';
@@ -59,7 +60,9 @@ export interface BatchToggleResult {
 
 export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>({
 	name: 'todo-toggle-batch',
-	description: 'Toggle completion status of multiple todos, or set all to a specific state',
+	title: 'Toggle several todos',
+	description:
+		'Toggle the completion status of the listed todos, or set them all to completed: true or false',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
@@ -72,6 +75,20 @@ export const toggleBatch = defineCommand<typeof inputSchema, BatchToggleResult>(
 	input: inputSchema,
 	errors: ['NOT_FOUND', 'PARTIAL_FAILURE'],
 
+	output: z.object({
+		succeeded: TodoSchema.array(),
+		failed: FailedByIdSchema.array(),
+		summary: BatchSummarySchema.extend({
+			markedComplete: z.number(),
+			markedIncomplete: z.number(),
+		}),
+	}),
+	examples: [
+		{
+			title: 'Mark two todos done',
+			input: { ids: ['todo-1700000000000-abc1234', 'todo-1700000000000-def5678'], completed: true },
+		},
+	],
 	async handler(input, context) {
 		const now = stampFrom(context).now;
 		const succeeded: Todo[] = [];
