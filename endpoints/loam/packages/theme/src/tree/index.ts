@@ -125,7 +125,12 @@ function categoryOf(id: string): string {
 	if (family === 'color' || id.startsWith('shell.color.')) return 'color';
 	if (family === 'shadow' || family === 'radius' || family === 'z-index') return family;
 	if (family === 'duration' || family === 'easing') return 'motion';
-	if (family === 'weight' || family === 'type' || /^size\.(font|line)\./.test(id))
+	if (
+		family === 'weight' ||
+		family === 'type' ||
+		family === 'font' ||
+		/^size\.(font|line)\./.test(id)
+	)
 		return 'typography';
 	return 'spacing';
 }
@@ -139,6 +144,7 @@ export function contractTypeOf(id: string): ContractType {
 	if (id.startsWith('shadow.')) return 'shadow';
 	if (id.startsWith('duration.')) return 'duration';
 	if (id.startsWith('easing.')) return 'cubicBezier';
+	if (id.startsWith('font.family.')) return 'fontFamily';
 	if (id.startsWith('weight.') || (id.startsWith('type.') && id.endsWith('.weight')))
 		return 'fontWeight';
 	if (id.startsWith('z-index.')) return 'number';

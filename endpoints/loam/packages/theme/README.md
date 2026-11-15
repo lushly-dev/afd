@@ -23,7 +23,7 @@ Private and quarantined. The design is in the
 ```sh
 pnpm -F @lushly-dev/loam-theme build          # tsc, then the files below into dist/
 pnpm -F @lushly-dev/loam-theme theme:build    # the same
-pnpm -F @lushly-dev/loam-theme theme:check    # contract/tokens.json, the kernel's layout defaults, the component export and the fallbacks against the tree
+pnpm -F @lushly-dev/loam-theme theme:check    # contract/tokens.json, the kernel's layout defaults, violet-elements' token interface, the component export and the fallbacks against the tree
 pnpm -F @lushly-dev/loam-theme theme:check --write   # regenerate contract/tokens.json after adding, removing or retyping an id
 pnpm -F @lushly-dev/loam-theme theme:export-components              # write violet-elements' tokens/violet-theme.export.json
 pnpm -F @lushly-dev/loam-theme theme:export-components --fallbacks  # also rewrite the fallbacks in violet-elements/src that differ from light
@@ -47,6 +47,14 @@ No output contains a `ref.*` primitive.
 ## The shared components (2.4, D50)
 
 `violet-elements` may not depend on Violet, so it takes Loam's themes as data.
+It owns the list of custom properties its components read,
+`foundations/fast-af/packages/violet-elements/tokens/interface.json`; Loam's tree
+supplies a value for each, and `theme:check` fails when the contract lacks an
+interface id as a `component` id with the same property and type. To add one:
+write its value in `src/tree/components.ts`, run `theme:check --write` and
+`theme:export-components`, then `violet-elements`' `theme:build`. Loam's other
+shared ids (the type ramp, for example) are exported too.
+
 `theme:export-components` writes
 `foundations/fast-af/packages/violet-elements/tokens/violet-theme.export.json`,
 `{ "contractVersion": 1, "source": "loam", "presets": { "light", "dark", "high-contrast" } }`,
@@ -54,7 +62,7 @@ each preset the theme's component ids (no `shell.*`) as resolved `{ id, value }`
 tokens at comfortable density. That package's `theme:build` generates its runtime
 presets from the file.
 
-`theme:check` fails when the committed export differs from the tree, or when a
+`theme:check` also fails when the committed export differs from the tree, or when a
 literal fallback `var(--<component id>, <literal>)` in `violet-elements/src`
 differs from the light value after normalization (lowercase hex, trimmed and
 collapsed whitespace). After changing a value:

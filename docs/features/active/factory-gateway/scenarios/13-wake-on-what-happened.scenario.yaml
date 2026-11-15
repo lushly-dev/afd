@@ -1,0 +1,40 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the foreman endpoint, then the lane endpoint for the third step. The T3 Code wake that
+# starts a foreman session for these events is outside what a scenario can show.
+name: Wake on what happened on GitHub instead of polling
+description: >-
+  When the foreman or the lane is waiting on GitHub (a merge to land, the owner to answer), I want
+  one call that returns when something it cares about happened and that never returns the same
+  event twice to the same reader, so that no agent spends turns polling and nothing is missed while
+  it was not looking.
+job: wake-on-what-happened
+tags: [events]
+fixture:
+  file: fixtures/events.json
+  base: gateway.json
+steps:
+  - description: The foreman's wait returns the merge and the comment from the owner's account, marked as possibly an agent's
+    command: gateway-wait
+    input: { repo: example-org/example-repo, consumer: foreman, kinds: [pr-merged, owner-commented], timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { kind: pr-merged, target: pr#45 }
+          - { kind: owner-commented, target: issue#104, sharedAccount: true }
+  - description: Waiting again returns nothing new for that reader
+    command: gateway-wait
+    input: { repo: example-org/example-repo, consumer: foreman, kinds: [pr-merged, owner-commented], timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events: { length: 0 }
+        timedOut: true
+  - description: Another reader still gets the merge it has not seen, filtered to what it asks for
+    command: gateway-wait
+    input: { repo: example-org/example-repo, consumer: lane, kinds: [pr-merged], timeout_ms: 1000 }
+    expect:
+      success: true
+      data:
+        events:
+          - { kind: pr-merged, target: pr#45 }

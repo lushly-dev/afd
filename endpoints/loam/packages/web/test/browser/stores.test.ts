@@ -55,7 +55,7 @@ describe('P2-E13: E7: VioletRuntime with the preloaded source', () => {
 		const properties = Object.values(contract.tokens)
 			.filter((token) => token.kind === 'component')
 			.map(({ property, type }) => ({ property, type }));
-		expect(properties).toHaveLength(108);
+		expect(properties).toHaveLength(115);
 
 		const opened = await openShell(browser, site.origin, { colorScheme: 'light' });
 		await opened.page.evaluate(await bundlePage('violet-runtime'));

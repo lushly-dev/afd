@@ -3,6 +3,10 @@
 **Status:** Proposed, 2026-11-12; revised the same day after three independent readers
 walked the jobs. Revised 2026-11-13: [the improvement loop](#the-improvement-loop) added, and
 Phase 0 done. **Author:** Claude Code session with Jason.
+**GitHub side (2026-11-14):** the [Factory Gateway](../../active/factory-gateway/factory-gateway.proposal.md)
+moves the claims and GitHub writes in [State](#state) behind one service holding a GitHub App;
+the commands here are unchanged, and the GitHub calls inside them (claims in `cells.py`, the
+queue push in `queue.py`, the lane's reads and writes) go through it.
 **Origin:** Lushly's [software factory plan](https://github.com/lushly-dev/lushly/blob/main/Docs/features/active/software-factory.plan.md)
 (fleet v2, Lushly #2164 and #2187) and its
 [merge lane runbook](https://github.com/lushly-dev/lushly/blob/main/Docs/operations/merge-lane.md).

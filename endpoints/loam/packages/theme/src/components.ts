@@ -4,6 +4,9 @@
  * generator reads, and literal `var(--<id>, <literal>)` fallbacks that must equal the light
  * theme, so a component renders the same with no theme installed.
  *
+ * - `compareInterface` checks the tree against `tokens/interface.json`, every custom property the
+ *   components read, which `violet-elements` owns: Loam supplies each as a component id with the
+ *   same property and type, and may export ids the interface does not list.
  * - `renderComponentExport` gives `tokens/violet-theme.export.json`, which
  *   `theme:export-components` writes and `theme:check` compares.
  * - `scanFallbacks` finds every fallback of a component id whose literal differs from the light
@@ -32,6 +35,44 @@ export function renderComponentExport(resolved: ResolvedTree, contract: Contract
 			.map(([id, value]) => ({ id, value }));
 	}
 	return { contractVersion: contract.contractVersion, source: COMPONENT_EXPORT_SOURCE, presets };
+}
+
+/** `violet-elements`' `tokens/interface.json`. */
+export interface TokenInterface {
+	contractVersion: number;
+	tokens: Record<string, { property: string; type: string; reserved?: boolean }>;
+}
+
+const INTERFACE_FIX =
+	'add the id to src/tree/components.ts, run `pnpm -F @lushly-dev/loam-theme theme:check --write` and `theme:export-components`, then `pnpm -F @lushly-dev/violet-elements theme:build`';
+
+/**
+ * Every id of the components' token interface that Loam's contract does not hold as a component
+ * id with the same custom property and type. Ids Loam has and the interface lacks are Loam's own.
+ */
+export function compareInterface(tokenInterface: unknown, contract: Contract): string[] {
+	const file = tokenInterface as Partial<TokenInterface> | null;
+	if (
+		typeof file !== 'object' ||
+		file === null ||
+		typeof file.contractVersion !== 'number' ||
+		typeof file.tokens !== 'object' ||
+		file.tokens === null
+	)
+		return ['interface.json has no numeric contractVersion or no tokens object'];
+	const errors: string[] = [];
+	for (const [id, wanted] of Object.entries(file.tokens)) {
+		const entry = contract.tokens[id];
+		if (entry?.kind !== 'component')
+			errors.push(
+				`interface.json (contractVersion ${file.contractVersion}) lists '${id}', which Loam's tree does not supply as a component id; ${INTERFACE_FIX}`
+			);
+		else if (entry.property !== wanted.property || entry.type !== wanted.type)
+			errors.push(
+				`interface.json lists '${id}' as ${wanted.property} (${wanted.type}), Loam's contract as ${entry.property} (${entry.type})`
+			);
+	}
+	return errors;
 }
 
 /** The light value of each component id, by custom property. */

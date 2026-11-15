@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import test from 'node:test';
-import { execTool, tarCommand, toolCommand, windowsCommandLine } from './exec-tool.mjs';
+import { execTool, spawnTool, tarCommand, toolCommand, windowsCommandLine } from './exec-tool.mjs';
 
 // portability-ok: these tests are about Windows paths, so a drive letter is their input.
 const DRIVE = 'X:';
@@ -42,6 +42,13 @@ test('execTool starts a real command and returns its output', () => {
 		execTool(process.execPath, ['-e', 'process.stdout.write("ok")'], { encoding: 'utf8' }),
 		'ok'
 	);
+});
+
+test('spawnTool starts a package-manager shim and reports its exit status', () => {
+	const result = spawnTool('pnpm', ['--version'], { encoding: 'utf8' });
+	assert.equal(result.error, undefined);
+	assert.equal(result.status, 0);
+	assert.match(result.stdout, /^\d+\.\d+\.\d+/);
 });
 
 test('tar is the Windows bsdtar on Windows and tar elsewhere', () => {

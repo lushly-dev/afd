@@ -11,11 +11,11 @@
  * Run in CI:      .github/workflows/deploy-pages.yml, before the Pages upload
  */
 
-import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { execTool } from './release/exec-tool.mjs';
 
 const ESBUILD = 'esbuild@0.28.2';
 const root = join(dirname(fileURLToPath(import.meta.url)), '..');
@@ -37,7 +37,7 @@ writeFileSync(
 );
 
 try {
-	execFileSync(
+	execTool(
 		'npx',
 		[
 			'--yes',

@@ -1,0 +1,92 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the lane endpoint. The foreman's endpoint has no pr-merge and no verification-record,
+# so a foreman misled by text in an issue (fixture issue 103) cannot merge; unit tests cover that.
+name: Merge only the head the lane validated, and start the undo of a bad merge
+description: >-
+  When a pull request is to be merged, I want the merge allowed only for the exact head the lane
+  recorded as validated, refused for anything else, and a revert started in one call for a merge
+  that broke main, so that nothing unvalidated ever lands, whoever asks, and undoing a bad merge
+  starts at once.
+job: merge-only-the-validated-head
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: A head with no validation recorded is refused, whatever its checks on GitHub say
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 47, head: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_MISSING
+        suggestion: { contains: verification-record }
+  - description: The lane records its validation of the head, which shows on the pull request as a check
+    command: verification-record
+    input:
+      repo: example-org/example-repo
+      head: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c
+      result: passed
+      summary: 412 tests, types, lint and build passed in 19 minutes.
+    expect:
+      success: true
+      data:
+        check: { name: factory/verification, conclusion: success }
+  - description: A head other than the one on the pull request is refused, with the way forward
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 47, head: "0000000000000000000000000000000000000000" }
+    expect:
+      success: false
+      error:
+        code: HEAD_MOVED
+        message: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c
+        suggestion: { contains: validate }
+  - description: The validated head is queued to squash-merge once the required check, still running, passes
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 47, head: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c }
+    expect:
+      success: true
+      data:
+        state: queued
+        autoMerge: true
+        changed: true
+  - description: Asking again changes nothing and says so
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 47, head: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c }
+    expect:
+      success: true
+      data:
+        state: queued
+        changed: false
+  - description: When the branch is ejected, the lane turns auto-merge off so it cannot land
+    command: pr-merge
+    input: { repo: example-org/example-repo, number: 47, head: 6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c, cancel: true }
+    expect:
+      success: true
+      data:
+        state: open
+        autoMerge: false
+        changed: true
+  - description: A merged pull request gets a revert pull request, which the lane then validates and merges
+    command: pr-revert
+    input: { repo: example-org/example-repo, numbers: [41], reason: Broke the release build }
+    expect:
+      success: true
+      data:
+        revertPrs:
+          - { reverts: 41, created: true, number: { exists: true } }
+  - description: A retry returns the same revert pull request
+    command: pr-revert
+    input: { repo: example-org/example-repo, numbers: [41], reason: Broke the release build }
+    expect:
+      success: true
+      data:
+        revertPrs:
+          - { reverts: 41, created: false }
+  - description: A pull request that never merged cannot be reverted
+    command: pr-revert
+    input: { repo: example-org/example-repo, numbers: [42], reason: Mistaken }
+    expect:
+      success: false
+      error:
+        code: NOT_MERGED
+        suggestion: { contains: pr-status }

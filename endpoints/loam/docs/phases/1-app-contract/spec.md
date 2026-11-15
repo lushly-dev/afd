@@ -1258,7 +1258,8 @@ The `ui/initialize` result:
 ```
 
 - **`theme`** is `dark` when `appearance-get`'s `resolved` is `dark`, otherwise `light`.
-- **`dev.loam/tokens`** holds each of the contract's 108 component ids' custom property,
+- **`dev.loam/tokens`** holds each of the contract's component ids' custom property (115
+  since AFD #1190 added `violet-elements`' token interface ids; 108 before),
   with the resolved value from `getComputedStyle(document.documentElement)`, read in the
   view host's chunk from `@lushly-dev/loam-theme/contract.json`. Shell ids are not sent.
   **`styles.variables` is omitted in phase 1:** MCP Apps closes it to its standardized names

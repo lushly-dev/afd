@@ -7,6 +7,9 @@
  * Errors:
  * - Windows drive-letter absolute paths (D:\..., C:\...)
  * - User-home absolute paths (C:\Users\name, /home/name, /Users/name)
+ * - A package manager started by bare name without a shell (`execFileSync('pnpm', ...)`):
+ *   Windows installs it as a `.cmd` shim, so the call fails there with ENOENT. Use `execTool`
+ *   or `spawnTool` from scripts/release/exec-tool.mjs
  *
  * Warnings:
  * - Hardcoded localhost URLs
@@ -39,6 +42,11 @@ const CHECK_EXTENSIONS = new Set([
 const SKIP_DIRS = new Set(['node_modules', 'dist', '.git', 'coverage', 'alfred', 'python']);
 const CPP_BUILD_DIR = /\/(?:packages\/cpp|packages\/examples\/todo\/backends\/cpp)\/build\//;
 const ESCAPE_HATCH = /portability-ok\s*:/i;
+const SCRIPT_EXTENSIONS = new Set(['.ts', '.tsx', '.js', '.mjs', '.cjs']);
+const COMMENT_LINE = /^\s*(\/\/|\/\*|\*|\*\/)/;
+// Matched over the whole file, so a call whose command is on the next line is caught too.
+const BARE_SHIM_SPAWN =
+	/\b(?:execFileSync|execFile|spawnSync|spawn)\(\s*['"`](?:pnpm|npm|npx|pnpx|corepack|yarn)['"`]/g;
 const PATTERNS = [
 	{
 		id: 'windows-drive-path',
@@ -122,7 +130,7 @@ function getInputFiles() {
 	}
 
 	const files = [];
-	const roots = ['packages', 'scripts', 'docs', '.github'];
+	const roots = ['packages', 'scripts', 'tests', 'docs', '.github'];
 	for (const root of roots) {
 		collectFiles(resolve(root), files);
 	}
@@ -162,6 +170,26 @@ function report(filePath, lineNum, severity, message, excerpt, suggestion) {
 	console.warn(`    💡 ${suggestion}\n`);
 }
 
+function scanShimSpawns(filePath, content, lines) {
+	for (const match of content.matchAll(BARE_SHIM_SPAWN)) {
+		const index = content.slice(0, match.index).split('\n').length - 1;
+		const line = lines[index];
+		const prev = index > 0 ? lines[index - 1] : '';
+		if (COMMENT_LINE.test(line) || ESCAPE_HATCH.test(line) || ESCAPE_HATCH.test(prev)) continue;
+		// A call that sets `shell` (as `shell: process.platform === 'win32'`) starts the shim.
+		const call = content.slice(match.index, content.indexOf(');', match.index));
+		if (/\bshell\s*:/.test(call)) continue;
+		report(
+			filePath,
+			index + 1,
+			'error',
+			'Package manager started without a shell (ENOENT on Windows, where it is a .cmd shim)',
+			line.trim().slice(0, 140),
+			'Use execTool or spawnTool from scripts/release/exec-tool.mjs; a call that already passes a Windows shell with fixed arguments takes a portability-ok comment.'
+		);
+	}
+}
+
 function scanFile(filePath) {
 	const normalizedPath = normalize(filePath).replace(/\\/g, '/');
 	if (normalizedPath.endsWith('/scripts/check-portability.mjs')) return;
@@ -176,11 +204,12 @@ function scanFile(filePath) {
 
 	const lines = content.split('\n');
 	checkedFiles++;
+	if (SCRIPT_EXTENSIONS.has(extname(filePath))) scanShimSpawns(filePath, content, lines);
 
 	for (let i = 0; i < lines.length; i++) {
 		const line = lines[i];
 		const prev = i > 0 ? lines[i - 1] : '';
-		if (/^\s*(\/\/|\/\*|\*|\*\/)/.test(line)) continue;
+		if (COMMENT_LINE.test(line)) continue;
 		if (ESCAPE_HATCH.test(line) || ESCAPE_HATCH.test(prev)) continue;
 
 		for (const pattern of PATTERNS) {

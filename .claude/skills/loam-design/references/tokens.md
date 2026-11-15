@@ -93,6 +93,13 @@ over their background, drawn over `color.surface.page`.
 | `type.body.md.{size,line,weight}` | `size.font.md`, `size.line.md`, `weight.regular` |
 | `type.title.sm.{size,line,weight}` | `size.font.lg`, `size.line.lg`, `weight.semibold` |
 | `type.title.md.{size,line,weight}` | `size.font.xl`, `size.line.xl`, `weight.semibold` |
+| `font.family.body` | `"Montserrat", "Segoe UI", sans-serif`, the components' typeface |
+| `font.family.mono` | `ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace`; reserved in the interface, read by no component yet |
+
+The components also read four colors and a width that take their old literal fallback in every
+theme: `color.state.danger.foreground` `#B42318`, `color.state.success.foreground` `#245C36`,
+`color.surface.highlight` `#FFFFFF`, `color.surface.pressed` `#E7E4D8` and
+`size.focus-ring.width` 2px ([#659](https://github.com/lushly-dev/afd/issues/659)).
 
 ## Space and targets, comfortable / compact
 

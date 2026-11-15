@@ -1,0 +1,41 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the owner endpoint. The actor's kind and id come from the caller's token; onBehalfOf
+# is what the caller said and is reported as asserted.
+name: Trace a write on GitHub to the agent that made it
+description: >-
+  When something on GitHub looks wrong, I want every write the gateway made to that issue or pull
+  request listed with the command, the time, the caller its token names and the agent it said it
+  acted for, in one call, so that I can tell which cell or lane step did it without searching
+  transcripts.
+job: trace-a-write-to-its-agent
+tags: [mvp]
+fixture:
+  file: fixtures/audit.json
+  base: gateway.json
+steps:
+  - description: The pull request's history names the lane and the cell it acted for
+    command: gateway-audit
+    input: { repo: example-org/example-repo, pr: 45 }
+    expect:
+      success: true
+      data:
+        entries:
+          - { command: pr-open, actor: { id: lane@workstation, onBehalfOf: cell-3 } }
+          - { command: verification-record, actor: { id: lane@workstation } }
+          - { command: pr-merge, actor: { id: lane@workstation } }
+  - description: The issue's history shows who claimed it
+    command: gateway-audit
+    input: { repo: example-org/example-repo, issue: 101 }
+    expect:
+      success: true
+      data:
+        entries:
+          - { command: issue-claim, actor: { id: foreman } }
+  - description: History reads in pages
+    command: gateway-audit
+    input: { repo: example-org/example-repo, limit: 2 }
+    expect:
+      success: true
+      data:
+        entries: { length: 2 }
+        nextCursor: { exists: true }
