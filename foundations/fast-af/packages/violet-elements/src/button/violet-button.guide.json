@@ -11,7 +11,7 @@
     },
     {
       "id": "button.popup-toggle",
-      "text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) are forwarded to the inner button. Use them for disclosure, menu and toggle buttons.",
+      "text": "aria-expanded, aria-controls, aria-haspopup and aria-pressed set on the host (or the matching properties) reach the inner button. Use them for disclosure, menu and toggle buttons.",
       "members": [
         "aria-expanded",
         "aria-controls",
@@ -45,12 +45,13 @@
     },
     {
       "id": "button.idrefs",
-      "text": "ariaLabelledby, ariaDescribedby and ariaErrormessage are script-only properties. Like aria-controls, their ids are written inside the shadow root, where ids from the page do not resolve.",
+      "text": "aria-labelledby, aria-describedby, aria-errormessage and aria-controls name ids in the host's tree; the inner button gets those elements, found when set and on connect. aria-description is forwarded.",
       "members": [
-        "ariaLabelledby",
-        "ariaDescribedby",
-        "ariaErrormessage",
-        "aria-controls"
+        "aria-labelledby",
+        "aria-describedby",
+        "aria-errormessage",
+        "aria-controls",
+        "aria-description"
       ]
     }
   ]

@@ -35,7 +35,10 @@
   "a11y": [
     {
       "id": "tooltip.describedby",
-      "text": "It overwrites the trigger's aria-describedby with the id of its tooltip, which is inside its shadow root where page IDREFs do not resolve. Do not rely on it for a name or essential text."
+      "text": "It describes its trigger in the trigger's own tree: the content attribute becomes aria-description, and elements in the content slot join the trigger's aria-describedby beside its own ids.",
+      "members": [
+        "content"
+      ]
     },
     {
       "id": "tooltip.trigger-name",

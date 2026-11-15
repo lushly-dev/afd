@@ -34,12 +34,12 @@ export const toggleTodo = defineCommand<typeof inputSchema, Todo>({
 		{ title: 'Mark a todo done, or open again', input: { id: 'todo-1700000000000-abc1234' } },
 	],
 	async handler(input, context) {
-		const existing = store.get(input.id);
+		const existing = await store.get(input.id);
 		if (!existing) {
 			return failure(todoNotFound(input.id));
 		}
 
-		const updated = store.toggle(input.id, stampFrom(context).now);
+		const updated = await store.toggle(input.id, stampFrom(context).now);
 
 		if (!updated) {
 			return failure(todoNotFound(input.id));

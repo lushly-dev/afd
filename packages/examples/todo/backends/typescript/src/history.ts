@@ -51,7 +51,7 @@ export function createHistoryMiddleware(): CommandMiddleware {
 		if (touched.length === 0) {
 			return result;
 		}
-		store.record({
+		await store.record({
 			at: new Date((context.clock ?? systemClock).now()).toISOString(),
 			actor: actorFrom(context),
 			command: commandName,

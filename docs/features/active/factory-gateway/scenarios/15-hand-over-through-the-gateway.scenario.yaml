@@ -48,3 +48,17 @@ steps:
       success: false
       error:
         code: PROTECTED_REF
+  - description: >-
+      A branch whose commit an agent authored is refused before anything is pushed, so work is
+      credited to the owner and an agent that helped is only an Assisted-by trailer
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/factory/queue/fix/agent-authored
+      head: e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6
+      bundle: bundle-agent
+    expect:
+      success: false
+      error:
+        code: COMMIT_AUTHOR_NOT_OWNER
+        suggestion: { contains: Assisted-by }

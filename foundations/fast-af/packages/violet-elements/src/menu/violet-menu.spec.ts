@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { userEvent } from "vitest/browser";
+import { cdp, userEvent } from "vitest/browser";
 
 import "../button/violet-button";
 import "./violet-menu";
@@ -8,6 +8,53 @@ import type { VioletMenu } from "./violet-menu";
 
 function nextFrame(): Promise<void> {
     return new Promise(resolve => requestAnimationFrame(() => resolve()));
+}
+
+interface AxNode {
+    backendDOMNodeId?: number;
+    role?: { value?: string };
+    name?: { value?: string };
+    description?: { value?: string };
+    properties?: { name: string; value: { relatedNodes?: { backendDOMNodeId: number }[] } }[];
+}
+
+interface FrameTree {
+    frame: { id: string; url: string };
+    childFrames?: FrameTree[];
+}
+
+function findFrame(tree: FrameTree, url: string): string | undefined {
+    if (tree.frame.url === url) {
+        return tree.frame.id;
+    }
+    for (const child of tree.childFrames ?? []) {
+        const found = findFrame(child, url);
+        if (found) {
+            return found;
+        }
+    }
+    return undefined;
+}
+
+/**
+ * A node of Chromium's accessibility tree, found by role and name, with the nodes its
+ * aria-controls resolves to. The tree resolves references, or drops them, as assistive
+ * technology sees them, which the attributes alone do not show.
+ */
+async function accessibleNode(role: string, name: string): Promise<AxNode & { controls: AxNode[] }> {
+    const session = cdp() as unknown as { send(method: string, params?: object): Promise<unknown> };
+    // Each spec runs in a frame of the runner's page; read that frame's tree, found by its URL.
+    const { frameTree } = (await session.send("Page.getFrameTree")) as { frameTree: FrameTree };
+    const frameId = findFrame(frameTree, location.href);
+    const { nodes } = (await session.send("Accessibility.getFullAXTree", { frameId })) as { nodes: AxNode[] };
+    const node = nodes.find(candidate => candidate.role?.value === role && candidate.name?.value === name);
+    if (!node) {
+        throw new Error(`No ${role} named "${name}" in the accessibility tree.`);
+    }
+    const byId = new Map(nodes.map(candidate => [candidate.backendDOMNodeId, candidate]));
+    const related = node.properties?.find(property => property.name === "controls")?.value.relatedNodes ?? [];
+    const controls = related.map(entry => byId.get(entry.backendDOMNodeId)).filter(entry => entry !== undefined);
+    return { ...node, controls };
 }
 
 /**
@@ -41,7 +88,16 @@ describe("violet-menu", () => {
         const trigger = menu.querySelector('[slot="trigger"]');
         expect(trigger?.getAttribute("aria-haspopup")).toBe("menu");
         expect(trigger?.getAttribute("aria-expanded")).toBe("false");
-        expect(trigger?.getAttribute("aria-controls")).toBe(menu.panelId);
+        // The panel is in the menu's shadow root: the trigger names the host, whose shadow root
+        // forwards the reference to the panel.
+        expect(trigger?.getAttribute("aria-controls")).toBe(menu.id);
+        // A closed popover is not rendered, so the relationship shows in the tree once it opens.
+        (trigger as HTMLElement).click();
+        await untilOpen(menu);
+        await vi.waitFor(async () => {
+            const controls = (await accessibleNode("button", "Open")).controls;
+            expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
+        });
     });
 
     it("forwards menu trigger aria relationships to a violet-button control", async () => {
@@ -57,10 +113,12 @@ describe("violet-menu", () => {
 
         expect(control?.getAttribute("aria-haspopup")).toBe("menu");
         expect(control?.getAttribute("aria-expanded")).toBe("false");
-        expect(control?.getAttribute("aria-controls")).toBe(menu.panelId);
-
         control?.click();
         await untilOpen(menu);
+        await vi.waitFor(async () => {
+            const controls = (await accessibleNode("button", "Open")).controls;
+            expect(controls.map(node => `${node.role?.value}: ${node.name?.value}`)).toEqual(["menu: Actions"]);
+        });
 
         expect(trigger?.getAttribute("aria-expanded")).toBe("true");
         expect(trigger?.ariaExpanded).toBe("true");

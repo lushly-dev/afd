@@ -84,7 +84,7 @@ export const restoreTodos = defineCommand<typeof inputSchema, RestoreResult>({
 		const failed: FailedRestore[] = [];
 
 		for (const [index, id] of input.ids.entries()) {
-			const todo = store.restore(id);
+			const todo = await store.restore(id);
 			if (todo) {
 				restored.push(todo);
 				continue;
@@ -92,7 +92,7 @@ export const restoreTodos = defineCommand<typeof inputSchema, RestoreResult>({
 			failed.push({
 				index,
 				id,
-				error: store.get(id)
+				error: (await store.get(id))
 					? {
 							code: 'NOT_FOUND',
 							message: `Todo "${id}" is not deleted`,

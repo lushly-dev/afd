@@ -58,12 +58,12 @@ export const updateTodo = defineCommand<typeof inputSchema, Todo>({
 			});
 		}
 
-		const existing = store.get(id);
+		const existing = await store.get(id);
 		if (!existing) {
 			return failure(todoNotFound(id));
 		}
 
-		const updated = store.update(
+		const updated = await store.update(
 			id,
 			{
 				title: updates.title,
