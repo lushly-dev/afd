@@ -98,13 +98,15 @@ fn classify_sql(filter: &str) -> [String; 2] {
                  sender_address = excluded.sender_address, listed = excluded.listed
              WHERE screening.class <> excluded.class OR screening.date <> excluded.date
                 OR screening.sender_address <> excluded.sender_address
-                OR screening.listed <> excluded.listed"
+                OR screening.listed <> excluded.listed
+             RETURNING message_id"
         ),
         format!(
             "DELETE FROM screening WHERE message_id IN (
                  SELECT envelope.message_id FROM envelope
                  WHERE ({filter})
-                   AND envelope.sender_address IN (SELECT address FROM temp.screening_own))"
+                   AND envelope.sender_address IN (SELECT address FROM temp.screening_own))
+             RETURNING message_id"
         ),
     ]
 }
@@ -121,13 +123,35 @@ const SHOWN_TARGET: &str = "message_id IN (SELECT message_id FROM temp.screening
 const SHOWN_MAILBOX: &str =
     "message_id IN (SELECT message_id FROM observation WHERE mailbox_id = ?1)";
 
-/// The statement that computes `listed` again for the rows `filter` selects.
+/// The statement that computes `listed` again for the rows `filter` selects,
+/// and returns those it changed.
 fn relist_sql(filter: &str) -> String {
     let listed = shown_expression("screening.message_id");
     format!(
         "UPDATE screening SET listed = {listed}
-         WHERE ({filter}) AND listed IS NOT {listed}"
+         WHERE ({filter}) AND listed IS NOT {listed}
+         RETURNING message_id"
     )
+}
+
+/// Runs a statement that returns the ids of the rows it changed, adding
+/// them to `changed` when it is given. Returns how many there were.
+fn changing(
+    transaction: &Transaction<'_>,
+    sql: &str,
+    bound: impl rusqlite::Params,
+    mut changed: Option<&mut BTreeSet<i64>>,
+) -> Result<u64, StoreError> {
+    let mut statement = transaction.prepare_cached(sql)?;
+    let mut rows = statement.query(bound)?;
+    let mut n = 0_u64;
+    while let Some(row) = rows.next()? {
+        n += 1;
+        if let Some(changed) = changed.as_deref_mut() {
+            changed.insert(row.get(0)?);
+        }
+    }
+    Ok(n)
 }
 
 /// Fills `temp.screening_target` with `messages`.
@@ -146,27 +170,36 @@ fn load_target(transaction: &Transaction<'_>, messages: &BTreeSet<i64>) -> Resul
 
 /// Computes `listed` again for every message `mailbox` has shown: after
 /// the mailbox closed its observations (a new generation, or gone), or
-/// became junk or trash, or stopped being one.
+/// became junk or trash, or stopped being one. The stories of the messages
+/// that changed are computed again.
 pub(super) fn relist_mailbox(
     transaction: &Transaction<'_>,
     mailbox: i64,
+    now: i64,
 ) -> Result<(), StoreError> {
-    transaction.run(&relist_sql(SHOWN_MAILBOX), [mailbox])?;
-    Ok(())
+    let mut changed = BTreeSet::new();
+    changing(
+        transaction,
+        &relist_sql(SHOWN_MAILBOX),
+        [mailbox],
+        Some(&mut changed),
+    )?;
+    super::stories::settle(transaction, &changed, now)
 }
 
-/// Classes again the messages `filter` selects, binding `bound`. Returns
-/// how many rows changed. Needs `temp.screening_own` filled
-/// ([`load_own`]).
+/// Classes again the messages `filter` selects, binding `bound`, adding
+/// those whose row changed to `changed` when it is given. Returns how many
+/// rows changed. Needs `temp.screening_own` filled ([`load_own`]).
 fn classify(
     transaction: &Transaction<'_>,
     filter: &str,
     bound: impl rusqlite::Params + Copy,
+    mut changed: Option<&mut BTreeSet<i64>>,
 ) -> Result<u64, StoreError> {
     let [write, remove] = classify_sql(filter);
-    let written = transaction.run(&write, bound)?;
-    let removed = transaction.run(&remove, bound)?;
-    Ok(u64::try_from(written + removed).unwrap_or(u64::MAX))
+    let written = changing(transaction, &write, bound, changed.as_deref_mut())?;
+    let removed = changing(transaction, &remove, bound, changed)?;
+    Ok(written + removed)
 }
 
 /// The queries screening runs, by name, for the test of their plans.
@@ -254,10 +287,13 @@ fn recount(
 
 /// Classes again what `changed` names: the templates counted again first,
 /// then every message of a sender or a template that turned, and the
-/// messages derived. Returns how many rows changed.
+/// messages derived. Then the stories of every message whose class or place
+/// in the lists changed, or that was derived, are computed again
+/// ([`super::stories`]). Returns how many class rows changed.
 pub(super) fn settle(
     transaction: &Transaction<'_>,
     changed: &Reclassify<'_>,
+    now: i64,
 ) -> Result<u64, StoreError> {
     let empty_messages = BTreeSet::new();
     let empty_templates = BTreeSet::new();
@@ -271,22 +307,31 @@ pub(super) fn settle(
     }
     let turned = recount(transaction, templates)?;
     load_own(transaction, &super::senders::own_addresses(transaction)?)?;
+    // The messages whose stories are computed again: those derived, those
+    // shown or no longer shown somewhere, and any other whose class changed.
+    let mut storied: BTreeSet<i64> = messages.union(shown).copied().collect();
     let mut rows = 0;
     for address in senders {
-        rows += classify(transaction, BY_SENDER, [address])?;
+        rows += classify(transaction, BY_SENDER, [address], Some(&mut storied))?;
     }
     for key in &turned {
-        rows += classify(transaction, BY_TEMPLATE, [key.as_slice()])?;
+        rows += classify(
+            transaction,
+            BY_TEMPLATE,
+            [key.as_slice()],
+            Some(&mut storied),
+        )?;
     }
     if !messages.is_empty() {
         load_target(transaction, messages)?;
-        rows += classify(transaction, BY_TARGET, [])?;
+        rows += classify(transaction, BY_TARGET, [], None)?;
     }
     // Where a message is shown changes only whether it is listed.
     if !shown.is_empty() {
         load_target(transaction, shown)?;
-        transaction.run(&relist_sql(SHOWN_TARGET), [])?;
+        changing(transaction, &relist_sql(SHOWN_TARGET), [], None)?;
     }
+    super::stories::settle(transaction, &storied, now)?;
     Ok(rows)
 }
 
@@ -302,7 +347,7 @@ pub(super) fn classify_all(transaction: &Transaction<'_>) -> Result<(), StoreErr
              GROUP BY template_key;",
     )?;
     load_own(transaction, &super::senders::own_addresses(transaction)?)?;
-    classify(transaction, "1", [])?;
+    classify(transaction, "1", [], None)?;
     Ok(())
 }
 
@@ -445,14 +490,16 @@ impl Store {
         Ok((count(messages), count(senders)))
     }
 
-    /// Counts every template and classes every message from nothing, as a
-    /// store that held mail before classes existed is given once.
+    /// Counts every template, classes every message and makes every story
+    /// from nothing, as a store that held mail before classes existed is
+    /// given once.
     ///
     /// # Errors
     /// When the database refuses.
     pub fn classify_everything(&mut self) -> Result<(), StoreError> {
         let transaction = self.connection.transaction()?;
         classify_all(&transaction)?;
+        super::stories::compose_all(&transaction, super::wall_clock())?;
         transaction.commit()?;
         Ok(())
     }

@@ -624,10 +624,13 @@ impl CommandHandler for MessageList {
                     if !readiness.ready() {
                         return Ok(Err(readiness));
                     }
-                    store.class_messages(class, before, limit + 1).map(Ok)
+                    let messages = store.class_messages(class, before, limit + 1)?;
+                    let stories = crate::read::stories_of(store, &messages)?;
+                    Ok(Ok((messages, stories)))
                 })
                 .map_err(|error| Box::new(store_failure(&error)))?
                 .map_err(|readiness| Box::new(not_ready(readiness)))?;
+            let (messages, stories) = messages;
             let more = messages.len() > limit as usize;
             let mut items = Vec::new();
             for listed in messages.iter().take(limit as usize) {
@@ -635,6 +638,7 @@ impl CommandHandler for MessageList {
                     .map_err(|error| Box::new(store_failure(&error)))?;
                 item["class"] = json!(class.as_str());
                 item["sender"] = json!(sender_id(&listed.sender_address));
+                item["story"] = crate::read::story_value(stories.as_ref(), listed.message);
                 items.push(item);
             }
             let (kept, cut) = fit(items, budget(&context, LIST_BUDGET));
@@ -732,6 +736,8 @@ pub fn status_json(store: &Store, now: i64) -> Result<Value, StoreError> {
         "rebuilding": readiness.rebuilding,
         "queue": queue,
         "suggestionsWaiting": store.open_suggestion_count()?,
+        // Stories are made from classes, so they wait with them (section 8).
+        "stories": if ready { json!(store.story_count()?) } else { Value::Null },
         "blockedLately": blocked,
         // Every block of the 30 days, of which `blockedLately` is the latest;
         // `mail-sender-list` with `decision` gives them all.

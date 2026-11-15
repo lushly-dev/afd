@@ -445,6 +445,73 @@ pub(super) const MIGRATIONS: &[&str] = &[
     INSERT INTO engine_state (key, value) SELECT 'screening-fill', 1
         WHERE EXISTS (SELECT 1 FROM message);
     ",
+    // 9: stream stories (section 8). Every row is derived from the screening classes and the
+    // envelopes, computed again for each batch that touches it. A store that held mail before
+    // has its stories filled once when it is next opened.
+    "
+    -- A bulk message a mailbox other than junk and trash shows, and the stream it belongs to:
+    -- its list, or else its sender. Its date, template key and body shape are the envelope's,
+    -- kept here so that a story's counts read an index alone. `exception` is whether its body
+    -- shape is not one of its story's usual ones. A stream is a story from its fifth message,
+    -- so a row's story may have no `story` row yet.
+    CREATE TABLE story_member (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        story_id INTEGER NOT NULL,
+        date INTEGER NOT NULL,
+        template_key BLOB,
+        body_shape BLOB,
+        exception INTEGER NOT NULL CHECK (exception IN (0, 1))
+    ) STRICT;
+    CREATE INDEX story_member_date ON story_member (story_id, date DESC, message_id DESC);
+    CREATE INDEX story_member_shape ON story_member (story_id, body_shape)
+        WHERE body_shape IS NOT NULL;
+    CREATE INDEX story_member_kind ON story_member (story_id, template_key, date DESC, message_id DESC)
+        WHERE template_key IS NOT NULL;
+    CREATE INDEX story_member_exception ON story_member (story_id, date DESC, message_id DESC)
+        WHERE exception = 1;
+
+    -- How many of a stream's members have each body shape, and each template key.
+    CREATE TABLE story_shape (
+        story_id INTEGER NOT NULL,
+        shape BLOB NOT NULL CHECK (length(shape) = 16),
+        messages INTEGER NOT NULL CHECK (messages > 0),
+        PRIMARY KEY (story_id, shape)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX story_shape_messages ON story_shape (story_id, messages);
+    CREATE TABLE story_kind (
+        story_id INTEGER NOT NULL,
+        template_key BLOB NOT NULL CHECK (length(template_key) = 16),
+        messages INTEGER NOT NULL CHECK (messages > 0),
+        PRIMARY KEY (story_id, template_key)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX story_kind_most ON story_kind (story_id, messages DESC, template_key);
+
+    -- A story. Its id is made from its stream, so a rebuild gives it the same one. `list_id` is
+    -- '' for a story by sender; `sender_address` is its sender, or for a list the sender of its
+    -- newest message; `title` is the list's id, or the name on the newest message, or else the
+    -- address. `kinds` counts its template keys and `exceptions` its exceptions. A burst
+    -- (section 7.4) is step C3's.
+    CREATE TABLE story (
+        id INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('stream', 'burst')),
+        list_id TEXT NOT NULL,
+        sender_address TEXT NOT NULL,
+        title TEXT NOT NULL,
+        messages INTEGER NOT NULL CHECK (messages > 0),
+        exceptions INTEGER NOT NULL CHECK (exceptions >= 0),
+        kinds INTEGER NOT NULL CHECK (kinds >= 0),
+        first_date INTEGER NOT NULL,
+        last_date INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX story_recent ON story (last_date DESC, id DESC);
+
+    -- What changed since a cursor is read by kind.
+    CREATE INDEX change_kind ON change (kind, seq);
+
+    -- Stories for the mail already held are filled when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'story-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

@@ -481,7 +481,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `screening` | An inbound message's screening class, with its date and sender for the lists by class, and whether a mailbox other than junk and trash shows it now (`listed`) ([7.2](#72-the-screening-class)); the person's own mail has no row (step C2) | Yes, from `envelope`, `sender`, `template`, `sender_decision`, the person's own addresses (`account` and the sent mailboxes), `observation` and `mailbox.role` |
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
-| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)) | Stream and burst stories yes |
+| `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream of five messages or more, with its counts, title and dates | Stream and burst stories yes: stream stories from `screening` and `envelope` |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
@@ -1236,6 +1236,50 @@ receipts, offers and alerts from one address does not hide one in a single total
 `mail-story-changes` takes a cursor and returns what changed in each story since, from the
 `change` table, with a new cursor. The caller keeps its cursor; the engine stores none.
 
+**As step C2's second part built it** (`engine/src/store/stories.rs`, `engine/src/stories.rs`,
+migration 9):
+
+- **A stream's members** are its `bulk` messages that a mailbox other than junk and trash shows,
+  the lists' scope ([7.2](#72-the-screening-class)): mail the person screened in, wrote to or
+  blocked is in none, and neither is mail only junk or trash shows. The stream is the list's id,
+  the one inside `List-Id` in lower case, or else the sender's address, as step C1 grouped them.
+  Every such message has a member row from the first; a stream is a story, listed and opened,
+  from its fifth.
+- **Stories are derived like classes**: never adjusted, computed again for what each batch
+  changed, so a rebuild gives the same rows, which tests compare after each change and against
+  making every story from nothing. Each message whose class or place in the lists changed, or
+  that was derived again, has its membership computed again; each story it was in or is in has
+  its counts and row computed again from an index of its own members, as a sender's row is, and
+  is noted in `change` when its row or its members changed. `story_shape` and `story_kind`
+  count each story's body shapes and template keys, a pair at a time.
+- **A story's id** is made from its stream (52 bits of a SHA-256), so a rebuild keeps it. Its
+  **title** is the list's id, or else the name on its newest message, or else the address; it
+  sits with the list's id and the sender's address in a labelled part.
+- **An exception** is a member whose body shape is not one of its story's usual ones, a shape at
+  least five of its messages have. A story with no usual shape has no exceptions, since nothing
+  in it is routine to differ from, and a message whose body is not held yet has no shape and is
+  none. A shape that becomes usual, or a story's first usual shape, has its members' exceptions
+  computed again.
+- **Its kinds** are its template keys, each with how many of its messages hold it.
+  `mail-story-open` gives the ten most common, each with the subject of its newest message in a
+  labelled part, and `kinds` counts them all; it lists all the story's messages newest first,
+  its exceptions alone (`exceptions`), or one kind's (`kind`).
+- **The date of its last change** is its newest message's date (`lastDate`), which orders
+  `mail-story-list`; what else changed is `mail-story-changes`'.
+- **`mail-story-changes`**' cursor is a change's number, and none starts from the first. It gives
+  each story that changed after it once, at its latest change: `current` with what the list
+  gives, or `gone` when it is no longer a story. `reset` says every story was made again since
+  (a rebuild, which removing an account also runs) or the cursor is not this store's, so the
+  caller reads the list again. `more` says another page waits.
+- **Stories wait with screening**: the commands fail with `SCREENING_NOT_READY` while it waits.
+  `mail-status` gives `screening.stories`, and `mail-message-list` and `mail-thread-open` give
+  each message's story.
+- **A store that held mail before** is given its stories once when it is next opened after
+  migration 9.
+- **Not yet**: a burst's messages leave their streams with step C3 ([7.4](#74-bursts)); and the
+  stories are not yet made or timed on the owner's mail (`engine/tests/live_screening.rs`
+  reports them), which waits for the copy of the store.
+
 ## 9. Changing the mailbox
 
 Phase D. Every change to mail here is made at the provider, can be undone, and is journaled. A
@@ -1441,7 +1485,7 @@ says otherwise.
 | `mail-sender-accept` | C | Local, undoable; a person | cli | Accepts an agent's suggestion (M28) |
 | `mail-sender-dismiss` | C | Local | cli, mcp | The person's or the proposer's |
 | `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
-| `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | |
+| `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of a change's number |
 | `mail-selection-create` | D | Local | cli, mcp | |
 | `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)) |
 | `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28) |

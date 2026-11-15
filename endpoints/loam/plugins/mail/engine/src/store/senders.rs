@@ -526,6 +526,7 @@ impl Store {
                 senders: Some(&turned),
                 ..Default::default()
             },
+            now,
         )?;
         transaction.commit()?;
         Ok(())

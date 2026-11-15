@@ -531,6 +531,7 @@ pub(super) fn settle(
             senders: Some(&turned),
             shown: Some(&touched.shown),
         },
+        now,
     )?;
     Ok(())
 }
@@ -951,6 +952,7 @@ impl Store {
              DELETE FROM index_pending;",
         )?;
         transaction.execute_batch(super::classes::CLEAR)?;
+        transaction.execute_batch(super::stories::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;
