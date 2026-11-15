@@ -190,3 +190,42 @@ The local-source bootstrap uses Python AFD 0.10 and MCP SDK 2.3. A small lazy
 import adapter supports MCP SDK 1 and 2 while retaining tool names and wire
 payloads. SDK-level Python `call_tool` return objects follow the installed SDK
 version; clients should use that SDK's supported content access API.
+
+## Serving hosts over HTTP
+
+`botcore.host_http.create_host_http_app({"lane": host, ...}, tokens, uploads=...)`
+serves several hosts from one process, each under its own route, with the
+`mcp` extra's Starlette. Under `/<route>` it answers `POST call`
+(`{"command", "arguments"?, "onBehalfOf"?}`), `GET catalog`, `GET docs/<topic>`
+and, when given an upload handler, `POST uploads` (raw bytes, up to
+`max_upload_bytes`). Every answer is a CommandResult: a command's own refusal is
+HTTP 200, and the surface's refusals carry their status and an AFD error with a
+suggestion: `UNAUTHORIZED` (401, no valid bearer token), `FORBIDDEN` (403, a
+token for another route), `NOT_FOUND` (404), `VALIDATION_ERROR` (400, a body
+without a command) and `PAYLOAD_TOO_LARGE` (413).
+
+A token opens one route and names one actor. `botcore.host_tokens.TokenStore`
+keeps them in a file created readable by its owner only, holding each token's
+SHA-256 and never the token; the operator issues, lists and revokes them with
+`botcore host-token issue|list|revoke --store <file>` on the serving machine,
+never over a route. The server re-reads the file when it changes, so a
+revocation applies from the next call. A call runs with an AFD `CommandContext`
+whose actor is the token's (`kind`, `id`, `label`); `onBehalfOf` is what the
+caller says and is passed on as such. Hosts served this way use the
+`remote-caller` profile.
+
+`serve_hosts(app, address, port)` runs it with Uvicorn and binds only to
+loopback or a tailnet address (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`):
+a wildcard, LAN or public address, or a host name, is refused unless
+`allow_any=True`. Loopback suits a server behind `tailscale serve`, which adds
+HTTPS.
+
+`botcore.host_client.HostClient(url, route, token)` calls it with the standard
+library only (`call`, `catalog`, `docs`, `upload`) and returns CommandResults as
+dicts. A server it cannot reach, or a 502, 503 or 504, is an error with
+`unavailable_code` (`HOST_UNAVAILABLE` unless the caller names its own) and a
+suggestion to retry the same call, never an exception, so a script never falls
+back to another way of writing. `create_remote_cli(name, env_prefix=...)` wraps
+it as a click CLI reading `<PREFIX>_URL`, `_ROUTE` and `_TOKEN` (or
+`_TOKEN_FILE`); it prints the result as JSON and exits 0 on success, 1 on a
+refusal and 2 when the server cannot be reached.
