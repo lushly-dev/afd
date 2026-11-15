@@ -39,8 +39,10 @@ steward. Its rules:
 - **A rare variety is lent only with the steward's agreement.** `loan-create` for a rare
   variety is held, whoever asks. The application records the held loan as a request, one for
   a member and a variety however often it is asked. A request waits as long as its hold,
-  which is set to twenty-four hours. The steward's approval makes the loan. A waiting request
-  can be withdrawn at the desk.
+  which is set to twenty-four hours. The steward's approval makes the loan, and nothing else
+  does: a hold cleared at the client (a DirectClient's `onApprovalNeeded`) reaches
+  `loan-create`, which refuses rare seed with `FORBIDDEN`, and the request still waits. A
+  waiting request can be withdrawn at the desk.
 - **Only a person with the steward's role decides,** retires a variety or removes closed
   requests. A volunteer, or an agent acting for anyone, is refused.
 - **A returned loan may bring saved seed,** which becomes a new lot.
@@ -108,7 +110,7 @@ A `?` marks an optional field. The schemas are the application's, in
 | `lot-list` | Query | `varietyId` | `lots` (`id`, `harvestYear`, `packets`, `source`, `germination`), `total` | `reasoning`, `confidence`, `sources`, `warnings` (`OLD_SEED`) | `NOT_FOUND` | |
 | `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `reasoning`, `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
 | `member-list` | Query | `query?` | `members` (`id`, `name`, `number`), `total` | | `SERVICE_UNAVAILABLE` | |
-| `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED` | `approval` for a rare variety; `undoable` |
+| `loan-create` | Mutation | `memberId`, `varietyId` | `id`, `status`, `lentAt`, `lot` (`id`, `harvestYear`, `germination`) | `undoCommand` (`loan-cancel`), `undoArgs`, `warnings` (`OLD_SEED`) | `NOT_FOUND`, `OUT_OF_STOCK`, `CONFLICT`, `APPROVAL_REQUIRED`, `FORBIDDEN` | `approval` for a rare variety; `undoable` |
 | `loan-cancel` | Mutation | `id` | `id`, `status` | | `NOT_FOUND`, `CONFLICT` | |
 | `loan-return` | Mutation | `id`, `savedSeed?` (`packets`, `harvestYear`) | `id`, `status`, `returnedAt`, `lot?` (`id`, `packets`) | `undoCommand` (`loan-reopen`), `undoArgs` | `NOT_FOUND`, `CONFLICT` | `undoable` |
 | `loan-reopen` | Mutation | `id` | `id`, `status`, `lotRemoved?` | | `NOT_FOUND`, `CONFLICT` | |
@@ -321,8 +323,10 @@ Each file says at its top what it leaves out. Together:
   fields are built from, and run the command an undo names.
 - **`confidence` is a floor.** A step can show that a match is at least 0.5 and cannot show
   that it is below 0.9. That a label was left for a person shows it.
-- **One actor.** A scenario runs in process as the test actor, which the application treats
-  as the steward. So no file shows a volunteer or an agent refused with `FORBIDDEN`.
+- **One actor.** A scenario runs as one actor. The application's tests give every step a person
+  with the steward's role, in place of the runner's test actor, which the application treats as
+  nobody's. So no file shows a volunteer or an agent refused with `FORBIDDEN`; the
+  application's own tests do.
 - **A service that fails.** Jobs 6 and 17 are half shown: the empty list, and not the list
   that cannot be read (`SERVICE_UNAVAILABLE`).
 - **One call a step.** Job 14's three decisions are three steps where the screen sends one
@@ -335,7 +339,7 @@ Each file says at its top what it leaves out. Together:
   The first steps of jobs 12 and 16, which expect `CONFIRMATION_REQUIRED`, would carry the
   command out in process. They pass against a server run with `confirmations: 'enforce'`
   whose `createContext` gives the runner a person with the steward's role; without that the
-  server's actor is an agent (`packages/server/README.md:510`), and the steward's commands
+  server's actor is an agent (`packages/server/src/server-types.ts:193`), and the steward's commands
   are refused. They write `confirm` inside
   `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
   the input.
@@ -371,10 +375,18 @@ metadata, states and the host's part are as drafted above. Where the draft was s
 code chose the reading the scenarios and the results need:
 
 - **Who is the steward.** A person (`actor.kind` `human`) whose id is one of the application's
-  steward ids. The scenario runner's test actor stands for the steward; a call with no actor
-  is refused like an agent's.
-- **A held loan with no actor.** `loan-create`'s policy also holds a call that names no actor,
-  as a policy should; such a hold records no request.
+  steward ids. Nobody else is: not an agent, not the scenario runner's test actor, and not a
+  call with no actor.
+- **Rare seed only through `request-decide`.** `loan-create` refuses a rare variety with
+  `FORBIDDEN` when a cleared hold reaches it, naming `request-list` and the steward's
+  `request-decide`. `FORBIDDEN` because the caller is known and not allowed this way, whoever
+  it is; `CONFLICT` would say the state is wrong, and it is not.
+- **A call with no actor** is held, as a policy fails closed, whatever the variety. For a rare
+  variety the hold is the usual one: it records the request and its summary says it waits for
+  the steward. For any other variety it records nothing, and its summary says it was held
+  because the call names no actor; the same call with an actor lends.
+- **One waiting request a member and variety.** `request-reopen` refuses with `CONFLICT`, naming
+  `request-withdraw`, while another request for the pair waits.
 - **Asking again** for a request that is waiting moves its `expiresAt` to the new hold's, so
   the expiry a refusal shows stays the request's. A reopened request waits a day from the
   reopening; no hold is made for it.

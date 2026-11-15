@@ -94,11 +94,17 @@ export function createSeedLibrary(options: SeedLibraryOptions = {}): SeedLibrary
 		includeToken: false,
 		relay: 'none',
 		clock,
-		summarize: (command, input) => {
+		summarize: (command, input, context) => {
 			const loan = forSteward(command, input);
-			return loan
-				? `${store.requestSummary(loan.memberId, loan.varietyId)}. It waits for the steward, in request-list`
-				: undefined;
+			if (loan) {
+				return `${store.requestSummary(loan.memberId, loan.varietyId)}. It waits for the steward, in request-list`;
+			}
+			// The policy fails closed: a call that names no actor is held, rare seed or not.
+			const asked = command === 'loan-create' ? heldLoan(input) : undefined;
+			if (asked && !context.actor) {
+				return `Held because the call names no actor: call loan-create again as the person or agent it is for. No request was recorded`;
+			}
+			return undefined;
 		},
 		onApprovalRequired: (held) => {
 			const loan = forSteward(held.command, held.input);

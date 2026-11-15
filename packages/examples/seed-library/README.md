@@ -42,3 +42,8 @@ command's `output` schema and refusals.
 `start` serves every call as an agent, which is refused the steward's commands. Set
 `SEED_LIBRARY_ACTOR=steward` to serve every call as the steward, and `SEED_LIBRARY_FIXTURE` to
 start from another fixture.
+
+**The server has no authentication.** It is for tests and local tools: `start` listens on 127.0.0.1
+only, and it must not be exposed beyond loopback. Its actor is fixed: every call is an agent, or with
+`SEED_LIBRARY_ACTOR=steward` every call is the steward, standing in for a sign-in a real host
+would verify. With that set, anyone who can reach the port is the steward.

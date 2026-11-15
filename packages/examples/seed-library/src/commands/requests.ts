@@ -282,6 +282,21 @@ export function requestCommands(store: LibraryStore): ZodCommandDefinition[] {
 					{ id: request.id, status: request.status }
 				);
 			}
+			// One request waits for a member and a variety, however it came to wait.
+			const waiting = store.requests.find(
+				(other) =>
+					other.status === 'pending' &&
+					other.memberId === request.memberId &&
+					other.varietyId === request.varietyId
+			);
+			if (waiting) {
+				return refuse(
+					'CONFLICT',
+					`${waiting.id} already waits for the same member and variety`,
+					`Decide ${waiting.id} with request-decide, or take it back with request-withdraw, then reopen ${request.id}`,
+					{ id: request.id, waiting: waiting.id }
+				);
+			}
 			const loan = request.loanId ? store.loan(request.loanId) : undefined;
 			if (loan?.status === 'returned') {
 				return refuse(

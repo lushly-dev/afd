@@ -19,14 +19,11 @@ export const STEWARD_COMMANDS: Readonly<Record<string, string>> = {
 };
 
 /**
- * Whether the actor holds the steward's role: a person whose id is one of `stewardIds`. The
- * test actor of the scenario runner stands for the steward, so the scenarios can run the
- * steward's jobs.
+ * Whether the actor holds the steward's role: a person whose id is one of `stewardIds`. No other
+ * kind of actor does, the scenario runner's test actor included; the scenarios run as the steward.
  */
 export function isSteward(actor: Actor | undefined, stewardIds: readonly string[]): boolean {
-	if (!actor) return false;
-	if (actor.kind === 'test') return true;
-	return actor.kind === 'human' && actor.id !== undefined && stewardIds.includes(actor.id);
+	return actor?.kind === 'human' && actor.id !== undefined && stewardIds.includes(actor.id);
 }
 
 export function createStewardMiddleware(stewardIds: readonly string[]): CommandMiddleware {

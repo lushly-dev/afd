@@ -282,6 +282,21 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     another. A throwaway script ran each result's `$input` from the fixture's start: 34
     of the 73 single-command results matched in `data` or error code, and the other 39 record
     a later state or a list that cannot be read.
+- **Review of the seed library's application, 2026-11-15:** an independent reviewer found one
+  blocker and seven improvements, all fixed the same day. *Blocker:* a DirectClient whose
+  `onApprovalNeeded` approved the hold lent rare seed past the steward, and left the request
+  waiting; `loan-create` now refuses rare seed with `FORBIDDEN`, naming `request-list` and
+  `request-decide`, with a DirectClient test. *Improvements:* the steward check no longer
+  treats the test actor as the steward, and the scenarios run as a steward actor (superseding
+  "as the test actor" in the entry above); `request-reopen` refuses while another request for
+  the pair waits; a hold for a call with no actor says why it was held; the undo tests check the
+  state came back; the README and `serve.ts` say the server has no authentication, and
+  `start` now listens on 127.0.0.1; a citation; and the root README's examples table.
+  `scripts/affected/scope.mjs` now maps the bench's `results/` and `tasks/` to the package:
+  `pnpm verify --list --files` on a result and a task printed "no packages affected" before
+  and "1 of 50 packages ... @afd/example-seed-library" after. Rerun: the package's tests (3
+  files, 119 tests, 113 of 113 steps), `node --test scripts/affected.test.mjs` (18 passed),
+  `pnpm check` and the link check.
 
 ## What was read to write it
 
@@ -350,3 +365,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | Specimen's build script | The owner agreed to make `build:host` honour `CARGO_TARGET_DIR`. The fix worked on the second machine, and an independent review then found that it undoes a deliberate pin and lets worktrees that share a target directory use each other's host. It was withdrawn: the machine's cargo `build-dir` setting already keeps the build's bulk on the external drive. Specimen's README now says its suite needs the TypeScript build first |
 | 2026-11-15 | The bench's tasks | The owner accepted three design points of the seed library: approval as a held loan, job 16, and the approval request off T4. Each screen's task and the results that force its states were drafted, 50 states and 74 results, after a review found that the first version hinted at the design, let the bare arm read the states, and could not mount a whole screen. `bench.md` now says what each arm reads. The owner allowed fixes and merges on green without asking |
 | 2026-11-15 | The seed library's application | The application was built in `packages/examples/seed-library` from the drafted commands: 24 commands with schemas, an in-memory store with a fixed clock and counter ids, the approval hook that records a held loan as a request, and the steward's middleware. The scenario files moved beside it. All 113 steps pass, jobs 12 and 16 over MCP with confirmations enforced; three steps that compared with an earlier step inside `expect` now name ids. The 74 results pass the output schemas unchanged. `seed-library.md` records what building it settled. Not merged |
+| 2026-11-15 | The seed library's application, after review | An independent review found that a DirectClient approving its own hold could lend rare seed; `loan-create` now refuses rare seed, which leaves only through `request-decide`. The test actor is no longer the steward, a reopened request cannot make a second waiting one, and the bench's results and tasks now select the package's tests. Not merged |

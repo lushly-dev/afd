@@ -1,8 +1,9 @@
 /**
  * The seventeen jobs of the seed library, run as its acceptance tests (`scenarios/`).
  *
- * Fifteen run in process as the scenario runner's test actor, which the library treats as the
- * steward. The first steps of jobs 12 and 16 expect `CONFIRMATION_REQUIRED`, which an
+ * Fifteen run in process as the steward: the executor's context gives every step a person with
+ * the steward's role, in place of the runner's test actor, which the library treats as nobody in
+ * particular. The first steps of jobs 12 and 16 expect `CONFIRMATION_REQUIRED`, which an
  * in-process call never returns, so those two run over MCP against a server that enforces
  * confirmations and whose `createContext` gives every call a person with the steward's role
  * (`seed-library.md`, "What a scenario could not express").
@@ -14,7 +15,7 @@ import type { AddressInfo } from 'node:net';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createClient, type McpClient } from '@lushly-dev/afd-client';
-import type { CommandContext, CommandResult } from '@lushly-dev/afd-core';
+import type { Actor, CommandContext, CommandResult } from '@lushly-dev/afd-core';
 import {
 	createInProcessExecutor,
 	getAdapter,
@@ -37,6 +38,9 @@ const OVER_MCP = new Set([
 	'12-retire-a-variety.scenario.yaml',
 	'16-clear-a-past-season.scenario.yaml',
 ]);
+
+/** Who runs every step: a person with the steward's role, as a screen signed in as the steward. */
+const STEWARD: Actor = { kind: 'human', id: 'steward', label: 'The steward' };
 
 /** The library the current scenario's fixture is loaded into. */
 let library: SeedLibrary;
@@ -93,7 +97,7 @@ async function run(
 		handler: async (command, input, context) =>
 			checkOutput(command, await handler(command, input, context)),
 		stopOnFailure: false,
-		context: { clock: library.clock },
+		context: { actor: STEWARD, clock: library.clock },
 	});
 	const result = await executor.execute(parsed.scenario);
 	tally.steps += parsed.scenario.steps.length;
@@ -124,7 +128,7 @@ describe('the seed library jobs, over MCP with confirmations enforced', () => {
 	async function serve(): Promise<McpClient> {
 		const handler = createSeedLibraryHandler(library, {
 			host: '127.0.0.1',
-			actor: { kind: 'human', id: 'steward', label: 'The steward' },
+			actor: STEWARD,
 		});
 		const server = createServer(handler);
 		await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));

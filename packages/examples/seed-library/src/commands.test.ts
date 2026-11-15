@@ -5,6 +5,7 @@
 
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
+import { createDirectClient } from '@lushly-dev/afd-client';
 import type { Actor, CommandResult } from '@lushly-dev/afd-core';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createSeedLibrary, HOLD_MS, type SeedLibrary } from './app.js';
@@ -140,6 +141,7 @@ describe('only a person with the steward role decides', () => {
 		['a volunteer', VOLUNTEER],
 		['an agent acting for the steward', AGENT_FOR_STEWARD],
 		['a call with no actor', undefined],
+		["the scenario runner's test actor", { kind: 'test' } as Actor],
 	])('refuses %s, and names the next command', async (_who, actor) => {
 		const registry = library.createRegistry();
 		const steps: Array<[string, Record<string, unknown>]> = [
@@ -158,6 +160,21 @@ describe('only a person with the steward role decides', () => {
 		}
 		expect(library.store.request('req-1')?.status).toBe('pending');
 		expect(library.store.variety('var-nigella')?.retired).toBeFalsy();
+	});
+
+	it('reopens a decision only while no other request waits for the same member and variety', async () => {
+		expect((await call('request-decide', { id: 'req-1', decision: 'decline' })).success).toBe(true);
+		await call('loan-create', { memberId: 'mem-ines', varietyId: 'var-glassgem' }, VOLUNTEER);
+		const asked = library.store.requests.find(
+			(request) => request.status === 'pending' && request.memberId === 'mem-ines'
+		);
+		expect(asked?.id).toBe('req-6');
+		const reopened = await call('request-reopen', { id: 'req-1' });
+		expect(reopened.error?.code).toBe('CONFLICT');
+		expect(reopened.error?.suggestion).toContain('request-withdraw');
+		expect(library.store.request('req-1')?.status).toBe('declined');
+		await call('request-withdraw', { id: 'req-6' }, VOLUNTEER);
+		expect((await call('request-reopen', { id: 'req-1' })).success).toBe(true);
 	});
 
 	it('lets the steward decide, and lets a volunteer withdraw a request', async () => {
@@ -218,6 +235,52 @@ describe('a loan of rare seed is held and recorded as a request', () => {
 		expect(decided.error?.suggestion).toContain('loan-create');
 	});
 
+	it('lends rare seed only through request-decide, even when a DirectClient approves the hold', async () => {
+		const asked: string[] = [];
+		const desk = createDirectClient(library.createRegistry(), {
+			actor: VOLUNTEER,
+			clock: library.clock,
+			onApprovalNeeded: (request) => {
+				asked.push(request.summary);
+				return true;
+			},
+		});
+		const result = await desk.call('loan-create', {
+			memberId: 'mem-ines',
+			varietyId: 'var-glassgem',
+		});
+		expect(asked).toHaveLength(1);
+		expect(result.error?.code).toBe('FORBIDDEN');
+		expect(result.error?.suggestion).toContain('request-list');
+		expect(result.error?.suggestion).toContain('request-decide');
+		expect(library.store.packetsAvailable('var-glassgem')).toBe(2);
+		expect(library.store.loans.filter((loan) => loan.varietyId === 'var-glassgem')).toEqual([]);
+		expect(library.store.requests.map((request) => request.status)).toEqual(['pending']);
+		// The steward's approval is then the one loan.
+		expect((await call('request-decide', { id: 'req-1', decision: 'approve' })).success).toBe(true);
+		expect(library.store.packetsAvailable('var-glassgem')).toBe(1);
+	});
+
+	it('holds a call that names no actor, and says why', async () => {
+		const registry = library.createRegistry();
+		const plain = await registry.execute(
+			'loan-create',
+			{ memberId: 'mem-ines', varietyId: 'var-borlotti' },
+			{ clock: library.clock }
+		);
+		expect(plain.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(plain.error?.details?.summary).toContain('names no actor');
+		expect(library.store.requests).toHaveLength(0);
+		const rare = await registry.execute(
+			'loan-create',
+			{ memberId: 'mem-ines', varietyId: 'var-glassgem' },
+			{ clock: library.clock }
+		);
+		expect(rare.error?.details?.summary).toContain('waits for the steward');
+		expect(library.store.requests).toHaveLength(1);
+		expect(library.store.packetsAvailable('var-borlotti')).toBe(6);
+	});
+
 	it('does not hold a loan of seed that is not rare', async () => {
 		const lent = await call(
 			'loan-create',
@@ -245,21 +308,63 @@ describe('a list that cannot be read says so, apart from an empty one', () => {
 	});
 });
 
-describe('every undo offer runs, with arguments its command accepts', () => {
+describe('every undo offer runs, and puts the state back', () => {
 	beforeEach(() => start(stewardFixture));
 
-	it.each([
-		['loan-create', { memberId: 'mem-ines', varietyId: 'var-borlotti' }],
-		['loan-return', { id: 'loan-1', savedSeed: { packets: 3, harvestYear: 2029 } }],
-		['waitlist-join', { memberId: 'mem-ines', varietyId: 'var-runner' }],
-		['request-decide', { id: 'req-1', decision: 'approve' }],
-		['donation-import', { rows: [{ label: 'Parsnip', packets: 2, harvestYear: 2029 }] }],
-	])('%s', async (command, input) => {
+	const shelf = (varietyId: string) => library.store.packetsAvailable(varietyId);
+	const lots = (varietyId: string) => library.store.lotsOf(varietyId).map((lot) => lot.id);
+
+	it.each<[string, Record<string, unknown>, (done: CommandResult) => void]>([
+		[
+			'loan-create',
+			{ memberId: 'mem-ines', varietyId: 'var-borlotti' },
+			(done) => {
+				expect(shelf('var-borlotti')).toBe(6);
+				expect(library.store.loan((done.data as { id: string }).id)?.status).toBe('cancelled');
+				expect(library.store.loans.filter((loan) => loan.status === 'out')).toHaveLength(1);
+			},
+		],
+		[
+			'loan-return',
+			{ id: 'loan-1', savedSeed: { packets: 3, harvestYear: 2029 } },
+			() => {
+				expect(library.store.loan('loan-1')?.status).toBe('out');
+				expect(lots('var-borlotti')).toEqual(['lot-borlotti-29']);
+				expect(shelf('var-borlotti')).toBe(6);
+			},
+		],
+		[
+			'waitlist-join',
+			{ memberId: 'mem-ines', varietyId: 'var-runner' },
+			() => expect(library.store.waitingFor('var-runner')).toEqual([]),
+		],
+		[
+			'request-decide',
+			{ id: 'req-1', decision: 'approve' },
+			(done) => {
+				expect(library.store.request('req-1')?.status).toBe('pending');
+				expect(library.store.loan((done.data as { loanId: string }).loanId)?.status).toBe(
+					'cancelled'
+				);
+				expect(shelf('var-glassgem')).toBe(2);
+			},
+		],
+		[
+			'donation-import',
+			{ rows: [{ label: 'Parsnip', packets: 2, harvestYear: 2029 }] },
+			(done) => {
+				expect(lots('var-parsnip')).toEqual(['lot-parsnip-28']);
+				expect(shelf('var-parsnip')).toBe(2);
+				expect(library.store.donation((done.data as { id: string }).id)?.status).toBe('cancelled');
+			},
+		],
+	])('%s', async (command, input, check) => {
 		const done = await call(command, input);
 		expect(done.success).toBe(true);
 		expect(done.undoCommand).toBeDefined();
 		const undone = await call(done.undoCommand as string, done.undoArgs ?? {});
 		expect(undone.success).toBe(true);
+		check(done);
 	});
 });
 

@@ -87,7 +87,7 @@ export function loanCommands(store: LibraryStore): ZodCommandDefinition[] {
 				: 'not-required',
 		input: z.object(memberAndVariety),
 		output: loanCreateOutput,
-		errors: ['NOT_FOUND', LibraryErrors.OUT_OF_STOCK, 'CONFLICT', 'APPROVAL_REQUIRED'],
+		errors: ['NOT_FOUND', LibraryErrors.OUT_OF_STOCK, 'CONFLICT', 'APPROVAL_REQUIRED', 'FORBIDDEN'],
 		async handler(input, context) {
 			const member = store.member(input.memberId);
 			if (!member) return memberNotFound(input.memberId);
@@ -99,6 +99,16 @@ export function loanCommands(store: LibraryStore): ZodCommandDefinition[] {
 					`${variety.name} is retired, and the library no longer lends it`,
 					'Call variety-list to choose another variety',
 					{ varietyId: variety.id, retired: true }
+				);
+			}
+			// Rare seed leaves only through the steward's request-decide. A hold someone cleared
+			// (a DirectClient's onApprovalNeeded, say) does not lend it: the request still waits.
+			if (variety.rare) {
+				return refuse(
+					'FORBIDDEN',
+					`${variety.name} is rare, and is lent only when the steward approves the request`,
+					`The request waits for the steward in request-list; only the steward's request-decide lends it`,
+					{ memberId: member.id, varietyId: variety.id }
 				);
 			}
 			const lent = store.lend(member.id, variety.id, nowOf(context));
