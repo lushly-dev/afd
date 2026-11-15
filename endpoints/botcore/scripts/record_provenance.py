@@ -64,7 +64,8 @@ IMPORT_REASONS = {
         " input schemas and argument refusals; Record that a host does not warn about "
         "unselected plugin sections; Record the docs-manager prose guidance; Record either-"
         "spelling command names, kebab_names, typed inputs, a context per call and the "
-        "remote-caller profile"
+        "remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP"
+        " client"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -191,7 +192,10 @@ IMPORT_REASONS = {
         "Test the legacy stamp, unknown-field rejection and listing_budget; test the "
         "[sweep] section"
     ),
-    "src/botcore/cli.py": ("Describe skill-lint as the shared skill rule set"),
+    "src/botcore/cli.py": (
+        "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP "
+        "surface tokens"
+    ),
     "src/botcore/commands/skill/__init__.py": ("Export the shared skill rules"),
     "src/botcore/commands/skill/adopt.py": ("Record adopted ownership under metadata"),
     "src/botcore/commands/skill/frontmatter.py": (
@@ -216,7 +220,8 @@ IMPORT_REASONS = {
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher; "
         "describe plugin-declared policies, catalog input schemas and argument refusals; say "
         "a host leaves unselected plugin sections alone; describe command name spellings, "
-        "kebab_names, typed inputs, the per-call context and the remote-caller profile"
+        "kebab_names, typed inputs, the per-call context and the remote-caller profile; "
+        "describe serving hosts over HTTP: routes, tokens, the bind guard and the client"
     ),
     "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (

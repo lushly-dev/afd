@@ -190,3 +190,56 @@ The local-source bootstrap uses Python AFD 0.10 and MCP SDK 2.3. A small lazy
 import adapter supports MCP SDK 1 and 2 while retaining tool names and wire
 payloads. SDK-level Python `call_tool` return objects follow the installed SDK
 version; clients should use that SDK's supported content access API.
+
+## Serving hosts over HTTP
+
+`botcore.host_http.create_host_http_app({"lane": host, ...}, tokens, uploads=...)`
+serves several hosts from one process, each under its own route, with the
+`mcp` extra's Starlette. Under `/<route>` it answers `POST call`
+(`{"command", "arguments"?, "onBehalfOf"?}`), `GET catalog`, `GET docs/<topic>`
+and, when given an upload handler, `POST uploads` (raw bytes; the handler also
+receives the query string's parameters). Every answer is a CommandResult: a
+command's own refusal is HTTP 200, and the surface's refusals carry their status
+and an AFD error with a suggestion: `UNAUTHORIZED` (401, no valid bearer token),
+`FORBIDDEN` (403, a route this token does not open), `NOT_FOUND` (404),
+`VALIDATION_ERROR` (400, a body without a command), `TIMEOUT` (408),
+`PAYLOAD_TOO_LARGE` (413) and `RATE_LIMITED` (429). The token is checked first,
+so a caller without one learns no route's name. A call's body is capped at
+`max_call_bytes` (1 MiB), an upload at `max_upload_bytes` and
+`upload_read_seconds` (120); at most `max_concurrent_uploads` (2) are received at
+once, and one per token, so a slow caller cannot hold every slot. The caps hold
+for chunked bodies too. The upload handler's parameters are the caller's claims,
+like `onBehalfOf`, never its identity or route.
+
+A token opens one route and names one actor. `botcore.host_tokens.TokenStore`
+keeps them in a file holding each token's SHA-256 and never the token, in a
+directory it creates private (`0700`). The operator issues, lists and revokes
+them with `botcore host-token issue|list|revoke --store <file>` on the serving
+machine, never over a route. Each change holds an `flock` on `<store>.lock`,
+writes a new temporary file, syncs it and renames it into place, so concurrent
+runs lose nothing and a reader never sees a partial file. The server re-reads the
+file when it changes, so a revocation applies from the next call. A call runs
+with an AFD `CommandContext` whose actor is the token's (`kind`, `id`, `label`);
+`onBehalfOf` is what the caller says, capped at 200 characters, and is passed on
+as such. Hosts served this way use the `remote-caller` profile.
+
+`serve_hosts(app, address, port)` runs it with Uvicorn and binds only to
+loopback or a tailnet address (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`):
+a wildcard, LAN or public address, or a host name, is refused unless
+`allow_any=True`. The check is by range, and `100.64.0.0/10` is also
+carrier-grade NAT space, so pass the address `tailscale ip -4` prints. Loopback
+suits a server behind `tailscale serve`, which adds HTTPS.
+
+`botcore.host_client.HostClient(url, route, token)` calls it with the standard
+library only (`call`, `catalog`, `docs`, `upload` with optional parameters) and
+returns CommandResults as dicts. It never follows a redirect and never sends its
+token to one. A server it cannot reach is an error with `unavailable_code`
+(`HOST_UNAVAILABLE` unless the caller names its own), never an exception, so a
+script never falls back to another way of writing. `details.outcomeKnown` says
+whether the request could have arrived: a refused connection is `true` (nothing
+was sent), while a timeout or a proxy's 502, 503 or 504 is `false`, and the
+suggestion says to read the state or retry the same call.
+`create_remote_cli(name, env_prefix=...)` wraps it as a click CLI reading
+`<PREFIX>_URL`, `_ROUTE` and `_TOKEN` (or `_TOKEN_FILE`); it prints the result
+as JSON and exits 0 on success, 1 on a refusal and 2 when the server cannot be
+reached.
