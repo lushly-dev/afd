@@ -240,3 +240,59 @@ async def test_an_mcp_call_is_made_as_an_agent(tmp_path):
     reply = await server.call_tool("factory-call", {"command": "who"})
     blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
     assert json.loads(blocks[0].text)["data"] == "agent"
+
+
+# ── Per-command MCP tools ───────────────────────────────────────────────
+
+
+async def test_command_tools_carry_the_catalog_schema_and_effect_annotations(tmp_path):
+    import json
+
+    from botcore.host_surfaces import create_host_mcp_server
+
+    async def issue_get(number: int):
+        """Read an issue."""
+        return success({"number": number, "actor": current_call().actor.kind})
+
+    host = make_host(tmp_path)
+    host.register("issue-get", issue_get, CommandPolicy(("inspect",)))
+    server = create_host_mcp_server(host, command_tools=True)
+    tools = {tool.name: tool for tool in await server.list_tools()}
+    assert {"gateway-start", "gateway-call", "gateway-docs", "issue-claim", "issue-get"} <= set(
+        tools
+    )
+    claim = tools["issue-claim"].model_dump(by_alias=True, exclude_none=True)
+    assert claim["annotations"] == {"readOnlyHint": False, "destructiveHint": True}
+    assert claim["inputSchema"]["required"] == ["numbers", "holder"]
+    read = tools["issue-get"].model_dump(by_alias=True, exclude_none=True)
+    assert read["annotations"] == {"readOnlyHint": True, "destructiveHint": False}
+    assert read["description"] == "Read an issue."
+
+    reply = await server.call_tool("issue-claim", {"numbers": ["7"], "holder": HOLDER})
+    blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
+    data = json.loads(blocks[0].text)
+    assert data["success"] and data["data"]["numbers"] == [7]
+    assert data["data"]["holderType"] == "Holder"
+
+
+async def test_a_command_tool_refuses_as_the_host_does(tmp_path):
+    from botcore.host_surfaces import create_host_mcp_server
+
+    server = create_host_mcp_server(make_host(tmp_path, profile="inspection"), command_tools=True)
+    reply = await server.call_tool("issue-claim", {"numbers": [1], "holder": HOLDER})
+    blocks = getattr(reply, "content", None) or (reply[0] if isinstance(reply, tuple) else reply)
+    assert '"EFFECT_DENIED"' in blocks[0].text
+
+
+def test_a_command_named_like_a_meta_tool_is_refused(tmp_path):
+    from botcore.host_surfaces import create_host_mcp_server
+
+    host = make_host(tmp_path)
+
+    async def start():
+        """Collide."""
+        return success({})
+
+    host.register("gateway-start", start, CommandPolicy())
+    with pytest.raises(ValueError, match="collides with a gateway meta-tool"):
+        create_host_mcp_server(host, command_tools=True)

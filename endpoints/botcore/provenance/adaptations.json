@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "e01cdaaff951e7e38c51a50192a81aaea61bf72d5a7dd55bf97d649ae81dbb87",
+      "current_import_sha256": "08b5e9524a639dbca0cf0a673ddc0ecf6aaa2d3bd57c3695a16c3ac9c9c10484",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record per-command MCP tools"
     },
     {
       "path": "LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "a809e34f15ba14d36b00d27af57cc8b8c7dc06337e6feb7bfbf0abccc5c59f1c",
+      "current_import_sha256": "1464628a2b69b2e67663bfc6ac2fde243fa8866568346a15b37893285da4d689",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe per-command MCP tools"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "b6d233f7e5ddbaf1b76b1be4921c2937a0c4e3251236b58228db8381915f19a6",
+      "current_import_sha256": "0dccb273f46ed99fc238a1cd514d4803e913ba6a3be47a77146165c4c8a3653d",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -1907,11 +1907,11 @@
       "path": "src/botcore/host_surfaces.py",
       "upstream_sha256": null,
       "staged_sha256": "9c9daa261ede670474aff53168b4d4095ad6a1b1b7371c46e595904fac0a806a",
-      "current_import_sha256": "5b9a9fab4c760afe00e3cfd5a889499cd76968405da8846e2f9d9755abcaf0e8",
+      "current_import_sha256": "325a465611c5edc1cfd09139a3c9e332343ae1fb8e1bdd2251c3f897199e4933",
       "stage_classification": "added-in-staging",
       "stage_reason": "Expose managed CLI/MCP through the shared host dispatcher",
       "import_classification": "modified-after-staging",
-      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent"
+      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent; serve each command as its own MCP tool with effect annotations"
     },
     {
       "path": "src/botcore/plugin.py",

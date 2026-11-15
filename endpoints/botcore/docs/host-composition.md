@@ -165,6 +165,15 @@ middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
 and records the actor, and a handler reads it with
 `botcore.context.current_call()` instead of taking the caller as an input.
 
+`create_host_mcp_server(host, command_tools=True)` also serves each command
+as its own MCP tool, named as the host serves it, beside the `start`, `call`
+and `docs` meta-tools. Its input schema comes from the same type hints as the
+catalog's `input_schema`, and its annotations from the command's declared
+effects: `readOnlyHint` when every possible effect is `inspect`, otherwise
+`destructiveHint`, so a client's permission rules can tell a write from a read.
+A call enters `host.execute` like any other, as an agent unless the host names
+its actor. A command named like a meta-tool is refused at construction.
+
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is
 absent from inspection hosts. Supplied command functions still dispatch through

@@ -44,10 +44,54 @@ def create_host_cli(host: CommandHost) -> click.Group:
     return cli
 
 
+def command_annotations(host: CommandHost, name: str) -> dict:
+    """MCP tool annotations from a command's declared effects, in MCP's wire names.
+
+    A command whose every possible effect is ``inspect`` is read-only; any other may
+    change state and is marked destructive, the conservative reading MCP clients expect.
+    """
+    read_only = set(host.policy(name).declared()) <= {"inspect"}
+    return {"readOnlyHint": read_only, "destructiveHint": not read_only}
+
+
+def _agent_context(host: CommandHost):
+    from afd import Actor
+    from afd.core.commands import CommandContext
+
+    # An MCP caller is an agent unless the host names who calls through it.
+    return CommandContext(actor=host.actor or Actor(kind="agent"))
+
+
+def _command_tool(host: CommandHost, name: str):
+    """A tool function whose signature is the handler's, so the SDK derives the tool's
+    input schema from the same hints the catalog does; every call still enters
+    ``host.execute``."""
+    import inspect
+
+    from pydantic_core import to_jsonable_python
+
+    from botcore.host_inputs import _signature
+
+    async def tool(**arguments) -> dict:
+        arguments = to_jsonable_python(arguments, by_alias=True)
+        return _dump(await host.execute(name, arguments, _agent_context(host)))
+
+    signature = _signature(host.handler(name))
+    tool.__signature__ = signature.replace(return_annotation=dict)
+    tool.__annotations__ = {
+        key: parameter.annotation
+        for key, parameter in signature.parameters.items()
+        if parameter.annotation is not inspect.Parameter.empty
+    } | {"return": dict}
+    tool.__name__ = name.replace("-", "_")
+    return tool
+
+
 def create_host_mcp_server(
     host: CommandHost,
     *,
     raw_python: bool = False,
+    command_tools: bool = False,
     version: str = "0.1.0",
     description: str | None = None,
 ) -> Any:
@@ -55,6 +99,10 @@ def create_host_mcp_server(
 
     Arbitrary Python is fully trusted code, not confined by command metadata.
     Its supplied command functions still dispatch through the host policy.
+
+    ``command_tools`` also serves each command as its own tool, named as the host serves
+    it, with the catalog's input schema and read-only and destructive annotations, so a
+    client's permission rules can tell a write from a read. The meta-tools stay.
     """
     if raw_python and host.context.profile != "trusted-local":
         raise ValueError("Raw Python requires the trusted-local profile")
@@ -90,18 +138,28 @@ def create_host_mcp_server(
         name=f"{host.name}-call", description="Call a registered command under host policy"
     )
     async def call(command: str, arguments: dict | None = None) -> dict:
-        from afd import Actor
-        from afd.core.commands import CommandContext
-
-        # An MCP caller is an agent unless the host names who calls through it.
-        context = CommandContext(actor=host.actor or Actor(kind="agent"))
-        return _dump(await host.execute(command, arguments, context))
+        return _dump(await host.execute(command, arguments, _agent_context(host)))
 
     @server.tool(name=f"{host.name}-docs", description="Read a host documentation topic")
     async def docs(topic: str = "overview") -> str:
         if topic == "overview":
             return f"# {host.name} — Topics\n" + "\n".join(sorted(host.docs))
         return host.docs.get(topic, f"Unknown topic. Available: {', '.join(sorted(host.docs))}")
+
+    if command_tools:
+        from mcp.types import ToolAnnotations
+
+        reserved = {f"{host.name}-{tool}" for tool in ("start", "call", "docs", "run")}
+        for name in host.list_command_names():
+            if name in reserved:
+                raise ValueError(f"Command {name} collides with a {host.name} meta-tool")
+            server.add_tool(
+                _command_tool(host, name),
+                name=name,
+                description=next(r["description"] for r in host.catalog() if r["name"] == name)
+                or name,
+                annotations=ToolAnnotations.model_validate(command_annotations(host, name)),
+            )
 
     if raw_python:
 

@@ -63,7 +63,8 @@ IMPORT_REASONS = {
         "the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog"
         " input schemas and argument refusals; Record that a host does not warn about "
         "unselected plugin sections; Record either-spelling command names, kebab_names, typed"
-        " inputs, a context per call and the remote-caller profile"
+        " inputs, a context per call and the remote-caller profile; Record per-command MCP "
+        "tools"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -99,7 +100,8 @@ IMPORT_REASONS = {
     "src/botcore/plugin.py": ("Let a plugin declare its command policies (add_policy)"),
     "src/botcore/host_surfaces.py": (
         "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-"
-        "Python aliases through the host; call over MCP as an agent"
+        "Python aliases through the host; call over MCP as an agent; serve each command as "
+        "its own MCP tool with effect annotations"
     ),
     "src/botcore/server.py": ("Preserve legacy tool names and streaming under SDK 1/2 imports"),
     "src/botcore/utils/runner.py": (
@@ -215,7 +217,8 @@ IMPORT_REASONS = {
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher; "
         "describe plugin-declared policies, catalog input schemas and argument refusals; say "
         "a host leaves unselected plugin sections alone; describe command name spellings, "
-        "kebab_names, typed inputs, the per-call context and the remote-caller profile"
+        "kebab_names, typed inputs, the per-call context and the remote-caller profile; "
+        "describe per-command MCP tools"
     ),
     "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (
