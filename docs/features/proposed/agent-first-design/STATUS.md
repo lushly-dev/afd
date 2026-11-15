@@ -56,20 +56,20 @@ shape of the [Patterns status](../patterns/STATUS.md).
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner confirming the bench's rules for "go". That is due before the
-  first run of step 0.1 and does not hold up building the bench, whose domain and budget the
-  owner approved. Before any session of phase 0 runs, the runner is finished and the
-  reference build written, the faults, persona cards and walks are settled against that build
-  and frozen, and the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
+- **Blocked on:** the owner confirming the bench's rules for "go". That is due before the first
+  run of step 0.1 and does not hold up building the bench, whose domain and budget the owner
+  approved. Before any session of phase 0 runs, the runner is finished and the reference build
+  written, the faults, persona cards and walks are settled against that build and frozen, and
+  the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
   and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-15, the runner's tests and dry runs on the second machine, the
-  link check, the scenario checks on the seed library's jobs, the check of the bench's tasks and results, the reviews below, and the seed library's
-  tests, `pnpm check` and `pnpm verify` on the built application, and the held-back jobs
-  run against it.
+  link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
+  and results, the reviews below, and the seed library's tests, `pnpm check` and `pnpm verify`
+  on the built application, and the held-back jobs run against it.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -355,26 +355,28 @@ Written 2026-11-15 against `4a77c273` on the second machine, in a local reposito
 external drive with no remote. It is committed to this repository with the held material after
 the last run of phase 0. What it does, without its check matching:
 
-- **A session's tree** is a plain export with a fresh one-commit history and none of the repository's, from the pinned commit, not a git worktree, whose history would let `git show` read every screen's task and this
-  folder without a path outside the tree. The export loses this folder except the files the
-  arm reads ([bench.md](bench.md#what-a-session-is-given)), the other screens' scenario files
-  (all of them for the bare arm), the seed library's tests, which read every task and result,
-  and the features index's row for this proposal, and a tooling test that names the tasks;
-  the builder's extract is written at its path. A guard fails the setup if another screen's
-  file or name, a held file's name or a mention of the bench in the extract is left. The session's folder has an opaque name, because a session sees its
-  working directory.
+- **A session's tree** is a plain export with a fresh one-commit history and none of the
+  repository's, from the pinned commit, not a git worktree, whose history would let `git show`
+  read every screen's task and this folder without a path outside the tree. The export loses
+  this folder except the files the arm reads ([bench.md](bench.md#what-a-session-is-given)),
+  the other screens' scenario files (all of them for the bare arm), the seed library's tests,
+  which read every task and result, and the features index's row for this proposal, and a
+  tooling test that names the tasks; the builder's extract is written at its path. A guard
+  fails the setup if another screen's file or name, a held file's name or a mention of the
+  bench in the extract is left. The session's folder has an opaque name, because a session sees
+  its working directory.
 - **A session** is `claude -p` on Opus 5.5 at `medium`, streaming JSON, six built-in tools
   (read, search, write, edit and an allowlist of shell commands), no skills or commands, and a
   strict MCP configuration that holds only Umbel's components brief. Arm 1 is given its
   plugin's `SKILL.md` as a file to read and follow, since the Skill tool is off for every arm.
 - **A wall and a check.** Each session runs inside a macOS sandbox profile that refuses reads
-  of the held folder, the runner, every other checkout of the repository and its git
-  directory, the parts of the scoring checkout that name the bench, other sessions' folders, and saved transcripts and scratch of
-  other sessions on the machine. The leak check then searches every tool call's input, and
-  every tool result, for the held folder's path and its files' names, and every file path,
-  shell path and path in written content for one outside the session's tree and its own
-  material. A run with one is thrown out, its cost kept in the ledger, and run again, at most
-  twice; a third stops the runs.
+  of the held folder, the runner, every other checkout of the repository and its git directory,
+  the parts of the scoring checkout that name the bench, other sessions' folders, and saved
+  transcripts and scratch of other sessions on the machine. The leak check then searches every
+  tool call's input, and every tool result, for the held folder's path and its files' names,
+  and every file path, shell path and path in written content for one outside the session's
+  tree and its own material. A run with one is thrown out, its cost kept in the ledger, and run
+  again, at most twice; a third stops the runs.
 - **The budget** enters each session in a ledger at its most, twice its line, before it
   starts, and at its reported cost at list prices when it ends; a session that reports no cost
   stays at its most. No session starts that could take the week's spend past the cap, a
@@ -394,12 +396,12 @@ the last run of phase 0. What it does, without its check matching:
   not throw it out.
 - **Checked on 2026-11-15** on the second machine, with no building session: stage 1's manifest
   verified and the 308 checks loaded; 23 unit tests passed; an invented story scored against
-  invented checks through Specimen gave the expected verdict on all 38; dry runs with a stand-in
-  for `claude`, inside the sandbox, ran clean on three screens and the three arms that are
-  ready and threw out and reran four planted leaks; a story file with no stories passed none
-  of T1's checks; and the sandbox refused each place it closes and served the components brief. Umbel's
-  components server and Specimen's host were built for the pinned commit, their Rust
-  intermediates on the external drive.
+  invented checks through Specimen gave the expected verdict on all 38; dry runs with a
+  stand-in for `claude`, inside the sandbox, ran clean on three screens and the three arms that
+  are ready and threw out and reran four planted leaks; a story file with no stories passed
+  none of T1's checks; and the sandbox refused each place it closes and served the components
+  brief. Umbel's components server and Specimen's host were built for the pinned commit, their
+  Rust intermediates on the external drive.
 - **Independent review, 2026-11-15:** a fresh reviewer on Claude Opus 5.5 read the runner
   against the frozen rules, this folder's specification and Specimen, and reproduced its
   findings by running the code. Two blockers: the probe read some page text differently from
@@ -408,10 +410,11 @@ the last run of phase 0. What it does, without its check matching:
   relative pattern. Both were fixed, the second with the sandbox as a wall under the check. Of
   eight improvements, seven were taken: false positives that would throw out honest runs, the
   budget's reserve and its unknown costs, the bare arm's builds kept out of scoring by name, a
-  gap in the accessibility check, content naming other screens, the pinned plugin's hashes,
-  and smaller choices; the eighth became a question for the owner. A focused second pass by the same reviewer found seven
-  fixed, three fixed in part and no new blocker; the three parts were then closed, the widest
-  by walling off the rest of the scoring checkout that names the bench's jobs and results.
+  gap in the accessibility check, content naming other screens, the pinned plugin's hashes, and
+  smaller choices; the eighth became a question for the owner. A focused second pass by the
+  same reviewer found seven fixed, three fixed in part and no new blocker; the three parts were
+  then closed, the widest by walling off the rest of the scoring checkout that names the
+  bench's jobs and results.
 - **The smoke session,** at the owner's word: one `claude -p` call with the runner's flags,
   asked for a word in a file, reported $0.055 at list prices, with the components server
   connected and a clean leak check. Its tool list showed that a headless session also had
@@ -495,4 +498,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The seed library's application | The application was built in `packages/examples/seed-library` from the drafted commands: 24 commands with schemas, an in-memory store with a fixed clock and counter ids, the approval hook that records a held loan as a request, and the steward's middleware. The scenario files moved beside it. All 113 steps pass, jobs 12 and 16 over MCP with confirmations enforced; three steps that compared with an earlier step inside `expect` now name ids. The 74 results pass the output schemas unchanged. `seed-library.md` records what building it settled. Not merged |
 | 2026-11-15 | The seed library's application, after review | An independent review found that a DirectClient approving its own hold could lend rare seed; `loan-create` now refuses rare seed, which leaves only through `request-decide`. The test actor is no longer the steward, a reopened request cannot make a second waiting one, and the bench's results and tasks now select the package's tests. Not merged |
 | 2026-11-15 | The bench's held material | The owner agreed to keep the held material in a private folder on the second machine's external drive and to write it before the runner and the reference build. It was written outside the repository: checks for every state, twelve faults, five persona cards, a walk script for each screen and two held-back jobs. Two reviews changed it: the faults, cards and walks now wait to be frozen until the reference build exists, the held-back jobs were replaced, and the checks were tightened. The checks and the held-back jobs were frozen, their manifest's hash recorded here, and the folder placed on the second machine. `bench.md` now proposes how step 0.4 reads a path |
-| 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how a field's text is read and in what the leak check missed, and eight improvements; all were fixed, the second blocker with a sandbox under every session. Walks, readers and statistics are not written |
+| 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how the probe read some page text and in what the leak check missed, both fixed, the second with a sandbox under every session, and eight improvements, seven taken and one put to the owner. Walks, readers and statistics are not written |

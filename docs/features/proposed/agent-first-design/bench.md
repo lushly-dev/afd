@@ -217,18 +217,19 @@ else.
 Ninety builds, sixty walks, fifty-five readers and four pilots. Arm 4 is not run: the proposal's
 phase 0 has no step for it.
 
-- **How a session runs,** as in Component Briefs: `claude -p` with the model and effort
-  pinned, no web tools and no subagents, in a tree of a commit that holds none of the held
-  material, with each arm's material in a directory of its own. The tree is a plain export with a fresh one-commit history and none of the repository's, not a
-  worktree, since `git show` in a worktree reads what the export
-  leaves out; the owner approved this on 2026-11-15. A session has six built-in tools and a
-  strict MCP configuration with the components brief alone: by default a headless session
-  also has messaging to other sessions on the machine and the skills built into Claude Code.
+- **How a session runs,** as in Component Briefs: `claude -p` with the model and effort pinned,
+  no web tools and no subagents, in a tree of a commit that holds none of the held material,
+  with each arm's material in a directory of its own. The tree is a plain export with a fresh
+  one-commit history and none of the repository's, not a worktree, since `git show` in a
+  worktree reads what the export leaves out; the owner approved this on 2026-11-15. A session
+  has six built-in tools and a strict MCP configuration with the components brief alone: by
+  default a headless session also has messaging to other sessions on the machine and the skills
+  built into Claude Code.
 - **A wall, and a check behind it.** Component Briefs recorded that a session can read any
   path on the machine. The held material is on the same machine, because scoring runs there.
   So each session runs inside a sandbox profile that refuses reads of the held material, the
-  runner, every other checkout of this repository, the parts of the scoring checkout that
-  name the bench, and other sessions' folders and transcripts, and
+  runner, every checkout of this repository but the scoring one, the parts of the scoring
+  checkout that name the bench, and other sessions' folders and transcripts, and
   its tool calls are still searched for a path outside its tree and its own arm's directory.
   A run that tried one is thrown out and run again. The wall covers the places named; the
   search is what finds anything else.
