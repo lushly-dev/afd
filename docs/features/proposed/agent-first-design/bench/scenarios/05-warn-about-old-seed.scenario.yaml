@@ -21,7 +21,7 @@ steps:
         varieties:
           - id: var-calendula
             packetsAvailable: 4
-            germination: { estimate: { lte: 0.5 }, basis: age }
+            germination: { estimate: { lte: 0.49 }, basis: age }
   - description: The loan goes through, and carries the lot's age and expected germination
     command: loan-create
     input: { memberId: mem-tobias, varietyId: var-calendula }
@@ -32,7 +32,7 @@ steps:
         lot:
           id: lot-calendula-24
           harvestYear: 2024
-          germination: { estimate: { lte: 0.5 }, basis: age }
+          germination: { estimate: { lte: 0.49 }, basis: age }
   - description: Told, the member would rather have something fresher, so the loan is taken back
     command: loan-cancel
     input: { id: "${{ steps[1].data.id }}" }

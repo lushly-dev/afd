@@ -62,7 +62,7 @@ three screens help on a screen they were not written from.
 | T1 | Lend a packet | Find a variety, lend a packet to a member, take a substitute or join the waiting list when it is out, ask the steward for a rare one, take the loan back |
 | T2 | Take in a donation | Import a batch of packets, follow it, settle a label that matches several varieties, see why a match was made, deal with the rows that failed |
 | T3 | A variety's page | See its lots and loans, record a return and take it back, see how well old seed is expected to germinate and on what evidence, retire the variety |
-| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back, clear a past season's decided requests |
+| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back, remove a past season's closed requests |
 
 Which task needs which pattern:
 
@@ -71,7 +71,7 @@ Which task needs which pattern:
 | An error with its recovery | Yes | Yes | Yes | Yes |
 | An undo offer | Yes | Yes | Yes | Yes |
 | A confirmation before a destructive command | | | Yes | Yes |
-| An approval request | Yes | | | Yes |
+| An approval request | Yes | | | |
 | Progress | | Yes | | Yes |
 | A choice among alternatives | Yes | Yes | | |
 | Warnings | Yes | Yes | Yes | Yes |
@@ -79,12 +79,14 @@ Which task needs which pattern:
 | A batch with some failures | | Yes | | Yes |
 | An empty collection, a failed collection | Yes | | Yes | Yes |
 
-- **A limit.** Alternatives and evidence are not on T4, so a statement about them is tested
-  only on a screen it may have been written from.
+- **A limit.** Alternatives, evidence and the approval request are not on T4, so a statement
+  about them is tested only on a screen it may have been written from. The steward's screen
+  shows held loans from the approver's side, which no default pattern covers.
 - **What produces each pattern** is in
   [the seed library's jobs](bench/seed-library.md#where-each-pattern-arises). Writing the
   jobs put warnings on T2 and T4, an error with its recovery on T3 and an undo offer on T2,
-  which the first version of this table did not have.
+  and took the approval request off T4. The first version of this table differed in those
+  five cells.
 - **The commands are the data contract.** Seventeen jobs and twenty-four drafted commands are
   in [the seed library's jobs](bench/seed-library.md), each job a scenario file written
   against the commands, in the order the `afd` skill's
@@ -100,7 +102,9 @@ Which task needs which pattern:
   fixtures, the states of the screen with what the user must be able to do in each, and what
   counts as done. It writes one story file with a named story per state, from
   `violet-elements` where a component fits. The bare arm gets the jobs and the commands
-  only ([ruling 3](#for-the-owner)).
+  only ([ruling 3](#for-the-owner)). The seed library's table of where each pattern arises
+  lists every screen's states, so it is held material for that arm: its worktree holds no
+  copy, and its tool calls are checked for a read of one.
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.
@@ -267,7 +271,7 @@ built.*
 
   | Event | Rerun | Size |
   | --- | --- | --- |
-  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 20 to 40 builds |
+  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 10 to 40 builds |
   | The model route changes | Arm 0 and the current defaults on all four screens, five runs each | 40 builds |
   | A persona card or the runner changes | The walks on the seeded build | Up to 40 walks and 40 readers |
   | Phase C's exit | The walks on the seeded build, and the panel loop on the two jobs held back for it | 40 walks and 40 readers, and what phase C sizes for the loop |

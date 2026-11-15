@@ -11,9 +11,9 @@ commands. Read the [bench specification](../bench.md) first.
   draft to write scenarios against, not a specification.
 - **Done:** seventeen jobs, each a scenario file in [`scenarios/`](scenarios/), and
   twenty-four drafted commands. The three checks pass ([Checks](#checks)). Three readers
-  who did not write them walked the paths ([What the walks changed](#what-the-walks-changed)).
-- **Not done:** the two commands the walks added have not been walked, and the owner has not
-  cut, added or ranked the jobs. See [Not done](#not-done).
+  who did not write them walked the paths, and a fourth reviewed the result and walked the
+  two commands the walks had added ([What the walks changed](#what-the-walks-changed)).
+- **Not done:** the owner has not cut, added or ranked the jobs. See [Not done](#not-done).
 - **Not in this folder, on purpose:** the two jobs held back for the panel loop, and the
   checks, planted faults and persona cards. The bench specification says why.
 
@@ -26,20 +26,24 @@ one box of about forty donated packets is taken in, and about twenty requests wa
 steward. Its rules:
 
 - **A loan is one packet** of one variety, from its freshest lot.
-- **A lot** is the packets of a variety from one harvest. Each has an estimate of how well it
-  will germinate, from the library's own test where there is one and from the seed's age
-  where there is not. An estimate below 0.5 is old seed.
+- **A lot** is one batch of packets of a variety as it came in, with its harvest year. Each
+  row of a donation and each return of saved seed makes its own lot. Each lot has an estimate
+  of how well it will germinate, from the library's own test where there is one and from the
+  seed's age where there is not. An estimate below 0.5 is old seed.
 - **A rare variety is lent only with the steward's agreement.** `loan-create` for a rare
   variety is held, whoever asks. The application records the held loan as a request, one for
-  a member and a variety however often it is asked. A request waits twenty-four hours, the
-  longest an approval can last. The steward's approval makes the loan.
-- **Only a person with the steward's role decides.** A volunteer, or an agent acting for
-  anyone, is refused.
+  a member and a variety however often it is asked. A request waits as long as its hold,
+  which is set to twenty-four hours. The steward's approval makes the loan. A waiting request
+  can be withdrawn at the desk.
+- **Only a person with the steward's role decides,** retires a variety or removes closed
+  requests. A volunteer, or an agent acting for anyone, is refused.
 - **A returned loan may bring saved seed,** which becomes a new lot.
 - **A donated label is matched to a variety without a person only at a confidence of 0.9 or
   more.** Below that the row waits for someone to settle it.
-- **Retiring a variety and removing closed requests cannot be undone.** Everything else has a
-  way back. A retired variety's open loans stay open and can still be returned.
+- **Retiring a variety and removing closed requests cannot be undone.** Every other change
+  has a way back. Where the change was itself a taking back, the way back is to do the thing
+  again: lend again, ask again, enter the box again. A retired variety's open loans stay
+  open and can still be returned.
 
 ## Outside the four screens
 
@@ -47,7 +51,8 @@ The bench is four screens, not a whole application. Nothing here:
 
 - creates a member or a variety, or signs anyone in. Fixtures supply the members, the
   varieties and the lots;
-- corrects a lot's count, withdraws one lot, or records a germination test;
+- corrects a lot's count, withdraws one lot, or records a germination test. So a box entered
+  twice cannot be put right here once its packets have started to go out;
 - tells a member that seed they waited for has come in, or holds a returned packet for
   whoever is first on the waiting list;
 - marks an approved loan as collected;
@@ -92,7 +97,7 @@ A `?` marks an optional field. No schema is written.
 | --- | --- | --- | --- | --- | --- | --- |
 | `variety-list` | Query | `query?`, `kind?`, `includeRetired?` | `varieties` (`id`, `name`, `kind`, `rare`, `packetsAvailable`, `germination`, `retired`), `total` | | `SERVICE_UNAVAILABLE` | |
 | `variety-get` | Query | `id` | `id`, `name`, `kind`, `rare`, `packetsAvailable`, `waiting` (`member`, `position`), `retired`, `retiredAt?` | | `NOT_FOUND` | |
-| `variety-retire` | Mutation | `id` | `id`, `retired`, `retiredAt`, `packetsWithdrawn` | | `NOT_FOUND`, `CONFLICT`, `CONFIRMATION_REQUIRED` | `destructive`, `confirmPrompt` |
+| `variety-retire` | Mutation | `id` | `id`, `retired`, `retiredAt`, `packetsWithdrawn` | | `NOT_FOUND`, `CONFLICT`, `CONFIRMATION_REQUIRED`, `FORBIDDEN` | `destructive`, `confirmPrompt`; a person with the steward's role |
 | `lot-list` | Query | `varietyId` | `lots` (`id`, `harvestYear`, `packets`, `source`, `germination`), `total` | `reasoning`, `confidence`, `sources`, `warnings` (`OLD_SEED`) | `NOT_FOUND` | |
 | `substitute-suggest` | Query | `varietyId` | `variety` (`id`, `name`, `packetsAvailable`) | `confidence`, `alternatives` | `NOT_FOUND`, `NO_SUBSTITUTE` | |
 | `member-list` | Query | `query?` | `members` (`id`, `name`, `number`), `total` | | `SERVICE_UNAVAILABLE` | |
@@ -113,7 +118,7 @@ A `?` marks an optional field. No schema is written.
 | `donation-cancel` | Mutation | `id` | `id`, `cancelled`, `lotsRemoved` | | `NOT_FOUND`, `CONFLICT` | |
 | `donation-match` | Query | `donationId`, `index` | `variety` (`id`, `name`), `label` | `confidence`, `reasoning`, `sources`, `alternatives` | `NOT_FOUND`, `CONFLICT` | |
 | `donation-settle` | Mutation | `donationId`, `index`, `varietyId` | `index`, `varietyId`, `lotId` | | `NOT_FOUND`, `CONFLICT` | |
-| `donation-correct` | Mutation | `donationId`, `index`, `label?`, `packets?`, `harvestYear?`, `leaveOut?` | `index`, `outcome`, `lotId?` | | `NOT_FOUND`, `INVALID_FORMAT`, `CONFLICT` | |
+| `donation-correct` | Mutation | `donationId`, `index`, `label?`, `packets?`, `harvestYear?`, `leaveOut?` | `index`, `outcome`, `lotId?` | | `NOT_FOUND`, `INVALID_INPUT`, `CONFLICT` | |
 
 - **Error codes.** Nine come from the shared catalog (`spec/error-codes.md`). The library adds
   three: `OUT_OF_STOCK`, `NO_SUBSTITUTE` and `REQUEST_EXPIRED`. Each of the library's own
@@ -132,29 +137,61 @@ A `?` marks an optional field. No schema is written.
   application's authorization, in middleware. It is separate from the `approval` on
   `loan-create`.
 
+## States
+
+The values a scenario asserts, which the commands table does not spell out:
+
+| What | Values |
+| --- | --- |
+| A loan's `status` | `out`, `returned`, `cancelled` |
+| A request's `status` | `pending`, `approved`, `declined`, `expired`, `withdrawn`. Every one but `pending` is closed, and `request-clear` removes closed requests |
+| A donation's `status` | `complete`, `needs-attention`, `cancelled` |
+| A row's `outcome` | `succeeded`, `unsettled`, `failed`, `left-out` |
+| A donation's `summary` | `total`, `successCount`, `unsettledCount`, `failureCount`, `leftOutCount` |
+| A failed row's `error.code` | `INVALID_INPUT` for a value that cannot be right, such as a harvest year in the future; `NOT_FOUND` for a label the library does not keep |
+| A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age` |
+
 ## What the application asks of the host
 
-The host is an AFD server. Its approval middleware holds a call and calls a hook; it keeps no
-record and retries nothing (`packages/server/src/approval.ts:179`, `:472`). So the
-application does the rest:
+The host is an AFD server. Its approval middleware holds a call and calls a hook. It keeps no
+record of the held call and retries nothing (`packages/server/src/approval.ts:183`, `:472`).
+So the application does the rest:
 
 - **It records the request.** The middleware's `onApprovalRequired` hook writes a request for
   the held loan, or finds the one already waiting for that member and variety.
-- **It says where the request went.** The hold's `summary` says what was asked, that it
-  waits for the steward, and names `request-list`. The refusal's `suggestion` quotes the
-  summary (`packages/server/src/approval.ts:492`). The rest of that suggestion is the host's
-  and tells the caller to ask the user to approve, and at the desk the user is the volunteer.
+- **It says where the request went.** The hold's `summary` is the request's summary followed
+  by where it waits: with the steward, in `request-list`. The refusal's `suggestion` quotes
+  the summary (`packages/server/src/approval.ts:495`). The rest of that suggestion is the
+  host's and tells the caller to ask the user to approve, and at the desk the user is the
+  volunteer.
 - **It does not ask the person at the client.** `relay` stays off. With it on, the volunteer
   would be asked to approve rare seed for themselves.
-- **`request-decide` makes the loan itself.** The held call's token is never retried. A token
-  is bound to the actor who asked and works once, and the steward's decision is the approval.
-- **A request lasts as long as its hold:** `ttlMs` is set to twenty-four hours, the most the
-  middleware allows (`packages/server/src/approval.ts:234`).
-- **Confirmations are enforced.** `variety-retire` and `request-clear` answer
-  `CONFIRMATION_REQUIRED` until the call is repeated with `confirm: true`. On a screen the
-  person answers the command's `confirmPrompt`. Over MCP an agent can send that
-  acknowledgement by itself, so "knowingly" holds for a person at a screen and not for an
-  agent; a server that must hold an agent to it accepts only an elicitation.
+- **`request-decide` makes the loan itself.** The held call's token is never retried, and
+  never returned: `includeToken` is off. A token is bound to the actor who asked and works
+  once, and the steward's decision is the approval.
+- **A request expires when its hold does, by choice.** Nothing in the host makes it so. The
+  request is the application's record and could wait a week. It is tied to the hold so that
+  the `expiresAt` in the refusal, which is what a screen shows, is true. The price is the
+  middleware's cap of twenty-four hours on `ttlMs` (`packages/server/src/approval.ts:234`).
+
+## Who calls, and through what
+
+- **A screen calls in process,** through a DirectClient, as the person signed in: a volunteer
+  or the steward. A call made in process is never held for a confirmation
+  (`spec/command-metadata.md`, "Confirmations"). So the screen reads the command's
+  `confirmPrompt` and asks before it calls. That is the confirmation pattern on T3 and T4.
+- **An agent in the application has to be marked as one.** A DirectClient's actor is a person
+  unless it is set otherwise (`packages/core/src/actor.ts:18`), and the rule that only a
+  person decides rests on the actor.
+- **A scenario runs in process as the test actor,** which the application treats as the
+  steward. That is why no file shows `FORBIDDEN`.
+- **Two steps need a server:** the first steps of jobs 12 and 16, which expect
+  `CONFIRMATION_REQUIRED`. In process they would carry the command out. They pass against a
+  server run with `confirmations: 'enforce'` whose `createContext` gives the runner a person
+  with the steward's role. Without that the server's actor is an agent
+  (`packages/server/README.md:510`), and the steward's commands are refused.
+- **Over MCP an agent can confirm by itself.** Under `enforce` the acknowledgement is the
+  caller's, so "knowingly" holds for a person at a screen and not for an agent.
 
 ## Where each pattern arises
 
@@ -166,13 +203,17 @@ produces it.
 | An error with its recovery | A loan of seed that has run out; no substitute | A failed row; a correction that is still wrong | A return recorded twice | A request already decided, expired, or approved with none left |
 | An undo offer | `loan-create`, `waitlist-join` | `donation-import` | `loan-return` | `request-decide` |
 | A confirmation before a destructive command | | | `variety-retire` | `request-clear` |
-| An approval request | A held `loan-create` | | | The held loan as the steward sees it |
+| An approval request | A held `loan-create` | | | |
 | Progress | | `donation-import`, `donation-get` | | `request-decide`, approving |
 | A choice among alternatives | `substitute-suggest` | `donation-match` | | |
 | Warnings | Old seed, on `loan-create` | Some rows failed, on `donation-import` | Old seed, on `lot-list` | The member could not be told, on `request-decide` |
 | Evidence for a result | | `donation-match` | `lot-list` | |
 | A batch with some failures | | `donation-import` | | Several decisions in one `afd-batch` |
 | An empty collection, a failed collection | `variety-list`, `member-list` | | `loan-list` | `request-list` |
+
+- **The steward's screen shows the other side of an approval:** the held loans, with what was
+  asked and until when. No command on that screen declares `approval`, and no default
+  pattern covers the approver's side, so the cell is empty.
 
 ## What writing the jobs changed
 
@@ -192,10 +233,10 @@ Against the eleven names sketched in the bench specification:
   failed row.
 - **T4 got a destructive command,** `request-clear`, and progress, as the `plan` of an
   approval: check the shelf, make the loan, tell the member.
-- **Four cells of the pattern table changed.** Warnings now arise on T2 and T4, an error with
-  its recovery on T3, and an undo offer on T2. Only alternatives and evidence are missing
-  from the held-back screen, where the bench specification named three. Its table and its
-  limit are updated.
+- **Five cells of the pattern table changed.** Warnings now arise on T2 and T4, an error with
+  its recovery on T3, and an undo offer on T2. The approval request left T4. Alternatives,
+  evidence and the approval request are missing from the held-back screen. The bench
+  specification's table and its limit are updated.
 
 ## What the walks changed
 
@@ -235,6 +276,20 @@ What they changed:
   `loan-create`, with the refusal it needed; a reopened request waits a fresh day; a failed
   row's suggestion names `leaveOut`.
 
+What the review changed. An independent reviewer read the result the same day and walked the
+two commands the walks had added:
+
+- **Who calls, and through what, is written down.** The confirmation steps and the rule that
+  only a person decides could not both hold for one caller on one surface, and the draft did
+  not say which surface a screen, an agent or a scenario uses.
+- **The twenty-four hours is a choice.** The draft called it a limit of the host. The host
+  caps a hold, and nothing ties a request to its hold but this design.
+- **The approval request left T4.** The reviewer found it a look-alike there.
+- **The way-back rule says what it means.** `request-withdraw` and `donation-cancel` are
+  takings back, undone by doing the thing again.
+- **Smaller:** `variety-retire` is the steward's; the statuses and outcomes are listed; eight
+  more refusals assert their `suggestion`; a harvest year in the future is `INVALID_INPUT`.
+
 What was declined, and why:
 
 - **A stock correction, a germination test, paging, serving the waiting list in order, and
@@ -248,6 +303,8 @@ What was declined, and why:
   reworded to what the list can show: the seed goes to a member the steward chose.
 - **A key that makes a repeated import a refusal.** `donation-cancel` is the way back from a
   box entered twice.
+- **Marking `donation-cancel` destructive.** It would put a confirmation in front of an undo.
+  Its own way back is entering the box again, which the rules now say.
 
 ## What a scenario could not express
 
@@ -258,8 +315,8 @@ Each file says at its top what it leaves out. Together:
   fields are built from, and run the command an undo names.
 - **`confidence` is a floor.** A step can show that a match is at least 0.5 and cannot show
   that it is below 0.9. That a label was left for a person shows it.
-- **One actor.** Every step runs as the test actor, so no file shows a volunteer or an agent
-  refused with `FORBIDDEN` and the steward allowed.
+- **One actor.** In process every step runs as the test actor, which the application treats
+  as the steward. So no file shows a volunteer or an agent refused with `FORBIDDEN`.
 - **A service that fails.** Jobs 6 and 17 are half shown: the empty list, and not the list
   that cannot be read (`SERVICE_UNAVAILABLE`).
 - **One call a step.** Job 14's three decisions are three steps where the screen sends one
@@ -267,9 +324,10 @@ Each file says at its top what it leaves out. Together:
 - **Work in progress.** The commands answer at once, so no step shows a batch that is still
   running.
 - **A confirmation.** Its wording is the command's `confirmPrompt`, which a step cannot read.
-  Jobs 12 and 16 need a server that enforces confirmations, since a call made in process is
-  never gated. They write `confirm` inside `input`, where an individual tool takes it; a
-  grouped tool and `afd-call` take it beside the input.
+  The first steps of jobs 12 and 16 pass only against a server
+  ([Who calls, and through what](#who-calls-and-through-what)). They write `confirm` inside
+  `input`, where an individual tool takes it; a grouped tool and `afd-call` take it beside
+  the input.
 
 A screen's builder is given a fixture of each result as well, so the fields a scenario cannot
 assert still reach the screen. Those fixtures are not written.
@@ -289,9 +347,6 @@ they are after the walks. Nothing is built, so the files are checked and not run
 
 ## Not done
 
-- **The two commands the walks added have not been walked.** The jobs-first guide asks for a
-  second walk when fixes add commands. `request-withdraw` and `donation-cancel` have had
-  none.
 - **No schema.** Inputs and results are names in a table.
 - **The tasks a building session is given** are not written: for each screen, its states and
   what the user must be able to do in each.
@@ -309,6 +364,8 @@ they are after the walks. Nothing is built, so the files are checked and not run
    to drop it and add confirmation to the bench specification's limit.
 3. **Approval as a held loan.** The steward's request is a held `loan-create`, not a command
    of its own. *Recommendation: keep it,* because it tests the contract's `approval` and not
-   a look-alike. Confidence: medium. It has a cost: the approval middleware lets a hold last
-   at most twenty-four hours, so a request the steward does not decide within a day expires
-   and the member asks again.
+   a look-alike. Confidence: medium. It has a price, which this design chooses: a request
+   expires with its hold, at most twenty-four hours later, so that the expiry a screen shows
+   is the contract's. A request the steward does not decide within a day expires and the
+   member asks again. The alternative is a request that outlives its hold and shows an
+   expiry of the application's own.

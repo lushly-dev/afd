@@ -88,6 +88,8 @@ steps:
       success: false
       error:
         code: CONFLICT
+        suggestion: { contains: donation-get }
+  # The input schema refuses this one, so the host writes the suggestion and none is asserted.
   - description: A batch with no rows is refused
     command: donation-import
     input: { rows: [] }

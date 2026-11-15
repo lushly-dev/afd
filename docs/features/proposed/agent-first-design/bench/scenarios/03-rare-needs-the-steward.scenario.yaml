@@ -54,6 +54,7 @@ steps:
       success: false
       error:
         code: APPROVAL_REQUIRED
+        suggestion: { contains: request-list }
   - description: And adds no second request
     command: request-list
     input: { status: pending }
@@ -82,3 +83,4 @@ steps:
       success: false
       error:
         code: CONFLICT
+        suggestion: { contains: request-list }

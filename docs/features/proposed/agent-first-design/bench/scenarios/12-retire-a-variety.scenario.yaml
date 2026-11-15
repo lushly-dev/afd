@@ -19,6 +19,7 @@ steps:
       success: false
       error:
         code: CONFIRMATION_REQUIRED
+        suggestion: { contains: confirm }
   - description: The variety is still there
     command: variety-get
     input: { id: var-nigella }
@@ -67,3 +68,4 @@ steps:
       success: false
       error:
         code: CONFLICT
+        suggestion: { contains: variety-get }

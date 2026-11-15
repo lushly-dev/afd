@@ -25,7 +25,7 @@ steps:
         summary: { total: 3, successCount: 1, unsettledCount: 0, failureCount: 2 }
         failed:
           - index: 1
-            error: { code: INVALID_FORMAT, suggestion: { contains: donation-correct } }
+            error: { code: INVALID_INPUT, suggestion: { contains: donation-correct } }
           - index: 2
             error: { code: NOT_FOUND, suggestion: { contains: leaveOut } }
   - description: The good row is already on the shelf
@@ -41,7 +41,7 @@ steps:
     expect:
       success: false
       error:
-        code: INVALID_FORMAT
+        code: INVALID_INPUT
         suggestion: { contains: harvest year }
   - description: The year is corrected and the row goes in
     command: donation-correct

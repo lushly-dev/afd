@@ -44,6 +44,7 @@ steps:
       success: false
       error:
         code: CONFLICT
+        suggestion: { contains: request-decide }
   - description: A decline made by mistake
     command: request-decide
     input: { id: req-2, decision: decline }

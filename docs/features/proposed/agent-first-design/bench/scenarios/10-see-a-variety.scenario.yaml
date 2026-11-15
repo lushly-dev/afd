@@ -34,7 +34,7 @@ steps:
           - id: lot-parsnip-28
             harvestYear: 2028
             packets: 2
-            germination: { estimate: { lte: 0.5 }, basis: age }
+            germination: { estimate: { lte: 0.49 }, basis: age }
   - description: Nobody has it out, which is an empty list and not an error
     command: loan-list
     input: { varietyId: var-parsnip }

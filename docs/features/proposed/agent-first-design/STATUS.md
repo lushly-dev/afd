@@ -29,11 +29,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   confirmed. Nothing in it is built.
 - **In progress, not merged:** the seed library's
   [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15: seventeen jobs as
-  scenario files and twenty-four commands. The scenario checks pass, and three readers
-  walked the paths. The owner has not read them.
-- **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
-  owner's remaining answers, moving each part into the proposal that owns it, and everything in
-  the phases. See
+  scenario files and twenty-four commands. The scenario checks pass, three readers walked
+  the paths and a fourth reviewed the result. The owner has not read them.
+- **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
+  three scenario checks and reader walks; the owner's remaining answers; moving each part
+  into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
 - **Blocked on:** the owner confirming the bench's rules for "go". That is due before the
   first run of step 0.1 and does not hold up building the bench, whose domain and budget the
@@ -45,8 +45,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-15, the link check and the review of the bench specification
-  below.
+- **Last verified:** 2026-11-15, the link check, the scenario checks on the seed library's
+  jobs and the reviews below.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -62,20 +62,23 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
-| The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and the two commands their findings added have not been walked. Not read by the owner, not merged | [`bench/seed-library.md`](bench/seed-library.md) |
+| The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Not read by the owner, not merged | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: schemas, result fixtures, the task for each screen, the application, the held material and the runner | Not started | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
 
-- **No commands are drafted and no job is a scenario file.** The thirteen jobs are sentences.
-  Nothing shows that commands can express them.
+- **No commands are drafted and no job is a scenario file for the proposal's own thirteen
+  jobs.** They are sentences, and nothing shows that commands can express them. The seed
+  library's seventeen jobs are a different list: the bench's application, not this proposal's
+  product.
 - **The bench is a specification only.** Nothing in it is built, and its cost per session rests
   on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
   and not confirmed.
-- **No reader has walked it.** There are no commands to walk. The design direction is one
-  session's draft, written with the owner in conversation and reviewed once.
+- **No reader has walked the proposal's jobs.** There are no commands to walk. The design
+  direction is one session's draft, written with the owner in conversation and reviewed
+  once.
 - **Nothing in it is measured.** Phase 0 exists to measure it. Its claim that a default pattern
   set or a skill improves an agent's screens is untested, and Component Briefs' prototype is
   evidence that added context alone does not.
@@ -163,6 +166,19 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   [the seed library's jobs](bench/seed-library.md#what-the-walks-changed). The host
   behaviour one reader cited was read again in `packages/server/src/approval.ts` before it
   was acted on.
+- **Independent review of the seed library's jobs, 2026-11-15:** a fresh read-only reviewer
+  on Claude Opus 5.5, asked for at `high` and unable to see the effort it ran at, read the
+  document, the 17 scenario files and both fixtures. It ran the three checks itself and got
+  the figures above, walked every count in all 113 steps against the fixtures and found them
+  right, and found every command, field and refusal in the scenarios in the commands table.
+  It raised four blockers, all fixed: the document did not say which surface and actor each
+  caller uses, so the confirmation steps and the rule that only a person decides could not
+  both hold; the twenty-four hours was called a limit of the host where it is this design's
+  choice; the approval request on T4 named no command that declares `approval`; and the two
+  added commands broke the rule that everything else has a way back. Of its improvements,
+  eight refusals gained a `suggestion` assertion, the statuses were listed, and
+  `variety-retire` became the steward's. One was declined: marking `donation-cancel`
+  destructive. The fixes were read back by the author; no second pass was run.
 - **Independent review of the bench specification, 2026-11-15:** a fresh read-only reviewer on
   Claude Opus 5.5, asked for at `high`, briefed as `review-code` describes and given the
   owner's words as the only source for a decision, read the three files in this folder and
@@ -230,7 +246,8 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft | Specimen does not observe animation, so no motion rule can be a gate. A rule about duration or easing stays `authored` | Open |
 | 2026-11-14 | Bench specification | No forced-colours emulation exists in Specimen or in Botcore's `cdp_emulate`, so no persona can be held to that modality | Open |
 | 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Open |
-| 2026-11-15 | The seed library's jobs | The approval middleware lets an approval last at most 24 hours (`packages/server/src/approval.ts:234`). A person who approves by the next week, as a steward might, cannot be modelled as an approval; the bench's requests last a day for that reason | Open |
+| 2026-11-15 | The seed library's jobs | The approval middleware caps a hold at 24 hours (`packages/server/src/approval.ts:234`). An application whose approver answers later has to let its own record outlive the hold, and then the `expiresAt` in the refusal is not the one that matters. The bench ties the two and accepts a day | Open |
+| 2026-11-15 | Independent review of the seed library's jobs | No default pattern covers the approver's side of an approval: the list of held calls, with approve and decline. The proposal's section 5.2 has the requester's side only | Open |
 | 2026-11-15 | The seed library's jobs, the calling-agent walk | The approval middleware's refusal says "Ask the user to approve" (`packages/server/src/approval.ts:492`). Where the approver is somebody other than the user at the client, as a steward is to a desk volunteer, that sends the caller to the wrong person; the application can only add to the text through `summary` | Open |
 | 2026-11-15 | The seed library's jobs | A scenario cannot assert `warnings`, `alternatives`, `sources`, `plan`, `undoCommand` or `undoArgs`, the fields five of the ten default patterns render. The first three are a known limit in the jobs-first guide; the last three are not listed there | Open |
 | 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |

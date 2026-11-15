@@ -22,6 +22,7 @@ steps:
       success: false
       error:
         code: CONFIRMATION_REQUIRED
+        suggestion: { contains: confirm }
   - description: Last season's declined request is still there
     command: request-list
     input: { status: declined }

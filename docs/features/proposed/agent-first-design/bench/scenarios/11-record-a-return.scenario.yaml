@@ -56,6 +56,7 @@ steps:
       success: false
       error:
         code: CONFLICT
+        suggestion: { contains: loan-return }
   - description: The return is recorded again with the right count
     command: loan-return
     input: { id: loan-1, savedSeed: { packets: 5, harvestYear: 2029 } }
