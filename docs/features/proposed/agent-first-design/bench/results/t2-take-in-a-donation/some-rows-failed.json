@@ -95,7 +95,7 @@
 		},
 		{
 			"id": "row-2",
-			"action": "Take in row 3: Mystery squash, 1 packets",
+			"action": "Take in row 3: Mystery squash, 1 packet",
 			"status": "failed",
 			"error": {
 				"code": "NOT_FOUND",

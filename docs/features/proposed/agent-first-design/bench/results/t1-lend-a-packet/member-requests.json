@@ -1,0 +1,30 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending",
+		"memberId": "mem-ines"
+	},
+	"success": true,
+	"data": {
+		"requests": [
+			{
+				"id": "req-6",
+				"member": {
+					"id": "mem-ines",
+					"name": "Ines Marlow",
+					"number": "M-014"
+				},
+				"variety": {
+					"id": "var-glassgem",
+					"name": "Glass Gem corn"
+				},
+				"summary": "Lend one packet of Glass Gem corn to Ines Marlow",
+				"askedAt": "2030-03-09T10:00:00Z",
+				"expiresAt": "2030-03-10T10:00:00Z",
+				"status": "pending",
+				"packetsAvailable": 2
+			}
+		],
+		"total": 1
+	}
+}

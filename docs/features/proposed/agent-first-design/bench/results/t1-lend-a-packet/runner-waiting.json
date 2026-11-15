@@ -1,0 +1,25 @@
+{
+	"$command": "variety-get",
+	"$input": {
+		"id": "var-runner"
+	},
+	"success": true,
+	"data": {
+		"id": "var-runner",
+		"name": "Scarlet runner bean",
+		"kind": "vegetable",
+		"rare": false,
+		"packetsAvailable": 0,
+		"waiting": [
+			{
+				"member": {
+					"id": "mem-ines",
+					"name": "Ines Marlow",
+					"number": "M-014"
+				},
+				"position": 1
+			}
+		],
+		"retired": false
+	}
+}

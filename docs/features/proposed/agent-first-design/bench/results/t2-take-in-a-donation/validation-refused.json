@@ -6,16 +6,17 @@
 	"success": false,
 	"error": {
 		"code": "VALIDATION_ERROR",
-		"message": "Invalid input: rows must hold at least 1 row",
-		"suggestion": "Add at least one row, then call donation-import again",
-		"retryable": false,
+		"message": "Input validation failed",
+		"suggestion": "rows: Too small: expected array to have >=1 items. Expected fields: donor, rows",
 		"details": {
 			"errors": [
 				{
 					"path": "rows",
-					"message": "Array must contain at least 1 element(s)"
+					"message": "Too small: expected array to have >=1 items",
+					"code": "too_small"
 				}
-			]
+			],
+			"expectedFields": ["donor", "rows"]
 		}
 	}
 }

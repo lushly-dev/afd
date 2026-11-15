@@ -151,8 +151,9 @@ The values a scenario asserts, which the commands table does not spell out:
 | A donation's `summary` | `total`, `successCount`, `unsettledCount`, `failureCount`, `leftOutCount` |
 | A failed row's `error.code` | `INVALID_INPUT` for a value that cannot be right, such as a harvest year in the future; `NOT_FOUND` for a label the library does not keep |
 | A lot's `germination` | `estimate`, from 0 to 1, and `basis`: `tested` or `age`. On a `variety-list` row it is the freshest lot's, and absent when the variety has no packets |
-| A donation's rows | `succeeded`: `index`, `label`, `varietyId`, `lotId`, `packets`. `unsettled`: `index`, `label`, `packets`. `failed`: `index`, `label`, `error`. A row that waits for a person is a `pending` step in the batch's `plan` |
-| A `member` or `variety` inside a list entry | `id` and `name` |
+| A donation's rows | Every entry of `succeeded`, `unsettled` and `failed`: `index`, `label`, `packets`, `harvestYear`. A `succeeded` entry adds `varietyId`, and `lotId` while its lot exists; a `failed` entry adds `error`. A row that waits for a person is a `pending` step in the batch's `plan` |
+| A `member` inside an entry | `id`, `name`, `number` |
+| A `variety` inside an entry | `id`, `name` |
 | A donation's `confidence` | `successCount / total`, so 0 for a box whose rows all wait for a person |
 
 ## What the application asks of the host
@@ -185,7 +186,7 @@ So the application does the rest:
 - **A screen calls in process,** through a DirectClient, as the person signed in: a volunteer
   or the steward. A call made in process is never held for a confirmation
   (`spec/command-metadata.md`, "Confirmations"). So the screen reads the command's
-  `confirmPrompt` and asks before it calls. That is the confirmation pattern on T3 and T4.
+  `confirmPrompt` and asks before it calls.
 - **An agent in the application has to be marked as one.** A DirectClient's actor is a person
   unless it is set otherwise (`packages/core/src/actor.ts:18`), and the rule that only a
   person decides rests on the actor.
@@ -338,8 +339,8 @@ Each file says at its top what it leaves out. Together:
   the input.
 
 A screen's builder is given a fixture of each result as well, so the fields a scenario cannot
-assert still reach the screen. They are in [`results/`](results/), one for each state of
-each screen's [task](tasks/README.md).
+assert still reach the screen. They are in [`results/`](results/), and each state of a
+screen's [task](tasks/README.md) names the ones its story mounts.
 
 ## Checks
 
@@ -357,7 +358,7 @@ they are after the walks. Nothing is built, so the files are checked and not run
 ## Not done
 
 - **The tasks and results for building sessions are drafted** in [`tasks/`](tasks/README.md)
-  and [`results/`](results/): four screens, 53 states, 49 results. No reader other than their
+  and [`results/`](results/): four screens, 50 states, 74 results. No reader other than their
   author and one reviewer has read them.
 
 - **No schema.** Inputs and results are names in a table.

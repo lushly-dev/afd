@@ -9,7 +9,7 @@
 		"id": "req-3",
 		"status": "approved",
 		"decidedAt": "2030-03-09T10:00:00Z",
-		"loanId": "loan-2",
+		"loanId": "loan-3",
 		"memberTold": false
 	},
 	"plan": [

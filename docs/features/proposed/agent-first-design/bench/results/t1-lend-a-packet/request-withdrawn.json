@@ -1,0 +1,11 @@
+{
+	"$command": "request-withdraw",
+	"$input": {
+		"id": "req-6"
+	},
+	"success": true,
+	"data": {
+		"id": "req-6",
+		"status": "withdrawn"
+	}
+}

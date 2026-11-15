@@ -1,0 +1,16 @@
+{
+	"$command": "variety-get",
+	"$input": {
+		"id": "var-borlotti"
+	},
+	"success": true,
+	"data": {
+		"id": "var-borlotti",
+		"name": "Borlotti bean",
+		"kind": "vegetable",
+		"rare": false,
+		"packetsAvailable": 9,
+		"waiting": [],
+		"retired": false
+	}
+}

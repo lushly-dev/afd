@@ -11,7 +11,7 @@
 		"suggestion": "Ask the user to approve \"Lend one packet of Glass Gem corn to Ines Marlow. It waits for the steward, in request-list\"; the application retries the same call once it has recorded the approval.",
 		"retryable": false,
 		"details": {
-			"expiresAt": "2030-03-10T10:00:00Z",
+			"expiresAt": "2030-03-10T10:00:00.000Z",
 			"summary": "Lend one packet of Glass Gem corn to Ines Marlow. It waits for the steward, in request-list"
 		}
 	}
