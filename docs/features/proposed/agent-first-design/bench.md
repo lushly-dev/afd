@@ -13,10 +13,13 @@ owner to approve the domain and the budget before any session runs. Read
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
-  of a week's allowance in any one week.
+  of a week's allowance in any one week. Later the same day, with the runner: a session's
+  tree is a plain export and not a worktree, and no arm reads the neighbouring proposals
+  ([What a session is given](#what-a-session-is-given), [Runs](#runs)).
 - **Not approved:** the rest of this file, and above all the
   [rules for "go"](#rules-for-go), which the owner confirms before the first run of step 0.1.
-  The owner was asked three questions, which cover the points above, and nothing else here.
+  The owner was asked three questions, which cover the points above, and later ruled on the
+  runner's points named there; nothing else here is the owner's.
 - **Measured:** the cost and size of a page-building session, from the
   [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
   in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
@@ -128,6 +131,10 @@ Which task needs which pattern:
     "Jobs" section's lines about the bench around its table, and every other section: "Where
     each pattern arises", "What writing the jobs changed", "What the walks changed", "What a
     scenario could not express", "Checks", "Not done" and "For the owner".
+- **No arm reads the neighbouring proposals.** Patterns, Design Decisions, Screens from Jobs,
+  Pointing, Scales and Component Briefs discuss result states and design review, and Patterns
+  is near what arm 2 adds. The owner decided on 2026-11-15 that the runner removes them from
+  every arm's tree, so that arm 0 has nothing beyond the brief.
 - **The bare arm reads two things** ([ruling 3](#for-the-owner)): the job sentences of its
   screen, as the rows of the "Jobs" table and not the scenario files, whose steps and header
   comments name most states; and the same extract without "States". It gets no task, no
