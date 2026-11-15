@@ -224,10 +224,10 @@ phase 0 has no step for it.
   host passed, and so did Specimen's whole suite: 558 tests passed and 1 was skipped, and the
   reference driver's 18 passed.
 - **Rust builds go on the machine's external drive,** as the owner asked; its internal disk
-  is nearly full. Two things make that take care: Specimen's `build:host` script names its
-  own target directory, which overrides `CARGO_TARGET_DIR`, so the bench runs `cargo`
-  directly; and the suite fails on a fresh install until the TypeScript packages are built,
-  as CI builds them first.
+  is nearly full. Cargo's `build-dir` setting on that machine already puts a build's
+  intermediate files there, about 650 MB for the host. Specimen's documented `build:host`
+  leaves only the 13 MB binary in the checkout's `host/target`, so the bench uses it as it
+  is. Specimen's suite needs the TypeScript packages built first, as CI builds them.
 - **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
   an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
 
