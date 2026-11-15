@@ -2,7 +2,7 @@
 
 AFD (Agent-First Development) treats AI agents as first-class users: every capability is a command, reachable from the CLI and over MCP, before any UI exists. This repository holds the four language implementations of that contract, the units built on them and the tooling that keeps them in step.
 
-This is the only project instruction file (never add a `CLAUDE.md`). It carries what every session needs and says where the rest lives. Skills are in `.claude/skills/` (`.codex/skills` is a symlink to it), and a skill's body loads only when it is used.
+This is the only project instruction file (never add a `CLAUDE.md`). It carries what every session needs and says where the rest lives. Skills are in `.claude/skills/`, the only path Claude Code reads; `.agents/skills`, which Codex and other agents read, is a symlink to it. A skill's body loads only when it is used.
 
 ## Layout
 

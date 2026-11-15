@@ -880,17 +880,17 @@ test('published compatible held dependency uses no prerequisites from its unrele
 
 function trackedMirror(f) {
 	write(f.root, '.claude/skills/fixture/SKILL.md', '# Canonical fixture skill\n');
-	mkdirSync(join(f.root, '.codex'));
-	symlinkSync('../.claude/skills', join(f.root, '.codex/skills'), 'dir');
+	mkdirSync(join(f.root, '.agents'));
+	symlinkSync('../.claude/skills', join(f.root, '.agents/skills'), 'dir');
 	commit(f.root);
 }
 test('tracked skills mirror survives real Changesets versioning and actual pnpm packing', (t) => {
 	const f = fixture(t);
 	trackedMirror(f);
-	const mirror = join(f.root, '.codex/skills'),
+	const mirror = join(f.root, '.agents/skills'),
 		canonical = join(f.root, '.claude/skills/fixture/SKILL.md');
 	const canonicalBytes = readFileSync(canonical, 'utf8');
-	const mirrorHash = entryHash(repositoryEntry(f.root, '.codex/skills'));
+	const mirrorHash = entryHash(repositoryEntry(f.root, '.agents/skills'));
 	assert.equal(
 		mirrorHash,
 		createHash('sha256')
@@ -900,11 +900,11 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 	const before = sourceDigest(f.root);
 	writeFileSync(canonical, `${canonicalBytes}changed\n`);
 	assert.notEqual(sourceDigest(f.root), before);
-	assert.equal(entryHash(repositoryEntry(f.root, '.codex/skills')), mirrorHash);
+	assert.equal(entryHash(repositoryEntry(f.root, '.agents/skills')), mirrorHash);
 	writeFileSync(canonical, canonicalBytes);
 	assert.throws(() => tree(f.root), /Symlink is not release input/);
 	assert.equal(
-		new Map(tree(f.root, '', { allowRepositoryMirror: true })).get('.codex/skills'),
+		new Map(tree(f.root, '', { allowRepositoryMirror: true })).get('.agents/skills'),
 		mirrorHash
 	);
 	const selected = selectRelease({
@@ -917,8 +917,8 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 		plan: selected,
 		inventory: loadInventory(f.root),
 		invoke: (candidate) => {
-			assert.equal(lstatSync(join(candidate, '.codex/skills')).isSymbolicLink(), true);
-			assert.equal(linkTarget(join(candidate, '.codex/skills')), '../.claude/skills');
+			assert.equal(lstatSync(join(candidate, '.agents/skills')).isSymbolicLink(), true);
+			assert.equal(linkTarget(join(candidate, '.agents/skills')), '../.claude/skills');
 			shell(candidate, process.execPath, [
 				join(repository, 'node_modules/@changesets/cli/bin.js'),
 				'version',
@@ -935,7 +935,7 @@ test('tracked skills mirror survives real Changesets versioning and actual pnpm 
 		artifactsDirectory: f.artifacts,
 		pack: (directory, destination) => {
 			const candidate = dirname(dirname(directory));
-			assert.equal(linkTarget(join(candidate, '.codex/skills')), '../.claude/skills');
+			assert.equal(linkTarget(join(candidate, '.agents/skills')), '../.claude/skills');
 			assert.equal(
 				readFileSync(join(candidate, '.claude/skills/fixture/SKILL.md'), 'utf8'),
 				canonicalBytes
@@ -957,12 +957,12 @@ test('unknown, escaping and symlinked-parent repository inputs fail before workt
 			writeFileSync(join(outside, 'protected.txt'), 'protected\n');
 			if (kind === 'symlinked-parent') {
 				trackedMirror(f);
-				rmSync(join(f.root, '.codex'), { recursive: true });
-				symlinkSync(outside, join(f.root, '.codex'), 'dir');
+				rmSync(join(f.root, '.agents'), { recursive: true });
+				symlinkSync(outside, join(f.root, '.agents'), 'dir');
 			} else {
 				write(f.root, '.claude/skills/fixture/SKILL.md', '# canonical\n');
-				mkdirSync(join(f.root, '.codex'));
-				const path = kind === 'unknown' ? '.codex/other' : '.codex/skills';
+				mkdirSync(join(f.root, '.agents'));
+				const path = kind === 'unknown' ? '.agents/other' : '.agents/skills';
 				symlinkSync(
 					kind === 'escaping-mirror' ? outside : '../.claude/skills',
 					join(f.root, path),

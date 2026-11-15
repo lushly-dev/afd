@@ -551,7 +551,7 @@ test('workflow path filters are read and matched like GitHub Actions', () => {
 	assert.equal(matchesFilters(filters, 'endpoints/umbel/docs/STATUS.md'), false);
 	assert.equal(matchesFilters(filters, 'scripts/release-claim.mjs'), true);
 	assert.equal(matchesFilters(filters, 'scripts/release/claim.mjs'), false);
-	assert.equal(matchesFilters(['.codex/skills'], '.codex/skills'), true);
+	assert.equal(matchesFilters(['.agents/skills'], '.agents/skills'), true);
 
 	const block = `on:
   push:

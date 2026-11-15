@@ -85,7 +85,7 @@ naming the PR, who validates it and what they check.
   there, since nobody rereads a dated document. A living document (a `STATUS.md`, a
   specification's status block, a feature plan) keeps its follow-ups table.
 - **Durable knowledge** goes to its owner: repository conventions to the owning
-  skill under `.claude/skills/` (`.codex/skills` mirrors it; a Botcore projection is
+  skill under `.claude/skills/` (`.agents/skills` mirrors it; a Botcore projection is
   edited at its canonical source, per `manage-skills`), cross-session facts to memory.
   Capture only what a future session cannot cheaply re-derive.
 - **Close the task.** Verify that the PR itself updated the `docs/features/` plan or
