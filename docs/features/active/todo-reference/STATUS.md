@@ -18,18 +18,18 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **State:** active. The owner asked on 2026-11-14 to save the proposal and start the work, and
   decided D1 to D3 the same day (the proposal's [decisions](todo-reference.proposal.md#decisions)):
   React stays beside the FAST-AF frontend, both on `violet-elements`.
-- **Last verified:** 2026-11-14 on branch `t3/refresh-todo-afd-examples`, based on `main` at
-  `dd080235`, with Node 26.13.0.
+- **Last verified:** 2026-11-15 on branch `t3/refresh-todo-afd-examples`, based on `main` at
+  `57397cdb`, with Node 26.13.0: the full `pnpm verify` passed.
 - **Done:** nothing merged yet.
-- **In progress:** phase 1 on `t3/refresh-todo-afd-examples`, not yet committed or opened as a pull
-  request.
+- **In progress:** phase 1 on `t3/refresh-todo-afd-examples`, in a pull request (number below) that
+  is not yet merged.
 - **Not started:** phases 2 to 5.
 
 ## Plan
 
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
-| 1. Fix what is wrong | In progress: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7 are written and pass locally | See [phase 1](#phase-1-fix-what-is-wrong) | `pnpm verify`, review, pull request |
+| 1. Fix what is wrong | In progress: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7 are written and pass locally | See [phase 1](#phase-1-fix-what-is-wrong) | Pull request merged |
 | 2. The TypeScript reference | Not started | None | Phase 1 merged; jobs written as scenarios first |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
@@ -95,8 +95,14 @@ Verified locally on 2026-11-14:
   scenarios passed).
 - `afd-testing`: `src/runner/todo-example.test.ts`, 4 tests.
 - Biome over the example and this folder.
-- Not yet run: the full `pnpm verify` (the Umbel workspace tests, Loam, alfred, the `packages/cpp`
-  preset), which `prepare-pr` runs before the push.
+
+Verified on 2026-11-15, after merging `main` at `57397cdb`: `pnpm verify --keep-going` on Node
+26.13.0 passed every step it planned (`pnpm check`, Loam, alfred, Umbel, `packages/cpp` and the
+conformance suite in all four languages) except Umbel's workspace `cargo test`. That step failed only
+because this machine's cargo `build-dir` is separate from the target directory, so the
+component-loader tests looked for their `.wasm` fixtures in the wrong place. Rerun with target and
+build directories the same (fixtures and `hello-mcp` rebuilt there first, `--no-fail-fast`), every
+test target passed.
 
 ## Open questions
 
