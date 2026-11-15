@@ -35,7 +35,17 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletDividerAppearance"
+				"type": "\"subtle\" | \"strong\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "subtle"
+					},
+					{
+						"basis": "observed",
+						"value": "strong"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -55,7 +65,17 @@
 				"rules": [
 					"taxonomy.orientation"
 				],
-				"type": "VioletDividerOrientation"
+				"type": "\"horizontal\" | \"vertical\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "horizontal"
+					},
+					{
+						"basis": "observed",
+						"value": "vertical"
+					}
+				]
 			}
 		],
 		"commands": [],

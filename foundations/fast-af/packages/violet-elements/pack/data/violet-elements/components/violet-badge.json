@@ -29,7 +29,21 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletBadgeAppearance"
+				"type": "\"filled\" | \"outline\" | \"subtle\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "filled"
+					},
+					{
+						"basis": "observed",
+						"value": "outline"
+					},
+					{
+						"basis": "observed",
+						"value": "subtle"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -39,7 +53,29 @@
 				"rules": [
 					"taxonomy.color"
 				],
-				"type": "VioletBadgeColor"
+				"type": "\"neutral\" | \"accent\" | \"success\" | \"warning\" | \"danger\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "neutral"
+					},
+					{
+						"basis": "observed",
+						"value": "accent"
+					},
+					{
+						"basis": "observed",
+						"value": "success"
+					},
+					{
+						"basis": "observed",
+						"value": "warning"
+					},
+					{
+						"basis": "observed",
+						"value": "danger"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -79,7 +115,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletBadgeSize"
+				"type": "\"sm\" | \"md\" | \"lg\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "sm"
+					},
+					{
+						"basis": "observed",
+						"value": "md"
+					},
+					{
+						"basis": "observed",
+						"value": "lg"
+					}
+				]
 			}
 		],
 		"commands": [],

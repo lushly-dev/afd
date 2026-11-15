@@ -193,7 +193,41 @@
 				"rules": [
 					"taxonomy.type"
 				],
-				"type": "VioletTextFieldType"
+				"type": "\"text\" | \"search\" | \"email\" | \"url\" | \"password\" | \"tel\" | \"number\" | \"date\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "text"
+					},
+					{
+						"basis": "observed",
+						"value": "search"
+					},
+					{
+						"basis": "declared",
+						"value": "email"
+					},
+					{
+						"basis": "declared",
+						"value": "url"
+					},
+					{
+						"basis": "observed",
+						"value": "password"
+					},
+					{
+						"basis": "observed",
+						"value": "tel"
+					},
+					{
+						"basis": "declared",
+						"value": "number"
+					},
+					{
+						"basis": "declared",
+						"value": "date"
+					}
+				]
 			},
 			{
 				"basis": "observed",

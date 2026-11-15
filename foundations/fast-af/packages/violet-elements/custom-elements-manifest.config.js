@@ -1,4 +1,5 @@
 import { fastAttrPlugin } from "./scripts/cem-fast-attr-plugin.mjs";
+import { literalAliasPlugin } from "./scripts/cem-literal-alias-plugin.mjs";
 
 export default {
   globs: ["src/**/*.ts"],
@@ -10,5 +11,5 @@ export default {
     "src/**/index.ts",
     "src/icon/generated/**/*.ts",
   ],
-  plugins: [fastAttrPlugin()],
+  plugins: [fastAttrPlugin(), literalAliasPlugin()],
 };

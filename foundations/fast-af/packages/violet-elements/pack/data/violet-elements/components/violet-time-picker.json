@@ -104,7 +104,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletTimePickerSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "declared",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",

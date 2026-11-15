@@ -90,7 +90,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "74c92115ec1c613e4b5011b76d21ae8c2df2da875cdfdbdd0c4717e55cb03fc2"
+      "sha256": "14a50d1da2428dbafe24fe442279dbbbaae527f67b2b8881b195fb0938033e6f"
     }
   },
   "units": [

@@ -52,9 +52,9 @@ fails when it is not the report the records give.
 | `violet-file-explorer` | summary, usage, a11y-statement, role, example | `load-error` | - |
 | `violet-file-upload` | - | `invalid`, `required`, `size` | - |
 | `violet-gantt` | summary, usage, a11y-statement, role | `aria-label`, `locale` | - |
-| `violet-icon-button` | role | `type` | - |
+| `violet-icon-button` | - | `type` | - |
 | `violet-icon` | role | - | - |
-| `violet-image` | summary, usage, a11y-statement | `loading` | - |
+| `violet-image` | summary, usage, a11y-statement, role | `loading` | - |
 | `violet-message-media` | summary, usage, a11y-statement, role | - | - |
 | `violet-message-status` | summary, usage, a11y-statement | - | - |
 | `violet-message-text` | summary, usage, a11y-statement, role | - | - |

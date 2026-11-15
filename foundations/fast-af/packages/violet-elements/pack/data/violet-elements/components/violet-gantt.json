@@ -31,7 +31,21 @@
 				"rules": [
 					"taxonomy.density"
 				],
-				"type": "VioletGanttDensity"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "declared",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "declared",

@@ -99,7 +99,17 @@
 				"rules": [
 					"taxonomy.orientation"
 				],
-				"type": "VioletSliderOrientation"
+				"type": "\"horizontal\" | \"vertical\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "horizontal"
+					},
+					{
+						"basis": "observed",
+						"value": "vertical"
+					}
+				]
 			},
 			{
 				"basis": "declared",
