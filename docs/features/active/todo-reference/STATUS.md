@@ -23,8 +23,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). The parts it left open belong to
   later phases, as the findings table says.
 - **In progress:** phase 2. The jobs are written and walked, and the owner decided D6 to D10.
-  On branch `t3/todo-reference-phase2-slice`, not yet merged: the first slice (jobs 1, 3, 4 and 9)
-  and jobs 2, 5 and 8, in the TypeScript backend; see [Phase 2](#phase-2-the-typescript-reference).
+  The first slice (jobs 1, 3, 4 and 9) and jobs 2, 5 and 8 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251) on 2026-11-15, in the
+  TypeScript backend; job 7, the rest of the commands' metadata, local-db and CI remain. See
+  [Phase 2](#phase-2-the-typescript-reference).
 - **Not started:** phases 3 to 5.
 
 ## Plan
@@ -32,7 +33,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 built on a branch; 6 waits for phases 3 and 4, 7 for the journal | See [phase 2](#phase-2-the-typescript-reference) | The slice's pull request merged; then the rest of phase 2 |
+| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 6 waits for phases 3 and 4, 7 for the journal | See [phase 2](#phase-2-the-typescript-reference) | Job 7 and the rest of phase 2 |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -109,7 +110,7 @@ test target passed.
 
 ## Phase 2: the TypeScript reference
 
-On branch `t3/todo-reference-phase2-slice`, 2026-11-15, not yet merged:
+Merged in [#1251](https://github.com/lushly-dev/afd/pull/1251) on 2026-11-15 (`06f22645`):
 
 - **Undo.** Every change's result names its undo (`undoCommand`, `undoArgs`) and the command
   declares `undoable`: create (`todo-delete`), update and toggle (`todo-update`, setting the
