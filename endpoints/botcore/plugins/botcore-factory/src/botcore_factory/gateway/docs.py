@@ -7,6 +7,13 @@ with the caller your route's token names. Never fall back to `gh` for a write: a
 gateway is GATEWAY_UNAVAILABLE, GitHub's own outage GITHUB_UNAVAILABLE, and every write is
 safe to retry with the same input.
 
+## Calling it
+
+`factory-gateway call <command> --args '{...}'` with FACTORY_GATEWAY_URL, FACTORY_GATEWAY_ROUTE
+and FACTORY_GATEWAY_TOKEN (or FACTORY_GATEWAY_TOKEN_FILE) set; `factory-gateway catalog` lists
+your route's commands. Exit 0 is success, 1 a refusal, 2 GATEWAY_UNAVAILABLE, whose
+details.outcomeKnown says whether the call could have run.
+
 ## Routes
 
 - cell: reads, branch-push to refs/factory/queue/<branch> only, review-record.
@@ -31,8 +38,11 @@ issue in closes[] is held by another branch: stop, and let the foreman lane-drop
 
 ## Pushing, opening, validating, merging (the lane)
 
-1. Upload a git bundle of the head to POST /uploads on your route; it returns an id valid an
-   hour. `git bundle create head.bundle <branch>`.
+1. Upload a git bundle of the head: `git bundle create head.bundle main..<branch>`, then
+   `factory-gateway upload head.bundle --param repo=<owner/name>` (POST /<route>/uploads?repo=).
+   It returns an id valid an hour. The gateway reads the commits and their authors from the
+   bundle itself; BUNDLE_INVALID means it could not (fetch main first, or bundle the whole
+   branch).
 2. branch-push {ref, head, bundle}: head is the full 40-character SHA. Every commit the push
    adds must be authored by the owner (COMMIT_AUTHOR_NOT_OWNER): an agent that helped is an
    `Assisted-by:` trailer, never the author. (A `Co-authored-by:` naming an agent is refused

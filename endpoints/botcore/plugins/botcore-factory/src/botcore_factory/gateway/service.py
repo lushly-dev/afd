@@ -535,6 +535,12 @@ class Gateway:
                 f"No live upload {bundle}; an upload lasts an hour",
                 "Upload the bundle to POST /uploads on this route and pass the id it returns",
             )
+        if upload.get("repo", repo) != repo:
+            raise refuse(
+                "UPLOAD_NOT_FOUND",
+                f"Upload {bundle} is for {upload['repo']}, not {repo}",
+                f"Upload the bundle to /uploads?repo={repo} and pass that id",
+            )
         if head not in upload.get("heads", []):
             raise refuse(
                 "HEAD_NOT_IN_BUNDLE",
