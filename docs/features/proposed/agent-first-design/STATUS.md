@@ -16,20 +16,24 @@ shape of the [Patterns status](../patterns/STATUS.md).
 ## Status block
 
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`.
-  One independent reader reviewed it. The owner has decided seven points and not approved the
-  whole.
+  One independent reader reviewed it. The owner has decided nine of its points and not approved
+  the whole.
 - **Epic:** none. Opening one is the owner's call.
-- **Done:** the problem, what exists today, the model, fourteen draft jobs as sentences, a design
-  direction, the amendments it implies for other documents, phases, twelve questions for the
-  owner with six answered and one in part, a proposed rank for the jobs, and an independent
-  review in two passes.
+- **Done:** the problem, what exists today, the model, thirteen draft jobs as sentences with the
+  rank the owner confirmed, a design direction, the amendments it implies for other documents,
+  phases, twelve questions for the owner with eight answered, and an independent review in two
+  passes.
+- **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
+  2026-11-14. The owner ruled on its four points on 2026-11-15. Nothing in it is built.
 - **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
   owner's remaining answers, moving each part into the proposal that owns it, and everything in
   the phases. See
   [What is not done](#what-is-not-done).
-- **Blocked on:** the owner confirming the proposed rank of the jobs (question 11), and the
-  bench's domain and budget (question 7 and step 0.0) before phase 0 can run. Questions 4, 8, 9
-  and 10 are open and block nothing yet.
+- **Blocked on:** nothing from the owner for the bench to be built. Before any session of
+  phase 0 runs, the bench's commands, fixtures, checks, planted faults, persona cards,
+  reference build and runner are written, the four pilots give what a session takes, and the
+  owner confirms the rule for "go" of the step about to run. Questions 4, 8, 9 and 10 of the
+  proposal are open and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
@@ -43,19 +47,23 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | --- | --- | --- |
 | Scaffold: problem, what exists, model, draft jobs, design direction | Done 2026-11-14, merged in #1223 | [`agent-first-design.proposal.md`](agent-first-design.proposal.md) |
 | Open the epic | Not started; the owner's call | |
-| The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6 and 12, and the todo example in question 7. Open: 4, 8, 9, 10, the bench's domain in 7, and the rank in 11, which is proposed and not confirmed | Proposal, section 9 |
+| The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Open: 4, 8, 9 and 10 | Proposal, section 9 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
-| Draft the commands against the ranked jobs | Not started | |
+| Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
-| Phase 0, steps 0.0 to 0.6 | Not started. The owner said to run it on 2026-11-14. Step 0.0, the bench's specification with its domain and budget, is first | Proposal, section 7 |
+| Phase 0, step 0.0: the bench's specification | In progress. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner ruled on its four points on 2026-11-15: a seed library, Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week, and a bare arm in step 0.1. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
+| Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming its rule for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
 ## What is not done
 
-- **No commands are drafted and no job is a scenario file.** The fourteen jobs are sentences.
+- **No commands are drafted and no job is a scenario file.** The thirteen jobs are sentences.
   Nothing shows that commands can express them.
+- **The bench is a specification only.** Nothing in it is built, and its cost per session rests
+  on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
+  and not confirmed.
 - **No reader has walked it.** There are no commands to walk. The design direction is one
   session's draft, written with the owner in conversation and reviewed once.
 - **Nothing in it is measured.** Phase 0 exists to measure it. Its claim that a default pattern
@@ -64,7 +72,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 - **Copying a default is not designed.** A record of source on a pattern file, the comparison
   by statement id, the source as it was, and how a product's screens are held to a copied
   pattern are named in the proposal's section 5.1 and nothing more.
-- **The owner's decisions here,** all on 2026-11-14:
+- **The owner's decisions here,** on 2026-11-14 unless dated:
   - the todo example is not the bench's base;
   - question 1: this document is the frame, and each part moves to the proposal that owns it;
   - question 2: a default is customized by copying it, not by layering, and an unchanged
@@ -73,7 +81,13 @@ shape of the [Patterns status](../patterns/STATUS.md).
   - question 5: a panel may answer a review item provisionally, never the author of the change
     and never for release;
   - question 6: the five triggers, a panel of five, and a person asked on a 3 to 2 split;
-  - question 12: phase 0 runs.
+  - question 11: the rank of the jobs as proposed, with job 3 merged into job 2, job 11 folded
+    into job 10, job 13 deferred and job 15 added;
+  - question 12: phase 0 runs;
+  - on 2026-11-15, for the bench: a seed library as its domain; Opus 5.5 at `medium`; its
+    sessions run on a second machine of the owner's and draw on that machine's subscription
+    allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in
+    step 0.1.
 
 ## How it was checked
 
@@ -111,6 +125,19 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   approved, and raised six small wording points, all taken: "entries" for a reference's lines so
   they are not read as pattern statements, the phase A, B and C exits, and a count in this file.
 - **Not run:** `botcore skill-lint` and the `docs_*` checks. No skill was changed.
+- **The bench specification, 2026-11-14 at `fd0781e4`:** its figures from Component Briefs
+  were read from the prototype record, its session counts were added up twice, and the same
+  link script was run over the three files in this folder and the features index: 167 links
+  checked and 0 broken. Read first-hand for it: that Specimen does not support Windows
+  (`foundations/specimen/README.md:499`), that `wsl.exe -l` on the author's machine reports no
+  Linux subsystem, and that Botcore's `cdp_emulate` has no option for forced colours
+  (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:716`). It has had no independent
+  review.
+- **The bench specification, 2026-11-15:** read first-hand through T3 Code, that the owner's
+  second machine answers, is an Apple silicon Mac and has a checkout of this repository, and
+  from Specimen's README that a host exists for that platform. Not checked: that the host
+  builds there, that the `claude` command there is signed in, and what share of a week's
+  allowance a session takes. The link script was run again over the same four files.
 
 ## What was read to write it
 
@@ -149,6 +176,8 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | The owner | The todo example is out of date and should be updated; it is a reference only until then | Open |
 | 2026-11-14 | First draft | A newcomer copies skills with `npx degit` (`README.md:457`), which records no version and gives no notice of changes. Botcore's seeded skills carry both | Open; proposal sections 2 and 5.6 |
 | 2026-11-14 | First draft | Specimen does not observe animation, so no motion rule can be a gate. A rule about duration or easing stays `authored` | Open |
+| 2026-11-14 | Bench specification | No forced-colours emulation exists in Specimen or in Botcore's `cdp_emulate`, so no persona can be held to that modality | Open |
+| 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Open |
 
 ## Session log
 
@@ -159,3 +188,5 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft, continued | The owner ruled on question 2: copying, because a person or an agent can look at what changed upstream and take it after review, where layering could change a product unexpectedly. Section 5.1 was rewritten around copying, and the lines that depended on layering were changed: two draft jobs, the decision card, sections 5.6 and 5.7, the Patterns amendment, phases A and D and one risk. The first draft's layering recommendation is kept in 5.1 as considered and dropped |
 | 2026-11-14 | First draft, continued | The owner ruled on the point question 2 left open: a product that changes nothing names the defaults at a version, and does not copy the whole set |
 | 2026-11-14 | First draft, continued | The owner asked for it to be committed and merged, and answered questions 3, 5, 6 and 12: agreed, agreed, agreed, and run phase 0. The owner asked for a proposed rank of the jobs, which is in the proposal's section 4 and not yet confirmed. `main` was merged at `dd080235`, which moved Component Briefs to `complete/`, and two paths were corrected. An independent review raised four blockers and eleven improvements; all four blockers and the improvements were applied |
+| 2026-11-14 | After the merge of #1223 | The owner confirmed the rank of the jobs as proposed. Section 4 of the proposal now carries it: job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added, with the numbers kept. The bench specification was drafted as step 0.0 of phase 0: a seed library, four screens of which one is held back from whoever writes the statements, 209 sessions, an estimate of about $260 at list prices with a proposed cap of $400, rules for "go", and four points for the owner. Checking it settled one point the proposal had left unverified: Botcore cannot emulate forced colours |
+| 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled. The budget's cap became a share of the week, proposed at a fifth and open, with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |

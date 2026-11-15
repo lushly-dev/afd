@@ -1,0 +1,280 @@
+# Agent-First Design: the bench
+
+The specification of the bench for phase 0 of the
+[proposal](agent-first-design.proposal.md#phase-0-prove-it), written for the owner's approval.
+It is step 0.0. Read [STATUS.md](STATUS.md) first.
+
+## Status
+
+- **State:** drafted 2026-11-14 against `fd0781e4`. Nothing is built and no session has run.
+- **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
+  model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
+  draw on its subscription allowance and not on API billing, and take no more than a fifth
+  of a week's allowance in any one week.
+- **Not yet confirmed:** the [rules for "go"](#rules-for-go). The owner confirms each before
+  its step runs.
+- **Measured:** the cost and size of a page-building session, from the
+  [Component Briefs prototype](../../complete/component-briefs/prototype.md). Everything else
+  in [Budget](#budget) is an assumption, marked as one, that two pilot sessions of each kind
+  replace before the full runs.
+- **Deliberately not in this file:** the planted faults, the checks, the persona cards and the
+  two jobs held back for the panel loop. A session that could read them would be scored on
+  what it had read. They are written after approval, kept outside the repository until the
+  last run has finished, and committed then as the record, as Component Briefs did with its
+  tasks and checks. This file gives their shape and their counts.
+
+## What it has to do
+
+From the proposal's sections [5.2](agent-first-design.proposal.md#52-the-default-pattern-set),
+[5.5](agent-first-design.proposal.md#55-review) and
+[5.9](agent-first-design.proposal.md#59-the-bench):
+
+- **Need every result-state pattern,** so each default has a screen that tests it.
+- **State needs, not components.** Choosing components, layout and copy is what is judged.
+- **Give a panel something to walk:** a running application with a journal, in a clean build
+  and a build with planted faults.
+- **Be unfamiliar.** The owner ruled out the todo example, and an invented domain keeps a
+  private source's data out of a public repository.
+
+## Domain
+
+**A seed library,** chosen by the owner on 2026-11-15. A neighbourhood group lends packets of
+vegetable and flower seed. Members borrow packets and return saved seed at the end of the
+season. Volunteers take in donated packets, and a steward approves loans of rare varieties.
+
+| Domain | For | Against |
+| --- | --- | --- |
+| A seed library, chosen | Every result state arises from the subject: seed runs out, ages, is rare, arrives in mixed batches with handwritten labels. A judge needs no expertise | None found |
+| A tool library for a workshop | As easy to judge | It is a booking system. A model may have a stock layout for one, which would lift every arm and narrow the differences. A hypothesis, not a finding |
+| A freezer inventory for laboratory samples | Unfamiliar to a model | Unfamiliar to the judge too. Telling a good screen from a bad one would take domain knowledge |
+
+## The application
+
+Four screens. Three are shown to whoever writes the first pattern statements. The fourth is
+built only in step 0.2 and after, so it shows whether statements written from the faults on
+three screens help on a screen they were not written from.
+
+| Task | Screen | The user must be able to |
+| --- | --- | --- |
+| T1 | Lend a packet | Find a variety, lend a packet to a member, take a substitute or join the waiting list when it is out, ask the steward for a rare one, take the loan back |
+| T2 | Take in a donation | Import a batch of packets, follow it, settle a label that matches several varieties, see why a match was made, deal with the rows that failed |
+| T3 | A variety's page | See its lots and loans, record a return and take it back, see how well old seed is expected to germinate and on what evidence, retire the variety |
+| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back |
+
+Which task needs which pattern:
+
+| Pattern (proposal, 5.2) | T1 | T2 | T3 | T4 |
+| --- | --- | --- | --- | --- |
+| An error with its recovery | Yes | Yes | | Yes |
+| An undo offer | Yes | | Yes | Yes |
+| A confirmation before a destructive command | | | Yes | Yes |
+| An approval request | Yes | | | Yes |
+| Progress | | Yes | | Yes |
+| A choice among alternatives | Yes | Yes | | |
+| Warnings | Yes | | Yes | |
+| Evidence for a result | | Yes | Yes | |
+| A batch with some failures | | Yes | | Yes |
+| An empty collection, a failed collection | Yes | | Yes | Yes |
+
+- **A limit.** Alternatives, warnings and evidence are not on T4, so a statement about them is
+  tested only on a screen it may have been written from.
+- **The commands are the data contract.** Their names, as a sketch: `variety-list`,
+  `variety-get`, `variety-retire`, `loan-create`, `loan-return`, `loan-list`,
+  `request-list`, `request-decide`, `donation-import`, `donation-match` and `member-list`. No
+  schema is drafted. The bench's own jobs are written as scenario files first, as the `afd`
+  skill requires, and a fixture forces each state.
+- **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
+  kept after phase 0.
+
+## What a session is given
+
+- **Every arm gets the same task:** the jobs, the commands and their fixtures, the states of
+  the screen with what the user must be able to do in each, and what counts as done. It writes
+  one story file with a named story per state, from `violet-elements` where a component fits.
+- **Every arm has the components brief.** It is merged and is how a session works in this
+  repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
+  what is added.
+- **Arm 1's public skill** is Anthropic's frontend-design, the one of the six already
+  installable as a Claude Code plugin.
+- **Arm 2's patterns do not exist yet.** Patterns is a proposal. A throwaway script adds the
+  statements to the brief's text. They are written after step 0.1, from the faults the owner
+  names on T1 to T3 and from no other source, and the owner approves them before step 0.2.
+- **Arm 3's skill** is a draft written for the run and deleted if step 0.5 says so.
+- **A reference build** of the whole application, running on the commands with a journal, is
+  made once, outside the arms, and the owner looks at it before faults are planted in a copy.
+  Steps 0.3 and 0.4 walk those two builds.
+
+## Scoring
+
+Reported check by check, with what was measured, excluded and unmeasured. No single score.
+
+- **Checks on a build,** frozen before the first run and independent of any statement, so that
+  arm 2 is not scored on rules written from arm 0's faults:
+  - each state's story mounts with no console error;
+  - each contract field the state carries reaches the screen, by role, name or text;
+  - what the user must be able to do is an operable control with a name;
+  - focus is where the state needs it;
+  - Specimen's accessibility check.
+- **Judgement:** the owner's blind choice between two builds of the same task.
+- **Walks:** which planted faults a persona reported, what else it reported, and the path the
+  journal recorded against the scenario's steps.
+- **Statistics:** a permutation test on each run's count of passed checks, as Component Briefs
+  used. Fifteen runs an arm resolved a 22.5 % difference there only to p = 0.17, so a small
+  effect will not show.
+
+## Faults, personas and held-back jobs
+
+- **Twelve planted faults** in the seeded build, three aimed at each modality. Each is one
+  small change with a check that proves it is present.
+- **Five persona cards,** the panel size the owner agreed. One for each modality in the
+  proposal's table and a second sighted persona with a different stance, so that overlap
+  between two reviewers of one modality is measured.
+- **The runner enforces the modality** by the tools it exposes, through Botcore's `cdp_*`
+  commands. The screen-reader persona gets the accessibility tree after each key press. Live
+  announcements are read from that tree, which is an approximation; capturing them as a
+  screen reader speaks them is not built.
+- **One model family in phase 0.** A session runs on one provider
+  ([model routing](../../../operations/model-routing.md)), so the panel is five Claude
+  sessions. The overlap it reports is therefore within one family, and the proposal's point
+  about reviewers of different families waits for phase C. The machine that runs the
+  sessions has a second provider connected, so a mixed panel is possible there when phase C
+  wants one.
+- **Two jobs held back for the panel loop** are written now and first used in phase C.
+
+## Runs
+
+| Step | Sessions | Count |
+| --- | --- | --- |
+| 0.1 | Builds: arms 0 and 1, T1 to T3, five runs each | 30 |
+| 0.1 | Builds: a bare arm, T1 to T3, five runs each ([ruling 3](#for-the-owner)) | 15 |
+| 0.2 | Builds: arm 2 on T1 to T3; arms 0 and 2 on T4 | 25 |
+| 0.3, 0.4 | Walks: five personas, one job a screen, twice on the seeded build and once on the clean one | 60 |
+| 0.3 | Readers: one per walk on the seeded build, matching its findings to the planted faults | 40 |
+| 0.1 | Readers: one per bare build, matching its stories to the states | 15 |
+| 0.5 | Builds: arm 3 on T1 to T4 | 20 |
+| | Pilots, not counted in results: two builds and two walks | 4 |
+
+Ninety builds, sixty walks, fifty-five readers and four pilots. Arm 4 is not run: the proposal's
+phase 0 has no step for it.
+
+- **How a session runs,** as in Component Briefs: `claude -p` with the model and effort
+  pinned, no web tools and no subagents, in a worktree reset to a commit that holds none of
+  the held material, with each arm's material in a directory of its own.
+- **Where:** a second machine of the owner's, an Apple silicon Mac reached through T3 Code,
+  which has a checkout of this repository. Builds, walks and scoring all run there: Specimen
+  ships a host for that platform and none for Windows
+  (`foundations/specimen/README.md:499`). Not checked yet: that the host builds there from
+  source, and that the `claude` command on it is signed in to the subscription.
+- **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
+  an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
+
+## Rules for "go"
+
+Proposed here. The owner confirms each rule before its step runs, and it is not changed after
+that step's first run. The numbers are starting points, as the review triggers are.
+
+| Step | Go when |
+| --- | --- |
+| 0.1 | No rule. It records what goes wrong. If arms 0 and 1 pass nine checks in ten, there is little for a default to fix, and the owner decides whether to go on |
+| 0.2 | On T1 to T3, arm 2 passes at least 15 points more of the checks than arm 0, at p < 0.05. On T4 the difference has the same sign. Arm 2's median tokens are no more than 20 % above arm 0's |
+| 0.3 | The panel reports at least 8 of the 12 planted faults, and each modality at least 2 of its 3. At least half of a sample of its other findings, up to 30, are real in the owner's judgement |
+| 0.4 | Where a job meets a planted fault, the path on the seeded build has more wrong turns, repeats and errors than on the clean build in at least three of four persona and job pairs. Where it meets none, the paths do not differ by more than repeats of the same build do |
+| 0.5 | The owner, blind, prefers arm 3's build in at least 8 of 12 pairs with arm 2's, and arm 3 passes no fewer checks. Otherwise the skill is not written |
+
+## Budget
+
+| Line | Basis | Estimate |
+| --- | --- | --- |
+| A build session | Component Briefs measured about $0.25 a session on Sonnet 5.5 at `medium`, with a median of 309 000 to 517 000 tokens. Opus 5.5 lists at twice Sonnet 5.5's price for input, output and cache reads (list prices as of 2026-11-03), so about $0.50 for the same tokens. **Assumed:** a screen with its states is three times a Component Briefs page | $1.50 |
+| A walk | **Assumed** equal to a build. Nothing in this repository measures one, and screenshots add tokens | $1.50 |
+| A reader | **Assumed** the size of a Component Briefs session | $0.50 |
+
+| | Count | Cost |
+| --- | --- | --- |
+| Builds | 90 | $135 |
+| Walks | 60 | $90 |
+| Readers | 55 | $27.50 |
+| Pilots | 4 | $6 |
+| **Total** | **209** | **about $260** |
+
+- **The dollars measure size, not spend.** The owner decided on 2026-11-15 that the sessions
+  draw on a subscription allowance. Its conversion from tokens is not published
+  ([model routing](../../../operations/model-routing.md#evidence)), so list prices stay here
+  as the one unit that compares a build with a walk.
+- **The cap is a share of the week's allowance** on the machine that runs the sessions: no
+  more than a fifth of a week's allowance in any one week
+  ([ruling 2](#for-the-owner)). Phase 0 stops for the owner between steps, so it spreads
+  over more than one week without a rule to make it.
+- **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
+  Code's usage view is read before and after them, and each session's reported cost is
+  recorded. That gives the share a dollar at list price takes, and from it the share each
+  step will take, which comes back to the owner before step 0.1. If four pilots do not move
+  a figure shown in whole percents, the first fifteen builds of step 0.1 are the
+  measurement. If a pilot costs more than twice its line, the runs stop.
+- **The weekly figure is shared.** Another session of the owner's runs on that machine, so
+  the figure also moves for reasons that are not the bench. Each session's reported cost is
+  the measure of the bench's own use, and the weekly figure only scales it.
+- **Not in the total:** writing the commands, the fixtures, the reference build, the runner
+  and the statements, which are ordinary working sessions.
+- **The owner's time,** which no session replaces: approving this file; naming the faults in a
+  blind sample of step 0.1's builds; approving the statements; looking at the reference
+  build; judging up to 30 findings in step 0.3; choosing between 12 pairs in step 0.5; the
+  decision in step 0.6.
+
+## When it runs
+
+Phase 0 runs once. Its 209 sessions are five experiments, each answering one question, with
+the owner's review between them. They are not the cost of a bench run.
+
+After phase 0 the bench is kept, and it runs again only as follows. *Proposed; none of it is
+built.*
+
+- **The checks that need no model** run whenever the bench's package changes: on the
+  reference build each story mounts, each contract field reaches the screen, and Specimen's
+  accessibility check passes.
+- **Sessions run on a named event,** never on a schedule and never in CI. Each rerun is a
+  subset with its own estimate, approved before it starts:
+
+  | Event | Rerun | Size |
+  | --- | --- | --- |
+  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 20 to 30 builds |
+  | The model route changes | Arm 0 and the current defaults on all four screens, five runs each | 40 builds |
+  | A persona card or the runner changes | The walks on the seeded build | Up to 40 walks and 40 readers |
+  | Phase C's exit | The walks on the seeded build, and the panel loop on the two jobs held back for it | 40 walks and 40 readers, and what phase C sizes for the loop |
+
+- **It wears out as evidence.** After the last run of phase 0 the faults and the checks are
+  committed, and T4 is no longer held back from whoever writes statements. A later run can
+  show that nothing got worse. A new claim that a default helps needs a screen that no
+  statement was written from.
+
+## What it does not test
+
+- **The panel loop,** arm 4.
+- **Reviewers of different model families.**
+- **Forced colours.** Neither Specimen nor Botcore's `cdp_emulate` emulates them.
+- **Motion.** Specimen does not observe animation.
+- **People.** Every finding from a persona is a hypothesis about a person.
+- **A second design system.** Every build uses `violet-elements`.
+
+## For the owner
+
+The owner ruled on all four on 2026-11-15.
+
+1. **Domain.** **Decided: the seed library,** because every result state arises from the
+   subject and a judge needs no expertise. The tool library was the fallback.
+2. **Model, budget and cap.** **Decided: Opus 5.5 at `medium`, on the subscription allowance
+   of a second machine, and no more than a fifth of a week's allowance in any one week, with
+   the pilots run first to measure what a session takes.** The session counts are firm. The
+   size of a session rests on two assumptions the pilots replace, and the fifth is a guess
+   until the pilots give the conversion, so both come back to the owner before step 0.1.
+3. **The bare arm.** **Decided: step 0.1 has one.** The proposal's section 5.9 has every task
+   list the screen's states. Phase 0 would then test how well each state is rendered, and
+   not whether an agent leaves states undesigned when nobody lists them, which is half of
+   the first-ranked job. The bare arm is given the jobs and the commands with no list of
+   states and no fixtures, and is scored on one question: which states have a story. It is
+   15 builds and 15 readers, in the total above.
+4. **Where scoring runs.** **Settled 2026-11-15** by the owner's choice of machine. Specimen
+   does not support Windows (`foundations/specimen/README.md:499`), and the machine this
+   file was written on has no Linux subsystem installed. The machine that runs the sessions
+   is an Apple silicon Mac, which Specimen supports, so the checks run there too and nothing
+   is installed here or added to CI. Not checked yet: that Specimen's host builds there.
