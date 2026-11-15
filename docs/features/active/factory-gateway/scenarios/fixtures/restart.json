@@ -1,0 +1,73 @@
+{
+	"cache": {
+		"empty": true
+	},
+	"cutover": {
+		"from": "2030-02-03T08:00:00Z",
+		"legacyUntil": "2030-02-10T00:00:00Z",
+		"legacyMarkers": ["lushly-issue-claim", "botcore-factory:claim"],
+		"legacyAuthor": "example-owner",
+		"lushlyStaleHours": 4
+	},
+	"claimComments": [
+		{
+			"number": 101,
+			"author": "example-factory[bot]",
+			"at": "2030-02-03T08:10:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "fix/parser",
+				"machine": "workstation",
+				"leaseUntil": "2030-02-04T08:10:00Z"
+			}
+		},
+		{
+			"number": 102,
+			"author": "example-factory[bot]",
+			"at": "2030-02-03T08:30:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "fix/line-numbers",
+				"machine": "laptop",
+				"leaseUntil": "2030-02-04T08:30:00Z"
+			}
+		},
+		{
+			"number": 103,
+			"author": "example-stranger",
+			"at": "2030-02-03T09:00:00Z",
+			"marker": "botcore-factory:claim",
+			"claim": {
+				"branch": "evil/branch",
+				"machine": "unknown",
+				"leaseUntil": "2031-01-01T00:00:00Z"
+			}
+		},
+		{
+			"number": 104,
+			"author": "example-owner",
+			"at": "2030-02-03T07:00:00Z",
+			"marker": "lushly-issue-claim",
+			"claim": {
+				"harness": "claude",
+				"session": "s-9f2",
+				"host": "mini",
+				"branch": "docs/commas",
+				"startedAt": "2030-02-03T07:00:00Z"
+			}
+		},
+		{
+			"number": 103,
+			"author": "example-stranger",
+			"at": "2030-02-03T08:00:00Z",
+			"marker": "lushly-issue-claim",
+			"claim": {
+				"harness": "x",
+				"session": "x",
+				"host": "x",
+				"branch": "evil/legacy",
+				"startedAt": "2030-02-03T08:00:00Z"
+			}
+		}
+	]
+}

@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "528cbbe35d23a9768e6d74c1c865dcdad1fc3bbe0aed7707ceadb6ab03ee7b27",
+      "current_import_sha256": "4a8328aab0e00286ca55cc3b64386bd0ac3ddfdffd194adc11f0993adecd0ec8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance"
     },
     {
       "path": "LICENSE",
@@ -3457,11 +3457,11 @@
       "path": "src/botcore/skills/docs-manager/SKILL.md",
       "upstream_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
       "staged_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
-      "current_import_sha256": "28c0cd3a6f88656482180b7a2cd1c06ea6dfe033cf13a402fcb24b07fd36f86d",
+      "current_import_sha256": "cd6d3ca2cb3ada73465c8f84fbaba36cf697b8062b695fbe570b00eaed2bce3e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779)"
+      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779); Add guidance for editing AI-assisted prose: substance first, formulas over word lists, rewrite instead of swapping, check meaning after a rewriting pass"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",

@@ -297,5 +297,5 @@ fn a_sender_is_shown_with_its_mailboxes_and_lists() {
     let missing = fixture.cli("mail-sender-show", json!({ "sender": 1 }));
     assert_eq!(missing["error"]["code"], "SENDER_NOT_FOUND");
     let no_id = fixture.cli("mail-sender-show", json!({}));
-    assert_eq!(no_id["error"]["code"], "VALIDATION_ERROR");
+    assert_eq!(no_id["error"]["code"], "INVALID_INPUT");
 }

@@ -1,11 +1,14 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
-import { expect } from "@lushly-dev/specimen/test";
+import { expect, waitFor } from "@lushly-dev/specimen/test";
 
 import "./violet-image";
 import "../text/violet-text";
 import type { VioletImage } from "./violet-image";
 
 type Story = StoryObj<VioletImage>;
+
+// An image that fails to decode, so the error event comes without a network request, whose timing varies.
+const brokenImage = "data:image/png;base64,AAAA";
 
 const demoImage = `data:image/svg+xml;utf8,${encodeURIComponent(`
 <svg xmlns="http://www.w3.org/2000/svg" width="960" height="720" viewBox="0 0 960 720">
@@ -112,11 +115,19 @@ export const Fallback: Story = {
 export const ErrorFallback: Story = {
     render: () => `
         <div style="max-inline-size: 16rem;">
-            <violet-image src="https://invalid.invalid/missing-image.jpg" alt="Fallback planting image" ratio="landscape">
+            <violet-image src="${brokenImage}" alt="Fallback planting image" ratio="landscape">
                 <violet-text slot="fallback" variant="caption" tone="muted">Image unavailable</violet-text>
             </violet-image>
         </div>
     `,
+    // The fallback shows only after the image's error event, so wait for it before the capture.
+    play: async ({ canvasElement }) => {
+        const image = canvasElement.querySelector("violet-image");
+        await waitFor(() => {
+            expect(image?.shadowRoot?.querySelector<HTMLElement>(".fallback")?.hidden).toBe(false);
+            expect(image?.shadowRoot?.querySelector<HTMLElement>(".media")?.hidden).toBe(true);
+        });
+    },
 };
 
 export const Decorative: Story = {

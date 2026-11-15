@@ -1,0 +1,69 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the foreman endpoint: the factory's cell-register claims through it.
+name: Claim an issue once, whoever asks first
+description: >-
+  When two cells are about to start on the same issue at once, I want exactly one of them to hold
+  it and the other refused with who holds it and until when, so that no issue is ever worked twice
+  and no agent has to read comments to find out.
+job: claim-once
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The first claim holds the issue, written on GitHub as the bot's comment and label
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser, machine: workstation }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 101, holder: { branch: fix/parser }, leaseUntil: { exists: true }, renewed: false }
+        record:
+          label: status:in-progress
+          commentAuthor: example-factory[bot]
+  - description: A second holder is refused, told who holds it and how to find free work
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser-2, machine: laptop }
+    expect:
+      success: false
+      error:
+        code: ALREADY_CLAIMED
+        message: workstation
+        suggestion: { contains: claim-list }
+  - description: The holder claiming again renews its lease instead of failing
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser, machine: workstation }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 101, renewed: true }
+  - description: A batch with a closed issue claims nothing at all
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [102, 99]
+      holder: { branch: fix/two-things, machine: workstation }
+    expect:
+      success: false
+      error:
+        code: ISSUE_CLOSED
+        message: "99"
+        suggestion: { contains: issue-get }
+  - description: There is one claim, so issue 102 was not claimed by the refused batch
+    command: claim-list
+    input: { repo: example-org/example-repo }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 101, stale: false, holder: { branch: fix/parser } }

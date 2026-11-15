@@ -110,6 +110,14 @@ pub(super) struct Touched {
     places: BTreeSet<(i64, i64)>,
     /// Addresses whose sender row is computed again ([`super::senders`]).
     pub(super) senders: BTreeSet<String>,
+    /// Messages derived, whose screening class is computed again
+    /// ([`super::classes`]).
+    pub(super) messages: BTreeSet<i64>,
+    /// Template keys a message gained or lost, whose count is computed again.
+    pub(super) templates: BTreeSet<Vec<u8>>,
+    /// Messages a mailbox started or stopped showing, whose place in the
+    /// lists by class is computed again.
+    pub(super) shown: BTreeSet<i64>,
     pub(super) documents: Vec<Document>,
 }
 
@@ -120,6 +128,9 @@ impl Touched {
             threads: BTreeSet::new(),
             places: BTreeSet::new(),
             senders: BTreeSet::new(),
+            messages: BTreeSet::new(),
+            templates: BTreeSet::new(),
+            shown: BTreeSet::new(),
             documents: Vec::new(),
         }
     }
@@ -273,6 +284,7 @@ pub(super) fn derive_header(
         ],
     )?;
     super::senders::derive_recipients(transaction, message, header, persons, touched)?;
+    touched.messages.insert(message);
     touched.threads.insert(thread);
     let mut shown = transaction.prepare_cached(
         "SELECT DISTINCT mailbox_id FROM observation WHERE message_id = ?1 AND ended_at IS NULL",
@@ -304,10 +316,10 @@ pub(super) fn derive_body(
     body: BodyFields,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
-    type EnvelopeRow = (i64, i64, String, String, Option<Vec<u8>>);
+    type EnvelopeRow = (i64, i64, String, String, Option<Vec<u8>>, Option<Vec<u8>>);
     let row: Option<EnvelopeRow> = transaction
         .one(
-            "SELECT thread_id, date, sender_address, subject, template_head
+            "SELECT thread_id, date, sender_address, subject, template_head, template_key
              FROM envelope WHERE message_id = ?1",
             [message],
             |row| {
@@ -317,11 +329,12 @@ pub(super) fn derive_body(
                     row.get(2)?,
                     row.get(3)?,
                     row.get(4)?,
+                    row.get(5)?,
                 ))
             },
         )
         .optional()?;
-    let Some((thread, date, sender, subject, head)) = row else {
+    let Some((thread, date, sender, subject, head, had_template)) = row else {
         return Ok(());
     };
     // The template key needs the structure, which only the body gives.
@@ -347,6 +360,12 @@ pub(super) fn derive_body(
             body.body_shape.as_ref().map(<[u8; 16]>::as_slice)
         ],
     )?;
+    // The template it had and the one it has are counted again.
+    touched.templates.extend(had_template);
+    touched
+        .templates
+        .extend(template.as_ref().map(|key| key.to_vec()));
+    touched.messages.insert(message);
     transaction.run("DELETE FROM part WHERE message_id = ?1", [message])?;
     {
         let mut insert = transaction.prepare_cached(
@@ -475,6 +494,7 @@ pub(super) fn touch_place(
     message: i64,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
+    touched.shown.insert(message);
     let thread: Option<i64> = transaction
         .one(
             "SELECT thread_id FROM envelope WHERE message_id = ?1",
@@ -502,7 +522,17 @@ pub(super) fn settle(
     for (mailbox, thread) in &touched.places {
         compute_place(transaction, *mailbox, *thread)?;
     }
-    super::senders::settle_senders(transaction, &touched.senders, now)
+    let turned = super::senders::settle_senders(transaction, &touched.senders, now)?;
+    super::classes::settle(
+        transaction,
+        &super::classes::Reclassify {
+            messages: Some(&touched.messages),
+            templates: Some(&touched.templates),
+            senders: Some(&turned),
+            shown: Some(&touched.shown),
+        },
+    )?;
+    Ok(())
 }
 
 fn compute_thread(transaction: &Transaction<'_>, thread: i64) -> Result<(), StoreError> {
@@ -920,6 +950,7 @@ impl Store {
              DELETE FROM envelope;
              DELETE FROM index_pending;",
         )?;
+        transaction.execute_batch(super::classes::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;

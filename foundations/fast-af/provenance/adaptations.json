@@ -6647,11 +6647,11 @@
       "upstream_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
       "staged_path": "packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.stories.ts",
       "staged_sha256": "be971c537a008327ff816ec6ebc7d4f69c0305e4880361a6abcf4427097196aa",
-      "current_import_sha256": "c4ae838b9bc0b0c76659e12003c37ede390b432dca158c767a3a73c66689ab6a",
+      "current_import_sha256": "bd8f346b4ec35eb34b76fa383259f07b67af9b2ac7e0b648611e9c383d2e630f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Make two unstable stories deterministic: the image error fallback (#1178) and the attachment cell's upload intent (#1148)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/data-grid/violet-data-grid-attachment-cell.ts",
@@ -8267,11 +8267,11 @@
       "upstream_sha256": "32b802bf1a718661b69a9bb48287a25a52724045aacbebf6b98317e73b19ebed",
       "staged_path": "packages/violet-elements/src/image/violet-image.stories.ts",
       "staged_sha256": "32b802bf1a718661b69a9bb48287a25a52724045aacbebf6b98317e73b19ebed",
-      "current_import_sha256": "d43708c11f9f7c2e1277eb62447dc7052659e72131deecf3365c494b4e6d2ea9",
+      "current_import_sha256": "3fb138518b1cc054e1e929223f6b4514c2abec145044d1a5e82b5a3bb20a8184",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Make two unstable stories deterministic: the image error fallback (#1178) and the attachment cell's upload intent (#1148)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/image/violet-image.ts",
@@ -10127,11 +10127,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "9c6cde0e9449ab9ecabe60562047951cfba06aba93504550de3ba83b3365d2d4",
+      "current_import_sha256": "ae408b7a40776321204c3e70291d74cae07541cf5151caaf155a6aff57d74d96",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Make two unstable stories deterministic: the image error fallback (#1178) and the attachment cell's upload intent (#1148)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-listbox.json",

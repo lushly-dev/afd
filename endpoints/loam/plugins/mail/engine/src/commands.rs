@@ -420,7 +420,7 @@ impl CommandHandler for Status {
     async fn execute(
         &self,
         input: serde_json::Value,
-        _context: CommandContext,
+        context: CommandContext,
     ) -> CommandResult<serde_json::Value> {
         let named = match account_input(&input) {
             Ok(named) => named,
@@ -430,8 +430,10 @@ impl CommandHandler for Status {
             Ok(accounts) => accounts,
             Err(error) => return failure(*error),
         };
+        let now = context.clock().now();
         let read = self.engine.with_store(|store| {
             let stale = store.stale_count()?;
+            let screening = crate::screening::status_json(store, now)?;
             let mut result = Vec::new();
             for account in &accounts {
                 let mut mailboxes = Vec::new();
@@ -468,13 +470,16 @@ impl CommandHandler for Status {
                     "mailboxes": mailboxes,
                 }));
             }
-            Ok((result, stale))
+            Ok((result, stale, screening))
         });
         match read {
-            Ok((accounts, stale)) => success(json!({
+            Ok((accounts, stale, screening)) => success(json!({
                 "accounts": accounts,
                 // Messages an older derivation read, waiting to be read again.
                 "stale": stale,
+                // Whether classes can be read, the queue, suggestions waiting
+                // and recent blocks (the specification's 7.3).
+                "screening": screening,
                 // What a running server carries on; null without one.
                 "work": self.engine.work().status(),
             })),
@@ -560,6 +565,7 @@ pub fn approval_summary(
                 counted(preview.messages, "message", "messages"),
             ))
         }
+        crate::screening::ACCEPT => crate::screening::approval_summary(engine, input),
         _ => crate::tokens::approval_summary(command, input),
     }
 }

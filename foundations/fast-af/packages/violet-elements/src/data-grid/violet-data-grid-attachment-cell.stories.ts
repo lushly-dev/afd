@@ -152,7 +152,8 @@ export const ImageUploadIntent: Story = {
           '<svg xmlns="http://www.w3.org/2000/svg" width="32" height="32"><rect width="32" height="32" fill="green"/></svg>',
         ],
         "Harvest.svg",
-        { type: "image/svg+xml" },
+        // A fixed time, so the attachment's id (name, size and lastModified) is the same on every run.
+        { type: "image/svg+xml", lastModified: 0 },
       );
       const transfer = new DataTransfer();
       transfer.items.add(file);
@@ -164,6 +165,13 @@ export const ImageUploadIntent: Story = {
       element.handleTriggerClick();
       await waitFor(() => expect(element.open).toBe(false));
       expect(parseAttachmentCellValue(element.value)[0].previewSrc).toBeUndefined();
+      // End on the saved value: the local preview is a fresh blob: URL on every run, so leaving it
+      // rendered would make the captured state differ between passes. Replacing the attachments
+      // also revokes that URL.
+      element.attachments = parseAttachmentCellValue(element.value);
+      await waitFor(() =>
+        expect(element.shadowRoot?.querySelector('img[src^="blob:"]')).toBeNull(),
+      );
     } finally {
       element.removeEventListener("upload-request", onUpload);
     }
