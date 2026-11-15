@@ -175,6 +175,7 @@ export class VioletTooltip extends FASTElement {
         if (tooltip) {
             tooltip.addEventListener("mouseenter", this.#handleTooltipMouseEnter);
             tooltip.addEventListener("mouseleave", this.#handleTooltipMouseLeave);
+            tooltip.addEventListener("toggle", this.#handleToggle);
         }
 
         this.#resolveExternalAnchor();
@@ -284,6 +285,17 @@ export class VioletTooltip extends FASTElement {
         this.#hideTimeout = setTimeout(() => {
             this.open = false;
         }, 100);
+    };
+
+    /**
+     * The browser closes a hint popover itself, on Escape or a light dismiss. Follow it, so `open`
+     * says what is shown and the next hover or focus shows the tooltip again.
+     */
+    #handleToggle = (event: Event): void => {
+        if ((event as ToggleEvent).newState === "closed" && this.open) {
+            this.#clearTimers();
+            this.open = false;
+        }
     };
 
     #handleFocusIn = (): void => {

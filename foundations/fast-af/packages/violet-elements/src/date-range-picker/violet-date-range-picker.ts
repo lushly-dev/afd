@@ -327,7 +327,7 @@ export class VioletDateRangePicker extends FASTElement {
         this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
-        this.openChanged();
+        this.#applyOpenState(false);
     }
 
     public disconnectedCallback(): void {
@@ -378,6 +378,14 @@ export class VioletDateRangePicker extends FASTElement {
     }
 
     public openChanged(): void {
+        this.#applyOpenState(true);
+    }
+
+    /**
+     * Shows or hides the panel for `open`. Only a change announces itself and moves focus into the
+     * calendar; connecting applies the state quietly.
+     */
+    #applyOpenState(changed: boolean): void {
         if (!this.$fastController.isConnected) {
             return;
         }
@@ -390,12 +398,16 @@ export class VioletDateRangePicker extends FASTElement {
         panel.hidden = !this.open;
         if (this.open) {
             this.#positionPanel();
-            requestAnimationFrame(() => {
-                (this.calendarElement?.shadowRoot?.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus();
-            });
+            if (changed) {
+                requestAnimationFrame(() => {
+                    (this.calendarElement?.shadowRoot?.querySelector('[tabindex="0"]') as HTMLElement | null)?.focus();
+                });
+            }
         }
 
-        this.$emit("open-change", { open: this.open });
+        if (changed) {
+            this.$emit("open-change", { open: this.open });
+        }
     }
 
     public toggleOpen(): void {

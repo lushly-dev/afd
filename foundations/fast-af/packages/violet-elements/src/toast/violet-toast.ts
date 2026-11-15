@@ -45,21 +45,21 @@ const styles = css`
     }
 
     :host([tone="success"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-success-background) 78%, var(--_surface-card));
-        --_toast-border: var(--color-state-success-border);
-        --_toast-emphasis: var(--color-state-success-text);
+        --_toast-surface: color-mix(in srgb, var(--color-state-success-background, #E3F1E7) 78%, var(--_surface-card));
+        --_toast-border: var(--color-state-success-border, rgba(22, 101, 52, 0.28));
+        --_toast-emphasis: var(--color-state-success-text, #166534);
     }
 
     :host([tone="warning"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-warning-background) 82%, var(--_surface-card));
-        --_toast-border: var(--color-state-warning-border);
-        --_toast-emphasis: var(--color-state-warning-text);
+        --_toast-surface: color-mix(in srgb, var(--color-state-warning-background, #FDEBCC) 82%, var(--_surface-card));
+        --_toast-border: var(--color-state-warning-border, rgba(245, 158, 11, 0.34));
+        --_toast-emphasis: var(--color-state-warning-text, #92400E);
     }
 
     :host([tone="danger"]) {
-        --_toast-surface: color-mix(in srgb, var(--color-state-danger-background) 82%, var(--_surface-card));
-        --_toast-border: var(--color-state-danger-border);
-        --_toast-emphasis: var(--color-state-danger-text);
+        --_toast-surface: color-mix(in srgb, var(--color-state-danger-background, #FBE2E2) 82%, var(--_surface-card));
+        --_toast-border: var(--color-state-danger-border, rgba(220, 38, 38, 0.34));
+        --_toast-emphasis: var(--color-state-danger-text, #B42318);
     }
 
     .frame {
@@ -377,7 +377,8 @@ export class VioletToast extends FASTElement {
         this.#clearTimeout();
 
         const timeout = Number.parseInt(this.timeout, 10);
-        if (!this.open || this.hasActions || this.dismissible || !Number.isFinite(timeout) || timeout <= 0) {
+        // A close button and a timeout coexist; only actions, which need the person, hold it open.
+        if (!this.open || this.hasActions || !Number.isFinite(timeout) || timeout <= 0) {
             return;
         }
 

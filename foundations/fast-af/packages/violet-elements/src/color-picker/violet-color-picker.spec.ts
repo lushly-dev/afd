@@ -250,18 +250,20 @@ describe("violet-color-picker", () => {
         expect(input.value).toBe("#c84f3b");
     });
 
-    it("resets the selected color and visible hex draft together", async () => {
+    it("restores the initial color and visible hex draft together on form reset", async () => {
         const picker = await renderPicker();
         const form = picker.closest("form") as HTMLFormElement;
         const input = picker.shadowRoot?.querySelector(".hex-input") as HTMLInputElement;
 
+        picker.value = "#2f6b47";
+        await nextFrame();
         form.reset();
         await nextFrame();
 
-        expect(picker.value).toBe("");
-        expect(input.value).toBe("");
-        expect(picker.panelTitleText).toBe("No color selected");
-        expect(new FormData(form).get("accent-color")).toBeNull();
+        expect(picker.value).toBe("#c84f3b");
+        expect(input.value).toBe("#c84f3b");
+        expect(picker.panelTitleText).toBe("Selected color");
+        expect(new FormData(form).get("accent-color")).toBe("#c84f3b");
     });
 
     describe("closed panel", () => {

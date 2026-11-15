@@ -201,6 +201,27 @@ describe("violet-date-picker", () => {
     });
 
     describe("popup", () => {
+        it("does not emit open-change or take focus when it connects, open or closed", async () => {
+            document.body.innerHTML = "";
+            const events: boolean[] = [];
+            document.body.addEventListener("open-change", event =>
+                events.push((event as CustomEvent<{ open: boolean }>).detail.open),
+            );
+            for (const open of [false, true]) {
+                const picker = document.createElement("violet-date-picker") as VioletDatePicker;
+                picker.label = "Planting window";
+                picker.open = open;
+                document.body.append(picker);
+                await customElements.whenDefined("violet-date-picker");
+                await nextFrame();
+                await nextFrame();
+                expect(getPanel(picker).hidden).toBe(!open);
+                expect(picker.matches(":focus-within")).toBe(false);
+                picker.remove();
+            }
+            expect(events).toEqual([]);
+        });
+
         it("opens and closes, updating aria-expanded, the panel and emitting open-change", async () => {
             const picker = await renderDatePicker();
             const handler = vi.fn();
