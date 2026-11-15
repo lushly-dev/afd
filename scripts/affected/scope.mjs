@@ -65,6 +65,16 @@ export const EXTRA_INPUTS = [
 	// of an app or a document type (phase 2 specification, section 1 and D2).
 	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },
 	{ prefix: 'endpoints/loam/packages/chrome/', packages: ['@lushly-dev/loam-web'] },
+	// The seed library's tests check the bench's results against its output schemas, and its
+	// confirmation prompts against the tasks that quote them.
+	{
+		prefix: 'docs/features/proposed/agent-first-design/bench/results/',
+		packages: ['@afd/example-seed-library'],
+	},
+	{
+		prefix: 'docs/features/proposed/agent-first-design/bench/tasks/',
+		packages: ['@afd/example-seed-library'],
+	},
 ];
 
 export const DEFAULT_BASES = ['origin/main', 'main'];
