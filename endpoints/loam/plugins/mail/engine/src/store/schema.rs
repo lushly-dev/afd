@@ -534,6 +534,11 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- new to them when it came (section 7.4). Filled with the bursts when the store is opened.
     ALTER TABLE sender ADD COLUMN first_written INTEGER;
 
+    -- When a mailbox was first listed whole: an account's bursts are read once every mailbox of
+    -- it has been. Not reset by a new generation of its ids, nor by its going.
+    ALTER TABLE mailbox ADD COLUMN first_listed_at INTEGER;
+    UPDATE mailbox SET first_listed_at = coalesce(last_pass_at, 0) WHERE cursor IS NOT NULL;
+
     -- A first contact: a message from a sender whose first message the provider received at
     -- most 24 hours before it, in each account whose mailboxes have shown it, junk and trash and
     -- what was deleted since included.
@@ -542,16 +547,20 @@ pub(super) const MIGRATIONS: &[&str] = &[
         message_id INTEGER NOT NULL REFERENCES message (id),
         sender_address TEXT NOT NULL,
         received INTEGER NOT NULL,
+        -- Whether a mailbox of the account other than junk and trash has shown it.
+        kept INTEGER NOT NULL CHECK (kept IN (0, 1)),
         PRIMARY KEY (account_id, message_id)
     ) STRICT, WITHOUT ROWID;
     CREATE INDEX first_contact_received ON first_contact (account_id, received);
     CREATE INDEX first_contact_sender ON first_contact (sender_address);
 
-    -- How many first contacts each account had on each day (a day in UTC, numbered from 1970).
+    -- How many first contacts each account had on each day (a day in UTC, numbered from 1970),
+    -- and how many of them were kept.
     CREATE TABLE contact_day (
         account_id INTEGER NOT NULL,
         day INTEGER NOT NULL,
         messages INTEGER NOT NULL CHECK (messages > 0),
+        kept INTEGER NOT NULL CHECK (kept >= 0 AND kept <= messages),
         PRIMARY KEY (account_id, day)
     ) STRICT, WITHOUT ROWID;
 

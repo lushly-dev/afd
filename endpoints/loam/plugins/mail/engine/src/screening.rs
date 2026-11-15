@@ -710,7 +710,14 @@ fn bursts_json(store: &Store, since: i64) -> Result<Value, StoreError> {
         item["story"] = json!(store.story(burst.id)?.map(|story| story.id));
         latest.push(item);
     }
-    Ok(json!({ "lately": latest, "latelyTotal": lately, "total": total }))
+    Ok(json!({
+        "lately": latest,
+        "latelyTotal": lately,
+        "total": total,
+        // Accounts with a mailbox not yet listed once: their bursts wait,
+        // since sync fetches newest first.
+        "waitingAccounts": store.accounts_waiting_for_bursts()?,
+    }))
 }
 
 /// What `mail-status` says of screening: whether it can be read, the queue,

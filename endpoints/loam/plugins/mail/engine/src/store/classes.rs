@@ -358,7 +358,7 @@ pub(super) fn settle(
         )?;
     }
     // A message whose burst changed has its story computed again too.
-    storied.extend(super::bursts::settle(transaction, &contacts)?);
+    storied.extend(super::bursts::settle(transaction, &contacts, shown)?);
     super::stories::settle(transaction, &storied, now)?;
     Ok(rows)
 }

@@ -429,13 +429,17 @@ impl Store {
         now: i64,
     ) -> Result<MailboxId, StoreError> {
         let transaction = self.connection.transaction()?;
-        let was: Option<String> = transaction
+        let before: Option<(String, Option<i64>)> = transaction
             .query_row(
-                "SELECT role FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
+                "SELECT role, gone_at FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
                 params![account.0, seen.provider_key],
-                |row| row.get(0),
+                |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
+        // A mailbox new or come back may hold its account's bursts back
+        // until it is listed (7.4).
+        let appeared = before.as_ref().is_none_or(|(_, gone)| gone.is_some());
+        let was = before.map(|(role, _)| role);
         let was_sent = was.as_deref().map(|role| role == Role::Sent.as_str());
         // Junk and trash are left out of the lists by class.
         let unlisted = |role: &str| role == Role::Junk.as_str() || role == Role::Trash.as_str();
@@ -464,7 +468,8 @@ impl Store {
         // A mailbox that became a sent mailbox, or stopped being one, changes
         // which messages are the person's (the specification's 7.1). That is
         // rare: every sender is computed again.
-        if was_sent.is_some_and(|was| was != (seen.role == Role::Sent)) {
+        let turned_sent = was_sent.is_some_and(|was| was != (seen.role == Role::Sent));
+        if turned_sent {
             let turned = senders::settle_every_sender(&transaction, now)?;
             classes::settle(
                 &transaction,
@@ -478,6 +483,20 @@ impl Store {
         if listing_turned {
             classes::relist_mailbox(&transaction, id.0, now)?;
         }
+        // Which mail is kept, where junk and trash histories start, and when
+        // the person first wrote to each sender change with a role: the
+        // first contacts are made again. A mailbox that appeared changes
+        // only whether the account is listed.
+        let changed = if turned_sent {
+            bursts::recompose(&transaction, None)?
+        } else if listing_turned {
+            bursts::recompose(&transaction, Some(account.0))?
+        } else if appeared {
+            bursts::listing_changed(&transaction, account.0)?
+        } else {
+            std::collections::BTreeSet::new()
+        };
+        stories::settle(&transaction, &changed, now)?;
         transaction.commit()?;
         Ok(id)
     }
@@ -547,14 +566,6 @@ impl Store {
             "UPDATE mailbox SET validity = ?2, cursor = NULL WHERE id = ?1",
             params![mailbox.0, validity],
         )?;
-        // Its account is no longer listed: its bursts go until it is.
-        let account: i64 = transaction.one(
-            "SELECT account_id FROM mailbox WHERE id = ?1",
-            [mailbox.0],
-            |row| row.get(0),
-        )?;
-        let changed = bursts::listing_changed(&transaction, account)?;
-        stories::settle(&transaction, &changed, now)?;
         transaction.commit()?;
         Ok(true)
     }
@@ -570,23 +581,26 @@ impl Store {
         now: i64,
     ) -> Result<(), StoreError> {
         let transaction = self.connection.transaction()?;
-        let before: Option<(Option<String>, i64)> = transaction
+        let before: Option<(Option<i64>, i64)> = transaction
             .one(
-                "SELECT cursor, account_id FROM mailbox WHERE id = ?1",
+                "SELECT first_listed_at, account_id FROM mailbox WHERE id = ?1",
                 [mailbox.0],
                 |row| Ok((row.get(0)?, row.get(1)?)),
             )
             .optional()?;
-        let Some((was, account)) = before else {
+        let Some((first_listed, account)) = before else {
             return Err(StoreError::NotFound("mailbox"));
         };
         transaction.run(
-            "UPDATE mailbox SET cursor = ?2, last_pass_at = ?3, last_error = NULL WHERE id = ?1",
+            "UPDATE mailbox SET cursor = ?2, last_pass_at = ?3, last_error = NULL,
+                 first_listed_at = coalesce(first_listed_at, CASE WHEN ?2 IS NULL THEN NULL
+                                                                  ELSE ?3 END)
+             WHERE id = ?1",
             params![mailbox.0, cursor, now],
         )?;
-        // A mailbox listed for the first time, or no longer, may make its
-        // account's bursts readable, or not (7.4).
-        if was.is_none() != cursor.is_none() {
+        // A mailbox listed for the first time may make its account's bursts
+        // readable (7.4).
+        if first_listed.is_none() && cursor.is_some() {
             let changed = bursts::listing_changed(&transaction, account)?;
             stories::settle(&transaction, &changed, now)?;
         }

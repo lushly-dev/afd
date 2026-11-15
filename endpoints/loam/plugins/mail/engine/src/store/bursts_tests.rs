@@ -370,13 +370,31 @@ fn bursts_wait_for_an_account_to_be_listed() {
     mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
     assert_eq!(mail.bursts().len(), 1);
     assert_eq!(mail.store.queue_counts().unwrap(), (0, 0));
-    // A new generation of a mailbox's ids: its account is listed again first.
+    // A new generation of a mailbox's ids does not hold them back again: it
+    // was listed once, and what it showed is still counted.
     mail.store.set_validity(new, "2", NOW).unwrap();
-    assert!(mail.bursts().is_empty());
-    mail.assert_as_from_nothing();
-    mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
     assert_eq!(mail.bursts().len(), 1);
     mail.assert_as_from_nothing();
+    // A mailbox that appears does, until it is listed; one that goes no
+    // longer does.
+    let newer = mail
+        .store
+        .upsert_mailbox(
+            mail.account,
+            &MailboxSeen {
+                provider_key: "Newer",
+                name: "Newer",
+                role: Role::None,
+            },
+            NOW,
+        )
+        .unwrap();
+    assert!(mail.bursts().is_empty());
+    mail.assert_as_from_nothing();
+    mail.store.retire_mailbox(newer, NOW).unwrap();
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+    assert!(mail.store.accounts_waiting_for_bursts().unwrap().is_empty());
 }
 
 #[test]
@@ -549,16 +567,25 @@ impl Steps {
 
 #[test]
 fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
-    for seed in [1_u64, 2, 3] {
+    for seed in [1_u64, 2, 3, 4] {
         let mut mail = Mail::with_history();
         let mut steps = Steps(seed);
-        let (inbox, archive, sent) = (mail.inbox, mail.archive, mail.sent);
+        let (account, inbox, archive, sent) = (mail.account, mail.inbox, mail.archive, mail.sent);
         let junk = mail.mailbox("Junk", Role::Junk);
+        let trash = mail.mailbox("Deleted", Role::Trash);
+        let shifting = mail.mailbox("Shifting", Role::None);
         let restarting = mail.mailbox("Restarting", Role::None);
         mail.add_at(junk, "spam@example.biz", &[], FLOOD - 100 * DAY);
         let mut floods = 0;
-        for step in 0..40_u32 {
-            match steps.below(8) {
+        let mut old: Vec<HeaderSeen> = Vec::new();
+        let mut appeared = 0;
+        let seen_as = |key: &'static str, role| MailboxSeen {
+            provider_key: key,
+            name: key,
+            role,
+        };
+        for step in 0..60_u32 {
+            match steps.below(12) {
                 0..=2 => {
                     // A flood, some of it through a list, some of it junk.
                     let mailbox = [inbox, inbox, junk][steps.below(3) as usize];
@@ -573,9 +600,18 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                     floods += 1;
                 }
                 3 => {
-                    // Quiet days before, as newest-first sync brings them.
-                    let day = 1 + steps.below(90) as i64;
-                    mail.flood(archive, &format!("q{step}x"), &[], 3, FLOOD - day * DAY);
+                    // Days before, quiet or busy, as newest-first sync
+                    // brings them.
+                    let day = 1 + steps.below(150) as i64;
+                    for i in 0..1 + steps.below(8) {
+                        let (_, seen) = mail.add_at_seen(
+                            archive,
+                            &format!("q{step}x{i}@old.example"),
+                            &[],
+                            FLOOD - day * DAY + i64::from(u8::try_from(i).unwrap()) * 60_000,
+                        );
+                        old.push(seen);
+                    }
                 }
                 4 if floods > 0 => {
                     let address =
@@ -589,13 +625,61 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                     mail.store.decide(&address, decision, at).unwrap();
                 }
                 5 if floods > 0 => {
-                    // The person writes to one of them.
+                    // The person writes to one of them, before its mail or
+                    // after.
                     let address =
                         format!("f{}x{}@flood.example", steps.below(floods), steps.below(10));
-                    mail.add(sent, PERSON, &[&format!("To: {address}")]);
+                    let at = FLOOD + (i64::from(steps.below(120) as u8) - 30) * DAY;
+                    mail.add_at(sent, PERSON, &[&format!("To: {address}")], at);
                 }
-                6 => {
-                    // A mailbox's ids start again, and it is listed again.
+                6 if !old.is_empty() => {
+                    // Old mail thrown away: trash's history starts earlier.
+                    let mut seen = old[steps.below(old.len() as u64) as usize].clone();
+                    seen.provider_id = format!("t{step}");
+                    mail.store
+                        .record_headers(trash, "", std::slice::from_ref(&seen), NOW)
+                        .unwrap();
+                }
+                7 => {
+                    // A mailbox changes role, and back.
+                    let role =
+                        [Role::Junk, Role::Trash, Role::Sent, Role::None][steps.below(4) as usize];
+                    mail.store
+                        .upsert_mailbox(account, &seen_as("Shifting", role), NOW)
+                        .unwrap();
+                    mail.assert_as_from_nothing();
+                    mail.flood(shifting, &format!("r{step}x"), &[], 5, FLOOD + 3 * DAY);
+                    mail.assert_as_from_nothing();
+                    mail.store
+                        .upsert_mailbox(account, &seen_as("Shifting", Role::None), NOW)
+                        .unwrap();
+                }
+                8 => {
+                    // A mailbox appears, waits to be listed, and is listed
+                    // or goes.
+                    appeared += 1;
+                    let key: &'static str =
+                        Box::leak(format!("Appeared{appeared}").into_boxed_str());
+                    let new = mail
+                        .store
+                        .upsert_mailbox(account, &seen_as(key, Role::None), NOW)
+                        .unwrap();
+                    mail.assert_as_from_nothing();
+                    if steps.below(2) == 0 {
+                        mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+                    } else {
+                        mail.store.retire_mailbox(new, NOW).unwrap();
+                        mail.assert_as_from_nothing();
+                        // And comes back, listed once before it went or not.
+                        mail.store
+                            .upsert_mailbox(account, &seen_as(key, Role::None), NOW)
+                            .unwrap();
+                        mail.assert_as_from_nothing();
+                        mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+                    }
+                }
+                9 => {
+                    // A mailbox's ids start again.
                     mail.store
                         .set_validity(restarting, &format!("{step}"), NOW)
                         .unwrap();
@@ -604,7 +688,7 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                         .set_cursor(restarting, Some("listed"), NOW)
                         .unwrap();
                 }
-                7 if step % 20 == 0 => {
+                10 if step % 20 == 0 => {
                     mail.store.rebuild(NOW, |_| {}).unwrap();
                 }
                 _ => {}
@@ -612,6 +696,36 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
             mail.assert_as_from_nothing();
         }
     }
+}
+
+#[test]
+fn a_flood_after_trash_history_starts_is_judged_on_what_trash_covers() {
+    let mut mail = Mail::with_history();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    let trash = mail.mailbox("Deleted", Role::Trash);
+    let oct = FLOOD - 31 * DAY;
+    // Eight a day in the inbox for the three months before October.
+    for day in 1..=90 {
+        mail.flood(inbox, &format!("b{day}x"), &[], 8, oct - day * DAY);
+    }
+    // October: one a day, each also thrown away, so trash covers October.
+    for day in 0..30 {
+        let (_, mut seen) = mail.add_at_seen(
+            archive,
+            &format!("o{day}@quiet.example"),
+            &[],
+            oct + day * DAY,
+        );
+        seen.provider_id = format!("t{day}");
+        mail.store
+            .record_headers(trash, "", std::slice::from_ref(&seen), NOW)
+            .unwrap();
+    }
+    // Sixty in a day: not ten times the kept median of eight, but ten times
+    // October's, which is all trash's history covers.
+    mail.flood(inbox, "s", &[], 60, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
 }
 
 #[test]
@@ -642,11 +756,12 @@ fn every_burst_query_reads_an_index() {
             "desired" => "envelope_sender (sender_address=? AND received<?)",
             "current" => "first_contact_sender (sender_address=?)",
             "on day" | "all" => "first_contact_received (account_id=?",
-            "days" => "PRIMARY KEY (account_id=? AND day>? AND day<?)",
-            "burst near" | "held" => "burst_account (account_id=?",
+            "days" => "PRIMARY KEY (account_id=?)",
+            "held" => "burst_account (account_id=?",
             "known during" => "screening_listed (class=? AND date>? AND date<?)",
             "latest" => "burst_latest",
-            "covered from" => "first_contact_received (account_id=?",
+            "covered from" | "kept from" => "first_contact_received (account_id=?",
+            "accounts of" => "observation",
             "listed" => "",
             other => panic!("no plan expected for {other}"),
         };

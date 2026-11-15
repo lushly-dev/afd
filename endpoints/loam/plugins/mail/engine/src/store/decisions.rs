@@ -224,7 +224,10 @@ fn decide_in(
                 "INSERT INTO sender_decision (address, id, decision, decided_at, suggestion)
                  VALUES (?1, ?2, ?3, ?4, ?5)
                  ON CONFLICT (address) DO UPDATE SET decision = excluded.decision,
-                     decided_at = excluded.decided_at, suggestion = excluded.suggestion",
+                     decided_at = CASE WHEN sender_decision.decision = excluded.decision
+                                       THEN sender_decision.decided_at
+                                       ELSE excluded.decided_at END,
+                     suggestion = excluded.suggestion",
                 params![
                     address,
                     sender_id(address),
