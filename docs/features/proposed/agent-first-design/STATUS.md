@@ -40,23 +40,30 @@ shape of the [Patterns status](../patterns/STATUS.md).
   an in-memory store, and tests that run all seventeen jobs (113 of 113 steps pass) and check
   the 74 results against the commands' output schemas. An independent reviewer read it in two
   passes.
+- **In progress:** the bench's held material, written 2026-11-15 and kept outside the
+  repository on the second machine's external drive, as the owner decided. Its first stage, the
+  checks and the two held-back jobs, is frozen; the SHA-256 of its manifest is
+  `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Its second stage, the
+  faults, the persona cards and the walk scripts, is drafted and is frozen before the first
+  walk ([bench.md](bench.md#status)).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
 - **Blocked on:** the owner confirming the bench's rules for "go". That is due before the
   first run of step 0.1 and does not hold up building the bench, whose domain and budget the
-  owner approved. Before any session of phase 0 runs, the bench's commands, fixtures, checks,
-  planted faults, persona cards, reference build and runner are written, and the four pilots
-  give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open and block
-  nothing yet.
+  owner approved. Before any session of phase 0 runs, the runner and the reference build are
+  written, the faults, persona cards and walks are settled against that build and frozen, and
+  the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
+  and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-15, the link check, the scenario checks on the seed library's
   jobs, the check of the bench's tasks and results, the reviews below, and the seed library's
-  tests, `pnpm check` and `pnpm verify` on the built application.
+  tests, `pnpm check` and `pnpm verify` on the built application, and the held-back jobs
+  run against it.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
 
 ## Steps
@@ -71,11 +78,12 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
-| Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
+| Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed, and so are the readings of a path for step 0.4 that sit beside them | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
-| The bench: schemas, the application, the held material and the runner | Not started (2026-11-15: the schemas and the application moved to the row above; the held material and the runner are not started) | [`bench.md`](bench.md) |
+| The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first walk, once the reference build exists | [`bench.md`](bench.md#status) |
+| The bench: the runner, the reference build and the pilots | Not started. The runner comes next, then the reference build, as the owner decided | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -115,7 +123,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
   - on 2026-11-15, for the bench: a seed library as its domain; Opus 5.5 at `medium`; its
     sessions run on a second machine of the owner's and draw on that machine's subscription
     allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in
-    step 0.1.
+    step 0.1;
+  - on 2026-11-15, for the bench's held material: it is kept in a private folder on the second
+    machine's external drive, outside every checkout, until the last run; and it is written
+    first, then the runner, then the reference build.
 
 ## How it was checked
 
@@ -283,6 +294,30 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
     another. A throwaway script ran each result's `$input` from the fixture's start: 34
     of the 73 single-command results matched in `data` or error code, and the other 39 record
     a later state or a list that cannot be read.
+- **The bench's held material, 2026-11-15:** written outside the repository from the tasks,
+  results and application at `7c64d460`. What was checked can be said here without its
+  content:
+  - A script parsed the four check files, compiled every pattern and counted 308 checks; it
+    also ran the patterns that had been wrong against sample text (below).
+  - The two held-back jobs ran against the application from source through the package's own
+    harness, 10 of 10 steps, and `afd scenario validate` found both valid. A temporary test
+    file was used and deleted; nothing was committed.
+  - *Independent review, first pass:* five blockers. The pair counts behind step 0.4 were
+    wrong; one fault's proof also held on a clean build; two screen-reader faults could reach
+    sighted personas; the 250-character rule counted a row's text twice; and the screen-reader
+    persona had no way to read a page. Among the improvements, some checks could pass on an
+    empty story or on a control's own name, some were too narrow, the walk scripts gave steps,
+    the persona stances named fault classes, and both held-back jobs sat in what the builders'
+    extract lists as outside the four screens. All were fixed: the jobs were replaced, and the
+    faults, cards and walks became a second stage, frozen once the reference build exists.
+  - *Second pass, on stage 1 only:* two blockers. A fix script had written four patterns'
+    word boundaries as JSON backspaces, so those checks could never pass; and "nobody" also
+    matched an empty waiting list. Both were fixed and the repaired patterns tested; ids such
+    as `req-2` no longer count as numbers, and the matching rules were made exact.
+  - *Placing it:* a task on the second machine fetched the packed folder over the private
+    network from a one-file server on this machine, limited to that machine's address and a
+    random path, and stopped after one request. There the archive's hash matched, every file of
+    the manifest checked out, and the folder is readable by its owner only.
 - **Review of the seed library's application, 2026-11-15:** an independent reviewer found one
   blocker and seven improvements, all fixed the same day. *Blocker:* a DirectClient whose
   `onApprovalNeeded` approved the hold lent rare seed past the steward, and left the request
@@ -367,3 +402,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's tasks | The owner accepted three design points of the seed library: approval as a held loan, job 16, and the approval request off T4. Each screen's task and the results that force its states were drafted, 50 states and 74 results, after a review found that the first version hinted at the design, let the bare arm read the states, and could not mount a whole screen. `bench.md` now says what each arm reads. The owner allowed fixes and merges on green without asking |
 | 2026-11-15 | The seed library's application | The application was built in `packages/examples/seed-library` from the drafted commands: 24 commands with schemas, an in-memory store with a fixed clock and counter ids, the approval hook that records a held loan as a request, and the steward's middleware. The scenario files moved beside it. All 113 steps pass, jobs 12 and 16 over MCP with confirmations enforced; three steps that compared with an earlier step inside `expect` now name ids. The 74 results pass the output schemas unchanged. `seed-library.md` records what building it settled. Not merged |
 | 2026-11-15 | The seed library's application, after review | An independent review found that a DirectClient approving its own hold could lend rare seed; `loan-create` now refuses rare seed, which leaves only through `request-decide`. The test actor is no longer the steward, a reopened request cannot make a second waiting one, and the bench's results and tasks now select the package's tests. Not merged |
+| 2026-11-15 | The bench's held material | The owner agreed to keep the held material in a private folder on the second machine's external drive and to write it before the runner and the reference build. It was written outside the repository: checks for every state, twelve faults, five persona cards, a walk script for each screen and two held-back jobs. Two reviews changed it: the faults, cards and walks now wait to be frozen until the reference build exists, the held-back jobs were replaced, and the checks were tightened. The checks and the held-back jobs were frozen, their manifest's hash recorded here, and the folder placed on the second machine. `bench.md` now proposes how step 0.4 reads a path |
