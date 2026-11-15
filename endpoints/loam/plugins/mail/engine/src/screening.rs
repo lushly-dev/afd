@@ -738,6 +738,9 @@ pub fn status_json(store: &Store, now: i64) -> Result<Value, StoreError> {
         "suggestionsWaiting": store.open_suggestion_count()?,
         // Stories are made from classes, so they wait with them (section 8).
         "stories": if ready { json!(store.story_count()?) } else { Value::Null },
+        // How many times a batch found a story counted wrong and counted it
+        // again whole: nothing, unless the engine has a bug (section 8).
+        "storiesRecounted": store.story_recounts()?,
         "blockedLately": blocked,
         // Every block of the 30 days, of which `blockedLately` is the latest;
         // `mail-sender-list` with `decision` gives them all.

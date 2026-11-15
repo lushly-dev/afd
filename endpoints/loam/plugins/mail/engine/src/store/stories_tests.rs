@@ -632,6 +632,277 @@ fn a_store_with_no_epoch_still_answers_and_a_rebuild_resets_its_cursors() {
 }
 
 #[test]
+fn a_story_counted_wrong_is_counted_again_whole_and_shown() {
+    let mut mail = Mail::new();
+    let (inbox, archive) = (mail.inbox, mail.archive);
+    mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 5);
+    let odd = mail.add_body(archive, "news@example.net", &[LIST], "> You wrote\r\n");
+    let story = mail.news_story();
+    assert!(mail.exception(odd));
+    assert_eq!(mail.store.story_recounts().unwrap(), 0);
+    // As a bug would leave it: the story counts no exception.
+    mail.store
+        .connection
+        .execute("UPDATE story SET exceptions = 0 WHERE id = ?1", [story])
+        .unwrap();
+    // The exception leaves, which would take the count below nothing: the
+    // story is counted again whole, and that is counted.
+    mail.store.set_validity(archive, "2", NOW).unwrap();
+    assert_eq!(mail.store.story_recounts().unwrap(), 1);
+    assert_eq!(mail.story(story).unwrap().exceptions, 0);
+    mail.assert_as_from_nothing();
+    // A shape counted short is found the same way.
+    mail.store
+        .connection
+        .execute(
+            "UPDATE story_kind SET messages = 1 WHERE story_id = ?1",
+            [story],
+        )
+        .unwrap();
+    mail.decide("news@example.net", Some(Decision::In));
+    assert_eq!(mail.store.story_recounts().unwrap(), 2);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_mailbox_that_turns_from_junk_to_sent_settles_its_stories_twice_in_one_go() {
+    let mut mail = Mail::new();
+    let (inbox, account) = (mail.inbox, mail.account);
+    let junk = mail.mailbox("Junk", Role::Junk);
+    mail.add_many(inbox, "news@example.net", &[LIST], "Offers.\r\n", 4);
+    // In junk: no member. Once the mailbox turns sent, what it shows is the
+    // person's own mail, in no story, and the shop it wrote to is known.
+    mail.add_body(junk, "news@example.net", &[LIST], "Offers.\r\n");
+    mail.add(junk, PERSON, &["To: alerts@shop.example"]);
+    mail.add_many(
+        inbox,
+        "alerts@shop.example",
+        &["Precedence: bulk"],
+        "Alert.\r\n",
+        5,
+    );
+    assert!(mail.store.list_story("news.example.net").unwrap().is_some());
+    assert_eq!(mail.story(mail.news_story()), None, "four listed");
+    assert!(
+        mail.story(mail.sender_story("alerts@shop.example"))
+            .is_some()
+    );
+    mail.store
+        .upsert_mailbox(
+            account,
+            &MailboxSeen {
+                provider_key: "Junk",
+                name: "Junk",
+                role: Role::Sent,
+            },
+            NOW,
+        )
+        .unwrap();
+    assert_eq!(mail.story(mail.news_story()), None, "still four listed");
+    assert_eq!(
+        mail.story(mail.sender_story("alerts@shop.example")),
+        None,
+        "written to: known"
+    );
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn an_exception_that_moves_story_while_shapes_turn_in_both_is_counted_in_each() {
+    let mut mail = Mail::new();
+    let inbox = mail.inbox;
+    let quoted = "> You wrote\r\n";
+    // Story A: five plain, one quoted (the exception). Story B: four
+    // quoted, five plain.
+    mail.add_many(
+        inbox,
+        "a@example.net",
+        &["Precedence: bulk"],
+        "Offers.\r\n",
+        5,
+    );
+    let moving = mail.add_body(inbox, "a@example.net", &["Precedence: bulk"], quoted);
+    mail.add_many(inbox, "b@example.net", &["Precedence: bulk"], quoted, 4);
+    mail.add_many(
+        inbox,
+        "b@example.net",
+        &["Precedence: bulk"],
+        "Offers.\r\n",
+        5,
+    );
+    let a = mail.sender_story("a@example.net");
+    let b = mail.sender_story("b@example.net");
+    assert!(mail.exception(moving));
+    assert_eq!(mail.story(b).unwrap().exceptions, 4);
+    // Derived again as B's, in the same batch as one of A's plain ones,
+    // which A's plain shape falls below five without: the quoted shape
+    // becomes usual in B, and A has no usual shape left.
+    let leaving = mail
+        .store
+        .story_messages(a, &StoryMessages::Every, None, 10)
+        .unwrap()
+        .into_iter()
+        .map(|item| item.listed.message)
+        .find(|message| *message != moving)
+        .unwrap();
+    let transaction = mail.store.connection.transaction().unwrap();
+    for message in [moving, leaving] {
+        transaction
+            .execute(
+                "UPDATE envelope SET sender_address = 'b@example.net' WHERE message_id = ?1",
+                [message.0],
+            )
+            .unwrap();
+    }
+    classes::settle(
+        &transaction,
+        &classes::Reclassify {
+            messages: Some(&std::collections::BTreeSet::from([moving.0, leaving.0])),
+            ..Default::default()
+        },
+        NOW,
+    )
+    .unwrap();
+    transaction.commit().unwrap();
+    assert_eq!(mail.member_of(moving), Some(b));
+    assert!(!mail.exception(moving));
+    assert_eq!(mail.story(a), None, "four left");
+    assert_eq!(mail.story(b).unwrap().exceptions, 0);
+    assert_eq!(mail.store.story_recounts().unwrap(), 0);
+    mail.assert_as_from_nothing();
+}
+
+/// A small deterministic generator, so a failing run can be repeated.
+struct Steps(u64);
+
+impl Steps {
+    fn below(&mut self, n: u64) -> u64 {
+        self.0 = self
+            .0
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (self.0 >> 33) % n
+    }
+}
+
+#[test]
+fn kept_counts_stay_what_counting_from_nothing_gives_through_any_sequence() {
+    for seed in [1_u64, 2, 3] {
+        let mut mail = Mail::new();
+        let mut steps = Steps(seed);
+        let (inbox, archive) = (mail.inbox, mail.archive);
+        let trash = mail.mailbox("Deleted Messages", Role::Trash);
+        let senders = [
+            "a@example.net",
+            "b@example.net",
+            "c@example.net",
+            "d@example.net",
+        ];
+        let fields: [&[&str]; 3] = [&[LIST], &["Precedence: bulk"], &[]];
+        let bodies = [
+            "Offers.\r\n",
+            "> Quoted\r\n",
+            "https://example.net/read\r\n",
+        ];
+        let mut held: Vec<(MessageId, HeaderSeen, MailboxId)> = Vec::new();
+        let mut generation = 1;
+        for step in 0..120 {
+            match steps.below(10) {
+                0..=3 => {
+                    let sender = senders[steps.below(4) as usize];
+                    let field = fields[steps.below(3) as usize];
+                    // The archive takes mail until its ids start again.
+                    let mailbox = if generation == 1 && steps.below(4) == 0 {
+                        archive
+                    } else {
+                        inbox
+                    };
+                    let (message, seen) = mail.add_seen(mailbox, sender, field);
+                    if steps.below(3) > 0 {
+                        let body = bodies[steps.below(3) as usize];
+                        let bytes = [seen.header_block.as_slice(), body.as_bytes()].concat();
+                        mail.store
+                            .record_parts(
+                                &[PartSeen {
+                                    message,
+                                    place: Place::Whole,
+                                    bytes: &bytes,
+                                }],
+                                NOW,
+                            )
+                            .unwrap();
+                    }
+                    held.push((message, seen, mailbox));
+                }
+                4 if !held.is_empty() => {
+                    // To the trash.
+                    let at = steps.below(held.len() as u64) as usize;
+                    let (_, seen, mailbox) = held.remove(at);
+                    mail.store
+                        .record_removed(mailbox, "", &[&seen.provider_id], NOW)
+                        .unwrap();
+                    let mut again = seen.clone();
+                    again.provider_id = format!("t{step}");
+                    mail.store
+                        .record_headers(trash, "", std::slice::from_ref(&again), NOW)
+                        .unwrap();
+                }
+                5 => {
+                    let sender = senders[steps.below(4) as usize];
+                    let decision = match steps.below(4) {
+                        0 => Some(Decision::In),
+                        1 => Some(Decision::Out),
+                        2 => Some(Decision::Mine),
+                        _ => None,
+                    };
+                    mail.decide(sender, decision);
+                }
+                6 => {
+                    // The archive's ids start again: its mail leaves.
+                    generation += 1;
+                    mail.store
+                        .set_validity(archive, &generation.to_string(), NOW)
+                        .unwrap();
+                    held.retain(|(_, _, mailbox)| *mailbox != archive);
+                }
+                7 if !held.is_empty() => {
+                    // Derived again with another list, name or shape.
+                    let (message, _, _) = held[steps.below(held.len() as u64) as usize].clone();
+                    let change = match steps.below(3) {
+                        0 => "list_id = 'other.example.net'",
+                        1 => "sender_name = 'Renamed'",
+                        _ => "body_shape = zeroblob(16)",
+                    };
+                    let transaction = mail.store.connection.transaction().unwrap();
+                    transaction
+                        .execute(
+                            &format!("UPDATE envelope SET {change} WHERE message_id = ?1"),
+                            [message.0],
+                        )
+                        .unwrap();
+                    classes::settle(
+                        &transaction,
+                        &classes::Reclassify {
+                            messages: Some(&std::collections::BTreeSet::from([message.0])),
+                            ..Default::default()
+                        },
+                        NOW,
+                    )
+                    .unwrap();
+                    transaction.commit().unwrap();
+                }
+                8 if step % 40 == 0 => {
+                    mail.store.rebuild(NOW, |_| {}).unwrap();
+                }
+                _ => {}
+            }
+            mail.assert_as_from_nothing();
+        }
+        assert_eq!(mail.store.story_recounts().unwrap(), 0, "seed {seed}");
+    }
+}
+
+#[test]
 fn a_rebuild_gives_the_same_stories() {
     let mut mail = Mail::new();
     let inbox = mail.inbox;
@@ -754,10 +1025,11 @@ fn every_story_query_reads_an_index() {
                 "story_member_exception (story_id=?"
             }
             "first" | "last" | "newest" | "story messages" => "story_member_date (story_id=?",
-            "set usual" => "",
+            // An insert of values reads nothing.
+            "set usual" if plan.is_empty() => continue,
             "story exceptions" => "story_member_exception (story_id=?",
             "member" => "SEARCH story_member USING INTEGER PRIMARY KEY",
-            "kind newest" | "story kind" => "story_member_date (story_id=?",
+            "kinds walk" | "story kind" | "count again" => "story_member_date (story_id=?",
             "story list" => "story_recent",
             "story kinds" => "SEARCH story_kind USING PRIMARY KEY (story_id=?)",
             "story changes" => "change_kind (kind=? AND seq>?)",

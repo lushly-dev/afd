@@ -607,7 +607,7 @@ five in six. Every limit is met ([the results](limits-500000-icloud.results.json
 
 **Measured again by step C2's second part** on 2026-11-15, the same way, on the Mac's own disk
 with the machine otherwise idle, after senders (C1), classes (C2's first part) and stream
-stories: every limit is met ([the results](limits-500000-c2.results.json)). Import is 514
+stories: every limit is met ([the results](limits-500000-c2.results.json)). Import is 515
 messages a second; `main` before stories (`8da5804b`) gave 569 the same day on the same disk, so
 stories cost about a tenth of it, and import's room over the limit is now 3%. Every made-up
 message carries a list header, so all of it is `bulk` and in a stream, and a few senders' streams
@@ -617,6 +617,10 @@ template key) cost a fifth more import and were replaced by one index by date th
 counting each touched story again for each batch cost more still (below). On the owner's external
 drive, whose flushes are slower, `main` gave 565 and step C2 445 to 476 while the drive was being
 indexed by Spotlight; the limits are the Mac's own disk's.
+The stories' reads, which 4.4 sets no limit for, were timed in the same run: 2 370 stories, the
+largest of 42 060 messages and 517 kinds; a page of 50 stories 0.04 ms at the 95th percentile,
+the largest story opened as `mail-story-open` reads it (its row, its ten most common kinds and 50
+of its messages) 0.38 ms, and a page of the least common of those kinds 1.88 ms.
 
 **Measured by step B7** on 2026-11-13 on the owner's iCloud account, synced from empty by the
 release build's `serve`: 293 929 messages in 36 mailboxes (293 932 counted once in each mailbox
@@ -1260,21 +1264,30 @@ migration 9):
   listed and opened, from its fifth.
 - **Stories are derived**, so a rebuild gives the same rows. Each message derived again, or
   whose class or place in the lists changed, has its membership computed again; a message whose
-  flags alone changed is not read. Unlike a class or a sender's row, a stream's counts (its
-  members, each body shape's and template key's in `story_shape` and `story_kind`, its kinds
-  and its exceptions) are kept by what each batch changed rather than counted again: every
-  made-up message of the 4.4 harness carries a list header, so its largest senders' stories hold
-  tens of thousands, and counting each touched story's members again for each batch took the
-  import from 565 messages a second to 320, under the limit (measured 2026-11-15 on the owner's
-  external drive, `main` and this step one after the other); with the counts kept, import is 514
-  against `main`'s 569 on the Mac's own disk ([4.4](#44-limits-to-meet)). The tests
-  compare every row with making every story from nothing after each change and across a
-  rebuild. A story's first and last dates are read from the two ends of its index, and its
-  title from its newest member. Its members are indexed by date with each one's template key and
-  body shape, so a kind's or a shape's members are read from the story's range; its exceptions
-  have an index of their own; a story's row counts its usual shapes, which its exceptions read. Each story a member left, joined or changed in is noted in
-  `change`; so is one whose newest member was derived again when its row changes. Every stream
+  flags alone changed is not read. Each story a member left, joined or changed in is noted in
+  `change`; so is one whose newest member was derived again, when its row changes. Every stream
   with members has a row; the commands show those of five or more.
+- **A story's counts are kept, not counted again**: an exception, for stories alone, to the rule
+  that a derived row is computed again for each batch (threads and their places, senders and
+  classes keep it). A stream's members, each body shape's and template key's count in
+  `story_shape` and `story_kind`, its kinds, its exceptions and its usual shapes are kept by what
+  each batch changed. Every made-up message of the 4.4 harness carries a list header, so its
+  largest senders' stories hold tens of thousands, and counting each touched story's members
+  again for each batch took the import from 565 messages a second to 320, under the limit
+  (measured 2026-11-15 on the owner's external drive, `main` and this step one after the other);
+  with the counts kept import is 515, against `main`'s 569, on the Mac's own disk
+  ([4.4](#44-limits-to-meet)). What keeps them right: the tests compare every row with making
+  every story from nothing after each change, across a rebuild, and through random sequences of
+  mail arriving, moving, being decided on and derived again; a rebuild makes them from nothing;
+  and a batch that finds a story counted wrong (a count it would take below nothing, or a row
+  whose members are not what it says) counts that story again whole from its members instead of
+  failing, and `mail-status`'s `screening.storiesRecounted` says how many times, which is
+  nothing unless the engine has a bug. A story's first and last dates are read from the two ends
+  of its index, and its title from its newest member. Its members are indexed by date with each
+  one's template key and body shape, so a kind's or a shape's members are read from the story's
+  range, and a body that arrives rewrites its entry in place rather than in indexes keyed by a
+  hash, which cost a fifth more import; its exceptions have an index of their own; a story's row
+  counts its usual shapes, which its exceptions read.
 - **A story's id** is its stream's, from `stream`, which is not derived: an id once given to a
   list or a sender is kept, so a rebuild keeps it and no two streams share one (an id made from
   a hash of the stream would let a sender who searched for a collision join another's story). A

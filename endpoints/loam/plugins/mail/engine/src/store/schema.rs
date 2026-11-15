@@ -480,27 +480,28 @@ pub(super) const MIGRATIONS: &[&str] = &[
     CREATE INDEX story_member_exception ON story_member (story_id, date DESC, message_id DESC)
         WHERE exception = 1;
 
-    -- How many of a stream's members have each body shape, and each template key. A count
-    -- that reaches nothing is removed in the statement after.
+    -- How many of a stream's members have each body shape, and each template key, kept by what
+    -- each batch changes. A count that reaches nothing is removed in the statement after; one
+    -- below nothing is a story counted wrong, which is counted again whole.
     CREATE TABLE story_shape (
         story_id INTEGER NOT NULL,
         shape BLOB NOT NULL CHECK (length(shape) = 16),
-        messages INTEGER NOT NULL CHECK (messages >= 0),
+        messages INTEGER NOT NULL,
         PRIMARY KEY (story_id, shape)
     ) STRICT, WITHOUT ROWID;
     CREATE TABLE story_kind (
         story_id INTEGER NOT NULL,
         template_key BLOB NOT NULL CHECK (length(template_key) = 16),
-        messages INTEGER NOT NULL CHECK (messages >= 0),
+        messages INTEGER NOT NULL,
         PRIMARY KEY (story_id, template_key)
     ) STRICT, WITHOUT ROWID;
 
-    -- A stream with members, and a story from its fifth: its counts are kept by what each batch
+    -- A stream with members, and a story from its fifth. Its counts are kept by what each batch
     -- changes, since a story of a large folder is too large to count again for each. Its id is
-    -- its stream's. `list_id` is '' for a story by sender; `sender_address` is its sender, or for a list the sender of its
-    -- newest message; `title` is the list's id, or the name on the newest message, or else the
-    -- address. `kinds` counts its template keys and `exceptions` its exceptions. A burst
-    -- (section 7.4) is step C3's.
+    -- its stream's. `list_id` is '' for a story by sender; `sender_address` is its sender, or
+    -- for a list the sender of its newest message; `title` is the list's id, or the name on the
+    -- newest message, or else the address. `kinds` counts its template keys, `exceptions` its
+    -- exceptions and `usual` its usual shapes. A burst (section 7.4) is step C3's.
     CREATE TABLE story (
         id INTEGER PRIMARY KEY,
         kind TEXT NOT NULL CHECK (kind IN ('stream', 'burst')),
