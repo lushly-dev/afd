@@ -358,6 +358,12 @@ export const SUITES = [
 				run: 'cargo test --locked',
 			},
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
+			{
+				gate: 'todo',
+				tools: [],
+				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite approvals',
+			},
+			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:scenarios:ts' },
 			// The Python backend runs under `uv run`.
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
 			{

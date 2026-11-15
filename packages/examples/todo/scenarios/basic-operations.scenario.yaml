@@ -41,11 +41,12 @@ steps:
         pending: { gte: 0 }
         byPriority: { exists: true }
 
-  # Test clear (cleanup)
-  - command: todo-clear
-    description: Clear completed todos
+  # Clean up with a delete: a clear removes todos for good, so a server may hold it for approval
+  - command: todo-delete
+    description: Delete the todo this scenario created
+    input:
+      id: ${{ steps[0].data.id }}
     expect:
       success: true
       data:
-        cleared: { gte: 0 }
-        remaining: { gte: 0 }
+        deleted: true

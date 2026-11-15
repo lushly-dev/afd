@@ -1,53 +1,64 @@
 # JTBD Scenario: Create and Complete Todo
-# Tests the basic workflow of creating a todo and verifying it
-# NOTE: Step references (Phase 2) not yet implemented, so we can't toggle a specific todo
+# Creates a todo, finds it in the list and completes it. It starts from whatever the server holds
+# rather than clearing it first: a clear removes todos for good, so a server may hold it for
+# approval (the TypeScript backend does), and a scenario should not need one.
 
 name: Create and Complete Todo
-description: As a user, I want to create a todo and verify it appears in the list
+description: As a user, I want to create a todo, see it in the list and mark it done
 job: create-and-complete
 tags: [smoke, basic, p0]
 
 steps:
-  # Step 0: Clear any existing todos for a clean slate
-  - command: todo-clear
-    description: Clear all todos before test
-    input:
-      all: true
-    expect:
-      success: true
-
-  # Step 1: Create a new todo
+  # Step 0: Create a new todo
   - command: todo-create
     description: Create a new todo item
     input:
-      title: Buy groceries
+      title: Buy groceries for the allotment party
       description: Need milk, eggs, and bread
       priority: high
     expect:
       success: true
       data:
-        title: Buy groceries
+        title: Buy groceries for the allotment party
         description: Need milk, eggs, and bread
         priority: high
         completed: false
         id: { exists: true }
         createdAt: { exists: true }
 
-  # Step 2: Verify the todo appears in the list
+  # Step 1: It appears in the list
   - command: todo-list
-    description: List all todos to verify creation
+    description: Find the new todo in the list
+    input:
+      search: Buy groceries for the allotment party
     expect:
       success: true
       data:
-        todos: { exists: true }
         total: { gte: 1 }
 
-  # Step 3: Verify stats reflect the new todo
-  - command: todo-stats
-    description: Check statistics show pending todo
+  # Step 2: Complete it
+  - command: todo-toggle
+    description: Mark the todo done
+    input:
+      id: ${{ steps[0].data.id }}
     expect:
       success: true
       data:
-        total: { gte: 1 }
-        pending: { gte: 1 }
+        completed: true
+
+  # Step 3: Stats count it as completed
+  - command: todo-stats
+    description: Statistics include a completed todo
+    expect:
+      success: true
+      data:
+        completed: { gte: 1 }
         completionRate: { gte: 0 }
+
+  # Step 4: Clean up with a delete, which every server runs unasked
+  - command: todo-delete
+    description: Delete the todo this scenario created
+    input:
+      id: ${{ steps[0].data.id }}
+    expect:
+      success: true

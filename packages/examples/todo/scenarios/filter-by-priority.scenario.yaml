@@ -1,5 +1,7 @@
 # JTBD Scenario: Filter Todos by Priority
-# Tests filtering functionality with pre-seeded data via fixture
+# Filters a seeded set of todos by priority. The fixture keeps what the server already holds
+# (clearFirst: false: a clear removes todos for good, so a server may hold it for approval) and
+# gives its todos a title prefix of their own, which every step searches by.
 
 name: Filter Todos by Priority
 description: As a user, I want to filter todos by priority so I can focus on what's important
@@ -8,22 +10,30 @@ tags: [smoke, filtering, fixture]
 
 fixture:
   file: ../fixtures/seeded-todos.json
+  overrides:
+    clearFirst: false
+    todos:
+      - { title: 'Priority filter: Buy groceries', priority: high }
+      - { title: 'Priority filter: Call mom', priority: medium }
+      - { title: 'Priority filter: Review PR', priority: high }
+      - { title: 'Priority filter: Pay bills', priority: low }
 
 steps:
-  # Step 1: Verify fixture loaded correctly (4 todos created)
-  - command: todo-stats
-    description: Verify fixture created the expected todos
+  # Step 0: The fixture's four todos are there
+  - command: todo-list
+    description: Find the seeded todos by their prefix
+    input:
+      search: 'Priority filter:'
     expect:
       success: true
       data:
         total: 4
-        pending: 4
-        completed: 0
 
-  # Step 2: Filter high priority todos
+  # Step 1: Filter high priority todos
   - command: todo-list
-    description: List only high priority todos
+    description: List only the high priority ones
     input:
+      search: 'Priority filter:'
       priority: high
     expect:
       success: true
@@ -32,20 +42,13 @@ steps:
         todos:
           length: 2
 
-  # Step 3: Filter low priority todos
+  # Step 2: Filter low priority todos
   - command: todo-list
-    description: List only low priority todos
+    description: List only the low priority one
     input:
+      search: 'Priority filter:'
       priority: low
     expect:
       success: true
       data:
         total: 1
-
-  # Step 4: Clear all todos (cleanup)
-  - command: todo-clear
-    description: Clean up all todos
-    input:
-      all: true
-    expect:
-      success: true

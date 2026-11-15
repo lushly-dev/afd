@@ -11,7 +11,9 @@ import fs from 'node:fs/promises';
  * or `{ "exists": boolean }`, which checks presence without fixing the value.
  *
  * A case may also name the `client` it needs (the confirmation suite runs each kind against its
- * own connection) and a `then` step whose result is checked after the command.
+ * own connection) and a `then` step whose result is checked after the command. A case with
+ * `implementedBy` runs only against backends in those languages, as spec/commands.schema.json
+ * marks the commands only some languages have so far.
  */
 
 interface TestCase {
@@ -22,6 +24,7 @@ interface TestCase {
 	input: unknown;
 	expect: Record<string, unknown>;
 	client?: string;
+	implementedBy?: string[];
 	then?: { command: string; input: unknown; expect: Record<string, unknown> };
 }
 
@@ -48,15 +51,26 @@ export class ConformanceRunner {
 		private options: RunnerOptions = {}
 	) {}
 
-	/** Run the cases of `specPath`, only those for `client` when it is given. */
-	async run(specPath: string, filter: { client?: string } = {}): Promise<TestResult[]> {
+	/**
+	 * Run the cases of `specPath`: only those for `client` when it is given, and only those
+	 * `language` implements (a case without `implementedBy` is every language's).
+	 */
+	async run(
+		specPath: string,
+		filter: { client?: string; language?: string } = {}
+	): Promise<TestResult[]> {
 		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
 		const all: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
-		const tests =
-			filter.client === undefined ? all : all.filter((test) => test.client === filter.client);
-		if (tests.length === 0) {
+		if (all.length === 0) {
 			throw new Error(`No conformance tests found in ${specPath}`);
 		}
+		const tests = all.filter(
+			(test) =>
+				(filter.client === undefined || test.client === filter.client) &&
+				(filter.language === undefined ||
+					test.implementedBy === undefined ||
+					test.implementedBy.includes(filter.language))
+		);
 		const results: TestResult[] = [];
 
 		for (const test of tests) {
