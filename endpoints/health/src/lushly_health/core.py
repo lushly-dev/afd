@@ -243,6 +243,70 @@ def _ci_present(path: Path, language: str) -> dict:
     return {**result, "message": f"CI workflow found: {found}"}
 
 
+def _agent_skills_mirror(path: Path, language: str) -> dict:
+    """Want .agents/skills as a live mirror of .claude/skills; a .codex/skills one only warns.
+
+    Codex and other agents document .agents/skills for repository skills, and Claude Code
+    reads only .claude/skills. The source check still judges a legacy .codex/skills mirror.
+    """
+    canonical = path / ".claude" / "skills"
+    mirror = path / ".agents" / "skills"
+    create = "Create .agents/skills as a symlink or junction to .claude/skills"
+    replace = "Replace .agents/skills with a symlink or junction to .claude/skills"
+    if not canonical.is_dir():
+        return {
+            "status": "fail",
+            "message": ".claude/skills/ directory not found",
+            "suggestion": "Run 'botcore skill-seed' before creating the .agents/skills mirror",
+        }
+    if not mirror.exists() and not mirror.is_symlink():
+        legacy = path / ".codex" / "skills"
+        if not legacy.exists() and not legacy.is_symlink():
+            return {
+                "status": "fail",
+                "message": ".agents/skills mirror not found",
+                "suggestion": create,
+            }
+        result = checks.check_codex_skills_mirror(path, language)
+        if result["status"] != "pass":
+            return result
+        return {
+            "status": "warn",
+            "message": ".codex/skills mirrors .claude/skills, but Codex now reads .agents/skills",
+            "suggestion": f"{create}, then remove .codex/skills",
+            "metric": "legacy_mirror",
+        }
+    try:
+        if os.path.samefile(mirror, canonical):
+            return {
+                "status": "pass",
+                "message": ".agents/skills mirrors .claude/skills",
+                "metric": "mirrored",
+            }
+    except OSError:
+        pass
+    if not mirror.is_dir():
+        return {
+            "status": "fail",
+            "message": ".agents/skills exists but is not a directory mirror",
+            "suggestion": replace,
+        }
+    found = checks._summarize_skill_tree_drift(canonical, mirror)
+    if found:
+        return {
+            "status": "fail",
+            "message": ".agents/skills is a standalone copy and has content to migrate: "
+            + "; ".join(found).replace("Codex-only", "Mirror-only"),
+            "suggestion": "Move mirror-only changes into .claude/skills, then replace "
+            ".agents/skills with a symlink or junction",
+        }
+    return {
+        "status": "fail",
+        "message": ".agents/skills exists separately and is not a live mirror of .claude/skills",
+        "suggestion": replace,
+    }
+
+
 CHECKS: dict[str, CheckSpec] = {
     "node_version_alignment": CheckSpec(
         _node_alignment,
@@ -250,9 +314,9 @@ CHECKS: dict[str, CheckSpec] = {
         evidence_paths=(".nvmrc", ".node-version", "package.json", ".github/workflows"),
         scope="repository",
     ),
-    "codex_skills_mirror": CheckSpec(
-        checks.check_codex_skills_mirror,
-        evidence_paths=(".claude/skills", ".codex/skills"),
+    "agent_skills_mirror": CheckSpec(
+        _agent_skills_mirror,
+        evidence_paths=(".claude/skills", ".agents/skills", ".codex/skills"),
         scope="repository",
     ),
     "lefthook_configured": CheckSpec(

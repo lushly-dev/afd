@@ -59,8 +59,8 @@ def drifted_profile(tmp_path):
         target = tmp_path / relative
         target.parent.mkdir(parents=True, exist_ok=True)
         shutil.copyfile(REPO_ROOT / relative, target)
-    (tmp_path / '.codex').mkdir()
-    (tmp_path / '.codex/skills').symlink_to('../.claude/skills')
+    (tmp_path / '.agents').mkdir()
+    (tmp_path / '.agents/skills').symlink_to('../.claude/skills')
     manifest = json.loads((tmp_path / 'skills/exports.json').read_text())
     name = manifest['profiles']['afd']['projections'][0]['name']
     projection = tmp_path / '.claude/skills' / name / 'SKILL.md'

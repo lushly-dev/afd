@@ -242,7 +242,7 @@ Each batch is one PR. Batch 0 goes first, because every later rewrite is judged 
 
 Batches 3–4 and 5–7 are independent of each other once Batches 0–2 land.
 
-Still to confirm: whether Codex discovers these skills through `.codex/skills`. Its current docs name only `.agents/skills`. Tracked in [#1093](https://github.com/lushly-dev/afd/issues/1093).
+Resolved on 2026-11-14 ([#1093](https://github.com/lushly-dev/afd/issues/1093)): Codex 0.163 still loads `.codex/skills`, but its docs name only `.agents/skills`, so the mirror moved there. Claude Code 2.1.325 does not read `.agents/skills`, so `.claude/skills` stays the canonical directory.
 
 ## Outcome in AFD (2026-11-04)
 

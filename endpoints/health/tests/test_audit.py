@@ -233,15 +233,32 @@ class HealthFixture(unittest.TestCase):
 
     def test_live_skill_mirror(self):
         self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        (self.repo / ".agents").mkdir()
+        (self.repo / ".agents/skills").symlink_to("../.claude/skills")
+        self.assertEqual(self.run_check("agent_skills_mirror")["status"], "passed")
+
+    def test_legacy_codex_mirror_warns(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
         (self.repo / ".codex").mkdir()
         (self.repo / ".codex/skills").symlink_to("../.claude/skills")
-        self.assertEqual(self.run_check("codex_skills_mirror")["status"], "passed")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "warn")
+        self.assertIn(".agents/skills", result["remediation"])
 
     def test_missing_and_divergent_mirror(self):
         self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
-        self.assertEqual(self.run_check("codex_skills_mirror")["status"], "failed")
+        self.assertEqual(self.run_check("agent_skills_mirror")["status"], "failed")
+        self.write(".agents/skills/shared/SKILL.md", "# Different\n")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("Divergent", result["message"])
+        self.write(".agents/skills/extra/SKILL.md", "# Extra\n")
+        self.assertIn("Mirror-only", self.run_check("agent_skills_mirror")["message"])
+
+    def test_divergent_legacy_mirror_fails(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
         self.write(".codex/skills/shared/SKILL.md", "# Different\n")
-        result = self.run_check("codex_skills_mirror")
+        result = self.run_check("agent_skills_mirror")
         self.assertEqual(result["status"], "failed")
         self.assertIn("Divergent", result["message"])
 

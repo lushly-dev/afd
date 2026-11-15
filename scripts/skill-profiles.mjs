@@ -330,7 +330,7 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 		if (!Number.isSafeInteger(profile.listingBudget) || profile.listingBudget <= 0)
 			throw new Error(`Profile listingBudget must be a positive integer: ${profileName}`);
 		const listing = new Map();
-		// The established Codex mirror is verified, never traversed or rewritten.
+		// The .agents/skills mirror (Codex and other agents) is verified, never traversed or rewritten.
 		if (profile.mirror) {
 			const mirror = path.join(root, relativePath(profile.mirror));
 			await inside(root, path.posix.dirname(profile.mirror));
