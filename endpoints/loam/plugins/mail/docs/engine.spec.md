@@ -1280,6 +1280,24 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
 - **Never ordered below one**: a `known` sender's mail is the inbox, and a burst is a story; no
   list the engine gives mixes the two. Ordering them in one view is the app's.
 
+**Tried on the owner's mail** on 2026-11-15, with `engine/tests/live_screening.rs` on the copy of
+the iCloud store ([the counts](live-icloud-c3.results.json)). The owner named 2024 and 2025, but
+had deleted most of that flood's mail, so the store holds none of it; and the owner reports no
+flood on Gmail. Of 3 600 first contacts, the busiest 24 hours held 73. The rule finds one burst:
+75 messages in February 2022, every one `bulk`, from 4 new senders through 16 lists, 72 of them in
+one folder: one service's first day, not a flood of strangers. The rule counts messages, not
+senders, so it cannot tell the two apart.
+
+**Import with bursts** ([4.4](#44-limits-to-meet)): during an account's first sync its bursts are
+not found, and a batch rechecks the first contacts of only the senders whose first day it touches
+(a message within it, a first contact derived again, or a sender whose first message, or first
+message from the person, moved). Measured at 500 000 made-up messages beside `main` at
+`b21c98f2`, one after the other on the Mac's own disk, while another session loaded the machine:
+431 messages a second against `main`'s 407, so no cost the noise shows
+([the results](limits-500000-c3.results.json), [`main`'s](limits-500000-c3-main.results.json));
+neither met 500 under that load. Listing the account found its bursts in about a millisecond, and
+a batch of 250 headers after it took 184 ms.
+
 ## 8. Stories
 
 A story is a view (M9). A message in a story is still in every list it was in.
@@ -1793,7 +1811,7 @@ file.
 | B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
-| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail, which holds no flood since the owner deleted it; the owner reports none on Gmail. Tested on made-up floods |
+| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal |

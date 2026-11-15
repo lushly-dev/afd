@@ -51,7 +51,8 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
   `classes.rs` holds each inbound message's screening class and each template's count,
   `decisions.rs` the person's decisions on senders and agents' suggestions (7.2 and 7.3), and
   `stories.rs` the stream stories: the bulk mail of each list, or each sender with no list,
-  with its kinds and exceptions (section 8).
+  with its kinds and exceptions (section 8), and `bursts.rs` the bursts: a day's flood of
+  messages from senders new to the person, each one flagged story (7.4).
 - **What code reads from a message** (`src/derive.rs`, `src/html.rs`): the sender, the subject,
   the date, the ids that join a thread, the parts and the text a person sees, with `mail-parser`
   and `html5ever`; and the evidence of the specification's section 6: hidden text, links, list

@@ -1,0 +1,210 @@
+{
+	"databaseBytes": {
+		"after": 1935081472,
+		"afterVacuum": 1535815680,
+		"before": 1934430208
+	},
+	"q2": {
+		"asTheCensusCounted": {
+			"decided": 278654,
+			"decidedByHeader": 276723,
+			"decidedByTemplateAlone": 1931,
+			"fromStrangers": 283447,
+			"inbound": 288676,
+			"messages": 292712,
+			"q2": 0.983,
+			"streamStories": {
+				"byKey": {
+					"groups": 4541,
+					"messagesInStories": 274089,
+					"stories": 346,
+					"ungrouped": 0
+				},
+				"byKeyAndShape": {
+					"groups": 5259,
+					"messagesInStories": 273102,
+					"stories": 272,
+					"ungrouped": 0
+				},
+				"bySender": {
+					"groups": 1403,
+					"messagesInStories": 277173,
+					"stories": 447,
+					"ungrouped": 0
+				}
+			},
+			"withoutTemplateKey": 0
+		},
+		"census": {
+			"whole": 0.984,
+			"withoutTheLargestMailbox": 0.609
+		},
+		"everyMessage": {
+			"decided": 279930,
+			"decidedByHeader": 277999,
+			"decidedByTemplateAlone": 1931,
+			"fromStrangers": 284819,
+			"inbound": 290050,
+			"messages": 294086,
+			"q2": 0.983,
+			"streamStories": {
+				"byKey": {
+					"groups": 4551,
+					"messagesInStories": 275067,
+					"stories": 347,
+					"ungrouped": 283
+				},
+				"byKeyAndShape": {
+					"groups": 5269,
+					"messagesInStories": 274080,
+					"stories": 273,
+					"ungrouped": 283
+				},
+				"bySender": {
+					"groups": 1488,
+					"messagesInStories": 278350,
+					"stories": 464,
+					"ungrouped": 0
+				}
+			},
+			"withoutTemplateKey": 1372
+		},
+		"reportMs": 2178,
+		"withoutTheLargestMailbox": {
+			"decided": 7349,
+			"decidedByHeader": 5418,
+			"decidedByTemplateAlone": 1931,
+			"fromStrangers": 12142,
+			"inbound": 17371,
+			"messages": 21407,
+			"q2": 0.605,
+			"streamStories": {
+				"byKey": {
+					"groups": 4375,
+					"messagesInStories": 2901,
+					"stories": 272,
+					"ungrouped": 0
+				},
+				"byKeyAndShape": {
+					"groups": 5093,
+					"messagesInStories": 1914,
+					"stories": 198,
+					"ungrouped": 0
+				},
+				"bySender": {
+					"groups": 1237,
+					"messagesInStories": 5985,
+					"stories": 373,
+					"ungrouped": 0
+				}
+			},
+			"withoutTemplateKey": 0
+		}
+	},
+	"recipientRows": 575607,
+	"screening": {
+		"bursts": {
+			"bursts": 1,
+			"busiestDayOfFirstContacts": 73,
+			"firstContacts": 3600,
+			"inBursts": 75,
+			"largestBurst": 75
+		},
+		"classes": {
+			"blocked": {
+				"held": 0,
+				"listed": 0
+			},
+			"bulk": {
+				"held": 279930,
+				"listed": 278654
+			},
+			"known": {
+				"held": 5231,
+				"listed": 5229
+			},
+			"unknown": {
+				"held": 4889,
+				"listed": 4793
+			}
+		},
+		"classifyEverythingMs": 16941,
+		"largestSender": {
+			"blockChanged": 272282,
+			"blockMs": 11089,
+			"blockedListFiftyP95Ms": 0.28,
+			"messages": 272282,
+			"previewMs": 8,
+			"undoChanged": 272282,
+			"undoMs": 21610
+		},
+		"largestStoryExceptionsP95Ms": 0.46,
+		"largestStoryOpenP95Ms": 11.31,
+		"largestStoryRecomputeP95Ms": 0.27,
+		"listFiftyP95Ms": {
+			"blocked": 0.04,
+			"bulk": 0.12,
+			"known": 0.34,
+			"unknown": 0.16
+		},
+		"queue": {
+			"messages": 4793,
+			"senders": 1610
+		},
+		"recurringTemplates": 11647,
+		"sendersWaitingFiftyP95Ms": 0.13,
+		"stories": {
+			"bulkListed": 278654,
+			"byList": 132,
+			"bySender": 316,
+			"exceptions": 26273,
+			"inStories": 277177,
+			"kinds": 29835,
+			"largestKinds": 10748,
+			"largestMessages": 94274,
+			"stories": 448,
+			"streams": 1401,
+			"withExceptions": 130,
+			"withOneKind": 106,
+			"withoutAUsualShape": 266
+		},
+		"storyChangesHundredP95Ms": 0.12,
+		"storyListFiftyP95Ms": 0.03,
+		"templates": 41392
+	},
+	"senders": {
+		"answered": 312,
+		"fiveLargestByMessages": [272282, 1276, 413, 295, 289],
+		"listFiftyP95Ms": 0.12,
+		"personsMessages": 2844,
+		"recomputeLargestP95Ms": 21.22,
+		"registrableDomains": 1833,
+		"rows": 3416,
+		"showLargestP95Ms": 183.83,
+		"withBulkMail": 1226,
+		"writtenTo": 626,
+		"writtenToNeverHeardFrom": 327
+	},
+	"tablesMiB": {
+		"asDerived": {
+			"envelope_message_key": 7.8,
+			"envelope_sender": 11.4,
+			"envelope_sender_bulk": 9.6,
+			"envelope_sender_list": 19.6,
+			"link": 1234.3,
+			"observation_mailbox": 3.9,
+			"recipient": 41.1,
+			"senderWithItsIndexes": 0.8
+		},
+		"packed": {
+			"link": 958.7,
+			"recipient": 20.4
+		}
+	},
+	"upgrade": {
+		"derivedAgain": 0,
+		"derivedAgainSeconds": 0,
+		"migrationMs": 30546,
+		"stale": 0
+	}
+}
