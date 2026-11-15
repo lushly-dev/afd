@@ -220,6 +220,9 @@ describe('todo-clear', () => {
 		const held = await run('todo-clear', {});
 		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
 		expect(held.error?.suggestion).toContain('Remove the completed todos for good (1 todo now)');
+		expect((held.error?.details as { summary?: string } | undefined)?.summary).toBe(
+			'Remove the completed todos for good (1 todo now)'
+		);
 		expect(store.get(todo.id)).toBeDefined();
 	});
 

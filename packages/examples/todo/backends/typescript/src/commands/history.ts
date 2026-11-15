@@ -90,7 +90,7 @@ export const getHistory = defineCommand<typeof inputSchema, HistoryResult>({
 	],
 
 	async handler(input) {
-		const matching = withCurrentUndo(store.history()).filter(
+		const matching = withCurrentUndo(await store.history()).filter(
 			(entry) =>
 				(input.actor === undefined || entry.actor.kind === input.actor) &&
 				(input.todoId === undefined || entry.ids.includes(input.todoId))

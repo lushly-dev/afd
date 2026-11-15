@@ -5,6 +5,7 @@ from __future__ import annotations
 import asyncio
 import json
 import sys
+from pathlib import Path
 from typing import Any
 
 import click
@@ -319,6 +320,66 @@ def serve(name: str, transport: str) -> None:
         sys.exit(1)
     except KeyboardInterrupt:
         pass
+
+
+# ── host-token ───────────────────────────────────────────────────────────────
+
+
+@cli.group("host-token")
+def host_token() -> None:
+    """Issue, list and revoke bearer tokens for a host served over HTTP.
+
+    Run on the serving machine as the operator. The store holds only each token's digest;
+    an issued token is printed once.
+    """
+
+
+_store_option = click.option(
+    "--store",
+    "store",
+    required=True,
+    type=click.Path(dir_okay=False, path_type=Path),
+    help="The token store file the server reads",
+)
+
+
+@host_token.command("issue")
+@_store_option
+@click.option("--route", required=True, help="The one route the token opens")
+@click.option(
+    "--kind", required=True, type=click.Choice(["human", "agent", "service"]), help="Actor kind"
+)
+@click.option("--actor", "actor_id", required=True, help="Actor id, such as lane@random")
+@click.option("--label", default=None, help="A readable name for the actor")
+def host_token_issue(store: Path, route: str, kind: str, actor_id: str, label: str | None) -> None:
+    """Issue a token; prints it once."""
+    from botcore.host_tokens import TokenStore
+
+    record, secret = TokenStore(store).issue(route, kind, actor_id, label)
+    click.echo(json.dumps({**record.public(), "token": secret}, indent=2))
+
+
+@host_token.command("list")
+@_store_option
+def host_token_list(store: Path) -> None:
+    """List tokens without their secrets."""
+    from botcore.host_tokens import TokenStore
+
+    click.echo(json.dumps([r.public() for r in TokenStore(store).list()], indent=2))
+
+
+@host_token.command("revoke")
+@_store_option
+@click.argument("token_id")
+def host_token_revoke(store: Path, token_id: str) -> None:
+    """Revoke TOKEN_ID; the server refuses it from its next call."""
+    from botcore.host_tokens import TokenStore
+
+    record = TokenStore(store).revoke(token_id)
+    if record is None:
+        click.secho(f"No token {token_id}", fg="red", err=True)
+        sys.exit(1)
+    click.echo(json.dumps(record.public(), indent=2))
 
 
 # ── Command wrappers ─────────────────────────────────────────────────────────

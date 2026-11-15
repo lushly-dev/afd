@@ -35,7 +35,7 @@
     },
     {
       "id": "menu.trigger-aria",
-      "text": "It sets aria-haspopup, aria-expanded and aria-controls on the trigger. violet-button forwards them to its inner button; violet-icon-button does not, so use violet-button or a native button.",
+      "text": "It sets aria-haspopup and aria-expanded on the trigger, and aria-controls naming the menu (given an id if it has none) where Reference Target is supported. violet-button forwards them; violet-icon-button does not.",
       "members": [
         "trigger"
       ]

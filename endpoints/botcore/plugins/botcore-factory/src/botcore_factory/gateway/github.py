@@ -34,6 +34,14 @@ class HeadMoved(Exception):
         self.head = head
 
 
+class MergeMethodNotAllowed(Exception):
+    """GitHub refused a merge because the repository does not allow the method (405)."""
+
+    def __init__(self, method: str) -> None:
+        super().__init__(method)
+        self.method = method
+
+
 class GitHub(Protocol):
     def issue(self, repo: str, number: int) -> dict | None: ...
     def issues(self, repo: str) -> list[dict]: ...
@@ -45,19 +53,29 @@ class GitHub(Protocol):
     def add_comment(self, repo: str, number: int, body: str) -> dict: ...
     def create_issue(self, repo: str, title: str, body: str, labels: list[str]) -> int: ...
     def ref(self, repo: str, ref: str) -> str | None: ...
-    def has_commit(self, repo: str, sha: str) -> bool: ...
+    def has_commit(self, repo: str, sha: str) -> bool:
+        """Whether ``sha`` is a head this repository has shown: a ref tip, a pull request's
+        head or a commit with check runs. verification-record records only such heads."""
+        ...
+
+    def on_main(self, repo: str, sha: str) -> bool:
+        """Whether ``sha`` is reachable from the default branch (the compare API's
+        ``identical`` or ``behind``), so a push does not add it. A commit on another branch,
+        a queue ref or a fork is not on main."""
+        ...
+
     def update_ref(self, repo: str, ref: str, head: str) -> None: ...
     def create_pull(self, repo: str, branch: str, title: str, body: str) -> int:
         """Open a pull request; GitHub links the issues its body's closing lines name."""
         ...
 
     def update_pull(self, repo: str, number: int, *, title: str, body: str) -> None: ...
-    def merge_pull(self, repo: str, number: int, head: str) -> str:
-        """Squash-merge at ``head`` (GitHub's sha guard); returns the merged-at time."""
+    def merge_pull(self, repo: str, number: int, head: str, method: str) -> str:
+        """Merge at ``head`` by ``method`` (GitHub's sha guard); returns the merged-at time."""
         ...
 
-    def enable_auto_merge(self, repo: str, number: int, head: str) -> None:
-        """Squash auto-merge bound to ``head`` (GraphQL expectedHeadOid)."""
+    def enable_auto_merge(self, repo: str, number: int, head: str, method: str) -> None:
+        """Auto-merge by ``method``, bound to ``head`` (GraphQL expectedHeadOid)."""
         ...
 
     def disable_auto_merge(self, repo: str, number: int) -> None: ...
@@ -89,6 +107,8 @@ GITHUB_KEYS = {
     "issues",
     "branches",
     "refs",
+    "mainHistory",
+    "allowedMergeMethods",
     "pullRequests",
     "claimComments",
     "checkRuns",
@@ -210,6 +230,17 @@ class FakeGitHub:
         heads |= {pull.get("head") for pull in data.get("pullRequests", [])}
         return sha in heads
 
+    def on_main(self, repo, sha):
+        data = self._check(repo)
+        return sha == data.get("refs", {}).get("refs/heads/main") or sha in data.get(
+            "mainHistory", []
+        )
+
+    def _merge_method(self, data: dict, method: str) -> None:
+        allowed = data.get("allowedMergeMethods")
+        if allowed is not None and method not in allowed:
+            raise MergeMethodNotAllowed(method)
+
     def check_runs(self, repo, head):
         data = self._check(repo)
         runs = []
@@ -298,17 +329,23 @@ class FakeGitHub:
         with self._write(repo) as data:
             self._pull(data, number).update(title=title, body=body, closes=_closes(body))
 
-    def merge_pull(self, repo, number, head):
+    def merge_pull(self, repo, number, head, method):
         with self._write(repo) as data:
             pull = self._pull(data, number)
             if pull["head"] != head:
                 raise HeadMoved(pull["head"])  # GitHub answers 409 to a stale sha.
-            pull.update(state="merged", mergedAt=data.get("now"), autoMerge=False)
+            self._merge_method(data, method)
+            pull.update(
+                state="merged", mergedAt=data.get("now"), autoMerge=False, mergeMethod=method
+            )
             return pull["mergedAt"]
 
-    def enable_auto_merge(self, repo, number, head):
+    def enable_auto_merge(self, repo, number, head, method):
         with self._write(repo) as data:
-            self._pull(data, number).update(autoMerge=True, autoMergeHead=head)
+            self._merge_method(data, method)
+            self._pull(data, number).update(
+                autoMerge=True, autoMergeHead=head, autoMergeMethod=method
+            )
 
     def disable_auto_merge(self, repo, number):
         with self._write(repo) as data:

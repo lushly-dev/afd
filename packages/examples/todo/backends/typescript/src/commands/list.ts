@@ -57,7 +57,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		{ title: 'Deleted todos, most recent first', input: { deleted: true, sortBy: 'deletedAt' } },
 	],
 	async handler(input) {
-		const todos = store.list({
+		const todos = await store.list({
 			deleted: input.deleted,
 			completed: input.completed,
 			priority: input.priority,
@@ -69,7 +69,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		});
 
 		// Get total count for pagination
-		const allMatching = store.list({
+		const allMatching = await store.list({
 			deleted: input.deleted,
 			completed: input.completed,
 			priority: input.priority,
@@ -104,14 +104,14 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 
 		if (isFiltered) {
 			// Get unfiltered results as an alternative
-			const allTodos = store.list({
+			const allTodos = await store.list({
 				deleted: input.deleted,
 				sortBy: input.sortBy,
 				sortOrder: input.sortOrder,
 				limit: input.limit,
 				offset: input.offset,
 			});
-			const allTotal = store.list({ deleted: input.deleted }).length;
+			const allTotal = (await store.list({ deleted: input.deleted })).length;
 
 			alternatives.push({
 				data: {
@@ -125,7 +125,7 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 
 			// If filtering by completed, offer the opposite
 			if (input.completed !== undefined) {
-				const oppositeTodos = store.list({
+				const oppositeTodos = await store.list({
 					deleted: input.deleted,
 					completed: !input.completed,
 					priority: input.priority,
@@ -135,12 +135,14 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 					limit: input.limit,
 					offset: input.offset,
 				});
-				const oppositeTotal = store.list({
-					deleted: input.deleted,
-					completed: !input.completed,
-					priority: input.priority,
-					search: input.search,
-				}).length;
+				const oppositeTotal = (
+					await store.list({
+						deleted: input.deleted,
+						completed: !input.completed,
+						priority: input.priority,
+						search: input.search,
+					})
+				).length;
 
 				if (oppositeTotal > 0) {
 					alternatives.push({

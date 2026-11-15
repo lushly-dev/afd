@@ -112,7 +112,7 @@ export const createBatch = defineCommand<typeof inputSchema, BatchCreateResult>(
 				}
 
 				// Create the todo
-				const todo = store.create(
+				const todo = await store.create(
 					{
 						title: item.title.trim(),
 						description: item.description?.trim(),

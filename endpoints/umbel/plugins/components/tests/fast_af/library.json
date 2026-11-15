@@ -42,7 +42,7 @@
 			"tag": "violet-breadcrumb-item"
 		},
 		{
-			"digest": "sha256:8acb12d46e2cc8e666b60b4c8d82b7b3a75a80565545f5551f1921d2b5dd34d8",
+			"digest": "sha256:0c6605f944e1d503bd422da44975711a5629d449339c26252c88ae44fec976b8",
 			"status": "stable",
 			"summary": "Text button for actions, with before and after slots for icons; also the trigger for menus, disclosures and toggle buttons.",
 			"tag": "violet-button"
@@ -205,7 +205,7 @@
 			"tag": "violet-listbox"
 		},
 		{
-			"digest": "sha256:c0a91fe0737a17524d646132773ff0a141f89f039d01ceacb4d449fa26e542b9",
+			"digest": "sha256:2798016c34b9a5228a2f446e97c461d1491ec25a6fb3e275748a0065564d6afd",
 			"status": "stable",
 			"summary": "Action menu: a slotted trigger opens a floating list of violet-menu-item actions. For choosing a value, use a select instead.",
 			"tag": "violet-menu"
@@ -364,7 +364,7 @@
 			"tag": "violet-tabs"
 		},
 		{
-			"digest": "sha256:ce75f41e465af342bf8a0997db4568e6146620d1eca99c4232e18868c7e76c7b",
+			"digest": "sha256:ac2930c3ac30748ce14090f64f53b1ed9cf4075f5d783034c61dc687092f2ac8",
 			"status": "stable",
 			"tag": "violet-teaching-tip"
 		},
@@ -414,7 +414,7 @@
 			"tag": "violet-tool-result-card"
 		},
 		{
-			"digest": "sha256:0889336d912d9a207e4015da0535e33673ef079a75fe93bc15ef504440459a69",
+			"digest": "sha256:368080fa8770825744ce63bbe322dac35e4603ed935ede89a74f0e563f5140f8",
 			"status": "stable",
 			"summary": "Short plain-text hint shown on hover or focus of the element it wraps or is anchored to; never for essential or interactive content.",
 			"tag": "violet-tooltip"
@@ -432,7 +432,7 @@
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:4dc6b871e462307344fa7e828cb0873a285768777d5c8723fbb9e9806d92e9e9",
+	"digest": "sha256:9b5692c0199012fd5b456eec8a8f3d15a203fde8d44d364045e2858a4fc879eb",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {

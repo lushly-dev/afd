@@ -27,7 +27,7 @@ fails when it is not the report the records give.
 | `violet-approval-card` | summary, usage, a11y-statement, role | - | - |
 | `violet-badge` | role | - | - |
 | `violet-breadcrumb` | role | - | - |
-| `violet-button` | role | `aria-pressed` | - |
+| `violet-button` | role | `aria-description`, `aria-labelledby`, `aria-pressed` | - |
 | `violet-calendar` | summary, usage, a11y-statement, role | - | - |
 | `violet-card` | role | - | - |
 | `violet-carousel` | summary, usage, a11y-statement, role | - | - |

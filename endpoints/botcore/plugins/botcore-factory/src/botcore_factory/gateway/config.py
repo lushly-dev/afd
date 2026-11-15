@@ -7,8 +7,9 @@ Field aliases are the camelCase keys the scenario fixtures and a deployment's
 from __future__ import annotations
 
 from datetime import datetime
+from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
 #: Writes per hour each kind of caller may make before WRITE_BUDGET_EXCEEDED; None is no limit.
 DEFAULT_WRITES_PER_HOUR: dict[str, int | None] = {
@@ -66,5 +67,28 @@ class GatewayConfig(_Model):
     writes_per_hour: dict[str, int | None] = Field(
         default_factory=lambda: dict(DEFAULT_WRITES_PER_HOUR), alias="writesPerHour"
     )
+    #: The emails the owner commits with. branch-push refuses a commit any other email authored:
+    #: work is credited to the owner, and an agent that helped is an Assisted-by trailer.
+    owner_emails: list[str] = Field(min_length=1, alias="ownerEmails")
+    #: How pr-merge merges in each repository. "merge" (the default) keeps every commit and its
+    #: author; a repository that allows only squash merges says "squash".
+    merge_methods: dict[str, Literal["merge", "squash", "rebase"]] = Field(
+        default_factory=dict, alias="mergeMethods"
+    )
     #: Most milliseconds gateway-wait blocks on one call over MCP.
     wait_max_ms: int = Field(300_000, alias="waitMaxMs")
+
+    @model_validator(mode="after")
+    def _merge_methods_name_served_repositories(self) -> GatewayConfig:
+        unknown = sorted(set(self.merge_methods) - set(self.repositories))
+        if unknown:
+            raise ValueError(
+                f"mergeMethods names repositories the gateway does not serve: {', '.join(unknown)}"
+            )
+        return self
+
+    def merge_method(self, repo: str) -> str:
+        return self.merge_methods.get(repo, "merge")
+
+    def is_owner_email(self, email: str) -> bool:
+        return email.strip().lower() in {owned.lower() for owned in self.owner_emails}
