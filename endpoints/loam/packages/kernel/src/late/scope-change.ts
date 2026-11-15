@@ -15,7 +15,12 @@ import type { KernelFieldContext } from '../context-fields.js';
 import { kernelFailure } from '../errors.js';
 import { SHELL_OWNER } from '../overlay-owner.js';
 import type { OverlayStore } from '../overlays.js';
-import { type AccessActorV1, AGENT_MEMBER_PREFIX, personOf } from '../scope/access.js';
+import {
+	type AccessActorV1,
+	AGENT_MEMBER_PREFIX,
+	inWorkspace as isMemberOf,
+	personOf,
+} from '../scope/access.js';
 import { type LateScope, projectNotFound, sessionActor } from '../scope/middleware.js';
 import type { PersonalStore } from '../scope/personal.js';
 import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
@@ -224,6 +229,24 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 		return mismatchRefusal(key, target, current);
 	}
 
+	/**
+	 * Line 4 for an `agt_` actor (3.3, 8.3; the review's B1): an app's command and a shell command acting at the call's
+	 * scope at that scope; every other shell command at the workspace's. Undefined when it is no agent member, the
+	 * command is the kernel's own, or its person is no member, which line 0 refuses.
+	 */
+	const lineFour = (call: CommandContext & KernelFieldContext, name: string) => {
+		const actor = call.actor as AccessActorV1;
+		if (!actor?.id?.startsWith(AGENT_MEMBER_PREFIX) || INTERNAL_COMMANDS.includes(name))
+			return undefined;
+		if (!isMemberOf(scope.membership, actor)) return undefined;
+		const requested = call.scope as ScopeV1;
+		const at =
+			deps.apps().owners.has(name) || AT_CALL_SCOPE.test(name)
+				? requested
+				: { workspace: requested.workspace };
+		return scope.allows(actor, at) ? undefined : projectNotFound();
+	};
+
 	/** The person the last call was for (phase 3 specification, 3.1): an agent's call for them is no change. */
 	let lastActor: string | undefined;
 
@@ -308,6 +331,14 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 			// A `provider` deployment writes each person's records under their key: what the person leaving has
 			// pending is written as theirs before a sign-in or sign-out changes who is signed in (4.5).
 			if (deps.personal && name.startsWith('auth-')) await deps.viewState.flush();
+			// Line 4 for an agent member, on every command but the kernel's own (phase 3 specification, 3.3 and 8.3), before
+			// the membership re-read, so a refused one never reaches the provider (the review's N8): its record must exist
+			// and be `active`, act for its sponsor, and hold the scope. A shell command that does not act at the call's scope
+			// is decided at the workspace's, so naming a project it may enter never lends it a workspace-level command (the
+			// review's B1). Decided on the stamped actor, after afd-auth's middleware (step 5's B1); an actor acting for no
+			// member is left to line 0, whose refusal says so.
+			const agentRefusal = lineFour(call, name);
+			if (agentRefusal) return agentRefusal;
 			const session = deps.session?.();
 			if (session) {
 				// Membership read again before an owner's command, settled top-level when it changed, then line 0
@@ -320,16 +351,6 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 				if (refused) return refused;
 			}
 			const requested = call.scope as ScopeV1;
-			// Line 4 for an agent member, on every command but the kernel's own (phase 3 specification, 3.3 and 8.3): its
-			// record must exist and be `active`, act for its sponsor, and hold the call's scope, so a pending, suspended or
-			// unknown one is allowed nothing. Decided on the stamped actor, after afd-auth's middleware (step 5's B1).
-			if (
-				call.actor?.id?.startsWith(AGENT_MEMBER_PREFIX) &&
-				!INTERNAL_COMMANDS.includes(name) &&
-				!scope.allows(call.actor, requested)
-			) {
-				return projectNotFound();
-			}
 			const prepared = await deps.prepare?.(name, input, call);
 			if (prepared) return prepared;
 			const apps = deps.apps();

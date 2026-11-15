@@ -52,11 +52,11 @@ const DEPLOYER_KEYS = [
 	'prefix',
 ];
 
-/** Every property name a JSON Schema holds, at any depth. */
 /**
- * The one named exemption (phase 3 specification, Status, step 6): an agent member's `access.projects` (8.1) names the
- * projects it may act in, in the `agent-member` table, never a projection entry's `projects`. Only that path, only on
- * the two commands that take it; every other key, and `projects` anywhere else in their input, is still scanned.
+ * The one named exemption (phase 3 specification, Status, step 6, deviation 13, kept by the coordinator on
+ * 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
+ * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
+ * `projects` anywhere else in their input, is still scanned.
  */
 function exempted(name: string, schema: unknown): unknown {
 	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;
@@ -67,6 +67,7 @@ function exempted(name: string, schema: unknown): unknown {
 	return copy;
 }
 
+/** Every property name a JSON Schema holds, at any depth. */
 function propertyNames(schema: unknown, into = new Set<string>()): Set<string> {
 	if (Array.isArray(schema)) for (const item of schema) propertyNames(item, into);
 	else if (typeof schema === 'object' && schema !== null) {

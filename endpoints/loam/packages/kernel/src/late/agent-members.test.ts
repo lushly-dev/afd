@@ -57,6 +57,16 @@ const VAULT_PROJECT: ProjectV1 = {
 	createdAt: 4,
 	access: { mode: 'restricted', members: [OLU, BEA] },
 };
+/** Den: restricted to Bea alone, so the owner Olu cannot see it. */
+const DEN = 'prj_den';
+const DEN_PROJECT: ProjectV1 = {
+	...VAULT_PROJECT,
+	id: DEN,
+	slug: 'den',
+	name: 'Den',
+	createdAt: 5,
+	access: { mode: 'restricted', members: [BEA] },
+};
 const AGENT = 'agt_aaaaaaaaaaaaaaaaaaaa';
 const OTHER = 'agt_bbbbbbbbbbbbbbbbbbbb';
 
@@ -143,7 +153,8 @@ async function provider(options: ScopedWorkspaceOptions & { agents?: AgentMember
 	const auth = new MockAuthAdapter();
 	const stub = providerStub(auth);
 	const store = new MemoryAdapter();
-	for (const project of [...SCOPED_PROJECTS, VAULT_PROJECT]) await store.create('project', project);
+	for (const project of [...SCOPED_PROJECTS, VAULT_PROJECT, DEN_PROJECT])
+		await store.create('project', project);
 	for (const agent of agents) await store.create(AGENT_MEMBER_TABLE, agent);
 	const made = await createScopedWorkspace({
 		empty: true,
@@ -221,6 +232,11 @@ describe('P3-E5: an owner adds an agent member, and its sponsor confirms (8.2, 8
 		}>('member-list');
 		expect(members.data?.total).toBe(3);
 		expect(members.data?.people).toHaveLength(3);
+		// A member row is `MemberV1`: the provider's member id and digest stay out (the review's I5).
+		for (const person of members.data?.people ?? []) {
+			expect(person).not.toHaveProperty('digest');
+			expect(person).not.toHaveProperty('memberId');
+		}
 		expect(
 			members.data?.agents.map((agent) => [agent.name, agent.sponsorName, agent.status])
 		).toEqual([['Reviewer', 'Bea', 'pending']]);
@@ -392,7 +408,7 @@ describe('P3-E5: the sponsor rules (8.3)', () => {
 		expect(wider.data?.status).toBe('pending');
 		expect(wider.undoArgs).toEqual({
 			agent: AGENT,
-			access: { workspace: false, projects: [ATLAS] },
+			undo: expect.stringMatching(/^agu_[a-z0-9]{20}$/),
 		});
 		await switchTo(made.kernel, 'bea@example.com');
 		await made.kernel.call('agent-member-confirm', { agent: AGENT });
@@ -455,10 +471,69 @@ describe('P3-E5: the sponsor rules (8.3)', () => {
 		expect((await add(made.kernel, { sponsor: OLU, guidance: 'x'.repeat(8192) })).success).toBe(
 			true
 		);
-		// An id, given by an undo, is one of the kernel's shape and free.
+		// No caller names an agent member's id; an undo names only what it kept.
 		expect((await add(made.kernel, { sponsor: OLU, id: 'agt_x' })).error?.code).toBe(
 			'VALIDATION_ERROR'
 		);
+		expect((await made.kernel.call('agent-member-add', { undo: 'agu_none' })).error?.code).toBe(
+			'VALIDATION_ERROR'
+		);
+	});
+
+	it('P3-E5: a refusal quotes each project as the caller named it: a restricted slug and a missing one alike (I2)', async () => {
+		const made = await provider();
+		await signIn(made.kernel, 'olu@example.com');
+		const refusal = async (ref: string) =>
+			(await add(made.kernel, { sponsor: CY, access: { workspace: false, projects: [ref] } })).error
+				?.message;
+		// Den is restricted to Bea; Olu, the owner calling, cannot see it, and nothing has `nowhere`.
+		expect(await refusal('den')).toBe("The sponsor cannot enter 'den'");
+		expect(await refusal('nowhere')).toBe("The sponsor cannot enter 'nowhere'");
+		expect(await refusal('citadel')).toBe("The sponsor cannot enter 'citadel'");
+		expect(JSON.stringify(await journalOf(made))).not.toContain(DEN);
+	});
+
+	it("P3-E5: an undo's arguments name no project hidden from the caller, and restore it from the kept record (I3)", async () => {
+		const made = await provider({
+			agents: [agentMember({ access: { workspace: false, projects: [ATLAS, DEN] } })],
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const seen = await made.kernel.call<AgentMemberRowV1>('agent-member-get', { agent: AGENT });
+		expect(seen.data).toMatchObject({ access: { projects: [ATLAS] }, hiddenProjects: 1 });
+		const renamed = await made.kernel.call<AgentMemberRowV1>('agent-member-update', {
+			agent: AGENT,
+			name: 'Critic',
+		});
+		expect(JSON.stringify(renamed)).not.toContain(DEN);
+		const back = await made.kernel.call<AgentMemberRowV1>(
+			renamed.undoCommand as string,
+			renamed.undoArgs
+		);
+		expect(back.success, JSON.stringify(back.error)).toBe(true);
+		expect(await stored(made)).toMatchObject({
+			name: 'Reviewer',
+			access: { workspace: false, projects: [ATLAS, DEN] },
+			status: 'active',
+		});
+		// Used once.
+		expect(
+			(await made.kernel.call(renamed.undoCommand as string, renamed.undoArgs)).error?.code
+		).toBe('VALIDATION_ERROR');
+		const removed = await made.kernel.call('agent-member-remove', { agent: AGENT });
+		expect(JSON.stringify(removed)).not.toContain(DEN);
+		expect(removed.undoArgs).toEqual({ undo: expect.stringMatching(/^agu_/) });
+		const again = await made.kernel.call<AgentMemberRowV1>(
+			removed.undoCommand as string,
+			removed.undoArgs
+		);
+		expect(again.success, JSON.stringify(again.error)).toBe(true);
+		// Added again by an owner who is not its sponsor: pending, Den kept.
+		expect(await stored(made)).toMatchObject({
+			id: AGENT,
+			status: 'pending',
+			access: { projects: [ATLAS, DEN] },
+		});
+		expect(JSON.stringify(await journalOf(made))).not.toMatch(/"undoArgs":\{[^}]*prj_den/);
 	});
 
 	it('P3-E5: removing it undoes to the same id and fields, pending again for another sponsor', async () => {
@@ -506,9 +581,44 @@ describe('P3-E5: line 4 on every command, on the stamped actor (3.3; step 5 B1)'
 		] as const) {
 			expect((await asAgentMember(made, name, input)).error?.code, name).toBe('PROJECT_NOT_FOUND');
 		}
+		// Nor by naming a project it may enter: a shell command that does not act at the call's scope is decided at the
+		// workspace's (the review's B1).
+		for (const [name, input] of [
+			['project-create', { name: 'Delta' }],
+			['project-list', {}],
+			['member-list', {}],
+			['agent-member-list', {}],
+		] as const) {
+			expect((await asAgentMember(made, name, input, at())).error?.code, `${name} at Atlas`).toBe(
+				'PROJECT_NOT_FOUND'
+			);
+		}
 		expect(
 			(await made.store.list<ProjectV1>('project')).data.map((project) => project.slug)
 		).not.toContain('delta');
+	});
+
+	it('P3-E5: a pending one is refused before the membership read, so it never reaches the provider (N8)', async () => {
+		let reads = 0;
+		const made = await provider({
+			agents: [
+				agentMember({ status: 'pending', access: { workspace: true, projects: 'sponsor' } }),
+			],
+			ports: {
+				...scopedPorts(),
+				readMembership: async () => {
+					reads++;
+					return { role: 'member', digest: 'd-member' };
+				},
+			},
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		await made.kernel.call('project-list');
+		const before = reads;
+		expect((await asAgentMember(made, 'project-create', { name: 'Delta' })).error?.code).toBe(
+			'PROJECT_NOT_FOUND'
+		);
+		expect(reads).toBe(before);
 	});
 
 	it('P3-E5: acting for anyone but its sponsor is refused: the person stamped is the one signed in', async () => {
@@ -747,6 +857,45 @@ describe('P3-E5: a sponsor who leaves suspends what they sponsor, persisted by a
 		expect(order.indexOf('agent-member-settle')).toBeGreaterThan(
 			order.lastIndexOf('session-settle')
 		);
+	});
+});
+
+describe("P3-E5: the members read pages to the provider's total (I6)", () => {
+	it('P3-E5: a dangling member row on the first page does not make a sponsor on the next read as gone', async () => {
+		const made = await provider({ agents: [agentMember()] });
+		await signIn(made.kernel, 'olu@example.com');
+		// 250 member rows; the provider skips one with no user, so the first page holds 199; Bea is on the second.
+		const rows: (null | { id: string; name: string; role: MemberRoleV1 })[] = [
+			{ id: OLU, name: 'Olu', role: 'owner' },
+			null,
+			...Array.from({ length: 220 }, (_, at) => ({
+				id: `mock-user-p${at}@example.com`,
+				name: `P${at}`,
+				role: 'member' as const,
+			})),
+			{ id: BEA, name: 'Bea', role: 'member' },
+			...Array.from({ length: 27 }, (_, at) => ({
+				id: `mock-user-q${at}@example.com`,
+				name: `Q${at}`,
+				role: 'member' as const,
+			})),
+		];
+		vi.mocked(made.account.members).mockImplementation(async ({ limit = 200, offset = 0 }) => ({
+			people: rows
+				.slice(offset, offset + limit)
+				.flatMap((row) => (row ? [{ ...row, memberId: `m-${row.id}`, image: null }] : [])),
+			total: rows.length,
+		}));
+		const got = await made.kernel.call<AgentMemberRowV1>('agent-member-get', { agent: AGENT });
+		expect(got.data).toMatchObject({ sponsorName: 'Bea', status: 'active' });
+		await made.kernel.call('project-list');
+		expect((await stored(made))?.status).toBe('active');
+		expect((await journalOf(made)).some((entry) => entry.command === 'agent-member-settle')).toBe(
+			false
+		);
+		// `member-remove` finds a member on the second page too, and suspends what they sponsor.
+		const removed = await made.kernel.call('member-remove', { member: BEA });
+		expect(removed.data).toEqual({ removed: true, suspended: [AGENT] });
 	});
 });
 

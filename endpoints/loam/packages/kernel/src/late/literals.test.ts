@@ -5,14 +5,12 @@ import { MemoryAdapter } from '@lushly-dev/local-db';
 import { describe, expect, it } from 'vitest';
 import { EMPTY_APPS } from '../apps-runtime.js';
 import { createBootCommands } from '../boot-commands.js';
-import { PALETTE_SEARCH_LIMIT } from '../commands.js';
 import { KERNEL_CONTEXT_FIELDS } from '../context-fields.js';
 import { LOCAL_MEMBERSHIP } from '../scope/access.js';
 import { createScopeRuntime } from '../scope/runtime.js';
 import { SHELL_COMMAND_NAMES } from '../shell-command-names.js';
 import { DOCUMENTS_LAYOUT_ID, registerShellState } from '../shell-state.js';
 import { createFixedEnvironment } from '../testing.js';
-import { SEARCH_DEFAULT, SEARCH_MAX } from './identity-commands.js';
 import { createLateParts, createOverlayStore, DOCUMENTS_LAYOUT } from './index.js';
 
 async function definitions() {
@@ -80,11 +78,5 @@ describe('the shell commands on Zod Mini', () => {
 		const caller = KERNEL_CONTEXT_FIELDS.find((field) => field.name === 'caller');
 		expect(safeParse(caller?.schema as never, 'someone').success).toBe(true);
 		expect(safeParse(caller?.schema as never, '').success).toBe(false);
-	});
-});
-
-describe("late-identity's literals", () => {
-	it("holds palette-search's limits equal to PALETTE_SEARCH_LIMIT", () => {
-		expect({ max: SEARCH_MAX, default: SEARCH_DEFAULT }).toEqual(PALETTE_SEARCH_LIMIT);
 	});
 });

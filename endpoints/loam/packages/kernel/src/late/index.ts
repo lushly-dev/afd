@@ -116,6 +116,9 @@ export const PERSON_SESSION: readonly string[] = Object.freeze([
 	'auth-sign-out',
 ]);
 
+/** The signed-out commands as a set, the palette's filter on a signed-out `provider` page (2.1). */
+const SIGNED_OUT_SET: ReadonlySet<string> = new Set(SIGNED_OUT_COMMANDS);
+
 /** Report a failure of stage B's own work, which fails alone (2.2). */
 const reportLate = (cause: unknown): void =>
 	(globalThis as { reportError?: (error: unknown) => void }).reportError?.(cause);
@@ -410,6 +413,11 @@ export async function createLateParts(
 				...deps,
 				editorOwner: editor.owner,
 				documentRows: rows,
+				// A signed-out `provider` page lists only the signed-out commands, filtered before the search ranks (2.1, I4).
+				paletteOnly: () =>
+					deps.identity?.mode === 'provider' && deps.auth.getSession().status !== 'authenticated'
+						? SIGNED_OUT_SET
+						: undefined,
 				instanceCommands: (instance) =>
 					new Set(
 						[...documents.types().types.values()].flatMap((type) =>

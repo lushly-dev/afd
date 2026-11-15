@@ -509,7 +509,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 				const owner = kit.isOwner(deps.membership(), personOf(context));
 				return kit.success({
 					people: await Promise.all(
-						read.people.map(async ({ memberId: _memberId, email, ...person }) => ({
+						read.people.map(async ({ memberId: _memberId, digest: _digest, email, ...person }) => ({
 							...person,
 							...(owner && email !== undefined ? { email } : {}),
 							...(await presented(person.id)),
@@ -639,10 +639,12 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 	/** A person of the workspace by their id, with their member row's id, or `MEMBER_NOT_FOUND`. */
 	const memberNamed = async (held: LoamAccountAccessV1, person: string) => {
 		const people: (MemberV1 & { memberId: string })[] = [];
-		for (let offset = 0; ; offset += 200) {
+		// Every page while the offset is short of the total: the provider skips a member row with no user, so a short page
+		// is not the last (step 6's review, I6).
+		for (let offset = 0, total = 1; offset < total; offset += 200) {
 			const page = await held.members({ limit: 200, offset });
 			people.push(...page.people);
-			if (page.people.length < 200 || people.length >= page.total) break;
+			total = page.total;
 		}
 		return (
 			people.find((row) => row.id === person) ??
