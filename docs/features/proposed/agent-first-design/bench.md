@@ -62,35 +62,37 @@ three screens help on a screen they were not written from.
 | T1 | Lend a packet | Find a variety, lend a packet to a member, take a substitute or join the waiting list when it is out, ask the steward for a rare one, take the loan back |
 | T2 | Take in a donation | Import a batch of packets, follow it, settle a label that matches several varieties, see why a match was made, deal with the rows that failed |
 | T3 | A variety's page | See its lots and loans, record a return and take it back, see how well old seed is expected to germinate and on what evidence, retire the variety |
-| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back |
+| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back, remove a past season's closed requests |
 
 Which task needs which pattern:
 
 | Pattern (proposal, 5.2) | T1 | T2 | T3 | T4 |
 | --- | --- | --- | --- | --- |
-| An error with its recovery | Yes | Yes | | Yes |
-| An undo offer | Yes | | Yes | Yes |
+| An error with its recovery | Yes | Yes | Yes | Yes |
+| An undo offer | Yes | Yes | Yes | Yes |
 | A confirmation before a destructive command | | | Yes | Yes |
-| An approval request | Yes | | | Yes |
+| An approval request | Yes | | | |
 | Progress | | Yes | | Yes |
 | A choice among alternatives | Yes | Yes | | |
-| Warnings | Yes | | Yes | |
+| Warnings | Yes | Yes | Yes | Yes |
 | Evidence for a result | | Yes | Yes | |
 | A batch with some failures | | Yes | | Yes |
 | An empty collection, a failed collection | Yes | | Yes | Yes |
 
-- **A limit.** Alternatives, warnings and evidence are not on T4, so a statement about them is
-  tested only on a screen it may have been written from.
-- **The commands are the data contract.** Their names, as a first sketch: `variety-list`,
-  `variety-get`, `variety-retire`, `loan-create`, `loan-return`, `loan-list`,
-  `request-list`, `request-decide`, `donation-import`, `donation-match` and `member-list`.
-  The sketch is incomplete and no schema is drafted. Nothing in it yet joins a waiting list,
-  asks the steward for a rare variety, lists a variety's lots, or takes back a loan, a
-  return or a decision.
-- **The order is jobs first,** as the `afd` skill's
-  [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets it: the bench's jobs
-  as sentences, then the commands drafted with their inputs, results and error codes, then
-  each job as a scenario file written against them. A fixture forces each state.
+- **A limit.** Alternatives, evidence and the approval request are not on T4, so a statement
+  about them is tested only on a screen it may have been written from. The steward's screen
+  shows held loans from the approver's side, which no default pattern covers.
+- **What produces each pattern** is in
+  [the seed library's jobs](bench/seed-library.md#where-each-pattern-arises). Writing the
+  jobs put warnings on T2 and T4, an error with its recovery on T3 and an undo offer on T2,
+  and took the approval request off T4. The first version of this table differed in those
+  five cells.
+- **The commands are the data contract.** Seventeen jobs and twenty-four drafted commands are
+  in [the seed library's jobs](bench/seed-library.md), each job a scenario file written
+  against the commands, in the order the `afd` skill's
+  [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets. Three readers
+  walked them. No schema is written.
+- **A fixture of each result forces each state** of a screen. They are not written.
 - **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
   kept after phase 0.
 
@@ -100,7 +102,9 @@ Which task needs which pattern:
   fixtures, the states of the screen with what the user must be able to do in each, and what
   counts as done. It writes one story file with a named story per state, from
   `violet-elements` where a component fits. The bare arm gets the jobs and the commands
-  only ([ruling 3](#for-the-owner)).
+  only ([ruling 3](#for-the-owner)). The seed library's table of where each pattern arises
+  lists every screen's states, so it is held material for that arm: its worktree holds no
+  copy, and its tool calls are checked for a read of one.
 - **Every arm has the components brief.** It is merged and is how a session works in this
   repository today, so "nothing" for arm 0 means nothing beyond it. Arms then differ only in
   what is added.
@@ -183,9 +187,22 @@ phase 0 has no step for it.
 - **Where:** a second machine of the owner's, an Apple silicon Mac reached through T3 Code,
   which has a checkout of this repository. Builds, walks and scoring all run there: Specimen
   has a host for that platform and none for Windows (`foundations/specimen/README.md:499`).
-  Until Specimen's packages are released, the host is built from source. Not checked yet:
-  that it builds there, and that the `claude` command on that machine is signed in to the
-  subscription.
+  Until Specimen's packages are released, the host is built from source.
+- **Checked there on 2026-11-15,** by a read-only session outside any checkout: the `claude`
+  command is signed in to a subscription, and a headless call ran on it with no API key set.
+  The Rust toolchain this repository pins, a Node 26, `pnpm`, `uv` and Playwright's headless
+  shell are installed. `claude` takes the model, the effort, a JSON result, a list of tools
+  and a strict MCP configuration as options; it has no option for a number of turns.
+- **Specimen's host builds and renders there,** checked on 2026-11-15 at `2fc5c6fe` in a
+  checkout of its own. The release build took about two minutes on the pinned Rust 1.98.0.
+  With `SPECIMEN_HOST_BINARY` pointing at it, the test that renders one specimen through the
+  host passed, and so did Specimen's whole suite: 558 tests passed and 1 was skipped, and the
+  reference driver's 18 passed.
+- **Rust builds go on the machine's external drive,** as the owner asked; its internal disk
+  is nearly full. Two things make that take care: Specimen's `build:host` script names its
+  own target directory, which overrides `CARGO_TARGET_DIR`, so the bench runs `cargo`
+  directly; and the suite fails on a fresh install until the TypeScript packages are built,
+  as CI builds them first.
 - **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
   an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
 
@@ -234,14 +251,20 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
   Phase 0 also stops for the owner between steps, so it spreads over more than one week.
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
-  recorded. That gives the share a dollar at list price takes, and from it the share each
-  step will take, which comes back to the owner before step 0.1. If four pilots do not move
-  a figure shown in whole percents, the runs pause after the first fifteen builds of step
-  0.1, which are then the measurement, and the estimate comes back to the owner there. If a
-  pilot costs more than twice its line, the runs stop.
+  recorded. No command prints the weekly figure, so a person reads it. A session's result
+  does carry its cost at list prices. That gives the share a dollar at list price takes, and
+  from it the share each step will take, which comes back to the owner before step 0.1. If
+  four pilots do not move a figure shown in whole percents, the runs pause after the first
+  fifteen builds of step 0.1, which are then the measurement, and the estimate comes back to
+  the owner there. If a pilot costs more than twice its line, the runs stop.
 - **The weekly figure is shared.** Another session of the owner's runs on that machine, so
   the figure also moves for reasons that are not the bench. Each session's reported cost is
   the measure of the bench's own use, and the weekly figure only scales it.
+- **A session has a floor.** On 2026-11-15 a headless call on Opus 5.5 that answered one
+  word reported about $0.11 at list prices, nearly all of it for writing the system prompt
+  to the cache. It was measured once, and sessions started within the cache's hour may pay
+  less. At that figure 209 sessions pay about $22 before any work, inside the estimates
+  above.
 - **Not in the total:** writing the commands, the fixtures, the reference build, the runner
   and the statements, which are ordinary working sessions.
 - **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
@@ -267,7 +290,7 @@ built.*
 
   | Event | Rerun | Size |
   | --- | --- | --- |
-  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 20 to 30 builds |
+  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 10 to 40 builds |
   | The model route changes | Arm 0 and the current defaults on all four screens, five runs each | 40 builds |
   | A persona card or the runner changes | The walks on the seeded build | Up to 40 walks and 40 readers |
   | Phase C's exit | The walks on the seeded build, and the panel loop on the two jobs held back for it | 40 walks and 40 readers, and what phase C sizes for the loop |
@@ -309,7 +332,7 @@ the fifth is open.
    Specimen does not support Windows (`foundations/specimen/README.md:499`), and the machine
    this file was written on has no Linux subsystem installed. The machine that runs the
    sessions is an Apple silicon Mac, which Specimen supports, so the checks can run there too
-   and nothing is installed here or added to CI. It holds only if Specimen's host builds
-   there, which is not checked.
+   and nothing is installed here or added to CI. Specimen's host was built there and its
+   suite passed on 2026-11-15.
 5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
    the first run of step 0.1, after the pilots.

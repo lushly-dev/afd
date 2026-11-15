@@ -1,0 +1,86 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+# Not expressible here: every step runs as the test actor, so the file cannot show that only the
+# steward may decide. The decision itself is in 13-decide-a-request.
+name: A rare variety waits for the steward
+description: >-
+  When a member asks for a rare variety, I want to ask the steward for it and see that it is
+  waiting, so that rare seed leaves the library only with the steward's agreement.
+job: rare-needs-the-steward
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: The loan is held, not made, and the refusal says where it is waiting
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-glassgem }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+        suggestion: { contains: request-list }
+  - description: The member's request is waiting, with what was asked and until when
+    command: request-list
+    input: { status: pending, memberId: mem-ines }
+    expect:
+      success: true
+      data:
+        total: 1
+        requests:
+          - id: { matches: '^req-' }
+            member: { id: mem-ines }
+            variety: { id: var-glassgem }
+            status: pending
+            summary: { contains: Glass Gem corn }
+            expiresAt: { exists: true }
+  - description: Nothing has left the shelf
+    command: variety-get
+    input: { id: var-glassgem }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 2
+  - description: The member has no loan yet
+    command: loan-list
+    input: { memberId: mem-ines }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: Asking again while it waits is held again
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-glassgem }
+    expect:
+      success: false
+      error:
+        code: APPROVAL_REQUIRED
+        suggestion: { contains: request-list }
+  - description: And adds no second request
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 1
+  - description: The member changes their mind, so the volunteer withdraws the request
+    command: request-withdraw
+    input: { id: "${{ steps[1].data.requests[0].id }}" }
+    expect:
+      success: true
+      data:
+        status: withdrawn
+  - description: Nothing is waiting for the steward
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: A request that is no longer waiting cannot be withdrawn
+    command: request-withdraw
+    input: { id: "${{ steps[1].data.requests[0].id }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: request-list }

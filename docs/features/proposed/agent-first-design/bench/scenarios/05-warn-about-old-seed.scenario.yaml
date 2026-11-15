@@ -1,0 +1,52 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+# Not expressible here: the caution comes back in the loan's `warnings` (code OLD_SEED), which a
+# scenario cannot assert. The steps check the lot's age and estimate, which the warning is built
+# from.
+name: Say so when the only seed left is old
+description: >-
+  When the only packets left of a variety are old, I want to be told as I lend one, so that the
+  member can sow more thickly or choose something else before they leave.
+job: warn-about-old-seed
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: Before anything is lent, the list shows that the seed on the shelf is old
+    command: variety-list
+    input: { query: marigold }
+    expect:
+      success: true
+      data:
+        varieties:
+          - id: var-calendula
+            packetsAvailable: 4
+            germination: { estimate: { lte: 0.49 }, basis: age }
+  - description: The loan goes through, and carries the lot's age and expected germination
+    command: loan-create
+    input: { memberId: mem-tobias, varietyId: var-calendula }
+    expect:
+      success: true
+      data:
+        status: out
+        lot:
+          id: lot-calendula-24
+          harvestYear: 2024
+          germination: { estimate: { lte: 0.49 }, basis: age }
+  - description: Told, the member would rather have something fresher, so the loan is taken back
+    command: loan-cancel
+    input: { id: "${{ steps[1].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: cancelled
+  - description: And leaves with another flower, from a lot that is expected to do better
+    command: loan-create
+    input: { memberId: mem-tobias, varietyId: var-nigella }
+    expect:
+      success: true
+      data:
+        status: out
+        lot:
+          id: lot-nigella-27
+          germination: { estimate: { gte: 0.5 } }

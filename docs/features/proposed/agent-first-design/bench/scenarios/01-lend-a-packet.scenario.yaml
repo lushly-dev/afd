@@ -1,0 +1,66 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+name: Lend a packet at the desk
+description: >-
+  When a member asks at the desk for a variety, I want to find the member and the variety and
+  lend a packet in one go, so that the member leaves with seed and the count on the shelf is right.
+job: lend-a-packet
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: Find the member by name, with the number that tells two of one name apart
+    command: member-list
+    input: { query: Marlow }
+    expect:
+      success: true
+      data:
+        total: 1
+        members:
+          - { id: mem-ines, name: Ines Marlow, number: M-014 }
+  - description: Find the variety, with how many packets are on the shelf and how fresh they are
+    command: variety-list
+    input: { query: borlotti }
+    expect:
+      success: true
+      data:
+        total: 1
+        varieties:
+          - id: var-borlotti
+            packetsAvailable: 6
+            rare: false
+            retired: false
+            germination: { estimate: { gte: 0.8 }, basis: tested }
+  - description: Lend one packet, from the freshest lot
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        id: { matches: '^loan-' }
+        status: out
+        lot: { id: lot-borlotti-29, harvestYear: 2029 }
+  - description: The shelf count went down by one
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 5
+  - description: The loan is on the member's record
+    command: loan-list
+    input: { memberId: mem-ines, status: out }
+    expect:
+      success: true
+      data:
+        total: 1
+        loans:
+          - { id: "${{ steps[2].data.id }}", variety: { id: var-borlotti } }
+  - description: A loan to someone who is not a member is refused, with where to look
+    command: loan-create
+    input: { memberId: mem-nobody, varietyId: var-borlotti }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: member-list }

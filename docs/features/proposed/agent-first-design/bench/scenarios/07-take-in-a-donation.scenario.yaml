@@ -1,0 +1,99 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
+# Not expressible here: the work is reported step by step in the result's `plan`, and the way
+# back in `undoCommand` and `undoArgs`. A scenario can assert neither. The commands answer at
+# once, so no step shows a batch that is still running; a result fixture gives a screen that
+# state. The steps check the batch's status and counts, and run the command the undo names.
+name: Take in a box of packets as one batch
+description: >-
+  When someone hands in a box of packets, I want to enter them as one batch and see it worked
+  through row by row, so that the shelf count is right without my entering each packet twice.
+job: take-in-a-donation
+tags: [t2]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: Three rows, each with a label the library knows
+    command: donation-import
+    input:
+      rows:
+        - { label: Borlotti bean, packets: 4, harvestYear: 2029 }
+        - { label: Pot marigold, packets: 2, harvestYear: 2029 }
+        - { label: Parsnip, packets: 3, harvestYear: 2029 }
+    expect:
+      success: true
+      data:
+        id: { matches: '^don-' }
+        status: complete
+        summary: { total: 3, successCount: 3, unsettledCount: 0, failureCount: 0 }
+  - description: The batch can be read again later, with the same outcome
+    command: donation-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: complete
+        succeeded: { length: 3 }
+  - description: Each row made a lot
+    command: lot-list
+    input: { varietyId: var-parsnip }
+    expect:
+      success: true
+      data:
+        total: 2
+  - description: The shelf count went up by the packets handed in
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 10
+  - description: The same box is entered a second time by mistake
+    command: donation-import
+    input:
+      rows:
+        - { label: Borlotti bean, packets: 4, harvestYear: 2029 }
+        - { label: Pot marigold, packets: 2, harvestYear: 2029 }
+        - { label: Parsnip, packets: 3, harvestYear: 2029 }
+    expect:
+      success: true
+      data:
+        status: complete
+  - description: The shelf now counts the box twice
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 14
+  - description: The second batch is taken back, and its lots with it
+    command: donation-cancel
+    input: { id: "${{ steps[4].data.id }}" }
+    expect:
+      success: true
+      data:
+        cancelled: true
+        lotsRemoved: 3
+  - description: The count is right again
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 10
+  - description: A batch that was taken back cannot be taken back again
+    command: donation-cancel
+    input: { id: "${{ steps[4].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: donation-get }
+  # The input schema refuses this one, so the host writes the suggestion and none is asserted.
+  - description: A batch with no rows is refused
+    command: donation-import
+    input: { rows: [] }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR

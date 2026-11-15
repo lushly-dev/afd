@@ -1,0 +1,71 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
+# requests, which is held back from whoever writes the first pattern statements.
+# Needs a server that enforces confirmations: with them off, the first step would remove the
+# requests. The wording of the question is the command's `confirmPrompt`, which a scenario
+# cannot read. `confirm` is written inside `input`, which is where an individual tool takes it.
+name: Remove a past season's closed requests, knowingly
+description: >-
+  When a season is over, I want its closed requests removed knowingly, since they hold members'
+  names against what they asked for and cannot be brought back, so that the library keeps no more
+  about its members than it needs.
+job: clear-a-past-season
+tags: [t4]
+fixture:
+  file: fixtures/steward.json
+  base: library.json
+steps:
+  - description: Without a confirmation, nothing is removed
+    command: request-clear
+    input: { closedBefore: "2030-03-05" }
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_REQUIRED
+        suggestion: { contains: confirm }
+  - description: Last season's declined request is still there
+    command: request-list
+    input: { status: declined }
+    expect:
+      success: true
+      data:
+        total: 1
+        requests:
+          - { id: req-5 }
+  - description: So is the one that expired last week
+    command: request-list
+    input: { status: expired }
+    expect:
+      success: true
+      data:
+        total: 1
+        requests:
+          - { id: req-4 }
+  - description: Confirmed, both are removed
+    command: request-clear
+    input: { closedBefore: "2030-03-05", confirm: true }
+    expect:
+      success: true
+      data:
+        removed: 2
+  - description: The declined one is gone
+    command: request-list
+    input: { status: declined }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: So is the expired one
+    command: request-list
+    input: { status: expired }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: What is waiting was not touched
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 3

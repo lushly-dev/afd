@@ -1,0 +1,71 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T3, a variety's page.
+# Needs a server that enforces confirmations: with them off, the first step would retire the
+# variety. The wording of the question is the command's `confirmPrompt`, which a scenario
+# cannot read. `confirm` is written inside `input`, which is where an individual tool takes it.
+name: Retire a variety, knowingly
+description: >-
+  When a variety has stopped coming true, I want to retire it knowingly, since it cannot be
+  brought back, so that nobody lends seed the library no longer stands behind.
+job: retire-a-variety
+tags: [t3]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: Without a confirmation, nothing is retired
+    command: variety-retire
+    input: { id: var-nigella }
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_REQUIRED
+        suggestion: { contains: confirm }
+  - description: The variety is still there
+    command: variety-get
+    input: { id: var-nigella }
+    expect:
+      success: true
+      data:
+        retired: false
+        packetsAvailable: 2
+  - description: Confirmed, it is retired and its packets are withdrawn
+    command: variety-retire
+    input: { id: var-nigella, confirm: true }
+    expect:
+      success: true
+      data:
+        retired: true
+        retiredAt: { exists: true }
+        packetsWithdrawn: 2
+  - description: It can no longer be lent
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-nigella }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: variety-list }
+  - description: It is gone from an ordinary search
+    command: variety-list
+    input: { query: mist }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: It is still on record for anyone who asks for retired varieties
+    command: variety-list
+    input: { query: mist, includeRetired: true }
+    expect:
+      success: true
+      data:
+        total: 1
+        varieties:
+          - { id: var-nigella, retired: true }
+  - description: Retiring it twice is refused
+    command: variety-retire
+    input: { id: var-nigella, confirm: true }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: variety-get }
