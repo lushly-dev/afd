@@ -481,6 +481,7 @@ async fn mailboxes(
                     name: &mailbox.name,
                     role: mailbox.role,
                 },
+                clock.now(),
             )?;
         }
         for row in store.mailboxes(account)? {
