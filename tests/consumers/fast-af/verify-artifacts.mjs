@@ -296,6 +296,9 @@ if (browserName !== 'none') {
 		configFile: false,
 		logLevel: 'warn',
 		server: { host: '127.0.0.1', port: await freePort(), strictPort: true },
+		// The packages are ES modules, so serve them as they are. Discovering dependencies as the page
+		// imports them let Vite optimize one late and reload the page under page.evaluate (#1247).
+		optimizeDeps: { noDiscovery: true, include: [] },
 	});
 	await server.listen();
 	const launched = await playwright[browserName].launch({ headless: true });
