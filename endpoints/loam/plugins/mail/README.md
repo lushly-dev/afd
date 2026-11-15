@@ -72,7 +72,8 @@ LOAM_MAIL_LIVE_DIR=<new directory> LOAM_MAIL_LIVE_OUT=<results file> \
 
 `tests/live_screening.rs` makes step C1's report on a copy of a synced store: it derives every
 message again and counts Q2 and the stream stories each grouping would make, counts only. It
-refuses the data directory itself, since opening a store brings its schema up to date:
+refuses the data directory an engine would use (`LOAM_MAIL_HOME`'s or the platform's), since
+opening a store brings its schema up to date:
 
 ```sh
 LOAM_MAIL_LIVE_HOME=<a copy of the data directory> LOAM_MAIL_LIVE_OUT=<results file> \

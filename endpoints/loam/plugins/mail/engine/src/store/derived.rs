@@ -186,6 +186,7 @@ pub(super) fn derive_header(
             |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()?;
+    let derived_before = had.is_some();
     if let Some((thread, sender)) = had {
         found.insert(thread);
         // A derivation that reads the sender otherwise moves the message.
@@ -200,6 +201,12 @@ pub(super) fn derive_header(
             )
             .optional()?;
         found.extend(named);
+    }
+    // A message of the person's derived again names whom it named before
+    // until the row below is replaced: those senders are computed again too.
+    let persons = super::senders::is_persons(transaction, message)?;
+    if persons && derived_before {
+        super::senders::touch_correspondents(transaction, message, touched)?;
     }
     // A thread's id is the lowest id of its messages, this one included.
     let thread = found
@@ -223,9 +230,9 @@ pub(super) fn derive_header(
              (message_id, parser, thread_id, date, sent_at, sender_address, sender_name,
               subject, unparsed, list_id, unsubscribe, precedence, auto_submitted, reply_to,
               reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head,
-              message_key, answers_key, received)
+              message_key, answers_key, received, resent_from)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                 ?18, ?19, ?20, ?21, ?22, ?23)
+                 ?18, ?19, ?20, ?21, ?22, ?23, ?24)
          ON CONFLICT (message_id) DO UPDATE SET
              parser = excluded.parser, thread_id = excluded.thread_id, date = excluded.date,
              sent_at = excluded.sent_at, sender_address = excluded.sender_address,
@@ -237,7 +244,7 @@ pub(super) fn derive_header(
              auth_spf = excluded.auth_spf, auth_dkim = excluded.auth_dkim,
              auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head,
              message_key = excluded.message_key, answers_key = excluded.answers_key,
-             received = excluded.received",
+             received = excluded.received, resent_from = excluded.resent_from",
         params![
             message,
             PARSER_VERSION,
@@ -261,10 +268,11 @@ pub(super) fn derive_header(
             header.template_head.as_slice(),
             header.message_key.as_ref().map(<[u8; 16]>::as_slice),
             header.answers_key.as_ref().map(<[u8; 16]>::as_slice),
-            received
+            received,
+            header.resent_from
         ],
     )?;
-    super::senders::derive_recipients(transaction, message, header, touched)?;
+    super::senders::derive_recipients(transaction, message, header, persons, touched)?;
     touched.threads.insert(thread);
     let mut shown = transaction.prepare_cached(
         "SELECT DISTINCT mailbox_id FROM observation WHERE message_id = ?1 AND ended_at IS NULL",

@@ -72,8 +72,14 @@ pub struct HeaderFields {
     /// or else the last of `References`.
     pub answers_key: Option<ThreadKey>,
     /// The addresses it was sent to (`To`, `Cc` and `Bcc`), in lower case,
-    /// each once, at most [`RECIPIENTS_LIMIT`] of each kind.
+    /// each once, at most [`RECIPIENTS_LIMIT`] of each kind. A message
+    /// redirected (with a `Resent-From`) was sent to its topmost `Resent-To`,
+    /// `Resent-Cc` and `Resent-Bcc` instead: its `To` names whom the first
+    /// sender wrote to.
     pub recipients: Vec<String>,
+    /// The topmost `Resent-From` address, in lower case: who redirected the
+    /// message, when someone did. Empty otherwise.
+    pub resent_from: String,
     /// The list it came through: the id inside `List-Id`, in lower case.
     pub list_id: String,
     /// How it can be unsubscribed from: 0 not at all, 1 a
@@ -314,8 +320,32 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
                 .references()
                 .and_then(|named| named.iter().rev().find_map(key_of))
         });
+    // The topmost of each: the latest redirect writes its block above the
+    // others.
+    let address_list = |name: &str| {
+        headers
+            .iter()
+            .find(|header| header.raw_name().eq_ignore_ascii_case(name))
+            .and_then(|header| header.value().as_address())
+    };
+    let resent_from = address_list("Resent-From")
+        .and_then(|list| {
+            list.mailboxes()
+                .find_map(|mailbox| mailbox.address().map(str::to_lowercase))
+        })
+        .map(|address| one_line(&address, SENDER_LIMIT))
+        .unwrap_or_default();
+    let named = if resent_from.is_empty() {
+        [message.to(), message.cc(), message.bcc()]
+    } else {
+        [
+            address_list("Resent-To"),
+            address_list("Resent-Cc"),
+            address_list("Resent-Bcc"),
+        ]
+    };
     let mut recipients: Vec<String> = Vec::new();
-    for found in [message.to(), message.cc(), message.bcc()] {
+    for found in named {
         let Some(list) = found else { continue };
         for address in list
             .mailboxes()
@@ -349,6 +379,7 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
         message_key,
         answers_key,
         recipients,
+        resent_from,
         list_id,
         unsubscribe,
         precedence: token(raw("Precedence")),
@@ -1713,6 +1744,18 @@ mod tests {
             fields.recipients,
             ["b@example.com", "c@example.com", "d@example.com"]
         );
+        // A redirect was sent to its Resent- recipients, by whoever resent it.
+        let fields = header_fields(
+            b"From: stranger@example.net\r\n\
+              To: person@example.com, other@example.net\r\n\
+              Resent-From: Person <Person@example.com>\r\n\
+              Resent-To: friend@example.org\r\n\
+              Resent-From: earlier@example.net\r\n\
+              Resent-To: earlier-friend@example.net\r\n\r\n",
+        );
+        assert_eq!(fields.sender_address, "stranger@example.net");
+        assert_eq!(fields.resent_from, "person@example.com");
+        assert_eq!(fields.recipients, ["friend@example.org"]);
         // Without In-Reply-To, the last id of References.
         let fields = header_fields(
             b"From: a@example.com\r\n\

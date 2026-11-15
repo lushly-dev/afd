@@ -338,12 +338,16 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ALTER TABLE envelope ADD COLUMN received INTEGER NOT NULL DEFAULT 0;
     UPDATE envelope SET received = (SELECT coalesce(received_at, first_seen_at) FROM message
                                     WHERE message.id = envelope.message_id);
+    -- Who redirected the message (its topmost Resent-From), when someone did.
+    ALTER TABLE envelope ADD COLUMN resent_from TEXT NOT NULL DEFAULT '';
     CREATE INDEX envelope_message_key ON envelope (message_key) WHERE message_key IS NOT NULL;
     CREATE INDEX envelope_sender ON envelope (sender_address, received);
     -- A message with a list or bulk header (7.2's rule 3), by sender.
     CREATE INDEX envelope_sender_bulk ON envelope (sender_address)
         WHERE list_id <> '' OR unsubscribe > 0 OR precedence IN ('bulk', 'list', 'junk')
             OR auto_submitted <> '';
+    -- The lists a sender's messages came through.
+    CREATE INDEX envelope_sender_list ON envelope (sender_address, list_id) WHERE list_id <> '';
 
     -- Every observation, current or ended, by mailbox: the messages a sent mailbox has shown.
     CREATE INDEX observation_mailbox ON observation (mailbox_id, message_id);

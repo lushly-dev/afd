@@ -36,6 +36,7 @@ impl Mail {
                         name: key,
                         role,
                     },
+                    NOW,
                 )
                 .unwrap()
         };
@@ -344,6 +345,7 @@ fn a_mailbox_that_becomes_a_sent_mailbox_makes_its_messages_the_person_s() {
                 name: "Archive",
                 role: Role::Sent,
             },
+            NOW,
         )
         .unwrap();
     assert_eq!(mail.row("finn@example.org").unwrap().written, 1);
@@ -355,6 +357,7 @@ fn a_mailbox_that_becomes_a_sent_mailbox_makes_its_messages_the_person_s() {
                 name: "Archive",
                 role: Role::Archive,
             },
+            NOW,
         )
         .unwrap();
     assert!(mail.row("finn@example.org").is_none());
@@ -394,44 +397,66 @@ fn a_rebuild_gives_every_sender_the_same_row_and_id() {
 }
 
 #[test]
-fn a_sender_s_counts_read_indexes_and_start_from_the_person_s_mail() {
+fn every_sender_query_reads_an_index_or_starts_from_the_person_s_mail() {
     let mail = Mail::new();
-    let plan = |sql: &str| -> String {
+    for (name, sql) in senders::every_query() {
         let mut statement = mail
             .store
             .connection
             .prepare(&format!("EXPLAIN QUERY PLAN {sql}"))
             .unwrap();
-        let rows: Vec<String> = statement
-            .query_map(["x"], |row| row.get::<_, String>(3))
+        let bound = statement.parameter_count();
+        let plan: Vec<String> = statement
+            .query_map(rusqlite::params_from_iter(vec!["x"; bound]), |row| {
+                row.get::<_, String>(3)
+            })
             .unwrap()
             .collect::<Result<_, _>>()
             .unwrap();
-        rows.join("\n")
-    };
-    let bulk = plan(&format!(
-        "SELECT count(*) FROM envelope WHERE sender_address = ?1 AND {}",
-        senders::BULK
-    ));
-    assert!(bulk.contains("envelope_sender_bulk"), "{bulk}");
-    let name = plan(
-        "SELECT sender_name FROM envelope WHERE sender_address = ?1
-         ORDER BY received DESC, message_id DESC LIMIT 1",
-    );
-    assert!(name.contains("envelope_sender"), "{name}");
-    assert!(!name.contains("TEMP B-TREE"), "{name}");
-    let answered = plan(
-        "SELECT count(DISTINCT answered.message_id) FROM mailbox AS sent
-             CROSS JOIN observation AS mine ON mine.mailbox_id = sent.id AND sent.role = 'sent'
-             CROSS JOIN envelope AS reply ON reply.message_id = mine.message_id
-             CROSS JOIN envelope AS answered
-                 ON answered.message_key = reply.answers_key AND answered.sender_address = ?1",
-    );
-    let first_loop = answered
-        .lines()
-        .find(|line| line.starts_with("SCAN") || line.starts_with("SEARCH"));
-    assert_eq!(first_loop, Some("SCAN sent"), "{answered}");
-    assert!(answered.contains("envelope_message_key"), "{answered}");
+        let plan = plan.join("\n");
+        // A scan reads every row of a table: only the mailboxes, to find
+        // the sent ones, and the accounts may be read so. Every address is
+        // read once, when a mailbox becomes a sent mailbox or stops being one.
+        if name != "every" {
+            for line in plan.lines().filter(|line| line.starts_with("SCAN")) {
+                assert!(
+                    line == "SCAN sent" || line.starts_with("SCAN account "),
+                    "{name}:\n{plan}"
+                );
+            }
+        }
+        let first_loop = plan
+            .lines()
+            .find(|line| line.starts_with("SCAN") || line.starts_with("SEARCH"));
+        match name {
+            "written" | "answered" => {
+                assert_eq!(first_loop, Some("SCAN sent"), "{name}:\n{plan}");
+            }
+            "own" => assert!(
+                plan.contains("SCAN sent\nSEARCH mine USING COVERING INDEX observation_mailbox"),
+                "{name}:\n{plan}"
+            ),
+            "counts" | "name" | "places" => {
+                assert!(
+                    plan.contains("COVERING INDEX envelope_sender ")
+                        || plan.contains("INDEX envelope_sender ("),
+                    "{name}:\n{plan}"
+                );
+            }
+            "bulk" => assert!(plan.contains("envelope_sender_bulk"), "{name}:\n{plan}"),
+            "lists" => assert!(
+                plan.contains("COVERING INDEX envelope_sender_list"),
+                "{name}:\n{plan}"
+            ),
+            _ => {}
+        }
+        if name == "name" {
+            assert!(!plan.contains("TEMP B-TREE"), "{name}:\n{plan}");
+        }
+        if name == "answered" {
+            assert!(plan.contains("envelope_message_key"), "{name}:\n{plan}");
+        }
+    }
 }
 
 #[test]
@@ -469,6 +494,7 @@ fn the_report_counts_q2_and_the_stories_of_each_grouping() {
                 name: "Junk",
                 role: Role::Junk,
             },
+            NOW,
         )
         .unwrap();
     mail.add(junk, "spam@example.biz", &["Precedence: bulk"]);
@@ -507,4 +533,199 @@ fn the_report_counts_q2_and_the_stories_of_each_grouping() {
     // The largest mailbox, the inbox, left out: the archive's stranger alone.
     let without = report.without_the_largest_mailbox;
     assert_eq!((without.from_strangers, without.decided()), (1, 0));
+}
+
+#[test]
+fn a_reply_derived_again_without_what_it_answered_leaves_that_sender_unanswered() {
+    let mut mail = Mail::new();
+    let (inbox, sent) = (mail.inbox, mail.sent);
+    mail.add(inbox, "alice@example.org", &[]); // m1
+    let reply_fields = ["To: bob@example.org", "In-Reply-To: <m1@example.com>"];
+    let reply = mail.add(sent, PERSON, &reply_fields); // m2
+    assert_eq!(mail.row("alice@example.org").unwrap().answered, 1);
+    assert_eq!(mail.row("bob@example.org").unwrap().written, 1);
+    // Derived again from bytes that now say less, as after a damaged file or
+    // a new version of the derivation: no recipients, and nothing answered.
+    let mut header = derive::header_fields(&header(2, PERSON, &reply_fields).header_block);
+    header.answers_key = None;
+    header.recipients.clear();
+    let transaction = mail.store.connection.transaction().unwrap();
+    let mut touched = derived::Touched::new(None);
+    derived::derive_header(&transaction, reply.0, &header, &mut touched).unwrap();
+    derived::settle(&transaction, &touched, NOW).unwrap();
+    transaction.commit().unwrap();
+    assert_eq!(mail.row("alice@example.org").unwrap().answered, 0);
+    assert!(mail.row("bob@example.org").is_none());
+}
+
+#[test]
+fn a_redirect_in_a_sent_mailbox_is_the_person_s_and_its_first_sender_is_not() {
+    let mut mail = Mail::new();
+    let sent = mail.sent;
+    mail.add(
+        sent,
+        "stranger@example.net",
+        &[
+            "To: person@example.com",
+            "Cc: other@example.net",
+            "Resent-From: person@example.com",
+            "Resent-To: friend@example.org",
+        ],
+    );
+    let stranger = mail.row("stranger@example.net").unwrap();
+    assert_eq!((stranger.messages, stranger.written), (1, 0));
+    assert_eq!(mail.row("friend@example.org").unwrap().written, 1);
+    assert!(mail.row("other@example.net").is_none());
+}
+
+#[test]
+fn a_sender_that_turns_out_to_be_the_person_is_a_change() {
+    let mut mail = Mail::new();
+    let (inbox, sent) = (mail.inbox, mail.sent);
+    mail.add(inbox, "alias@example.net", &[]);
+    let changes = |mail: &Mail| -> i64 {
+        mail.store
+            .connection
+            .query_row(
+                "SELECT count(*) FROM change WHERE kind = 'sender' AND subject = ?1",
+                [sender_id("alias@example.net")],
+                |row| row.get(0),
+            )
+            .unwrap()
+    };
+    let before = changes(&mail);
+    mail.add(sent, "alias@example.net", &["To: erin@example.org"]);
+    assert!(mail.row("alias@example.net").is_none());
+    assert_eq!(changes(&mail), before + 1);
+}
+
+#[test]
+fn a_rebuild_over_several_batches_gives_the_same_senders() {
+    let mut mail = Mail::new();
+    let (inbox, sent) = (mail.inbox, mail.sent);
+    // A reply recorded before what it answers, which comes a batch later.
+    mail.add(
+        sent,
+        PERSON,
+        &["To: late@example.org", "In-Reply-To: <m252@example.com>"],
+    ); // m1
+    for number in 0..250 {
+        mail.add(inbox, &format!("s{}@example.org", number % 40), &[]); // m2 to m251
+    }
+    mail.add(inbox, "late@example.org", &[]); // m252
+    // And one recorded after what it answers, a batch earlier (m5 is s3's).
+    mail.add(
+        sent,
+        PERSON,
+        &["To: s3@example.org", "In-Reply-To: <m5@example.com>"],
+    ); // m253
+    let late = mail.row("late@example.org").unwrap();
+    assert_eq!((late.messages, late.written, late.answered), (1, 1, 1));
+    let s3 = mail.row("s3@example.org").unwrap();
+    assert_eq!((s3.written, s3.answered), (1, 1));
+    let tables = |mail: &Mail| {
+        (
+            table(&mail.store, "SELECT * FROM sender ORDER BY address"),
+            table(
+                &mail.store,
+                "SELECT * FROM recipient ORDER BY message_id, address",
+            ),
+        )
+    };
+    let before = tables(&mail);
+    mail.store.rebuild(NOW, |_| {}).unwrap();
+    assert_eq!(tables(&mail), before);
+}
+
+#[test]
+fn a_store_from_before_senders_is_derived_again_and_gains_them() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = Home::at(directory.path().join("data"));
+    let blocks = [
+        header(1, "Alice <alice@example.org>", &["To: person@example.com"]),
+        header(
+            2,
+            PERSON,
+            &["To: alice@example.org", "In-Reply-To: <m1@example.com>"],
+        ),
+    ];
+    {
+        // Version 6 wrote these rows; its derivation had no senders.
+        let store = Store::open_with(&home, &schema::MIGRATIONS[..6]).unwrap();
+        store
+            .connection
+            .execute_batch(
+                "INSERT INTO account (id, provider, address, created_at)
+                     VALUES (1, 'icloud', 'person@example.com', 0);
+                 INSERT INTO mailbox (id, account_id, provider_key, name, role, header_only)
+                     VALUES (1, 1, 'INBOX', 'INBOX', 'inbox', 0),
+                            (2, 1, 'Sent Messages', 'Sent Messages', 'sent', 0);",
+            )
+            .unwrap();
+        for (seen, mailbox) in blocks.iter().zip([1, 2]) {
+            let blob = store.log().put(&seen.header_block).unwrap();
+            let id = i64::from(mailbox);
+            store
+                .connection
+                .execute(
+                    "INSERT INTO message (id, header_hash, reported_size, first_seen_at,
+                                          received_at)
+                     VALUES (?1, ?2, ?3, ?4, ?5)",
+                    rusqlite::params![
+                        id,
+                        blob.as_bytes().as_slice(),
+                        i64::try_from(seen.reported_size).unwrap(),
+                        NOW,
+                        seen.internal_date
+                    ],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO held (message_id, part, kind, blob, size)
+                     VALUES (?1, 'header', 'header', ?2, ?3)",
+                    rusqlite::params![
+                        id,
+                        blob.as_bytes().as_slice(),
+                        i64::try_from(seen.header_block.len()).unwrap()
+                    ],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO observation (message_id, mailbox_id, validity, provider_id,
+                                              flags, seen_at)
+                     VALUES (?1, ?2, '', ?1, '[]', 0)",
+                    [id, id],
+                )
+                .unwrap();
+            store
+                .connection
+                .execute(
+                    "INSERT INTO envelope (message_id, parser, thread_id, date, sender_address,
+                                           sender_name, subject)
+                     VALUES (?1, 2, ?1, 0, 'old', '', 'old')",
+                    [id],
+                )
+                .unwrap();
+        }
+    }
+    let mut store = Store::open(&home).unwrap();
+    let received: Vec<Vec<Value>> = table(&store, "SELECT received FROM envelope ORDER BY 1");
+    assert_eq!(
+        received,
+        [vec![Value::Integer(at(1))], vec![Value::Integer(at(2))]],
+        "the migration fills when each was received"
+    );
+    assert_eq!(store.stale_count().unwrap(), 2);
+    assert_eq!(store.sender(sender_id("alice@example.org")).unwrap(), None);
+    while store.rederive_stale(200, NOW).unwrap() > 0 {}
+    let alice = store
+        .sender(sender_id("alice@example.org"))
+        .unwrap()
+        .unwrap();
+    assert_eq!((alice.messages, alice.written, alice.answered), (1, 1, 1));
+    assert_eq!(alice.name, "Alice");
 }

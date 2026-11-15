@@ -38,6 +38,109 @@ pub(super) const BULK: &str = "(list_id <> '' OR unsubscribe > 0 \
 const PERSONS: &str = "mailbox AS sent CROSS JOIN observation AS mine
      ON mine.mailbox_id = sent.id AND sent.role = 'sent'";
 
+/// The queries a sender's row and the commands read, each by name, so that
+/// a test reads the plan of each as the code runs it: a sender's own index
+/// range, or the person's messages, never a scan of the mail.
+mod query {
+    use super::{BULK, PERSONS};
+
+    /// A message's senders, recipients and the sender of what it answers.
+    pub(super) const CORRESPONDENTS: &str = "SELECT sender_address FROM envelope
+         WHERE message_id = ?1
+         UNION SELECT resent_from FROM envelope WHERE message_id = ?1
+         UNION SELECT address FROM recipient WHERE message_id = ?1
+         UNION SELECT answered.sender_address FROM envelope AS reply
+               JOIN envelope AS answered ON answered.message_key = reply.answers_key
+               WHERE reply.message_id = ?1";
+
+    /// A sender's messages, and when the first and last arrived.
+    pub(super) const COUNTS: &str = "SELECT count(*), min(received), max(received)
+         FROM envelope WHERE sender_address = ?1";
+
+    /// The name on a sender's newest message.
+    pub(super) const NAME: &str = "SELECT sender_name FROM envelope
+         WHERE sender_address = ?1 ORDER BY received DESC, message_id DESC LIMIT 1";
+
+    /// Where a sender's messages are now.
+    pub(super) const PLACES: &str =
+        "SELECT observation.mailbox_id, count(DISTINCT envelope.message_id) AS shown
+         FROM envelope JOIN observation ON observation.message_id = envelope.message_id
+         WHERE envelope.sender_address = ?1 AND observation.ended_at IS NULL
+         GROUP BY observation.mailbox_id ORDER BY shown DESC, observation.mailbox_id";
+
+    /// The lists a sender's messages came through.
+    pub(super) const LISTS: &str = "SELECT list_id, count(*) AS messages FROM envelope
+         WHERE sender_address = ?1 AND list_id <> ''
+         GROUP BY list_id ORDER BY messages DESC, list_id LIMIT ?2";
+
+    /// How many of a sender's messages carry a list or bulk header.
+    pub(super) fn bulk() -> String {
+        format!("SELECT count(*) FROM envelope WHERE sender_address = ?1 AND {BULK}")
+    }
+
+    /// The person's messages to a sender, and when the last arrived.
+    pub(super) fn written() -> String {
+        format!(
+            "SELECT count(DISTINCT mine.message_id), max(envelope.received) FROM {PERSONS}
+                 CROSS JOIN recipient
+                     ON recipient.message_id = mine.message_id AND recipient.address = ?1
+                 CROSS JOIN envelope ON envelope.message_id = mine.message_id"
+        )
+    }
+
+    /// A sender's messages the person answered, each Message-ID once.
+    pub(super) fn answered() -> String {
+        format!(
+            "SELECT count(DISTINCT answered.message_key) FROM {PERSONS}
+                 CROSS JOIN envelope AS reply ON reply.message_id = mine.message_id
+                 CROSS JOIN envelope AS answered
+                     ON answered.message_key = reply.answers_key
+                        AND answered.sender_address = ?1"
+        )
+    }
+
+    /// The person's own addresses, as written.
+    pub(super) fn own() -> String {
+        format!(
+            "SELECT address FROM account
+             UNION
+             SELECT CASE WHEN envelope.resent_from <> '' THEN envelope.resent_from
+                         ELSE envelope.sender_address END
+                 FROM {PERSONS} CROSS JOIN envelope ON envelope.message_id = mine.message_id"
+        )
+    }
+
+    /// Every address that has or may need a sender row.
+    pub(super) fn every() -> String {
+        format!(
+            "SELECT DISTINCT sender_address FROM envelope
+             UNION SELECT address FROM sender
+             UNION SELECT recipient.address FROM {PERSONS}
+                 CROSS JOIN recipient ON recipient.message_id = mine.message_id"
+        )
+    }
+
+    /// Each query by name, for the test of their plans.
+    #[cfg(test)]
+    pub(in crate::store) fn all() -> Vec<(&'static str, String)> {
+        vec![
+            ("correspondents", CORRESPONDENTS.to_string()),
+            ("counts", COUNTS.to_string()),
+            ("name", NAME.to_string()),
+            ("places", PLACES.to_string()),
+            ("lists", LISTS.to_string()),
+            ("bulk", bulk()),
+            ("written", written()),
+            ("answered", answered()),
+            ("own", own()),
+            ("every", every()),
+        ]
+    }
+}
+
+#[cfg(test)]
+pub(super) use query::all as every_query;
+
 /// A sender as a list shows it.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SenderRow {
@@ -62,7 +165,7 @@ pub struct SenderRow {
     pub written: u64,
     /// When the provider received the last of them.
     pub last_written: Option<i64>,
-    /// How many of its messages the person answered.
+    /// How many of its messages the person answered, each Message-ID once.
     pub answered: u64,
     /// The later of its last message and the person's last to it: what a
     /// list is ordered by.
@@ -92,19 +195,17 @@ pub fn domain_of(address: &str) -> String {
 }
 
 /// Records whom a message was sent to, and notes the senders it touches: its
-/// own, and when it is the person's, its recipients' and the sender of the
-/// message it answers.
+/// own, and when it is the person's (`persons`), its recipients' and the
+/// sender of the message it answers. Called once its envelope row is
+/// written; whom a row derived before named is the caller's to note, before
+/// it replaces the row.
 pub(super) fn derive_recipients(
     transaction: &Transaction<'_>,
     message: i64,
     header: &HeaderFields,
+    persons: bool,
     touched: &mut super::derived::Touched,
 ) -> Result<(), StoreError> {
-    let persons = is_persons(transaction, message)?;
-    // What it named before, when it is derived again.
-    if persons {
-        touch_correspondents(transaction, message, touched)?;
-    }
     transaction.run("DELETE FROM recipient WHERE message_id = ?1", [message])?;
     {
         let mut insert = transaction.prepare_cached(
@@ -143,7 +244,7 @@ pub(super) fn observed(
 }
 
 /// Whether a sent mailbox has ever shown `message`.
-fn is_persons(transaction: &Transaction<'_>, message: i64) -> Result<bool, StoreError> {
+pub(super) fn is_persons(transaction: &Transaction<'_>, message: i64) -> Result<bool, StoreError> {
     Ok(transaction.one(
         "SELECT EXISTS (SELECT 1 FROM observation JOIN mailbox ON mailbox.id = observation.mailbox_id
                         WHERE observation.message_id = ?1 AND mailbox.role = 'sent')",
@@ -152,21 +253,15 @@ fn is_persons(transaction: &Transaction<'_>, message: i64) -> Result<bool, Store
     )?)
 }
 
-/// The senders a message of the person's bears on: its own sender, which is
-/// one of the person's addresses, its recipients, and the sender of the
-/// message it answers.
-fn touch_correspondents(
+/// The senders a message of the person's bears on: its own sender and
+/// whoever redirected it, which are the person's addresses, its recipients,
+/// and the sender of the message it answers.
+pub(super) fn touch_correspondents(
     transaction: &Transaction<'_>,
     message: i64,
     touched: &mut super::derived::Touched,
 ) -> Result<(), StoreError> {
-    let mut statement = transaction.prepare_cached(
-        "SELECT sender_address FROM envelope WHERE message_id = ?1
-         UNION SELECT address FROM recipient WHERE message_id = ?1
-         UNION SELECT answered.sender_address FROM envelope AS reply
-               JOIN envelope AS answered ON answered.message_key = reply.answers_key
-               WHERE reply.message_id = ?1",
-    )?;
+    let mut statement = transaction.prepare_cached(query::CORRESPONDENTS)?;
     let addresses = statement.query_map([message], |row| row.get::<_, String>(0))?;
     for address in addresses {
         touched.senders.insert(address?);
@@ -175,17 +270,13 @@ fn touch_correspondents(
 }
 
 /// The person's own addresses: every account's, and the sender of every
-/// message of the person's. In lower case as the derivation writes a sender
-/// (Rust's, which SQLite's `lower` is not beyond ASCII).
+/// message of the person's, or whoever redirected it: a redirect keeps the
+/// first sender's `From`, a stranger's. In lower case as the derivation
+/// writes a sender (Rust's, which SQLite's `lower` is not beyond ASCII).
 pub(super) fn own_addresses(
     connection: &rusqlite::Connection,
 ) -> Result<HashSet<String>, StoreError> {
-    let mut statement = connection.prepare_cached(&format!(
-        "SELECT address FROM account
-         UNION
-         SELECT envelope.sender_address FROM {PERSONS}
-             CROSS JOIN envelope ON envelope.message_id = mine.message_id"
-    ))?;
+    let mut statement = connection.prepare_cached(&query::own())?;
     let addresses = statement
         .query_map([], |row| row.get::<_, String>(0))?
         .map(|address| address.map(|address| address.to_lowercase()))
@@ -220,12 +311,7 @@ pub(super) fn settle_every_sender(
     now: i64,
 ) -> Result<(), StoreError> {
     let addresses: BTreeSet<String> = {
-        let mut statement = transaction.prepare(&format!(
-            "SELECT DISTINCT sender_address FROM envelope
-             UNION SELECT address FROM sender
-             UNION SELECT recipient.address FROM {PERSONS}
-                 CROSS JOIN recipient ON recipient.message_id = mine.message_id"
-        ))?;
+        let mut statement = transaction.prepare(&query::every())?;
         statement
             .query_map([], |row| row.get::<_, String>(0))?
             .collect::<Result<_, _>>()?
@@ -235,61 +321,33 @@ pub(super) fn settle_every_sender(
 
 /// Computes `address`'s row again from the messages: written when it has
 /// messages or the person wrote to it, and removed otherwise, or when the
-/// address is the person's. Returns whether the address is a sender's.
+/// address is the person's. Returns whether a row was written or removed.
 fn compute_sender(
     transaction: &Transaction<'_>,
     address: &str,
     own: &HashSet<String>,
 ) -> Result<bool, StoreError> {
     if address.is_empty() || own.contains(address) {
-        transaction.run("DELETE FROM sender WHERE address = ?1", [address])?;
-        return Ok(false);
+        let removed = transaction.run("DELETE FROM sender WHERE address = ?1", [address])?;
+        return Ok(removed > 0);
     }
     let (messages, first_received, last_received): (i64, Option<i64>, Option<i64>) = transaction
-        .one(
-            "SELECT count(*), min(received), max(received) FROM envelope
-             WHERE sender_address = ?1",
-            [address],
-            |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
-        )?;
-    let bulk: i64 = transaction.one(
-        &format!("SELECT count(*) FROM envelope WHERE sender_address = ?1 AND {BULK}"),
-        [address],
-        |row| row.get(0),
-    )?;
+        .one(query::COUNTS, [address], |row| {
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
+        })?;
+    let bulk: i64 = transaction.one(&query::bulk(), [address], |row| row.get(0))?;
     let name: String = transaction
-        .one(
-            "SELECT sender_name FROM envelope WHERE sender_address = ?1
-             ORDER BY received DESC, message_id DESC LIMIT 1",
-            [address],
-            |row| row.get(0),
-        )
+        .one(query::NAME, [address], |row| row.get(0))
         .optional()?
         .unwrap_or_default();
-    let (written, last_written): (i64, Option<i64>) = transaction.one(
-        &format!(
-            "SELECT count(DISTINCT mine.message_id), max(envelope.received) FROM {PERSONS}
-                 CROSS JOIN recipient
-                     ON recipient.message_id = mine.message_id AND recipient.address = ?1
-                 CROSS JOIN envelope ON envelope.message_id = mine.message_id"
-        ),
-        [address],
-        |row| Ok((row.get(0)?, row.get(1)?)),
-    )?;
-    let answered: i64 = transaction.one(
-        &format!(
-            "SELECT count(DISTINCT answered.message_id) FROM {PERSONS}
-                 CROSS JOIN envelope AS reply ON reply.message_id = mine.message_id
-                 CROSS JOIN envelope AS answered
-                     ON answered.message_key = reply.answers_key
-                        AND answered.sender_address = ?1"
-        ),
-        [address],
-        |row| row.get(0),
-    )?;
+    let (written, last_written): (i64, Option<i64>) =
+        transaction.one(&query::written(), [address], |row| {
+            Ok((row.get(0)?, row.get(1)?))
+        })?;
+    let answered: i64 = transaction.one(&query::answered(), [address], |row| row.get(0))?;
     if messages == 0 && written == 0 {
-        transaction.run("DELETE FROM sender WHERE address = ?1", [address])?;
-        return Ok(true);
+        let removed = transaction.run("DELETE FROM sender WHERE address = ?1", [address])?;
+        return Ok(removed > 0);
     }
     let recent = last_received.max(last_written).unwrap_or(0);
     // Two addresses whose ids collide (one chance in billions among a
@@ -367,6 +425,31 @@ const SENDER_COLUMNS: &str = "id, address, domain, name, messages, bulk, first_r
      last_received, written, last_written, answered, recent";
 
 impl Store {
+    /// Computes one address's sender row again, in a transaction of its own,
+    /// as a batch that touched it would.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn recompute_sender(&mut self, address: &str, now: i64) -> Result<(), StoreError> {
+        let transaction = self.connection.transaction()?;
+        settle_senders(&transaction, &BTreeSet::from([address.to_string()]), now)?;
+        transaction.commit()?;
+        Ok(())
+    }
+
+    /// How many messages are the person's: those a sent mailbox has shown.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn persons_messages(&self) -> Result<u64, StoreError> {
+        let messages: i64 = self.connection.query_row(
+            &format!("SELECT count(DISTINCT mine.message_id) FROM {PERSONS}"),
+            [],
+            |row| row.get(0),
+        )?;
+        Ok(count(messages))
+    }
+
     /// Senders, the most recent first, paged from the last of the page
     /// before.
     ///
@@ -410,12 +493,7 @@ impl Store {
     /// # Errors
     /// When the database refuses.
     pub fn sender_places(&self, address: &str) -> Result<Vec<SenderPlace>, StoreError> {
-        let mut statement = self.connection.prepare_cached(
-            "SELECT observation.mailbox_id, count(DISTINCT envelope.message_id) AS shown
-             FROM envelope JOIN observation ON observation.message_id = envelope.message_id
-             WHERE envelope.sender_address = ?1 AND observation.ended_at IS NULL
-             GROUP BY observation.mailbox_id ORDER BY shown DESC, observation.mailbox_id",
-        )?;
+        let mut statement = self.connection.prepare_cached(query::PLACES)?;
         let places = statement
             .query_map([address], |row| {
                 Ok(SenderPlace {
@@ -437,11 +515,7 @@ impl Store {
         address: &str,
         limit: u32,
     ) -> Result<Vec<(String, u64)>, StoreError> {
-        let mut statement = self.connection.prepare_cached(
-            "SELECT list_id, count(*) AS messages FROM envelope
-             WHERE sender_address = ?1 AND list_id <> ''
-             GROUP BY list_id ORDER BY messages DESC, list_id LIMIT ?2",
-        )?;
+        let mut statement = self.connection.prepare_cached(query::LISTS)?;
         let lists = statement
             .query_map(params![address, limit], |row| {
                 Ok((row.get(0)?, count(row.get(1)?)))

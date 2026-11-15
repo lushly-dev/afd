@@ -33,6 +33,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                     name: key,
                     role,
                 },
+                NOW,
             )
             .unwrap()
     };
@@ -450,6 +451,7 @@ fn a_rebuild_keeps_a_thread_in_each_mailbox_when_its_parts_merge_in_one_batch() 
                 name: "Sent",
                 role: Role::Sent,
             },
+            NOW,
         )
         .unwrap();
     record(&mut store, sent, &[seen(3, "Re: a and b", &[2, 1])]);
@@ -960,6 +962,7 @@ fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
                     name: "INBOX",
                     role: Role::Inbox,
                 },
+                NOW,
             )
             .unwrap();
         // At version 3 the derivation that writes the evidence's columns

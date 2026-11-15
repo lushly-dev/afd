@@ -144,7 +144,7 @@ Each crate's maintenance history was not read.
 | `hyper`, `hyper-util`, `http-body-util` | 1, 0.1, 0.1 | MIT | The command line's call to a running server over loopback | Added by step B5; `axum` uses the same versions. A plain HTTP/1 connection, with no TLS and no pool |
 | `serde` | 1 | MIT or Apache-2.0 | The forwarded call and `server.json` | Added by step B5; already in the lockfile through the `afd` crate |
 | `async-trait`, `serde_json` | 0.1, 1 | MIT or Apache-2.0 | A command's handler and its input and result | The `afd` crate's own |
-| `psl` | 2 | MIT or Apache-2.0 | A sender's registrable domain ([7.1](#71-senders)) | Added by step C1. The public suffix list is compiled in, so a new suffix needs a new version of the crate; the crate is republished as the list changes |
+| `psl` | 2 | MIT or Apache-2.0; the list it compiles in is MPL-2.0 | A sender's registrable domain ([7.1](#71-senders)) | Added by step C1. Mozilla's Public Suffix List is compiled in unmodified, under MPL-2.0, which the manifest does not say: the owner allowed it by name on 2026-11-14, as for `cssparser`, and the licence check names it. A new suffix needs a new version of the crate, which is republished as the list changes |
 
 Every crate here is permissively licensed. Step B1 added a licence check so a transitive
 dependency cannot change that unnoticed: a test in the crate reads the lockfile's packages and
@@ -927,7 +927,7 @@ engine computes it beside the census's figure, and how many stream stories each 
 
 **Step C1's report** (on the owner's iCloud account, 2026-11-14,
 [the counts](live-icloud-c1.results.json), which `engine/tests/live_screening.rs` writes; Gmail
-waits for step B6). The engine's Q2 is the census's: 98.3% of 283 360 messages from strangers,
+waits for step B6). The engine's Q2 is the census's: 98.3% of 283 363 messages from strangers,
 counted as the census counted (every mailbox but junk and trash; census 98.4%), and 60.5% of
 12 120 without the largest mailbox (census 60.9%). A header decides
 almost all of it; a template seen five times decides 1 921 more. Stream stories, of the bulk mail
@@ -941,7 +941,11 @@ from strangers outside the largest mailbox (7 329 messages):
 
 The template key holds the subject's shape, so mail whose subject changes with each issue makes a
 group of one each time: by key, most bulk mail is in no story. The body shape splits groups
-further. Which grouping makes stream stories is step C2's ([section 8](#8-stories)).
+further. Which grouping makes stream stories is step C2's ([section 8](#8-stories)). One
+difference from the census: the engine counts a template as recurring when the store holds five
+messages with its key, wherever they are, where the census counted among the inbound messages of
+its scope, once for each mailbox showing them; the scopes above choose which messages are
+counted, not where their templates are.
 
 ### 6.4 Parsing strangers' bytes
 
@@ -1022,11 +1026,16 @@ As step C1 built it (`engine/src/store/senders.rs`):
   becomes a sent mailbox, or stops being one, changes this, and every sender is computed again.
 - **The person's own addresses** are every account's address and the sender of every message of
   the person's ("every address on a message in a sent mailbox" above means its sender), which
-  covers aliases and send-as addresses, as the census's did. They have no sender row. An address
-  the person adds by hand is a decision of theirs and comes with the others in step C2.
-- **Written to** counts the person's messages with the sender among their `To`, `Cc` and `Bcc`.
-  **Answered** counts the sender's messages that a message of the person's answers: the one its
-  first `In-Reply-To` id names, or else the last id of its `References`.
+  covers aliases and send-as addresses, as the census's did. A message the person redirected
+  keeps its first sender's `From`, a stranger's: its `Resent-From` is the person's instead. They
+  have no sender row; a row that goes because its address turned out to be the person's is a
+  change like any other. An address the person adds by hand is a decision of theirs and comes
+  with the others in step C2.
+- **Written to** counts the person's messages with the sender among their `To`, `Cc` and `Bcc`,
+  or, for a message the person redirected, its topmost `Resent-To`, `Resent-Cc` and
+  `Resent-Bcc`. **Answered** counts the sender's messages, each Message-ID once, that a message
+  of the person's answers: the one its first `In-Reply-To` id names, or else the last id of its
+  `References`.
 - **First and last seen** are when the provider received its first message and its last (the
   `INTERNALDATE`, else when the engine first saw it), never the `Date` header, which the sender
   writes: a flood with old dates would otherwise pass for mail from senders long known
@@ -1038,10 +1047,16 @@ As step C1 built it (`engine/src/store/senders.rs`):
   gives `example.co.uk`).
 - **A sender's row is derived** like a thread's: never adjusted, computed again from the messages
   once for each batch that touched it (a message from it, a message of the person's naming it or
-  answering it), so a rebuild gives the same rows; a test compares them. Each count is read so
-  that its work is the sender's own index range or the person's few thousand messages, never a
-  scan of a large sender's mail; a test checks the query plans. Its id is the first 52 bits of
-  its address's SHA-256, so a rebuild gives the same id and a JSON reader keeps it exactly.
+  answering it, before and after the message is derived again), so a rebuild gives the same rows;
+  tests compare them, over one batch and over several. Each count reads the sender's own range of
+  an index, or starts from the sent mailboxes and reads the person's few thousand messages; none
+  reads the whole of the mail, and a test checks the plan of every query. The sender's own range
+  is long for a large sender: 21 milliseconds for each batch that touches the sender of 272 220
+  messages. Its id is the first 52 bits of its address's SHA-256, so a rebuild gives the same id
+  and a JSON reader keeps it exactly.
+- **While messages wait to be derived again** after a new version of the derivation, as after
+  step C1's, their senders' rows count them only once they are; `mail-status` gives how many
+  wait (`stale`). Screening that reads these rows (step C2) waits for none to.
 - **The commands.** `mail-sender-list` gives the senders the most recent first (the later of
   their last message and the person's last to them), paged by cursor, and filters by registrable
   domain or to those the person has written to. `mail-sender-show` gives one sender with the

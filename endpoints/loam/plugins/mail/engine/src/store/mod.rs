@@ -395,6 +395,7 @@ impl Store {
         &mut self,
         account: AccountId,
         seen: &MailboxSeen<'_>,
+        now: i64,
     ) -> Result<MailboxId, StoreError> {
         let transaction = self.connection.transaction()?;
         let was_sent: Option<bool> = transaction
@@ -427,7 +428,7 @@ impl Store {
         // which messages are the person's (the specification's 7.1). That is
         // rare: every sender is computed again.
         if was_sent.is_some_and(|was| was != (seen.role == Role::Sent)) {
-            senders::settle_every_sender(&transaction, wall_clock())?;
+            senders::settle_every_sender(&transaction, now)?;
         }
         transaction.commit()?;
         Ok(id)
