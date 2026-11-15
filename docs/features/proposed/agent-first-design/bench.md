@@ -91,13 +91,14 @@ Which task needs which pattern:
   in [the seed library's jobs](bench/seed-library.md), each job a scenario file written
   against the commands, in the order the `afd` skill's
   [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets. Three readers
-  walked them. No schema is written.
+  walked them. The application is built, with their schemas.
 - **A fixture of each result forces each state** of a screen. Each screen's task, its states
   and their results are drafted in [`bench/tasks/`](bench/tasks/README.md), 50 states and 74
   results across the four screens. A task lists the screen's states, so it is held material
   for the bare arm.
-- **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
-  kept after phase 0.
+- **Where it lives:** [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md),
+  with the commands, their schemas, the in-memory store, and the scenario files and fixtures,
+  which its tests run. It is kept after phase 0.
 
 ## What a session is given
 

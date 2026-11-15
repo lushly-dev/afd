@@ -31,7 +31,8 @@ lists every result that story mounts, so that each story mounts on its own:
 
 ## Drafts
 
-The results are drafts against the [drafted commands](../seed-library.md#drafted-commands),
-which have no schema yet. They use the invented data in
-[`../scenarios/fixtures/`](../scenarios/fixtures/) and agree with the scenario files. When a
+The results were drafted against the [drafted commands](../seed-library.md#drafted-commands),
+and a test in the application checks each against its command's output schema and refusals.
+They use the invented data in
+[the scenarios' fixtures](../../../../../../packages/examples/seed-library/scenarios/fixtures/) and agree with the scenario files. When a
 command, a fixture or a scenario changes, the results and the tasks change with it.

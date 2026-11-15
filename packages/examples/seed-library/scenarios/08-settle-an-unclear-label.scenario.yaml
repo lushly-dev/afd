@@ -1,5 +1,5 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T2, take in a donation.
 # Not expressible here: the other varieties the label could be come back in `alternatives`, and
 # what the match rests on in `sources`. A scenario can assert neither. The step checks the first
 # choice and its reasoning. A step's `confidence` is a floor, so it shows the match is at

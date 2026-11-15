@@ -8,17 +8,17 @@ of seed to members. Read [the library's rules](../seed-library.md#the-library) f
 A desk volunteer, on the morning of a seed swap, lending to about sixty members. The screen
 serves six jobs. Each scenario file runs the job against the commands:
 
-- [lend-a-packet](../scenarios/01-lend-a-packet.scenario.yaml): find the member and the
+- [lend-a-packet](../../../../../../packages/examples/seed-library/scenarios/01-lend-a-packet.scenario.yaml): find the member and the
   variety and lend a packet in one go.
-- [out-of-seed](../scenarios/02-out-of-seed.scenario.yaml): when a variety has run out, offer
+- [out-of-seed](../../../../../../packages/examples/seed-library/scenarios/02-out-of-seed.scenario.yaml): when a variety has run out, offer
   a close substitute or put the member on the waiting list.
-- [rare-needs-the-steward](../scenarios/03-rare-needs-the-steward.scenario.yaml): ask the
+- [rare-needs-the-steward](../../../../../../packages/examples/seed-library/scenarios/03-rare-needs-the-steward.scenario.yaml): ask the
   steward for a rare variety and see that the request is waiting.
-- [take-back-a-loan](../scenarios/04-take-back-a-loan.scenario.yaml): take a loan made by
+- [take-back-a-loan](../../../../../../packages/examples/seed-library/scenarios/04-take-back-a-loan.scenario.yaml): take a loan made by
   mistake back at once.
-- [warn-about-old-seed](../scenarios/05-warn-about-old-seed.scenario.yaml): be told, as a
+- [warn-about-old-seed](../../../../../../packages/examples/seed-library/scenarios/05-warn-about-old-seed.scenario.yaml): be told, as a
   packet is lent, that the only seed left is old.
-- [nothing-to-show](../scenarios/06-nothing-to-show.scenario.yaml): tell a search that found
+- [nothing-to-show](../../../../../../packages/examples/seed-library/scenarios/06-nothing-to-show.scenario.yaml): tell a search that found
   nothing from a catalogue that cannot be read.
 
 ## Commands
@@ -36,7 +36,7 @@ A loan of a rare variety is held for the steward, whoever asks. The refusal is
 `APPROVAL_REQUIRED`, and the application has already recorded it as a request
 ([what the application asks of the host](../seed-library.md#what-the-application-asks-of-the-host));
 nothing at the desk approves it. The application's data is in
-[`library.json`](../scenarios/fixtures/library.json).
+[`library.json`](../../../../../../packages/examples/seed-library/scenarios/fixtures/library.json).
 
 ## States
 

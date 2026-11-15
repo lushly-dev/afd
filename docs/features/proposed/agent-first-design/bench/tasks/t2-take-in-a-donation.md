@@ -8,11 +8,11 @@ donated packets as one batch. Read [the library's rules](../seed-library.md#the-
 An intake volunteer, with a box of about forty donated packets, some with handwritten labels.
 The screen serves three jobs. Each scenario file runs the job against the commands:
 
-- [take-in-a-donation](../scenarios/07-take-in-a-donation.scenario.yaml): enter a box as one
+- [take-in-a-donation](../../../../../../packages/examples/seed-library/scenarios/07-take-in-a-donation.scenario.yaml): enter a box as one
   batch, see it worked through row by row, and take back a box entered twice.
-- [settle-an-unclear-label](../scenarios/08-settle-an-unclear-label.scenario.yaml): see the
+- [settle-an-unclear-label](../../../../../../packages/examples/seed-library/scenarios/08-settle-an-unclear-label.scenario.yaml): see the
   likely matches for a label, why each was offered, and choose one.
-- [fix-the-rows-that-failed](../scenarios/09-fix-the-rows-that-failed.scenario.yaml): see which
+- [fix-the-rows-that-failed](../../../../../../packages/examples/seed-library/scenarios/09-fix-the-rows-that-failed.scenario.yaml): see which
   rows failed and why, and put them right without entering the rest again.
 
 ## Commands
@@ -28,7 +28,7 @@ and the values they take in [States](../seed-library.md#states).
 each row in its own `data`: `succeeded`, `unsettled` and `failed`, each entry with the row's
 `index`. A label is matched without a person only at a confidence of 0.9 or more; below that
 the row is unsettled. The application's data is in
-[`library.json`](../scenarios/fixtures/library.json).
+[`library.json`](../../../../../../packages/examples/seed-library/scenarios/fixtures/library.json).
 
 ## States
 

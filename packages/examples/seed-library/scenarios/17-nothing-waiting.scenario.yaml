@@ -1,5 +1,5 @@
-# Draft JTBD scenario for the seed library.
-# The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T4, the steward's
 # requests.
 # Not expressible here: the other half of the job. A list that cannot be read fails with
 # SERVICE_UNAVAILABLE (retryable), and a fixture cannot make the service fail.
