@@ -36,9 +36,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
   force its states, drafted 2026-11-15, reviewed in two passes and merged in #1238.
 - **In progress:** the seed library's application, built 2026-11-15 in
   [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) on
-  `feat/seed-library-example` and not merged: the twenty-four commands with their schemas,
+  `feat/seed-library-example` and merged in #1239: the twenty-four commands with their schemas,
   an in-memory store, and tests that run all seventeen jobs (113 of 113 steps pass) and check
-  the 74 results against the commands' output schemas. No reader but its author has reviewed it.
+  the 74 results against the commands' output schemas. An independent reviewer read it in two
+  passes.
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
@@ -73,7 +74,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
 | The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and an independent reviewer read the result and walked the two commands their findings added. Merged in #1236. The owner decided three of its design points on 2026-11-15 | [`bench/seed-library.md`](bench/seed-library.md) |
 | The bench: the task for each screen and its result fixtures | In progress. Drafted 2026-11-15: four tasks, 50 states and 74 results, checked against the drafted commands, the States table and the fixtures, and reviewed in two passes. Merged in #1238 | [`bench/tasks/`](bench/tasks/README.md) |
-| The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, not merged: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
+| The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
 | The bench: schemas, the application, the held material and the runner | Not started (2026-11-15: the schemas and the application moved to the row above; the held material and the runner are not started) | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
@@ -84,7 +85,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
   jobs.** They are sentences, and nothing shows that commands can express them. The seed
   library's seventeen jobs are a different list: the bench's application, not this proposal's
   product.
-- **The bench is mostly a specification.** Its application is built and not merged
+- **The bench is mostly a specification.** Its application is built and merged in #1239
   (2026-11-15); its checks, planted faults, persona cards, reference build and runner are not.
   Its cost per session rests on two assumptions that pilot sessions are meant to replace. Its rules for "go" are proposed
   and not confirmed.
