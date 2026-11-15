@@ -51,7 +51,7 @@ mod query {
          UNION SELECT address FROM recipient WHERE message_id = ?1
          UNION SELECT answered.sender_address FROM envelope AS reply
                JOIN envelope AS answered ON answered.message_key = reply.answers_key
-               WHERE reply.message_id = ?1";
+               WHERE reply.message_id = ?1 AND reply.resent_from = ''";
 
     /// A sender's messages, and when the first and last arrived.
     pub(super) const COUNTS: &str = "SELECT count(*), min(received), max(received)
@@ -88,11 +88,14 @@ mod query {
         )
     }
 
-    /// A sender's messages the person answered, each Message-ID once.
+    /// A sender's messages the person answered, each Message-ID once. A
+    /// message the person redirected answers nothing of theirs: it keeps
+    /// its first sender's `In-Reply-To`.
     pub(super) fn answered() -> String {
         format!(
             "SELECT count(DISTINCT answered.message_key) FROM {PERSONS}
-                 CROSS JOIN envelope AS reply ON reply.message_id = mine.message_id
+                 CROSS JOIN envelope AS reply
+                     ON reply.message_id = mine.message_id AND reply.resent_from = ''
                  CROSS JOIN envelope AS answered
                      ON answered.message_key = reply.answers_key
                         AND answered.sender_address = ?1"

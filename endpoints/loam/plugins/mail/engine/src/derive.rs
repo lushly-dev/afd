@@ -204,6 +204,13 @@ pub fn body_fields(whole: &[u8]) -> BodyFields {
     }
 }
 
+/// Whether a field's name is one of a redirect's: `Resent-From`,
+/// `Resent-To` and the others.
+fn is_resent(name: &str) -> bool {
+    name.get(..7)
+        .is_some_and(|start| start.eq_ignore_ascii_case("Resent-"))
+}
+
 /// The key of a Message-ID as a header names it, or `None` when it is
 /// blank.
 fn key_of(id: &str) -> Option<ThreadKey> {
@@ -320,10 +327,17 @@ fn read_header(header_block: &[u8]) -> Option<HeaderFields> {
                 .references()
                 .and_then(|named| named.iter().rev().find_map(key_of))
         });
-    // The topmost of each: the latest redirect writes its block above the
-    // others.
+    // The topmost redirect's block alone: the run of `Resent-` fields from
+    // the first one. The latest redirect writes its block above the others
+    // (RFC 5322, 3.6.6), and a field from a lower block, which whoever sent
+    // the message could have written, is never read in its place.
+    let resent_block: Vec<_> = headers
+        .iter()
+        .skip_while(|header| !is_resent(header.raw_name()))
+        .take_while(|header| is_resent(header.raw_name()))
+        .collect();
     let address_list = |name: &str| {
-        headers
+        resent_block
             .iter()
             .find(|header| header.raw_name().eq_ignore_ascii_case(name))
             .and_then(|header| header.value().as_address())
@@ -1756,6 +1770,19 @@ mod tests {
         assert_eq!(fields.sender_address, "stranger@example.net");
         assert_eq!(fields.resent_from, "person@example.com");
         assert_eq!(fields.recipients, ["friend@example.org"]);
+        // A lower block, which whoever sent the message could have written,
+        // adds no recipient the top one lacks.
+        let fields = header_fields(
+            b"From: stranger@example.net\r\n\
+              Resent-From: person@example.com\r\n\
+              Resent-To: spouse@example.org\r\n\
+              Received: from somewhere\r\n\
+              Resent-From: x@example.net\r\n\
+              Resent-Cc: planted@example.net\r\n\
+              Resent-Bcc: hidden@example.net\r\n\r\n",
+        );
+        assert_eq!(fields.resent_from, "person@example.com");
+        assert_eq!(fields.recipients, ["spouse@example.org"]);
         // Without In-Reply-To, the last id of References.
         let fields = header_fields(
             b"From: a@example.com\r\n\

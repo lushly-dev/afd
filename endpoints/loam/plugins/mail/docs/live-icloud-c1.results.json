@@ -4,35 +4,35 @@
 	"what": "Step C1's report on the owner's iCloud account (the specification's 6.3 and 7.1): Q2 as the engine computes it beside the census's figure, and how many stream stories each grouping gives, with what the upgrade to the senders' schema costs. Every key but this one, `machine` and `notes` is what `engine/tests/live_screening.rs` wrote. It ran on a copy of the store step B7 synced, made while B7's server ran (the database with SQLite's online backup, the log and the index as APFS clones), brought to schema 7 with every message derived again. Counts, sizes and milliseconds only: no address, subject, name, list id or text.",
 	"machine": "the owner's Mac (Apple silicon, macOS), release build, Rust 1.98.0",
 	"databaseBytes": {
-		"after": 1832710144,
-		"afterVacuum": 1454497792,
-		"before": 1515581440
+		"after": 1832755200,
+		"afterVacuum": 1454559232,
+		"before": 1515646976
 	},
 	"q2": {
 		"asTheCensusCounted": {
-			"decided": 278572,
-			"decidedByHeader": 276651,
+			"decided": 278573,
+			"decidedByHeader": 276652,
 			"decidedByTemplateAlone": 1921,
-			"fromStrangers": 283363,
-			"inbound": 288591,
-			"messages": 292627,
+			"fromStrangers": 283365,
+			"inbound": 288593,
+			"messages": 292629,
 			"q2": 0.983,
 			"streamStories": {
 				"byKey": {
 					"groups": 4532,
-					"messagesInStories": 274012,
+					"messagesInStories": 274013,
 					"stories": 343,
 					"ungrouped": 0
 				},
 				"byKeyAndShape": {
 					"groups": 5250,
-					"messagesInStories": 273025,
+					"messagesInStories": 273026,
 					"stories": 269,
 					"ungrouped": 0
 				},
 				"bySender": {
 					"groups": 1399,
-					"messagesInStories": 277091,
+					"messagesInStories": 277092,
 					"stories": 444,
 					"ungrouped": 0
 				}
@@ -44,43 +44,43 @@
 			"withoutTheLargestMailbox": 0.609
 		},
 		"everyMessage": {
-			"decided": 279838,
-			"decidedByHeader": 277917,
+			"decided": 279839,
+			"decidedByHeader": 277918,
 			"decidedByTemplateAlone": 1921,
-			"fromStrangers": 284725,
-			"inbound": 289955,
-			"messages": 293991,
+			"fromStrangers": 284727,
+			"inbound": 289957,
+			"messages": 293993,
 			"q2": 0.983,
 			"streamStories": {
 				"byKey": {
 					"groups": 4543,
-					"messagesInStories": 274989,
+					"messagesInStories": 274990,
 					"stories": 344,
 					"ungrouped": 274
 				},
 				"byKeyAndShape": {
 					"groups": 5261,
-					"messagesInStories": 274002,
+					"messagesInStories": 274003,
 					"stories": 270,
 					"ungrouped": 274
 				},
 				"bySender": {
 					"groups": 1481,
-					"messagesInStories": 278256,
+					"messagesInStories": 278257,
 					"stories": 459,
 					"ungrouped": 0
 				}
 			},
 			"withoutTemplateKey": 1362
 		},
-		"reportMs": 1463,
+		"reportMs": 1544,
 		"withoutTheLargestMailbox": {
 			"decided": 7329,
 			"decidedByHeader": 5408,
 			"decidedByTemplateAlone": 1921,
-			"fromStrangers": 12120,
-			"inbound": 17348,
-			"messages": 21384,
+			"fromStrangers": 12121,
+			"inbound": 17349,
+			"messages": 21385,
 			"q2": 0.605,
 			"streamStories": {
 				"byKey": {
@@ -105,46 +105,46 @@
 			"withoutTemplateKey": 0
 		}
 	},
-	"recipientRows": 575418,
+	"recipientRows": 575422,
 	"senders": {
 		"answered": 312,
-		"fiveLargestByMessages": [272220, 1276, 413, 295, 287],
+		"fiveLargestByMessages": [272221, 1276, 413, 295, 287],
 		"listFiftyP95Ms": 0.03,
 		"personsMessages": 2844,
-		"recomputeLargestP95Ms": 20.86,
+		"recomputeLargestP95Ms": 22.2,
 		"registrableDomains": 1828,
 		"rows": 3410,
-		"showLargestP95Ms": 136.55,
+		"showLargestP95Ms": 145.37,
 		"withBulkMail": 1221,
 		"writtenTo": 626,
 		"writtenToNeverHeardFrom": 327
 	},
 	"tablesMiB": {
 		"asDerived": {
-			"envelope_message_key": 7.7,
-			"envelope_sender": 11.5,
+			"envelope_message_key": 7.8,
+			"envelope_sender": 11.4,
 			"envelope_sender_bulk": 9.6,
 			"envelope_sender_list": 19.5,
-			"link": 1236.1,
+			"link": 1236.2,
 			"observation_mailbox": 3.9,
 			"recipient": 41.1,
 			"senderWithItsIndexes": 0.8
 		},
 		"packed": {
-			"link": 958.4,
+			"link": 958.5,
 			"recipient": 20.4
 		}
 	},
 	"upgrade": {
-		"derivedAgain": 293991,
-		"derivedAgainSeconds": 236,
-		"migrationMs": 5308,
-		"stale": 293991
+		"derivedAgain": 293993,
+		"derivedAgainSeconds": 235,
+		"migrationMs": 5084,
+		"stale": 293993
 	},
 	"notes": {
-		"upgrade": "Opening the store runs migration 7 in about 5 seconds. Every row is then stale (parser 2) and is derived again: 293 991 messages in 236 seconds alone, about 1 250 a second. Under `serve` a pass spends at most 30 seconds on it, in batches of 200; at this rate that is about 8 passes, some 40 minutes, not measured under `serve`. Until then the sender rows fill as the newest mail is derived first, and `mail-status` counts what is still stale.",
-		"databaseBytes": "Deriving every message again rewrites its rows, and the `link` table, most of the database, grew from 958 MiB packed to 1 236 MiB. `VACUUM` returns it; packed, the store is smaller than before the step. What step C1 adds, packed or not: `recipient` (20 MiB packed), the indexes named in `tablesMiB`, and `sender`, under 1 MiB.",
-		"senders": "`recomputeLargestP95Ms` is what a batch that touches the sender of 272 220 messages spends on its row: its counts read its own range of two indexes. Showing it counts its messages by mailbox and by list: 137 ms. `personsMessages` are the messages a sent mailbox has shown.",
+		"upgrade": "Opening the store runs migration 7 in about 5 seconds. Every row is then stale (parser 2) and is derived again: 293 993 messages in 235 seconds alone, about 1 250 a second. Under `serve` a pass spends at most 30 seconds on it, in batches of 200; at this rate that is about 8 passes, some 40 minutes, not measured under `serve`. Until then the sender rows fill as the newest mail is derived first, and `mail-status` counts what is still stale.",
+		"databaseBytes": "Deriving every message again rewrites its rows, and the `link` table, most of the database, grew from 959 MiB packed to 1 236 MiB. `VACUUM` returns it; packed, the store is smaller than before the step. What step C1 adds, packed or not: `recipient` (20 MiB packed), the indexes named in `tablesMiB`, and `sender`, under 1 MiB.",
+		"senders": "`recomputeLargestP95Ms` is what a batch that touches the sender of 272 221 messages spends on its row: its counts read its own range of two indexes. Showing it counts its messages by mailbox and by list: 145 ms. `personsMessages` are the messages a sent mailbox has shown.",
 		"groupings": "Stream stories are made of the bulk mail from strangers (rule 3), and a story needs five messages. `byKey` groups by list id, or else by sender and template key; `byKeyAndShape` adds the body's shape; `bySender`, not one of section 8's groupings, groups by list id or else by sender alone. Without the largest mailbox, 7 329 bulk messages fall into 4 367 groups by key: a template key holds the subject's shape, so mail whose subject changes with each issue makes a group of one each time. In a story: by key 39%, by key and shape 26%, by sender 81%. Which grouping makes stories is step C2's.",
 		"templates": "A template counts as recurring when the store holds at least five messages with its key, wherever they are; the census counted templates among the inbound messages of its scope alone, once per mailbox showing them. The scopes here choose which messages are counted, not where their templates are counted.",
 		"privacy": "The live store had 48 index files open to others, written since step B7 by B7's server, which was built before the program set its mask to 077; they sit inside directories only the owner can enter. Closed to others again on 2026-11-14, before this run's copy was made. That server writes them until it is restarted with a newer build."

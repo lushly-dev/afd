@@ -570,12 +570,21 @@ fn a_redirect_in_a_sent_mailbox_is_the_person_s_and_its_first_sender_is_not() {
             "Cc: other@example.net",
             "Resent-From: person@example.com",
             "Resent-To: friend@example.org",
+            "In-Reply-To: <m90@example.com>",
         ],
     );
     let stranger = mail.row("stranger@example.net").unwrap();
     assert_eq!((stranger.messages, stranger.written), (1, 0));
     assert_eq!(mail.row("friend@example.org").unwrap().written, 1);
     assert!(mail.row("other@example.net").is_none());
+    // What the first sender was answering, the person did not answer.
+    let mut seen = header(90, "third@example.net", &[]);
+    seen.provider_id = "90".to_string();
+    let inbox = mail.inbox;
+    mail.store
+        .record_headers(inbox, "", std::slice::from_ref(&seen), NOW)
+        .unwrap();
+    assert_eq!(mail.row("third@example.net").unwrap().answered, 0);
 }
 
 #[test]

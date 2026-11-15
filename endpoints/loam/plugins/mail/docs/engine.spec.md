@@ -462,7 +462,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `account` | An account and its provider | No |
 | `mailbox` | A mailbox, with its provider identity, its role, its sync cursor, how many ids its last listing named, and when the provider stopped listing it | No |
 | `message` | A message's identity: the hash of its header block, the size the provider reports, when it was first seen and when the provider received it | No |
-| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 added its evidence ([6.1](#61-what-is-read)): the list and bulk headers, `Reply-To` and whether it differs from the sender, the topmost authentication header's server and results, how much text is hidden, how many links and how many of them name a host other than their target, the template key and the body's shape. Step C1 added the key of its own Message-ID and of the one it answers, and when the provider received it (else when it was first seen), which a sender's dates are read from | Yes |
+| `envelope` | What a message's bytes say: its date, sender, subject, a snippet, how many attachments, its thread, the parser's version, and why it could not be read when it could not. Step B4 added its evidence ([6.1](#61-what-is-read)): the list and bulk headers, `Reply-To` and whether it differs from the sender, the topmost authentication header's server and results, how much text is hidden, how many links and how many of them name a host other than their target, the template key and the body's shape. Step C1 added the key of its own Message-ID and of the one it answers, when the provider received it (else when it was first seen), which a sender's dates are read from, and who redirected it (its topmost `Resent-From`) | Yes |
 | `link` | A link in a message held whole: its target, its target's host, the host its shown text names, and whether the two differ | Yes |
 | `held` | Which of a message's bytes the log holds: the header block, the whole, a text part or an attachment, each with its hash | No |
 | `observation` | A message seen in a mailbox: the provider's ids, the flags and labels seen, when. A later observation supersedes an earlier one; none is deleted: a row is ended, as superseded, removed or closed by a new `UIDVALIDITY`, and a new row is written | No: it is the record of what the provider showed |
@@ -927,9 +927,9 @@ engine computes it beside the census's figure, and how many stream stories each 
 
 **Step C1's report** (on the owner's iCloud account, 2026-11-14,
 [the counts](live-icloud-c1.results.json), which `engine/tests/live_screening.rs` writes; Gmail
-waits for step B6). The engine's Q2 is the census's: 98.3% of 283 363 messages from strangers,
+waits for step B6). The engine's Q2 is the census's: 98.3% of 283 365 messages from strangers,
 counted as the census counted (every mailbox but junk and trash; census 98.4%), and 60.5% of
-12 120 without the largest mailbox (census 60.9%). A header decides
+12 121 without the largest mailbox (census 60.9%). A header decides
 almost all of it; a template seen five times decides 1 921 more. Stream stories, of the bulk mail
 from strangers outside the largest mailbox (7 329 messages):
 
@@ -1032,8 +1032,10 @@ As step C1 built it (`engine/src/store/senders.rs`):
   change like any other. An address the person adds by hand is a decision of theirs and comes
   with the others in step C2.
 - **Written to** counts the person's messages with the sender among their `To`, `Cc` and `Bcc`,
-  or, for a message the person redirected, its topmost `Resent-To`, `Resent-Cc` and
-  `Resent-Bcc`. **Answered** counts the sender's messages, each Message-ID once, that a message
+  or, for a message the person redirected, the `Resent-To`, `Resent-Cc` and `Resent-Bcc` of its
+  topmost redirect: the run of `Resent-` fields from the first, never a field from a lower block,
+  which whoever sent the message could have written. A redirect answers nothing of the person's:
+  it keeps its first sender's `In-Reply-To`. **Answered** counts the sender's messages, each Message-ID once, that a message
   of the person's answers: the one its first `In-Reply-To` id names, or else the last id of its
   `References`.
 - **First and last seen** are when the provider received its first message and its last (the
@@ -1051,7 +1053,7 @@ As step C1 built it (`engine/src/store/senders.rs`):
   tests compare them, over one batch and over several. Each count reads the sender's own range of
   an index, or starts from the sent mailboxes and reads the person's few thousand messages; none
   reads the whole of the mail, and a test checks the plan of every query. The sender's own range
-  is long for a large sender: 21 milliseconds for each batch that touches the sender of 272 220
+  is long for a large sender: 22 milliseconds for each batch that touches the sender of 272 221
   messages. Its id is the first 52 bits of its address's SHA-256, so a rebuild gives the same id
   and a JSON reader keeps it exactly.
 - **While messages wait to be derived again** after a new version of the derivation, as after
