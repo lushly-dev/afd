@@ -1,4 +1,5 @@
 // Cases a pack build must not take at their word: each is used by the variant configuration only.
+import './dropdown.js';
 import './field.js';
 
 /** Its value is new on every render, so the two passes never agree. */
@@ -26,4 +27,9 @@ export const PropertyNamed = {
 		element.accessibleName = 'Work email';
 		return element;
 	},
+};
+
+/** Its control is a button in its shadow tree, so its record takes its role from there. */
+export const ShadowRole = {
+	render: () => document.createElement('example-dropdown'),
 };
