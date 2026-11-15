@@ -242,6 +242,9 @@ async fn a_persons_command_is_neither_listed_nor_callable_over_mcp() {
         "mail-sender-suggest",
         "mail-sender-dismiss",
         "mail-message-list",
+        "mail-story-list",
+        "mail-story-open",
+        "mail-story-changes",
     ] {
         assert!(listed.contains(agents), "{agents} is not listed: {listed}");
     }

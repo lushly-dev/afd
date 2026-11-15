@@ -48,8 +48,10 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
   showed. `derived.rs` holds what is: a message's fields and parts, its thread, where each
   thread shows, and the rebuild that makes all of it again from the log. `senders.rs` holds each
   sender's history with the person, and `screening.rs` the report of the specification's 6.3.
-  `classes.rs` holds each inbound message's screening class and each template's count, and
-  `decisions.rs` the person's decisions on senders and agents' suggestions (7.2 and 7.3).
+  `classes.rs` holds each inbound message's screening class and each template's count,
+  `decisions.rs` the person's decisions on senders and agents' suggestions (7.2 and 7.3), and
+  `stories.rs` the stream stories: the bulk mail of each list, or each sender with no list,
+  with its kinds and exceptions (section 8).
 - **What code reads from a message** (`src/derive.rs`, `src/html.rs`): the sender, the subject,
   the date, the ids that join a thread, the parts and the text a person sees, with `mail-parser`
   and `html5ever`; and the evidence of the specification's section 6: hidden text, links, list
@@ -61,7 +63,9 @@ to check it. Run from a script, it fails with `PERSON_REQUIRED`. So far it has:
   stop; `src/store/sync.rs` is what it reads and records in the store.
 - **The keychain** (`src/secrets.rs`): where an account's sign-in is kept.
 - **The commands** (`src/commands.rs`, the read commands in `src/read.rs`, the sender
-  commands in `src/senders.rs` and screening's in `src/screening.rs`, over `src/engine.rs`); a message's body is fetched when it is opened (`src/fetch.rs`).
+  commands in `src/senders.rs`, screening's in `src/screening.rs` and the stories' in
+  `src/stories.rs`, over `src/engine.rs`); a message's body is fetched when it is opened
+  (`src/fetch.rs`).
 
 Sync is tested against a scripted IMAP server (`tests/support/imap.rs`), the test double the
 specification's section 14 asks for. `tests/live.rs` runs a pass against a real iCloud account,
@@ -73,8 +77,10 @@ LOAM_MAIL_LIVE_DIR=<new directory> LOAM_MAIL_LIVE_OUT=<results file> \
   cargo test --release --test live -- --ignored --nocapture
 ```
 
-`tests/live_screening.rs` makes step C1's report on a copy of a synced store: it derives every
-message again and counts Q2 and the stream stories each grouping would make, counts only. It
+`tests/live_screening.rs` makes steps C1's and C2's report on a copy of a synced store: it
+derives every message again and counts Q2 and the stream stories each grouping would make, then
+classes every message and makes every story, and times the lists, the stories and a decision on
+the largest sender, counts and milliseconds only. It
 refuses the data directory an engine would use (`LOAM_MAIL_HOME`'s or the platform's), since
 opening a store brings its schema up to date:
 

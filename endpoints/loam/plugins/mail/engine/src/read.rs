@@ -315,6 +315,25 @@ fn classes_of(
     store.classes_of(&ids).map(Some)
 }
 
+/// The story each of `messages` is in, or `None` while screening waits, as
+/// stories are made from classes.
+pub(crate) fn stories_of(
+    store: &crate::store::Store,
+    messages: &[MessageListed],
+) -> Result<Option<HashMap<MessageId, i64>>, StoreError> {
+    if !store.screening_readiness()?.ready() {
+        return Ok(None);
+    }
+    let ids: Vec<MessageId> = messages.iter().map(|listed| listed.message).collect();
+    store.stories_of(&ids).map(Some)
+}
+
+/// The story a message is in as a result gives it: its id, or null when it
+/// is in none or screening waits (the specification's section 8).
+pub(crate) fn story_value(stories: Option<&HashMap<MessageId, i64>>, message: MessageId) -> Value {
+    json!(stories.and_then(|stories| stories.get(&message)))
+}
+
 /// A message's class as a result gives it: its screening class, `own` for
 /// mail from one of the person's own addresses, which has none, or null
 /// while screening waits (the specification's 7.2).
@@ -384,7 +403,8 @@ impl CommandHandler for ThreadOpen {
                     }
                     let messages = store.thread_messages(thread, after, limit + 1)?;
                     let classes = classes_of(store, &messages)?;
-                    Ok(Some((messages, classes)))
+                    let stories = stories_of(store, &messages)?;
+                    Ok(Some((messages, classes, stories)))
                 })
                 .map_err(|error| Box::new(store_failure(&error)))?
                 .ok_or_else(|| {
@@ -395,13 +415,14 @@ impl CommandHandler for ThreadOpen {
                             ),
                     )
                 })?;
-            let (messages, classes) = messages;
+            let (messages, classes, stories) = messages;
             let more = messages.len() > limit as usize;
             let mut items = Vec::new();
             for listed in messages.iter().take(limit as usize) {
                 let mut item = message_item(engine, listed)
                     .map_err(|error| Box::new(store_failure(&error)))?;
                 item["class"] = class_value(classes.as_ref(), listed.message);
+                item["story"] = story_value(stories.as_ref(), listed.message);
                 items.push(item);
             }
             let (kept, cut) = fit(items, budget(&context, OPEN_BUDGET));

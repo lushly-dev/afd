@@ -4,6 +4,7 @@
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { store } from '../store/index.js';
 import type { TodoStats } from '../types.js';
 
@@ -13,6 +14,7 @@ export const getStats = defineCommand<typeof inputSchema, TodoStats>({
 	name: 'todo-stats',
 	description: 'Get todo statistics',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'stats', 'read', 'safe'],
 	requires: ['todo-list'],

@@ -1,0 +1,72 @@
+{
+	"$command": "donation-get",
+	"$input": {
+		"id": "don-3"
+	},
+	"success": true,
+	"data": {
+		"id": "don-3",
+		"status": "needs-attention",
+		"succeeded": [
+			{
+				"index": 0,
+				"label": "Borlotti bean",
+				"packets": 4,
+				"harvestYear": 2029,
+				"varietyId": "var-borlotti",
+				"lotId": "lot-don-3-0"
+			},
+			{
+				"index": 1,
+				"label": "Pot marigold",
+				"packets": 2,
+				"harvestYear": 2029,
+				"varietyId": "var-calendula",
+				"lotId": "lot-don-3-1"
+			}
+		],
+		"unsettled": [],
+		"failed": [
+			{
+				"index": 2,
+				"label": "Mystery squash",
+				"packets": 1,
+				"harvestYear": 2029,
+				"error": {
+					"code": "NOT_FOUND",
+					"message": "The library does not keep a variety called Mystery squash",
+					"suggestion": "Call donation-correct for row 3 with a label from variety-list, or with leaveOut: true to leave the row out"
+				}
+			}
+		],
+		"summary": {
+			"total": 3,
+			"successCount": 2,
+			"unsettledCount": 0,
+			"failureCount": 1,
+			"leftOutCount": 0
+		}
+	},
+	"plan": [
+		{
+			"id": "row-0",
+			"action": "Take in row 1: Borlotti bean, 4 packets",
+			"status": "complete"
+		},
+		{
+			"id": "row-1",
+			"action": "Take in row 2: Pot marigold, 2 packets",
+			"status": "complete",
+			"description": "Harvest year corrected to 2029"
+		},
+		{
+			"id": "row-2",
+			"action": "Take in row 3: Mystery squash, 1 packet",
+			"status": "failed",
+			"error": {
+				"code": "NOT_FOUND",
+				"message": "The library does not keep a variety called Mystery squash"
+			}
+		}
+	]
+}

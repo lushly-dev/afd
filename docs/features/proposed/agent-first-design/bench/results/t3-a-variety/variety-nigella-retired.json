@@ -1,0 +1,17 @@
+{
+	"$command": "variety-get",
+	"$input": {
+		"id": "var-nigella"
+	},
+	"success": true,
+	"data": {
+		"id": "var-nigella",
+		"name": "Love-in-a-mist",
+		"kind": "flower",
+		"rare": false,
+		"packetsAvailable": 0,
+		"waiting": [],
+		"retired": true,
+		"retiredAt": "2030-03-09T10:00:00Z"
+	}
+}

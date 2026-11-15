@@ -1,0 +1,70 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T3, a variety's page.
+# Not expressible here: what the estimate rests on comes back in `sources`, and the caution about
+# old seed in `warnings` (code OLD_SEED). A scenario can assert neither. The step checks the
+# estimate, its basis and the reasoning.
+name: See what to expect from a variety
+description: >-
+  When I open a variety, I want its lots, how well each is expected to germinate and on what
+  evidence, and who has it out, so that I can tell a member what to expect.
+job: see-a-variety
+tags: [t3]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: The variety
+    command: variety-get
+    input: { id: var-parsnip }
+    expect:
+      success: true
+      data:
+        name: Parsnip
+        packetsAvailable: 2
+        rare: false
+        retired: false
+  - description: Its one lot is old for the crop, and the result says why the estimate is low
+    command: lot-list
+    input: { varietyId: var-parsnip }
+    expect:
+      success: true
+      reasoning: Parsnip
+      data:
+        total: 1
+        lots:
+          - id: lot-parsnip-28
+            harvestYear: 2028
+            packets: 2
+            germination: { estimate: { lte: 0.49 }, basis: age }
+  - description: Nobody has it out, which is an empty list and not an error
+    command: loan-list
+    input: { varietyId: var-parsnip }
+    expect:
+      success: true
+      data:
+        total: 0
+        loans: { length: 0 }
+  - description: A lot whose estimate comes from a test says so
+    command: lot-list
+    input: { varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        lots:
+          - { id: lot-borlotti-29, germination: { estimate: { gte: 0.8 }, basis: tested } }
+  - description: A variety that is out on loan shows who has it and since when
+    command: loan-list
+    input: { varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        total: 1
+        loans:
+          - { id: loan-1, member: { name: Tobias Reed }, status: out, lentAt: { exists: true } }
+  - description: A variety the library never had
+    command: variety-get
+    input: { id: var-quince }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: variety-list }

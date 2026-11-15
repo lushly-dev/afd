@@ -40,6 +40,26 @@ def test_registers_exactly_the_spec_commands():
         assert command.expose is not None and command.expose.mcp, command.name
 
 
+def test_declares_the_spec_metadata():
+    spec_commands = json.loads(SPEC_PATH.read_text(encoding="utf-8"))["commands"]
+    for command in create_app(MemoryStore()).list_commands():
+        expected = dict(spec_commands[command.name]["metadata"])
+        expected["contexts"] = sorted(expected["contexts"])
+        declared: dict[str, Any] = {
+            "mutation": command.mutation,
+            "destructive": bool(command.destructive),
+            "contexts": sorted(command.contexts),
+        }
+        if command.confirm_prompt:
+            declared["confirmPrompt"] = command.confirm_prompt
+        assert declared == expected, command.name
+
+
+def test_registers_the_todo_contexts():
+    tools = {tool["name"] for tool in create_app(MemoryStore()).get_tool_definitions()}
+    assert {"afd-context-list", "afd-context-enter", "afd-context-exit"} <= tools
+
+
 def test_todo_server_script_is_installed():
     scripts = Path(sys.executable).parent
     assert shutil.which("todo-server", path=str(scripts)) is not None

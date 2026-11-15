@@ -25,6 +25,7 @@ impl Command for DeleteBatch {
     const NAME: &'static str = "todo-delete-batch";
     const DESCRIPTION: &'static str = "Delete multiple todos at once";
     const MUTATION: bool = true;
+    const DESTRUCTIVE: bool = true;
 
     fn schema() -> Value {
         json!({

@@ -1,0 +1,44 @@
+{
+	"$command": "lot-list",
+	"$input": {
+		"varietyId": "var-parsnip"
+	},
+	"success": true,
+	"data": {
+		"lots": [
+			{
+				"id": "lot-parsnip-28",
+				"harvestYear": 2028,
+				"packets": 2,
+				"source": "donation",
+				"germination": {
+					"estimate": 0.3,
+					"basis": "age"
+				}
+			}
+		],
+		"total": 1
+	},
+	"reasoning": "Parsnip seed keeps about one year, and this lot is from 2028. It has not been tested, so the estimate is from its age",
+	"confidence": 0.6,
+	"sources": [
+		{
+			"type": "document",
+			"id": "viability-table",
+			"title": "How long seed keeps, by crop",
+			"location": "Parsnip: one year"
+		}
+	],
+	"warnings": [
+		{
+			"code": "OLD_SEED",
+			"message": "The only lot of Parsnip is from 2028; about 30% of its seed is expected to germinate, judged by its age",
+			"severity": "caution",
+			"details": {
+				"lotId": "lot-parsnip-28",
+				"estimate": 0.3,
+				"basis": "age"
+			}
+		}
+	]
+}

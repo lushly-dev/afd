@@ -582,6 +582,7 @@ Bringing source into this repository does not publish it. [`scripts/release/inve
 |---------|-------------|
 | [Todo App](./packages/examples/todo) | Multi-stack example with 4 backends (TypeScript, Python, Rust, C++) and 2 frontends (Vanilla JS, React). Features shared storage, trust UI, remote change detection, and full MCP integration |
 | [Todo with DirectClient](./packages/examples/todo-directclient) | An AI copilot calling the same commands in-process, with no network hop |
+| [Seed library](./packages/examples/seed-library) | The application the Agent-First Design bench is built on: 24 commands with output schemas, a held approval recorded as a request, and its 17 jobs run as scenario tests |
 | [Chat](./packages/examples/chat) | The handoff pattern: a command returns a WebSocket URL and a short-lived token, and the client talks to the socket directly |
 | [Feature Showcase](./packages/examples/showcase) | Runnable demos of auth, default middleware and surface validation |
 

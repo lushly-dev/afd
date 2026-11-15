@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "Todo Example Commands",
-	"description": "JSON Schema for the 11 commands of the Todo example, keyed by kebab-case MCP tool name. spec/test-cases.json checks their behaviour.",
+	"description": "JSON Schema for the 11 commands of the Todo example, keyed by kebab-case MCP tool name. Each entry's metadata is the definition every backend declares, which the backends' tests compare; input and output are the shapes. spec/test-cases.json checks their behaviour.",
 	"definitions": {
 		"Priority": {
 			"type": "string",
@@ -84,6 +84,7 @@
 	},
 	"commands": {
 		"todo-create": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -105,6 +106,11 @@
 			}
 		},
 		"todo-list": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": {
 				"type": "object",
 				"properties": {
@@ -153,6 +159,11 @@
 			}
 		},
 		"todo-get": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": {
 				"type": "object",
 				"properties": {
@@ -172,6 +183,7 @@
 			}
 		},
 		"todo-update": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -195,6 +207,7 @@
 			}
 		},
 		"todo-toggle": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -214,6 +227,7 @@
 			}
 		},
 		"todo-delete": {
+			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -240,6 +254,12 @@
 			}
 		},
 		"todo-clear": {
+			"metadata": {
+				"mutation": true,
+				"destructive": true,
+				"contexts": ["todo-editing"],
+				"confirmPrompt": "Delete these todos? This cannot be undone."
+			},
 			"input": {
 				"type": "object",
 				"properties": {
@@ -268,6 +288,11 @@
 			}
 		},
 		"todo-stats": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": { "type": "object" },
 			"output": {
 				"allOf": [
@@ -299,6 +324,7 @@
 			}
 		},
 		"todo-create-batch": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -350,6 +376,7 @@
 			}
 		},
 		"todo-delete-batch": {
+			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -388,6 +415,7 @@
 			}
 		},
 		"todo-toggle-batch": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {

@@ -37,13 +37,13 @@ export function repositoryEntry(root, file, { allowRepositoryMirror = true } = {
 				: readlinkSync(absolute);
 		if (
 			!allowRepositoryMirror ||
-			file !== '.codex/skills' ||
+			file !== '.agents/skills' ||
 			index !== parts.length - 1 ||
 			target !== '../.claude/skills'
 		)
 			throw new Error(`Symlink is not release input: ${file}`);
 		const tracked = run('git', ['ls-files', '--stage', '-z', '--', file], root);
-		if (!/^120000 [a-f0-9]+ 0\t\.codex\/skills\0$/.test(tracked))
+		if (!/^120000 [a-f0-9]+ 0\t\.agents\/skills\0$/.test(tracked))
 			throw new Error(`Repository mirror must be a tracked symlink: ${file}`);
 		return { absolute, kind: 'symlink', target };
 	}

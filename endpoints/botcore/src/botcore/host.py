@@ -6,18 +6,21 @@ not adversarial confinement. Undeclared commands fail closed in every profile.
 
 from __future__ import annotations
 
+import difflib
 import inspect
+import uuid
 from collections.abc import Callable
 from dataclasses import asdict, dataclass
 from typing import Any
 
-from afd import CommandResult, DirectClient, error
+from afd import Actor, CommandResult, DirectClient, error, system_clock, system_random
+from afd.core.commands import CommandContext
 from afd.core.result import ResultMetadata
 from afd.direct import CommandInfo
 from afd.server.middleware import compose_middleware
 
-from botcore.context import ExecutionContext, use_context
-from botcore.host_inputs import check_arguments, describe_inputs, summary
+from botcore.context import PROFILE_EFFECTS, ExecutionContext, use_call, use_context
+from botcore.host_inputs import check_arguments, describe_inputs, summary, validate_arguments
 
 VERDICTS = {"passed", "failed", "skipped", "unavailable", "error"}
 EFFECTS = {
@@ -119,19 +122,38 @@ def aggregate_quality(verdicts: list[QualityVerdict]) -> str:
     return "passed"
 
 
-class CommandHost:
-    """An isolated catalog/context implementing AFD's DirectRegistry protocol."""
+def kebab_name(name: str) -> str:
+    """AFD's kebab-case spelling of a command name: ``issue_claim`` is ``issue-claim``."""
+    return name.replace("_", "-")
 
-    def __init__(self, name: str, context: ExecutionContext):
+
+def _other_spelling(name: str) -> str:
+    return name.replace("-", "_") if "-" in name else name.replace("_", "-")
+
+
+def _name_key(name: str) -> str:
+    return "".join(character for character in name.lower() if character.isalnum())
+
+
+class CommandHost:
+    """An isolated catalog/context implementing AFD's DirectRegistry protocol.
+
+    Commands are served under the names they are registered with; a call may also use the
+    other spelling (``issue_claim`` for ``issue-claim`` and back). ``actor`` is who a call
+    without its own context is made as: a surface that verifies its caller passes a context.
+    """
+
+    def __init__(self, name: str, context: ExecutionContext, *, actor: Actor | None = None):
         self.name = name
         self.context = context
+        self.actor = actor
         self._commands: dict[str, Callable] = {}
         self._policies: dict[str, CommandPolicy] = {}
         self.middleware: list[Callable] = []
         self.docs: dict[str, str] = {}
 
     def register(self, name: str, handler: Callable, policy: CommandPolicy) -> None:
-        if name in self._commands:
+        if name in self._commands or _other_spelling(name) in self._commands:
             raise ValueError(f"Duplicate command: {name}")
         declared = policy.declared()
         if (callable(policy.effects) and not declared) or set(declared) - EFFECTS:
@@ -139,15 +161,42 @@ class CommandHost:
         self._commands[name] = handler
         self._policies[name] = policy
 
+    def resolve(self, name: str) -> str | None:
+        """The registered name ``name`` calls, in either spelling, or ``None``.
+
+        Read from ``_commands`` itself, so a host that shares another's commands resolves
+        the same names."""
+        if not isinstance(name, str):
+            return None
+        for candidate in (name, _other_spelling(name)):
+            if candidate in self._commands:
+                return candidate
+        return None
+
+    def handler(self, name: str) -> Callable:
+        return self._commands[self.resolve(name) or name]
+
+    def policy(self, name: str) -> CommandPolicy:
+        return self._policies[self.resolve(name) or name]
+
     def has_command(self, name: str) -> bool:
-        return name in self._commands
+        return self.resolve(name) is not None
 
     def list_command_names(self) -> list[str]:
         return sorted(self._commands)
 
+    def closest_command(self, name: str) -> str | None:
+        """The served name a wrong one most likely meant, by spelling, else by difflib."""
+        by_key = {_name_key(served): served for served in self.list_command_names()}
+        key = _name_key(str(name))
+        if key in by_key:
+            return by_key[key]
+        match = difflib.get_close_matches(key, list(by_key), n=1, cutoff=0.6)
+        return by_key[match[0]] if match else None
+
     def list_commands(self) -> list[CommandInfo]:
         return [
-            CommandInfo(name, summary(self._commands[name])) for name in self.list_command_names()
+            CommandInfo(name, summary(self.handler(name))) for name in self.list_command_names()
         ]
 
     def get_command(self, name: str):
@@ -157,13 +206,13 @@ class CommandHost:
         """Each command's one-line description, input JSON Schema and policy."""
         rows = []
         for name in self.list_command_names():
-            description, input_schema = describe_inputs(self._commands[name])
+            description, input_schema = describe_inputs(self.handler(name))
             rows.append(
                 {
                     "name": name,
                     "description": description,
                     "input_schema": input_schema,
-                    **self._policies[name].describe(),
+                    **self.policy(name).describe(),
                 }
             )
         return rows
@@ -171,19 +220,48 @@ class CommandHost:
     def direct_client(self) -> DirectClient:
         return DirectClient(self)
 
+    def call_context(self, context: Any = None) -> CommandContext:
+        """The per-call context middleware and handlers see: ``context`` when a surface
+        built one (with the caller it verified as ``actor``), else a fresh one with a
+        trace ID and this host's ``actor``."""
+        if context is None:
+            context = CommandContext(actor=self.actor)
+        if getattr(context, "trace_id", None) is None:
+            context.trace_id = uuid.uuid4().hex
+        if getattr(context, "clock", None) is None:
+            context.clock = system_clock
+        if getattr(context, "random", None) is None:
+            context.random = system_random
+        return context
+
+    def _not_found(self, name: Any) -> CommandResult:
+        meant = self.closest_command(name) if isinstance(name, str) else None
+        return error(
+            "COMMAND_NOT_FOUND",
+            f"{self.name} has no command {name}" + (f"; did you mean {meant}?" if meant else ""),
+            suggestion=(f"Call {meant}, or i" if meant else "I")
+            + f"nspect the host catalog ({self.name} catalog) for the commands it serves",
+            details={"suggestedCommand": meant} if meant else None,
+        )
+
     async def execute(self, name: str, args: Any = None, context: Any = None) -> CommandResult:
-        if name not in self._commands:
-            return error("COMMAND_NOT_FOUND", name, suggestion="Inspect the host catalog")
+        registered = self.resolve(name)
+        if registered is None:
+            return self._not_found(name)
+        served = registered
         if args is not None and not isinstance(args, dict):
             return error(
                 "VALIDATION_ERROR",
                 "Arguments must be an object",
                 suggestion="Pass command arguments as a JSON object",
             )
-        policy = self._policies[name]
-        handler = self._commands[name]
+        policy = self._policies[registered]
+        handler = self._commands[registered]
         kwargs = dict(args or {})
-        refusal = check_arguments(name, handler, kwargs)
+        refusal = check_arguments(served, handler, kwargs)
+        if refusal is not None:
+            return refusal
+        kwargs, refusal = validate_arguments(served, handler, kwargs)
         if refusal is not None:
             return refusal
         try:
@@ -198,15 +276,22 @@ class CommandHost:
             if set(effects) - set(declared):
                 return error(
                     "EFFECT_DENIED",
-                    f"{name} with these arguments requires: {', '.join(effects)}; "
+                    f"{served} with these arguments requires: {', '.join(effects)}; "
                     f"this host admits: {', '.join(declared)}",
                     suggestion="Use arguments whose effects the host catalog lists",
                 )
-            if self.context.profile != "trusted-local" and set(effects) - {"inspect"}:
+            admitted = PROFILE_EFFECTS[self.context.profile]
+            if admitted is not None and set(effects) - admitted:
                 return error(
                     "EFFECT_DENIED",
-                    f"{name} requires: {', '.join(effects)}",
-                    suggestion="Use a separately authorized trusted-local host",
+                    f"{served} requires: {', '.join(effects)}; the {self.context.profile} "
+                    f"profile admits: {', '.join(sorted(admitted))}",
+                    suggestion=(
+                        "Call a command whose effects this host's catalog lists; this effect "
+                        "is not served to remote callers"
+                        if self.context.profile == "remote-caller"
+                        else "Use a separately authorized trusted-local host"
+                    ),
                 )
             package = kwargs.get("package")
             if package and (
@@ -229,17 +314,18 @@ class CommandHost:
         async def invoke():
             return await handler(**kwargs)
 
+        call = self.call_context(context)
         try:
-            with use_context(self.context):
+            with use_context(self.context), use_call(call):
                 result = (
-                    await compose_middleware(*self.middleware)(name, kwargs, context, invoke)
+                    await compose_middleware(*self.middleware)(served, kwargs, call, invoke)
                     if (self.middleware)
                     else await invoke()
                 )
             if not isinstance(result, CommandResult):
                 return error(
                     "INVALID_COMMAND_RESULT",
-                    name,
+                    served,
                     suggestion="Register an adapter returning CommandResult",
                 )
             if policy.quality:
@@ -354,12 +440,15 @@ def build_host(
     extra_commands: tuple[Callable, ...] = (),
     policies: dict[str, CommandPolicy] | None = None,
     core_commands: tuple[str, ...] = tuple(CORE_POLICIES),
+    kebab_names: bool = False,
 ) -> CommandHost:
     """Explicit plugins only. Unadapted plugin commands fail catalog construction.
 
     A command's policy comes from its plugin (PluginRegistry.add_policy) or from
     `policies`. Where both declare one, the host's may only narrow the plugin's
     (narrow_policy); a conflict that would widen effects refuses construction.
+    ``kebab_names`` serves every command under AFD's kebab-case name (``issue-claim``)
+    instead of its Python function's (``issue_claim``); either spelling calls it.
     """
     from botcore import commands
     from botcore.config import load_config
@@ -398,5 +487,6 @@ def build_host(
         command_name = handler.__name__
         if command_name not in command_policies:
             raise ValueError(f"Declare command effects before admission: {command_name}")
-        host.register(command_name, handler, command_policies[command_name])
+        served = kebab_name(command_name) if kebab_names else command_name
+        host.register(served, handler, command_policies[command_name])
     return host

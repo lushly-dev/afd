@@ -1,0 +1,46 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "closed"
+	},
+	"success": true,
+	"data": {
+		"requests": [
+			{
+				"id": "req-4",
+				"member": {
+					"id": "mem-tobias",
+					"name": "Tobias Reed",
+					"number": "M-027"
+				},
+				"variety": {
+					"id": "var-crimson",
+					"name": "Crimson-flowered broad bean"
+				},
+				"summary": "Lend one packet of Crimson-flowered broad bean to Tobias Reed",
+				"askedAt": "2030-03-02T10:00:00Z",
+				"expiresAt": "2030-03-03T10:00:00Z",
+				"status": "expired",
+				"packetsAvailable": 1
+			},
+			{
+				"id": "req-5",
+				"member": {
+					"id": "mem-wren",
+					"name": "Wren Achterberg",
+					"number": "M-031"
+				},
+				"variety": {
+					"id": "var-crimson",
+					"name": "Crimson-flowered broad bean"
+				},
+				"summary": "Lend one packet of Crimson-flowered broad bean to Wren Achterberg",
+				"askedAt": "2029-05-01T10:00:00Z",
+				"expiresAt": "2029-05-02T10:00:00Z",
+				"status": "declined",
+				"packetsAvailable": 1
+			}
+		],
+		"total": 2
+	}
+}

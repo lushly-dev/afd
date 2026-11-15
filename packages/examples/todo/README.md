@@ -10,6 +10,12 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
 - **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust and C++ backends keep their data in memory).
 - **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all four backends.
+- **Shared metadata**: [commands.schema.json](./spec/commands.schema.json) gives each command's
+  `mutation`, `destructive`, `contexts` and `confirmPrompt`, and every backend's tests check that
+  its definitions match.
+
+This example is being brought up to date with current AFD; the plan and its progress are in
+[docs/features/active/todo-reference](../../../docs/features/active/todo-reference/STATUS.md).
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -142,7 +148,8 @@ The frontends work with any backend that serves their HTTP endpoint, because the
 | Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
 | Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
 
-The frontends POST JSON-RPC to `http://localhost:3100/message`. The TypeScript and Rust
+The frontends POST JSON-RPC to `http://localhost:3100/message`, the deprecated lane that AFD 3.0
+removes; the frontend that replaces them will use `/mcp`. The TypeScript and Rust
 backends accept browser requests from the dev frontends' origins (`http://localhost:3000` for
 `pnpm dev:web`, `http://localhost:5173` and `5174` for Vite, also on `127.0.0.1`) and refuse
 other origins with 403; add yours with `ALLOWED_ORIGINS`. The Python backend is a stdio
@@ -151,7 +158,7 @@ conformance suite rather than the web frontends.
 
 ## VS Code MCP Configuration
 
-All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp.json`:
+All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp.json`:
 
 ```jsonc
 {
@@ -170,6 +177,12 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
       "disabled": true
     },
     
+    // C++ backend (stdio transport - build it first: pnpm test:conformance:cpp)
+    "afd-todo-cpp": {
+      "command": "packages/examples/todo/backends/cpp/build/release/todo-server-cpp",
+      "disabled": true
+    },
+
     // Rust backend (MCP over HTTP, JSON responses - requires manual server start)
     "afd-todo-rust": {
       "type": "http",
@@ -186,6 +199,7 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
 |---------|-----------|------------|-------|
 | TypeScript | stdio | ✅ Yes | VS Code spawns the process |
 | Python | stdio | ✅ Yes | VS Code spawns the process |
+| C++ | stdio | ✅ Yes | VS Code spawns the built binary |
 | Rust | HTTP (`POST /mcp`, no SSE) | ❌ No | Must start server manually first |
 
 ### Switching Backends
@@ -208,23 +222,42 @@ Then enable `afd-todo-rust` in mcp.json and reload VS Code.
 
 ## API Contract
 
-The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and the TypeScript, Python and C++ test suites check that it lists exactly the commands each backend defines. The Rust backend has no such check.
+The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and gives each command's metadata. The test suites of all four backends check that it lists exactly the commands each backend defines, with the same metadata; the Rust backend's check leaves out `contexts`, which it does not declare yet.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `todo-create` | Create a new todo |
-| `todo-list` | List todos with filtering/pagination |
-| `todo-get` | Get a single todo by ID |
-| `todo-update` | Update a todo's properties |
-| `todo-toggle` | Toggle completion status |
-| `todo-delete` | Delete a todo |
-| `todo-clear` | Clear completed todos |
-| `todo-stats` | Get statistics |
-| `todo-create-batch` | Create multiple todos |
-| `todo-toggle-batch` | Toggle multiple todos |
-| `todo-delete-batch` | Delete multiple todos |
+| Command | Description | Contexts | Destructive |
+|---------|-------------|----------|-------------|
+| `todo-create` | Create a new todo | editing | |
+| `todo-list` | List todos with filtering/pagination | reading, editing | |
+| `todo-get` | Get a single todo by ID | reading, editing | |
+| `todo-update` | Update a todo's properties | editing | |
+| `todo-toggle` | Toggle completion status | editing | |
+| `todo-delete` | Delete a todo | editing | Yes |
+| `todo-clear` | Clear completed todos (asks for confirmation when the server enforces it) | editing | Yes |
+| `todo-stats` | Get statistics | reading, editing | |
+| `todo-create-batch` | Create multiple todos | editing | |
+| `todo-toggle-batch` | Toggle multiple todos | editing | |
+| `todo-delete-batch` | Delete multiple todos | editing | Yes |
+
+### Contexts
+
+The TypeScript and Python servers configure two contexts, so an agent can scope itself before it
+works:
+
+- `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats`. A command that changes todos
+  is refused with `COMMAND_NOT_IN_CONTEXT` and a suggestion.
+- `todo-editing` shows every command.
+
+With no context entered every command is visible. `afd-context-list`, `afd-context-enter` and
+`afd-context-exit` manage them; on the stateless `/mcp` endpoint a request names its context in
+`_meta["dev.afd/context"]` instead. The Rust and C++ backends do not serve contexts yet.
+
+Clients that never enter a context are unaffected, with three visible differences: `tools/list`
+includes the three context tools (in the `bootstrap` group under the TypeScript server's default
+grouped strategy), `initialize` on the deprecated `/message` lane returns an `Mcp-Session-Id`
+header that carries the session's context, and `/mcp` marks `tools/list` stale at once
+(`ttlMs: 0`) because its answer depends on the request's context.
 
 ## Performance Features
 
@@ -249,7 +282,7 @@ These return partial success semantics with confidence scores based on success r
 
 ### Transport-Level Batching (`@lushly-dev/afd-core`)
 
-For calling multiple different commands in a single roundtrip, use the `afd.batch` tool:
+For calling multiple different commands in a single roundtrip, use the `afd-batch` tool:
 
 ```bash
 # Execute multiple different commands in one request
@@ -277,34 +310,9 @@ console.log(result.summary); // { total: 3, successCount: 3, failureCount: 0, sk
 console.log(result.confidence); // Aggregated confidence score
 ```
 
-### Streaming (for long-running commands)
+### Streaming
 
-The `@lushly-dev/afd-core` streaming types enable progress updates for long-running operations:
-
-```typescript
-import { McpClient } from '@lushly-dev/afd-client';
-
-const client = new McpClient({ url: 'http://localhost:3100/mcp' });
-await client.connect();
-
-// Stream with progress updates
-for await (const chunk of client.stream('todo-list', { limit: 1000 })) {
-  if (chunk.type === 'progress') {
-    console.log(`Progress: ${chunk.progress * 100}%`);
-  } else if (chunk.type === 'complete') {
-    console.log('Done:', chunk.data);
-  }
-}
-
-// Or with callbacks
-const controller = client.streamWithCallbacks('todo-list', { limit: 1000 }, {
-  onProgress: (chunk) => console.log(`${chunk.progress * 100}%`),
-  onComplete: (chunk) => console.log('Done:', chunk.data),
-  onError: (chunk) => console.error('Error:', chunk.error)
-});
-
-// Cancel if needed
-controller.abort();
-```
-
-See `@lushly-dev/afd-core/batch` and `@lushly-dev/afd-core/streaming` for type definitions.
+No todo command is long-running, so this example does not stream. The server's `/stream`
+endpoint runs a command to completion and then sends its result as `data` chunks and a
+`complete` chunk; it sends no `progress` chunks (see the `@lushly-dev/afd-server` README,
+"Streaming").

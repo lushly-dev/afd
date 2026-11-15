@@ -239,7 +239,7 @@ exact head, never from anything the caller passes.
   through T3 Code). The probe publishes a readiness record to `refs/factory/hosts/<id>` on
   `origin`: cores, memory and free disk; whether the checkout is there and can fetch
   `origin`; the pinned toolchains; `gh` sign-in; the adapter's commands; and, on Windows,
-  whether symlinks can be created (AFD keeps `.codex/skills` as a symlink).
+  whether symlinks can be created (AFD keeps `.agents/skills` as a symlink).
   `lane-host-list` reads the records; anything missing is named in `missing[]`, and a
   record's age decides `reachable`.
 - `lane-host-set` refuses a machine that is not ready, and refuses an immediate move while
@@ -364,10 +364,10 @@ Things AFD and the workstation lacked that the lane needs, all done in Phase 0
 2. **A pre-push hook that accepts the lane's validation.** AFD's pre-push runs the full
    lint, test and typecheck. The lane may not skip hooks, so the hook must recognize the
    lane's record for the exact head being pushed.
-3. **Symlinks on the workstation.** Windows Developer Mode is off, so git checks
-   `.codex/skills` out as a text file and the pre-push `skills` and `tooling-tests` checks
-   fail on every push from this machine (seen on 2026-11-12). Turn Developer Mode on and
-   check the symlinks out again.
+3. **Symlinks on the workstation.** Windows Developer Mode is off, so git checks the
+   skills symlink (then `.codex/skills`, now `.agents/skills`) out as a text file, and
+   the pre-push `skills` and `tooling-tests` checks fail on every push from this machine
+   (seen on 2026-11-12). Turn Developer Mode on and check the symlinks out again.
 4. **The workstation's toolchain.** `pnpm`, `cargo` and `cmake` are not on `PATH` and
    `gh` is not signed in.
 5. **GitHub over SSH on this machine.** `origin` uses the host alias

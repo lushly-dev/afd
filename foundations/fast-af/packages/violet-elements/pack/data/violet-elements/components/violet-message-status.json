@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "status",
+				"state": "default"
+			}
+		],
 		"statements": []
 	},
 	"api": {
@@ -90,9 +96,6 @@
 		},
 		{
 			"kind": "a11y-statement"
-		},
-		{
-			"kind": "role"
 		}
 	],
 	"import": "@lushly-dev/violet-elements",

@@ -4,6 +4,7 @@
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_EDIT_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
@@ -18,6 +19,7 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-create',
 	description: 'Create a new todo item',
 	category: 'todo',
+	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'create', 'write', 'single'],
 	mutation: true,
@@ -25,7 +27,6 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 	input: inputSchema,
 	output: TodoSchema,
 	errors: ['VALIDATION_ERROR'],
-	contexts: ['todo-editing'],
 
 	async handler(input) {
 		const todo = store.create({

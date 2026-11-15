@@ -86,7 +86,7 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 | Check id | Reads |
 | --- | --- |
 | `node_version_alignment` | `.nvmrc`, `.node-version`, `package.json` engines, workflow `node-version` including lists, matrix references and `fromJSON` over literal lists (TypeScript); other ranges or expressions produce `warn` |
-| `codex_skills_mirror` | `.codex/skills` is a live mirror of `.claude/skills` |
+| `agent_skills_mirror` | `.agents/skills` is a live mirror of `.claude/skills`. A live mirror only at the legacy `.codex/skills` path, or a `.codex/skills` left beside `.agents/skills`, gives `warn` |
 | `lefthook_configured` | `lefthook.yml` declares pre-commit and pre-push |
 | `linter_strict` | Biome rules (TypeScript) or `[tool.ruff]` (Python) |
 | `ci_present` | A workflow mentioning test and build that runs on pull requests or branch pushes; one only run by tags, releases, schedules or by hand doesn't count |
@@ -103,7 +103,7 @@ rules run, coverage is met, CI succeeds or a repository is secure.
 
 A target can name the repository that contains it with `repository_root` (in a targets
 file) or `--repository-root` (on the command line). Checks about the repository then read
-that root: `node_version_alignment`, `codex_skills_mirror`, `lefthook_configured`,
+that root: `node_version_alignment`, `agent_skills_mirror`, `lefthook_configured`,
 `ci_present`, `dependabot_configured`, `commitlint_configured`, `gitattributes_lf`,
 `changesets_configured`, `last_commit` and `dependency_version_drift`. `linter_strict` and
 `dead_code_tool` read it for TypeScript, whose Biome and knip configuration sits at the

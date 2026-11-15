@@ -16,6 +16,7 @@ mod remove;
 mod schema;
 mod screening;
 mod senders;
+mod stories;
 mod sync;
 mod tokens;
 
@@ -28,6 +29,10 @@ pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use remove::{RemovalPreview, Removed};
 pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
 pub use senders::{SenderPlace, SenderQuery, SenderRow, domain_of, sender_id};
+pub use stories::{
+    KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryCursor, StoryMessage, StoryMessages,
+    StoryRow, USUAL_SHAPE,
+};
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
 };
@@ -331,9 +336,11 @@ impl Store {
         // Every statement of a batch is prepared once and kept.
         connection.set_prepared_statement_cache_capacity(128);
         schema::migrate(&mut connection, migrations)?;
-        // Mail held before classes existed is classed once (migration 8).
+        // Mail held before classes existed is classed once (migration 8),
+        // and then given its stories (migration 9).
         if migrations.len() >= schema::MIGRATIONS.len() {
             classes::fill_if_marked(&mut connection)?;
+            stories::fill_if_marked(&mut connection)?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
@@ -398,6 +405,7 @@ impl Store {
                 senders: Some(&turned),
                 ..Default::default()
             },
+            now,
         )?;
         transaction.commit()?;
         Ok(id)
@@ -458,10 +466,11 @@ impl Store {
                     senders: Some(&turned),
                     ..Default::default()
                 },
+                now,
             )?;
         }
         if listing_turned {
-            classes::relist_mailbox(&transaction, id.0)?;
+            classes::relist_mailbox(&transaction, id.0, now)?;
         }
         transaction.commit()?;
         Ok(id)
@@ -520,7 +529,7 @@ impl Store {
         if closed > 0 {
             // One row for the mailbox: a view of it reads it again in full.
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
-            classes::relist_mailbox(&transaction, mailbox.0)?;
+            classes::relist_mailbox(&transaction, mailbox.0, now)?;
         }
         transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         // The mailbox shows nothing until it is listed again.
@@ -1153,5 +1162,9 @@ mod classes_tests;
 mod derived_tests;
 #[cfg(test)]
 mod senders_tests;
+#[cfg(test)]
+mod stories_tests;
+#[cfg(test)]
+mod test_mail;
 #[cfg(test)]
 mod tests;

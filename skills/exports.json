@@ -21,7 +21,7 @@
 	"profiles": {
 		"afd": {
 			"root": ".claude/skills",
-			"mirror": ".codex/skills",
+			"mirror": ".agents/skills",
 			"listingBudget": 6300,
 			"projections": [
 				{

@@ -1,0 +1,387 @@
+//! The context a command runs in: [`CommandContext`], and the per-request filters the MCP server
+//! puts on it.
+
+use std::collections::HashMap;
+use std::fmt;
+use std::sync::Arc;
+
+use crate::actor::Actor;
+use crate::clock::{Clock, RandomSource, SYSTEM_CLOCK, SYSTEM_RANDOM};
+use crate::credentials::Credentials;
+use crate::errors::CommandError;
+use crate::journal::JournalContextState;
+
+use super::{CommandDefinition, CommandInterface};
+
+/// How an MCP server lists its tools, for `afd-help` (`spec/tool-strategies.md`, H8). Only the
+/// MCP server sets it, so `afd-help` run in process reports none of it.
+#[derive(Clone, Debug)]
+pub(crate) struct ToolSurface {
+    pub(crate) strategy: &'static str,
+    /// The first-class tool names in list order, on a hybrid server.
+    pub(crate) first_class_tools: Option<Arc<Vec<String>>>,
+    /// Which commands the caller may see on the describing surfaces (`afd-help`, `afd-docs`,
+    /// `afd-schema`), when the server filters listings by scope (`spec/authorization.md`, M6).
+    pub(crate) visible: Option<Visibility>,
+}
+
+/// A filter the MCP server sets for one request (which commands the caller may list, or which
+/// exist for it): the names it admits, decided once when the request arrives.
+#[derive(Clone)]
+pub(crate) struct Visibility(pub(crate) Arc<std::collections::HashSet<String>>);
+
+impl Visibility {
+    pub(crate) fn allows(&self, command: &CommandDefinition) -> bool {
+        self.0.contains(&command.name)
+    }
+
+    pub(crate) fn allows_name(&self, name: &str) -> bool {
+        self.0.contains(name)
+    }
+
+    /// `names` without those it does not admit, in order: a command's `requires` as this caller
+    /// may read it (`spec/authorization.md`, M6, "Hidden commands").
+    pub(crate) fn admitted(&self, names: &[String]) -> Vec<String> {
+        names
+            .iter()
+            .filter(|name| self.allows_name(name))
+            .cloned()
+            .collect()
+    }
+}
+
+/// The execute-time scope decision an authorized MCP server sets for a caller with credentials
+/// when a host resolver is installed (`spec/authorization.md`, M6, "At execution"): asked with
+/// the command, its validated input and the credentials; `Some` refuses the call before the
+/// middleware and the handler run.
+#[derive(Clone)]
+pub(crate) struct ScopeCheck(pub(crate) Arc<ScopeCheckFn>);
+
+/// What a [`ScopeCheck`] calls.
+pub(crate) type ScopeCheckFn =
+    dyn Fn(&str, &serde_json::Value, &Credentials) -> Option<CommandError> + Send + Sync;
+
+impl fmt::Debug for ScopeCheck {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("ScopeCheck(..)")
+    }
+}
+
+impl fmt::Debug for Visibility {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str("Visibility(..)")
+    }
+}
+
+/// Context provided to command handlers.
+///
+/// Build it with [`CommandContext::new`] and the `with_*` methods.
+#[derive(Clone, Default)]
+#[non_exhaustive]
+pub struct CommandContext {
+    /// Unique ID for this command invocation.
+    pub trace_id: Option<String>,
+
+    /// Deadline for the command in milliseconds.
+    ///
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) enforces it with `tokio::time::timeout`
+    /// (the `native` feature, inside a Tokio runtime with time enabled) and
+    /// returns `TIMEOUT` when it passes. Without `native`, a context with a
+    /// timeout is rejected with `UNSUPPORTED_OPTION` before the handler runs.
+    pub timeout_ms: Option<u64>,
+
+    /// The interface invoking the command.
+    ///
+    /// When set, [`CommandRegistry::execute`](super::CommandRegistry::execute) rejects commands that are not
+    /// exposed to it with `COMMAND_NOT_EXPOSED`. Leave it unset for trusted
+    /// in-process calls.
+    pub interface: Option<CommandInterface>,
+
+    /// Who is calling: a human, an agent, a service, a script or a test.
+    ///
+    /// The MCP server (feature `server`) sets `agent` unless configured otherwise. When it is
+    /// set, [`CommandRegistry::execute`](super::CommandRegistry::execute) reports its kind as `metadata.actorKind` on the
+    /// handler's result (never the id).
+    pub actor: Option<Actor>,
+
+    /// The verified claims of the request's access token, on a server configured with
+    /// authorization (`spec/authorization.md`, M4; the `server-auth` feature). Only the server
+    /// sets it, from a verified request, never from tool arguments, `_meta` or a header; the
+    /// context hook sees it and cannot change it. In process it is absent unless trusted host
+    /// code sets it ([`CommandContext::with_credentials`]). It never holds the raw token, is not
+    /// journaled, and prints redacted.
+    pub credentials: Option<Arc<Credentials>>,
+
+    /// Approval evidence for a command whose approval policy requires it: the
+    /// `details.approvalToken` of an `APPROVAL_REQUIRED` result, set by the surface once a human
+    /// approved (`spec/command-metadata.md`, "Approvals"). Only trusted surface code sets it,
+    /// never tool arguments: whoever holds a valid token can run the call. The MCP server never
+    /// sets it.
+    pub approval: Option<String>,
+
+    /// Source of the current time. Read time from [`CommandContext::clock`] instead of the
+    /// system time so tests and replays can control it.
+    ///
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) always sets it for the handler (to
+    /// [`SYSTEM_CLOCK`] unless the caller set one).
+    pub clock: Option<Arc<dyn Clock>>,
+
+    /// Source of randomness. Read random numbers from [`CommandContext::random`] so tests
+    /// and replays can seed them.
+    ///
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) always sets it for the handler (to
+    /// [`SYSTEM_RANDOM`] unless the caller set one).
+    pub random: Option<Arc<dyn RandomSource>>,
+
+    /// Custom context values.
+    pub extra: HashMap<String, serde_json::Value>,
+
+    /// What a journal recorder and replay pass to nested calls.
+    pub(crate) journal_state: JournalContextState,
+    pub(crate) direct_approval: Option<Arc<std::sync::Mutex<crate::direct::Exchange>>>,
+    /// The active-context state: a session stack, one request's context, or no session.
+    pub(crate) context_scope: Option<crate::contexts::ContextScope>,
+    /// A remote MCP caller: an unexposed command looks unknown, and recovery points to
+    /// `afd-discover` (`spec/error-codes.md`, D4). Only the MCP server sets it.
+    pub(crate) remote: bool,
+    /// How the MCP server lists its tools: read by `afd-help`. Only the MCP server sets it.
+    pub(crate) tool_surface: Option<ToolSurface>,
+    /// Which commands exist for the caller (`spec/authorization.md`, M6, "Hidden commands"):
+    /// one it rejects is looked up as a name that does not exist, before anything else, by every
+    /// execution under this context (batch items, pipeline steps, nested calls that pass the
+    /// context on). Only the MCP server sets it.
+    pub(crate) known: Option<Visibility>,
+    /// The caller's output budget ask (`spec/output-budgets.md`, B2) in its `_meta` form,
+    /// `{ "maxBytes": n }`, not yet validated: [`CommandRegistry::execute`](super::CommandRegistry::execute) checks it after the
+    /// declared context fields. Set in process by [`CommandContext::with_output_budget_ask`], and
+    /// by the MCP server from `_meta["dev.afd/outputBudget"]`.
+    pub(crate) output_budget_ask: Option<serde_json::Value>,
+    /// The effective output budget (B3, B4): set by [`CommandRegistry::execute`](super::CommandRegistry::execute) for the
+    /// middleware and the handler.
+    pub(crate) output_budget: Option<u64>,
+    /// The execute-time scope decision (`spec/authorization.md`, M6, "At execution"). Only the
+    /// MCP server sets it, and every execution under this context (batch items, pipeline steps,
+    /// nested calls that pass the context on) is decided again on its validated input.
+    pub(crate) scope_check: Option<ScopeCheck>,
+    /// Relay evidence (`spec/command-metadata.md`, "Relay evidence"): only the MCP server sets it,
+    /// after the host's [`HumanRelay`](crate::server::HumanRelay) returned `Approved` for this
+    /// call; the approval middleware then considers it and nothing else. Never read from a
+    /// request, never serialized, and removed before the handler runs, so a command the handler
+    /// calls in process never sees it.
+    pub(crate) relay_evidence: Option<Arc<crate::approval::relay::RelayEvidence>>,
+    /// The form-mode approval relay of one MCP tool call (`spec/command-metadata.md`, "Asking the
+    /// human over MCP"): only the MCP server sets it. The handler gets one that never asks.
+    pub(crate) approval_relay: Option<Arc<crate::approval::relay::ApprovalRelayChannel>>,
+    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
+    /// "Tasks"): only the server sets it. Read it with [`CommandContext::cancellation`].
+    pub(crate) cancellation: Option<crate::cancellation::CancellationSignal>,
+    /// Where a task's progress goes ([`CommandContext::report_progress`]): only the server sets it.
+    pub(crate) task_progress: Option<Arc<crate::cancellation::TaskProgress>>,
+}
+
+impl fmt::Debug for CommandContext {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("CommandContext")
+            .field("trace_id", &self.trace_id)
+            .field("timeout_ms", &self.timeout_ms)
+            .field("interface", &self.interface)
+            // The actor's id and principal may come from the credentials (a client id and a
+            // subject), so they print redacted, as the credentials do.
+            .field("actor", &self.actor.as_ref().map(RedactedActor))
+            .field("credentials", &self.credentials)
+            // An approval token is a credential: never print it.
+            .field("approval", &self.approval.as_ref().map(|_| "[redacted]"))
+            .field("clock", &self.clock.as_ref().map(|_| ".."))
+            .field("random", &self.random.as_ref().map(|_| ".."))
+            .field("extra", &self.extra)
+            .field("journal_state", &self.journal_state)
+            .field("context_scope", &self.context_scope)
+            .field("tool_surface", &self.tool_surface)
+            .field("known", &self.known)
+            .field("output_budget_ask", &self.output_budget_ask)
+            .field("output_budget", &self.output_budget)
+            .field("scope_check", &self.scope_check)
+            // Relay evidence names the caller: never print it.
+            .field(
+                "relay_evidence",
+                &self.relay_evidence.as_ref().map(|_| "[redacted]"),
+            )
+            .field("approval_relay", &self.approval_relay)
+            .field("cancellation", &self.cancellation)
+            .field("task_progress", &self.task_progress)
+            .finish()
+    }
+}
+
+/// An actor in debug output: its kind and label, with `[redacted]` for its id and principal.
+struct RedactedActor<'a>(&'a Actor);
+
+impl fmt::Debug for RedactedActor<'_> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        const REDACTED: &str = "[redacted]";
+        f.debug_struct("Actor")
+            .field("kind", &self.0.kind)
+            .field("id", &self.0.id.as_ref().map(|_| REDACTED))
+            .field("label", &self.0.label)
+            .field(
+                "on_behalf_of",
+                &self.0.on_behalf_of.as_ref().map(|_| REDACTED),
+            )
+            .finish()
+    }
+}
+
+impl CommandContext {
+    /// Create an empty context.
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    /// Set the trace ID.
+    pub fn with_trace_id(mut self, trace_id: impl Into<String>) -> Self {
+        self.trace_id = Some(trace_id.into());
+        self
+    }
+
+    /// Set the deadline in milliseconds.
+    pub fn with_timeout(mut self, timeout_ms: u64) -> Self {
+        self.timeout_ms = Some(timeout_ms);
+        self
+    }
+
+    /// Set the invoking interface, which turns on exposure checks.
+    pub fn with_interface(mut self, interface: CommandInterface) -> Self {
+        self.interface = Some(interface);
+        self
+    }
+
+    /// Set the calling actor.
+    pub fn with_actor(mut self, actor: impl Into<Actor>) -> Self {
+        self.actor = Some(actor.into());
+        self
+    }
+
+    /// Set the verified credentials of the caller's token. Trusted host code only: commands,
+    /// middleware and scope checks believe them.
+    pub fn with_credentials(mut self, credentials: impl Into<Arc<Credentials>>) -> Self {
+        self.credentials = Some(credentials.into());
+        self
+    }
+
+    /// Set the approval evidence: a token a human approved. Trusted surface code only.
+    pub fn with_approval(mut self, token: impl Into<String>) -> Self {
+        self.approval = Some(token.into());
+        self
+    }
+
+    /// Set the clock, for example a [`fixed_clock`](crate::fixed_clock).
+    pub fn with_clock(mut self, clock: impl Clock + 'static) -> Self {
+        self.clock = Some(Arc::new(clock));
+        self
+    }
+
+    /// Set the random source, for example a [`seeded_random`](crate::seeded_random).
+    pub fn with_random(mut self, random: impl RandomSource + 'static) -> Self {
+        self.random = Some(Arc::new(random));
+        self
+    }
+
+    /// The context's clock, or [`SYSTEM_CLOCK`] when it has none.
+    pub fn clock(&self) -> &dyn Clock {
+        match &self.clock {
+            Some(clock) => clock.as_ref(),
+            None => &SYSTEM_CLOCK,
+        }
+    }
+
+    /// The context's random source, or [`SYSTEM_RANDOM`] when it has none.
+    pub fn random(&self) -> &dyn RandomSource {
+        match &self.random {
+            Some(random) => random.as_ref(),
+            None => &SYSTEM_RANDOM,
+        }
+    }
+
+    /// Run with `context` active, for this call only: commands outside it return
+    /// `COMMAND_NOT_IN_CONTEXT`, and `afd-context-enter` and `afd-context-exit` report that
+    /// nothing persists (see [`crate::contexts`]).
+    pub fn with_active_context(mut self, context: impl Into<String>) -> Self {
+        self.context_scope = Some(crate::contexts::ContextScope::Request(Some(context.into())));
+        self
+    }
+
+    /// Run in the session whose contexts `stack` holds: its top is the active context, and
+    /// `afd-context-enter` and `afd-context-exit` change it (see [`crate::contexts`]).
+    pub fn with_context_stack(mut self, stack: crate::contexts::ContextStack) -> Self {
+        self.context_scope = Some(crate::contexts::ContextScope::Session(stack));
+        self
+    }
+
+    /// The cancellation signal of a call the MCP server runs as a task (`spec/command-metadata.md`,
+    /// "Tasks"): it fires on `tasks/cancel`, when the task's `ttlMs` ends, and when the token
+    /// that started the task expires. `None` for every other call.
+    ///
+    /// The server stops the handler when it fires, at the handler's next `.await`, and settles
+    /// the task itself (`cancelled`, `TASK_TOKEN_EXPIRED`, or gone at its TTL). Work the handler
+    /// spawned elsewhere, and a loop that does not await, should read it and stop.
+    pub fn cancellation(&self) -> Option<&crate::cancellation::CancellationSignal> {
+        self.cancellation.as_ref()
+    }
+
+    /// Whether this call runs as a task whose cancellation signal fired (see
+    /// [`Self::cancellation`]); always `false` for a call that is not a task.
+    pub fn is_cancelled(&self) -> bool {
+        self.cancellation
+            .as_ref()
+            .is_some_and(crate::cancellation::CancellationSignal::is_cancelled)
+    }
+
+    /// Report progress: for a call the MCP server runs as a task, `message` becomes the task's
+    /// `statusMessage` and moves its `lastUpdatedAt` (`spec/command-metadata.md`, "Tasks"); no
+    /// progress or log notification is sent. A message longer than
+    /// [`MAX_PROGRESS_MESSAGE_BYTES`](crate::MAX_PROGRESS_MESSAGE_BYTES) is cut. Any other call
+    /// ignores it. The client sees `statusMessage` and may show it to a person or a model, so
+    /// report a phase or a count, never content.
+    pub fn report_progress(&self, message: impl Into<String>) {
+        if let Some(progress) = &self.task_progress {
+            progress.report(message.into());
+        }
+    }
+
+    /// The active context, if any.
+    pub fn active_context(&self) -> Option<String> {
+        self.context_scope
+            .as_ref()
+            .and_then(crate::contexts::ContextScope::active)
+    }
+
+    /// Ask for an output budget of at most `max_bytes` for this call (`spec/output-budgets.md`,
+    /// B2): the in-process form of `_meta["dev.afd/outputBudget"] = { "maxBytes": n }`.
+    ///
+    /// It matters only for a command that declares a budget
+    /// ([`CommandDefinition::with_output_budget`]): its effective budget is then
+    /// `min(max_bytes, maxBytes)`, a larger ask being clamped. [`CommandRegistry::execute`](super::CommandRegistry::execute)
+    /// validates the ask like any call's: `max_bytes` must be from 1 to 9007199254740991, or the
+    /// call fails with `VALIDATION_ERROR` before the middleware and the handler run, whether or
+    /// not the command declares a budget. A value set here is trusted code's: the MCP server's
+    /// context hook may set it, and it is never overwritten from `_meta`.
+    pub fn with_output_budget_ask(mut self, max_bytes: u64) -> Self {
+        self.output_budget_ask = Some(crate::output_budget::ask_value(max_bytes));
+        self
+    }
+
+    /// The effective output budget of this call in bytes (B3, B4): the command's declared default
+    /// or the caller's ask clamped to its maximum. `None` for a command without a declaration.
+    /// [`CommandRegistry::execute`](super::CommandRegistry::execute) sets it before the middleware and the handler run; a handler
+    /// of a budgeted command should fit its result to it structurally (fewer items, shorter
+    /// excerpts, a window with a way to read on) and never cut a JSON value in the middle.
+    pub fn output_budget(&self) -> Option<u64> {
+        self.output_budget
+    }
+
+    /// Add a custom context value.
+    pub fn with_extra(mut self, key: impl Into<String>, value: serde_json::Value) -> Self {
+        self.extra.insert(key.into(), value);
+        self
+    }
+}

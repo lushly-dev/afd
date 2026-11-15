@@ -1,0 +1,13 @@
+{
+	"$command": "variety-list",
+	"$input": {
+		"query": "borlotti"
+	},
+	"success": false,
+	"error": {
+		"code": "SERVICE_UNAVAILABLE",
+		"message": "The catalogue cannot be read just now",
+		"suggestion": "Wait a moment, then call variety-list again",
+		"retryable": true
+	}
+}

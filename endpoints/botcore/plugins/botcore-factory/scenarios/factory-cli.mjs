@@ -2,12 +2,14 @@
 /**
  * The CLI AFD's scenario runner calls for the factory: `call <command> [<json>] --format json`
  * is handed unchanged to `python -m botcore_factory.harness`, as an argument list (no shell).
- * FACTORY_PYTHON names the interpreter that has botcore-factory installed (default: python).
+ * FACTORY_PYTHON names the interpreter that has botcore-factory installed (default: python), and
+ * FACTORY_HARNESS the harness module (default: botcore_factory.harness).
  */
 import { spawnSync } from 'node:child_process';
 
 const python = process.env.FACTORY_PYTHON || 'python';
-const child = spawnSync(python, ['-m', 'botcore_factory.harness', ...process.argv.slice(2)], {
+const harness = process.env.FACTORY_HARNESS || 'botcore_factory.harness';
+const child = spawnSync(python, ['-m', harness, ...process.argv.slice(2)], {
 	stdio: 'inherit',
 	windowsHide: true,
 });
