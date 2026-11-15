@@ -42,8 +42,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
     every existing host's catalog, which Alfred reads by name.
   - The G1 command skeleton in `botcore-factory` (`botcore_factory/gateway/`), against a fake
     GitHub: every drafted command on its five routes, including G2's `review-record` and
-    `review-get` and G3's `gateway-wait`, so all fifteen jobs run. The pull request that adds
-    it is linked in the session log.
+    `review-get` and G3's `gateway-wait`, so all fifteen jobs run:
+    [#1232](https://github.com/lushly-dev/afd/pull/1232), stacked on #1230.
   - Not started: botcore's changes 3, 4 and 7 (per-command MCP tools, the HTTP surface with
     tokens and uploads, the client CLI); the App-backed GitHub adapter (needs G0's App); the
     factory plugin's claims, queue push and lane steps on the gateway (after
@@ -101,7 +101,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   host (56 tests), so names became opt-in; two independent reviews (Opus 5.5, high) found a
   crash on unresolvable type hints and Alfred choosing targets by the spelling called, both
   fixed. Its gates pass (botcore 782 tests, the factory plugin 229, Alfred 130, Health).
-- 2026-11-14: the G1 skeleton, stacked on #1230. Verified with
+- 2026-11-14: the G1 skeleton, [#1232](https://github.com/lushly-dev/afd/pull/1232), stacked on #1230. Verified with
   `uv run --frozen pytest tests/test_gateway_scenarios.py` in `botcore-factory`: all fifteen
   jobs pass through AFD's TypeScript scenario runner (`scenarios/run.mjs`, now shared with the
   factory's jobs: `FACTORY_HARNESS` picks the harness and `FACTORY_SCENARIO_ENV` each job's
