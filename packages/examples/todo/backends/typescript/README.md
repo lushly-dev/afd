@@ -93,10 +93,12 @@ Each change's result names its undo in `undoCommand` and `undoArgs`; the example
 
 `TODO_STORE_TYPE=sqlite` keeps the todos, the deleted todos and the history in one SQLite
 database (`data/todos.db`, gitignored) through `@lushly-dev/local-db`'s adapter on `node:sqlite`
-(`src/store/sqlite.ts`). Each change is one transaction, so a delete or restore moves its todo
-between the live and deleted tables all or nothing, and several processes can share the file.
-Filtering, sorting and undo are the in-memory store's rules, so all three stores behave the same;
-the backend's tests run every job against both the in-memory and the SQLite store.
+(`src/store/sqlite.ts`). Each write is one transaction, so a delete or restore moves its todo
+between the live and deleted tables all or nothing, and a write to a todo another process removed
+since it was read rolls back and reports the todo missing. Several processes can share the file.
+The history entry for a change is a separate write after it. Filtering, sorting (ties included)
+and undo are the in-memory store's rules; the backend's tests run every job against both the
+in-memory and the SQLite store. A path that cannot hold a database fails at startup.
 
 The JSON file stays the default until the Python backend reads the same database (the to-do
 reference plan's phase 5); until then only the file store is shared with Python.

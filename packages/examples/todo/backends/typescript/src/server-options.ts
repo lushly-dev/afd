@@ -103,13 +103,15 @@ export interface TodoServerDeps {
  *
  * 1. `defaultMiddleware()`: a trace ID for each call, logging (with inputs and results in dev
  *    mode or at `LOG_LEVEL=debug`) and a warning for slow calls.
- * 2. The approval hold, so a held call never runs.
- * 3. The journal, when there is one: it records each call that got past the hold, failures
+ * 2. For `todo-clear`, the counts its approval summary shows, read here because the store is
+ *    asynchronous and the approval middleware's `summarize` is not (when approvals are on).
+ * 3. The approval hold, so a held call never runs.
+ * 4. The journal, when there is one: it records each call that got past the hold, failures
  *    included, with the clock and random values the call read, so `afd replay` can run the
  *    session again. A held call is not recorded: its result carries an approval token and an
  *    expiry from the approval middleware's own clock, which no replay can reproduce and a
  *    journal should not keep. Once approved, the call is recorded like any other.
- * 4. The change history, which records each change that did run.
+ * 5. The change history, which records each change that did run.
  */
 export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): CommandMiddleware[] {
 	const devMode = env.NODE_ENV === 'development';

@@ -176,8 +176,10 @@ On branch `t3/todo-reference-phase2-localdb`, 2026-11-15, not yet merged:
 
 - **SQLite storage (D4).** `TODO_STORE_TYPE=sqlite` stores the todos, the deleted todos and the
   history in one database through `@lushly-dev/local-db`'s SQLite adapter (`src/store/sqlite.ts`).
-  Each change runs through the adapter's `batch`, one transaction, so a delete or restore moves its
-  todo all or nothing. The filtering, sorting and undo rules are the in-memory store's, reused.
+  Each write runs through the adapter's `batch`, one transaction, so a delete or restore moves its
+  todo all or nothing, and a write to a todo another process removed meanwhile rolls back; the
+  history entry is a separate write after it. The filtering, sorting (ties in insertion order, as
+  the in-memory store) and undo rules are the in-memory store's, reused.
   The store is asynchronous, so every command awaits the store, and a middleware outside the
   approval hold reads the counts `todo-clear`'s approval summary shows. The backend's tests run
   every job against both the in-memory and the SQLite store.

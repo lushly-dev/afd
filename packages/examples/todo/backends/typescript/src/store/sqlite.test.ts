@@ -3,10 +3,14 @@
  * deleted tables, the history's order and limit, and the clears.
  */
 
-import { mkdtempSync, rmSync } from 'node:fs';
+import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
+import { createMcpServer } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { createTodoServerOptions } from '../server-options.js';
+import { setStore } from './index.js';
+import { TodoStore } from './memory.js';
 import { SqliteStore } from './sqlite.js';
 
 let dir: string;
@@ -116,5 +120,67 @@ describe('SqliteStore', () => {
 			[2, 'todo-toggle'],
 			[3, 'todo-delete'],
 		]);
+	});
+
+	it('reads ties back in the order the in-memory store does', async () => {
+		const db = store();
+		const memory = new TodoStore();
+		const stamp = { now: '2026-11-15T09:00:00.000Z', newId: () => '' };
+		for (const id of ['zzz', 'aaa', 'mmm']) {
+			const fixed = { ...stamp, newId: () => id };
+			memory.create({ title: id }, fixed);
+			await db.create({ title: id }, fixed);
+		}
+		const ids = (todos: { id: string }[]) => todos.map((todo) => todo.id);
+		expect(ids(await db.list())).toEqual(ids(memory.list()));
+		expect(ids(await db.list({ sortOrder: 'asc' }))).toEqual(
+			ids(memory.list({ sortOrder: 'asc' }))
+		);
+	});
+
+	it('treats an id the database cannot hold as missing', async () => {
+		const db = store();
+		for (const id of ['.', '..']) {
+			expect(await db.get(id)).toBeUndefined();
+			expect(await db.delete(id)).toBeUndefined();
+			expect(await db.restore(id)).toBeUndefined();
+			expect(await db.update(id, { title: 'x' })).toBeUndefined();
+		}
+	});
+
+	it('does not bring back a todo another process removed meanwhile', async () => {
+		const mine = store();
+		const theirs = store();
+		const todo = await mine.create({ title: 'Raced' });
+		await mine.delete(todo.id);
+		// Another process empties the deleted todos between this one's read and its write
+		const read = await mine.getDeleted(todo.id);
+		expect(read).toBeDefined();
+		await theirs.clearDeleted();
+		expect(await mine.restore(todo.id)).toBeUndefined();
+		expect(await mine.get(todo.id)).toBeUndefined();
+	});
+
+	it("shows the counts in a held clear's summary", async () => {
+		const db = store();
+		setStore(db);
+		try {
+			const server = createMcpServer(createTodoServerOptions({}));
+			const agent = { actor: { kind: 'agent' as const } };
+			const created = await server.execute('todo-create', { title: 'Done' }, agent);
+			await server.execute('todo-toggle', { id: (created.data as { id: string }).id }, agent);
+			const held = await server.execute('todo-clear', {}, agent);
+			expect((held.error?.details as { summary?: string } | undefined)?.summary).toBe(
+				'Remove the completed todos for good (1 todo now)'
+			);
+		} finally {
+			setStore(new TodoStore());
+		}
+	});
+
+	it('fails its startup check on a path that cannot hold a database', async () => {
+		const notADirectory = join(dir, 'file');
+		writeFileSync(notADirectory, 'x');
+		expect(() => new SqliteStore(join(notADirectory, 'todos.db'))).toThrow();
 	});
 });
