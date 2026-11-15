@@ -83,7 +83,13 @@ language tools; they do not impose AFD architectural rules.
 
 The `inspection` profile permits pure declared inspection. It rejects writers,
 subprocesses, browsers, and service access before execution. `trusted-local`
-permits the admitted effects, including explicitly selected remediation. There
+permits the admitted effects, including explicitly selected remediation.
+`remote-caller` is for callers a surface authenticated over the network: it
+admits `inspect`, `service` and `history-write` and refuses everything else
+(subprocesses, source, config and release writes, browsers), so a remote caller
+gets none of the local trust `trusted-local` implies; raw Python stays
+`trusted-local` only. A host narrows it further per command with its policies.
+`botcore.context.PROFILE_EFFECTS` lists what each profile admits. There
 is no report-artifact exception or output-only profile in this initial API.
 Conditional effects (such as lint `fix`) are evaluated against bound arguments
 before invocation; effects a call computes beyond its declared set are
@@ -108,9 +114,19 @@ arguments the host resolves are ordinary inputs, also named in `paths`.
 an unannotated parameter, a hint that does not resolve at runtime, or one
 Pydantic cannot describe (a callable, say) gives `{}`, any value; a default
 with no JSON form is left out; other docstring styles give no descriptions;
-and the schema is published, not enforced, so values are not type-checked
-before the call. `DirectClient.list_commands()` reports the same one-line
-descriptions.
+and those inputs are not type-checked before the call. `DirectClient.list_commands()`
+reports the same one-line descriptions.
+
+A host serves each command under the name it was registered with, and a call
+may use the other spelling too (`issue_claim` for `issue-claim`, and back);
+registering both spellings of one name is refused as a duplicate.
+`build_host(..., kebab_names=True)` registers every command under AFD's
+kebab-case name (`info-workspace`) instead of its Python function's
+(`info_workspace`), so the catalog, the journal and middleware see the
+kebab-case name; without it, existing hosts keep their names. An unknown name is
+`COMMAND_NOT_FOUND`, whose message and suggestion name the closest served
+command (the same name in another case or separator convention, else by
+`difflib`; `details.suggestedCommand`) and point at the catalog.
 
 Every surface (CLI `call`, MCP `call`, DirectClient) enters `host.execute`,
 which checks argument names before binding the handler and before any policy,
@@ -127,6 +143,27 @@ closest name by `difflib`. The suggestion says the same in words, for example
 names the missing input (`Pass lane.`). A wrong key is refused, never renamed,
 so the caller learns the convention. A handler taking `**kwargs` accepts any
 key.
+
+Inputs are then validated against their type hints, the same hints the catalog's
+`input_schema` describes, with Pydantic's lax mode: a handler annotated with a
+Pydantic model receives the model, a `list[int]` input sent as `["101"]`
+arrives as `[101]`, and `fix: "false"` as `False`. A value that fails is
+refused with `VALIDATION_ERROR` before any policy check (so a `str` input sent
+a number is refused before path confinement), and `details.invalidFields` names
+each bad field by its path (`holder.machine`, `numbers[1]`) with what is wrong.
+A hint Pydantic cannot build a validator for, or one naming something it cannot
+resolve, leaves that input unchecked.
+
+Each call has an AFD `CommandContext`: the one a surface passes to
+`host.execute(name, args, context)`, carrying the caller it verified as `actor`,
+or else a fresh one with the host's `actor` (`CommandHost(..., actor=...)`). It
+gets a trace ID, AFD's system clock and random source when it has none. The MCP
+`call` tool calls as the host's actor, else as `Actor(kind="agent")`; the CLI
+`call` as the host's actor; DirectClient sends its own context, whose actor is
+`human` unless its caller sets one. Middleware receives it, so AFD's journal
+middleware (`afd.server.journal.create_journal_middleware`) runs behind the host
+and records the actor, and a handler reads it with
+`botcore.context.current_call()` instead of taking the caller as an input.
 
 Managed raw Python requires BOTH `raw_python=True` and an explicit
 `ExecutionContext(..., profile="trusted-local")`. It adds `alfred-run` and is

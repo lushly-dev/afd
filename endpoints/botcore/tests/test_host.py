@@ -377,9 +377,9 @@ async def test_trusted_raw_kebab_command_identifier_alias_and_collision(tmp_path
     denied = content(await server.call_tool("alfred-run", {"code": "return await demo_check()"}))
     assert denied["error"]["code"] == "EFFECT_DENIED"
     assert calls == ["demo-check"]
-    host.register("demo_check", inspect_target, CommandPolicy())
-    with pytest.raises(ValueError, match="Ambiguous trusted-local Python alias"):
-        create_host_mcp_server(host, raw_python=True)
+    # Both spellings name one served command, so the second registration is refused.
+    with pytest.raises(ValueError, match="Duplicate command: demo_check"):
+        host.register("demo_check", inspect_target, CommandPolicy())
 
 
 async def test_real_broken_docs_links_are_failed_checks_across_surfaces(tmp_path):
