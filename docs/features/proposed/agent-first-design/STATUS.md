@@ -152,6 +152,13 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   from Specimen's README that a host exists for that platform. Not checked: that the host
   builds there, that the `claude` command there is signed in, and what share of a week's
   allowance a session takes. The link script was run again over the same four files.
+- **The second machine's tools, 2026-11-15:** a read-only session there, started through T3
+  Code outside any checkout, ran a handful of commands and reported them. The `claude`
+  command is signed in to a subscription; a headless call on Opus 5.5 at `medium` ran with
+  no API key set and reported its cost at list prices, about $0.11 for a one-word answer.
+  The pinned Rust toolchain, a Node 26, `pnpm`, `uv` and Playwright's headless shell are
+  installed. No command prints the weekly usage figure. Not checked: that Specimen's host
+  builds there, which needs a checkout of its own on that machine.
 - **The seed library's jobs, 2026-11-15 at `dfb153b2`:** after
   `pnpm -F "@lushly-dev/afd-cli..." build`, the three checks the jobs-first guide names were
   run on `bench/scenarios`, and run again after the walks changed the files.

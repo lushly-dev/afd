@@ -187,9 +187,15 @@ phase 0 has no step for it.
 - **Where:** a second machine of the owner's, an Apple silicon Mac reached through T3 Code,
   which has a checkout of this repository. Builds, walks and scoring all run there: Specimen
   has a host for that platform and none for Windows (`foundations/specimen/README.md:499`).
-  Until Specimen's packages are released, the host is built from source. Not checked yet:
-  that it builds there, and that the `claude` command on that machine is signed in to the
-  subscription.
+  Until Specimen's packages are released, the host is built from source.
+- **Checked there on 2026-11-15,** by a read-only session outside any checkout: the `claude`
+  command is signed in to a subscription, and a headless call ran on it with no API key set.
+  The Rust toolchain this repository pins, a Node 26, `pnpm`, `uv` and Playwright's headless
+  shell are installed. `claude` takes the model, the effort, a JSON result, a list of tools
+  and a strict MCP configuration as options; it has no option for a number of turns.
+- **Not checked yet:** that Specimen's host builds there. That needs a checkout of its own on
+  that machine, since another session is working in the existing one. The disk had 27 GiB
+  free, which is little for a Rust build beside those already there.
 - **Model:** Claude Opus 5.5 at `medium`, the route for everyday work and for judgement about
   an interface. Component Briefs ran on Sonnet 5.5, which is no longer a route.
 
@@ -238,7 +244,8 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
   Phase 0 also stops for the owner between steps, so it spreads over more than one week.
 - **The pilots give the conversion.** The four pilots run first. The weekly figure in Claude
   Code's usage view is read before and after them, and each session's reported cost is
-  recorded. That gives the share a dollar at list price takes, and from it the share each
+  recorded. No command prints the weekly figure, so a person reads it. A session's result
+  does carry its cost at list prices. That gives the share a dollar at list price takes, and from it the share each
   step will take, which comes back to the owner before step 0.1. If four pilots do not move
   a figure shown in whole percents, the runs pause after the first fifteen builds of step
   0.1, which are then the measurement, and the estimate comes back to the owner there. If a
@@ -246,6 +253,11 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 - **The weekly figure is shared.** Another session of the owner's runs on that machine, so
   the figure also moves for reasons that are not the bench. Each session's reported cost is
   the measure of the bench's own use, and the weekly figure only scales it.
+- **A session has a floor.** On 2026-11-15 a headless call on Opus 5.5 that answered one
+  word reported about $0.11 at list prices, nearly all of it for writing the system prompt
+  to the cache. It was measured once, and sessions started within the cache's hour may pay
+  less. At that figure 209 sessions pay about $22 before any work, inside the estimates
+  above.
 - **Not in the total:** writing the commands, the fixtures, the reference build, the runner
   and the statements, which are ordinary working sessions.
 - **The owner's time,** which no session replaces: confirming the rules for "go"; naming the
