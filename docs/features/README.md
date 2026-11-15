@@ -66,6 +66,7 @@ Cross-language gaps (TypeScript, Python, Rust, C++) are tracked in [Language Par
 | Feature | Description |
 |---------|-------------|
 | [Agent Engine](./proposed/agent-engine/proposal.md) | Research and proposed new packages for modular, controllable, ongoing agentic work |
+| [Agent-First Design](./proposed/agent-first-design/agent-first-design.proposal.md) | How design work is done when a person and an agent build an AFD app: a fixed architecture, default patterns, voice and guidance that a company or product can customize, replace or add to, a panel of agents that reviews before a person does, and a person who decides at set points and before release. It frames Patterns, Design Decisions, Screens from Jobs, Pointing and Scales. Scaffold 2026-11-14: a model, fourteen draft jobs as sentences and a design direction, with no commands or scenarios yet; status in [STATUS.md](./proposed/agent-first-design/STATUS.md) |
 | [Chat History Panel](./proposed/chat-history-panel/) | Chat history UI component |
 | [Code Client](./proposed/code-client/) | Code-based client research |
 | [Design Decisions](./proposed/design-decisions/design-decisions.proposal.md) | Variants of a screen kept side by side, a choice recorded with its reason and evidence, and a review that shows a person only what no gate settled. Draft 2026-11-13: ten jobs as scenarios and ten commands, walked once by a fresh reader; not ranked by the owner or reviewed; status in [STATUS.md](./proposed/design-decisions/STATUS.md) |
