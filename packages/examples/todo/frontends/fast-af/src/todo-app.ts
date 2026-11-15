@@ -58,7 +58,7 @@ const todoTemplate = html<Todo, TodoApp>`
 				<violet-button
 					class="todo-delete"
 					appearance="quiet"
-					@click="${(x, c) => c.parent.session?.remove(x.id)}"
+					@click="${(x, c) => c.parent.afterRemoving(c.parent.session?.remove(x.id))}"
 					>Delete<span class="visually-hidden"> ${(x) => x.title}</span></violet-button
 				>
 			`,
@@ -67,7 +67,7 @@ const todoTemplate = html<Todo, TodoApp>`
 				<violet-button
 					class="todo-restore"
 					appearance="secondary"
-					@click="${(x, c) => c.parent.session?.restore([x.id])}"
+					@click="${(x, c) => c.parent.afterRemoving(c.parent.session?.restore([x.id]))}"
 					>Restore<span class="visually-hidden"> ${(x) => x.title}</span></violet-button
 				>
 			`
@@ -117,13 +117,15 @@ const logTemplate = html<CallRecord>`
 const template = html<TodoApp>`
 	<header class="banner">
 		<h1>Todos</h1>
-		<p class="banner-status" role="status">
-			<violet-badge
-				class="connection"
-				color="${(x) => (x.state.connected ? 'success' : 'danger')}"
-				size="sm"
-				>${(x) => (x.state.connected ? 'Connected' : 'Offline')}</violet-badge
-			>
+		<p class="banner-status">
+			<span role="status">
+				<violet-badge
+					class="connection"
+					color="${(x) => (x.state.connected ? 'success' : 'danger')}"
+					size="sm"
+					>${(x) => (x.state.connected ? 'Connected' : 'Offline')}</violet-badge
+				>
+			</span>
 			${(x) =>
 				x.state.stats
 					? `${x.state.stats.pending} open, ${x.state.stats.completed} done, ${Math.round(x.state.stats.completionRate * 100)}% complete`
@@ -179,6 +181,7 @@ const template = html<TodoApp>`
 					label="New todo"
 					required
 					maxlength="200"
+					@keydown="${(x, c) => x.addOnEnter(c.event as KeyboardEvent)}"
 				></violet-text-field>
 				<violet-select class="add-priority" label="Priority" value="medium">
 					<violet-option value="low">Low</violet-option>
@@ -345,6 +348,7 @@ const template = html<TodoApp>`
 
 	<violet-snackbar
 		class="undo-offer"
+		dismissible
 		?open="${(x) => x.state.undo !== undefined}"
 		@dismiss="${(x) => x.session?.dismissUndo()}"
 	>
@@ -358,6 +362,7 @@ const template = html<TodoApp>`
 		class="approval"
 		type="alert"
 		no-close-button
+		@request-close="${(_, c) => c.event.preventDefault()}"
 		?open="${(x) => x.state.approval !== undefined}"
 	>
 		<span slot="title"
@@ -368,7 +373,7 @@ const template = html<TodoApp>`
 			@approve="${(x) => x.session?.approve()}"
 			@deny="${(x) => x.session?.deny()}"
 		>
-			<span slot="summary">${(x) => x.state.approval?.message}</span>
+			<p slot="summary" class="approval-message">${(x) => x.state.approval?.message}</p>
 			<span slot="detail"
 				>The server holds this until a person answers. Nothing is removed if you deny it.</span
 			>
@@ -391,7 +396,6 @@ export class TodoApp extends FASTElement {
 			showing: 'live',
 			history: [],
 			log: [],
-			busy: false,
 		};
 	}
 
@@ -404,9 +408,32 @@ export class TodoApp extends FASTElement {
 		});
 	}
 
+	override connectedCallback(): void {
+		super.connectedCallback();
+		// Moved in the document: render the session again
+		if (this.session && !this.#stop) this.attach(this.session);
+	}
+
 	override disconnectedCallback(): void {
 		super.disconnectedCallback();
 		this.#stop?.();
+		this.#stop = undefined;
+	}
+
+	/** Enter in the title field adds the todo: violet buttons do not submit a form. */
+	addOnEnter(event: KeyboardEvent): boolean {
+		if (event.key !== 'Enter') return true;
+		void this.addFromForm(event);
+		return false;
+	}
+
+	/**
+	 * After Delete or Restore removes the focused button with its row, put focus in the title
+	 * field rather than leave it on the page body.
+	 */
+	async afterRemoving(change: Promise<unknown> | undefined): Promise<void> {
+		await change;
+		this.querySelector<HTMLElement>('violet-text-field.add-title')?.focus();
 	}
 
 	/** Add the todo the form describes, then clear the title for the next one. */

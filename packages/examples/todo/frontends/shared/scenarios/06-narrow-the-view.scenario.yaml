@@ -1,7 +1,8 @@
 # Built in the to-do reference plan's phase 3 (docs/features/active/todo-reference).
 # Runs against the page's own view-state commands (src/view-state.ts), which the page hosts
 # through createDirectRegistry: view state is the page's, not the store's. src/view-state.test.ts
-# runs it, and checks that the list the page shows follows the state.
+# runs it and checks the page's filter follows; frontends/fast-af/test/page.test.ts checks the list
+# on screen follows an agent's view-state-set in Chromium.
 name: An agent narrows the view
 description: >-
   When I ask the copilot to show only my urgent open todos, I want the list on screen to change

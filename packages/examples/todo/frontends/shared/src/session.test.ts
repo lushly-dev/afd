@@ -16,6 +16,63 @@ const SERVER = fileURLToPath(
 let backend: ChildProcess;
 let baseUrl: string;
 const sessions: TodoSession[] = [];
+const extra: ChildProcess[] = [];
+
+/** Start a backend on this port and wait until it answers. */
+async function startBackend(port: number): Promise<ChildProcess> {
+	const child = spawn(process.execPath, [SERVER], {
+		env: {
+			...process.env,
+			TRANSPORT: 'http',
+			HOST: '127.0.0.1',
+			PORT: String(port),
+			TODO_STORE_TYPE: 'memory',
+		},
+		stdio: 'ignore',
+	});
+	for (let attempt = 0; attempt < 80; attempt++) {
+		try {
+			if ((await fetch(`http://127.0.0.1:${port}/health`)).ok) return child;
+		} catch {}
+		await new Promise((resolve) => setTimeout(resolve, 125));
+	}
+	child.kill();
+	throw new Error('The backend did not start');
+}
+
+async function stopBackend(child: ChildProcess): Promise<void> {
+	if (child.exitCode !== null) return;
+	const exited = new Promise((resolve) => child.once('exit', resolve));
+	child.kill();
+	await exited;
+}
+
+/**
+ * A fetch that holds the answer to the next request whose body names `command` until `release()`:
+ * the server has answered, but the page reads it late, as over a slow network.
+ */
+function holdingFetch() {
+	let hold: { command: string; released: Promise<void> } | undefined;
+	let release = () => {};
+	const fetchWithHold: typeof fetch = async (input, init) => {
+		const body = typeof init?.body === 'string' ? init.body : '';
+		const waiting = hold;
+		const matched = waiting !== undefined && body.includes(`"name":"${waiting.command}"`);
+		if (matched) hold = undefined;
+		const response = await fetch(input, init);
+		if (!matched || !waiting) return response;
+		const text = await response.text();
+		await waiting.released;
+		return new Response(text, { status: response.status, headers: response.headers });
+	};
+	return {
+		fetch: fetchWithHold,
+		holdNext(command: string) {
+			hold = { command, released: new Promise<void>((resolve) => (release = resolve)) };
+		},
+		release: () => release(),
+	};
+}
 
 function freePort(): Promise<number> {
 	return new Promise((resolve, reject) => {
@@ -50,8 +107,9 @@ beforeAll(async () => {
 	throw new Error('The backend did not start');
 }, 30_000);
 
-afterAll(() => {
+afterAll(async () => {
 	backend?.kill();
+	for (const child of extra.splice(0)) await stopBackend(child);
 });
 
 afterEach(() => {
@@ -174,6 +232,80 @@ describe('TodoSession', () => {
 		expect(
 			session.snapshot.log.filter((entry) => entry.command === 'todo-history').length
 		).toBeLessThanOrEqual(2);
+	});
+
+	it("keeps a failed command's error, and reconnects on one retry once the backend is back", async () => {
+		const port = await freePort();
+		let child = await startBackend(port);
+		extra.push(child);
+		const session = await open(`http://127.0.0.1:${port}`);
+		await stopBackend(child);
+		const title = unique('Order seed potatoes');
+		await session.add(title);
+		expect(session.snapshot.error).toMatchObject({
+			command: 'todo-create',
+			code: 'BACKEND_UNREACHABLE',
+		});
+		expect(session.snapshot.connected).toBe(false);
+		child = await startBackend(port);
+		extra.push(child);
+		await session.retry();
+		expect(session.snapshot.error).toBeUndefined();
+		expect(session.snapshot.connected).toBe(true);
+		expect(session.snapshot.todos.some((each) => each.title === title)).toBe(true);
+	});
+
+	it('shares one reconnect among calls made at once', async () => {
+		const port = await freePort();
+		let child = await startBackend(port);
+		extra.push(child);
+		const session = await open(`http://127.0.0.1:${port}`);
+		await stopBackend(child);
+		await session.refresh();
+		child = await startBackend(port);
+		extra.push(child);
+		const results = await Promise.all([
+			session.client.call('todo-list'),
+			session.client.call('todo-stats'),
+			session.client.call('todo-history'),
+		]);
+		expect(results.map((result) => result.success)).toEqual([true, true, true]);
+	});
+
+	it('never lets an older refresh that answers late undo a newer state', async () => {
+		const control = holdingFetch();
+		const session = new TodoSession({ baseUrl, pollMs: 0, fetch: control.fetch });
+		sessions.push(session);
+		await session.start();
+		const a = unique('First');
+		const b = unique('Second');
+		await session.add(a);
+		await session.add(b);
+		// The refresh after toggling A answers late, after B is toggled and read
+		control.holdNext('todo-list');
+		const first = session.toggle(idOf(session, a));
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		await session.toggle(idOf(session, b));
+		control.release();
+		await first;
+		const shown = session.snapshot.todos;
+		expect(shown.find((todo) => todo.title === a)?.completed).toBe(true);
+		expect(shown.find((todo) => todo.title === b)?.completed).toBe(true);
+	});
+
+	it("does not report its own change in flight as another client's", async () => {
+		const control = holdingFetch();
+		const session = new TodoSession({ baseUrl, pollMs: 0, fetch: control.fetch });
+		sessions.push(session);
+		await session.start();
+		control.holdNext('todo-list');
+		const adding = session.add(unique('Mine'));
+		await new Promise((resolve) => setTimeout(resolve, 100));
+		await session.poll();
+		control.release();
+		await adding;
+		await session.poll();
+		expect(session.snapshot.remote).toBeUndefined();
 	});
 
 	it('says how to recover when no backend answers', async () => {

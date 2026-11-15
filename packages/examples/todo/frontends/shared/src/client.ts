@@ -48,14 +48,72 @@ function unreachable(error: unknown): CommandResult<never> {
 	};
 }
 
+/** A result the page could not read as a `CommandResult`. */
+function unreadable(reason: string): CommandResult<never> {
+	return {
+		success: false,
+		error: {
+			code: 'BAD_RESULT',
+			message: `The backend's answer was not a command result: ${reason}`,
+			suggestion: 'Check that the backend is an AFD server, and look at its log',
+			retryable: false,
+		},
+	};
+}
+
+/** The `CommandResult` in a `tools/call` result: its structured content, or its JSON text. */
+function readResult<T>(payload: unknown): CommandResult<T> {
+	const result = payload as
+		| { structuredContent?: unknown; content?: { type: string; text?: string }[] }
+		| undefined;
+	let value = result?.structuredContent;
+	if (value === undefined) {
+		const text = result?.content?.find((part) => part.type === 'text')?.text;
+		if (text === undefined) return unreadable('it had neither structured content nor text');
+		try {
+			value = JSON.parse(text);
+		} catch {
+			return unreadable('its text was not JSON');
+		}
+	}
+	if (
+		typeof value !== 'object' ||
+		value === null ||
+		typeof (value as { success?: unknown }).success !== 'boolean'
+	) {
+		return unreadable('it had no success field');
+	}
+	return value as CommandResult<T>;
+}
+
 export class TodoClient {
 	private transport: StreamableHttpTransport | undefined;
+	/** The connection being opened, shared by every call that needs one meanwhile. */
+	private connecting: Promise<StreamableHttpTransport> | undefined;
 	private nextId = 1;
 
 	constructor(private readonly options: TodoClientOptions) {}
 
-	/** Connect, or reconnect after the backend went away. */
+	/** Connect afresh, dropping any current connection. */
 	async connect(): Promise<void> {
+		this.disconnect();
+		await this.transportFor();
+	}
+
+	get connected(): boolean {
+		return this.transport !== undefined;
+	}
+
+	/** The open connection, or the one being opened; opens one if there is none. */
+	private transportFor(): Promise<StreamableHttpTransport> {
+		if (this.transport) return Promise.resolve(this.transport);
+		this.connecting ??= this.open().finally(() => {
+			this.connecting = undefined;
+		});
+		return this.connecting;
+	}
+
+	private async open(): Promise<StreamableHttpTransport> {
 		const transport = new StreamableHttpTransport(`${this.options.baseUrl}/mcp`, {
 			clientName: 'todo-page',
 			clientVersion: '1.0.0',
@@ -63,12 +121,8 @@ export class TodoClient {
 			...(this.options.fetch && { fetch: this.options.fetch }),
 		});
 		await transport.connect();
-		this.transport?.disconnect();
 		this.transport = transport;
-	}
-
-	get connected(): boolean {
-		return this.transport !== undefined;
+		return transport;
 	}
 
 	/**
@@ -84,28 +138,33 @@ export class TodoClient {
 		const record: CallRecord = { id: this.nextId++, command, input, startedAt: Date.now() };
 		if (log) this.options.onCall?.(record);
 		let result: CommandResult<T>;
+		let used: StreamableHttpTransport | undefined;
 		try {
-			if (!this.transport) await this.connect();
-			const response = await this.transport?.send({
+			used = await this.transportFor();
+			const response = await used.send({
 				jsonrpc: '2.0',
 				id: record.id,
 				method: 'tools/call',
 				params: { name: command, arguments: input },
 			});
-			if (response?.error) {
-				result = unreachable(new Error(response.error.message));
-			} else {
-				const payload = response?.result as
-					| { structuredContent?: unknown; content?: { type: string; text?: string }[] }
-					| undefined;
-				const structured =
-					payload?.structuredContent ??
-					JSON.parse(payload?.content?.find((part) => part.type === 'text')?.text ?? 'null');
-				result = structured as CommandResult<T>;
-			}
+			result = response.error
+				? {
+						success: false,
+						error: {
+							code: 'MCP_ERROR',
+							message: response.error.message,
+							suggestion:
+								'Check the command name and input (afd-detail describes them), or the backend log',
+							retryable: false,
+						},
+					}
+				: readResult<T>(response.result);
 		} catch (error) {
-			this.transport?.disconnect();
-			this.transport = undefined;
+			// Drop only the connection this call used; another call may already have opened a new one
+			if (used && this.transport === used) {
+				used.disconnect();
+				this.transport = undefined;
+			}
 			result = unreachable(error);
 		}
 		const done = { ...record, durationMs: Date.now() - record.startedAt, result };

@@ -8,6 +8,7 @@
  * server: view state is the page's, not the store's. Phase 4's copilot calls them here.
  */
 
+import { type CommandMiddleware, failure } from '@lushly-dev/afd-core';
 import { createDirectRegistry, type DirectCommandRegistry } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { createViewStateCommands } from '@lushly-dev/afd-view-state/commands';
@@ -38,7 +39,50 @@ export function listInput(filter: TodoFilter): Record<string, unknown> {
 	};
 }
 
-/** Keep only known values, so an agent's typo cannot leave the list in an unknown state. */
+/**
+ * The values `todo-filter` takes that the list does not know, as `field: value` lines; empty when
+ * every value is known.
+ */
+function unknownValues(state: Record<string, unknown>): string[] {
+	const problems: string[] = [];
+	for (const [key, value] of Object.entries(state)) {
+		if (key === 'status' && !STATUSES.includes(value as StatusFilter))
+			problems.push(`status: ${String(value)}`);
+		else if (key === 'priority' && !PRIORITIES.includes(value as PriorityFilter))
+			problems.push(`priority: ${String(value)}`);
+		else if (key === 'search' && typeof value !== 'string')
+			problems.push(`search: ${String(value)}`);
+		else if (key !== 'status' && key !== 'priority' && key !== 'search')
+			problems.push(`${key}: not a field`);
+	}
+	return problems;
+}
+
+/**
+ * Refuse a `view-state-set` on `todo-filter` with a value the list does not know, with the values
+ * it takes, rather than accept it and leave the view unchanged without saying so.
+ */
+const checkFilter: CommandMiddleware = async (command, input, _context, next) => {
+	const { id, state } = (input ?? {}) as { id?: unknown; state?: unknown };
+	if (
+		command === 'view-state-set' &&
+		id === FILTER_VIEW &&
+		typeof state === 'object' &&
+		state !== null
+	) {
+		const problems = unknownValues(state as Record<string, unknown>);
+		if (problems.length > 0) {
+			return failure({
+				code: 'VALIDATION_ERROR',
+				message: `todo-filter does not take ${problems.join(', ')}`,
+				suggestion: `Use status ${STATUSES.join(' | ')}, priority ${PRIORITIES.join(' | ')} and a search string`,
+			});
+		}
+	}
+	return next();
+};
+
+/** Keep only known values: the registry's last line of defence behind {@link checkFilter}. */
 function clean(next: Partial<TodoFilter>, base: TodoFilter): TodoFilter {
 	return {
 		status: STATUSES.includes(next.status as StatusFilter)
@@ -67,7 +111,9 @@ export class TodoViewState {
 			set: (partial) => this.apply(clean(partial as Partial<TodoFilter>, this.filter)),
 			replace: (state) => this.apply(clean(state as Partial<TodoFilter>, DEFAULT_FILTER)),
 		});
-		this.commands = createDirectRegistry(createViewStateCommands(this.registry));
+		this.commands = createDirectRegistry(createViewStateCommands(this.registry), {
+			middleware: [checkFilter],
+		});
 	}
 
 	get current(): TodoFilter {

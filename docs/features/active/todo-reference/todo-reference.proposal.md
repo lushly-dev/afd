@@ -136,11 +136,10 @@ before the commands change ([Phase 2 jobs](#phase-2-jobs)). Then:
 #### Phase 2 jobs
 
 Written as scenario files on 2026-11-15, before any command changes, and revised after two readers
-walked them (below). Each job moves beside the backend once it is built
-([`backends/typescript/scenarios/`](../../../../packages/examples/todo/backends/typescript/scenarios/),
-run by `src/scenarios.test.ts`); until then it waits, checked but not run, in
-[`scenarios/`](scenarios/). All nine are built; job 6, the page's, is in
-`frontends/shared/scenarios/`.
+walked them (below). Each job moved beside the code that runs it once it was built: jobs 1 to 5
+and 7 to 9 in [`backends/typescript/scenarios/`](../../../../packages/examples/todo/backends/typescript/scenarios/),
+run by `src/scenarios.test.ts`, and job 6, the page's, in
+[`frontends/shared/scenarios/`](../../../../packages/examples/todo/frontends/shared/scenarios/).
 
 | # | Job | File | Tags |
 |---|-----|------|------|

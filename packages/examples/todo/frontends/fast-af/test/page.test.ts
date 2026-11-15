@@ -120,6 +120,16 @@ describe('the to-do page', () => {
 		await page.context().close();
 	});
 
+	it('adds a todo with Enter in the title field', async () => {
+		const page = await openPage();
+		const title = unique('Typed and entered');
+		const field = page.locator('violet-text-field.add-title input');
+		await field.fill(title);
+		await field.press('Enter');
+		await page.locator('li.todo', { hasText: title }).waitFor();
+		await page.context().close();
+	});
+
 	it('asks the person before clearing, in the page, and clears once approved', async () => {
 		const page = await openPage();
 		const title = unique('Lift the leeks');

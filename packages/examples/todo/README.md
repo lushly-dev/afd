@@ -157,7 +157,9 @@ add, undo, a clear approved and one denied in the page, an agent narrowing the v
 ## Mix and Match
 
 The page talks MCP on `/mcp`, so it works with a backend that serves Streamable HTTP. It is
-tested against the TypeScript backend. The Rust backend has no `todo-history` or `todo-restore`
+tested against the TypeScript backend. Approvals in the page need MCP 2026-07-28, which the
+page negotiates with it: a 2025-era HTTP request cannot carry the server's question, so against
+such a backend a held clear stays `APPROVAL_REQUIRED`. The Rust backend has no `todo-history` or `todo-restore`
 until the to-do reference plan's phase 5, so against it the page shows no history or deleted
 list; that pairing is not tested yet.
 

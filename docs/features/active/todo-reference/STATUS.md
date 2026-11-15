@@ -211,7 +211,9 @@ On branch `t3/todo-reference-phase3-page`, 2026-11-15, not yet merged:
   other clients' changes, an unreachable backend), and the built page in Chromium against a real
   backend with axe (`pnpm test:page`, run in `conformance.yml`).
 
-Left in phase 3: the React frontend rebuilt on the same elements and shared modules.
+Left in phase 3: the React frontend rebuilt on the same elements and shared modules. Not built: the
+proposal's "selection becomes view-state" (the old frontends' batch select); the page has no batch
+selection, and whether it should is for the React rebuild to decide.
 
 ## Open questions
 

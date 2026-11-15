@@ -89,7 +89,6 @@ export interface SessionState {
 	error?: PageError;
 	/** The latest notice about changes another client made */
 	remote?: string;
-	busy: boolean;
 }
 
 /** How many commands the log keeps. */
@@ -114,6 +113,11 @@ export class TodoSession {
 	private knownSeq = 0;
 	private timer: ReturnType<typeof setInterval> | undefined;
 	private readonly pollMs: number;
+	/** Rises with each refresh; a refresh that is no longer the latest drops its results. */
+	private refreshes = 0;
+	/** Commands a person asked for that have not finished; polling waits while any run. */
+	private running = 0;
+	private stopped = false;
 
 	constructor(options: TodoSessionOptions) {
 		this.pollMs = options.pollMs ?? 3000;
@@ -131,7 +135,6 @@ export class TodoSession {
 			showing: 'live',
 			history: [],
 			log: [],
-			busy: false,
 		};
 		this.view.subscribe((filter) => {
 			this.update({ filter });
@@ -158,6 +161,7 @@ export class TodoSession {
 
 	/** Connect, read everything, and start looking for other clients' changes. */
 	async start(): Promise<void> {
+		this.stopped = false;
 		try {
 			await this.client.connect();
 			this.update({ connected: true, error: undefined });
@@ -176,19 +180,28 @@ export class TodoSession {
 		}
 		await this.refresh();
 		this.knownSeq = await this.latestSeq();
+		if (this.stopped) return;
 		if (this.pollMs > 0 && !this.timer) {
 			this.timer = setInterval(() => void this.poll(), this.pollMs);
 		}
 	}
 
+	/** Stop polling, cancel a question still waiting on the person, and disconnect. */
 	stop(): void {
+		this.stopped = true;
 		if (this.timer) clearInterval(this.timer);
 		this.timer = undefined;
+		this.answer?.({ action: 'cancel' });
 		this.client.disconnect();
 	}
 
-	/** Read the list the filter and view select, the stats and the history. */
-	async refresh(): Promise<void> {
+	/**
+	 * Read the list the filter and view select, the stats and the history. Results of a refresh
+	 * that a later one has overtaken are dropped, so a slow answer never undoes a newer one.
+	 * `keepError` leaves a command's error in place when this read fails too.
+	 */
+	async refresh(options: { keepError?: boolean } = {}): Promise<void> {
+		const generation = ++this.refreshes;
 		const input = {
 			...listInput(this.state.filter),
 			...(this.state.showing === 'deleted' && { deleted: true, sortBy: 'deletedAt' }),
@@ -199,8 +212,9 @@ export class TodoSession {
 			this.client.call<Stats>('todo-stats'),
 			this.client.call<{ entries: HistoryEntry[] }>('todo-history', { limit: 20 }),
 		]);
+		if (generation !== this.refreshes) return;
 		if (!list.success) {
-			this.fail('todo-list', list, () => this.refresh());
+			if (!options.keepError) this.fail('todo-list', list, () => this.refresh());
 			this.update({ connected: list.error?.code !== 'BACKEND_UNREACHABLE' });
 			return;
 		}
@@ -224,12 +238,14 @@ export class TodoSession {
 
 	/** Look for changes another client made since the page's last own change. */
 	async poll(): Promise<void> {
+		// The page's own change in flight would look like another client's
+		if (this.running > 0) return;
 		const history = await this.client.call<{ entries: HistoryEntry[] }>(
 			'todo-history',
 			{ limit: 20 },
 			{ log: false }
 		);
-		if (!history.success) return;
+		if (!history.success || this.running > 0) return;
 		const fresh = (history.data?.entries ?? []).filter((entry) => entry.seq > this.knownSeq);
 		if (fresh.length === 0) return;
 		this.knownSeq = Math.max(...fresh.map((entry) => entry.seq));
@@ -245,30 +261,41 @@ export class TodoSession {
 	/**
 	 * Run a command a person asked for: show its trust summary, offer its undo, or show its error
 	 * with a retry. Then read the list again and note the history position, so the page's own
-	 * change is not reported as another client's.
+	 * change is not reported as another client's. A failed command's error stays on screen even
+	 * when the read after it fails too, so Retry runs the command again, not just the read.
 	 */
 	async run<T>(command: string, input: Record<string, unknown> = {}): Promise<CommandResult<T>> {
-		this.update({ busy: true, error: undefined, remote: undefined });
-		const result = await this.client.call<T>(command, input);
-		if (result.success) {
-			this.update({
-				undo: result.undoCommand
-					? {
+		this.running++;
+		try {
+			this.update({ error: undefined, remote: undefined, undo: undefined });
+			const result = await this.client.call<T>(command, input);
+			if (result.success) {
+				this.update({
+					...(result.undoCommand && {
+						undo: {
 							message: result.reasoning ?? `${command} done`,
 							command: result.undoCommand,
 							args: { ...(result.undoArgs ?? {}) },
-						}
-					: undefined,
-			});
-		} else {
-			this.fail(command, result, async () => {
-				await this.run(command, input);
-			});
+						},
+					}),
+				});
+			}
+			const unreachable = result.error?.code === 'BACKEND_UNREACHABLE';
+			if (unreachable) {
+				this.update({ connected: false });
+			} else {
+				await this.refresh({ keepError: !result.success });
+				this.knownSeq = await this.latestSeq();
+			}
+			if (!result.success) {
+				this.fail(command, result, async () => {
+					await this.run(command, input);
+				});
+			}
+			return result;
+		} finally {
+			this.running--;
 		}
-		await this.refresh();
-		this.knownSeq = await this.latestSeq();
-		this.update({ busy: false });
-		return result;
 	}
 
 	add(title: string, priority: Priority = 'medium', description?: string) {
@@ -289,10 +316,6 @@ export class TodoSession {
 
 	remove(id: string) {
 		return this.run('todo-delete', { id });
-	}
-
-	removeMany(ids: string[]) {
-		return this.run('todo-delete-batch', { ids });
 	}
 
 	restore(ids: string[]) {
@@ -373,7 +396,10 @@ export class TodoSession {
 		const fields = Object.entries(
 			(request.requestedSchema.properties ?? {}) as Record<string, { type?: string }>
 		)
-			.filter(([, field]) => field.type === 'boolean')
+			// Only the yes field the server reads: approve for an approval, confirm for a confirmation
+			.filter(
+				([name, field]) => field.type === 'boolean' && (name === 'approve' || name === 'confirm')
+			)
 			.map(([name]) => name);
 		this.answer?.({ action: 'cancel' });
 		return new Promise((resolve) => {

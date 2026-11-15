@@ -17,6 +17,9 @@ on:
       - 'packages/cli/**'
       - 'packages/client/**'
       - 'packages/testing/**'
+      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
+      - 'packages/view-state/**'
+      - 'foundations/fast-af/**'
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
@@ -33,6 +36,9 @@ on:
       - 'packages/cli/**'
       - 'packages/client/**'
       - 'packages/testing/**'
+      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
+      - 'packages/view-state/**'
+      - 'foundations/fast-af/**'
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'

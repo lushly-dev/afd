@@ -43,12 +43,15 @@ describe('the page view state', () => {
 		expect(read.data?.state).toMatchObject({ status: 'completed' });
 	});
 
-	it('ignores values the list does not know', async () => {
+	it('refuses values the list does not know, and says which it takes', async () => {
 		const view = new TodoViewState();
-		await view.commands.execute('view-state-set', {
+		const result = await view.commands.execute('view-state-set', {
 			id: FILTER_VIEW,
 			state: { status: 'someday', priority: 'urgent' },
 		});
+		expect(result.success).toBe(false);
+		expect(result.error?.message).toContain('status: someday');
+		expect(result.error?.suggestion).toContain('pending');
 		expect(view.current).toEqual(DEFAULT_FILTER);
 	});
 

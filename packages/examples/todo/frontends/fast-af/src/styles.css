@@ -183,3 +183,8 @@ pre {
 .trust-alternatives {
 	margin: 0 0 calc(var(--gap) / 2);
 }
+
+.approval-message {
+	margin: 0;
+	white-space: pre-line;
+}
