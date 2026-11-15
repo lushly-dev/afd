@@ -7,7 +7,8 @@ owner to approve the domain and the budget before any session runs. Read
 
 ## Status
 
-- **State:** drafted 2026-11-14 against `fd0781e4`. Nothing is built and no session has run.
+- **State:** drafted 2026-11-14 against `fd0781e4`. The application is built (#1239) and the
+  held material is written; no session has run.
 - **Decided by the owner on 2026-11-15** ([For the owner](#for-the-owner)): the domain, the
   model, the bare arm, and the budget. The sessions run on a second machine of the owner's,
   draw on its subscription allowance and not on API billing, and take no more than a fifth
@@ -20,11 +21,19 @@ owner to approve the domain and the budget before any session runs. Read
   in [Budget](#budget) is an assumption, marked as one. Two pilot builds and two pilot walks
   replace the assumptions about a build and a walk before the full runs. Nothing pilots a
   reader; step 0.1's first readers measure one.
-- **Deliberately not in this file:** the planted faults, the checks, the persona cards and the
-  two jobs held back for the panel loop. A session that could read them would be scored on
-  what it had read. They are to be written now that the domain is decided, kept outside the
-  repository until the last run has finished, and committed then as the record, as Component
-  Briefs did with its tasks and checks. This file gives their shape and their counts.
+- **Deliberately not in this file:** the planted faults, the checks, the persona cards, the
+  walk scripts and the two jobs held back for the panel loop. A session that could read them
+  would be scored on what it had read. They were written on 2026-11-15 and are kept in a
+  folder of their own on the second machine's external drive, outside every checkout, as the
+  owner decided. They are committed after the last run as the record, as Component Briefs did
+  with its tasks and checks. This file gives their shape and their counts.
+- **They are frozen in two stages.** The checks and the held-back jobs were frozen on
+  2026-11-15, before any build. The faults, the persona cards and the walk scripts are frozen
+  before the first counted walk: a fault names elements of the reference build, which does not
+  exist yet. The two pilot walks run on the clean build with the drafts, and what they change
+  is recorded with the freeze. Each stage has a manifest of SHA-256 hashes, and the hash of
+  each manifest is in [STATUS.md](STATUS.md), so the record committed later can be checked
+  against what the runs used.
 
 ## What it has to do
 
@@ -185,6 +194,8 @@ else.
   how many faults a panel finds is measured without a second thing varying. The overlap it
   reports is therefore within one family, and the proposal's point about reviewers of
   different families waits for phase C.
+- **A walk script for each screen:** the job walked there, put as the person would meet it,
+  and its starting state, without its steps. Four in all.
 - **Two jobs held back for the panel loop** are written now and first used in phase C.
 
 ## Runs
@@ -249,6 +260,24 @@ Proposed here and not confirmed. The numbers are starting points, as the review 
 | 0.3 | Of the 12 planted faults, the panel reports at least 8 in at least one of its two walks of the seeded build, and of the 3 aimed at each modality, a persona of that modality reports at least 2. The share found in a single walk is reported beside it. A reader matches findings to faults, and the owner checks 20 of those matches. At least half of a sample of the panel's other findings, up to 30, are real in the owner's judgement |
 | 0.4 | A persona and job pair meets a fault when its screen carries a fault aimed at its modality. A path is worse when the job's last command never ran, or when failed commands, repeated commands and commands outside the scenario's steps add up to more. In at least three quarters of the pairs that meet a fault, the path is worse than the clean one in both walks of the seeded build. In the pairs that meet none, if there are any, that total on a seeded walk differs from the clean walk's by no more than the two seeded walks' totals differ from each other |
 | 0.5 | The owner, blind, prefers arm 3's build in at least 10 of 12 pairs with arm 2's, which chance alone gives about one time in fifty. The pairs are three a screen, each an arm 2 build and an arm 3 build of that screen drawn at random. Arm 3's mean share of checks passed is not below arm 2's. Otherwise the skill is not written |
+
+**How step 0.4 reads a path,** proposed with its rule and confirmed with it. Each walked job has
+a list of the scenario's steps, and the journal is read against it:
+
+- **A read is free.** A query does not count as outside the steps, since screens load and
+  search. A failed read counts as failed.
+- **A refusal the steps expect is a step,** not a failed command, such as a loan refused
+  because the seed has run out.
+- **A batch is one command.** The journal is to record an `afd-batch` as one entry with its
+  inner results, so deciding a set one at a time adds commands outside the steps.
+- **A repeat** is a mutation of the same command on the same record as an earlier one in the
+  walk, whatever its input, and an undo of an earlier mutation is one too, beyond what the
+  steps themselves contain. A mutation's record is the one it names, or for a create the
+  member and variety it is for. So a return recorded wrong, taken back and recorded again adds
+  two.
+- **A walk is capped** at 60 actions or 30 minutes, and one that reaches the cap or ends
+  without saying it is done ends where its journal ends. The pilots check that the clean
+  build's walks finish well inside the cap.
 
 ## Budget
 
@@ -361,4 +390,4 @@ the fifth is open.
    and nothing is installed here or added to CI. Specimen's host was built there and its
    suite passed on 2026-11-15.
 5. **The rules for "go".** **Open.** The owner has not been asked. They are confirmed before
-   the first run of step 0.1, after the pilots.
+   the first run of step 0.1, after the pilots, together with how step 0.4 reads a path.
