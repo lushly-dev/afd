@@ -522,22 +522,15 @@ pub(super) fn settle(
     for (mailbox, thread) in &touched.places {
         compute_place(transaction, *mailbox, *thread)?;
     }
-    let turned = super::senders::settle_senders(transaction, &touched.senders, now)?;
-    // First contacts change with a sender's messages and with the accounts
-    // that show them.
-    let mut contacts = touched.senders.clone();
-    {
-        let mut sender_of = transaction
-            .prepare_cached("SELECT sender_address FROM envelope WHERE message_id = ?1")?;
-        for message in &touched.shown {
-            if let Some(address) = sender_of
-                .query_row([message], |row| row.get::<_, String>(0))
-                .optional()?
-            {
-                contacts.insert(address);
-            }
-        }
-    }
+    let (turned, moved) =
+        super::senders::settle_senders_tracking(transaction, &touched.senders, now)?;
+    // First contacts change with a sender whose first message, or first
+    // message from the person, moved; and with a message within its
+    // sender's first day, or one that was a first contact, derived again or
+    // shown somewhere else. Mail past its sender's first day changes none.
+    let mut contacts = moved;
+    let near: BTreeSet<i64> = touched.messages.union(&touched.shown).copied().collect();
+    contacts.extend(super::bursts::first_day_senders(transaction, &near)?);
     super::classes::settle(
         transaction,
         &super::classes::Reclassify {

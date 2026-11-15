@@ -22,12 +22,14 @@
 //!   earliest kept one. A median needs [`COVERED_LEAST`] covered days before
 //!   the window: a flood in an account's first month of history is no
 //!   burst.
-//! - **An account's bursts are found once every mailbox of it has been
-//!   listed once**, and not while a rebuild runs: sync fetches newest first,
-//!   so until then each sender's oldest message so far looks like its first.
-//!   First contacts and daily counts are kept meanwhile; the bursts are found
-//!   when the last mailbox is first listed, or when a rebuild ends.
-//!   `mail-status` names the accounts that wait.
+//! - **An account's bursts are found once it has been listed whole**: every
+//!   mailbox it had then listed at least once. Not before, since sync
+//!   fetches newest first and until then each sender's oldest message so far
+//!   looks like its first; and not while a rebuild runs. First contacts and
+//!   daily counts are kept meanwhile; the bursts are found when the last
+//!   mailbox is first listed, or when a rebuild ends. A mailbox that
+//!   appears later does not hold them back. `mail-status` names the accounts
+//!   that wait.
 //! - A burst's messages that are `unknown` or `bulk` and listed form its
 //!   story ([`super::stories`]), in place of a queue entry or a stream story
 //!   each; a `known` sender's mail is never in one.
@@ -38,8 +40,8 @@
 //! contacts are computed again for each sender a batch touches, and written
 //! only where they changed; each account's counts for each day are counted
 //! again for the days that changed. Each listed account a batch touched (a
-//! first contact changed, or a mailbox of it started or stopped showing a
-//! message) has its bursts found again from all its first contacts, which
+//! first contact changed, or its junk or trash started or stopped showing
+//! one) has its bursts found again from all its first contacts, which
 //! an account holds thousands of, not hundreds of thousands; only the bursts
 //! that changed are written. A mailbox that changes role, or turns sent,
 //! has its accounts' first contacts made again. A burst's id is its
@@ -83,13 +85,13 @@ const FILL: &str = "burst-fill";
 
 /// Whether the sender (a row of `sender`) of a message of `envelope` was
 /// new to the person when the message came: they had not written to it,
-/// nor screened it in, before. A sender they knew is no stranger.
+/// nor screened it in, before. A sender they knew is no stranger, even one
+/// they block later.
 const NEW_WHEN_IT_CAME: &str = "(sender.first_written IS NULL
           OR sender.first_written > envelope.received)
      AND NOT EXISTS (SELECT 1 FROM sender_decision
                      WHERE sender_decision.address = sender.address
-                       AND sender_decision.decision = 'in'
-                       AND sender_decision.decided_at < envelope.received)";
+                       AND sender_decision.first_in_at < envelope.received)";
 
 /// The first contacts the messages of `filter` give, each with whether a
 /// mailbox other than junk and trash of its account has shown it.
@@ -149,16 +151,61 @@ const KEPT_FROM: &str =
     "SELECT min(received) FROM first_contact WHERE account_id = ?1 AND kept = 1";
 
 /// Whether every mailbox of an account still there has been listed once.
-const LISTED: &str = "SELECT NOT EXISTS (SELECT 1 FROM mailbox
+const ALL_LISTED: &str = "SELECT NOT EXISTS (SELECT 1 FROM mailbox
      WHERE account_id = ?1 AND gone_at IS NULL AND first_listed_at IS NULL)";
 
-/// The accounts some mailbox of which has not been listed yet.
-const WAITING: &str = "SELECT DISTINCT account_id FROM mailbox
-     WHERE gone_at IS NULL AND first_listed_at IS NULL ORDER BY account_id";
+/// The accounts never listed whole yet.
+const WAITING: &str = "SELECT id FROM account WHERE listed_at IS NULL ORDER BY id";
 
-/// The accounts whose mailboxes have shown a message.
+/// The accounts in whose junk or trash a first contact of theirs was shown:
+/// where those mailboxes' histories start may have moved. Whether it is kept
+/// comes through its sender.
 const ACCOUNTS_OF: &str = "SELECT DISTINCT mailbox.account_id FROM observation
-     JOIN mailbox ON mailbox.id = observation.mailbox_id WHERE observation.message_id = ?1";
+     JOIN mailbox ON mailbox.id = observation.mailbox_id
+     JOIN first_contact ON first_contact.account_id = mailbox.account_id
+                       AND first_contact.message_id = observation.message_id
+     WHERE observation.message_id = ?1 AND mailbox.role IN ('junk', 'trash')";
+
+/// The senders of messages of `temp.contact_target` within their first
+/// day, and of those that were first contacts.
+fn first_day_sql() -> String {
+    format!(
+        "SELECT envelope.sender_address FROM temp.contact_target
+         CROSS JOIN envelope ON envelope.message_id = contact_target.message_id
+         CROSS JOIN sender ON sender.address = envelope.sender_address
+         WHERE envelope.received < sender.first_received + {WINDOW}
+         UNION
+         SELECT first_contact.sender_address FROM temp.contact_target
+         CROSS JOIN first_contact ON first_contact.message_id = contact_target.message_id"
+    )
+}
+
+/// The senders whose first contacts `messages` may change: the senders of
+/// those within their sender's first day, and of those that were first
+/// contacts. A message past its sender's first day changes none.
+pub(super) fn first_day_senders(
+    transaction: &Transaction<'_>,
+    messages: &BTreeSet<i64>,
+) -> Result<BTreeSet<String>, StoreError> {
+    if messages.is_empty() {
+        return Ok(BTreeSet::new());
+    }
+    transaction.execute_batch(
+        "CREATE TEMP TABLE IF NOT EXISTS contact_target (message_id INTEGER PRIMARY KEY);
+         DELETE FROM temp.contact_target;",
+    )?;
+    {
+        let mut insert =
+            transaction.prepare_cached("INSERT OR IGNORE INTO temp.contact_target VALUES (?1)")?;
+        for message in messages {
+            insert.execute([message])?;
+        }
+    }
+    Ok(transaction
+        .prepare_cached(&first_day_sql())?
+        .query_map([], |row| row.get(0))?
+        .collect::<Result<_, _>>()?)
+}
 
 /// The day a time falls in.
 fn day_of(at: i64) -> i64 {
@@ -169,10 +216,34 @@ fn day_of(at: i64) -> i64 {
 /// received it, and whether it is kept.
 type Contact = (i64, i64, String, i64, bool);
 
-/// Whether an account's bursts can be found: every mailbox it has has been
-/// listed once.
+/// Whether an account's bursts can be found: it was listed whole once,
+/// every mailbox it had then listed at least once. Marks it so the first
+/// time; a mailbox that appears later does not hold it back.
 fn listed(transaction: &Transaction<'_>, account: i64) -> Result<bool, StoreError> {
-    Ok(transaction.one(LISTED, [account], |row| row.get(0))?)
+    let marked: Option<Option<i64>> = transaction
+        .one(
+            "SELECT listed_at FROM account WHERE id = ?1",
+            [account],
+            |row| row.get(0),
+        )
+        .optional()?;
+    match marked {
+        Some(Some(_)) => Ok(true),
+        // An account removed: what is left of it is found as it is.
+        None => Ok(transaction.one(ALL_LISTED, [account], |row| row.get(0))?),
+        Some(None) => {
+            let whole: bool = transaction.one(ALL_LISTED, [account], |row| row.get(0))?;
+            if whole {
+                transaction.run(
+                    "UPDATE account SET listed_at = coalesce(
+                         (SELECT max(first_listed_at) FROM mailbox WHERE account_id = ?1), 0)
+                     WHERE id = ?1",
+                    [account],
+                )?;
+            }
+            Ok(whole)
+        }
+    }
 }
 
 fn rebuilding(transaction: &Transaction<'_>) -> Result<bool, StoreError> {
@@ -590,6 +661,7 @@ pub(super) const CLEAR: &str = "DELETE FROM burst_message;
 pub(super) fn every_query() -> Vec<(&'static str, String)> {
     vec![
         ("desired", desired_sql()),
+        ("first day", first_day_sql()),
         ("current", CURRENT.to_string()),
         ("on day", ON_DAY.to_string()),
         ("days", DAYS.to_string()),
@@ -597,7 +669,7 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("held", HELD.to_string()),
         ("covered from", COVERED_FROM.to_string()),
         ("kept from", KEPT_FROM.to_string()),
-        ("listed", LISTED.to_string()),
+        ("listed", ALL_LISTED.to_string()),
         ("accounts of", ACCOUNTS_OF.to_string()),
         ("known during", known_during_sql()),
         ("latest", LATEST.to_string()),

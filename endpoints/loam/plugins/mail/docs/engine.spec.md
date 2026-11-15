@@ -482,6 +482,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
 | `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream with members, a story from its fifth, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams of mail no longer held |
+| `first_contact`, `contact_day`, `burst`, `burst_message` | Bursts ([7.4](#74-bursts), step C3, migration 10): each account's first contacts, whether each is kept, its counts of them for each day, its bursts and the first contacts each holds. Migration 10 also adds `sender.first_written`, `sender_decision.first_in_at`, `mailbox.first_listed_at` and `account.listed_at` | Yes, from `sender`, `envelope`, `observation` and `mailbox`; `first_in_at`, `first_listed_at` and `listed_at` no |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
@@ -1227,6 +1228,58 @@ a flood the provider filed there is still a flood.
 The thresholds are data. Step C3 tries them on a period and an account the owner names, and
 reports what the rule would have shown; Gmail's 2025 is the candidate the census points to.
 
+**As step C3 built it** (`engine/src/store/bursts.rs`, migration 10):
+
+- **A first contact** is a message from a sender whose first message the provider received less
+  than 24 hours before it, and who was new to the person when it came: they had not written to it
+  before (`sender.first_written`, when they first did), nor screened it in before
+  (`sender_decision.first_in_at`, kept when they block it and undo that). A sender they knew is no
+  stranger on its first message, so the 30 days of the rule above are met by construction. A
+  first contact counts in each account whose mailboxes have shown it, every mailbox included and
+  mail deleted since: a flood the provider filed away, or the person threw away, was still a
+  flood. It is **kept** when a mailbox of the account other than junk and trash has shown it.
+- **A burst** is found where an account's first contacts in any 24 hours, a window that starts at
+  one of them, pass the thresholds; windows that overlap are one burst, which holds every first
+  contact in them, whatever its class. Days are days in UTC.
+- **Days with no history are not quiet days.** Providers empty junk and trash, so a window is
+  judged twice and is a burst when either passes: all its first contacts, against the median over
+  the covered days from where every junk and trash mailbox's history starts (the latest of their
+  earliest first contacts, and the account's own); and its kept ones, against the median of kept
+  ones from the account's earliest. A median needs 30 covered days before the window, so a flood
+  in the first month of an account's history is never a burst, and nor is one wholly in a junk
+  mailbox within a month of the oldest mail it still holds: the first sync of an account whose
+  provider empties junk monthly sees none there.
+- **An account's bursts are found once it has been listed whole**, every mailbox it had then
+  listed at least once (`mailbox.first_listed_at`, `account.listed_at`). Sync fetches newest
+  first, so until then each sender's oldest message so far looks like its first. Nor while a
+  rebuild runs: its end finds every account's. First contacts and daily counts are kept
+  meanwhile; a mailbox that appears later does not hold the bursts back. `mail-status` names the
+  accounts that wait.
+- **Derived**, so a rebuild gives the same rows. First contacts are computed again for each sender
+  a batch touches and written only where they changed, and each day's counts for the days that
+  changed. Each listed account whose first contacts changed, or whose junk or trash started or
+  stopped showing one of them, has its bursts found again from all its first contacts, which an
+  account holds thousands of rather than hundreds of thousands; only the bursts that changed are
+  written. A mailbox that moves into or out of junk and trash has its account's first contacts
+  made again, and one that turns sent, every account's. The tests compare every row with finding
+  them from nothing after each change and through random sequences of floods, older mail, sent
+  mail, decisions, mail thrown away, mailboxes that change role, appear, go and come back, two
+  accounts and rebuilds.
+- **A burst's story** holds its first contacts that are `unknown` or `bulk` and listed, in place of
+  a queue entry or a stream story each: they leave the queue, the `unknown` and `bulk` lists and
+  `mail-sender-list`'s `waiting`. A message two accounts hold is in its earliest burst's story. A
+  burst is a story whatever its size, of kind `burst`, titled with its count of messages and of
+  senders; one whose mail is all in junk has no story. Its id is made from its account and its
+  first message's time, so a burst that grows back in time takes a new one.
+- **The flag.** Every burst is listed in `mail-status`'s `screening.bursts` and marked on its card
+  (`by: "burst"` and a `burst` part): its account, its first and last first contact, how many
+  there are, and `knownDuring`, the `known` senders whose listed mail the provider received within
+  an hour of it (read from the mail dated within a day of it), their ids outside and addresses in
+  a labelled part. `screening.bursts` gives `lately` (the bursts of the last 30 days, up to 20,
+  each with its `story` or null), `latelyTotal`, `total` and `waitingAccounts`.
+- **Never ordered below one**: a `known` sender's mail is the inbox, and a burst is a story; no
+  list the engine gives mixes the two. Ordering them in one view is the app's.
+
 ## 8. Stories
 
 A story is a view (M9). A message in a story is still in every list it was in.
@@ -1266,7 +1319,7 @@ migration 9):
   whose class or place in the lists changed, has its membership computed again; a message whose
   flags alone changed is not read. Each story a member left, joined or changed in is noted in
   `change`; so is one whose newest member was derived again, when its row changes. Every stream
-  with members has a row; the commands show those of five or more.
+  with members has a row; the commands show those of five or more, and every burst.
 - **A story's counts are kept, not counted again**: an exception, for stories alone, to the rule
   that a derived row is computed again for each batch (threads and their places, senders and
   classes keep it). A stream's members, each body shape's and template key's count in
@@ -1319,7 +1372,8 @@ migration 9):
   each message's story.
 - **A store that held mail before** is given its stories once when it is next opened after
   migration 9.
-- **Not yet**: a burst's messages leave their streams with step C3 ([7.4](#74-bursts)).
+- **Bursts** (step C3, [7.4](#74-bursts)): a burst's `unknown` and `bulk` mail is its burst's
+  story's and in no stream story; a burst is a story at any size.
 
 **Measured on the owner's mail** on 2026-11-15, with `engine/tests/live_screening.rs` in a release
 build on a copy of the iCloud store the B7 server keeps, made by the copying rules and kept in an
@@ -1739,7 +1793,7 @@ file.
 | B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
-| C3 | Bursts, tried on the period the owner names |
+| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail, which holds no flood since the owner deleted it; the owner reports none on Gmail. Tested on made-up floods |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal |

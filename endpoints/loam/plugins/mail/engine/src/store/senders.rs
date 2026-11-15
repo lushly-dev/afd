@@ -329,21 +329,51 @@ pub(super) fn settle_senders(
     addresses: &BTreeSet<String>,
     now: i64,
 ) -> Result<BTreeSet<String>, StoreError> {
+    Ok(settle_senders_tracking(transaction, addresses, now)?.0)
+}
+
+/// [`settle_senders`], which also returns the addresses whose first message
+/// or first message from the person moved, or whose row came or went: their
+/// first contacts may have changed ([`super::bursts`]).
+pub(super) fn settle_senders_tracking(
+    transaction: &Transaction<'_>,
+    addresses: &BTreeSet<String>,
+    now: i64,
+) -> Result<(BTreeSet<String>, BTreeSet<String>), StoreError> {
     let mut turned = BTreeSet::new();
+    let mut moved = BTreeSet::new();
     if addresses.is_empty() {
-        return Ok(turned);
+        return Ok((turned, moved));
     }
     let own = own_addresses(transaction)?;
     for address in addresses {
         let before = screened_as(transaction, address)?;
+        let firsts = firsts_of(transaction, address)?;
         if compute_sender(transaction, address, &own)? {
             note_change(transaction, now, "sender", sender_id(address))?;
         }
         if screened_as(transaction, address)? != before {
             turned.insert(address.clone());
         }
+        if firsts_of(transaction, address)? != firsts {
+            moved.insert(address.clone());
+        }
     }
-    Ok(turned)
+    Ok((turned, moved))
+}
+
+/// A sender's first message and first message from the person.
+type Firsts = (Option<i64>, Option<i64>);
+
+/// A sender's [`Firsts`], or `None` when it has no row.
+fn firsts_of(transaction: &Transaction<'_>, address: &str) -> Result<Option<Firsts>, StoreError> {
+    Ok(transaction
+        .one(
+            "SELECT first_received, first_written FROM sender WHERE address = ?1",
+            [address],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?)
 }
 
 /// What a sender's row says to screening: `None` when it has none (the

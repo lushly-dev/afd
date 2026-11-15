@@ -221,12 +221,15 @@ fn decide_in(
     match decision {
         Some(decision) => {
             transaction.run(
-                "INSERT INTO sender_decision (address, id, decision, decided_at, suggestion)
-                 VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO sender_decision (address, id, decision, decided_at, suggestion,
+                                              first_in_at)
+                 VALUES (?1, ?2, ?3, ?4, ?5, CASE WHEN ?3 = 'in' THEN ?4 END)
                  ON CONFLICT (address) DO UPDATE SET decision = excluded.decision,
                      decided_at = CASE WHEN sender_decision.decision = excluded.decision
                                        THEN sender_decision.decided_at
                                        ELSE excluded.decided_at END,
+                     first_in_at = coalesce(sender_decision.first_in_at,
+                                            excluded.first_in_at),
                      suggestion = excluded.suggestion",
                 params![
                     address,

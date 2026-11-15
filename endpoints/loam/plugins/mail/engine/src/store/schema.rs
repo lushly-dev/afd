@@ -537,7 +537,22 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- When a mailbox was first listed whole: an account's bursts are read once every mailbox of
     -- it has been. Not reset by a new generation of its ids, nor by its going.
     ALTER TABLE mailbox ADD COLUMN first_listed_at INTEGER;
-    UPDATE mailbox SET first_listed_at = coalesce(last_pass_at, 0) WHERE cursor IS NOT NULL;
+    UPDATE mailbox SET first_listed_at = coalesce(last_pass_at, 0)
+        WHERE cursor IS NOT NULL OR last_pass_at IS NOT NULL;
+
+    -- When every mailbox of an account had first been listed: from then its bursts are read,
+    -- and a mailbox that appears later does not hold them back.
+    ALTER TABLE account ADD COLUMN listed_at INTEGER;
+    UPDATE account SET listed_at = coalesce(
+            (SELECT max(first_listed_at) FROM mailbox WHERE mailbox.account_id = account.id), 0)
+        WHERE NOT EXISTS (SELECT 1 FROM mailbox
+                          WHERE mailbox.account_id = account.id AND mailbox.gone_at IS NULL
+                            AND mailbox.first_listed_at IS NULL);
+
+    -- When the person first screened a sender in: kept when they block it and undo that, so
+    -- its mail before then stays a known sender's (section 7.4).
+    ALTER TABLE sender_decision ADD COLUMN first_in_at INTEGER;
+    UPDATE sender_decision SET first_in_at = decided_at WHERE decision = 'in';
 
     -- A first contact: a message from a sender whose first message the provider received at
     -- most 24 hours before it, in each account whose mailboxes have shown it, junk and trash and
@@ -553,6 +568,7 @@ pub(super) const MIGRATIONS: &[&str] = &[
     ) STRICT, WITHOUT ROWID;
     CREATE INDEX first_contact_received ON first_contact (account_id, received);
     CREATE INDEX first_contact_sender ON first_contact (sender_address);
+    CREATE INDEX first_contact_message ON first_contact (message_id);
 
     -- How many first contacts each account had on each day (a day in UTC, numbered from 1970),
     -- and how many of them were kept.

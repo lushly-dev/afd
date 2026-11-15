@@ -80,9 +80,24 @@ impl Mail {
         n: i64,
         at: i64,
     ) -> Vec<MessageId> {
+        self.flood_seen(mailbox, prefix, fields, n, at)
+            .into_iter()
+            .map(|(message, _)| message)
+            .collect()
+    }
+
+    /// As [`Mail::flood`], with what the provider listed of each.
+    fn flood_seen(
+        &mut self,
+        mailbox: MailboxId,
+        prefix: &str,
+        fields: &[&str],
+        n: i64,
+        at: i64,
+    ) -> Vec<(MessageId, HeaderSeen)> {
         (0..n)
             .map(|i| {
-                self.add_at(
+                self.add_at_seen(
                     mailbox,
                     &format!("{prefix}{i}@flood.example"),
                     fields,
@@ -347,54 +362,65 @@ fn a_flood_across_midnight_is_one_burst() {
 }
 
 #[test]
-fn bursts_wait_for_an_account_to_be_listed() {
-    let mut mail = Mail::with_history();
-    let inbox = mail.inbox;
-    // A mailbox still being listed: its account's oldest mail may be to come.
+fn bursts_wait_for_an_account_to_be_listed_whole_once() {
+    let mut mail = Mail::new();
+    let seen_as = |key: &'static str| MailboxSeen {
+        provider_key: key,
+        name: key,
+        role: Role::None,
+    };
+    // An account on its first sync: two mailboxes listed, one still being
+    // listed, whose oldest mail may be to come.
+    let account = mail
+        .store
+        .add_account("icloud", "first@example.com", NOW)
+        .unwrap();
+    let inbox = mail
+        .store
+        .upsert_mailbox(account, &seen_as("INBOX"), NOW)
+        .unwrap();
+    let archive = mail
+        .store
+        .upsert_mailbox(account, &seen_as("Archive"), NOW)
+        .unwrap();
     let new = mail
         .store
-        .upsert_mailbox(
-            mail.account,
-            &MailboxSeen {
-                provider_key: "New",
-                name: "New",
-                role: Role::None,
-            },
-            NOW,
-        )
+        .upsert_mailbox(account, &seen_as("New"), NOW)
         .unwrap();
+    mail.store.set_cursor(inbox, Some("listed"), NOW).unwrap();
+    mail.store.set_cursor(archive, Some("listed"), NOW).unwrap();
+    mail.add_at(
+        archive,
+        "history@example.org",
+        &["List-Id: <history.example>"],
+        FLOOD - 120 * DAY,
+    );
     mail.flood(inbox, "s", &[], 40, FLOOD);
     assert!(mail.bursts().is_empty());
     assert_eq!(mail.store.queue_counts().unwrap(), (40, 40));
+    assert_eq!(
+        mail.store.accounts_waiting_for_bursts().unwrap(),
+        vec![account.0]
+    );
     mail.assert_as_from_nothing();
     mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
     assert_eq!(mail.bursts().len(), 1);
     assert_eq!(mail.store.queue_counts().unwrap(), (0, 0));
-    // A new generation of a mailbox's ids does not hold them back again: it
-    // was listed once, and what it showed is still counted.
+    assert!(mail.store.accounts_waiting_for_bursts().unwrap().is_empty());
+    // Listed whole once, the account is not held back again: not by a new
+    // generation of a mailbox's ids, nor by a mailbox that appears or goes.
     mail.store.set_validity(new, "2", NOW).unwrap();
     assert_eq!(mail.bursts().len(), 1);
     mail.assert_as_from_nothing();
-    // A mailbox that appears does, until it is listed; one that goes no
-    // longer does.
     let newer = mail
         .store
-        .upsert_mailbox(
-            mail.account,
-            &MailboxSeen {
-                provider_key: "Newer",
-                name: "Newer",
-                role: Role::None,
-            },
-            NOW,
-        )
+        .upsert_mailbox(account, &seen_as("Newer"), NOW)
         .unwrap();
-    assert!(mail.bursts().is_empty());
+    assert_eq!(mail.bursts().len(), 1);
     mail.assert_as_from_nothing();
     mail.store.retire_mailbox(newer, NOW).unwrap();
     assert_eq!(mail.bursts().len(), 1);
     mail.assert_as_from_nothing();
-    assert!(mail.store.accounts_waiting_for_bursts().unwrap().is_empty());
 }
 
 #[test]
@@ -568,6 +594,11 @@ impl Steps {
 #[test]
 fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
     for seed in [1_u64, 2, 3, 4] {
+        let seen_as = |key: &'static str, role| MailboxSeen {
+            provider_key: key,
+            name: key,
+            role,
+        };
         let mut mail = Mail::with_history();
         let mut steps = Steps(seed);
         let (account, inbox, archive, sent) = (mail.account, mail.inbox, mail.archive, mail.sent);
@@ -576,14 +607,21 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
         let shifting = mail.mailbox("Shifting", Role::None);
         let restarting = mail.mailbox("Restarting", Role::None);
         mail.add_at(junk, "spam@example.biz", &[], FLOOD - 100 * DAY);
+        // A second account, which some floods reach too.
+        let second = mail
+            .store
+            .add_account("icloud", "second@example.com", NOW)
+            .unwrap();
+        let second_inbox = mail
+            .store
+            .upsert_mailbox(second, &seen_as("INBOX", Role::Inbox), NOW)
+            .unwrap();
+        mail.store
+            .set_cursor(second_inbox, Some("listed"), NOW)
+            .unwrap();
         let mut floods = 0;
         let mut old: Vec<HeaderSeen> = Vec::new();
         let mut appeared = 0;
-        let seen_as = |key: &'static str, role| MailboxSeen {
-            provider_key: key,
-            name: key,
-            role,
-        };
         for step in 0..60_u32 {
             match steps.below(12) {
                 0..=2 => {
@@ -596,7 +634,19 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                     };
                     let at = FLOOD + i64::from(steps.below(60) as u8) * DAY;
                     let n = 10 + steps.below(30) as i64;
-                    mail.flood(mailbox, &format!("f{floods}x"), fields, n, at);
+                    let flood = mail.flood_seen(mailbox, &format!("f{floods}x"), fields, n, at);
+                    if steps.below(3) == 0 {
+                        let copies: Vec<HeaderSeen> = flood
+                            .into_iter()
+                            .map(|(_, mut seen)| {
+                                seen.provider_id = format!("second{}", seen.provider_id);
+                                seen
+                            })
+                            .collect();
+                        mail.store
+                            .record_headers(second_inbox, "", &copies, NOW)
+                            .unwrap();
+                    }
                     floods += 1;
                 }
                 3 => {
@@ -731,6 +781,12 @@ fn a_flood_after_trash_history_starts_is_judged_on_what_trash_covers() {
 #[test]
 fn every_burst_query_reads_an_index() {
     let mail = Mail::new();
+    mail.store
+        .connection
+        .execute_batch(
+            "CREATE TEMP TABLE IF NOT EXISTS contact_target (message_id INTEGER PRIMARY KEY);",
+        )
+        .unwrap();
     let mut failed = Vec::new();
     for (name, sql) in bursts::every_query() {
         let mut statement = mail
@@ -748,12 +804,14 @@ fn every_burst_query_reads_an_index() {
             .unwrap();
         let plan = plan.join("\n");
         for line in plan.lines().filter(|line| line.starts_with("SCAN")) {
-            if line != "SCAN CONSTANT ROW" {
+            // The target is a batch's own few messages.
+            if line != "SCAN CONSTANT ROW" && !line.ends_with("contact_target") {
                 failed.push(format!("{name} scans:\n{plan}"));
             }
         }
         let expected = match name {
             "desired" => "envelope_sender (sender_address=? AND received<?)",
+            "first day" => "first_contact_message (message_id=?)",
             "current" => "first_contact_sender (sender_address=?)",
             "on day" | "all" => "first_contact_received (account_id=?",
             "days" => "PRIMARY KEY (account_id=?)",
