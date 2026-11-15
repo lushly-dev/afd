@@ -767,7 +767,7 @@ workspace without a publish.
 - [Contextual Tool
   Loading](../../../docs/features/complete/contextual-tool-loading/) and the
   [MCP 2026-07-28
-  upgrade](../../../docs/features/active/mcp-2026-07-28/proposal.md): the
+  upgrade](../../../docs/features/complete/mcp-2026-07-28/proposal.md): the
   copilot's contexts follow the active app and scope as explicit per-request
   input.
 - [Plugin
@@ -791,7 +791,7 @@ workspace without a publish.
   Loam is a web UI head of the kind that plan imagined, built in this
   repository in TypeScript; it reaches the Rust crate through Umbel and
   through measured WebAssembly modules (D37).
-- [Specimens](../../../docs/features/proposed/specimens/specimens.proposal.md):
+- [Specimens](../../../docs/features/complete/specimens/specimens.proposal.md):
   the chrome's observation bench and an app.
 - Violet, Specimen, Health and the Health dashboard: Violet and Specimen are
   mounted apps, and Health is a native app built from the dashboard.

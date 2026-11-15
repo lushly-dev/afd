@@ -389,7 +389,7 @@ async fn test_postgres_parity() {
 
 **Purpose**: Validate complete user workflows end-to-end.
 
-> **Full specification**: [JTBD Testing Framework](../Archive/jtbd-testing/00-overview.plan.md)
+> **Full specification**: [AFD job scenarios](../../../../.claude/skills/afd/references/jobs-first.md)
 
 ### Integration with Rust Distribution
 

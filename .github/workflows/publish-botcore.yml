@@ -17,7 +17,7 @@
 # Uses PyPI Trusted Publishing (OIDC) - no API tokens needed.
 #
 # Publisher handoff from lushly-dev/botcore: see
-# docs/features/active/platform-monorepo/botcore-handoff.md. There is never more
+# docs/features/complete/platform-monorepo/botcore-handoff.md. There is never more
 # than one publisher: remove the old repository's PyPI trusted publisher before
 # adding this one.
 #

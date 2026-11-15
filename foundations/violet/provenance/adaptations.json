@@ -12,7 +12,7 @@
   },
   "files": [
     {
-      "path": "docs/features/active/platform-monorepo/violet-transition.md",
+      "path": "docs/features/complete/platform-monorepo/violet-transition.md",
       "upstream_path": null,
       "upstream_sha256": null,
       "current_import_sha256": "fc1df33a0068b3053ed280257be6f014b81a80649c368ba6ab626e639ae3ebcf",
@@ -498,9 +498,9 @@
       "path": "foundations/violet/README.md",
       "upstream_path": null,
       "upstream_sha256": null,
-      "current_import_sha256": "c8d2d72d39b653bb6cd0fdb90cc7f5a2894b8ae70f15bddcb60f9abd3f550ec8",
+      "current_import_sha256": "03112eee9971cbb2295ce1d3888a8f8f492276351123b2b06c2258e22e0c628a",
       "classification": "afd-authored",
-      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs; the runtime row names its adaptation for Loam D50 and phase 0 spec section 3 (step 0b); Configuration reflects the toolchain majors (#599): Biome 2 with its own configuration, Zod 4, runtime types",
+      "reason": "Describe the imported units, configuration, gates and quarantine in the AFD tree; gates list the Postgres and Neon driver store legs; the runtime row names its adaptation for Loam D50 and phase 0 spec section 3 (step 0b); Configuration reflects the toolchain majors (#599): Biome 2 with its own configuration, Zod 4, runtime types; 2026-11-14 feature closeout: links follow the platform monorepo plan to complete/",
       "candidate": {
         "path": null,
         "sha256": null,
@@ -550,9 +550,9 @@
       "path": "foundations/violet/packages/core/README.md",
       "upstream_path": "packages/core/README.md",
       "upstream_sha256": "df71c1ac465fd2dfa21b3afb536f8af6b31b58688498df9fb8a54868404fb5a1",
-      "current_import_sha256": "470a2d46d86cea77b213eb7017ba0b4066851a7428b2fa70869daa64d2c434a0",
+      "current_import_sha256": "8e442d95e5e5ec9df77f65eeca98b86c5b1eccaa58a05ea737e59d9bf0836082",
       "classification": "adapted",
-      "reason": "Describe the native foundation and its entry points; the command example moved to the integration README",
+      "reason": "Describe the native foundation and its entry points; the command example moved to the integration README; 2026-11-14 feature closeout: links follow the platform monorepo plan to complete/",
       "candidate": {
         "path": "packages/core/README.md",
         "sha256": "37e7e65e2aa693bd135bd4f4a012e87aca491abb28a779fa570f3ffbaa9b47d1",
@@ -1722,9 +1722,9 @@
       "path": "integrations/violet-afd/README.md",
       "upstream_path": "packages/core/README.md",
       "upstream_sha256": "df71c1ac465fd2dfa21b3afb536f8af6b31b58688498df9fb8a54868404fb5a1",
-      "current_import_sha256": "d5bc1de895d0c7e3c13e7f34ebff063c7c2fabd23f7a65c3975b47d368081092",
+      "current_import_sha256": "3be90d11858f9ff16ee99270cb3e2851d22adfd74ef5103972786bdde18bd98d",
       "classification": "adapted",
-      "reason": "The pre-split core README with the integration package name, install and transition notes; the AFD core range it names is the manifest's ^2.2.0",
+      "reason": "The pre-split core README with the integration package name, install and transition notes; the AFD core range it names is the manifest's ^2.2.0; 2026-11-14 feature closeout: links follow the platform monorepo plan to complete/",
       "candidate": {
         "path": "packages/afd/README.md",
         "sha256": "48e4e6302bb908a734b4844c2221a4ec334ebb6d0c32811aa148f656859ffd6a",

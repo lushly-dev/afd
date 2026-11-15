@@ -3,13 +3,19 @@
 > Proposal: Dynamic tool scoping for complex applications with 100s-1000s of commands
 
 ---
-status: reviewed
+status: partially-complete
 created: 2026-01-11
 origin: Discussion on scaling AFD command systems for Word/Figma-class applications
 effort: L (1-2 weeks)
 package: "@lushly-dev/afd-server"
 depends-on: lazy-loading-discovery
 ---
+
+> **Delivery status (2026-11-13): partially complete; shipped scope archived.** #168 delivered
+> context commands, a flat context stack and the `missing-context` surface rule.
+> `afd-context-suggest`, hierarchical resolution and defaults from UI signals were not built;
+> their disposition remains [#554](https://github.com/lushly-dev/afd/issues/554), open when checked.
+> The later [declared context fields](../declared-context-fields/STATUS.md) are a separate feature.
 
 ## Problem
 

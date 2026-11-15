@@ -1,5 +1,7 @@
 # CodeClient: Code Generation vs Tool Calling
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Research only. The MCP and in-process clients do not implement the proposed code-generation/execution transport. No implementation is claimed by this document.
+
 > Proposal: Alternative transport where LLMs generate code instead of tool calls
 
 ---

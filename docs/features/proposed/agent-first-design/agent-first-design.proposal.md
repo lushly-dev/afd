@@ -126,7 +126,7 @@ Read first-hand on 2026-11-14 at `545316f2`.
   ARIA snapshots, and runs axe (`foundations/specimen/README.md`). It does not emulate forced
   colors (line 37). Prebuilt hosts exist for Linux on glibc and for macOS; "musl and Windows are
   not supported yet" (line 499). Its application-command runner, T11, is not started
-  (`docs/features/active/specimens/STATUS.md:23`).
+  (`docs/features/complete/specimens/STATUS.md:23`).
 - **Violet** is a hierarchical token engine: "nodes inherit tokens from their parents and add,
   override, subtract, reset or copy them" (`foundations/violet/packages/core/README.md:3`). It
   also has constraints on token values.

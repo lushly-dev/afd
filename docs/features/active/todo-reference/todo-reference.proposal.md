@@ -16,7 +16,7 @@ context's clock, random and actor, tool strategies, the DirectClient tool surfac
 `@lushly-dev/local-db`, the testing package's scenario runner and surface validation, or the
 `violet-*` components. Some of what they say and do is now wrong.
 
-The to-do app is also the cross-language parity vehicle: [Language Parity](../../language-parity.md)
+The to-do app is also the cross-language parity vehicle: [Language Parity](../../../language-parity.md)
 counts its suite as a parity check, the C++ backend is C++'s only MCP surface, and the Umbel
 `todo` plugin is the Rust backend. An example that lags makes the parity check weaker too.
 

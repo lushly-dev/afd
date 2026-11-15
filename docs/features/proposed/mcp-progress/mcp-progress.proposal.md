@@ -1,10 +1,15 @@
 # Command progress and MCP progress notifications
 
+> **Disposition (2026-11-13): proposed, not implemented.** Rust now has
+> `CommandContext::report_progress` for a task's status message (#817), but it sends no MCP
+> progress notification. The notifications, `/stream` delivery and DirectClient callback
+> proposed here remain open; [MCP Tasks](../../active/mcp-tasks/STATUS.md) is separate.
+
 > **Goal**: Let a running command report progress, and deliver it to every caller: as MCP `notifications/progress` on the `tools/call` response stream, as `progress` chunks on `/stream`, and as callbacks in DirectClient.
 
 | Field | Value |
 |---|---|
-| Status | Proposed 2026-10-25. Ranked 3 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../active/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). |
+| Status | Proposed 2026-10-25. Ranked 3 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../complete/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Progress](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/progress), [cancellation](https://modelcontextprotocol.io/specification/2026-07-28/basic/utilities/cancellation), [Streamable HTTP](https://modelcontextprotocol.io/specification/2026-07-28/basic/transports/streamable-http) |
 | Packages | `spec/`, `packages/core`, `packages/server`, `packages/client`, `python/`, `packages/rust`, `packages/cpp` |

@@ -1,5 +1,7 @@
 # Feature Proposal: Plugin Discovery via Entry Points
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed for `@lushly-dev/afd-server`; its package entry-point discovery and `AfdPlugin` registry are unimplemented. Umbel's plugin loader, Botcore entry points and the shared manifest are separately implemented host contracts, not completion of this proposal.
+
 > **Disposition (2026-10-25, audit #349):** **Proposed.** `@lushly-dev/afd-server` has no `AfdPlugin`, `PluginRegistry` or discovery option, and no merged PR adds them. Nothing shipped; remaining scope is the whole proposal and its [spec](./plugin-discovery.spec.md).
 
 

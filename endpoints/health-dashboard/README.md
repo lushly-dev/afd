@@ -60,7 +60,7 @@ filter by status and target and sort.
   `error` each have their own words, icon and color/fill, so none relies on color. Only
   `passed` uses the success treatment.
 - **Verdict.** Health writes the verdict into the report; the dashboard recomputes it with
-  the same platform rule ([proposal](../../docs/features/active/platform-monorepo/proposal.md#quality-verdicts-and-command-effects))
+  the same platform rule ([proposal](../../docs/features/complete/platform-monorepo/proposal.md#quality-verdicts-and-command-effects))
   to explain it, and rejects a report whose recorded verdict disagrees. A report or
   target passes only when it has at least one counted required check and every counted
   required check passed. Required checks `disabled` by the policy are not counted. A

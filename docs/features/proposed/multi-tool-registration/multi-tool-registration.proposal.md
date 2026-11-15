@@ -1,5 +1,7 @@
 # Feature Proposal: Multi-Tool Registration Automation
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed; the CLI has no `afd register` command. The proposal and companion specification remain unimplemented.
+
 > **Disposition (2026-10-25, audit #349):** **Proposed.** `packages/cli/src/commands` has no `register` command and no merged PR adds one (#2 only added MCP transports). Nothing shipped; remaining scope is the whole proposal and its [spec](./multi-tool-registration.spec.md).
 
 

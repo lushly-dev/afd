@@ -23,7 +23,7 @@ Five cold samples create new Vite benches/cache directories and Chromium process
 
 The four FAST-AF cases use the consumer's forked FAST runtime. The four Lushly cases reuse its existing theme frame and installed FAST/Violet graph. Lushly's current installed dependencies differ from its manifests, and external Storybook fonts are omitted, so its results remain exploratory. All cases assert measured browser state and reject browser console errors. Repeat differences and incomplete evidence remain visible in the receipts; passing scenario assertions do not mean complete visual equivalence or CSF compatibility.
 
-See the [consumer validation record](../../../docs/features/active/specimens/consumer-validation.md) for results and outstanding acceptance work.
+See the [consumer validation record](../../../docs/features/complete/specimens/consumer-validation.md) for results and outstanding acceptance work.
 
 ## Whole-process resource pilot
 
@@ -55,7 +55,7 @@ The pure resource tests run with the package suite. To run them alone:
 pnpm -F @lushly-dev/specimen exec vitest run experiments/resources
 ```
 
-See the [resource validation record](../../../docs/features/active/specimens/resource-validation.md) for measured results and remaining limits.
+See the [resource validation record](../../../docs/features/complete/specimens/resource-validation.md) for measured results and remaining limits.
 
 ## Quiet window and the controlled load pair
 
@@ -115,7 +115,7 @@ node foundations/specimen/experiments/run-heap-profile.mjs \
 
 The driver samples the coordinator's main V8 isolate before/after API import, during three real capture batches, after closing each bench while retaining its public handle, and after releasing all handles. Natural post-close and explicit diagnostic-GC checkpoints are separate. It records V8 heap spaces/code statistics, Node memory counters, active resources, weak handle liveness and raw `.heapprofile.json` allocation samples. It does not take full heap snapshots or identify dominator paths. Allocation self sizes are statistical surviving allocation estimates, not proof of which object retains them; native memory and worker isolates are outside this profile. Use the surrounding process-family metrics for total resource cost.
 
-The same admission and family limits apply; these instrumented/GC runs are separate from ordinary CPU/memory acceptance. Production cleanup never forces GC. `--consumer fast-af|lushly`, `--api`, `--isolation` and per-consumer source paths allow bounded repeat runs. An admission hold remains a failed/held receipt; retry only the held consumer after headroom returns. See [heap lifetime validation](../../../docs/features/active/specimens/heap-lifetime-validation.md) for findings and the CPU/memory tradeoff.
+The same admission and family limits apply; these instrumented/GC runs are separate from ordinary CPU/memory acceptance. Production cleanup never forces GC. `--consumer fast-af|lushly`, `--api`, `--isolation` and per-consumer source paths allow bounded repeat runs. An admission hold remains a failed/held receipt; retry only the held consumer after headroom returns. See [heap lifetime validation](../../../docs/features/complete/specimens/heap-lifetime-validation.md) for findings and the CPU/memory tradeoff.
 
 ## Reused-worker batches
 
@@ -138,9 +138,9 @@ Baseline, open-bench checkpoints after rounds 1/5/10, and post-close windows use
 
 Waited CPU and CPU per verified capture include preparation, verification, phase/artifact writing and cleanup. Coordinator-only Node counters in the batch receipt exclude the isolated worker/browser and must not replace the whole-family measurements. No inspector sampling, forced GC, cold representative samples or offline diff loops run in this workload. Existing 120-second/2-GiB limits and host admission remain unchanged; partial or held jobs do not supply valid comparison ratios.
 
-See the [worker-reuse validation](../../../docs/features/active/specimens/worker-reuse-validation.md) for the paired experiment, open-worker memory trend and post-close cost.
+See the [worker-reuse validation](../../../docs/features/complete/specimens/worker-reuse-validation.md) for the paired experiment, open-worker memory trend and post-close cost.
 
-For this monorepo's FAST-AF source, pass `--fast-af foundations/fast-af`. The fixture links both runtime package aliases to the same physical package. The [monorepo rerun](../../../docs/features/active/specimens/monorepo-resource-validation.md) compares the refreshed 90/70-capture workloads with prior CPU and memory results.
+For this monorepo's FAST-AF source, pass `--fast-af foundations/fast-af`. The fixture links both runtime package aliases to the same physical package. The [monorepo rerun](../../../docs/features/complete/specimens/monorepo-resource-validation.md) compares the refreshed 90/70-capture workloads with prior CPU and memory results.
 
 ## Warm Node CPU profiles
 
@@ -157,7 +157,7 @@ Both Node main-isolate profilers start after round one warms the runtime, acknow
 
 The driver saves raw `.cpuprofile` files and atomic role/PID/PPID/nonce receipts under each consumer's `cpu-profiles/`. Workers inherit the explicit diagnostic preload through `NODE_OPTIONS` while retaining their ordinary empty `execArgv`. Missing acknowledgements, profiler errors or empty samples fail the run. Without the flag the preload and profiler are absent.
 
-Inspector profile weights describe statistical wall sampling in each main isolate, excluding Chromium and native/background threads. Inclusive ancestry categories overlap. Keep these diagnostic runs separate from ordinary CPU/memory acceptance; rerun the same workload without the flag for waited process-family CPU, footprint and post-close measurements. See [CPU hotspot validation](../../../docs/features/active/specimens/cpu-hotspot-validation.md) for the confirmed sourcemap hotspot, cached-map change and matched measurements.
+Inspector profile weights describe statistical wall sampling in each main isolate, excluding Chromium and native/background threads. Inclusive ancestry categories overlap. Keep these diagnostic runs separate from ordinary CPU/memory acceptance; rerun the same workload without the flag for waited process-family CPU, footprint and post-close measurements. See [CPU hotspot validation](../../../docs/features/complete/specimens/cpu-hotspot-validation.md) for the confirmed sourcemap hotspot, cached-map change and matched measurements.
 
 ## Frozen inputs and story inventory
 
@@ -175,7 +175,7 @@ node foundations/specimen/experiments/inputs/freeze.mjs --consumer lushly \
 
 The inventory takes discovered identities and tags from Storybook's index. A static TypeScript reading of each story module (`inputs/csf.mjs`) adds plays, render sources, policy parameters, globals, decorators, lifecycle hooks and helper imports. Same-file constants, spreads and `Story.field` references resolve. Anything else is reported as unresolved, and its play presence as unknown. The project policy is passed explicitly because preview files execute code.
 
-The manifest binds every snapshot file outside `node_modules` to the pinned Git tree by blob id, hashes generated files, checks pnpm's installed `lock.yaml` against the lockfile, and digests selected installed packages, vendored artifacts, static directories and obligation files. It also records the browsers each consumer's Playwright expects, the host and [`inputs/baseline-policy.json`](inputs/baseline-policy.json). `--fetch-remote` downloads and hashes the remote font stylesheets and files named in `preview-head.html`; runners still load them live. Neither tool installs, prepares or modifies anything. See [frozen inputs and inventory](../../../docs/features/active/specimens/frozen-inputs-inventory.md) for the T01 results.
+The manifest binds every snapshot file outside `node_modules` to the pinned Git tree by blob id, hashes generated files, checks pnpm's installed `lock.yaml` against the lockfile, and digests selected installed packages, vendored artifacts, static directories and obligation files. It also records the browsers each consumer's Playwright expects, the host and [`inputs/baseline-policy.json`](inputs/baseline-policy.json). `--fetch-remote` downloads and hashes the remote font stylesheets and files named in `preview-head.html`; runners still load them live. Neither tool installs, prepares or modifies anything. See [frozen inputs and inventory](../../../docs/features/complete/specimens/frozen-inputs-inventory.md) for the T01 results.
 
 ## Frozen snapshots and the host-condition probe
 
@@ -189,7 +189,7 @@ node foundations/specimen/experiments/run-resources.mjs \
   --out /path/to/empty-evidence
 ```
 
-Each resource report records `speedProbe.before` and `speedProbe.after`: fixed single-threaded work in a separate process, outside the measured family. On a contended host its CPU seconds rise along with job CPU. It shows when two receipts ran under different host conditions; it does not correct them. See the [CPU attribution record](../../../docs/features/active/specimens/cpu-attribution-validation.md): whole-job CPU from different sessions is not comparable without this control.
+Each resource report records `speedProbe.before` and `speedProbe.after`: fixed single-threaded work in a separate process, outside the measured family. On a contended host its CPU seconds rise along with job CPU. It shows when two receipts ran under different host conditions; it does not correct them. See the [CPU attribution record](../../../docs/features/complete/specimens/cpu-attribution-validation.md): whole-job CPU from different sessions is not comparable without this control.
 
 ## Retained stories through both runners (T05)
 
@@ -202,11 +202,11 @@ node foundations/specimen/experiments/run-retained.mjs --consumer fast-af \
   --out /path/to/empty-evidence
 ```
 
-Specimen is configured from the evidence directory, so the snapshot is not edited. The exceptions are the Vite caches the incumbent writes and, with `--plugin`, a `.specimen-t05/` directory holding the plugin module, which must be inside the bench root. Lushly's Vitest config lists tracked files with `git ls-files`, so its snapshot needs a Git index of the pinned tree. `--mode identities` stops after the identity check; `--mode full` runs every story instead of the selection, through `runSuite`, with `--workers` (default 2) for both runners. See the [T05 record](../../../docs/features/active/specimens/t05-compatibility.md#step-5-the-consumers-stories-through-both-runners) and the [T06 record](../../../docs/features/active/specimens/t06-full-runner.md) for results.
+Specimen is configured from the evidence directory, so the snapshot is not edited. The exceptions are the Vite caches the incumbent writes and, with `--plugin`, a `.specimen-t05/` directory holding the plugin module, which must be inside the bench root. Lushly's Vitest config lists tracked files with `git ls-files`, so its snapshot needs a Git index of the pinned tree. `--mode identities` stops after the identity check; `--mode full` runs every story instead of the selection, through `runSuite`, with `--workers` (default 2) for both runners. See the [T05 record](../../../docs/features/complete/specimens/t05-compatibility.md#step-5-the-consumers-stories-through-both-runners) and the [T06 record](../../../docs/features/complete/specimens/t06-full-runner.md) for results.
 
 ## The build, the normalizer and a consumer's tooling (T06)
 
-Each reads a real consumer, as [T06's step 6](../../../docs/features/active/specimens/t06-full-runner.md#step-6-budgets-the-review-page-and-the-consumers-tooling) records.
+Each reads a real consumer, as [T06's step 6](../../../docs/features/complete/specimens/t06-full-runner.md#step-6-budgets-the-review-page-and-the-consumers-tooling) records.
 
 ```sh
 # Every link of a static build in Chromium, over a plain server.

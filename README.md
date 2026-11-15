@@ -607,8 +607,8 @@ Work is planned in the open, and every project keeps a status file that says exa
 - **AFD itself:** the [feature index](./docs/features/README.md) lists what is proposed, active and shipped, and [Language Parity](./docs/language-parity.md) tracks the gaps between languages.
 - **Umbel:** [status](./endpoints/umbel/docs/STATUS.md) and [architecture](./endpoints/umbel/docs/architecture.md).
 - **Loam:** [status](./endpoints/loam/docs/STATUS.md) and [architecture](./endpoints/loam/docs/architecture.md).
-- **Specimen:** [status](./docs/features/active/specimens/STATUS.md).
-- **Bringing the families into one repository:** [platform monorepo status](./docs/features/active/platform-monorepo/STATUS.md).
+- **Specimen:** [status](./docs/features/complete/specimens/STATUS.md).
+- **Bringing the families into one repository:** [platform monorepo status](./docs/features/complete/platform-monorepo/STATUS.md).
 
 ## Community
 

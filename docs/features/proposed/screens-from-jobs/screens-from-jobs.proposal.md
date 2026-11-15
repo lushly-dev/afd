@@ -22,7 +22,7 @@
 | --- | --- |
 | Epic | [#1109](https://github.com/lushly-dev/afd/issues/1109) |
 | Units likely touched | `foundations/specimen`, `integrations/specimen-afd`, `endpoints/specimen-cli`, a new integration for the `afd` runner, `packages/testing` (a browser-safe entry and two awaited hooks), `endpoints/loam` (the first consumer) |
-| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and the MCP host this builds on), [Specimens status](../../active/specimens/STATUS.md) (T11), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
+| Related | [Design Decisions](../design-decisions/design-decisions.proposal.md) (capture sets, review, answers and the MCP host this builds on), [Specimens status](../../complete/specimens/STATUS.md) (T11), [Patterns](../patterns/patterns.proposal.md), [Pointing](../pointing/pointing.proposal.md) |
 | Rank among the four | Second. Reviewing at the level of a screen needs screens in real states |
 
 ## 1. Problem
@@ -116,13 +116,13 @@ about a screen, not a component.
   (`src/schema.ts:33-39`).
 - **`.specimen/` is not ignored by git.** The root `.gitignore` has no entry for it.
 - **T11, the application-command runner,** is "Not started, optional"
-  ([status](../../active/specimens/STATUS.md), line 23).
+  ([status](../../complete/specimens/STATUS.md), line 23).
   - The plan asks it to "prove explicit application-command/view-state dispatch, structured
     results and cancellation" and to settle where it is distributed "without conflating the
     existing `specimen-afd` command bindings with this runner"
-    (`docs/features/active/specimens/implementation.md:85`).
+    (`docs/features/complete/specimens/implementation.md:85`).
   - The Specimens proposal makes `fast-af` and `afd` distinct runner ids
-    (`docs/features/proposed/specimens/specimens.proposal.md:93`).
+    (`docs/features/complete/specimens/specimens.proposal.md:93`).
   - It reuses `afd-testing` "through a new browser-step adapter" (line 58), and the runner
     "lands only with a consuming scenario" (line 396).
 - **Layering.** Specimen is a foundation, so it depends on nothing in AFD (`architecture.json`).

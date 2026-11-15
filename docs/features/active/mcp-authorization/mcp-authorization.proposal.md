@@ -1,14 +1,16 @@
 # MCP authorization for AFD servers
 
+> **Current status (2026-11-13):** [STATUS.md](STATUS.md) records the specification, Rust and TypeScript implementations, and the remaining Python and relay work.
+
 > **Goal**: Let an AFD server on HTTP act as an OAuth 2.1 protected resource under MCP 2026-07-28. It publishes its metadata, rejects requests without a valid token for its own audience, and hands commands a verified caller identity and scopes.
 
 | Field | Value |
 |---|---|
-| Status | Active. Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#31-afd-first-step-0-d106) (decision D106, under the owner's 2026-10-31 delegation), which amends A4 and A5 (below). Phase 1, the spec, done 2026-11-07 as Umbel step 0a: [`spec/authorization.md`](../../../../spec/authorization.md) with its cases in [`spec/authorization.json`](../../../../spec/authorization.json), and `scopes`, the #532 binding and the host-verified confirmation mode in [`spec/command-metadata.md`](../../../../spec/command-metadata.md). Rust is next (Umbel steps 0b to 0d), before TypeScript and Python; the #532 binding is done in TypeScript, Python and Rust (2026-11-07, Umbel step 0c); progress is in the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md). Ranked 2 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Answers that plan's open question 5. |
+| Status | Active. Proposed 2026-10-25; approved 2026-11-04 with the [Umbel phase 5 specification](../../../../endpoints/umbel/docs/phases/5-auth-hosted/spec.md#31-afd-first-step-0-d106) (decision D106, under the owner's 2026-10-31 delegation), which amends A4 and A5 (below). Phase 1, the spec, done 2026-11-07 as Umbel step 0a: [`spec/authorization.md`](../../../../spec/authorization.md) with its cases in [`spec/authorization.json`](../../../../spec/authorization.json), and `scopes`, the #532 binding and the host-verified confirmation mode in [`spec/command-metadata.md`](../../../../spec/command-metadata.md). Rust is implemented (#798 and #810, Umbel steps 0b to 0d), as is TypeScript verification and scope enforcement (#934 and #1050); Python remains; the #532 binding is done in TypeScript, Python and Rust (2026-11-07, Umbel step 0c); progress is in the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md). Ranked 2 of 4 among the [MCP 2026-07-28 Phase 7 follow-ons](../../complete/mcp-2026-07-28/proposal.md#phase-7-optional-follow-ons-each-its-own-proposal). Answers that plan's open question 5. |
 | Author | jasfalk (drafted with Claude) |
 | Spec | [Authorization](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization), [authorization server discovery](https://modelcontextprotocol.io/specification/2026-07-28/basic/authorization/authorization-server-discovery), RFC 9728, RFC 8707, RFC 6750 |
 | Packages | `spec/`, `packages/core`, `packages/server`, `python/`, `packages/rust` (`server` feature), `packages/auth` (coexistence only) |
-| Related | [Auth adapter](../../complete/auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
+| Related | [Auth adapter](../../complete/auth-adapter/) (`@lushly-dev/afd-auth`, application sign-in), [MCP confirmations](../../complete/mcp-confirmations/mcp-confirmations.proposal.md) (binds `requestState` to the principal), [MCP tasks](../mcp-tasks/mcp-tasks.proposal.md) (task access checks) |
 
 ## Why this is second
 

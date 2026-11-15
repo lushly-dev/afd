@@ -720,7 +720,7 @@ Files that change, recorded in `foundations/specimen/provenance/adaptations.json
   high-contrast context, the bench and static drivers in
   `src/drivers.test.ts`, the Vitest reference driver in `reference/`, and
   `src/validate.test.ts`; and the driver comparison record in
-  `docs/features/active/specimens/driver-context-validation.md`.
+  `docs/features/complete/specimens/driver-context-validation.md`.
 
 The AFD integration and the CLI take the theme through the shared schema
 and validation, so neither changes.

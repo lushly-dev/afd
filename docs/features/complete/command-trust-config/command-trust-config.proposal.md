@@ -1,6 +1,6 @@
 # Command Trust Config
 
-**Status:** IMPLEMENTED (2025-01)
+**Status:** Complete: command trust metadata. MCP enforcement is tracked in [Confirmations](../mcp-confirmations/STATUS.md).
 **Priority:** P2
 **Depends On:** Command Protocol (Complete), Streaming Architecture (Complete)
 **Spec:** [command-trust-config.spec.md](./command-trust-config.spec.md)
@@ -314,6 +314,6 @@ getCommandMetadata(name: string): CommandMetadata | undefined
 
 ## Related
 
-- [Production Considerations](../../guides/production-considerations.md) — Broader security patterns
-- [Command Schema Guide](../../guides/command-schema-guide.md) — Command design patterns
+- [Command trust configuration](../../../../.claude/skills/afd/references/command-trust-config.md) — Broader security patterns
+- [Command schema guide](../../../../.claude/skills/afd/references/command-schema.md) — Command design patterns
 - AGENTS.md — Documents `destructive` tag convention

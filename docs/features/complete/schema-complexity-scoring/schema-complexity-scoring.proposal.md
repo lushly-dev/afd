@@ -3,7 +3,7 @@
 > Proposal: Surface validation rule that scores how hard a command's input schema is for an agent to use correctly
 
 ---
-status: captured
+status: complete
 created: 2026-02-22
 updated: 2026-02-22
 origin: Playground testing — agent hit runtime crash on discriminated union schemas, realized surface validation checks what commands *look like* but not whether an agent can *use them correctly*
@@ -321,4 +321,4 @@ function computeComplexity(schema: JsonSchema): ComplexityResult {
 
 6. **Weight calibration (open)**: Current weights are heuristic. After the initial release, calibrate against real agent error rates by logging complexity scores alongside command execution failures. The `evidence.breakdown` field enables this analysis without changing the rule output format.
 
-7. **`examples` field on `ZodCommandDefinition` (deferred)**: Out of scope for this proposal. A natural follow-up that would pair well — the rule could reduce severity when examples are provided, since agents can reference them to construct valid input.
+7. **`examples` field on `ZodCommandDefinition` (delivered separately)**: [Schema Examples](../schema-examples/schema-examples.proposal.md) shipped in #166. Any further calibration remains separate from the implemented scoring rule.

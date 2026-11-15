@@ -29,7 +29,7 @@ Storage backends are optional. SQLite needs the optional `better-sqlite3` packag
 
 `@lushly-dev/violet-core/css` holds allow-list validators for drawing token values safely: `safeCssColor`, `safeCssLength`, `safeFontFamily`, `safeShadow`, `safeDuration`, `safeEasing` and `safeCssNumber`. Each returns a rebuilt, safe value or `null` (never the input passed through), so a token holding `url(…)`, `;` or `}` can't reach a stylesheet. The subpath has no other imports, so browser code can load it alone.
 
-The command registry, command definitions, `initializeCore`, `CommandResult` helpers and demo seed moved to `@lushly-dev/violet-afd`; see the [transition notes](../../../../docs/features/active/platform-monorepo/violet-transition.md).
+The command registry, command definitions, `initializeCore`, `CommandResult` helpers and demo seed moved to `@lushly-dev/violet-afd`; see the [transition notes](../../../../docs/features/complete/platform-monorepo/violet-transition.md).
 
 ## License
 

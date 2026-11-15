@@ -12,22 +12,24 @@ Its name is Mail, Loam Mail in full. Where an identifier has to be unique it is 
 ## Status
 
 - **State:** active. The owner answered [section 11](#11-for-the-owner) on 2026-11-10 and said to
-  go on, so phase 0 has started. Written 2026-11-10 against `main` at `880a18c4`, from a design
+  go on. Phase 0's decision, the engine specification and steps B1 to B5 and B7's iCloud half are
+  done, and phase C is under way on iCloud ([STATUS.md](STATUS.md)). Written 2026-11-10 against `main` at `880a18c4`, from a design
   discussion with the owner that day. The first version merged as
   [#969](https://github.com/lushly-dev/afd/pull/969); this one revises it the same day on the
-  owner's direction ([Revision](#revision-of-2026-11-10)). Nothing is implemented, and nothing is
-  approved beyond that direction.
+  owner's direction ([Revision](#revision-of-2026-11-10)). The engine specification was subsequently
+  approved in #995; Gmail (B0, B6 and B7's Gmail half, deferred by the owner on 2026-11-14), the later engine phases and the Loam app remain.
   [STATUS.md](STATUS.md) tracks progress.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) about this repository were
   read on `main` at `880a18c4`, in the documents and files each row names. No Rust or TypeScript
   was built or run. The facts about other projects were read on 2026-11-10 from their public
   repositories (README, licence file and repository metadata only). The external claims in
   [Evidence](#3-evidence) come from the sources listed there, each with its limit.
-- **Not verified:** which IMAP extensions iCloud's server offers; whether Gmail still accepts an
+- **Drafting checkpoint (2026-11-10), not yet verified then:** which IMAP extensions iCloud's server offers; whether Gmail still accepts an
   app password over IMAP; whether a Google OAuth client left in testing status expires its
   refresh tokens after a week; whether a client that keeps Gmail data only on the person's machine
   is exempt from Google's security assessment; the licence of Stalwart's `mail-parser` crate,
-  which GitHub does not classify. Phase 0 and the engine's specification settle these.
+  which GitHub does not classify. Phase 0 and the engine's specification subsequently addressed
+  these questions; [STATUS.md](STATUS.md) records the results and remaining Gmail/OAuth work.
 - **Reviewed:** the first version had one independent review (revise; five blockers and eleven
   improvements, all applied) and a focused check of the fixes (approve). The revision's reviews
   are recorded in [STATUS.md](STATUS.md).
