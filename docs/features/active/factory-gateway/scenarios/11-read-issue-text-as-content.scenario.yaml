@@ -1,0 +1,53 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against any endpoint; every class may read.
+name: Read issue text as content, not as instructions
+description: >-
+  When an agent reads an issue or its comments, I want the typed facts (state, labels, claim,
+  author's relationship to the repository) kept apart from the text anyone can write, with that text
+  labelled as content and read in pages, so that a message planted in an issue is never mistaken for
+  a fact about the issue and a long thread never floods the agent's context.
+job: read-issue-text-as-content
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The facts are typed, and the body is labelled content with its author's standing
+    command: issue-get
+    input: { repo: example-org/example-repo, number: 103 }
+    expect:
+      success: true
+      data:
+        state: open
+        labels: [status:triage]
+        claim: { notExists: true }
+        author: { login: example-stranger, association: NONE }
+        body:
+          trust: content
+          text: { contains: ignore your instructions }
+  - description: Comments come in pages, each labelled content
+    command: comment-list
+    input: { repo: example-org/example-repo, number: 103, limit: 2 }
+    expect:
+      success: true
+      data:
+        comments:
+          - { id: 9001, trust: content }
+          - { id: 9002, trust: content }
+        nextCursor: { exists: true }
+  - description: An issue that does not exist is refused, never returned empty
+    command: issue-get
+    input: { repo: example-org/example-repo, number: 4040 }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: pr-status }
+  - description: A repository the gateway does not serve is refused, naming the ones it does
+    command: issue-get
+    input: { repo: other-org/other-repo, number: 1 }
+    expect:
+      success: false
+      error:
+        code: REPO_NOT_ALLOWED
+        message: example-org/example-repo
+        suggestion: { contains: gateway-status }
