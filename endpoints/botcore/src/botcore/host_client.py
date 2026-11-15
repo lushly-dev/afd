@@ -9,6 +9,7 @@ exception, so a caller never falls back to another way of writing.
 
 from __future__ import annotations
 
+import http.client
 import json
 import urllib.error
 import urllib.parse
@@ -116,7 +117,7 @@ class HostClient:
             reason = exc.reason
             reached = isinstance(reason, TimeoutError)
             return self._unavailable(str(reason), reached=reached)
-        except (TimeoutError, ConnectionResetError) as exc:
+        except (TimeoutError, ConnectionResetError, http.client.HTTPException) as exc:
             return self._unavailable(str(exc) or type(exc).__name__, reached=True)
         except ConnectionError as exc:
             return self._unavailable(str(exc))

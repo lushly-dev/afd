@@ -489,3 +489,77 @@ def test_a_timeout_reports_an_unknown_outcome_and_a_refused_connection_a_known_o
     refused = HostClient(f"http://127.0.0.1:{free_port()}", "lane", "bct_x").call("x")
     assert refused["error"]["details"]["outcomeKnown"] is True
     assert "Nothing was sent" in refused["error"]["suggestion"]
+
+
+def _serve(app):
+    import uvicorn
+
+    port = free_port()
+    server = uvicorn.Server(uvicorn.Config(app, host="127.0.0.1", port=port, log_level="error"))
+    thread = threading.Thread(target=server.run, daemon=True)
+    thread.start()
+    while not server.started:
+        time.sleep(0.01)
+    return server, thread, port
+
+
+def test_one_token_runs_one_upload_at_a_time(tmp_path):
+    import asyncio
+
+    started, release = threading.Event(), threading.Event()
+
+    async def slow_upload(route, actor, data, params):
+        started.set()
+        await asyncio.to_thread(release.wait, 10)
+        return success({"by": actor.id})
+
+    tokens = TokenStore(tmp_path / "tokens.json")
+    app = create_host_http_app(
+        {"cell": make_host(tmp_path, "gw-cell")},
+        tokens,
+        uploads=slow_upload,
+        max_concurrent_uploads=4,
+    )
+    _, first_token = tokens.issue("cell", "agent", "cell-3")
+    _, other_token = tokens.issue("cell", "agent", "cell-4")
+    server, thread, port = _serve(app)
+    url = f"http://127.0.0.1:{port}"
+    first: dict = {}
+    worker = threading.Thread(
+        target=lambda: first.update(HostClient(url, "cell", first_token).upload(b"a"))
+    )
+    worker.start()
+    assert started.wait(10)
+    again = HostClient(url, "cell", first_token).upload(b"b")
+    release.set()
+    other = HostClient(url, "cell", other_token).upload(b"c")
+    worker.join(10)
+    server.should_exit = True
+    thread.join(5)
+    assert again["error"]["code"] == "RATE_LIMITED"
+    assert first["success"] and other["success"]
+
+
+def test_an_upload_body_that_dribbles_in_is_refused_and_frees_its_slot(tmp_path):
+    tokens = TokenStore(tmp_path / "tokens.json")
+    app = create_host_http_app(
+        {"cell": make_host(tmp_path, "gw-cell")},
+        tokens,
+        uploads=keep_upload,
+        max_concurrent_uploads=1,
+        upload_read_seconds=0.3,
+    )
+    _, secret = tokens.issue("cell", "agent", "cell-3")
+    server, thread, port = _serve(app)
+    with socket.create_connection(("127.0.0.1", port)) as slow:
+        slow.sendall(
+            f"POST /cell/uploads HTTP/1.1\r\nHost: x\r\nAuthorization: Bearer {secret}\r\n"
+            "Content-Length: 1000\r\n\r\nabc".encode()
+        )
+        slow.settimeout(5)
+        answer = slow.recv(65536).decode()
+    after = HostClient(f"http://127.0.0.1:{port}", "cell", secret).upload(b"ok")
+    server.should_exit = True
+    thread.join(5)
+    assert " 408 " in answer.splitlines()[0] and "TIMEOUT" in answer
+    assert after["success"] is True

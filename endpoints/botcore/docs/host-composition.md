@@ -202,11 +202,14 @@ receives the query string's parameters). Every answer is a CommandResult: a
 command's own refusal is HTTP 200, and the surface's refusals carry their status
 and an AFD error with a suggestion: `UNAUTHORIZED` (401, no valid bearer token),
 `FORBIDDEN` (403, a route this token does not open), `NOT_FOUND` (404),
-`VALIDATION_ERROR` (400, a body without a command), `PAYLOAD_TOO_LARGE` (413) and
-`RATE_LIMITED` (429). The token is checked first, so a caller without one learns
-no route's name. A call's body is capped at `max_call_bytes` (1 MiB), an upload
-at `max_upload_bytes`, and at most `max_concurrent_uploads` (2) are received at
-once; the caps hold for chunked bodies too.
+`VALIDATION_ERROR` (400, a body without a command), `TIMEOUT` (408),
+`PAYLOAD_TOO_LARGE` (413) and `RATE_LIMITED` (429). The token is checked first,
+so a caller without one learns no route's name. A call's body is capped at
+`max_call_bytes` (1 MiB), an upload at `max_upload_bytes` and
+`upload_read_seconds` (120); at most `max_concurrent_uploads` (2) are received at
+once, and one per token, so a slow caller cannot hold every slot. The caps hold
+for chunked bodies too. The upload handler's parameters are the caller's claims,
+like `onBehalfOf`, never its identity or route.
 
 A token opens one route and names one actor. `botcore.host_tokens.TokenStore`
 keeps them in a file holding each token's SHA-256 and never the token, in a

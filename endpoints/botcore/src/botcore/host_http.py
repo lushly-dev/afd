@@ -13,8 +13,9 @@
 Every answer is a CommandResult, transport refusals included (``UNAUTHORIZED``,
 ``FORBIDDEN``, ``NOT_FOUND``, ``PAYLOAD_TOO_LARGE``, ``RATE_LIMITED``), so a client reads one
 shape. The token is checked before anything else, so a caller without one learns nothing about
-the routes. A call's body is capped (``max_call_bytes``), and so are an upload's size and the
-uploads running at once. A command's
+the routes. A call's body is capped (``max_call_bytes``), and so are an upload's size, the time
+its body may take to arrive, the uploads running at once and the uploads one token runs at once
+(one), so a slow caller cannot hold every slot. A command's
 own refusal is HTTP 200: the call reached the host. ``serve_hosts`` binds only to loopback or a
 tailnet address unless the operator says otherwise.
 
@@ -41,6 +42,8 @@ UploadHandler = Callable[[str, Actor, bytes, dict], Awaitable[CommandResult]]
 DEFAULT_MAX_UPLOAD_BYTES = 256 * 1024 * 1024
 DEFAULT_MAX_CALL_BYTES = 1024 * 1024
 DEFAULT_MAX_CONCURRENT_UPLOADS = 2
+#: Seconds an upload's body may take to arrive; a slower one is refused, freeing its slot.
+DEFAULT_UPLOAD_READ_SECONDS = 120.0
 TAILNET_NETWORKS = (
     ipaddress.ip_network("100.64.0.0/10"),
     ipaddress.ip_network("fd7a:115c:a1e0::/48"),
@@ -62,7 +65,14 @@ class _HostRoutes:
     """The handlers behind ``create_host_http_app``; each answers with a CommandResult."""
 
     def __init__(
-        self, hosts, tokens, uploads, max_upload_bytes, max_call_bytes, max_concurrent_uploads
+        self,
+        hosts,
+        tokens,
+        uploads,
+        max_upload_bytes,
+        max_call_bytes,
+        max_concurrent_uploads,
+        upload_read_seconds,
     ) -> None:
         import asyncio
 
@@ -72,6 +82,8 @@ class _HostRoutes:
         self.max_upload_bytes = max_upload_bytes
         self.max_call_bytes = max_call_bytes
         self.upload_slots = asyncio.Semaphore(max_concurrent_uploads)
+        self.uploading: set[str] = set()  # Token ids with an upload in progress.
+        self.upload_read_seconds = upload_read_seconds
 
     @staticmethod
     def json(body: dict, status: int = 200) -> Any:
@@ -181,19 +193,35 @@ class _HostRoutes:
         route, _, record = admitted
         if self.uploads is None:
             return self.refused(404, "NOT_FOUND", f"/{route} takes no uploads", "Call a command")
-        if self.upload_slots.locked():
+        if record.id in self.uploading or self.upload_slots.locked():
             return self.refused(
                 429,
                 "RATE_LIMITED",
-                "Other uploads are being received",
-                "Retry the upload in a few seconds",
+                "This token's upload, or others, are being received",
+                "Wait for the upload in progress to finish, then retry in a few seconds",
             )
-        async with self.upload_slots:
-            data = await self.body(request, self.max_upload_bytes)
-            if data is None:
-                return self.too_large()
-            params = dict(request.query_params)
-            return self.json(_dump(await self.uploads(route, self.actor(record), data, params)))
+        import asyncio
+
+        self.uploading.add(record.id)
+        try:
+            async with self.upload_slots:
+                try:
+                    async with asyncio.timeout(self.upload_read_seconds):
+                        data = await self.body(request, self.max_upload_bytes)
+                except TimeoutError:
+                    return self.refused(
+                        408,
+                        "TIMEOUT",
+                        f"The upload did not arrive within {self.upload_read_seconds:g} seconds",
+                        "Upload again from a faster connection, or bundle fewer commits",
+                    )
+                if data is None:
+                    return self.too_large()
+                params = dict(request.query_params)
+                result = await self.uploads(route, self.actor(record), data, params)
+                return self.json(_dump(result))
+        finally:
+            self.uploading.discard(record.id)
 
     def too_large(self) -> Any:
         return self.refused(
@@ -212,13 +240,20 @@ def create_host_http_app(
     max_upload_bytes: int = DEFAULT_MAX_UPLOAD_BYTES,
     max_call_bytes: int = DEFAULT_MAX_CALL_BYTES,
     max_concurrent_uploads: int = DEFAULT_MAX_CONCURRENT_UPLOADS,
+    upload_read_seconds: float = DEFAULT_UPLOAD_READ_SECONDS,
 ) -> Any:
     """A Starlette app serving each host in ``hosts`` under ``/<route>``."""
     from starlette.applications import Starlette
     from starlette.routing import Route
 
     routes = _HostRoutes(
-        hosts, tokens, uploads, max_upload_bytes, max_call_bytes, max_concurrent_uploads
+        hosts,
+        tokens,
+        uploads,
+        max_upload_bytes,
+        max_call_bytes,
+        max_concurrent_uploads,
+        upload_read_seconds,
     )
     return Starlette(
         routes=[

@@ -737,7 +737,7 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "ee2967f55ca3d0af0abea45d96bc99c39189d3ddccf9768079da2652bfad4c22",
+      "current_import_sha256": "c2e8f94c1b2ea01d59d65e1f05d09783ab74194d2103d56e5ac51c9b8df20832",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
