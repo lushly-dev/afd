@@ -153,7 +153,7 @@ Merged in [#1256](https://github.com/lushly-dev/afd/pull/1256) on 2026-11-15:
   `todo-delete-batch`'s undo); seven descriptions were rewritten.
 - **Middleware.** `defaultMiddleware()` replaces the hand-built logging.
 
-On branch `t3/todo-reference-phase2-ci`, 2026-11-15, not yet merged:
+Merged in [#1260](https://github.com/lushly-dev/afd/pull/1260) on 2026-11-15:
 
 - **Approval suite.** `spec/approval-cases.json` (`--suite approvals`, `APPROVALS=agents`): an
   agent's clear held with its suggestion, a delete not held, a clear a person approves through
@@ -197,3 +197,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 1 merged, phase 2 jobs | Phase 1 merged in #1231. Wrote phase 2's jobs as scenarios with the drafted commands; two fresh readers walked them and the proposal records what changed; the owner decided D6 to D10 |
 | 2026-11-15 | Phase 2 slice | Built undo, deleted todos, `todo-restore`, `todo-history` and the clear approval in TypeScript; jobs 1 to 5, 8 and 9 run in the backend's tests |
 | 2026-11-15 | Phase 2 journal | Journal and replay (job 7), title, output and examples on every command, strict surface validation in the tests, `defaultMiddleware()`; in #1256 |
+| 2026-11-15 | Phase 2 CI | Approval suite, six TypeScript-only conformance cases, `afd validate --surface --strict` and `afd scenario run` against the backend in CI, the older scenarios without a clear; in #1260 |
