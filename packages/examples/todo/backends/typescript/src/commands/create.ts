@@ -36,7 +36,7 @@ export const createTodo = defineCommand<typeof inputSchema, Todo>({
 		{ title: 'A todo with a priority', input: { title: 'Order seed potatoes', priority: 'high' } },
 	],
 	async handler(input, context) {
-		const todo = store.create(
+		const todo = await store.create(
 			{
 				title: input.title,
 				description: input.description,

@@ -33,8 +33,8 @@ file instead of being treated as empty.
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TODO_STORE_TYPE` | `file` | Storage type: `file` or `memory` |
-| `TODO_STORE_PATH` | `data/todos.json` (seeded) | Path to JSON file (file mode only). A custom path starts empty. |
+| `TODO_STORE_TYPE` | `file` | Storage type: `file`, `memory` or `sqlite` |
+| `TODO_STORE_PATH` | `data/todos.json` (seeded), or `data/todos.db` | Path to the JSON file or the SQLite database. A custom path starts empty. |
 | `PORT` | `3100` | HTTP server port |
 | `HOST` | `localhost` | HTTP server host |
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
@@ -88,6 +88,18 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 
 Each change's result names its undo in `undoCommand` and `undoArgs`; the example README's
 [Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript) explains them.
+
+### SQLite storage
+
+`TODO_STORE_TYPE=sqlite` keeps the todos, the deleted todos and the history in one SQLite
+database (`data/todos.db`, gitignored) through `@lushly-dev/local-db`'s adapter on `node:sqlite`
+(`src/store/sqlite.ts`). Each change is one transaction, so a delete or restore moves its todo
+between the live and deleted tables all or nothing, and several processes can share the file.
+Filtering, sorting and undo are the in-memory store's rules, so all three stores behave the same;
+the backend's tests run every job against both the in-memory and the SQLite store.
+
+The JSON file stays the default until the Python backend reads the same database (the to-do
+reference plan's phase 5); until then only the file store is shared with Python.
 
 ## Recording and replaying a session
 

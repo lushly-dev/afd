@@ -33,7 +33,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | Phase | State | Evidence | Next gate |
 | --- | --- | --- | --- |
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
-| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | The rest of phase 2: local-db (D4) |
+| 2. The TypeScript reference | In progress: jobs 1 to 5, 8 and 9 merged in [#1251](https://github.com/lushly-dev/afd/pull/1251); 7 in [#1256](https://github.com/lushly-dev/afd/pull/1256); 6 waits for phases 3 and 4 | See [phase 2](#phase-2-the-typescript-reference) | Phase 2 complete once the SQLite store merges; then phase 3 |
 | 3. The Violet frontend | Not started | None | Phase 2's commands; the `umbel` server built so `components-brief` answers |
 | 4. DirectClient | Not started | None | Phases 2 and 3 |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
@@ -172,7 +172,19 @@ Merged in [#1260](https://github.com/lushly-dev/afd/pull/1260) on 2026-11-15:
 - **CI.** `conformance.yml` runs both and triggers on `packages/cli`, `packages/client` and
   `packages/testing`; `scripts/affected/suites.mjs` lists the same steps for `pnpm verify`.
 
-Left in phase 2: storage on local-db (D4).
+On branch `t3/todo-reference-phase2-localdb`, 2026-11-15, not yet merged:
+
+- **SQLite storage (D4).** `TODO_STORE_TYPE=sqlite` stores the todos, the deleted todos and the
+  history in one database through `@lushly-dev/local-db`'s SQLite adapter (`src/store/sqlite.ts`).
+  Each change runs through the adapter's `batch`, one transaction, so a delete or restore moves its
+  todo all or nothing. The filtering, sorting and undo rules are the in-memory store's, reused.
+  The store is asynchronous, so every command awaits the store, and a middleware outside the
+  approval hold reads the counts `todo-clear`'s approval summary shows. The backend's tests run
+  every job against both the in-memory and the SQLite store.
+- **The default stays the JSON file** until phase 5's Python pull request reads the same
+  database, so TypeScript and Python keep sharing data throughout (D4's timing).
+
+Phase 2 is then complete apart from job 6, which waits for the page in phases 3 and 4.
 
 ## Open questions
 

@@ -12,7 +12,7 @@ import {
 	defaultMiddleware,
 	type McpHandlerOptions,
 } from '@lushly-dev/afd-server';
-import { summarizeClear } from './commands/clear.js';
+import { createClearCountsMiddleware, summarizeClear } from './commands/clear.js';
 import { allCommands } from './commands/index.js';
 import { TODO_CONTEXTS } from './contexts.js';
 import { createHistoryMiddleware } from './history.js';
@@ -118,6 +118,8 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 		logging: devMode || logLevel === 'debug' ? { logInput: true, logResult: true } : {},
 	});
 	if (resolveApprovals(env) === 'agents') {
+		// The store is asynchronous and the approval summary is not: read the counts first
+		middleware.push(createClearCountsMiddleware());
 		middleware.push(
 			createApprovalMiddleware({
 				secret: resolveApprovalSecret(env),
@@ -125,8 +127,8 @@ export function createTodoMiddleware(env: Env, deps: TodoServerDeps = {}): Comma
 				// An MCP client that declares form elicitation asks its person; any other caller
 				// gets APPROVAL_REQUIRED with a suggestion to ask the person.
 				relay: 'mcp-elicitation',
-				summarize: (command, input) =>
-					command === 'todo-clear' ? summarizeClear(input) : undefined,
+				summarize: (command, input, context) =>
+					command === 'todo-clear' ? summarizeClear(input, context) : undefined,
 			})
 		);
 	}

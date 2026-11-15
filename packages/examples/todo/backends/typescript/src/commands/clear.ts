@@ -5,7 +5,7 @@
  * a person waits until a person approves (the server's approval middleware, `APPROVALS`).
  */
 
-import type { CommandContext } from '@lushly-dev/afd-core';
+import type { CommandContext, CommandMiddleware } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
 import { TODO_EDIT_CONTEXTS } from '../contexts.js';
@@ -38,24 +38,51 @@ function scope(input: ClearInput): 'all' | 'deleted' | 'completed' {
 	return 'completed';
 }
 
+/** What a held clear would remove, read before the hold so the person sees counts. */
+interface ClearCounts {
+	live: number;
+	deleted: number;
+	completed: number;
+}
+
+/** Where {@link createClearCountsMiddleware} leaves the counts on a todo-clear call's context. */
+const CLEAR_COUNTS = 'todo.clearCounts';
+
+/**
+ * Read the counts a todo-clear would affect before the approval middleware runs, since its
+ * `summarize` hook cannot wait for the store. Place it outside the approval middleware.
+ */
+export function createClearCountsMiddleware(): CommandMiddleware {
+	return async (commandName, _input, context, next) => {
+		if (commandName === 'todo-clear') {
+			const counts: ClearCounts = {
+				live: await store.count(),
+				deleted: (await store.list({ deleted: true })).length,
+				completed: (await store.list({ completed: true })).length,
+			};
+			context[CLEAR_COUNTS] = counts;
+		}
+		return next();
+	};
+}
+
 /**
  * The text a person approves: what goes for good, and how many that is when the call is held.
  * The approval covers the call's input, not those todos, so the text says the count is as of now.
  */
-export function summarizeClear(input: unknown): string {
+export function summarizeClear(input: unknown, context: CommandContext): string {
 	const parsed = inputSchema.safeParse(input);
 	const what = parsed.success ? scope(parsed.data) : 'completed';
-	const live = store.count();
-	const deleted = store.list({ deleted: true }).length;
-	const completed = store.list({ completed: true }).length;
+	const counts = context[CLEAR_COUNTS] as ClearCounts | undefined;
 	const plural = (count: number) => `${count} ${count === 1 ? 'todo' : 'todos'}`;
+	const now = (count: number | undefined) => (count === undefined ? '' : ` (${plural(count)} now)`);
 	switch (what) {
 		case 'all':
-			return `Remove every todo for good, live and deleted (${plural(live + deleted)} now)`;
+			return `Remove every todo for good, live and deleted${now(counts && counts.live + counts.deleted)}`;
 		case 'deleted':
-			return `Empty the deleted todos for good (${plural(deleted)} now)`;
+			return `Empty the deleted todos for good${now(counts?.deleted)}`;
 		default:
-			return `Remove the completed todos for good (${plural(completed)} now)`;
+			return `Remove the completed todos for good${now(counts?.completed)}`;
 	}
 }
 
@@ -87,10 +114,10 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 		const what = scope(input);
 		const result =
 			what === 'all'
-				? store.clearAll()
+				? await store.clearAll()
 				: what === 'deleted'
-					? store.clearDeleted()
-					: store.clearCompleted();
+					? await store.clearDeleted()
+					: await store.clearCompleted();
 		const cleared = result.clearedIds.length;
 		const plural = cleared === 1 ? '' : 's';
 		const reasoning =

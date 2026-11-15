@@ -3,4 +3,6 @@
 data/todos.json
 data/todos.deleted.json
 data/todos.history.json
+data/todos.db
+data/todos.db-*
 data/.todos*.json.*.tmp

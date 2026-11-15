@@ -87,7 +87,7 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 			if (!id) continue;
 
 			// Check if todo exists first
-			const existing = store.get(id);
+			const existing = await store.get(id);
 			if (!existing) {
 				failed.push({
 					index: i,
@@ -98,7 +98,7 @@ export const deleteBatch = defineCommand<typeof inputSchema, BatchDeleteResult>(
 			}
 
 			// Attempt deletion
-			const deleted = store.delete(id, now);
+			const deleted = await store.delete(id, now);
 			if (deleted) {
 				deletedIds.push(id);
 			} else {
