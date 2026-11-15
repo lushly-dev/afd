@@ -1,0 +1,83 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T1, lend a packet.
+# Not expressible here: the other substitutes come back in the result's `alternatives`, which a
+# scenario cannot assert. The step checks the first choice and that its confidence is at least 0.8.
+name: Out of seed, with a way forward
+description: >-
+  When the variety a member wants has run out, I want to offer a close substitute or put the
+  member on the waiting list, so that they do not leave with nothing.
+job: out-of-seed
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: The loan is refused, and the refusal says what to do next
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-runner }
+    expect:
+      success: false
+      error:
+        code: OUT_OF_STOCK
+        suggestion: { contains: substitute-suggest }
+  - description: The closest substitute that is on the shelf
+    command: substitute-suggest
+    input: { varietyId: var-runner }
+    expect:
+      success: true
+      confidence: 0.8
+      data:
+        variety: { id: var-painted, packetsAvailable: 3 }
+  - description: The member also goes on the waiting list for the one they asked for
+    command: waitlist-join
+    input: { memberId: mem-ines, varietyId: var-runner }
+    expect:
+      success: true
+      data:
+        position: 1
+  - description: The variety shows who is waiting, in order
+    command: variety-get
+    input: { id: var-runner }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 0
+        waiting:
+          - { member: { id: mem-ines }, position: 1 }
+  - description: Joining twice is refused, not counted twice
+    command: waitlist-join
+    input: { memberId: mem-ines, varietyId: var-runner }
+    expect:
+      success: false
+      error:
+        code: ALREADY_EXISTS
+        suggestion: { contains: waitlist-leave }
+  - description: The member takes the substitute
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-painted }
+    expect:
+      success: true
+      data:
+        status: out
+  - description: With the substitute in hand, the member comes off the list
+    command: waitlist-leave
+    input: { memberId: mem-ines, varietyId: var-runner }
+    expect:
+      success: true
+      data:
+        left: true
+  - description: A variety that is out and has nothing like it says so, and points to the waiting list
+    command: substitute-suggest
+    input: { varietyId: var-salsify }
+    expect:
+      success: false
+      error:
+        code: NO_SUBSTITUTE
+        suggestion: { contains: waitlist-join }
+  - description: The waiting list is for seed that has run out, so a variety on the shelf is refused
+    command: waitlist-join
+    input: { memberId: mem-ines, varietyId: var-parsnip }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: loan-create }

@@ -1,0 +1,69 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T4, the steward's
+# requests, which is held back from whoever writes the first pattern statements.
+# Not expressible here: the screen sends the first three decisions as one `afd-batch` call, whose
+# result holds one entry per decision (`spec/wire/batch-result.json`). The scenario runner calls
+# one command a step, so the three are written as three steps.
+name: Decide several requests in one go
+description: >-
+  When many requests are waiting, I want to decide a set of them in one go and see which did not
+  go through and why, so that an evening's requests take minutes.
+job: decide-several-at-once
+tags: [t4]
+fixture:
+  file: fixtures/steward.json
+  base: library.json
+steps:
+  - description: The first of three approvals goes through
+    command: request-decide
+    input: { id: req-1, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+  - description: So does the second, which takes the last packet
+    command: request-decide
+    input: { id: req-2, decision: approve }
+    expect:
+      success: true
+      data:
+        status: approved
+  - description: The third does not, and says what the steward can do
+    command: request-decide
+    input: { id: req-3, decision: approve }
+    expect:
+      success: false
+      error:
+        code: OUT_OF_STOCK
+        suggestion: { contains: waitlist-join }
+  - description: The request that failed is still waiting
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 1
+        requests:
+          - { id: req-3, packetsAvailable: 0 }
+  - description: The steward puts that member on the waiting list
+    command: waitlist-join
+    input: { memberId: mem-wren, varietyId: var-glassgem }
+    expect:
+      success: true
+      data:
+        position: 1
+  - description: And declines the request, for a member the library cannot reach, which the result says
+    command: request-decide
+    input: { id: req-3, decision: decline, reason: "None left; you are first on the waiting list" }
+    expect:
+      success: true
+      data:
+        status: declined
+        memberTold: false
+  - description: Nothing is waiting now
+    command: request-list
+    input: { status: pending }
+    expect:
+      success: true
+      data:
+        total: 0

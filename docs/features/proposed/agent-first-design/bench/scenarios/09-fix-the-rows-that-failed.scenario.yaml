@@ -1,0 +1,78 @@
+# Draft JTBD scenario for the Agent-First Design bench (the seed library).
+# The commands and their shapes are proposals; the data is invented. Screen: T2, take in a donation.
+# Not expressible here: a batch with failures carries a PARTIAL_SUCCESS entry in `warnings`,
+# which a scenario cannot assert. The steps check the failed rows and the counts.
+name: Put right the rows that failed
+description: >-
+  When some rows of a batch could not be taken in, I want to see which and why, and put them right
+  without entering the rest again, so that one bad label does not hold up the box.
+job: fix-the-rows-that-failed
+tags: [t2]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: One good row, one with a harvest year in the future, one the library does not keep
+    command: donation-import
+    input:
+      rows:
+        - { label: Borlotti bean, packets: 4, harvestYear: 2029 }
+        - { label: Pot marigold, packets: 2, harvestYear: 2031 }
+        - { label: Mystery squash, packets: 1, harvestYear: 2029 }
+    expect:
+      success: true
+      data:
+        status: needs-attention
+        summary: { total: 3, successCount: 1, unsettledCount: 0, failureCount: 2 }
+        failed:
+          - index: 1
+            error: { code: INVALID_FORMAT, suggestion: { contains: donation-correct } }
+          - index: 2
+            error: { code: NOT_FOUND, suggestion: { contains: leaveOut } }
+  - description: The good row is already on the shelf
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 10
+  - description: A correction that is still wrong is refused, and the row stays failed
+    command: donation-correct
+    input: { donationId: "${{ steps[0].data.id }}", index: 1, harvestYear: 2032 }
+    expect:
+      success: false
+      error:
+        code: INVALID_FORMAT
+        suggestion: { contains: harvest year }
+  - description: The year is corrected and the row goes in
+    command: donation-correct
+    input: { donationId: "${{ steps[0].data.id }}", index: 1, harvestYear: 2029 }
+    expect:
+      success: true
+      data:
+        index: 1
+        outcome: succeeded
+        lotId: { exists: true }
+  - description: The library does not keep the squash, so that row is left out of the batch
+    command: donation-correct
+    input: { donationId: "${{ steps[0].data.id }}", index: 2, leaveOut: true }
+    expect:
+      success: true
+      data:
+        index: 2
+        outcome: left-out
+  - description: Nothing is left to put right, and the batch says what was left out
+    command: donation-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: complete
+        summary: { total: 3, successCount: 2, failureCount: 0, leftOutCount: 1 }
+  - description: A row that went in is not corrected here, and the refusal says how it is put right
+    command: donation-correct
+    input: { donationId: "${{ steps[0].data.id }}", index: 0, packets: 5 }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: donation-cancel }

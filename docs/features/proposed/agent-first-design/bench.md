@@ -62,35 +62,35 @@ three screens help on a screen they were not written from.
 | T1 | Lend a packet | Find a variety, lend a packet to a member, take a substitute or join the waiting list when it is out, ask the steward for a rare one, take the loan back |
 | T2 | Take in a donation | Import a batch of packets, follow it, settle a label that matches several varieties, see why a match was made, deal with the rows that failed |
 | T3 | A variety's page | See its lots and loans, record a return and take it back, see how well old seed is expected to germinate and on what evidence, retire the variety |
-| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back |
+| T4, held back | The steward's requests | Approve or decline a request, approve several at once and deal with the ones that failed, take a decision back, clear a past season's decided requests |
 
 Which task needs which pattern:
 
 | Pattern (proposal, 5.2) | T1 | T2 | T3 | T4 |
 | --- | --- | --- | --- | --- |
-| An error with its recovery | Yes | Yes | | Yes |
-| An undo offer | Yes | | Yes | Yes |
+| An error with its recovery | Yes | Yes | Yes | Yes |
+| An undo offer | Yes | Yes | Yes | Yes |
 | A confirmation before a destructive command | | | Yes | Yes |
 | An approval request | Yes | | | Yes |
 | Progress | | Yes | | Yes |
 | A choice among alternatives | Yes | Yes | | |
-| Warnings | Yes | | Yes | |
+| Warnings | Yes | Yes | Yes | Yes |
 | Evidence for a result | | Yes | Yes | |
 | A batch with some failures | | Yes | | Yes |
 | An empty collection, a failed collection | Yes | | Yes | Yes |
 
-- **A limit.** Alternatives, warnings and evidence are not on T4, so a statement about them is
-  tested only on a screen it may have been written from.
-- **The commands are the data contract.** Their names, as a first sketch: `variety-list`,
-  `variety-get`, `variety-retire`, `loan-create`, `loan-return`, `loan-list`,
-  `request-list`, `request-decide`, `donation-import`, `donation-match` and `member-list`.
-  The sketch is incomplete and no schema is drafted. Nothing in it yet joins a waiting list,
-  asks the steward for a rare variety, lists a variety's lots, or takes back a loan, a
-  return or a decision.
-- **The order is jobs first,** as the `afd` skill's
-  [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets it: the bench's jobs
-  as sentences, then the commands drafted with their inputs, results and error codes, then
-  each job as a scenario file written against them. A fixture forces each state.
+- **A limit.** Alternatives and evidence are not on T4, so a statement about them is tested
+  only on a screen it may have been written from.
+- **What produces each pattern** is in
+  [the seed library's jobs](bench/seed-library.md#where-each-pattern-arises). Writing the
+  jobs put warnings on T2 and T4, an error with its recovery on T3 and an undo offer on T2,
+  which the first version of this table did not have.
+- **The commands are the data contract.** Seventeen jobs and twenty-four drafted commands are
+  in [the seed library's jobs](bench/seed-library.md), each job a scenario file written
+  against the commands, in the order the `afd` skill's
+  [guide](../../../../.claude/skills/afd/references/jobs-first.md) sets. Three readers
+  walked them. No schema is written.
+- **A fixture of each result forces each state** of a screen. They are not written.
 - **Where it lives:** `packages/examples/seed-library`, with the commands and fixtures. It is
   kept after phase 0.
 
@@ -267,7 +267,7 @@ built.*
 
   | Event | Rerun | Size |
   | --- | --- | --- |
-  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 20 to 30 builds |
+  | A default pattern's statements change | The screens that pattern is on, old statements against new, five runs each | 20 to 40 builds |
   | The model route changes | Arm 0 and the current defaults on all four screens, five runs each | 40 builds |
   | A persona card or the runner changes | The walks on the seeded build | Up to 40 walks and 40 readers |
   | Phase C's exit | The walks on the seeded build, and the panel loop on the two jobs held back for it | 40 walks and 40 readers, and what phase C sizes for the loop |

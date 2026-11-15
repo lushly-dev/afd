@@ -27,6 +27,10 @@ shape of the [Patterns status](../patterns/STATUS.md).
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
   budget, and its bare arm, and an independent reader reviewed it. Its rules for "go" are not
   confirmed. Nothing in it is built.
+- **In progress, not merged:** the seed library's
+  [jobs and drafted commands](bench/seed-library.md), drafted 2026-11-15: seventeen jobs as
+  scenario files and twenty-four commands. The scenario checks pass, and three readers
+  walked the paths. The owner has not read them.
 - **Not done:** drafted commands, scenario files, the three scenario checks, reader walks, the
   owner's remaining answers, moving each part into the proposal that owns it, and everything in
   the phases. See
@@ -58,6 +62,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Walk the paths with readers who did not write them | Not started | Three seats, as jobs first describes |
 | Independent review of the proposal | Done 2026-11-14: one broad pass and one pass on its blockers | [How it was checked](#how-it-was-checked) |
 | Phase 0, step 0.0: the bench's specification | In progress. The specification is written, and merged in #1234. Drafted 2026-11-14 with a recommended domain, 209 sessions and an estimate of about $260 at list prices, used as a measure of size. The owner decided three of its points on 2026-11-15: a seed library; Opus 5.5 at `medium` on a second machine's subscription allowance, no more than a fifth of a week's allowance in any one week; and a bare arm in step 0.1. An independent reader reviewed it the same day. The rules for "go" are proposed and not confirmed. The commands, fixtures, checks, planted faults and persona cards are not written | [`bench.md`](bench.md) |
+| The bench: its jobs and drafted commands | In progress. Drafted 2026-11-15: 17 jobs as scenario files in 113 steps, and 24 commands. The parse, dry-run and coverage checks pass. Three readers walked the paths, and the two commands their findings added have not been walked. Not read by the owner, not merged | [`bench/seed-library.md`](bench/seed-library.md) |
+| The bench: schemas, result fixtures, the task for each screen, the application, the held material and the runner | Not started | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -142,6 +148,21 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   from Specimen's README that a host exists for that platform. Not checked: that the host
   builds there, that the `claude` command there is signed in, and what share of a week's
   allowance a session takes. The link script was run again over the same four files.
+- **The seed library's jobs, 2026-11-15 at `dfb153b2`:** after
+  `pnpm -F "@lushly-dev/afd-cli..." build`, the three checks the jobs-first guide names were
+  run on `bench/scenarios`, and run again after the walks changed the files.
+  `scenario validate` printed "All 17 scenario(s) are valid!". The dry run with fixtures
+  resolved found no error in 17 files and 113 steps. The coverage report showed 24 of 24
+  drafted commands used, none undrafted, and 10 of 12 error codes shown; the other two,
+  `SERVICE_UNAVAILABLE` and `FORBIDDEN`, need a failing service and a second actor, which a
+  scenario cannot express.
+- **The walks, 2026-11-15:** three fresh read-only readers on Claude Opus 5.5, one in each
+  seat the jobs-first guide names, read the first version of the jobs, with 22 commands.
+  Their findings added two commands, changed fourteen scenarios and reworded three jobs; what
+  was taken and what was declined is in
+  [the seed library's jobs](bench/seed-library.md#what-the-walks-changed). The host
+  behaviour one reader cited was read again in `packages/server/src/approval.ts` before it
+  was acted on.
 - **Independent review of the bench specification, 2026-11-15:** a fresh read-only reviewer on
   Claude Opus 5.5, asked for at `high`, briefed as `review-code` describes and given the
   owner's words as the only source for a decision, read the three files in this folder and
@@ -209,6 +230,9 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | First draft | Specimen does not observe animation, so no motion rule can be a gate. A rule about duration or easing stays `authored` | Open |
 | 2026-11-14 | Bench specification | No forced-colours emulation exists in Specimen or in Botcore's `cdp_emulate`, so no persona can be held to that modality | Open |
 | 2026-11-14 | Bench specification | A screen reader's live announcements are not captured as they are spoken; the bench reads them from the accessibility tree | Open |
+| 2026-11-15 | The seed library's jobs | The approval middleware lets an approval last at most 24 hours (`packages/server/src/approval.ts:234`). A person who approves by the next week, as a steward might, cannot be modelled as an approval; the bench's requests last a day for that reason | Open |
+| 2026-11-15 | The seed library's jobs, the calling-agent walk | The approval middleware's refusal says "Ask the user to approve" (`packages/server/src/approval.ts:492`). Where the approver is somebody other than the user at the client, as a steward is to a desk volunteer, that sends the caller to the wrong person; the application can only add to the text through `summary` | Open |
+| 2026-11-15 | The seed library's jobs | A scenario cannot assert `warnings`, `alternatives`, `sources`, `plan`, `undoCommand` or `undoArgs`, the fields five of the ten default patterns render. The first three are a known limit in the jobs-first guide; the last three are not listed there | Open |
 | 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |
 
 ## Session log
@@ -223,3 +247,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-14 | After the merge of #1223 | The owner confirmed the rank of the jobs as proposed. Section 4 of the proposal now carries it: job 3 merged into job 2, job 11 folded into job 10, job 13 deferred and job 15 added, with the numbers kept. The bench specification was drafted as step 0.0 of phase 0: a seed library, four screens of which one is held back from whoever writes the statements, 209 sessions, an estimate of about $260 at list prices with a proposed cap of $400, rules for "go", and four points for the owner. Checking it settled one point the proposal had left unverified: Botcore cannot emulate forced colours |
 | 2026-11-15 | Bench specification, after the owner's reply | The owner decided that the bench's sessions run on a second machine, on its subscription allowance, and take a small share of a week's allowance. That machine is an Apple silicon Mac, which Specimen supports, so scoring runs there too and the question of where to score is settled (superseded: it was not a ruling of the owner's, and it holds only once Specimen's host builds there; see item 4 of For the owner in the bench specification). The budget's cap became a share of the week, proposed at a fifth and open (superseded by the next row, where the owner accepted the fifth), with the pilots measuring what a session takes. A section on when the bench runs was added: phase 0 once, and afterwards only on a named event |
 | 2026-11-15 | Bench specification, the owner's second reply | The owner accepted three recommendations: no more than a fifth of the second machine's weekly allowance in any one week, the seed library, and a bare arm in step 0.1. The owner noted that another session runs on that machine, and asked for a commit and a pull request after an independent review. The review found that the files claimed more approval than the owner gave, that a figure from Component Briefs was misattributed, and that several rules for "go" could not be computed. The six blockers and the improvements were fixed. A second pass found one more place that called scoring settled and ten smaller points, and those were fixed too. The rules for "go" stay unconfirmed |
+| 2026-11-15 | After the merge of #1234 | The owner said to start the bench. The seed library's jobs and commands were drafted jobs first: 17 jobs as scenario files across the four screens and 22 commands, with two fixtures of invented data. Writing them changed the sketch: asking the steward is a held `loan-create` and not a command of its own, every mutation with a way back got its command, and warnings now arise on the held-back screen. Three readers then walked the paths, and their findings added two commands, gave donations a way back, and stopped the design leaning on the host for things it does not do. The scenario checks pass on the result. A read-only check of the second machine's tools was started |
