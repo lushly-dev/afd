@@ -156,7 +156,7 @@ const APP_CAPTURES: [string, string][] = [
 	// Phase 2's step 7: the projects section's list, its refused form, its empty state, a home, and a home of
 	// long, empty and right-to-left summaries at 320 CSS px.
 	['app-projects-section', 'table "Projects"'],
-	['app-projects-section-form', 'Error: A project already has'],
+	['app-projects-section-form', "Error: That slug can't be used"],
 	['app-projects-section-empty', 'No projects yet'],
 	['app-projects-section-home', 'article "Slow"'],
 	// Phase 2's step 11: the home's Documents card, the shell's, after the apps' summaries.

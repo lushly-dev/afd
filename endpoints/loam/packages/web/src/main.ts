@@ -62,9 +62,41 @@ async function boot(): Promise<void> {
 		document.documentElement.dataset.loamHost = 'failed';
 		return;
 	}
+	const { identity } = read;
+	// A join or recovery link (phase 3 specification, 5.6, 5.7): a page of its own over the provider, with no kernel.
+	const link = /^~\/(join|recover)$/.exec(
+		new URL(location.href).pathname.slice(new URL(base).pathname.length)
+	)?.[1];
+	if (link) {
+		const authBase =
+			identity?.mode === 'provider' && AUTH_PATH.test(String(identity.path))
+				? new URL(identity.path, base).href
+				: undefined;
+		if (!authBase) {
+			await renderNotice(document.body, {
+				themeCss,
+				heading: 'This link does not work here',
+				message:
+					'This deployment has no sign-in provider, so it has no invitations or recovery links.',
+			});
+			return;
+		}
+		const [{ mountLinkPage }, { createLinkProvider }] = await Promise.all([
+			import('@lushly-dev/loam-chrome/account'),
+			import('./auth.js'),
+		]);
+		await mountLinkPage(document.body, {
+			themeCss,
+			base,
+			query: new URL(location.href).searchParams,
+			kind: link as 'join' | 'recover',
+			provider: createLinkProvider(authBase),
+		});
+		document.documentElement.dataset.loamHost = 'link';
+		return;
+	}
 	// A `provider` deployment's session probe, before stage A chooses a scope for its person (phase 3
 	// specification, 4.2); the `auth` chunk loads in stage B. `local` sends no probe.
-	const { identity } = read;
 	let provider: ProviderIdentity | undefined;
 	let shown: ShellIdentity | undefined;
 	if (identity?.mode === 'provider') {
@@ -91,6 +123,15 @@ async function boot(): Promise<void> {
 					...(last.warning ? { warning: last.warning } : {}),
 				};
 			},
+			// Recovery (5.7), from the `auth` chunk, which the sign-in dialog's "Can't sign in?" loads.
+			...(authBase
+				? {
+						recover: async (email: string) =>
+							(await import('./auth.js')).requestRecovery(authBase, email),
+						recoverWith: async (provider: string) =>
+							(await import('./auth.js')).recoverWithProvider(authBase, provider),
+					}
+				: {}),
 		};
 	}
 	// The URL's project, by slug, for the first frame: the kernel enters it only if the actor may (6.3).

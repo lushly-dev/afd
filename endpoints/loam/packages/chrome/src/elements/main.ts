@@ -12,17 +12,15 @@ import { partHost, quietButton } from './styles.js';
 /** What a `provider` deployment's main shows in place of the landing (phase 3 specification, 2.1, 2.3). */
 const GATES = {
 	'sign-in': ['Sign in to %', 'This workspace is for the members of %.'],
-	'not-member': [
-		'You are not a member of %',
-		'Ask an owner of % to invite you. Your invitations will be listed in your account.',
-	],
+	'not-member': ['You are not a member of %', 'Ask an owner of % to invite you.'],
 	binding: [
 		'This workspace is not set up',
 		'% is not bound on the server; an owner fixes it there.',
 	],
 } as const;
+// A gate cleared while its view is still bound (an invitation accepted) reads as nothing until the view goes.
 const gate = (x: LoamMain, line: 0 | 1) =>
-	GATES[x.gate as keyof typeof GATES][line].replace('%', x.organization);
+	(GATES[x.gate as keyof typeof GATES]?.[line] ?? '').replace('%', x.organization);
 
 const template = html<LoamMain>`
 	${when(
@@ -31,9 +29,11 @@ const template = html<LoamMain>`
 		html<LoamMain>`<section class="landing" aria-labelledby="landing-heading"><h1 id="landing-heading">${(
 			x
 		) => gate(x, 0)}</h1><p>${(x) => gate(x, 1)}</p>${when(
-			(x) => x.gate === 'sign-in',
+			(x) => x.gate !== 'binding',
 			html<LoamMain>`<p><button class="quiet sign-in" type="button" @click="${(x) =>
-				dispatchAction(x, { action: 'sign-in' })}">Sign in</button></p>`
+				dispatchAction(x, {
+					action: x.gate === 'sign-in' ? 'sign-in' : 'invitations',
+				})}">${(x) => (x.gate === 'sign-in' ? 'Sign in' : 'Show your invitations')}</button></p>`
 		)}</section>`
 	)}
 	${when(

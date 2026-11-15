@@ -6,7 +6,7 @@
  */
 
 import { type AuthAdapter, type AuthSessionState, UNAUTHENTICATED } from '@lushly-dev/afd-auth';
-import type { KernelOptionsV3 } from '@lushly-dev/loam-kernel';
+import type { KernelOptionsV3, LoamAccountAccessV1 } from '@lushly-dev/loam-kernel';
 
 /** Stage A waits at most this long for the probe, then paints signed out (4.2). */
 export const PROBE_WAIT_MS = 1_500;
@@ -69,6 +69,9 @@ export class DeferredAuthAdapter implements AuthAdapter {
 	readonly #listeners = new Set<(state: AuthSessionState) => void>();
 	readonly sessions: NonNullable<AuthAdapter['sessions']>;
 	readonly passkeys: NonNullable<AuthAdapter['passkeys']>;
+	readonly organization: NonNullable<AuthAdapter['organization']>;
+	/** Loam's account capability (5.1), which the `auth` chunk gives the real adapter. */
+	readonly account: NonNullable<LoamAccountAccessV1>;
 
 	/**
 	 * `load` reads the state through `current` when it builds the real adapter, not when the load starts: a probe that
@@ -81,14 +84,20 @@ export class DeferredAuthAdapter implements AuthAdapter {
 		this.#state = initial;
 		this.#load = () => load(() => this.#state);
 		// Each capability's method awaits the real adapter, then calls its own.
-		const later = <T extends object>(name: 'sessions' | 'passkeys', methods: string[]) =>
+		const later = <T extends object>(
+			name: 'sessions' | 'passkeys' | 'organization' | 'account',
+			methods: string[]
+		) =>
 			Object.fromEntries(
 				methods.map((method) => [
 					method,
 					async (...args: unknown[]) =>
-						((await this.load())[name] as unknown as Record<string, (...a: unknown[]) => unknown>)[
-							method
-						]?.(...args),
+						(
+							(await this.load()) as unknown as Record<
+								string,
+								Record<string, (...a: unknown[]) => unknown>
+							>
+						)[name]?.[method]?.(...args),
 				])
 			) as T;
 		this.sessions = later('sessions', ['listSessions', 'revokeSession']);
@@ -98,6 +107,16 @@ export class DeferredAuthAdapter implements AuthAdapter {
 			'renamePasskey',
 			'removePasskey',
 		]);
+		this.organization = later('organization', [
+			'invite',
+			'listInvitations',
+			'cancelInvitation',
+			'removeMember',
+			'setRole',
+			'acceptInvitation',
+			'rejectInvitation',
+		]);
+		this.account = later('account', ['get', 'update', 'members', 'invitations']);
 	}
 
 	/** The real adapter, loaded once; its state reaches this one's listeners from then on. */
