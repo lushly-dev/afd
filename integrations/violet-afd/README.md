@@ -3,7 +3,7 @@
 The AFD command layer behind Violet Design, a hierarchical design token platform. Nodes inherit tokens from their parents and add, override, subtract, reset or copy them; every capability is a command that returns a structured `CommandResult`, so the CLI, REST API and MCP server all share one behavior.
 
 ```bash
-npm install @lushly-dev/violet-core @lushly-dev/violet-afd
+npm install @lushly-dev/violet-core@preview @lushly-dev/violet-afd@preview
 ```
 
 ```ts
