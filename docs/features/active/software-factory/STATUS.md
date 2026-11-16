@@ -29,6 +29,8 @@ fixed from that pass: crashes print one `review-record:` line, lane names `Self`
 count as self-review, `--lanes-file` for Windows shells, and the proposal's lane-mode order.
 Deferred: the script repeats about 35 lines of `verify-record.mjs`'s identity and file helpers
 so it stands alone in the plugin's fixture (a test pins the shared base list).
+A focused re-check by the same reviewer approved the fixes with no blocker open; its two nits
+(the command-line test now strips `GIT_*`, and a doubled blank line) are fixed.
 
 Evidence: `scripts/review-record.test.mjs` (37 tests, including a real repository, a linked
 worktree and a symlinked start) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
@@ -45,7 +47,6 @@ workstation.
 (Pacific) as `a8a1f0f9`, with all ten checks green including `ci-ok`. The account below was written
 before the merge; its "no lane-loop PR has merged" and "the final receipt belongs to the PR" are
 superseded by it.
-
 
 The initial draft [PR #1294](https://github.com/lushly-dev/afd/pull/1294) exposed a historical
 agent co-author trailer in checkpoint commit `1ba67bb3`, which the current commit-credit gate

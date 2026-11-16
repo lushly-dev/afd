@@ -245,6 +245,9 @@ describe('run, against a real repository', () => {
 });
 
 describe('the command line', () => {
+	const env = Object.fromEntries(
+		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
+	);
 	const script = join(dirname(fileURLToPath(import.meta.url)), 'review-record.mjs');
 
 	it('still refuses when started through a symlink, never exiting 0 unchecked', (t) => {
@@ -256,6 +259,7 @@ describe('the command line', () => {
 		try {
 			execFileSync(process.execPath, [join(link, 'review-record.mjs'), 'verify', '--head', '0'], {
 				encoding: 'utf8',
+				env,
 				stdio: ['ignore', 'pipe', 'pipe'],
 			});
 		} catch (error) {
