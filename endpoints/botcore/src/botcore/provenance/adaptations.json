@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "68e96f2fc7dfdb9a3ec1adeab97ef4ae2b9e1877a8c1b4319be6f9b56ebe2588",
+      "current_import_sha256": "58bab9d82f35dcd05d9a13ec14882e9805713603336dc928b10079785a85c1d8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "c2734093b48ef19de365a2175e986f0ed1fff3f95e34caea8c0730785e5b3e63",
+      "current_import_sha256": "308b079d1d87c848629c74192889d82cab130caf43d991e45b794db0ba7466bb",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1539,10 +1539,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "eabca6bad430e90ebd6d7f8d7cf11ef9390c067d071cd9bf32b05113a6a62dd6",
+      "current_import_sha256": "7c4b9e9e96335d8c31400dc39b304bbf190cbf9bcd0200cab2fe8af8e21f6596",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows"
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "src/botcore/cli.py",
@@ -1930,10 +1930,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2c2a0001433765df6ab54d64fbfd8e319c95b86147817554beea4ad7ab7fcd03",
+      "current_import_sha256": "01349cb31a583f0a6e9abec5969b01488b870c1984e65020be283004654853ca",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows"
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "src/botcore/plugin.py",
@@ -5522,10 +5522,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "2b59bc9c12768f95c2c81c2ee2b5b6857d942deca38c0f8e99bc3320bacbd88b",
+      "current_import_sha256": "5eb69055141c72000c1a8d69afa5b572b2908edb7b4cf20711477141eb61cd94",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows"
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "tests/test_workspace.py",
@@ -5543,10 +5543,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "31f43f619572cf9a4da5bf28070869be315c37451703e167106e7a1779f597e1",
+      "current_import_sha256": "c9b73650939454a1aab1521a46d40aab149adc20abca7a1d976bf4d7a4f1b65a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows"
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "uv.lock",

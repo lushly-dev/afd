@@ -11,7 +11,7 @@ import {
 } from '../../../../scripts/release/exec-tool.mjs';
 import { buildFixture } from './build.mjs';
 import { assertPinnedConvexFixtureDependency } from './cli-preflight.mjs';
-import { withDeadline } from './lib.mjs';
+import { createReceipt, launchObserved, withDeadline } from './lib.mjs';
 import { checkConvexModulePaths } from './module-paths.mjs';
 import { startFixtureServer } from './server.mjs';
 
@@ -86,6 +86,35 @@ async function verifyConvexDependencyPreflight(preflightDir) {
 	}
 }
 
+/** The receipt's runtime comes from this process and the launched browser, and survives JSON. */
+async function checkRuntimeReceipt(browser, runtime) {
+	const installed = JSON.parse(
+		await readFile(new URL('./package.json', import.meta.resolve('playwright')), 'utf8')
+	).version;
+	const receipt = JSON.parse(
+		JSON.stringify(
+			createReceipt({
+				runId: 'run-local-check',
+				revision: 'local',
+				deploymentUrl: new URL('https://127.0.0.1:1'),
+				assertions: [],
+				cleanup: [],
+				oauthConfigured: false,
+				runtime,
+			})
+		)
+	);
+	const expected = {
+		executorNode: process.versions.node,
+		playwright: installed,
+		browser: { name: 'chromium', version: browser.version() },
+	};
+	if (JSON.stringify(receipt.runtime) !== JSON.stringify(expected)) {
+		throw new Error(`Runtime receipt mismatch: ${JSON.stringify(receipt.runtime)}`);
+	}
+	console.log(`Runtime receipt: ${JSON.stringify(receipt.runtime)}`);
+}
+
 const outputDir = await mkdtemp(join(tmpdir(), 'afd-convex-check-'));
 try {
 	await run(process.execPath, ['--test', join(fixtureDir, 'lib.test.mjs')]);
@@ -131,7 +160,9 @@ try {
 	});
 	let browser;
 	try {
-		browser = await chromium.launch({ headless: true, timeout: 15_000 });
+		let runtime;
+		({ browser, runtime } = await launchObserved(chromium, { headless: true, timeout: 15_000 }));
+		await checkRuntimeReceipt(browser, runtime);
 		const page = await browser.newPage();
 		await page.goto(server.origin, { waitUntil: 'domcontentloaded', timeout: 15_000 });
 		await page.waitForFunction(

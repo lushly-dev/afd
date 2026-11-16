@@ -446,6 +446,43 @@ async fn input_the_schema_cannot_check_is_refused() {
     assert_eq!(tags(&result), ["example-select"]);
 }
 
+/// Amendment A26: a name with no hyphen is refused with the served tags it most likely meant, or
+/// the served prefixes when none matches, and never echoes the caller's names.
+#[tokio::test]
+async fn a_bare_name_is_refused_with_the_tags_it_matches() {
+    let fx = Pack::example().host();
+    let result = fx
+        .brief(json!({ "tags": ["select", "example-field"] }))
+        .await;
+    assert_eq!(code(&result), "COMPONENTS_INVALID", "{result}");
+    assert_eq!(
+        result["error"]["details"]["matches"],
+        json!(["example-select"])
+    );
+    let suggestion = result["error"]["suggestion"].as_str().unwrap();
+    assert!(suggestion.contains("example-select"), "{suggestion}");
+
+    let result = fx.brief(json!({ "tags": ["zzzzzzzz"] })).await;
+    assert_eq!(code(&result), "COMPONENTS_INVALID", "{result}");
+    assert_eq!(result["error"]["details"]["matches"], json!([]));
+    assert_eq!(result["error"]["details"]["prefixes"], json!(["example-"]));
+    let suggestion = result["error"]["suggestion"].as_str().unwrap();
+    assert!(
+        suggestion.contains("example-") && !suggestion.contains("zzzzzzzz"),
+        "{suggestion}"
+    );
+
+    // Any other refused name keeps the general refusal.
+    let result = fx.brief(json!({ "tags": ["select", "Not A Tag"] })).await;
+    assert_eq!(code(&result), "COMPONENTS_INVALID", "{result}");
+    assert!(
+        result["error"]
+            .get("details")
+            .is_none_or(|d| d.get("matches").is_none()),
+        "{result}"
+    );
+}
+
 #[tokio::test]
 async fn more_than_128_tags_in_all_is_too_many() {
     let mut pack = Pack::default();

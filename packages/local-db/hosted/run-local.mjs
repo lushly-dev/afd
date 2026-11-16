@@ -334,10 +334,11 @@ async function main() {
 		status: 'passed',
 		mode: 'local-durable-restart',
 		runId,
-		phases: receipts.map(({ phase, status, checks, unavailabilityEvidence }) => ({
+		phases: receipts.map(({ phase, status, checks, providerNode, unavailabilityEvidence }) => ({
 			phase,
 			status,
 			checks,
+			...(providerNode ? { providerNode } : {}),
 			...(unavailabilityEvidence ? { unavailabilityEvidence } : {}),
 		})),
 		cleanup: 'exact IDs verified absent; temporary database removed',

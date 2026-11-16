@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readdir } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -16,10 +17,16 @@ import {
 	RESTART_CLOCK_SKEW_MARGIN_MS,
 	receiptJSON,
 	renewalEvidenceIsConsistent,
+	reportedVersion,
 	requiredRestartLifetimeMs,
+	safeReason,
 } from './contract.ts';
 import { secureProviderFetch, validateDiscovery } from './provider-fetch.ts';
 import { remainingBudgetMs, restartWithinBudget, withinTimeout } from './restart.ts';
+
+const playwrightVersion = JSON.parse(
+	await readFile(new URL('./package.json', import.meta.resolve('playwright')), 'utf8')
+).version;
 
 const valid = {
 	AFD_BA_DISPOSABLE: '1',
@@ -194,6 +201,34 @@ test('restart command and observation spend one shared timeout budget', async ()
 		})
 	);
 });
+test('reported runtime versions are kept as reported and never inferred when absent', () => {
+	assert.equal(reportedVersion('99.1.2'), '99.1.2');
+	assert.equal(reportedVersion('24.22.0-pre'), '24.22.0-pre');
+	for (const missing of [undefined, null, '', '24', 'v24.22.0', 24, {}])
+		assert.equal(reportedVersion(missing), undefined);
+});
+test('failure reasons are one line without the control key or OAuth query', () => {
+	const key = 'k'.repeat(64);
+	const reason = safeReason(
+		new Error(
+			`page.waitForURL: Timeout at https://127.0.0.1:4/api/auth/callback/x?code=SECRET&state=S#frag with ${key}\nstack line`
+		),
+		key
+	);
+	assert.equal(
+		reason,
+		'Error: page.waitForURL: Timeout at https://127.0.0.1:4/api/auth/callback/x[redacted] with [control key]'
+	);
+	for (const leaky of [
+		'failed at /api/auth/callback/test?code=CODE1&state=S2',
+		'127.0.0.1:4433/cb?code=CODE2',
+		'ws://h/cb?code=CODE3',
+		"https://h/cb?state=ab'cd&code=CODE4",
+		'https://u:PASS5@h.example/p',
+	])
+		assert.ok(!/CODE|PASS/.test(safeReason(leaky)), safeReason(leaky));
+	assert.ok(safeReason('x'.repeat(500)).length <= 300);
+});
 test('receipts whitelist output and strip OAuth query/fragment/credentials', () => {
 	const secret = 'SECRET-SENTINEL-DO-NOT-PERSIST';
 	const encoded = receiptJSON({
@@ -203,6 +238,8 @@ test('receipts whitelist output and strip OAuth query/fragment/credentials', () 
 		origin: `https://user:${secret}@example.test/path?code=${secret}#${secret}`,
 		revision: 'abcdef0',
 		node: '24',
+		providerNode: '24.22.0',
+		providerNodeAfterRestart: '24.22.1',
 		versions: { betterAuth: '1.7.2' },
 		browser: '156',
 		assertions: ['named assertion'],
@@ -217,6 +254,8 @@ test('receipts whitelist output and strip OAuth query/fragment/credentials', () 
 	});
 	assert.ok(!encoded.includes(secret));
 	assert.equal(JSON.parse(encoded).origin, 'https://example.test');
+	assert.equal(JSON.parse(encoded).providerNode, '24.22.0');
+	assert.equal(JSON.parse(encoded).providerNodeAfterRestart, '24.22.1');
 	assert.ok(!encoded.includes('environment'));
 	const failed = JSON.parse(
 		receiptJSON({
@@ -268,13 +307,30 @@ test('explicit hosted request with missing configuration fails without provider 
 	assert.match(result.errors, /not run/);
 	assert.ok(!result.errors.includes('SECRET-SENTINEL'));
 });
+/**
+ * A private temporary root for one spawned runner. Other harness runs on the host (a parallel test
+ * file, another worktree, the lane) use the shared one, so its listing is not this run's (#1334).
+ */
+async function privateTemp() {
+	const root = await mkdtemp(join(tmpdir(), 'afd-ba-test-'));
+	return {
+		env: { TMPDIR: root, TEMP: root, TMP: root },
+		scratch: async () =>
+			(await readdir(root)).filter((name) => name.startsWith('afd-better-auth-')),
+		remove: () => rm(root, { recursive: true, force: true }),
+	};
+}
 test('real Chromium deadline failure removes child server, database, generated key and browser', {
 	timeout: 35_000,
 }, async () => {
-	const scratch = async () =>
-		(await readdir(tmpdir())).filter((name) => name.startsWith('afd-better-auth-')).sort();
-	const before = await scratch();
-	const result = await run(['--local'], { AFD_BA_DEADLINE_MS: '10000' });
+	const temp = await privateTemp();
+	const result = await run(['--local'], { AFD_BA_DEADLINE_MS: '10000', ...temp.env }).finally(
+		async () => {
+			// Read before removal so the assertion below sees what the runner left behind.
+			temp.left = await temp.scratch();
+			await temp.remove();
+		}
+	);
 	assert.equal(result.code, 1);
 	const receipt = JSON.parse(result.output);
 	assert.equal(receipt.result, 'failed');
@@ -282,8 +338,21 @@ test('real Chromium deadline failure removes child server, database, generated k
 	assert.equal(receipt.cleanup, 'passed');
 	assert.equal(receipt.resourceCleanup, 'passed');
 	assert.ok(receipt.assertions.length > 2); // It ran real provider/browser work before the deadline.
-	assert.deepEqual(await scratch(), before);
-	assert.equal(result.errors, '');
+	// Runtime metadata survives serialization: the runner's and forked provider's Node, the launched
+	// browser and the loaded Playwright. A restart the deadline cut off leaves its value explicitly absent.
+	assert.equal(receipt.node, process.versions.node);
+	assert.equal(receipt.providerNode, process.versions.node);
+	assert.ok(
+		[process.versions.node, 'not-observed'].includes(receipt.providerNodeAfterRestart),
+		receipt.providerNodeAfterRestart
+	);
+	if (receipt.checks['persistent-restart'] === 'passed')
+		assert.equal(receipt.providerNodeAfterRestart, process.versions.node);
+	assert.match(receipt.browser, /^\d+\.\d+\.\d+\.\d+$/);
+	assert.equal(receipt.versions.playwright, playwrightVersion);
+	assert.deepEqual(temp.left, []);
+	// One redacted line names the failed phase and why; cleanup itself reported nothing.
+	assert.match(result.errors, /^run failed at [a-z-]+: [^\n]+\n$/);
 });
 
 // Exercise the actual OS signal path, not only the harness's own browser timer. Windows has no
@@ -296,15 +365,16 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 			? 'Windows does not deliver POSIX SIGTERM; deadline cleanup is tested above'
 			: false,
 }, async () => {
-	const scratch = async () =>
-		(await readdir(tmpdir())).filter((name) => name.startsWith('afd-better-auth-')).sort();
-	const before = await scratch();
+	const temp = await privateTemp();
 	const cache = async () =>
 		(await readdir('node_modules/.cache'))
 			.filter((name) => name.startsWith('afd-better-auth-run-'))
 			.sort();
 	const cacheBefore = await cache();
-	const result = await run(['--local'], {}, 2000);
+	const result = await run(['--local'], temp.env, 2000).finally(async () => {
+		temp.left = await temp.scratch();
+		await temp.remove();
+	});
 	assert.equal(result.code, 1);
 	const receipt = JSON.parse(result.output);
 	assert.equal(receipt.result, 'failed');
@@ -330,8 +400,8 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 			reject(new Error('Provider child still listening after signal cleanup'));
 		});
 	});
-	assert.deepEqual(await scratch(), before);
-	assert.equal(result.errors, '');
+	assert.deepEqual(temp.left, []);
+	assert.match(result.errors, /^run failed at [a-z-]+: [^\n]+\n$/);
 });
 
 test('external discovery rejects missing/insecure endpoints and issuer mismatch without network calls', () => {

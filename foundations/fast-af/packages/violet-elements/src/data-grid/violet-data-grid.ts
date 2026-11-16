@@ -842,10 +842,9 @@ export class VioletDataGrid extends FASTElement {
   public declare selectionMode: VioletDataGridSelectionMode;
 
     /**
-     * Optional verb phrase naming what a single-selection radio does, such as "Open". The radio's
-     * accessible name becomes "<selection-label> <row label>" ("Open First bed") instead of
-     * "Select row <row label>", and the selection column header takes it as its name ("Open")
-     * instead of "Selected row". Ignored outside `selection-mode="single"`.
+     * Verb for what a single-selection radio does, such as "Open": radios are named
+     * "<selection-label> <row label>" and the selection column header "<selection-label>". Only
+     * with `selection-mode="single"`.
      */
   public declare selectionLabel: string | null;
 

@@ -1,6 +1,6 @@
-//! The todo plugin through the test kit (phase 1 specification, sections 10.5 and 13): the eleven
-//! commands are registered as the plugin's, the manifest equals the backend's definitions, and
-//! each command answers one call.
+//! The todo plugin through the test kit (phase 1 specification, sections 10.5 and 13): the
+//! thirteen commands are registered as the plugin's, the manifest equals the backend's
+//! definitions, and each command answers one call.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 use std::path::Path;
@@ -10,7 +10,7 @@ use serde_json::{Value, json};
 use umbel::testkit::TestHost;
 use umbel_plugin_todo::{MANIFEST, plugin};
 
-const NAMES: [&str; 11] = [
+const NAMES: [&str; 13] = [
     "todo-create",
     "todo-list",
     "todo-get",
@@ -22,6 +22,8 @@ const NAMES: [&str; 11] = [
     "todo-create-batch",
     "todo-delete-batch",
     "todo-toggle-batch",
+    "todo-restore",
+    "todo-history",
 ];
 
 fn manifest() -> toml::Table {
@@ -33,7 +35,7 @@ fn host() -> TestHost {
 }
 
 #[tokio::test]
-async fn the_eleven_commands_are_the_todo_plugins_with_clears_confirmation_prompt() {
+async fn the_thirteen_commands_are_the_todo_plugins_with_clears_confirmation_prompt() {
     let host = host();
     let registry = host.host().registry();
     for name in NAMES {
@@ -50,6 +52,12 @@ async fn the_eleven_commands_are_the_todo_plugins_with_clears_confirmation_promp
         Some("Delete these todos? This cannot be undone.")
     );
     assert_eq!(clear.destructive, Some(true));
+    // The backend's per-call approval has no manifest form, so the plugin drops it.
+    assert!(clear.approval.is_none());
+    assert_eq!(
+        registry.get("todo-create").unwrap().contexts.as_deref(),
+        Some(&["todo-editing".to_owned()][..])
+    );
     assert!(
         NAMES
             .iter()
@@ -61,7 +69,7 @@ async fn the_eleven_commands_are_the_todo_plugins_with_clears_confirmation_promp
     let shown = shown.data.unwrap();
     assert_eq!(shown["instance"]["status"], "loaded");
     assert_eq!(shown["grants"]["items"], json!([]), "no grants");
-    assert_eq!(shown["commands"].as_array().unwrap().len(), 11);
+    assert_eq!(shown["commands"].as_array().unwrap().len(), 13);
 }
 
 #[test]
@@ -113,7 +121,33 @@ fn the_manifests_schemas_and_effects_equal_the_backends_definitions() {
             definition.destructive.unwrap_or(false),
             "{name}"
         );
+        let contexts: Vec<&str> = declared["contexts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|context| context.as_str().unwrap())
+            .collect();
+        assert_eq!(
+            Some(contexts),
+            definition
+                .contexts
+                .as_ref()
+                .map(|contexts| contexts.iter().map(String::as_str).collect()),
+            "{name}"
+        );
     }
+    // The manifest declares the backend's contexts.
+    let declared: Vec<&str> = manifest["contexts"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|context| context["name"].as_str().unwrap())
+        .collect();
+    let backend: Vec<String> = todo_backend_rust::app::contexts()
+        .into_iter()
+        .map(|context| context.name)
+        .collect();
+    assert_eq!(declared, backend);
     assert_eq!(
         manifest["plugin"]["domains"],
         toml::Value::Array(vec![toml::Value::from("todo")])
@@ -145,12 +179,29 @@ async fn each_command_answers_one_call() {
         ),
         ("todo-toggle-batch", json!({"ids": [id], "completed": true})),
         ("todo-delete", json!({"id": id})),
+        ("todo-restore", json!({"ids": [id]})),
+        ("todo-history", json!({"todoId": id})),
         ("todo-clear", json!({"all": true, "confirm": true})),
     ];
     for (name, input) in calls {
         let result = host.call(name, input).await;
         assert!(result.success, "{name}: {result:?}");
     }
+    // The backend's commands record their own changes, so the history works under Umbel too.
+    let history = host
+        .call("todo-history", json!({"todoId": id, "limit": 100}))
+        .await
+        .data
+        .unwrap();
+    let commands: Vec<&str> = history["entries"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .map(|entry| entry["command"].as_str().unwrap())
+        .collect();
+    assert_eq!(commands.first(), Some(&"todo-clear"), "{history}");
+    assert!(commands.contains(&"todo-restore"), "{history}");
+    assert_eq!(commands.last(), Some(&"todo-create"), "{history}");
     let created = host.call("todo-create", json!({"title": "Last"})).await;
     let last = created.data.unwrap()["id"].as_str().unwrap().to_owned();
     let deleted = host.call("todo-delete-batch", json!({"ids": [last]})).await;
@@ -169,16 +220,16 @@ async fn a_bad_input_is_refused_with_the_backends_validation_error() {
 }
 
 #[test]
-fn the_mounted_fixture_declares_the_same_effects_and_prompt_as_the_compiled_manifest() {
+fn the_mounted_fixture_declares_the_same_effects_prompt_and_destructive_as_the_compiled_manifest() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("../../tests/fixtures/plugins/todo-http/umbel-plugin.toml");
     let text = std::fs::read_to_string(&path).unwrap();
     umbel::plugins::Manifest::parse(&text, "todo-http").expect("the fixture is a valid manifest");
     let mounted: toml::Table = text.parse().unwrap();
     let compiled = manifest();
-    // (name, effect, confirmation prompt) of every command, sorted.
+    // (name, effect, confirmation prompt, destructive) of every command, sorted.
     let declared = |entries: &toml::Value, key: &str| {
-        let mut found: Vec<(String, String, Option<String>)> = entries
+        let mut found: Vec<(String, String, Option<String>, bool)> = entries
             .as_array()
             .unwrap()
             .iter()
@@ -190,6 +241,10 @@ fn the_mounted_fixture_declares_the_same_effects_and_prompt_as_the_compiled_mani
                         .get("confirm_prompt")
                         .and_then(toml::Value::as_str)
                         .map(str::to_owned),
+                    entry
+                        .get("destructive")
+                        .and_then(toml::Value::as_bool)
+                        .unwrap_or(false),
                 )
             })
             .collect();

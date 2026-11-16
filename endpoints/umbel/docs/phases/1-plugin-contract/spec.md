@@ -1661,10 +1661,16 @@ todo example as a compiled plugin. It implements `CompiledPlugin` directly
 over `todo_backend_rust::commands(store)` and `TodoStore::new()` (both
 added by step 0b's library split; neither exists today: the backend is a
 binary crate), returning each as
-`PluginCommand::Definition`, one in-memory store per host process, and its manifest declares the eleven commands with their
-schemas from the backend, `todo-clear`'s confirmation prompt, effects
-`["plugin-state"]` on the eight that change the store and `["inspect"]` on
-`todo-get`, `todo-list` and `todo-stats`, `domains = ["todo"]` and no grants.
+`PluginCommand::Definition`, one in-memory store per host process, and its manifest declares the thirteen commands with their
+schemas from the backend, `todo-clear`'s confirmation prompt, `destructive`
+on `todo-delete`, `todo-delete-batch` and `todo-clear`, the backend's
+`todo-reading` and `todo-editing` contexts, effects
+`["plugin-state"]` on the nine that change the store and `["inspect"]` on
+`todo-get`, `todo-list`, `todo-stats` and `todo-history`, `domains = ["todo"]` and no grants.
+(Thirteen since the to-do reference plan's phase 5, 2026-11-16; eleven before.) The backend
+holds `todo-clear` for any caller that is not a person, a per-call policy a manifest cannot
+declare, so the plugin drops it and under Umbel the clear is gated by its confirmation prompt
+alone ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
 Its `umbel-todo` binary calls `umbel::cli::run` with a `configure` hook
 that adds the plugin through `with_compiled`.
 Because the store is in memory, several host processes on one workspace each
@@ -1793,7 +1799,9 @@ below and its `conformance` job, and four runs succeed in it:
    kind `mounted`, `prefix = "todo"`, `transport = "http"`, `bearer =
    "none"`, `[[mount.tools]]` entries giving `todo-get`, `todo-list` and
    `todo-stats` `effects = ["inspect"]`, the other eight
-   `["plugin-state"]`, and `todo-clear` its confirmation prompt. The runner
+   `["plugin-state"]`, and `todo-clear` its confirmation prompt (since
+   2026-11-16: thirteen tools, `todo-history` `inspect` and `todo-restore`
+   `plugin-state`, and `destructive = true` on the deletes and the clear). The runner
    starts the backend as for `--backend rs`, writes `url =
    "http://127.0.0.1:<backend port>/mcp"` and `required = true` into the
    instance, then starts `umbel serve --http`. The backend's tool names
@@ -1873,7 +1881,7 @@ section it covers.
 | `plugin_scaffold.rs` | `plugin-new` for each kind into a temporary directory, and `plugin-check` passing on each, through the stock binary without the `testkit` feature; `boot` is `skip` for a mount without `spawn=true` and spawns it with; `plugin-check` failing cases for a bad manifest, a bad skill and a component importing too much |
 | `hello_three_ways.rs` | The exit run 1 above |
 | `plugins/hello/tests/hello.rs` | The SDK's `Outcome` equals AFD's wire format; `hello-greet` with the default pack and with an override, through `TestHost::compiled` |
-| `plugins/todo/tests/todo.rs` | The eleven todo commands are registered as the todo plugin's, with `todo-clear`'s confirmation prompt; the manifest's schemas and effects equal the backend's definitions (so a backend change that the manifest misses fails here); one call each |
+| `plugins/todo/tests/todo.rs` | The thirteen todo commands (eleven before 2026-11-16) are registered as the todo plugin's, with `todo-clear`'s confirmation prompt; the manifest's schemas and effects equal the backend's definitions (so a backend change that the manifest misses fails here); one call each |
 | `sdk/` unit tests | `Outcome` serialization; `Cx` answering `NotGranted` |
 
 Existing tests that change: `doctor.rs` (the `plugins.none` cases move to
@@ -2155,7 +2163,7 @@ API, not tiered features; `component-model-async` is not enabled).
 | 13 (run 4), `todo-http` | "The backend's tool names already start with `todo-`, so the renamed commands keep their names" | They do not appear in `tools/list`: the Rust backend's default strategy is **grouped** (since #526), so it lists the meta-tools and one `todo` tool whose actions are the commands, and the mount failed with "the manifest names the tool `todo-get`, which the server does not list". The backend gains `TOOL_STRATEGY` (`grouped`, the default and unchanged, or `individual`; `ServerConfig::strategy`, `main.rs`, README, two tests), and the runner starts the mounted run's backend with `TOOL_STRATEGY=individual`. The `todo-http` fixture and every name in it are as the specification gave them | A mount renames the tools the server lists; the grouped strategy lists one tool per group. Every strategy still routes every command by its own name, so the shared suite is unchanged |
 | 13 | `test:conformance:umbel` runs `cargo build --locked --manifest-path ../../../endpoints/umbel/Cargo.toml -p umbel-plugin-todo --bin umbel-todo` | `(cd ../../../endpoints/umbel && cargo build --locked ...)`, the same for the new `test:conformance:umbel-mounted` (stock `umbel`, then the Rust backend). The runner finds the binaries in `$CARGO_TARGET_DIR/debug`, else `endpoints/umbel/target/debug` | rustup picks the toolchain from the working directory, not from `--manifest-path`: from the todo example the build used the machine's default compiler and failed the crate's MSRV |
 | 13 | The `conformance` job runs `afd validate --surface --strict` against "an Umbel server with hello and todo enabled" | `umbel-todo` carries hello in its compiled catalog beside todo (hello loads only where `plugins.enabled` names it), so one binary serves both. `endpoints/umbel/tests/scripts/external-clients.sh` starts it, then runs `afd connect`, `afd validate --surface --strict` and `afd scenario run` with the bearer header. `--strict` fails on the 19 warnings of three surface rules about text this step may not change (`src/` is off limits and the todo schemas are fixed by the shared suites), so the script suppresses `description-quality`, `schema-overlap` and `schema-complexity` by rule; every other rule stays strict (see the follow-up) | The validator reports warnings on Umbel's built-in descriptions (no action verb) and the todo example's `todo-get`/`todo-toggle`/`todo-delete` overlap and `todo-list` and `event-list` complexity |
-| 10.5 | `umbel-plugin-todo` implements `CompiledPlugin` over `commands(store)` | As written, with: the manifest at the crate root (`umbel-plugin.toml`) and the eleven input schemas as files under `schemas/`, generated from `todo_backend_rust::commands` and embedded by `build.rs`; the manifest also states `category`, `version` and, for `todo-clear`, `destructive`; the store belongs to the `Todo` value (shared by every seal in a process); the crate depends on `umbel` with `default-features = false, features = ["cli"]` (no component or mounted loader, so no wasmtime) and on `umbel-plugin-hello` for the binary's catalog. `plugins/todo/tests/todo.rs` has five tests: the plugin's commands and `todo-clear`'s prompt, the manifest equal to the backend (schemas file by file, descriptions, effects, prompts), one call each, a refused input, and the mounted fixture declaring the same effects and prompt | The schemas must equal the backend's exactly or the host refuses the definition |
+| 10.5 | `umbel-plugin-todo` implements `CompiledPlugin` over `commands(store)` | As written, with: the manifest at the crate root (`umbel-plugin.toml`) and the input schemas as files under `schemas/` (eleven, thirteen since 2026-11-16), generated from `todo_backend_rust::commands` and embedded by `build.rs`; the manifest also states `category`, `version`, `contexts` and, for `todo-clear` and (since phase 1 of the to-do reference plan) the two deletes, `destructive`; the store belongs to the `Todo` value (shared by every seal in a process); the crate depends on `umbel` with `default-features = false, features = ["cli"]` (no component or mounted loader, so no wasmtime) and on `umbel-plugin-hello` for the binary's catalog. `plugins/todo/tests/todo.rs` has five tests: the plugin's commands and `todo-clear`'s prompt, the manifest equal to the backend (schemas file by file, descriptions, effects, prompts), one call each, a refused input, and the mounted fixture declaring the same effects and prompt | The schemas must equal the backend's exactly or the host refuses the definition |
 | 14 (`plugin-isolation`) | A job "on pull requests" | `if: github.event_name == 'pull_request'`, a full checkout, and `git diff --name-only origin/<base>...HEAD`; it fails naming the files of both sides. The workflow's path filters gain `packages/examples/todo/**` and `packages/cli/**`, which the `conformance` job exercises | As specified; a change to the suite or the CLI must run the job |
 
 ## Amendments from step 7

@@ -265,7 +265,9 @@ export const Probe = { render() {
 					changed = await readModule(`${server.url}${path}`);
 					expect(responseMap(changed).sourcesContent).toEqual([edited]);
 				},
-				{ timeout: 3000 }
+				// The watcher's event and Vite's invalidation; a shared machine's file events have taken over
+				// 4 s, which a 3 s wait failed on while the server was right.
+				{ timeout: 15_000 }
 			);
 			expect(changed).not.toBe(first);
 			expect(await answerFrom(changed)).toBe(84);

@@ -1,9 +1,9 @@
-use super::{not_found, ok, schema, Command};
+use super::{not_found, ok, schema, stamp, todo_id_in, Command, Reply, EXAMPLE_ID};
 use crate::store::{Changes, TodoStore};
 use crate::types::Priority;
-use afd::{failure, CommandError, CommandResult};
+use afd::{failure, CommandContext, CommandError, CommandExample, CommandResult};
 use serde::Deserialize;
-use serde_json::{json, Value};
+use serde_json::{json, Map, Value};
 use std::sync::Arc;
 
 pub struct Update(pub Arc<TodoStore>);
@@ -20,24 +20,47 @@ pub struct Input {
 impl Command for Update {
     type Input = Input;
     const NAME: &'static str = "todo-update";
-    const DESCRIPTION: &'static str = "Update a todo's title, description, priority or status";
+    const TITLE: &'static str = "Update a todo";
+    const DESCRIPTION: &'static str =
+        "Update a todo's title, description, priority or completion; the result names the undo";
+    const TAGS: &'static [&'static str] = &["todo", "update", "write", "single"];
     const MUTATION: bool = true;
+    const UNDOABLE: bool = true;
 
     fn schema() -> Value {
         json!({
             "type": "object",
             "properties": {
                 "id": schema::id(),
-                "title": schema::title(),
-                "description": schema::description(),
-                "priority": schema::priority("New priority"),
-                "completed": { "type": "boolean", "description": "New completion status" }
+                "title": schema::title("New title"),
+                "description": schema::description("New description; an empty one removes it"),
+                "completed": { "type": "boolean", "description": "Mark completed or pending" },
+                "priority": schema::priority("New priority")
             },
             "required": ["id"]
         })
     }
 
-    fn run(&self, input: Input) -> CommandResult<Value> {
+    fn output() -> Value {
+        schema::todo()
+    }
+
+    fn examples() -> Vec<CommandExample> {
+        vec![CommandExample::new(
+            "Rename and reprioritise",
+            json!({
+                "id": EXAMPLE_ID,
+                "title": "Order seed potatoes and onions",
+                "priority": "high"
+            }),
+        )]
+    }
+
+    fn changed(data: &Value) -> Vec<String> {
+        todo_id_in(data)
+    }
+
+    fn run(&self, input: Input, context: &CommandContext) -> CommandResult<Value> {
         let changes = Changes {
             title: input.title,
             description: input.description,
@@ -53,11 +76,41 @@ impl Command for Update {
                     .with_retryable(false),
             );
         }
+        let Some(existing) = self.0.get(&input.id) else {
+            return failure(not_found(&input.id));
+        };
 
-        match self.0.update(&input.id, changes) {
+        // The summary and the undo, before the changes move into the store. The undo sets each
+        // changed field back; a description that was absent comes back as "", which the store
+        // treats as none.
+        let mut summary: Vec<String> = Vec::new();
+        let mut previous = Map::new();
+        previous.insert("id".into(), json!(input.id));
+        if let Some(title) = &changes.title {
+            summary.push(format!("title to \"{title}\""));
+            previous.insert("title".into(), json!(existing.title));
+        }
+        if changes.description.is_some() {
+            summary.push("description".to_string());
+            previous.insert(
+                "description".into(),
+                json!(existing.description.clone().unwrap_or_default()),
+            );
+        }
+        if changes.completed.is_some() {
+            previous.insert("completed".into(), json!(existing.completed));
+        }
+        if let Some(priority) = changes.priority {
+            summary.push(format!("priority to {}", priority.as_str()));
+            previous.insert("priority".into(), json!(existing.priority));
+        }
+
+        match self.0.update(&input.id, changes, stamp(context).now) {
             Some(todo) => {
-                let reasoning = format!("Updated todo \"{}\"", todo.title);
-                ok(&todo, reasoning, 1.0, Vec::new())
+                let reasoning =
+                    format!("Updated {} for todo \"{}\"", summary.join(", "), todo.title);
+                let reply = Reply::new(reasoning, 1.0).undo("todo-update", Value::Object(previous));
+                ok(&todo, reply)
             }
             None => failure(not_found(&input.id)),
         }

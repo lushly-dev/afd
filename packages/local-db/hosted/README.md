@@ -71,7 +71,10 @@ AFD_TEST_HTTP_PHASE=cleanup node packages/local-db/hosted/run-phase.mjs
 
 The read phase refuses to run without `AFD_TEST_HTTP_RESTART_ACK`. It reports the revision stored
 by the write phase and the current revision. When health exposes `instanceId`, it also requires the
-instance to have changed. A passing write or read phase is only a phase receipt; neither alone is a
+instance to have changed. Write and read receipts carry `providerNode`, the Node version the serving
+process reports in health (`nodeVersion`); a service that omits it is recorded as `not-reported`, and
+the repository's fixture (`AFD_TEST_HTTP_EXPECT_FIXTURE_AUTH=1`) fails the phase instead. Save both
+receipts before the service is removed. A passing write or read phase is only a phase receipt; neither alone is a
 hosted durability pass. The H3 claim requires the write receipt, external restart evidence, read
 receipt, stable store identity, and successful cleanup receipt from the same run ID.
 
