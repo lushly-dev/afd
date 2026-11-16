@@ -5,6 +5,24 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## The fleet's command lines and `run-fleet`, 2026-11-16
+
+`factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two
+hosts over the real world for the checkout they run in, so a cell can call `lane-enqueue` and the
+foreman can leave a background `lane-wait`. Before this, only the fixture harness and the detached
+lane process could call the real host. `run-fleet`, the foreman's procedure, is the verb-noun skill
+in Botcore's format that replaces Lushly's `do-run-fleet` when Lushly moves onto the plugin
+(Phase 4); its rules are `do-run-fleet`'s, over the plugin's commands. It says what to do where a
+command is still missing (`cell-park`, `lane-revert`, `lane-handoff`), and that cells run on the
+lane host until `lane-handoff` exists. The skill listing budget rose to 6,600 under the owner's
+standing rule. PR: this branch, `lush/factory-run-fleet`.
+
+Known before the first run: on `random`, Lushly's script lane and this lane share the cores and
+the plugin's host lock cannot see Lushly's, so AFD's lane runs only while Lushly's is idle (a
+follow-up to file). A read-only probe of the real host on the MacBook Air (2026-11-15) found no
+lane host set, no machine probed, and `canStartCell` false there (7.1 GB free against
+`host.minFreeGb` 8).
+
 ## Review evidence and `prepare-pr`'s lane mode, 2026-11-15
 
 AFD's adapter now names `review_evidence`, so `lane-enqueue` no longer refuses AFD branches with
@@ -125,7 +143,7 @@ for the real output and re-check the fixes before shipping the branch.
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
 | 0. Prerequisites | Done 2026-11-13 | The proposal's [Phases](software-factory.proposal.md#phases): intake (#1100), `ci-ok` (#1123, #1136), the pre-push `pnpm verify` record (#1127), the Windows workstation (#1115, #1121, #1130, #1134) |
-| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305). Remaining as the proposal lists it: the webhook wake, experience review and `run-fleet`, then one AFD fleet run on the workstation with its numbers reported |
+| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305); the `factory` and `factory-cell` command lines and `run-fleet` (this branch). Remaining as the proposal lists it: the webhook wake and experience review, then one AFD fleet run on the workstation with its numbers reported |
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |

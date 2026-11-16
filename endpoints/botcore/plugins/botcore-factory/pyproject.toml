@@ -42,6 +42,8 @@ gateway = [
 ]
 
 [project.scripts]
+factory = "botcore_factory.cli:factory_cli"
+factory-cell = "botcore_factory.cli:cell_cli"
 factory-gateway = "botcore_factory.gateway.cli:client_cli"
 factory-gateway-admin = "botcore_factory.gateway.cli:admin_cli"
 
