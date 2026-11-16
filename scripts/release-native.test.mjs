@@ -4,6 +4,7 @@ import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'nod
 import { tmpdir } from 'node:os';
 import { dirname, join, resolve } from 'node:path';
 import test from 'node:test';
+import { python3 } from './release/exec-tool.mjs';
 
 const guard = resolve('scripts/release-native.py');
 const inventory = JSON.parse(readFileSync('scripts/release/inventory.json', 'utf8'));
@@ -107,7 +108,8 @@ function fixture(t, track = 'python', change = () => {}, candidateVersion, manif
 	mkdirSync(artifacts);
 	const receipt = join(root, 'receipt.json');
 	function check(extra = []) {
-		return run('python3', [
+		return run(python3().file, [
+			...python3().args,
 			guard,
 			'--root',
 			root,
@@ -121,7 +123,7 @@ function fixture(t, track = 'python', change = () => {}, candidateVersion, manif
 		]);
 	}
 	function archive(file, entries) {
-		const result = run('python3', ['-c', archiveWriter], {
+		const result = run(python3().file, [...python3().args, '-c', archiveWriter], {
 			input: JSON.stringify({ file: join(artifacts, file), entries }),
 		});
 		assert.equal(result.status, 0, result.stderr);
@@ -528,7 +530,8 @@ test('Botcore: the guard has no track for the quarantined distributions', (t) =>
 	for (const unit of inventory.units.filter(
 		(item) => item.family === 'botcore' && item.id !== 'botcore'
 	)) {
-		const result = run('python3', [
+		const result = run(python3().file, [
+			...python3().args,
 			guard,
 			'--root',
 			candidate.root,

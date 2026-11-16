@@ -67,3 +67,61 @@ export function tarCommand(platform = process.platform, environment = process.en
 	const root = environment.SystemRoot ?? environment.windir;
 	return root ? win32.join(root, 'System32', 'tar.exe') : 'tar.exe';
 }
+
+/** The interpreter's major/minor version, or undefined when it cannot be read. */
+function pythonVersion(file, args) {
+	const probe = spawnSync(
+		file,
+		[...args, '-c', 'import sys; print("%s.%s" % sys.version_info[:2])'],
+		{
+			encoding: 'utf8',
+			stdio: ['ignore', 'pipe', 'ignore'],
+			timeout: 10_000,
+		}
+	);
+	if (probe.status !== 0) return undefined;
+	const match = /^(\d+)\.(\d+)\s*$/.exec(probe.stdout);
+	return match ? [Number(match[1]), Number(match[2])] : undefined;
+}
+
+let python;
+
+/**
+ * A Python 3.11+ interpreter for native release checks, as `{ file, args }` (they use tomllib).
+ * Elsewhere it is `python3`, unprobed. On Windows, App Execution Aliases put Microsoft Store
+ * stubs named `python3` and `python` on `PATH`,
+ * which exit 9009 instead of running, so there it is `PYTHON` when set, else the first of
+ * `python3`, `python` and the `py -3` launcher that meets that version. Throws on Windows otherwise.
+ */
+export function pythonCommand({
+	environment = process.env,
+	platform = process.platform,
+	version = pythonVersion,
+} = {}) {
+	if (platform !== 'win32') return { file: 'python3', args: [] };
+	const configured = environment.PYTHON;
+	const candidates = configured
+		? [{ file: configured, args: [] }]
+		: [
+				{ file: 'python3', args: [] },
+				{ file: 'python', args: [] },
+				{ file: 'py', args: ['-3'] },
+			];
+	const found = candidates.find(({ file, args }) => {
+		const detected = version(file, args);
+		return detected?.[0] === 3 && detected[1] >= 11;
+	});
+	if (found) return found;
+	throw new Error(
+		configured
+			? `PYTHON=${configured} does not run Python 3.11 or newer`
+			: `No Python 3.11 or newer runs as ${candidates.map(({ file, args }) => [file, ...args].join(' ')).join(', ')}. ` +
+					'On Windows, python3 and python may be the Microsoft Store stubs: install Python (or uv python install), put it first on PATH or set PYTHON, or turn the App execution aliases off.'
+	);
+}
+
+/** {@link pythonCommand} for this process, found once. */
+export function python3() {
+	python ??= pythonCommand();
+	return python;
+}

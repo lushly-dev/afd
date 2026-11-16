@@ -156,6 +156,10 @@ test('rejects traversal, external paths, symlink resources and redirected mirror
 	await rm(path.join(root, '.agents/skills'));
 	await symlink('../bundled', path.join(root, '.agents/skills'));
 	await assert.rejects(syncProfiles(root, { write: true }), /Invalid skill mirror/);
+	// A link Git checked out as a file names the fix.
+	await rm(path.join(root, '.agents/skills'));
+	await writeFile(path.join(root, '.agents/skills'), '../.claude/skills');
+	await assert.rejects(syncProfiles(root, { write: true }), /is a file, not a symbolic link/);
 	await rm(path.join(root, '.agents/skills'));
 	await symlink('../.claude/skills', path.join(root, '.agents/skills'));
 	await put('.claude/skills/review-code/references/guide.md', 'local');
