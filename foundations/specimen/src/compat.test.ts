@@ -10,17 +10,15 @@ import { createSpecimenBench, DiscoveryError } from './bench.js';
 // fixtures, and the two must agree on every identity and on what fails to index.
 const run = promisify(execFile);
 const compat = resolve(import.meta.dirname, '../compat');
-const storybook = resolve(import.meta.dirname, '../node_modules/.bin/storybook');
+const storybook = resolve(import.meta.dirname, '../node_modules/storybook/dist/bin/dispatcher.js');
 let scratch: string;
 
 /**
- * Run a `node_modules/.bin` command. Windows installs it as a `.cmd` shim, which Node starts
- * only through cmd.exe, so there its path and arguments become one quoted command line.
+ * Invoke the installed JavaScript CLI directly, so paths and arguments never pass through
+ * cmd.exe on Windows.
  */
 function runBin(command: string, args: string[], options: ExecFileOptions) {
-	if (process.platform !== 'win32') return run(command, args, options);
-	const line = [`${command}.cmd`, ...args].map((part) => (/\s/.test(part) ? `"${part}"` : part));
-	return run(line.join(' '), [], { ...options, shell: true });
+	return run(process.execPath, [command, ...args], options);
 }
 
 interface IndexEntry {

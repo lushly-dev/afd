@@ -12,17 +12,15 @@ import type { StoryRun } from './types.js';
 // kind of reason, and each fixture must end the way it was written to.
 const run = promisify(execFile);
 const compat = resolve(import.meta.dirname, '../compat');
-const vitest = resolve(import.meta.dirname, '../node_modules/.bin/vitest');
+const vitest = resolve(import.meta.dirname, '../node_modules/vitest/vitest.mjs');
 let scratch: string;
 
 /**
- * Run a `node_modules/.bin` command. Windows installs it as a `.cmd` shim, which Node starts
- * only through cmd.exe, so there its path and arguments become one quoted command line.
+ * Invoke the installed JavaScript CLI directly, so paths and arguments never pass through
+ * cmd.exe on Windows.
  */
 function runBin(command: string, args: string[], options: ExecFileOptions) {
-	if (process.platform !== 'win32') return run(command, args, options);
-	const line = [`${command}.cmd`, ...args].map((part) => (/\s/.test(part) ? `"${part}"` : part));
-	return run(line.join(' '), [], { ...options, shell: true });
+	return run(process.execPath, [command, ...args], options);
 }
 
 interface IncumbentTest {
