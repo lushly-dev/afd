@@ -91,6 +91,7 @@ EJECT_CAUSES = (
     "ci-failed",
     "merge-failed",
     "coverage-failed",
+    "pr-closed",
 )
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})

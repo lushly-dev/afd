@@ -130,7 +130,7 @@ async def test_a_dead_lane_is_noticed_by_status_and_wait(make_run):
 
 def test_run_loop_takes_the_lock_steps_and_ends_the_run(make_run):
     run = make_run("running", lane={"running": False})
-    lock_of(run).release()
+    lock_of(run).release(FIXTURE_LANE_PID)
     slept = []
     result = run_loop(run.factory(), steps=3, sleep=slept.append, poll=0)
     assert result["steps"] == 3 and len(slept) == 2
@@ -153,7 +153,7 @@ def test_run_loop_refuses_while_another_lane_runs(make_run):
 
 def test_a_restarted_lane_lands_what_merged_meanwhile(make_run):
     run = make_run("running", lane={"running": False})
-    lock_of(run).release()
+    lock_of(run).release(FIXTURE_LANE_PID)
     from test_lane import run_steps
 
     run.change_world(outcomes={"checks": {"feat/export-csv": "pending"}})
@@ -174,3 +174,155 @@ async def test_the_lock_is_one_per_host(make_run, tmp_path):
     assert result.error.code == "LANE_LOCKED" and "other/repo" in result.error.message
     lock.release(pid=12345)  # Not the holder: nothing happens.
     assert lock.holder()["pid"] == os.getpid()
+
+
+# B3: a status read never kills, and nothing is killed that is not provably the lane.
+
+
+async def test_a_status_read_marks_a_dead_lane_stopped_and_kills_nothing(make_run):
+    run = make_run("running")
+    from test_lane import run_steps
+
+    run.change_world(outcomes={"validate": {"feat/export-csv": "running"}})
+    run_steps(run)
+    [handle] = run.world_data()["processes"]["running"]
+    data = run.world_data()
+    data["processes"]["alive"].remove(FIXTURE_LANE_PID)
+    run.world_path.write_text(json.dumps(data))
+    status = (await run.call("lane_status")).data
+    assert status["running"] is False
+    processes = run.world_data()["processes"]
+    assert "killed" not in processes and handle in processes["running"]
+    entry = run.state()["queue"][0]
+    assert (entry["branch"], entry["state"], entry["run"]) == (
+        "feat/export-csv",
+        "validating",
+        handle,
+    )
+    # The next lane takes it up: the orphaned job is killed, never left running in its slot.
+    from botcore_factory.lane_process import resume
+
+    resume(run.factory())
+    assert handle not in run.world_data()["processes"]["running"]
+    queue = run.state()["queue"]
+    assert (queue[0]["branch"], queue[0]["state"]) == ("feat/export-csv", "queued")
+
+
+async def test_a_reused_pid_is_never_stopped(make_run):
+    run = make_run("running")
+    run.change_world(processes={"startTimes": {str(FIXTURE_LANE_PID): 99.0}})  # Another process.
+    assert (await run.call("lane_stop")).data == {"running": False}
+    processes = run.world_data()["processes"]
+    assert FIXTURE_LANE_PID in processes["alive"] and "killed" not in processes
+
+
+async def test_a_lock_without_a_start_time_is_never_acted_on(make_run):
+    run = make_run("running")
+    lock = lock_of(run)
+    holder = lock.holder()
+    holder.pop("startedAt")
+    lock.path.write_text(json.dumps(holder))
+    result = await run.call("lane_stop")
+    assert result.error.code == "LANE_LOCKED" and "could not be confirmed" in result.error.message
+    assert FIXTURE_LANE_PID in run.world_data()["processes"]["alive"]
+    assert lock.holder()["pid"] == FIXTURE_LANE_PID
+
+
+async def test_lane_stop_kills_the_verified_lane(make_run):
+    run = make_run("running")
+    assert (await run.call("lane_stop")).data == {"running": False}
+    assert run.world_data()["processes"]["killed"] == [FIXTURE_LANE_PID]
+
+
+# S9: the lock is one per machine; stopping one repository's lane leaves another's alone.
+
+
+async def test_lane_stop_leaves_another_repository_s_lane_alone(make_run):
+    run = make_run("running")
+    lock = lock_of(run)
+    lock.path.write_text(json.dumps({**lock.holder(), "repository": "other/repo"}))
+    assert (await run.call("lane_stop")).data == {"running": False}
+    assert FIXTURE_LANE_PID in run.world_data()["processes"]["alive"]
+    assert lock.holder()["repository"] == "other/repo"
+    assert run.state()["lane"]["running"] is False
+
+
+# S4 and S7: the foreground loop outlasts a busy state lock, and refuses as lane-start does.
+
+
+def test_run_loop_waits_out_a_busy_state_lock(make_run, monkeypatch):
+    from botcore_factory import lane_process
+    from botcore_factory.state import StateLocked
+
+    run = make_run("running", lane={"running": False})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    real, calls = lane_process.step, []
+
+    def busy_once(factory):
+        calls.append(1)
+        if len(calls) == 1:
+            raise StateLocked("a command holds the state lock")
+        return real(factory)
+
+    monkeypatch.setattr(lane_process, "step", busy_once)
+    slept = []
+    result = run_loop(run.factory(), steps=2, sleep=slept.append, poll=0)
+    assert result["steps"] == 2 and len(calls) == 3 and len(slept) == 2
+
+
+RUN_REFUSALS = [
+    ({"requiredCheckOnMain": False}, "REQUIRED_CHECK_MISSING"),
+    ({"laneHost": "mini"}, "NOT_LANE_HOST"),
+]
+
+
+@pytest.mark.parametrize("overrides,code", RUN_REFUSALS, ids=[r[1] for r in RUN_REFUSALS])
+def test_run_loop_refuses_on_lane_start_s_grounds(make_run, overrides, code):
+    from botcore_factory.runtime import Refusal
+
+    run = make_run("running", lane={"running": False}, **overrides)
+    lock_of(run).release(FIXTURE_LANE_PID)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(), steps=1, sleep=lambda _: None)
+    assert refused.value.code == code
+    assert lock_of(run).holder() is None
+
+
+def test_run_loop_refuses_a_toolchain_off_the_pins(make_run, tmp_path, example_repo):
+    from botcore_factory.runtime import Refusal
+
+    target = tmp_path / "pinned"
+    (target / ".github").mkdir(parents=True)
+    (target / "botcore.toml").write_bytes((example_repo / "botcore.toml").read_bytes())
+    labels = (example_repo / ".github" / "labels.json").read_bytes()
+    (target / ".github" / "labels.json").write_bytes(labels)
+    (target / "package.json").write_text(json.dumps({"packageManager": "pnpm@10.30.1"}))
+    run = make_run("running", lane={"running": False}, toolchains={"pnpm": "9.15.0"})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(target), steps=1, sleep=lambda _: None)
+    assert refused.value.code == "TOOLCHAIN_MISMATCH"
+
+
+# Nits: the host lock's write grace, and release only by its holder.
+
+
+def test_a_lock_being_written_counts_as_held_and_an_abandoned_one_is_broken(make_run):
+    from botcore_factory.lock import WRITING_GRACE_SECONDS, LaneLocked
+
+    run = make_run(laneHost="workstation")
+    lock = lock_of(run)
+    lock.path.parent.mkdir(parents=True, exist_ok=True)
+    lock.path.write_text("")  # Another process is between creating and writing it.
+    assert lock.live_holder() == {"pid": None, "writing": True}
+    with pytest.raises(LaneLocked):
+        lock.acquire(os.getpid())
+    lock.release(os.getpid())
+    assert lock.path.exists()
+    old = lock.path.stat().st_mtime - WRITING_GRACE_SECONDS - 1
+    os.utime(lock.path, (old, old))
+    assert lock.live_holder() is None
+    lock.acquire(os.getpid(), repository="o/r")
+    assert lock.holder()["pid"] == os.getpid()
+    lock.release(os.getpid())
+    assert lock.holder() is None

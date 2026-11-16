@@ -149,6 +149,7 @@ class Completed:
     returncode: int
     stdout: str = ""
     stderr: str = ""
+    step: str | None = None  # The job step that failed (``install``, ``validate``), if any.
 
 
 @runtime_checkable
@@ -193,12 +194,14 @@ class GitHub(Protocol):
         """Open a PR from ``branch`` to the default branch, or return the open one's number."""
         ...
 
-    def check_status(self, pr: int, name: str) -> str:
-        """The PR's check ``name``: ``success``, ``failure``, ``pending`` or ``missing``."""
+    def check_status(self, pr: int, name: str, head: str) -> str:
+        """Check ``name`` on commit ``head`` (never another head of the PR): ``success``,
+        ``failure``, ``cancelled``, ``pending`` or ``missing``."""
         ...
 
     def merge_pr(self, pr: int, head: str) -> None:
-        """Squash-merge the PR, only if its head is still ``head``."""
+        """Squash-merge the PR, only if its head is still ``head``. A failure may still have
+        merged it: read ``pr_state`` before deciding."""
         ...
 
     def pr_state(self, pr: int) -> str:
@@ -246,8 +249,9 @@ class Git(Protocol):
         """A file in a worktree (a PR body), or None when it is not there."""
         ...
 
-    def fetch_main(self) -> str:
-        """Fetch origin and return the default branch's head. Failing is the lane's trouble."""
+    def fetch_base(self, base: str) -> str:
+        """Fetch origin and return the head of its ``base`` branch. Failing is the lane's
+        trouble."""
         ...
 
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
@@ -259,13 +263,15 @@ class Git(Protocol):
 
     def merge_main(self, path: str, main: str) -> MergeOutcome:
         """Merge ``main`` into the slot's head. A conflict is aborted and reported, never
-        resolved."""
+        resolved; a merge that failed otherwise raises WorldError (never reported clean)."""
         ...
 
     def tree(self, path: str) -> str: ...
 
-    def push_branch(self, path: str, branch: str) -> str:
-        """Push the slot's HEAD to ``branch`` on origin (no force); the head pushed."""
+    def push_head(self, branch: str, head: str, lease: str | None) -> None:
+        """Push commit ``head`` to ``branch`` on origin. With ``lease`` (the head the lane last
+        pushed there), a forced push that refuses if origin moved from it; without, a fast
+        forward. A refusal's message says ``rejected``."""
         ...
 
 
@@ -336,15 +342,19 @@ class Processes(Protocol):
         """
         ...
 
-    def start(self, args: Sequence[str], cwd: str, log: str, *, label: str) -> str:
-        """Start a background run writing its output to ``log``; a handle to poll."""
+    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+        """Start a background job: ``steps`` (``{label, args, timeout?}``) run in order until
+        one fails, their output appended to ``log``. A handle to poll."""
         ...
 
     def poll(self, handle: str) -> Completed | None:
-        """The finished run (``stdout`` carries its log's tail), or None while it runs."""
+        """The finished job (``stdout`` its log's tail, ``step`` the step that failed), or None
+        while it runs. Raises WorldError for a handle this process did not start."""
         ...
 
-    def kill(self, handle: str) -> None: ...
+    def kill(self, handle: str) -> None:
+        """Kill a job and every process it started, if it is still the one started."""
+        ...
 
     def start_detached(self, args: Sequence[str], cwd: str, log: str) -> int:
         """Start a process that outlives this one (the lane); its pid.
@@ -353,7 +363,10 @@ class Processes(Protocol):
         """
         ...
 
-    def terminate(self, pid: int) -> None: ...
+    def terminate(self, pid: int, started_at: float | None) -> bool:
+        """Kill ``pid`` and its children, only when it is still the process that started at
+        ``started_at`` (never a reused pid); whether it did."""
+        ...
 
 
 @dataclass(frozen=True)

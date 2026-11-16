@@ -192,25 +192,53 @@ class GhGitHub:
 
     def open_pr(self, branch: str, title: str, body: str) -> int:
         found = parse_json(
-            self.run(["gh", "pr", "list", "--head", branch, "--state", "open", "--json", "number"]),
+            self.run(
+                [
+                    "gh",
+                    "pr",
+                    "list",
+                    "--head",
+                    branch,
+                    "--state",
+                    "open",
+                    "--json",
+                    "number,isCrossRepository",
+                ]
+            ),
             "gh pr list",
         )
-        if found:
-            return int(found[0]["number"])
+        # A fork's branch of the same name is not the lane's.
+        own = [pr for pr in found if not pr.get("isCrossRepository")]
+        if own:
+            return int(own[0]["number"])
         url = self.run(
             ["gh", "pr", "create", "--head", branch, "--title", title, "--body-file", "-"], body
         ).strip()
         return int(url.rstrip("/").rsplit("/", 1)[-1])
 
-    def check_status(self, pr: int, name: str) -> str:
-        # gh exits nonzero while checks fail or are pending; its JSON still says which.
-        out = self.run(["gh", "pr", "checks", str(pr), "--json", "name,bucket"], None, False)
-        for check in parse_json(out.strip() or "[]", "gh pr checks"):
-            if check.get("name") == name:
-                bucket = check.get("bucket", "")
-                return {"pass": "success", "fail": "failure", "cancel": "failure"}.get(
-                    bucket, "pending"
-                )
+    def check_status(self, pr: int, name: str, head: str) -> str:
+        """The check run (else the commit status) called ``name`` on ``head`` itself."""
+        repository = self.repository()
+        runs = parse_json(
+            self.run(["gh", "api", f"repos/{repository}/commits/{head}/check-runs?per_page=100"]),
+            "gh api check-runs",
+        ).get("check_runs", [])
+        mine = [run for run in runs if run.get("name") == name]
+        if mine:
+            latest = max(mine, key=lambda run: run.get("started_at") or "")
+            if latest.get("status") != "completed":
+                return "pending"
+            conclusion = latest.get("conclusion")
+            if conclusion == "success":
+                return "success"
+            return "cancelled" if conclusion in ("cancelled", "stale", "skipped") else "failure"
+        statuses = parse_json(
+            self.run(["gh", "api", f"repos/{repository}/commits/{head}/status"]), "gh api status"
+        ).get("statuses", [])
+        for status in statuses:
+            if status.get("context") == name:
+                state = status.get("state")
+                return {"success": "success", "pending": "pending"}.get(state, "failure")
         return "missing"
 
     def merge_pr(self, pr: int, head: str) -> None:
@@ -329,14 +357,18 @@ class CliGit:
         return True
 
     def read_file(self, worktree: str, path: str) -> str | None:
+        root = Path(worktree).resolve()
+        target = (root / path).resolve()
+        if not target.is_relative_to(root):
+            return None  # Outside the worktree: never read.
         try:
-            return (Path(worktree) / path).read_text(encoding="utf-8")
+            return target.read_text(encoding="utf-8")
         except OSError:
             return None
 
-    def fetch_main(self) -> str:
+    def fetch_base(self, base: str) -> str:
         self.run(["git", "fetch", "--quiet", "--no-tags", "origin"])
-        return self.run(["git", "rev-parse", "origin/HEAD"]).strip()
+        return self.run(["git", "rev-parse", f"refs/remotes/origin/{base}"]).strip()
 
     def _slot_path(self, slot: str) -> str:
         common = self.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
@@ -344,7 +376,7 @@ class CliGit:
 
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         path = self._slot_path(slot)
-        if branch != "main":
+        if branch:  # A queued branch; the base's coverage checks origin's head out instead.
             self.run(
                 [
                     "git",
@@ -371,15 +403,28 @@ class CliGit:
         if files:
             self.run(["git", "-C", path, "merge", "--abort"])
             return MergeOutcome(False, conflicts=files)
+        # No conflict is not a merge: the base must now be in the head's history.
+        if not self._ancestor(path, main):
+            raise WorldError(f"Merging {main} into the slot did not happen")
         return MergeOutcome(True, head=self.head(path))
+
+    def _ancestor(self, path: str, commit: str) -> bool:
+        try:
+            self.run(["git", "-C", path, "merge-base", "--is-ancestor", commit, "HEAD"])
+        except WorldError:
+            return False
+        return True
 
     def tree(self, path: str) -> str:
         return self.run(["git", "-C", path, "rev-parse", "HEAD^{tree}"]).strip()
 
-    def push_branch(self, path: str, branch: str) -> str:
-        head = self.head(path)
-        self.run(["git", "-C", path, "push", "--quiet", "origin", f"HEAD:refs/heads/{branch}"])
-        return head
+    def push_head(self, branch: str, head: str, lease: str | None) -> None:
+        """From the lane's checkout (slots share its objects), so the head pushed is the one
+        validated, whatever its slot holds now."""
+        args = ["git", "push", "--quiet", "--porcelain"]
+        if lease:
+            args.append(f"--force-with-lease=refs/heads/{branch}:{lease}")
+        self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
 
 
 def real_world(target: Path, *, caches: Path | None = None) -> World:

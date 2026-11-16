@@ -174,6 +174,13 @@ class T3Plans:
 
 
 class OsProcesses:
+    """This machine's processes. Background jobs and the detached lane start in their own
+    process group (POSIX: a new session), so killing one kills everything it started; nothing
+    is killed unless it is still the process that started then (pid and start time)."""
+
+    def __init__(self) -> None:
+        self._running: dict[str, tuple[subprocess.Popen, str, tuple[str, ...]]] = {}
+
     def alive(self, pid: int, started_at: float | None = None) -> bool:
         if not _exists(pid):
             return False
@@ -183,9 +190,11 @@ class OsProcesses:
         return actual is None or abs(actual - started_at) < 2
 
     def start_time(self, pid: int) -> float | None:
-        with contextlib.suppress(OSError, ValueError, IndexError, AttributeError):
+        with contextlib.suppress(OSError, ValueError, IndexError, AttributeError, WorldError):
             if sys.platform == "win32":
                 return _windows_start_time(pid)
+            if sys.platform == "darwin":
+                return _darwin_start_time(pid)
             if Path(f"/proc/{pid}/stat").exists():
                 fields = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()
                 boot = next(
@@ -206,47 +215,38 @@ class OsProcesses:
     ) -> Completed:
         return run_process(args, cwd=cwd, timeout=timeout)
 
-    def __init__(self) -> None:
-        self._running: dict[str, tuple[subprocess.Popen, str, tuple[str, ...]]] = {}
-
-    def start(self, args: Sequence[str], cwd: str, log: str, *, label: str) -> str:
-        """A background child (the lane's validations), its output appended to ``log``."""
-        Path(log).parent.mkdir(parents=True, exist_ok=True)
-        with open(log, "ab") as output:
-            try:
-                child = subprocess.Popen(  # noqa: S603 - an argument list, no shell
-                    [resolve_program(args[0]), *args[1:]],
-                    cwd=cwd,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                )
-            except OSError as exc:
-                raise WorldError(f"{args[0]} could not start: {exc}") from exc
-        handle = str(child.pid)
-        self._running[handle] = (child, log, tuple(args))
+    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+        """``python -m botcore_factory.job`` in its own group, its output appended to ``log``."""
+        args = (sys.executable, "-m", "botcore_factory.job", json.dumps({"steps": list(steps)}))
+        child = _spawn(args, cwd, log, new_group())
+        handle = f"{child.pid}@{self.start_time(child.pid) or ''}"
+        self._running[handle] = (child, log, args)
         return handle
 
     def poll(self, handle: str) -> Completed | None:
         if handle not in self._running:  # Started by a lane process that has since gone.
-            raise WorldError(f"No run {handle} in this process")
+            raise WorldError(f"No job {handle} in this process")
         child, log, args = self._running[handle]
         code = child.poll()
         if code is None:
             return None
         del self._running[handle]
-        return Completed(args, code, _tail(log), "")
+        tail = _tail(log)
+        from botcore_factory.job import failure
+
+        failed = failure(tail) if code else None
+        return Completed(args, code, tail, "", (failed or {}).get("failed"))
 
     def kill(self, handle: str) -> None:
         entry = self._running.pop(handle, None)
+        pid, _, started = handle.partition("@")
         if entry is not None:
-            entry[0].kill()
+            kill_tree(entry[0].pid)
             entry[0].wait()
-        elif handle.isdigit():  # Another process's run: the handle is its pid.
-            self.terminate(int(handle))
+        elif pid.isdigit() and started:  # Another process's job: only if it is still that job.
+            self.terminate(int(pid), float(started))
 
     def start_detached(self, args: Sequence[str], cwd: str, log: str) -> int:
-        Path(log).parent.mkdir(parents=True, exist_ok=True)
         options: dict = {}
         if sys.platform == "win32":
             options["creationflags"] = (
@@ -254,32 +254,62 @@ class OsProcesses:
             )
         else:
             options["start_new_session"] = True
-        with open(log, "ab") as output:
-            try:
-                child = subprocess.Popen(  # noqa: S603 - an argument list, no shell
-                    [resolve_program(args[0]), *args[1:]],
-                    cwd=cwd,
-                    stdout=output,
-                    stderr=subprocess.STDOUT,
-                    stdin=subprocess.DEVNULL,
-                    **options,
-                )
-            except OSError as exc:
-                raise WorldError(f"{args[0]} could not start: {exc}") from exc
-        return child.pid
+        return _spawn(args, cwd, log, options).pid
 
-    def terminate(self, pid: int) -> None:
-        if sys.platform == "win32":
-            kernel32 = _kernel32()
-            handle = kernel32.OpenProcess(0x0001, False, pid)  # PROCESS_TERMINATE
-            if handle:
-                try:
-                    kernel32.TerminateProcess(handle, 1)
-                finally:
-                    kernel32.CloseHandle(handle)
-            return
-        with contextlib.suppress(ProcessLookupError):
-            os.kill(pid, 15)  # SIGTERM
+    def terminate(self, pid: int, started_at: float | None) -> bool:
+        if started_at is None:
+            return False  # Unverifiable: never kill what might be another process.
+        actual = self.start_time(pid)
+        if actual is None or abs(actual - started_at) >= 2:
+            return False
+        kill_tree(pid)
+        return True
+
+
+def new_group() -> dict:
+    """Popen options that start a process in its own group, to kill as a tree."""
+    if sys.platform == "win32":
+        return {"creationflags": subprocess.CREATE_NEW_PROCESS_GROUP}
+    return {"start_new_session": True}
+
+
+def kill_tree(pid: int) -> None:
+    """Kill ``pid`` and everything it started: taskkill /T on Windows, its group on POSIX."""
+    if sys.platform == "win32":
+        with contextlib.suppress(WorldError):
+            run_process([resolve_program("taskkill"), "/T", "/F", "/PID", str(pid)], timeout=60)
+        return
+    with contextlib.suppress(ProcessLookupError, PermissionError):
+        if os.getpgid(pid) == pid:
+            os.killpg(pid, 9)
+        else:
+            os.kill(pid, 9)
+
+
+def _spawn(args: Sequence[str], cwd: str, log: str, options: dict) -> subprocess.Popen:
+    Path(log).parent.mkdir(parents=True, exist_ok=True)
+    with open(log, "ab") as output:
+        try:
+            return subprocess.Popen(  # noqa: S603 - an argument list, no shell
+                [resolve_program(args[0]), *args[1:]],
+                cwd=cwd,
+                stdout=output,
+                stderr=subprocess.STDOUT,
+                stdin=subprocess.DEVNULL,
+                **options,
+            )
+        except OSError as exc:
+            raise WorldError(f"{args[0]} could not start: {exc}") from exc
+
+
+def _darwin_start_time(pid: int) -> float | None:
+    """``ps -o lstart=``: the start to the second, which tells a reused pid apart."""
+    import time
+
+    out = run_process(["ps", "-o", "lstart=", "-p", str(pid)]).stdout.strip()
+    if not out:
+        return None
+    return time.mktime(time.strptime(" ".join(out.split()), "%a %b %d %H:%M:%S %Y"))
 
 
 def _tail(log: str, lines: int = 200) -> str:

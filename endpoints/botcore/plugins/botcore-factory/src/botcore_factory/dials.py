@@ -42,6 +42,13 @@ DIALS: dict[str, Dial] = {
         Dial("plans.ceiling", 85, "percent", 1, 100, "Factory use of a plan's week"),
         Dial("fable.ceiling", 50, "percent", 0, 100, "Ordinary Fable routes against hard cases"),
         _int("lane.coverageEvery", 5, 1, 100, "Merges between coverage runs on main"),
+        _int(
+            "lane.checkTimeoutMinutes",
+            90,
+            5,
+            1440,
+            "How long a PR's required check may run before it is the lane's trouble",
+        ),
         Dial("claims.leaseHours", 24, "number", 1, 168, "How long a silent claim holds an issue"),
         _int("cells.maxEjections", 3, 1, 10, "Repair attempts before a branch is parked"),
         Dial("experience.hold", False, "bool", trades="Merging UI changes at once or seeing them"),

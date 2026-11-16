@@ -132,18 +132,32 @@ class FixtureGitHub:
         self.store.save()
         return number
 
-    def check_status(self, pr: int, name: str) -> str:
-        branch = self._prs()[str(pr)]["branch"]
-        return _outcome(self.store, "checks", branch, "success")
+    def check_status(self, pr: int, name: str, head: str) -> str:
+        """Bound to ``head``: a check reported for another head of the PR is not this one's.
+        ``outcomes.checksByHead[head]`` wins over ``outcomes.checks[branch]``."""
+        found = self._prs()[str(pr)]
+        if found.get("head") and found["head"] != head:
+            return "missing"
+        by_head = self.store.data.get("outcomes", {}).get("checksByHead", {})
+        if head in by_head:
+            return str(by_head[head])
+        return _outcome(self.store, "checks", found["branch"], "success")
 
     def merge_pr(self, pr: int, head: str) -> None:
+        """``outcomes.mergePr[branch]``: ``fail: ...`` refuses; ``lands-then-fail: ...`` merges
+        and still reports a failure, as a timed-out API call can."""
         found = self._prs()[str(pr)]
-        _fail(self.store, "mergePr", found["branch"])
+        result = _outcome(self.store, "mergePr", found["branch"], "ok")
+        if result.startswith("fail"):
+            raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge failed")
         if found.get("head") and found["head"] != head:
-            raise WorldError(f"PR {pr}'s head is {found['head']}, not {head}")
+            raise WorldError(f"Head branch was modified: PR {pr}'s head is {found['head']}")
         found["state"] = "MERGED"
+        found["mergedHead"] = head
         self.store.data.setdefault("main", {})["head"] = f"main@{pr}"
         self.store.save()
+        if result.startswith("lands-then-fail"):
+            raise WorldError(result.split(":", 1)[1].strip() if ":" in result else "timed out")
 
     def pr_state(self, pr: int) -> str:
         return self._prs()[str(pr)]["state"]
@@ -217,7 +231,7 @@ class FixtureGit:
     def read_file(self, worktree: str, path: str) -> str | None:
         return self._worktree(worktree).get("files", {}).get(path)
 
-    def fetch_main(self) -> str:
+    def fetch_base(self, base: str) -> str:
         _fail(self.store, "fetch")
         return self.store.data.setdefault("main", {}).get("head", "main-0")
 
@@ -240,6 +254,8 @@ class FixtureGit:
             files = result.split(":", 1)[1] if ":" in result else ""
             names = tuple(name.strip() for name in files.split(",") if name.strip())
             return MergeOutcome(False, conflicts=names)
+        if result.startswith("fail"):
+            raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge did not happen")
         slot["head"] = f"{slot['head']}+{main}"
         self.store.save()
         return MergeOutcome(True, head=slot["head"])
@@ -247,12 +263,22 @@ class FixtureGit:
     def tree(self, path: str) -> str:
         return f"tree-{self._slot(path)['head']}"
 
-    def push_branch(self, path: str, branch: str) -> str:
+    def push_head(self, branch: str, head: str, lease: str | None) -> None:
+        """origin's branches (``pushed``): a lease must match origin's head; without one, a
+        push over a different head is not a fast forward (the lane's merge commits never
+        are). ``outcomes.push[branch]`` scripts a failure."""
         _fail(self.store, "push", branch)
-        head = self._slot(path)["head"]
-        self.store.data.setdefault("pushed", {})[branch] = head
+        pushed = self.store.data.setdefault("pushed", {})
+        remote = pushed.get(branch)
+        if lease and remote not in (None, lease):
+            raise WorldError(f"! [rejected] {branch} (stale info): origin has {remote}")
+        if not lease and remote not in (None, head):
+            raise WorldError(f"! [rejected] {branch} (non-fast-forward)")
+        pushed[branch] = head
+        for pr in self.store.data.get("prs", {}).values():
+            if pr["branch"] == branch and pr["state"] == "OPEN":
+                pr["head"] = head
         self.store.save()
-        return head
 
 
 class FixtureClock:
@@ -324,17 +350,23 @@ class FixtureProcesses:
         self.store = store
 
     def alive(self, pid: int, started_at: float | None = None) -> bool:
-        return pid == os.getpid() or pid in self.store.data.get("processes", {}).get("alive", [])
+        if pid == os.getpid():
+            return True
+        if pid not in self._processes().get("alive", []):
+            return False
+        known = self.start_time(pid)
+        return started_at is None or known is None or abs(known - started_at) < 2
 
     def start_time(self, pid: int) -> float | None:
-        return None
+        known = self._processes().get("startTimes", {}).get(str(pid))
+        return None if known is None else float(known)
 
     def _processes(self) -> dict:
         return self.store.data.setdefault("processes", {})
 
-    def start(self, args: Sequence[str], cwd: str, log: str, *, label: str) -> str:
-        """A scripted background run: ``outcomes.<label>[branch]`` for a slot (``validate``),
-        ``outcomes.coverage`` on main; ``running`` keeps it running."""
+    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+        """A scripted job: each step's ``outcomes.<step label>[branch]`` (``pass`` by default,
+        ``running``, or ``fail: ...``), in order; the coverage slot's branch is empty."""
         _fail(self.store, f"start-{label}")
         processes = self._processes()
         number = int(processes.get("started", 0)) + 1
@@ -342,9 +374,10 @@ class FixtureProcesses:
         handle = f"run-{number}"
         slot = self.store.data.get("checkouts", {}).get(cwd.removeprefix("slots/"), {})
         processes.setdefault("running", {})[handle] = {
-            "args": list(args),
+            "steps": [dict(step) for step in steps],
             "label": label,
             "branch": slot.get("branch"),
+            "head": slot.get("head"),  # What the slot held when the job started.
             "log": log,
         }
         self.store.save()
@@ -354,14 +387,18 @@ class FixtureProcesses:
         run = self._processes().get("running", {}).get(handle)
         if run is None:
             raise WorldError(f"No running process {handle}")
-        result = _outcome(self.store, run["label"], run["branch"], "pass")
-        if result == "running":
-            return None
+        for step in run["steps"]:
+            result = _outcome(self.store, step["label"], run["branch"], "pass")
+            if result == "running":
+                return None
+            if result.startswith("fail"):
+                del self._processes()["running"][handle]
+                self.store.save()
+                output = result.removeprefix("fail").lstrip(": ")
+                return Completed(tuple(step["args"]), 1, output, "", step["label"])
         del self._processes()["running"][handle]
         self.store.save()
-        failed = result.startswith("fail")
-        output = result.removeprefix("fail").lstrip(": ") if failed else "ok"
-        return Completed(tuple(run["args"]), 1 if failed else 0, output, "")
+        return Completed(tuple(run["steps"][-1]["args"]), 0, "ok", "")
 
     def kill(self, handle: str) -> None:
         self._processes().get("running", {}).pop(handle, None)
@@ -372,15 +409,20 @@ class FixtureProcesses:
         pid = int(processes.get("nextPid", 4_100_000))
         processes["nextPid"] = pid + 1
         processes.setdefault("alive", []).append(pid)
+        processes.setdefault("startTimes", {})[str(pid)] = float(pid)
         processes.setdefault("detached", {})[str(pid)] = list(args)
         self.store.save()
         return pid
 
-    def terminate(self, pid: int) -> None:
+    def terminate(self, pid: int, started_at: float | None) -> bool:
+        known = self.start_time(pid)
         alive = self._processes().get("alive", [])
-        if pid in alive:
-            alive.remove(pid)
-            self.store.save()
+        if started_at is None or known is None or abs(known - started_at) >= 2 or pid not in alive:
+            return False
+        alive.remove(pid)
+        self._processes().setdefault("killed", []).append(pid)
+        self.store.save()
+        return True
 
     def run(
         self,

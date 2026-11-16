@@ -71,9 +71,11 @@ def test_every_key_of_the_proposal_parses():
         ignore_branches=["changeset-release/*"],
         measure_paths=["endpoints/botcore/plugins/botcore-factory/**"],
         trend_issue=1098,
+        base_branch="develop",
     )
     assert config.validate_command == ["pnpm", "verify"]
     assert config.prequeue[1].name == "file-size"
+    assert config.base_branch == "develop" and FactoryConfig().base_branch == "main"
     assert config.prequeue[1].run == ["node", "scripts/check-file-size.mjs"]
 
 
@@ -91,6 +93,7 @@ def test_every_key_of_the_proposal_parses():
         ({"labels": "C:/labels.json"}, "inside the repository"),
         ({"gate_paths": [" "]}, "non-empty"),
         ({"trend_issue": 0}, "greater than 0"),
+        ({"base_branch": "main; rm -rf"}, "pattern"),
         ({"unknown": True}, "Extra inputs"),
     ],
 )

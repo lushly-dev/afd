@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from botcore_factory.fixture_world import FIXTURE_LANE_PID
 from botcore_factory.lane_process import run_loop
 
 
@@ -32,7 +33,7 @@ async def test_the_open_run_is_computed_live_from_the_records(make_run):
     run = make_run("running", lane={"running": False, "runId": None})
     from botcore_factory.lane_process import host_lock
 
-    host_lock(run.factory()).release()
+    host_lock(run.factory()).release(FIXTURE_LANE_PID)
     run_loop(run.factory(), steps=3, sleep=lambda _: None, poll=0)
     data = (await run.call("lane_report")).data
     assert data["merged"] == 1 and data["prs"][0]["number"] == 600

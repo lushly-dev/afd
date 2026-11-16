@@ -3,9 +3,10 @@
 An exclusively created file (``lane.lock`` in the data directory, above every repository's
 state) names the lane process: its pid, its start time and the repository it serves. A holder
 that is no longer alive (checked through the world's processes, start time included where the
-platform reports it) has died, and its lock is broken by the next taker. No ``flock``: the same
-code runs on Windows and macOS. ``lane-start`` takes the lock and hands it to the detached
-process it starts; that process adopts it.
+platform reports it) has died, and its lock is broken by the next taker; a lock being written
+this instant (empty, under five seconds old) is not. No ``flock``: the same code runs on Windows
+and macOS. ``lane-start`` takes the lock and hands it to the detached process it starts; that
+process adopts it.
 """
 
 from __future__ import annotations
@@ -13,9 +14,13 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import time
 from pathlib import Path
 
 from botcore_factory.world import Processes
+
+#: How long an empty or unreadable lock counts as being written rather than abandoned.
+WRITING_GRACE_SECONDS = 5
 
 
 class LaneLocked(Exception):
@@ -38,11 +43,18 @@ class HostLock:
             return None
         return data if isinstance(data, dict) else None
 
+    def _being_written(self) -> bool:
+        try:
+            return time.time() - self.path.stat().st_mtime < WRITING_GRACE_SECONDS
+        except FileNotFoundError:
+            return False
+
     def live_holder(self) -> dict | None:
-        """The holder, when its process still runs."""
+        """The holder, when its process still runs; a lock being written counts as live (its
+        pid is then None)."""
         holder = self.holder()
         if holder is None or not isinstance(holder.get("pid"), int):
-            return None
+            return {"pid": None, "writing": True} if self._being_written() else None
         return holder if self.processes.alive(holder["pid"], holder.get("startedAt")) else None
 
     def acquire(self, pid: int, **info) -> None:
@@ -71,10 +83,12 @@ class HostLock:
         temporary.write_text(json.dumps(record), encoding="utf-8")
         os.replace(temporary, self.path)
 
-    def release(self, pid: int | None = None) -> None:
-        """Remove the lock; with ``pid``, only when that process holds it."""
+    def release(self, pid: int) -> None:
+        """Remove the lock, only when ``pid`` holds it (or no one readable does)."""
         holder = self.holder()
-        if pid is not None and holder is not None and holder.get("pid") != pid:
+        if holder is not None and holder.get("pid") != pid:
             return
+        if holder is None and self._being_written():
+            return  # Someone is taking it this instant.
         with contextlib.suppress(FileNotFoundError):
             self.path.unlink()

@@ -30,6 +30,7 @@ from botcore_factory.lock import HostLock, LaneLocked
 from botcore_factory.records import make
 from botcore_factory.report import summarize
 from botcore_factory.runtime import Factory, Refusal
+from botcore_factory.state import StateLocked
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
 POLL_SECONDS = 5.0
@@ -67,16 +68,17 @@ def require_check(factory: Factory) -> None:
         raise Refusal(
             "REQUIRED_CHECK_MISSING",
             "The repository adapter names no required_check",
-            "Set required_check under [plugins.factory] and make it a required check on main: "
-            "the lane merges on its own only while it is",
+            "Set required_check under [plugins.factory] and make it a required check on the base "
+            "branch: the lane merges on its own only while it is",
         )
-    required = factory.world.github.required_checks("main")
+    base = factory.config.base_branch
+    required = factory.world.github.required_checks(base)
     if name not in required:
         raise Refusal(
             "REQUIRED_CHECK_MISSING",
-            f"{name} is not a required check on main (required: {', '.join(required) or 'none'})",
-            f"Make {name} a required status check on main (branch protection or a ruleset): the "
-            "lane merges on its own only while it is",
+            f"{name} is not a required check on {base} (required: {', '.join(required) or 'none'})",
+            f"Make {name} a required status check on {base} (branch protection or a ruleset): "
+            "the lane merges on its own only while it is",
         )
 
 
@@ -185,15 +187,23 @@ def lane_start(factory: Factory) -> dict:
     return {"running": True, "runId": run_id, "pid": pid}
 
 
-def _end_run(factory: Factory, state: dict, reason: str) -> None:
-    """Close the run: requeue what was validating, write the summary, release the lock."""
+def ours(factory: Factory, holder: dict | None) -> bool:
+    """Whether the host's lane holder serves this repository (the lock is one per machine)."""
+    if holder is None:
+        return False
+    repository = holder.get("repository")
+    return repository is None or repository == factory.world.github.repository()
+
+
+def _end_run(factory: Factory, state: dict, reason: str, *, kill: bool, pid: int | None) -> None:
+    """Close the run: with ``kill``, requeue what was validating and kill those jobs; without
+    (a status read), leave them to the next lane's ``resume``. Write the summary, release the
+    lock ``pid`` held."""
     lane, at = state["lane"], _now(factory)
-    cleanup = Step(factory, state)
-    for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
-        if entry.get("run"):
-            with contextlib.suppress(WorldError):
-                factory.world.processes.kill(entry["run"])
-        cleanup.requeue(entry, "restart")
+    if kill:
+        cleanup = Step(factory, state)
+        for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
+            cleanup.requeue(entry, "restart")
     run_id = lane.get("runId")
     if run_id:
         factory.store.append_record(make("run-stopped", at, run_id, reason=reason))
@@ -202,35 +212,51 @@ def _end_run(factory: Factory, state: dict, reason: str) -> None:
             history = factory.store.read_records()
             run.update(summarize(history, run_id, run.get("startedAt"), at), stoppedAt=at)
     lane.update(running=False, pid=None, stopRequested=None)
-    host_lock(factory).release()
+    if pid is not None:
+        host_lock(factory).release(pid)
 
 
 def lane_stop(factory: Factory, force: bool) -> dict:
-    holder = host_lock(factory).live_holder()
+    lock = host_lock(factory)
+    holder = lock.live_holder()
+    foreign = holder is not None and not ours(factory, holder)
+    if foreign:
+        holder = None  # Another repository's lane: never this command's to stop or unlock.
     with factory.store.update("lane-stop") as state:
         validating = [e["branch"] for e in state["queue"] if e.get("state") == "validating"]
         if holder is not None and validating and not force:
             state["lane"]["stopRequested"] = "after-validation"
             return {"running": True, "stopping": True, "finishing": validating}
-        if holder is not None:
-            factory.world.processes.terminate(holder["pid"])
+        pid = holder.get("pid") if holder else None
+        if pid is not None and not factory.world.processes.terminate(pid, holder.get("startedAt")):
+            raise Refusal(
+                "LANE_LOCKED",
+                f"The lane process (pid {holder['pid']}) could not be confirmed as the one "
+                "that took the lock, so it was not stopped",
+                "Stop it from its own machine, or check the pid by hand",
+            )
         if state["lane"].get("running") or holder is not None:
-            _end_run(factory, state, "forced" if force and validating else "stopped")
+            pid = holder.get("pid") if holder else None if foreign else state["lane"].get("pid")
+            _end_run(
+                factory, state, "forced" if force and validating else "stopped", kill=True, pid=pid
+            )
     return {"running": False}
 
 
 def check_lane(factory: Factory) -> None:
-    """Raise ``lane-stopped`` when the state says running but the lock's process is gone."""
+    """Raise ``lane-stopped`` when the state says running but this repository's lane process is
+    gone. A status read only marks the lane stopped: it kills nothing."""
     if not factory.store.read()["lane"].get("running"):
         return
-    if host_lock(factory).live_holder() is not None:
+    holder = host_lock(factory).live_holder()
+    if holder is not None and (holder.get("pid") is None or ours(factory, holder)):
         return
     with factory.store.update("lane-stopped") as state:
         lane = state["lane"]
         if not lane.get("running"):
             return
         pid = lane.get("pid")
-        _end_run(factory, state, "died")
+        _end_run(factory, state, "died", kill=False, pid=pid if holder is None else None)
         Step(factory, state).event(
             "lane-stopped",
             detail=f"The lane process{f' (pid {pid})' if pid else ''} is gone; read its log",
@@ -239,18 +265,17 @@ def check_lane(factory: Factory) -> None:
 
 
 def resume(factory: Factory) -> list[str]:
-    """Take up where the last lane stopped: validations go back to the front, and a PR that
-    merged meanwhile is landed."""
+    """Take up where the last lane stopped: validations go back to the front (behind a branch
+    already merging), their orphaned jobs killed when pid and start time still match, and a PR
+    that merged meanwhile is landed."""
     with factory.store.update("lane resume") as state:
         resumed = Step(factory, state)
         for entry in reversed([e for e in state["queue"] if e.get("state") == "validating"]):
-            resumed.requeue(entry, "restart")
+            resumed.requeue(entry, "restart")  # Kills its job: never two in one slot.
         for entry in [e for e in state["queue"] if e.get("state") == "merging"]:
-            try:
+            with contextlib.suppress(WorldError):  # Read again by the first step.
                 if factory.world.github.pr_state(entry["pr"]) == "MERGED":
                     resumed.land(entry)
-            except WorldError:
-                pass  # Read again by the first step.
         return resumed.actions
 
 
@@ -261,8 +286,18 @@ def run_loop(
     sleep: Callable[[float], None] = time.sleep,
     poll: float = POLL_SECONDS,
 ) -> dict:
-    """The lane in this process: until asked to stop (or for ``steps`` steps)."""
+    """The lane in this process: until asked to stop (or for ``steps`` steps). It refuses on the
+    same grounds as lane-start."""
     me = require_host(factory)
+    require_check(factory)
+    mismatches = toolchain_mismatches(factory)
+    if mismatches:
+        raise Refusal(
+            "TOOLCHAIN_MISMATCH",
+            f"This machine's toolchains differ from the repository's pins: {'; '.join(mismatches)}",
+            "Install the pinned versions, then start the lane again",
+            mismatches=mismatches,
+        )
     lock = host_lock(factory)
     holder = lock.live_holder()
     if holder is not None and holder.get("pid") != os.getpid():
@@ -279,9 +314,13 @@ def run_loop(
             state["lane"].update(running=True, pid=os.getpid(), runId=run_id, startedAt=at)
             factory.store.append_record(make("run-started", at, run_id, host=me))
     resume(factory)
-    count, reason = 0, "stopped"
+    count = 0
     while True:
-        step(factory)  # Turns the lane's trouble into a lane-error itself.
+        try:
+            step(factory)  # Turns the lane's trouble into a lane-error itself.
+        except StateLocked:
+            sleep(poll)  # A command is writing the state: the next step reads it.
+            continue
         count += 1
         state = factory.store.read()
         lane = state["lane"]
@@ -289,12 +328,11 @@ def run_loop(
         if lane.get("stopRequested") and not busy:
             break
         if not lane.get("running"):
-            reason = "stopped"
             break
         if steps is not None and count >= steps:
             break
         sleep(poll)
     with factory.store.update("lane end") as state:
         if state["lane"].get("running"):
-            _end_run(factory, state, reason)
+            _end_run(factory, state, "stopped", kill=True, pid=os.getpid())
     return {"running": False, "steps": count, "runId": factory.store.read()["lane"].get("runId")}

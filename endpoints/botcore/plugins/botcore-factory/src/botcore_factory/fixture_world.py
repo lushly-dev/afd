@@ -175,12 +175,19 @@ def _seed_running_lane(world_path: Path, store) -> None:
     fixture = FixtureWorld(world_path)
     processes = fixture.data.setdefault("processes", {})
     processes.setdefault("alive", []).append(FIXTURE_LANE_PID)
+    processes.setdefault("startTimes", {})[str(FIXTURE_LANE_PID)] = float(FIXTURE_LANE_PID)
     fixture.save()
     lock = store.root.parent / "lane.lock"
     lock.parent.mkdir(parents=True, exist_ok=True)
     repository = fixture.data.get("repository") or "example-org/example-repo"
     lock.write_text(
-        json.dumps({"pid": FIXTURE_LANE_PID, "startedAt": None, "repository": repository}),
+        json.dumps(
+            {
+                "pid": FIXTURE_LANE_PID,
+                "startedAt": float(FIXTURE_LANE_PID),
+                "repository": repository,
+            }
+        ),
         encoding="utf-8",
     )
     with store.update("fixture lane") as state:
