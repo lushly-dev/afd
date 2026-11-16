@@ -122,6 +122,9 @@ describe("The provider's rate limit is on in every mode, keyed by x-loam-client-
 			{ window: 10, max: 150.5 },
 			{ window: 0, max: 500 },
 			{ window: 60, max: 500 },
+			// NIT 3: a cap, so no raise reads as no limit.
+			{ window: 10, max: 1_000_001 },
+			{ window: 10, max: 1e300 },
 		]) {
 			expect(
 				() =>
@@ -136,7 +139,7 @@ describe("The provider's rate limit is on in every mode, keyed by x-loam-client-
 						rateLimit,
 					}),
 				JSON.stringify(rateLimit)
-			).toThrow('at least 100');
+			).toThrow('a max of 100 to 1000000');
 		}
 	});
 });
@@ -170,3 +173,60 @@ describe("B1: the secret and telemetry never come from the environment (the coor
 });
 
 const NODE_ENV_IS_TEST = process.env.NODE_ENV === 'test';
+
+describe("BETTER_AUTH_TRUSTED_ORIGINS never widens the provider's origins (the final check's IMPROVEMENT 1, 2026-11-16)", () => {
+	const build = () =>
+		createLoamAuthOptions({
+			baseURL: `${ORIGIN}/api/auth`,
+			secret: 't'.repeat(40),
+			database: new DatabaseSync(':memory:'),
+			workspace: 'acme',
+			organization: 'acme',
+			methods: ['passkey', 'password'],
+			mail: { send: async () => {} },
+		});
+	async function withTrusted<T>(value: string | undefined, use: () => Promise<T> | T): Promise<T> {
+		const held = process.env.BETTER_AUTH_TRUSTED_ORIGINS;
+		if (value === undefined) delete process.env.BETTER_AUTH_TRUSTED_ORIGINS;
+		else process.env.BETTER_AUTH_TRUSTED_ORIGINS = value;
+		try {
+			return await use();
+		} finally {
+			if (held === undefined) delete process.env.BETTER_AUTH_TRUSTED_ORIGINS;
+			else process.env.BETTER_AUTH_TRUSTED_ORIGINS = held;
+		}
+	}
+
+	it('refuses to build the options while it is set, with HOST_ENV_OVERRIDE and a suggestion, as a library caller would', async () => {
+		await withTrusted('https://evil.example', () => {
+			expect(() => build()).toThrow(
+				expect.objectContaining({
+					code: 'HOST_ENV_OVERRIDE',
+					suggestion: expect.stringContaining('Unset BETTER_AUTH_TRUSTED_ORIGINS'),
+				})
+			);
+		});
+		await withTrusted('', () => expect(build().trustedOrigins).toEqual([ORIGIN]));
+	});
+
+	it("checks each request's Origin against the deployment's alone, so a value set after start widens nothing", async () => {
+		const options = build();
+		await (await getMigrations(options)).runMigrations();
+		const auth = betterAuth(options);
+		const signIn = (origin: string) =>
+			auth.handler(
+				new Request(`${ORIGIN}/api/auth/sign-in/email`, {
+					method: 'POST',
+					headers: { origin, 'content-type': 'application/json' },
+					body: JSON.stringify({ email: 'nobody@example.com', password: 'wrong password here' }),
+				})
+			);
+		await withTrusted('https://evil.example', async () => {
+			const foreign = await signIn('https://evil.example');
+			expect(foreign.status).toBe(403);
+			expect(await foreign.text()).toContain('INVALID_ORIGIN');
+			// The deployment's own origin is not refused by the hook: Better Auth answers the bad password.
+			expect((await signIn(ORIGIN)).status).toBe(401);
+		});
+	});
+});
