@@ -31,7 +31,7 @@ BAD_REVISION = re.compile(
 INFRASTRUCTURE = re.compile(
     r"timed? ?out|timeout|could not resolve|connection|network|unreachable|temporar|"
     r"HTTP 5\d\d|\b50[0234]\b|TLS|SSL|ECONN|ETIMEDOUT|EAI_AGAIN|ENOTFOUND|unable to access|"
-    r"rate limit|socket|\"timedOut\": true",
+    r"rate limit|socket",
     re.I,
 )
 #: The fields a validation adds to a queue entry; cleared when it must be validated again.
@@ -130,10 +130,11 @@ class StepBase:
         run_id = self.lane.get("runId")
         return next((run for run in self.state["runs"] if run.get("id") == run_id), None)
 
-    def requeue(self, entry: dict, reason: str) -> None:
+    def requeue(self, entry: dict, reason: str, *, front: bool = True) -> None:
         """Validate it again: its validation was lost, or the base moved since it started.
 
         It keeps its open PR and goes to the front, behind any branch already merging.
+        With ``front=False`` it keeps its position while giving up a reserved slot.
         """
         if entry.get("run"):
             with contextlib.suppress(WorldError):
@@ -142,12 +143,14 @@ class StepBase:
         for key in VALIDATION_FIELDS:
             entry.pop(key, None)
         entry["state"] = "queued"
-        queue = self.state["queue"]
-        queue.remove(entry)
-        queue.insert(open_index(queue), entry)
+        if front:
+            queue = self.state["queue"]
+            queue.remove(entry)
+            queue.insert(open_index(queue), entry)
         self.actions.append(f"rerun {entry['branch']} ({reason})")
 
     def eject(self, entry: dict, cause: str, text: str, log: str | None = None) -> None:
+        self.world.git.delete_queue_ref(entry["branch"], entry["head"])
         if entry.get("run"):
             with contextlib.suppress(WorldError):  # Already gone.
                 self.world.processes.kill(entry["run"])

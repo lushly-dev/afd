@@ -14,6 +14,15 @@ from collections.abc import Callable, Sequence
 from botcore_factory.world import Completed, WorldError
 
 Run = Callable[..., str]
+DIAGNOSTIC_LIMIT = 4000  # Per stream; retain both the opening context and final refusal.
+
+
+def diagnostics(output: str) -> str:
+    output = output.strip()
+    if len(output) <= DIAGNOSTIC_LIMIT:
+        return output
+    half = DIAGNOSTIC_LIMIT // 2
+    return output[:half] + "\n... output omitted ...\n" + output[-half:]
 
 
 def resolve_program(program: str) -> str:
@@ -57,10 +66,9 @@ def make_runner(cwd: str) -> Run:
     def run(args: Sequence[str], stdin: str | None = None, check: bool = True) -> str:
         done = run_process(args, cwd=cwd, stdin=stdin)
         if check and done.returncode != 0:
-            detail = (done.stderr or done.stdout).strip().splitlines()
-            raise WorldError(
-                f"{' '.join(args[:3])} failed: {detail[0] if detail else done.returncode}"
-            )
+            detail = "\n".join(filter(None, (diagnostics(done.stderr), diagnostics(done.stdout))))
+            command = " ".join(args[:3])[:200]
+            raise WorldError(f"{command} failed: {detail or done.returncode}")
         return done.stdout
 
     return run

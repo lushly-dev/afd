@@ -279,6 +279,11 @@ def drop(factory: Factory, branch: str, reason: str) -> dict:
         cell = find(state, branch)
         was_full = len(seated(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in seated(state)
+        for entry in [*state["queue"], *state["held"]]:
+            if entry["branch"] == branch:
+                if entry.get("run"):
+                    factory.world.processes.kill(entry["run"])
+                factory.world.git.delete_queue_ref(branch, entry["head"])
         released = _release(factory, cell, reason)
         now = format_time(factory.world.clock.now())
         state["cells"].remove(cell)

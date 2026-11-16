@@ -39,7 +39,8 @@ since the last green run; the lane paused), `queue-empty` (a drained move happen
 
 `lane_host_probe()` on each machine publishes its readiness; `lane_host_list()` reads them;
 `lane_host_set(id)` chooses the host. On the host, `lane_start()` starts the lane detached. It
-queues held branches when there is room, validates in `lane.slots` slots (each merges the
+queues held branches when there is room, validates in `lane.slots` slots (reserved until pushed;
+`slots.busy` includes those waiting to push; each merges the
 base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
 `validate` in the background), merges serially in queue order (re-validating when the base moved
 since the validation started, checked again just before the merge), pushes the validated commit

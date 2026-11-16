@@ -96,3 +96,44 @@ async def test_an_offline_host_is_replaced_by_recovering_from_origin_and_github(
     }
     status = (await run.call("lane_status")).data
     assert status["host"] == {"id": "mini", "isLaneHost": True, "laneHost": "mini"}
+
+
+async def test_dropped_queue_work_is_not_recovered_and_does_not_block_an_idle_move(make_run):
+    run = make_run("running")
+    with run.store.update("one queued cell") as state:
+        state["queue"] = [{"branch": "fix/parser-empty-input", "head": "a1b2c3d"}]
+        state["held"] = []
+        state["cells"] = [c for c in state["cells"] if c["branch"] == "fix/parser-empty-input"]
+    run.change_world(originQueueRefs=[{"branch": "fix/parser-empty-input", "head": "a1b2c3d"}])
+    assert (
+        await run.call("lane_drop", branch="fix/parser-empty-input", reason="Abandoned")
+    ).success
+    assert run.world_data()["originQueueRefs"] == []
+    assert (await run.call("lane_stop")).success
+    assert (await run.call("lane_host_set", id="mini")).success
+    recovered = await run.call("lane_host_set", id="workstation", recover=True)
+    assert recovered.data["rebuilt"]["queue"] == 0
+
+
+async def test_a_merged_queue_ref_does_not_block_an_idle_host_move(make_run):
+    from botcore_factory.lane import step
+
+    run = make_run("running", originQueueRefs=[{"branch": "feat/export-csv", "head": "b2c3d4e"}])
+    with run.store.update("one queued cell") as state:
+        state["queue"] = state["queue"][:1]
+        state["held"] = []
+        state["cells"] = [c for c in state["cells"] if c["branch"] == "feat/export-csv"]
+    for _ in range(3):
+        step(run.factory())
+    assert run.world_data()["originQueueRefs"] == []
+    assert (await run.call("lane_stop")).success
+    assert (await run.call("lane_host_set", id="mini")).success
+
+
+def test_a_newer_queue_ref_cannot_be_deleted_by_an_older_attempt(make_run):
+    from botcore_factory.world import WorldError
+
+    run = make_run(originQueueRefs=[{"branch": "fix/a", "head": "new"}])
+    with pytest.raises(WorldError, match="changed"):
+        run.factory().world.git.delete_queue_ref("fix/a", "old")
+    assert run.world_data()["originQueueRefs"] == [{"branch": "fix/a", "head": "new"}]

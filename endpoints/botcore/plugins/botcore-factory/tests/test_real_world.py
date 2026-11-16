@@ -328,6 +328,8 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
         "list",
         "--head",
         "fix/a",
+        "--base",
+        "main",
         "--state",
         "open",
         "--json",
@@ -339,6 +341,8 @@ def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
         "create",
         "--head",
         "fix/a",
+        "--base",
+        "main",
         "--title",
         "Fix a",
         "--body-file",
@@ -407,15 +411,48 @@ def test_an_open_pr_for_the_branch_is_reused_but_never_a_fork_s():
     assert GhGitHub(fork).open_pr("fix/a", "t", "b") == 79
 
 
-def test_the_validated_head_is_pushed_by_commit_with_a_lease():
+def test_a_nondefault_base_is_bound_to_pr_lookup_and_creation():
+    run = FakeRun({"gh pr list": "[]", "gh pr create": "https://github.com/o/r/pull/80\n"})
+    assert GhGitHub(run).open_pr("fix/a", "t", "b", "develop") == 80
+    for args, _ in run.calls:
+        assert args[args.index("--base") + 1] == "develop"
+
+
+def test_queue_ref_retirement_is_idempotent_and_bound_to_the_enqueued_head():
+    ref = "refs/factory/queue/fix/a"
+    run = FakeRun({"git ls-remote origin": f"abc\t{ref}\n"})
+    CliGit(run).delete_queue_ref("fix/a", "abc")
+    assert run.calls[-1][0] == [
+        "git",
+        "push",
+        "--quiet",
+        f"--force-with-lease={ref}:abc",
+        "origin",
+        f":{ref}",
+    ]
+    absent = FakeRun()
+    CliGit(absent).delete_queue_ref("fix/a", "abc")
+    assert len(absent.calls) == 1
+
+
+def test_the_validated_head_is_pushed_from_its_checkout_by_commit_with_a_lease():
     """B1 and S1: the head pushed is the validated commit, over the lane's own last push."""
-    run = FakeRun()
+    run = FakeRun({"git -C slot-a": "merge1\n", "git -C slot-b": "merge2\n"})
     git = CliGit(run)
-    git.push_head("fix/a", "merge1", "merge0")
-    git.push_head("fix/b", "merge2", None)
+    git.push_head("slot-a", "fix/a", "merge1", "merge0")
+    git.push_head("slot-b", "fix/b", "merge2", None)
     assert [args for args, _ in run.calls] == [
         [
             "git",
+            "-C",
+            "slot-a",
+            "rev-parse",
+            "HEAD",
+        ],
+        [
+            "git",
+            "-C",
+            "slot-a",
             "push",
             "--quiet",
             "--porcelain",
@@ -423,8 +460,60 @@ def test_the_validated_head_is_pushed_by_commit_with_a_lease():
             "origin",
             "merge1:refs/heads/fix/a",
         ],
-        ["git", "push", "--quiet", "--porcelain", "origin", "merge2:refs/heads/fix/b"],
+        ["git", "-C", "slot-b", "rev-parse", "HEAD"],
+        [
+            "git",
+            "-C",
+            "slot-b",
+            "push",
+            "--quiet",
+            "--porcelain",
+            "origin",
+            "merge2:refs/heads/fix/b",
+        ],
     ]
+
+
+def test_a_reused_checkout_is_refused_before_pushing():
+    run = FakeRun({"git -C slot-a": "another-head\n"})
+    with pytest.raises(WorldError, match="no longer holds"):
+        CliGit(run).push_head("slot-a", "fix/a", "validated-head", None)
+    assert not any("push" in args for args, _ in run.calls)
+
+
+@pytest.mark.parametrize(
+    "stderr,stdout",
+    [
+        (
+            "error: failed to push some refs to 'https://github.com/o/r.git'\n"
+            "hint: Updates were rejected because the tip of your current branch is behind\n",
+            "",
+        ),
+        (
+            "error: failed to push some refs to 'https://github.com/o/r.git'\n",
+            "To https://github.com/o/r.git\n"
+            "!\tabc:refs/heads/fix/a\t[rejected] (stale info)\nDone\n",
+        ),
+    ],
+)
+def test_git_failures_keep_rejection_diagnostics_from_both_streams(tmp_path, stderr, stdout):
+    from botcore_factory.lane_base import NON_FAST_FORWARD
+
+    code = f"import sys; sys.stderr.write({stderr!r}); sys.stdout.write({stdout!r}); sys.exit(1)"
+    with pytest.raises(WorldError) as caught:
+        make_runner(str(tmp_path))([sys.executable, "-c", code])
+    assert NON_FAST_FORWARD.search(str(caught.value))
+    assert str(caught.value).endswith((stderr.strip() + "\n" + stdout.strip()).strip())
+
+
+def test_runner_failure_diagnostics_are_bounded_and_keep_the_tail(tmp_path):
+    code = (
+        "import sys; sys.stderr.write('noise' * 10000 + '\\n[rejected] (stale info)'); sys.exit(1)"
+    )
+    with pytest.raises(WorldError) as caught:
+        make_runner(str(tmp_path))([sys.executable, "-c", code])
+    assert str(caught.value).endswith("[rejected] (stale info)")
+    assert len(str(caught.value)) < 12000
 
 
 def test_the_base_is_fetched_by_the_adapter_s_branch_name():
@@ -573,6 +662,32 @@ def test_a_killed_job_is_gone(tmp_path):
     assert wait_for(lambda: not processes.alive(pid), 10)
     with pytest.raises(WorldError):
         processes.poll(handle)
+
+
+@pytest.mark.parametrize("timeout", [False, True], ids=["cancel", "timeout"])
+def test_stopping_a_job_kills_steps_and_descendants_in_their_own_sessions(tmp_path, timeout):
+    processes = OsProcesses()
+    pids = tmp_path / "step-pids.json"
+    code = "\n".join(
+        [
+            "import json, os, subprocess, sys, time",
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+            "start_new_session=True)",
+            f"open({str(pids)!r}, 'w').write(json.dumps([os.getpid(), child.pid]))",
+            "time.sleep(60)",
+        ]
+    )
+    steps = [{"label": "install", "args": python(code), "timeout": 2 if timeout else 60}]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "tree.log"), label="v")
+    assert wait_for(lambda: pids.exists() and pids.read_text())
+    descendants = json.loads(pids.read_text())
+    assert all(processes.alive(pid) for pid in descendants)
+    if timeout:
+        done = wait_for(lambda: processes.poll(handle))
+        assert (done.returncode, done.step) == (124, "install")
+    else:
+        processes.kill(handle)
+    assert wait_for(lambda: all(not processes.alive(pid) for pid in descendants), 10)
 
 
 def test_terminate_kills_only_a_verified_process_and_its_whole_tree(tmp_path):

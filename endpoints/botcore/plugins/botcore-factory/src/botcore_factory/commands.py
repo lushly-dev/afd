@@ -46,7 +46,7 @@ POLICIES: dict[str, CommandPolicy] = {
     "lane_resume": CommandPolicy(("history-write",)),
     "cell_attach": CommandPolicy(("history-write",)),
     "gate_allow": CommandPolicy(("history-write",)),
-    "lane_drop": CommandPolicy(("subprocess", "service", "history-write"), GITHUB),
+    "lane_drop": CommandPolicy(("subprocess", "service", "history-write"), GIT),
     # Reads T3 Code's usage caches on this machine.
     "plan_list": CommandPolicy(("inspect",)),
 }

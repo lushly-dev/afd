@@ -40,7 +40,7 @@ class Merging(StepBase):
         branch, head = entry["branch"], entry["validatedHead"]
         cell = self.cell(branch) or {}
         try:
-            self.world.git.push_head(branch, head, cell.get("pushedHead"))
+            self.world.git.push_head(entry["path"], branch, head, cell.get("pushedHead"))
         except WorldError as exc:
             if NON_FAST_FORWARD.search(str(exc)):
                 self.eject(entry, "push-failed", str(exc))
@@ -51,7 +51,7 @@ class Merging(StepBase):
             cell["pushedHead"] = head
         try:
             entry["pr"] = self.world.github.open_pr(
-                branch, entry.get("title") or branch, self.pr_body(entry)
+                branch, entry.get("title") or branch, self.pr_body(entry), self.config.base_branch
             )
         except WorldError as exc:
             if PR_REFUSED.search(str(exc)):
@@ -129,7 +129,10 @@ class Merging(StepBase):
             elif HEAD_MISMATCH.search(str(exc)):
                 self.eject(entry, "merge-failed", str(exc))
             elif NOT_MERGEABLE.search(str(exc)):
-                self.requeue(entry, "main-moved")
+                if self.base_head(fresh=True) != entry["base"]:
+                    self.requeue(entry, "main-moved")
+                else:
+                    self.eject(entry, "merge-failed", str(exc))
             else:
                 raise LaneTrouble(f"Merging PR {pr} failed: {exc}") from exc
             return
@@ -137,6 +140,7 @@ class Merging(StepBase):
 
     def land(self, entry: dict, without_check: bool = False) -> None:
         branch, pr = entry["branch"], entry["pr"]
+        self.world.git.delete_queue_ref(branch, entry["head"])
         full = len(seated(self.state)) >= self.dial("cells.max")
         self.state["queue"].remove(entry)
         self.record(

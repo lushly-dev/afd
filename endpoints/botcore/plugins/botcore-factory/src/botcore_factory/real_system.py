@@ -274,16 +274,32 @@ def new_group() -> dict:
 
 
 def kill_tree(pid: int) -> None:
-    """Kill ``pid`` and everything it started: taskkill /T on Windows, its group on POSIX."""
+    """Kill ``pid`` and everything it started, including steps in separate sessions."""
     if sys.platform == "win32":
         with contextlib.suppress(WorldError):
             run_process([resolve_program("taskkill"), "/T", "/F", "/PID", str(pid)], timeout=60)
         return
-    with contextlib.suppress(ProcessLookupError, PermissionError):
-        if os.getpgid(pid) == pid:
-            os.killpg(pid, 9)
-        else:
-            os.kill(pid, 9)
+    # Job steps get their own session so each timeout can kill its step's group. Capture
+    # their parentage before killing the wrapper; a group-only kill would orphan them.
+    table = run_process(["ps", "-A", "-o", "pid=,ppid="])
+    if table.returncode:
+        raise WorldError(f"Cannot read the process tree for {pid}: {table.stderr}")
+    parents = {
+        int(parts[0]): int(parts[1])
+        for line in table.stdout.splitlines()
+        if len(parts := line.split()) == 2
+    }
+    descendants = [pid]
+    for parent in descendants:
+        descendants.extend(
+            child for child, ppid in parents.items() if ppid == parent and child not in descendants
+        )
+    for child in descendants:
+        with contextlib.suppress(ProcessLookupError, PermissionError):
+            if os.getpgid(child) == child:
+                os.killpg(child, 9)
+            else:
+                os.kill(child, 9)
 
 
 def _spawn(args: Sequence[str], cwd: str, log: str, options: dict) -> subprocess.Popen:
@@ -347,6 +363,19 @@ def _exists(pid: int) -> bool:
         return False
     except PermissionError:
         return True
+    if sys.platform == "darwin":
+        # kill(pid, 0) also succeeds for a zombie. A detached child's Popen may have
+        # gone out of scope, so it can await reaping even after its group was killed.
+        state = run_process(["ps", "-o", "stat=", "-p", str(pid)]).stdout.strip()
+        return bool(state) and not state.startswith("Z")
+    if sys.platform.startswith("linux"):
+        try:
+            state = Path(f"/proc/{pid}/stat").read_text().rsplit(")", 1)[1].split()[0]
+            return state != "Z"
+        except FileNotFoundError:
+            return False
+        except (OSError, IndexError):
+            pass  # Unreadable state does not prove death.
     return True
 
 

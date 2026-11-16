@@ -114,16 +114,17 @@ class FixtureGitHub:
     def _prs(self) -> dict:
         return self.store.data.setdefault("prs", {})
 
-    def open_pr(self, branch: str, title: str, body: str) -> int:
+    def open_pr(self, branch: str, title: str, body: str, base: str = "main") -> int:
         _fail(self.store, "pr", branch)
         for number, pr in self._prs().items():
-            if pr["branch"] == branch and pr["state"] == "OPEN":
+            if pr["branch"] == branch and pr["state"] == "OPEN" and pr.get("base", "main") == base:
                 return int(number)
         number = int(self.store.data.get("nextPr", 600))
         self.store.data["nextPr"] = number + 1
         head = self.store.data.get("pushed", {}).get(branch, "")
         self._prs()[str(number)] = {
             "branch": branch,
+            "base": base,
             "title": title,
             "body": body,
             "head": head,
@@ -216,6 +217,15 @@ class FixtureGit:
     def queue_refs(self) -> list[dict]:
         return [dict(ref) for ref in self.store.data.get("originQueueRefs", [])]
 
+    def delete_queue_ref(self, branch: str, head: str) -> None:
+        _fail(self.store, "deleteQueue", branch)
+        refs = self.store.data.get("originQueueRefs", [])
+        matching = next((ref for ref in refs if ref["branch"] == branch), None)
+        if matching is not None and matching["head"] != head:
+            raise WorldError(f"Queue ref for {branch} changed; expected {head}")
+        self.store.data["originQueueRefs"] = [ref for ref in refs if ref["branch"] != branch]
+        self.store.save()
+
     def publish_host_record(self, record: HostRecord) -> None:
         machines = self.store.data.setdefault("machines", [])
         index = next((i for i, m in enumerate(machines) if m.get("id") == record.id), None)
@@ -263,10 +273,12 @@ class FixtureGit:
     def tree(self, path: str) -> str:
         return f"tree-{self._slot(path)['head']}"
 
-    def push_head(self, branch: str, head: str, lease: str | None) -> None:
+    def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
         """origin's branches (``pushed``): a lease must match origin's head; without one, a
         push over a different head is not a fast forward (the lane's merge commits never
         are). ``outcomes.push[branch]`` scripts a failure."""
+        if self._slot(path)["head"] != head:
+            raise WorldError(f"Validation checkout {path} no longer holds {head}; validate again")
         _fail(self.store, "push", branch)
         pushed = self.store.data.setdefault("pushed", {})
         remote = pushed.get(branch)

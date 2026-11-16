@@ -17,7 +17,7 @@ from botcore_factory.runtime import Factory
 LANE_POLICIES: dict[str, CommandPolicy] = {
     # The lane process: started detached, it runs git, gh and the adapter's commands.
     "lane_start": CommandPolicy(("subprocess", "service", "history-write"), GIT),
-    "lane_stop": CommandPolicy(("service", "history-write")),
+    "lane_stop": CommandPolicy(("subprocess", "service", "history-write"), GIT),
     "lane_run": CommandPolicy(("subprocess", "service", "history-write"), GIT),
     # Publishes this machine's record to origin.
     "lane_host_probe": CommandPolicy(("subprocess", "service"), GIT),

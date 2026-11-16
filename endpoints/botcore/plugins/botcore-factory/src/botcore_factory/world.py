@@ -190,8 +190,8 @@ class GitHub(Protocol):
         """The status checks required on ``branch`` (branch protection and rulesets)."""
         ...
 
-    def open_pr(self, branch: str, title: str, body: str) -> int:
-        """Open a PR from ``branch`` to the default branch, or return the open one's number."""
+    def open_pr(self, branch: str, title: str, body: str, base: str = "main") -> int:
+        """Open a PR from ``branch`` to ``base``, or return an open one's number on that base."""
         ...
 
     def check_status(self, pr: int, name: str, head: str) -> str:
@@ -239,6 +239,10 @@ class Git(Protocol):
         """``{branch, head}`` for every ``refs/factory/queue/*`` on origin."""
         ...
 
+    def delete_queue_ref(self, branch: str, head: str) -> None:
+        """Delete the queue ref only if it still names ``head``; absent is already done."""
+        ...
+
     def publish_host_record(self, record: HostRecord) -> None:
         """Publish this machine's readiness record to ``refs/factory/hosts/<id>`` on origin."""
         ...
@@ -268,8 +272,9 @@ class Git(Protocol):
 
     def tree(self, path: str) -> str: ...
 
-    def push_head(self, branch: str, head: str, lease: str | None) -> None:
-        """Push commit ``head`` to ``branch`` on origin. With ``lease`` (the head the lane last
+    def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
+        """Push commit ``head`` from its validated checkout ``path`` to ``branch`` on origin.
+        Refuse if the checkout no longer holds it. With ``lease`` (the head the lane last
         pushed there), a forced push that refuses if origin moved from it; without, a fast
         forward. A refusal's message says ``rejected``."""
         ...

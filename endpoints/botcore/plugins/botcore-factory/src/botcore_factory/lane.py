@@ -13,13 +13,14 @@ a fixture world and a fake clock. Each step, in order:
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
-A validated head is pushed by commit, so a slot is free for the next branch once its validation
-finished. What ejects a branch and what is the lane's own trouble is in ``lane_base``. The lane
+A validated head is pushed by commit from its validation checkout, so a slot is free for the
+next branch once the push finished. What ejects a branch is in ``lane_base``. The lane
 never edits code.
 """
 
 from __future__ import annotations
 
+from botcore_factory import job
 from botcore_factory.lane_base import (
     BAD_REVISION,
     INFRASTRUCTURE,
@@ -63,10 +64,15 @@ class Step(Merging, Coverage):
                 continue
             if done is None:
                 continue
-            entry.pop("run", None)
             output = done.stdout + "\n" + done.stderr
             if done.returncode != 0 and done.step == "install":
-                if INFRASTRUCTURE.search(output):
+                failed = job.failure(output) or {}
+                # Job metadata names timedOut even when false. Search only the tool's
+                # diagnostics, and read the structured boolean for a real job timeout.
+                diagnostic = "\n".join(
+                    line for line in output.splitlines() if not line.startswith(job.MARKER)
+                )
+                if failed.get("timedOut") is True or INFRASTRUCTURE.search(diagnostic):
                     self.requeue(entry, "restart")
                     raise LaneTrouble(
                         f"Installing for {entry['branch']} failed on the lane's side: "
@@ -88,6 +94,7 @@ class Step(Merging, Coverage):
                 logPath=entry.get("logPath"),
             )
             if passed:
+                entry.pop("run", None)
                 entry["state"] = "validated"
                 self.actions.append(f"validated {entry['branch']}")
             else:
@@ -108,11 +115,22 @@ class Step(Merging, Coverage):
             room -= 1
 
     def start_validations(self) -> None:
-        busy = {e.get("slot") for e in self.state["queue"] if e.get("state") == "validating"}
+        busy = {
+            e.get("slot")
+            for e in self.state["queue"]
+            if e.get("state") in ("validating", "validated")
+        }
         free = [str(n) for n in range(1, self.dial("lane.slots") + 1) if str(n) not in busy]
         for entry in [e for e in self.state["queue"] if e.get("state") == "queued"]:
             if not free:
-                return
+                # A front entry requeued after a base change (or a repaired entry) must
+                # not deadlock behind later entries reserving every completed slot.
+                later = self.state["queue"][self.state["queue"].index(entry) + 1 :]
+                reserved = next((e for e in reversed(later) if e["state"] == "validated"), None)
+                if reserved is None:
+                    return
+                free.append(reserved["slot"])
+                self.requeue(reserved, "slot-needed", front=False)
             self.start_validation(entry, free.pop(0))
 
     def start_validation(self, entry: dict, slot: str) -> None:

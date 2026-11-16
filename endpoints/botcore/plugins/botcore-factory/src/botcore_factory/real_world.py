@@ -190,7 +190,7 @@ class GhGitHub:
                     checks.add(check.get("context", ""))
         return sorted(name for name in checks if name)
 
-    def open_pr(self, branch: str, title: str, body: str) -> int:
+    def open_pr(self, branch: str, title: str, body: str, base: str = "main") -> int:
         found = parse_json(
             self.run(
                 [
@@ -199,6 +199,8 @@ class GhGitHub:
                     "list",
                     "--head",
                     branch,
+                    "--base",
+                    base,
                     "--state",
                     "open",
                     "--json",
@@ -212,7 +214,20 @@ class GhGitHub:
         if own:
             return int(own[0]["number"])
         url = self.run(
-            ["gh", "pr", "create", "--head", branch, "--title", title, "--body-file", "-"], body
+            [
+                "gh",
+                "pr",
+                "create",
+                "--head",
+                branch,
+                "--base",
+                base,
+                "--title",
+                title,
+                "--body-file",
+                "-",
+            ],
+            body,
         ).strip()
         return int(url.rstrip("/").rsplit("/", 1)[-1])
 
@@ -320,6 +335,14 @@ class CliGit:
                 refs.append({"branch": ref.removeprefix("refs/factory/queue/"), "head": head})
         return refs
 
+    def delete_queue_ref(self, branch: str, head: str) -> None:
+        ref = f"refs/factory/queue/{branch}"
+        if not self.run(["git", "ls-remote", "origin", ref]).strip():
+            return
+        self.run(
+            ["git", "push", "--quiet", f"--force-with-lease={ref}:{head}", "origin", f":{ref}"]
+        )
+
     def publish_host_record(self, record: HostRecord) -> None:
         """A one-file commit on refs/factory/hosts/<id>, made without touching the checkout."""
         body = json.dumps(record.describe(), indent=2, sort_keys=True) + "\n"
@@ -418,10 +441,15 @@ class CliGit:
     def tree(self, path: str) -> str:
         return self.run(["git", "-C", path, "rev-parse", "HEAD^{tree}"]).strip()
 
-    def push_head(self, branch: str, head: str, lease: str | None) -> None:
-        """From the lane's checkout (slots share its objects), so the head pushed is the one
-        validated, whatever its slot holds now."""
-        args = ["git", "push", "--quiet", "--porcelain"]
+    def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
+        """Use the validated checkout's pre-push record and push its exact commit.
+
+        A slot stays reserved until pushed. Refuse unexpected reuse, and keep the explicit
+        refspec so even a concurrent checkout change cannot substitute another commit.
+        """
+        if self.head(path) != head:
+            raise WorldError(f"Validation checkout {path} no longer holds {head}; validate again")
+        args = ["git", "-C", path, "push", "--quiet", "--porcelain"]
         if lease:
             args.append(f"--force-with-lease=refs/heads/{branch}:{lease}")
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])

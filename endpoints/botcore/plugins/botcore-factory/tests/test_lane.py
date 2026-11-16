@@ -93,7 +93,7 @@ def test_a_queued_branch_is_validated_pushed_merged_and_landed(lane):
 # B1: the head pushed and merged is the one validated, whatever its slot holds now.
 
 
-def test_a_validated_head_is_pushed_by_commit_after_its_slot_moved_on(lane):
+def test_a_validated_head_keeps_its_checkout_until_pushed(lane):
     with lane.store.update("third") as state:
         state["queue"].append({"branch": "fix/parser-empty-input", "head": "a1b2c3d"})
     lane.change_world(
@@ -102,8 +102,12 @@ def test_a_validated_head_is_pushed_by_commit_after_its_slot_moved_on(lane):
             "validate": {"fix/parser-empty-input": "running"},
         }
     )
-    run_steps(lane, 3)  # export-csv merging; retry-backoff validated; parser in slot 1.
-    assert lane.world_data()["checkouts"]["1"]["branch"] == "fix/parser-empty-input"
+    run_steps(lane, 3)  # export-csv merging; retry-backoff validated and waiting to push.
+    assert lane.world_data()["checkouts"]["1"]["branch"] == "fix/retry-backoff"
+    assert entry_of(lane, "fix/parser-empty-input")["state"] == "queued"
+    from botcore_factory.status import lane_status
+
+    assert lane_status(lane.factory(), None, None)["slots"]["busy"] == 1
     lane.change_world(outcomes={"checks": {"feat/export-csv": "failure"}})
     run_steps(lane, 3)
     pushed = lane.world_data()["pushed"]
@@ -112,6 +116,115 @@ def test_a_validated_head_is_pushed_by_commit_after_its_slot_moved_on(lane):
         "feat/export-csv": "b2c3d4e+main-0",
         "fix/retry-backoff": "c3d4e5f+main-0",
     }
+    assert lane.world_data()["checkouts"]["1"]["branch"] == "fix/parser-empty-input"
+
+
+def test_a_nondefault_base_opens_its_own_pr_instead_of_reusing_a_main_pr(lane):
+    lane.change_world(prs={"42": {"branch": "feat/export-csv", "base": "main", "state": "OPEN"}})
+    run_steps(lane, 2, base_branch="develop")
+    assert prs(lane)["600"]["base"] == "develop"
+    assert prs(lane)["42"]["state"] == "OPEN"
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["merged", "ejected"])
+def test_terminal_entries_retire_their_origin_queue_ref(lane, fail):
+    lane.change_world(
+        originQueueRefs=[{"branch": "feat/export-csv", "head": "b2c3d4e"}],
+        outcomes={"validate": {"feat/export-csv": "fail: FAIL x" if fail else "pass"}},
+    )
+    run_steps(lane, 3)
+    assert lane.world_data()["originQueueRefs"] == []
+
+
+def test_failed_queue_ref_cleanup_pauses_without_losing_the_completed_job(lane):
+    lane.change_world(
+        outcomes={
+            "validate": {"feat/export-csv": "fail: FAIL x"},
+            "deleteQueue": {"feat/export-csv": "fail: network unavailable"},
+        }
+    )
+    run_steps(lane, 2)
+    assert entry_of(lane, "feat/export-csv")["run"]
+    assert lane.state()["lane"]["paused"]
+    assert not events(lane, "ejected")
+    lane.change_world(outcomes={"deleteQueue": {"feat/export-csv": "pass"}})
+    with lane.store.update("resume") as state:
+        state["lane"]["paused"] = False
+    run_steps(lane, 3)
+    assert events(lane, "ejected")[0]["reason"] == "final-failed"
+
+
+@pytest.mark.parametrize(
+    "output,trouble",
+    [
+        (
+            "ERR_PNPM_OUTDATED_LOCKFILE Cannot install with frozen-lockfile\n"
+            'botcore-factory-job: {"failed": "install", "code": 1, "timedOut": false}',
+            False,
+        ),
+        ('botcore-factory-job: {"failed": "install", "code": 124, "timedOut": true}', True),
+        (
+            "ERR_PNPM_META_FETCH_FAIL GET https://registry.npmjs.org/foo: ETIMEDOUT\n"
+            'botcore-factory-job: {"failed": "install", "code": 1, "timedOut": false}',
+            True,
+        ),
+    ],
+)
+def test_real_job_markers_do_not_turn_branch_failures_into_timeouts(lane, output, trouble):
+    lane.change_world(outcomes={"install": {"feat/export-csv": "fail: " + output}})
+    run_steps(lane, 2, **INSTALL)
+    assert bool(events(lane, "lane-error")) is trouble
+    assert bool(events(lane, "ejected")) is not trouble
+    if trouble:
+        assert queue(lane)[0] == ("feat/export-csv", "queued")
+    else:
+        assert events(lane, "ejected")[0]["reason"] == "entry-invalid"
+
+
+def test_a_github_policy_refusal_is_ejected_when_the_base_did_not_move(lane):
+    output = (
+        "X Pull request o/r#600 is not mergeable: the base branch policy prohibits the merge.\n"
+        "To schedule the pull request to merge after all the requirements have been satisfied, "
+        "add the `--auto` flag."
+    )
+    lane.change_world(outcomes={"mergePr": {"feat/export-csv": "fail: " + output}})
+    run_steps(lane, 3)
+    assert events(lane, "ejected")[0]["reason"] == "merge-failed"
+    assert "policy prohibits" in events(lane, "ejected")[0]["detail"]
+    assert "rerun" not in kinds(lane)
+
+
+def test_a_merge_refusal_revalidates_only_when_a_fresh_fetch_proves_the_base_moved(lane):
+    from dataclasses import replace
+
+    run_steps(lane, 2)
+    factory = lane.factory()
+    github = factory.world.github
+
+    class RacingGitHub:
+        def __getattr__(self, name):
+            return getattr(github, name)
+
+        def merge_pr(self, pr, head):
+            lane.change_world(main={"head": "main-raced"})
+            from botcore_factory.world import WorldError
+
+            raise WorldError("Pull request is not mergeable: the base branch policy prohibits it")
+
+    factory.world = replace(factory.world, github=RacingGitHub())
+    # Use a newly opened world when fetching, to see the racing remote update.
+    git = factory.world.git
+
+    class FreshGit:
+        def __getattr__(self, name):
+            return getattr(git, name)
+
+        def fetch_base(self, base):
+            return lane.factory().world.git.fetch_base(base)
+
+    factory.world = replace(factory.world, git=FreshGit())
+    assert "rerun feat/export-csv (main-moved)" in step(factory)
+    assert not events(lane, "ejected")
 
 
 def test_a_check_reported_for_another_head_is_not_this_one_s(lane):
@@ -136,6 +249,7 @@ def test_the_base_moving_while_the_check_runs_validates_again_before_any_merge(l
     )
     actions = run_steps(lane)
     assert "rerun feat/export-csv (main-moved)" in actions
+    assert "rerun fix/retry-backoff (slot-needed)" in actions
     assert "merged" not in kinds(lane)
     assert prs(lane)["600"]["state"] == "OPEN"
     entry = lane.state()["queue"][0]
