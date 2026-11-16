@@ -2,11 +2,11 @@
  * Entry point: register the violet elements the page uses, apply the theme, define the page and connect it to
  * the backend. `?backend=http://host:port` picks another backend (default http://localhost:3100).
  */
-import './elements';
+import '@afd/example-todo-ui/elements';
 import { TodoSession } from '@afd/example-todo-ui/session';
-import { applyTheme } from './theme';
+import { applyTheme } from '@afd/example-todo-ui/theme';
 import { defineTodoApp, type TodoApp } from './todo-app';
-import './styles.css';
+import '@afd/example-todo-ui/styles.css';
 
 applyTheme();
 await defineTodoApp();

@@ -42,7 +42,7 @@ const todoTemplate = html<Todo, TodoApp>`
 				<violet-checkbox
 					class="todo-done"
 					?checked="${(x) => x.completed}"
-					@change="${(x, c) => c.parent.session?.toggle(x.id)}"
+					@change="${(x, c) => c.parent.toggleFrom(x, c.event)}"
 				>
 					${(x) => x.title}
 				</violet-checkbox>
@@ -418,6 +418,12 @@ export class TodoApp extends FASTElement {
 		super.disconnectedCallback();
 		this.#stop?.();
 		this.#stop = undefined;
+	}
+
+	/** Toggle from the row's checkbox; a failed toggle puts the box back as the list still is. */
+	async toggleFrom(todo: Todo, event: Event): Promise<void> {
+		const result = await this.session?.toggle(todo.id);
+		if (result && !result.success) (event.target as HTMLInputElement).checked = todo.completed;
 	}
 
 	/** Enter in the title field adds the todo: violet buttons do not submit a form. */

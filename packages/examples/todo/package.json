@@ -16,7 +16,7 @@
 		"dev:ts": "cd backends/typescript && pnpm dev",
 		"dev:py": "uv run --project backends/python todo-server",
 		"dev:web": "pnpm --dir frontends/fast-af dev",
-		"test:page": "pnpm --dir backends/typescript build && pnpm --dir frontends/fast-af build && pnpm --dir frontends/fast-af test:browser",
+		"test:page": "pnpm --dir backends/typescript build && pnpm --dir frontends/fast-af build && pnpm --dir frontends/react build && pnpm --dir frontends/fast-af test:browser && pnpm --dir frontends/react test:browser",
 		"dev:react": "cd frontends/react && pnpm dev"
 	},
 	"devDependencies": {

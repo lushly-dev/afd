@@ -1,7 +1,7 @@
 /**
- * The violet elements this page uses, each from its own module, so the bundle carries only these
+ * The violet elements the to-do frontends use, each from its own module, so the bundle carries only these
  * (a per-element module registers itself and what it imports; the package root registers all 77).
- * Add a module here when the page starts using another element.
+ * Add a module here when a frontend starts using another element.
  */
 import '@lushly-dev/violet-elements/dist/alert/violet-alert.js';
 import '@lushly-dev/violet-elements/dist/badge/violet-badge.js';

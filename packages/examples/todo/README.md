@@ -95,10 +95,11 @@ pnpm dev:web     # the page
 
 `?backend=http://host:port` points the page at another backend.
 
-**React** (`frontends/react`, still the older frontend on the deprecated `/message` lane; the
-to-do reference plan's phase 3 rebuilds it on the same elements and shared modules):
+**The same page in React 19** (`frontends/react`, http://localhost:5174), on the same elements and
+shared modules:
 
 ```bash
+pnpm dev:ts
 pnpm dev:react
 ```
 
@@ -127,10 +128,11 @@ File-based storage enables:
 
 ## Frontend Features
 
-The page (`frontends/fast-af`) is a thin surface: every action is a backend command over MCP on
-`/mcp` (Streamable HTTP), and everything it shows comes from those commands' results. Its state
-and actions live in plain modules (`frontends/shared`) that the React frontend will share, so the
-two will differ only in how they render.
+The page, in FAST-AF (`frontends/fast-af`) and in React (`frontends/react`), is a thin surface:
+every action is a backend command over MCP on `/mcp` (Streamable HTTP), and everything it shows
+comes from those commands' results. Its state and actions, the elements it registers, its theme
+and its styles live in plain modules (`frontends/shared`), so the two frontends differ only in how
+they render, and one browser suite (`frontends/shared/test/page-suite.ts`) runs against both.
 
 - **Trust:** the last result's confidence (`violet-progress`), reasoning, warnings, sources and
   alternatives, and the undo it names.
@@ -151,8 +153,9 @@ two will differ only in how they render.
   `todo-filter`. A person's filter controls and an agent's commands change the same state, and
   the list follows (job 6). Phase 4's in-page copilot calls them.
 
-`pnpm test:page` builds the backend and the page and runs it in Chromium against the backend:
-add, undo, a clear approved and one denied in the page, an agent narrowing the view, and axe.
+`pnpm test:page` builds the backend and both frontends and runs the suite on each in Chromium
+against the backend: add (with the button and with Enter), undo, a clear approved and one denied
+in the page, an agent narrowing the view, and axe.
 
 ## Mix and Match
 
@@ -165,13 +168,11 @@ list; that pairing is not tested yet.
 
 | Backend    | Frontend | Command                          |
 | ---------- | -------- | -------------------------------- |
-| TypeScript | Page     | `pnpm dev:ts` + `pnpm dev:web`   |
+| TypeScript | FAST-AF  | `pnpm dev:ts` + `pnpm dev:web`   |
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
-| Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
 
-The React frontend still POSTs JSON-RPC to `http://localhost:3100/message`, the deprecated lane
-that AFD 3.0 removes, until phase 3 rebuilds it. The TypeScript and Rust backends accept browser
-requests from the dev frontends' origins (`http://localhost:3000`, `http://localhost:5173` and
+Both frontends talk MCP on `/mcp`; neither uses the deprecated `/message` lane. The TypeScript
+and Rust backends accept browser requests from the dev frontends' origins (`http://localhost:3000`, `http://localhost:5173` and
 `5174`, also on `127.0.0.1`) and refuse other origins with 403; add yours with
 `ALLOWED_ORIGINS`. The Python backend is a stdio MCP server without that HTTP endpoint, so use it
 from an MCP client (see below) and the conformance suite rather than the web frontends.
@@ -285,8 +286,7 @@ A middleware records each change from its result (`src/history.ts`); the latest 
 to approve it (`createApprovalMiddleware`). An MCP client that declares form elicitation asks its
 person; any other caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
 every caller counts as an agent, so the page's "clear completed" is held too: the page shows the
-approval and answers with the person's choice. The React frontend's clear is held until phase 3
-rebuilds it on the same shared modules. Run the server with
+approval and answers with the person's choice, in both frontends. Run the server with
 `APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
 contract every language meets.
 

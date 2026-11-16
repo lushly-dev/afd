@@ -94,7 +94,11 @@ export class TodoClient {
 	/** Rises on every disconnect, so a connection that finishes opening after one is closed. */
 	private generation = 0;
 
-	constructor(private readonly options: TodoClientOptions) {}
+	private readonly options: TodoClientOptions;
+
+	constructor(options: TodoClientOptions) {
+		this.options = options;
+	}
 
 	/** Connect afresh, dropping any current connection. */
 	async connect(): Promise<void> {
