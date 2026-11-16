@@ -22,7 +22,9 @@ CLOSING_KEYWORD = re.compile(
     r"(?:(?:[\w.-]+/[\w.-]+)?#\d+|https?://\S+/issues/\d+)",
     re.IGNORECASE,
 )
-_BAD_REF = re.compile(r"(\.\.|//|@\{|[\x00-\x20~^:?*\[\\\x7f]|\.lock(?:/|$)|/\.|^\.|/$|\.$)")
+#: git check-ref-format's rules, plus ``#`` and ``%``, which git allows but a URL reads as
+#: a fragment or an escape.
+_BAD_REF = re.compile(r"(\.\.|//|@\{|[\x00-\x20~^:?*\[\\\x7f#%]|\.lock(?:/|$)|/\.|^\.|/$|\.$)")
 
 BUILT_IN_RULES: dict[str, str] = {
     "github-token": r"\bgh[pousr]_[A-Za-z0-9]{36,}\b",

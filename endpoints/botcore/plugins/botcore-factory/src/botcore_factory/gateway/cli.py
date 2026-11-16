@@ -78,6 +78,7 @@ def serve(
 
     config = GatewayConfig.model_validate_json(config_file.read_text(encoding="utf-8"))
     github = _github(config, data_dir, fake_github, app_key)
+    _prime_mirrors(github, config)
     app = build_gateway_app(data_dir, config, github)
     try:
         serve_hosts(app, address, port, allow_any=allow_any_address)
@@ -111,6 +112,22 @@ def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path 
         bot=config.bot,
         data_dir=data_dir,
     )
+
+
+def _prime_mirrors(github, config: GatewayConfig) -> None:
+    """Fetch each repository's main into its mirror before serving, so the first upload is
+    not the one that waits for a whole history. A failure is reported, not fatal: an upload
+    fetches again."""
+    fetch = getattr(github, "fetch_main", None)
+    if fetch is None:
+        return
+    from botcore_factory.gateway.github import GitHubRefused, GitHubUnavailable
+
+    for repo in config.repositories:
+        try:
+            fetch(repo)
+        except (GitHubRefused, GitHubUnavailable) as exc:
+            click.secho(f"Could not fetch {repo}'s main yet: {exc}", fg="yellow", err=True)
 
 
 @admin_cli.group("token")

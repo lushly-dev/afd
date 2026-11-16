@@ -20,6 +20,7 @@ closed ones (``RECENT_CLOSED``), and the repository-wide feeds' latest ``FEED_SI
 from __future__ import annotations
 
 import base64
+import os
 import re
 import stat
 import threading
@@ -27,6 +28,7 @@ import time
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 import httpx
 import jwt
@@ -47,6 +49,8 @@ RECENT_CLOSED = 100
 FEED_SIZE = 100
 #: Seconds before an installation token's expiry at which a new one is made.
 TOKEN_MARGIN = 300
+#: Seconds the first fetch of a repository's main into an empty mirror may take.
+FIRST_FETCH_SECONDS = 1800.0
 _METHODS = {"merge": "MERGE", "squash": "SQUASH", "rebase": "REBASE"}
 _REVERT_BRANCH = re.compile(r"^revert-(\d+)-")
 
@@ -56,6 +60,8 @@ def read_private_key(path: Path) -> str:
     info = path.stat()
     if info.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
         raise ValueError(f"{path} is readable by others; chmod 600 it, owned by the service user")
+    if hasattr(os, "getuid") and info.st_uid != os.getuid():
+        raise ValueError(f"{path} belongs to another user; chown it to the service user")
     return path.read_text(encoding="utf-8")
 
 
@@ -111,9 +117,17 @@ class GitHubApp:
                     f"/app/installations/{self.installation_id}/access_tokens",
                     auth=f"Bearer {self._jwt()}",
                 )
-                body = response.json()
-                expires = _epoch(body["expires_at"])
-                self._token = (body["token"], expires)
+                if response.status_code != 201:
+                    # A bad key or clock (401), or the App uninstalled (404): the operator's.
+                    raise GitHubRefused(
+                        response.status_code,
+                        f"the installation token was refused: {_message(response)}",
+                    )
+                try:
+                    body = response.json()
+                    self._token = (body["token"], _epoch(body["expires_at"]))
+                except (ValueError, KeyError, TypeError):
+                    raise GitHubUnavailable("the installation token answer was malformed") from None
             return self._token[0]
 
     def token_age(self) -> float | None:
@@ -153,6 +167,8 @@ class GitHubApp:
             body = response.json()
             items += body if isinstance(body, list) else body.get("check_runs", [])
             next_url = response.links.get("next", {}).get("url")
+            if next_url and not next_url.startswith(f"{API}/"):
+                raise GitHubRefused(0, "a page link left the GitHub API")
             query = None  # The next link carries the query.
         return items if limit is None else items[:limit]
 
@@ -163,7 +179,7 @@ class GitHubApp:
             kinds = {e.get("type") for e in errors}
             if "RATE_LIMITED" in kinds:
                 raise GitHubUnavailable("GraphQL answered RATE_LIMITED")
-            if body.get("data") is None or "NOT_FOUND" not in kinds:
+            if body.get("data") is None or kinds != {"NOT_FOUND"}:
                 raise GitHubRefused(200, "; ".join(e.get("message", "") for e in errors))
         return body.get("data") or {}
 
@@ -174,7 +190,9 @@ class GitHubApp:
             data = self._graphql(query, cursor=cursor, **variables)
             connection = data
             for key in path:
-                connection = connection[key]
+                connection = (connection or {}).get(key)
+            if connection is None:
+                raise GitHubRefused(404, f"GitHub has no {'.'.join(path)} here")
             nodes += connection["nodes"]
             page = connection["pageInfo"]
             if not page["hasNextPage"]:
@@ -224,7 +242,7 @@ class GitHubApp:
     def pull(self, repo, number):
         data = self._graphql(_PULL_QUERY, **_owner_name(repo), number=number)
         node = (data.get("repository") or {}).get("pullRequest")
-        return None if node is None else _pull_shape(node)
+        return None if node is None else _pull_shape(node, self.bot)
 
     def pulls(self, repo):
         found = {}
@@ -237,7 +255,7 @@ class GitHubApp:
                 states=states,
             )
             for node in nodes:
-                found[node["number"]] = _pull_shape(node)
+                found[node["number"]] = _pull_shape(node, self.bot)
         return [found[number] for number in sorted(found)]
 
     def repo_labels(self, repo):
@@ -249,9 +267,9 @@ class GitHubApp:
 
     def ref(self, repo, ref):
         body = self._call("GET", f"/repos/{repo}/git/ref/{_short(ref)}", none=(404,))
-        if body is None or isinstance(body, list):
+        if not isinstance(body, dict) or not isinstance(body.get("object"), dict):
             return None  # A list is GitHub's prefix match: no ref by that exact name.
-        return body["object"]["sha"]
+        return body["object"].get("sha")
 
     def has_commit(self, repo, sha):
         if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
@@ -261,7 +279,12 @@ class GitHubApp:
     def on_main(self, repo, sha):
         if not re.fullmatch(r"[0-9a-f]{40}", sha or ""):
             return False
-        body = self._call("GET", f"/repos/{repo}/compare/main...{sha}", none=(404,))
+        body = self._call(
+            "GET",
+            f"/repos/{repo}/compare/main...{sha}",
+            params={"per_page": 1},
+            none=(404,),
+        )
         return body is not None and body.get("status") in {"identical", "behind"}
 
     def check_runs(self, repo, head):
@@ -270,7 +293,9 @@ class GitHubApp:
         return sorted(runs, key=lambda run: (run.get("queuedAt") or "", run["id"]))
 
     def variable(self, repo, name):
-        body = self._call("GET", f"/repos/{repo}/actions/variables/{name}", none=(404,))
+        body = self._call(
+            "GET", f"/repos/{repo}/actions/variables/{quote(name, safe='')}", none=(404,)
+        )
         return None if body is None else body["value"]
 
     def issue_events(self, repo):
@@ -355,7 +380,11 @@ class GitHubApp:
                 )
         except uploads.GitError as exc:
             text = f"{exc}\n{exc.output}".strip()
-            if "stale info" in text or "fetch first" in text:
+            if re.search(
+                r"stale info|fetch first|incorrect old value|failed to update ref|"
+                r"cannot lock ref",
+                text,
+            ):
                 raise HeadMoved(self.ref(repo, ref) or "") from None
             if re.search(r"unable to access|Could not resolve|timed out|ran out of time", text):
                 raise GitHubUnavailable(f"git push: {_redact(text)}") from None
@@ -365,6 +394,12 @@ class GitHubApp:
         """Bring the mirror's ``main`` to GitHub's, so a bundle's new commits are counted
         against the real main."""
         mirror = uploads.ensure_mirror(self.data_dir, repo)
+        if (
+            not (mirror / "refs" / "heads" / "main").exists()
+            and not uploads.git(mirror, "for-each-ref", uploads.MAIN).strip()
+        ):
+            # The first fetch carries the whole history: give it its own, longer deadline.
+            deadline = time.monotonic() + FIRST_FETCH_SECONDS
         try:
             with uploads.mirror_lock(mirror):
                 uploads.git(
@@ -379,15 +414,20 @@ class GitHubApp:
                     env=self._git_env(),
                 )
         except uploads.GitError as exc:
-            raise GitHubUnavailable(f"git fetch: {_redact(str(exc))}") from None
+            text = _redact(str(exc))
+            if re.search(r"not found|Authentication failed|403|denied", text, re.IGNORECASE):
+                raise GitHubRefused(0, f"git fetch: {text}") from None
+            raise GitHubUnavailable(f"git fetch: {text}") from None
 
     def _git_env(self) -> dict[str, str]:
         """The token as an extra header, through git's environment config, never argv."""
         basic = base64.b64encode(f"x-access-token:{self.token()}".encode()).decode()
         return {
-            "GIT_CONFIG_COUNT": "1",
+            "GIT_CONFIG_COUNT": "2",
             "GIT_CONFIG_KEY_0": f"http.{self._git_url}/.extraheader",
             "GIT_CONFIG_VALUE_0": f"Authorization: Basic {basic}",
+            "GIT_CONFIG_KEY_1": "http.followRedirects",
+            "GIT_CONFIG_VALUE_1": "false",
         }
 
     def create_pull(self, repo, branch, title, body):
@@ -427,11 +467,17 @@ class GitHubApp:
                 head=head,
             )
         except GitHubRefused as refused:
-            if "not allowed" in refused.message.lower() and "merge" in refused.message.lower():
+            text = refused.message.lower()
+            if "not allowed" in text and "merge" in text:
                 raise MergeMethodNotAllowed(method) from None
-            if "expected head" in refused.message.lower():
+            if re.search(r"expected.*head|head.*(oid|sha|moved|changed|modified)", text):
                 current = self.pull(repo, number)
                 raise HeadMoved((current or {}).get("head") or "") from None
+            if "clean status" in text:
+                # Checks passed before GitHub computed mergeability; a retry merges it at once.
+                raise GitHubUnavailable(
+                    "the pull request became mergeable while auto-merge was being enabled"
+                ) from None
             raise
 
     def disable_auto_merge(self, repo, number):
@@ -458,16 +504,17 @@ class GitHubApp:
         )
 
     def set_variable(self, repo, name, value):
-        updated = self._call(
+        response = self._send(
             "PATCH",
-            f"/repos/{repo}/actions/variables/{name}",
+            f"/repos/{repo}/actions/variables/{quote(name, safe='')}",
             json={"name": name, "value": value},
-            none=(404,),
         )
-        if updated is None and self.variable(repo, name) is None:
+        if response.status_code == 404:
             self._call(
                 "POST", f"/repos/{repo}/actions/variables", json={"name": name, "value": value}
             )
+        elif response.status_code != 204:
+            raise GitHubRefused(response.status_code, _message(response))
 
 
 # ── shapes ─────────────────────────────────────────────────────────────────
@@ -500,18 +547,22 @@ def _rest_comment(row: dict) -> dict:
     }
 
 
-def _pull_shape(node: dict) -> dict:
+def _pull_shape(node: dict, bot: str) -> dict:
     mergeable = node.get("mergeable") or "UNKNOWN"
     if mergeable != "CONFLICTING" and node.get("mergeStateStatus") == "BLOCKED":
         mergeable = "BLOCKED"
+    fork = bool(node.get("isCrossRepository"))
+    author = _login(node.get("author"))
     shape = {
         "number": node["number"],
         "state": node["state"].lower(),
-        "branch": node["headRefName"],
+        # A fork's branch is not this repository's: ":" keeps it from matching any branch.
+        "branch": f"fork:{node['headRefName']}" if fork else node["headRefName"],
         "head": node["headRefOid"],
         "title": node["title"],
         "body": node["body"],
-        "author": _login(node.get("author")),
+        "author": author,
+        "labels": [label["name"] for label in node["labels"]["nodes"]],
         "mergeable": mergeable,
         "mergedAt": node.get("mergedAt"),
         "autoMerge": node.get("autoMergeRequest") is not None,
@@ -519,7 +570,7 @@ def _pull_shape(node: dict) -> dict:
         "checks": [],
     }
     revert = _REVERT_BRANCH.match(node["headRefName"] or "")
-    if revert:
+    if revert and not fork and author == bot:  # Only the gateway's own reverts count.
         shape["revertOf"] = int(revert.group(1))
     return shape
 
@@ -555,7 +606,12 @@ def _owner_name(repo: str) -> dict:
 
 
 def _short(ref: str) -> str:
-    return ref.removeprefix("refs/")
+    """A ref as a URL path: without ``refs/``, each segment percent-encoded, and refused if
+    a segment could climb out of the repository's path."""
+    segments = ref.removeprefix("refs/").split("/")
+    if any(segment in {"", ".", ".."} for segment in segments):
+        raise GitHubRefused(0, f"{ref!r} is not a ref the gateway reads")
+    return "/".join(quote(segment, safe="") for segment in segments)
 
 
 def _path(url: str) -> str:
@@ -598,6 +654,8 @@ _ISSUE_FIELDS = f"""number state title body authorAssociation
     {_COMMENTS}"""
 _PULL_FIELDS = """number state title body headRefName headRefOid mergeable mergeStateStatus
     mergedAt author { __typename login } autoMergeRequest { enabledAt }
+    isCrossRepository
+    labels(first: 100) { nodes { name } }
     closingIssuesReferences(first: 20) { nodes { number } }"""
 
 _ISSUE_QUERY = f"""query($owner: String!, $name: String!, $number: Int!) {{

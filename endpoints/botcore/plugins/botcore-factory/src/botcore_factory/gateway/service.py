@@ -616,6 +616,13 @@ class Gateway:
     def pr_open(self, repo: str, branch: str, title: str, body: str, closes: list[int]):
         self.repo(repo)
         self.text(branch=branch, title=title, body=body)
+        if not ref_is_well_formed(f"{HEADS_PREFIX}{branch}"):
+            raise refuse(
+                "REF_NOT_ALLOWED",
+                f"{branch} is not a well-formed branch name",
+                "Pass the branch's name as git spells it, without '..', '//', '#', '%' or spaces",
+                branch=branch,
+            )
         if CLOSING_KEYWORD.search(body):
             raise refuse(
                 "CLOSING_KEYWORD_IN_BODY",
@@ -784,6 +791,13 @@ class Gateway:
             self.github.enable_auto_merge(repo, number, head, method)
         except MergeMethodNotAllowed:
             raise self._merge_method_refusal(repo, method) from None
+        except HeadMoved as moved:
+            raise refuse(
+                "HEAD_MOVED",
+                f"Pull request {number}'s head moved to {moved.head} before auto-merge was set",
+                "The branch moved: validate its current head, record it, and merge that head",
+                head=moved.head,
+            ) from None
         return success(
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",

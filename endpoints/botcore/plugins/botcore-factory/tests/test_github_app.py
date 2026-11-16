@@ -199,6 +199,8 @@ def _pull(number, **fields):
         "mergedAt": None,
         "author": {"__typename": "Bot", "login": "example-factory"},
         "autoMergeRequest": None,
+        "isCrossRepository": False,
+        "labels": {"nodes": [{"name": "p1"}]},
         "closingIssuesReferences": {"nodes": [{"number": 101}]},
         **fields,
     }
@@ -217,6 +219,67 @@ def test_pull_requests_take_the_fake_s_shape(github):
     assert blocked["mergeable"] == "BLOCKED" and blocked["autoMerge"] is True
     assert blocked["author"] == BOT and blocked["closes"] == [101] and blocked["branch"] == "fix/x"
     assert merged["state"] == "merged" and merged["revertOf"] == 41
+    assert blocked["labels"] == ["p1"]
+
+
+def test_a_fork_s_branch_matches_no_branch_and_reverts_only_the_bot_s(github):
+    app, mock, _ = github
+    owner = {"__typename": "User", "login": "someone"}
+    mock.graphql += [
+        _page(
+            "pullRequests",
+            [
+                _pull(50, isCrossRepository=True, headRefName="revert-41-x"),
+                _pull(51, headRefName="revert-42-x", author=owner),
+            ],
+        ),
+        _page("pullRequests", []),
+    ]
+    fork, human = app.pulls(REPO)
+    assert fork["branch"] == "fork:revert-41-x" and "revertOf" not in fork
+    assert "revertOf" not in human
+
+
+def test_a_refused_installation_token_is_the_operator_s_to_fix(github):
+    app, mock, _ = github
+
+    def refuse(request):
+        return httpx.Response(401, json={"message": "A JSON web token could not be decoded"})
+
+    original = mock.__call__
+    mock.routes[("GET", f"/repos/{REPO}/labels")] = httpx.Response(200, json=[])
+    app._http._transport = httpx.MockTransport(
+        lambda request: (
+            refuse(request) if request.url.path.endswith("/access_tokens") else original(request)
+        )
+    )
+    with pytest.raises(GitHubRefused) as refused:
+        app.repo_labels(REPO)
+    assert refused.value.status == 401 and "token" in refused.value.message
+
+
+@pytest.mark.parametrize("ref", ["refs/heads/a/../../x", "refs/heads//x", "refs/heads/."])
+def test_a_ref_that_would_climb_out_of_the_repository_is_never_requested(github, ref):
+    app, mock, _ = github
+    with pytest.raises(GitHubRefused):
+        app.ref(REPO, ref)
+    assert not [r for r in mock.requests if "/git/ref/" in r.url.path]
+
+
+def test_a_ref_is_requested_percent_encoded(github):
+    app, mock, _ = github
+    app.ref(REPO, "refs/heads/fix/a+b")
+    assert mock.requests[-1].url.raw_path.endswith(b"/git/ref/heads/fix/a%2Bb")
+
+
+def test_an_auto_merge_github_finds_already_clean_may_be_retried(github):
+    app, mock, _ = github
+    mock.routes[("GET", f"/repos/{REPO}/pulls/46")] = httpx.Response(200, json={"node_id": "PR_1"})
+    mock.graphql.append(
+        {"data": None, "errors": [{"message": "Pull request Pull request is in clean status"}]}
+    )
+    with pytest.raises(GitHubUnavailable):
+        app.enable_auto_merge(REPO, 46, "a" * 40, "merge")
 
 
 def test_a_stale_head_a_disallowed_method_and_a_clean_merge(github):
@@ -334,12 +397,19 @@ def test_the_comment_feed_tells_pull_requests_from_issues(github):
     assert comment["association"] == "OWNER"
 
 
-def test_a_missing_variable_is_created(github):
+def test_a_missing_variable_is_created_and_a_present_one_updated(github):
     app, mock, _ = github
     mock.routes[("POST", f"/repos/{REPO}/actions/variables")] = httpx.Response(201)
     app.set_variable(REPO, "FACTORY_LANE_HOST", "random")
     methods = [(r.method, r.url.path) for r in mock.requests[1:]]
-    assert methods[-1] == ("POST", f"/repos/{REPO}/actions/variables")
+    assert methods == [
+        ("PATCH", f"/repos/{REPO}/actions/variables/FACTORY_LANE_HOST"),
+        ("POST", f"/repos/{REPO}/actions/variables"),
+    ]
+    path = f"/repos/{REPO}/actions/variables/FACTORY_LANE_HOST"
+    mock.routes[("PATCH", path)] = httpx.Response(204)
+    app.set_variable(REPO, "FACTORY_LANE_HOST", "random")
+    assert (mock.requests[-1].method, mock.requests[-1].url.path) == ("PATCH", path)
 
 
 def test_a_ref_github_lacks_is_none(github):
@@ -412,6 +482,26 @@ def test_a_push_lands_only_where_the_ref_still_is_what_was_read(remote):
     assert moved.value.head == head
     app.update_ref(REPO, "refs/heads/fix/x", newer, head)
     assert git(bare, "rev-parse", "refs/heads/fix/x") == newer
+
+
+def test_a_push_github_rejects_atomically_is_head_moved(remote, monkeypatch):
+    app, mock, _, work = remote
+    head = _commit_into_mirror(app, work, "g.txt")
+    from botcore_factory.gateway import uploads
+
+    def rejected(*arguments, **kwargs):
+        raise uploads.GitError(
+            "error: failed to push some refs",
+            f"!\t{head}:refs/heads/fix/x\t[remote rejected] (incorrect old value provided)",
+        )
+
+    monkeypatch.setattr(uploads, "git", rejected)
+    mock.routes[("GET", f"/repos/{REPO}/git/ref/heads/fix/x")] = httpx.Response(
+        200, json={"object": {"sha": "e" * 40}}
+    )
+    with pytest.raises(HeadMoved) as moved:
+        app.update_ref(REPO, "refs/heads/fix/x", head, None)
+    assert moved.value.head == "e" * 40
 
 
 def test_the_token_reaches_git_by_environment_never_argv(remote, monkeypatch):
