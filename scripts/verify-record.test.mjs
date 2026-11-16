@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { describe, it } from 'node:test';
-import { decide } from './pre-push.mjs';
+import { decide, onlyFactoryRefs } from './pre-push.mjs';
 import {
 	acceptRecord,
 	buildRecord,
@@ -196,5 +196,24 @@ describe('in a repository', () => {
 		});
 		assert.equal(broken.accepted, false);
 		assert.match(broken.reason, /could not be read: bad JSON/);
+	});
+
+	it('pre-push accepts a push of only factory lane refs, without a record', () => {
+		const queue = 'refs/factory/queue/lush/fleet-1';
+		const git = () => {
+			throw new Error('git must not run for a factory ref');
+		};
+		const read = () => null;
+		const handOff = decide({ updates: push(OTHER, queue), git, read, now: NOW });
+		assert.equal(handOff.accepted, true);
+		assert.match(handOff.reason, /factory lane refs/);
+		assert.equal(onlyFactoryRefs(push(OTHER, 'refs/factory/hosts/air')), true);
+		assert.equal(onlyFactoryRefs(push(OTHER, 'refs/factory/other/x')), false);
+		assert.equal(onlyFactoryRefs(`${queue} ${ZERO} ${queue} ${OTHER}\n`), true); // a deletion
+		assert.equal(onlyFactoryRefs(push(OTHER, queue) + push(OTHER)), false); // with a branch
+		assert.equal(onlyFactoryRefs(push(OTHER, 'refs/factory/queue/')), false);
+		assert.equal(onlyFactoryRefs(push(OTHER, 'refs/heads/factory/queue/x')), false);
+		assert.equal(onlyFactoryRefs(''), false);
+		assert.equal(decide({ updates: push(OTHER), git, read, now: NOW }).accepted, false);
 	});
 });

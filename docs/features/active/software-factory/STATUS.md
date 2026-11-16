@@ -5,6 +5,20 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## The first fleet, 2026-11-16
+
+The first fleet runs on the MacBook Air: one slot, one cell (`cells.max` 1; `host.minFreeGb`
+lowered to 4 while `fseventsd` holds 5 GB), on the Claude week the lane chose. Its cell for #386
+(Opus 5.5 `high`) implemented, reviewed and recorded the review, then was held at enqueue: the
+push of the queue ref ran AFD's full pre-push checks, which outlast the plugin's 60-second
+subprocess limit (#1331). `pre-push.mjs` now accepts a push that only updates the lane's refs
+(`refs/factory/queue/*`, and `refs/factory/hosts/*`, which holds host records): a queue ref is a
+hand-off, and the lane validates the head and pushes the branch under its own record, through the
+same hook. Also found: a cell that ends its turn to wait
+for a background reviewer reads to the foreman as finished, so the brief now has the cell wait in
+its turn and the runbook checks for a run in progress before dropping one; and `delegate_task`'s
+worktree isolation worked.
+
 ## The fleet's command lines and `run-fleet`, 2026-11-15
 
 `factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two
