@@ -317,6 +317,14 @@ test('the rule for test files holds in this repository', () => {
 
 	// The suites that scan another package's files, tests included, declare them (EXTRA_INPUTS).
 	const reached = (file) => scope([file]).affected;
+	for (const file of [
+		'packages/examples/todo/backends/typescript/src/commands/index.ts',
+		'packages/examples/todo/scenarios/filter-by-priority.scenario.yaml',
+		'packages/examples/todo/fixtures/seeded-todos.json',
+	]) {
+		assert.ok(reached(file).includes('@lushly-dev/afd-testing'), file);
+	}
+	assert.ok(!reached('packages/examples/todo/README.md').includes('@lushly-dev/afd-testing'));
 	const kernel = reached('endpoints/loam/packages/kernel/src/a.test.ts');
 	assert.ok(
 		kernel.includes('@lushly-dev/loam-web') && kernel.includes('@lushly-dev/loam-identity')
