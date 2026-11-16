@@ -31,7 +31,7 @@ tags = ["components", "brief"]
 version = "1.0.0"
 first_class = true
 output_budget = { default_bytes = 40000, max_bytes = 96000 }
-journal = { mode = "digest", keep = ["space", "library", "detail", "render"] }
+journal = { mode = "digest", keep = ["space", "library", "detail", "render", "consumer"] }
 examples = [
 	{ title = "Brief on three tags", input = { tags = ["example-field", "example-select", "example-option"] } },
 	{ title = "Brief on a page's source, as a block to inject", input = { source = "<example-select label=\"Size\"></example-select>", render = "text", maxBytes = 9000 } },
@@ -71,3 +71,8 @@ path = "skills/components-guide"
 
 [config]
 schema = "schemas/config.schema.json"
+
+# Deployment policy has its own pack; Specimen never writes this file.
+[[packs]]
+id = "consumers"
+path = "packs/consumers"

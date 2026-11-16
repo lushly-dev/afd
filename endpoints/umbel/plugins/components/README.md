@@ -102,3 +102,22 @@ arrives only after the write. What it costs is recorded in the
 - A pack holds at most 64 libraries, 1 000 files and 64 MiB; one file holds at most 1 MiB.
 - A library with any problem is refused whole. The failure's `details` name the problems and the
   libraries that can still be served.
+
+## Consumer-specific guidance
+
+`components-brief` accepts `consumer: "loam"` when the deployment configures it.
+This repository's launcher writes `spaces/main/packs/components/consumers/` with
+`pack.toml` and `data/consumers.json`. The file maps names to `exclude_rules`:
+
+```json
+{"version":1,"consumers":{"loam":{"exclude_rules":["violet-elements/import.root","violet-elements/theme.install"]}}}
+```
+
+The normal `pack.toml` identifies the separate pack as `consumers`, for plugin
+`components`; Specimen exports only the `library` pack. See the
+[profile contract](../../docs/plugins/components/spec.md#67-consumer-profiles)
+for limits and failures. Excluded rules and references disappear from the brief,
+with their identifiers recorded under `omitted` (`reason: "consumer"`). Other
+library facts, including `import`, remain documentation; Loam's design record owns
+its deep imports. `components-open` still shows the general library record.
+Without `consumer`, the brief is unchanged; a misspelled name fails explicitly.

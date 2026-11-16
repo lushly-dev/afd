@@ -6,6 +6,8 @@ import test from 'node:test';
 import {
 	BINARY,
 	binaryCandidates,
+	CONSUMERS,
+	CONSUMERS_TOML,
 	exportPack,
 	findBinary,
 	overrideDirectory,
@@ -96,4 +98,20 @@ test('an export holds a lock, waits for another and takes a stale one', (t) => {
 		'ran'
 	);
 	assert.equal(existsSync(lock), false);
+});
+
+test('the repository deploys Loam exclusions outside the library pack', (t) => {
+	const workspace = scratch(t);
+	const override = prepareWorkspace(workspace);
+	const consumers = join(workspace, 'spaces', 'main', 'packs', 'components', 'consumers');
+	assert.equal(readFileSync(join(consumers, 'pack.toml'), 'utf8'), CONSUMERS_TOML);
+	assert.deepEqual(
+		JSON.parse(readFileSync(join(consumers, 'data', 'consumers.json'), 'utf8')),
+		CONSUMERS
+	);
+	assert.deepEqual(CONSUMERS.consumers.loam.exclude_rules, [
+		'violet-elements/import.root',
+		'violet-elements/theme.install',
+	]);
+	assert.equal(existsSync(join(override, 'data', 'consumers.json')), false);
 });
