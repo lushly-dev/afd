@@ -129,7 +129,7 @@ def mount_held_directory(directory, target):
     if handle == c.c_void_p(-1).value:
         raise c.WinError(c.get_last_error())
     try:
-        name = ("\??\\" + str(target)).encode("utf-16-le")
+        name = ("\\??\\" + str(target)).encode("utf-16-le")
         buffer = struct.pack("<HHHH", 0, len(name), len(name) + 2, 0) + name + b"\0\0\0\0"
         request = struct.pack("<IHH", 0xA0000003, len(buffer), 0) + buffer
         returned = w.DWORD()

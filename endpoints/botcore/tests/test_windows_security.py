@@ -8,7 +8,6 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
-from botcore import _windows_security
 from botcore.host_tokens import TokenStore
 from tests.windows_acl import (
     assert_private,
@@ -141,6 +140,8 @@ def test_an_empty_ancestor_mounted_while_held_cannot_redirect_creation(tmp_path,
     # A held, already-checked ancestor that is still empty can be made a mount point before its
     # child is created; the creation then follows it. The operation must refuse, and leave
     # nothing in the mount's target.
+    from botcore import _windows_security  # Windows only: it imports msvcrt.
+
     ancestor = tmp_path / "tree"
     ancestor.mkdir()
     elsewhere = tmp_path / "elsewhere"
