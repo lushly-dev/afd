@@ -157,9 +157,10 @@ restart clears captures, so complete each replay before restarting. These
 manual observations should be recorded separately from the automated receipt;
 an interrupted Playwright run remains incomplete.
 The hosted whole-run deadline must exceed the configured session lifetime plus
-the restart and per-operation budgets. Local mode retains its 12-second session,
-1-second renewal age, 3-second restart budget, 5-second operation budget and
-180-second default whole-run deadline for fast evidence.
+the restart and per-operation budgets. Local mode uses a 15-second session,
+1-second renewal age, 3-second restart budget, 8-second operation budget (raised
+from 5 seconds so a loaded shared host does not fail a phase) and 180-second
+default whole-run deadline for fast evidence.
 Missing configuration is an explicit nonzero preflight failure, never a skipped
 provider pass. Startup, navigation/API calls, restart and tests have deadlines. The isolated server process installs a real-fetch network policy before provider initialization: every external server-side request requires HTTPS without URL credentials, redirects are rejected, and each discovery response is checked for the exact configured issuer and HTTPS authorization/token/userinfo/JWKS endpoints. It delegates to native network fetch and does not fabricate provider responses. Only the explicit local test-provider origin permits loopback HTTP.
 
@@ -184,7 +185,9 @@ restart check and is recorded as `not-reported`, never filled in from a pin. Whe
 cleanup fails, it adds the step that failed (`cleanupFailure`, such as
 `cleanup-response` or `provider-close`) and, when the cleanup endpoint answered
 without success, its HTTP status (`cleanupStatus`); the error's first line, with
-the control key removed, goes to stderr. It omits configured identity values,
+the control key removed, goes to stderr. A failed phase likewise writes one
+`run failed at <phase>: <reason>` line to stderr, with the control key and any
+URL query or fragment removed. It omits configured identity values,
 session/user IDs, OAuth codes/state, cookie values, passwords, secret keys, raw
 errors and raw network logs.
 

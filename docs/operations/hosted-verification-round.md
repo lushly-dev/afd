@@ -108,7 +108,7 @@ the final preparation commit after independent review and all applicable gates.
    remaining lifetime for restart, one shared post-restart observation window
    and a one-second clock-skew margin. Impossible timing combinations fail
    preflight. The final idle-expiry assertion remains.
-   Local mode retains fast 12-second sessions and loopback binding. See the
+   Local mode keeps short (15-second) sessions and loopback binding. See the
    [H1 configuration contract](../../packages/auth/hosted/better-auth/README.md).
 2. **H3 managed-edge outage.** Native-fetch rejection remains the default.
    `AFD_TEST_HTTP_UNAVAILABLE_HTTP_STATUS=503` explicitly selects the Render edge

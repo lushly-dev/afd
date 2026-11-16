@@ -10,6 +10,7 @@ import {
 	receiptJSON,
 	renewalEvidenceIsConsistent,
 	reportedVersion,
+	safeReason,
 } from './contract.js';
 import type {} from './fixture.js';
 import { startLocal } from './local.js';
@@ -75,8 +76,9 @@ export async function runHarness(input: {
 		void browser?.close();
 	};
 	input.signal.addEventListener('abort', stopBrowser, { once: true });
-	const check = (valid: unknown) => {
-		if (!valid) throw new Error('Assertion failed');
+	// A label is fixed text or an adapter state name, never a value: it reaches stderr on failure.
+	const check = (valid: unknown, label = '') => {
+		if (!valid) throw new Error(label ? `Assertion failed: ${label}` : 'Assertion failed');
 	};
 	const pass = (name: string) => {
 		receipt.assertions.push(name);
@@ -170,11 +172,30 @@ export async function runHarness(input: {
 			pass('fresh Chromium and real AFD hooks signed out');
 			process.send?.({ phase: 'fixture-ready' });
 			async function oauth(decision: 'allow' | 'deny') {
+				// The adapter itself must read signed out, and stay so for three consecutive reads: the DOM
+				// attribute can lead it, and a sign-out sync can still be refetching in either tab.
+				let signedOutReads = 0;
+				await waitFor(async () => {
+					try {
+						const state = await first.evaluate(() => window.afdHosted.snapshot());
+						signedOutReads = state.status === 'unauthenticated' ? signedOutReads + 1 : 0;
+					} catch {
+						signedOutReads = 0;
+					}
+					return signedOutReads >= 3;
+				}, cfg.operationTimeoutMs);
 				const beforeCallback = callbackCount;
 				const outcome = await first.evaluate(() => window.afdHosted.oauth());
-				check(outcome.kind === 'redirect' && outcome.before === 'unauthenticated' && outcome.url);
+				check(outcome.kind === 'redirect' && outcome.url, `sign-in returned ${outcome.kind}`);
+				check(
+					outcome.before === 'unauthenticated',
+					`adapter read ${outcome.before} when the redirect started`
+				);
 				const authorization = new URL(outcome.url ?? '');
-				check(authorization.searchParams.get('redirect_uri') === cfg.callbackURL);
+				check(
+					authorization.searchParams.get('redirect_uri') === cfg.callbackURL,
+					'authorization redirect_uri is not the configured callback'
+				);
 				await first.goto(authorization.href);
 				if (cfg.mode === 'local') await first.locator(`#${decision}`).click();
 				else
@@ -367,7 +388,9 @@ export async function runHarness(input: {
 		} finally {
 			await api.dispose();
 		}
-	} catch {
+	} catch (error) {
+		// The receipt names the phase; stderr says why, one redacted line (#386 ejection diagnosis).
+		process.stderr.write(`run failed at ${phase}: ${safeReason(error, config?.controlKey)}\n`);
 		receipt.failurePhase = phase;
 		receipt.interrupted = input.interrupted?.() ?? input.signal.aborted;
 		receipt.checks[phase] = 'failed';
@@ -408,9 +431,7 @@ export async function runHarness(input: {
 		} catch (error) {
 			// The receipt names the step; stderr says why, one line, with the control key never in it.
 			receipt.cleanupFailure = step;
-			process.stderr.write(
-				`cleanup failed at ${step}: ${cleanupReason(error, config?.controlKey)}\n`
-			);
+			process.stderr.write(`cleanup failed at ${step}: ${safeReason(error, config?.controlKey)}\n`);
 			receipt.cleanup = 'failed';
 			receipt.result = 'failed';
 			await browser?.close().catch(() => {});
@@ -420,12 +441,4 @@ export async function runHarness(input: {
 	process.stdout.write(`${receiptJSON(receipt)}\n`);
 	if (receipt.result === 'failed') process.exitCode = 1;
 	return receipt;
-}
-
-/** An error's first line, at most 300 characters, with the control key removed. */
-function cleanupReason(error: unknown, controlKey = ''): string {
-	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-	// Redacted before it is cut, so a key the cut would split is never half printed.
-	const line = text.split('\n')[0] ?? '';
-	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
 }

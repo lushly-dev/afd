@@ -2,10 +2,11 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readdir, readFile } from 'node:fs/promises';
+import { mkdtemp, readdir, readFile, rm } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
@@ -18,6 +19,7 @@ import {
 	renewalEvidenceIsConsistent,
 	reportedVersion,
 	requiredRestartLifetimeMs,
+	safeReason,
 } from './contract.ts';
 import { secureProviderFetch, validateDiscovery } from './provider-fetch.ts';
 import { remainingBudgetMs, restartWithinBudget, withinTimeout } from './restart.ts';
@@ -205,6 +207,20 @@ test('reported runtime versions are kept as reported and never inferred when abs
 	for (const missing of [undefined, null, '', '24', 'v24.22.0', 24, {}])
 		assert.equal(reportedVersion(missing), undefined);
 });
+test('failure reasons are one line without the control key or OAuth query', () => {
+	const key = 'k'.repeat(64);
+	const reason = safeReason(
+		new Error(
+			`page.waitForURL: Timeout at https://127.0.0.1:4/api/auth/callback/x?code=SECRET&state=S#frag with ${key}\nstack line`
+		),
+		key
+	);
+	assert.equal(
+		reason,
+		'Error: page.waitForURL: Timeout at https://127.0.0.1:4/api/auth/callback/x[redacted] with [control key]'
+	);
+	assert.ok(safeReason('x'.repeat(500)).length <= 300);
+});
 test('receipts whitelist output and strip OAuth query/fragment/credentials', () => {
 	const secret = 'SECRET-SENTINEL-DO-NOT-PERSIST';
 	const encoded = receiptJSON({
@@ -283,13 +299,30 @@ test('explicit hosted request with missing configuration fails without provider 
 	assert.match(result.errors, /not run/);
 	assert.ok(!result.errors.includes('SECRET-SENTINEL'));
 });
+/**
+ * A private temporary root for one spawned runner. Other harness runs on the host (a parallel test
+ * file, another worktree, the lane) use the shared one, so its listing is not this run's (#1334).
+ */
+async function privateTemp() {
+	const root = await mkdtemp(join(tmpdir(), 'afd-ba-test-'));
+	return {
+		env: { TMPDIR: root, TEMP: root, TMP: root },
+		scratch: async () =>
+			(await readdir(root)).filter((name) => name.startsWith('afd-better-auth-')),
+		remove: () => rm(root, { recursive: true, force: true }),
+	};
+}
 test('real Chromium deadline failure removes child server, database, generated key and browser', {
 	timeout: 35_000,
 }, async () => {
-	const scratch = async () =>
-		(await readdir(tmpdir())).filter((name) => name.startsWith('afd-better-auth-')).sort();
-	const before = await scratch();
-	const result = await run(['--local'], { AFD_BA_DEADLINE_MS: '10000' });
+	const temp = await privateTemp();
+	const result = await run(['--local'], { AFD_BA_DEADLINE_MS: '10000', ...temp.env }).finally(
+		async () => {
+			// Read before removal so the assertion below sees what the runner left behind.
+			temp.left = await temp.scratch();
+			await temp.remove();
+		}
+	);
 	assert.equal(result.code, 1);
 	const receipt = JSON.parse(result.output);
 	assert.equal(receipt.result, 'failed');
@@ -309,8 +342,9 @@ test('real Chromium deadline failure removes child server, database, generated k
 		assert.equal(receipt.providerNodeAfterRestart, process.versions.node);
 	assert.match(receipt.browser, /^\d+\.\d+\.\d+\.\d+$/);
 	assert.equal(receipt.versions.playwright, playwrightVersion);
-	assert.deepEqual(await scratch(), before);
-	assert.equal(result.errors, '');
+	assert.deepEqual(temp.left, []);
+	// One redacted line names the failed phase and why; cleanup itself reported nothing.
+	assert.match(result.errors, /^run failed at [a-z-]+: [^\n]+\n$/);
 });
 
 // Exercise the actual OS signal path, not only the harness's own browser timer. Windows has no
@@ -323,15 +357,16 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 			? 'Windows does not deliver POSIX SIGTERM; deadline cleanup is tested above'
 			: false,
 }, async () => {
-	const scratch = async () =>
-		(await readdir(tmpdir())).filter((name) => name.startsWith('afd-better-auth-')).sort();
-	const before = await scratch();
+	const temp = await privateTemp();
 	const cache = async () =>
 		(await readdir('node_modules/.cache'))
 			.filter((name) => name.startsWith('afd-better-auth-run-'))
 			.sort();
 	const cacheBefore = await cache();
-	const result = await run(['--local'], {}, 2000);
+	const result = await run(['--local'], temp.env, 2000).finally(async () => {
+		temp.left = await temp.scratch();
+		await temp.remove();
+	});
 	assert.equal(result.code, 1);
 	const receipt = JSON.parse(result.output);
 	assert.equal(receipt.result, 'failed');
@@ -357,8 +392,8 @@ test('SIGTERM during a real local run unwinds provider, browser, store and certi
 			reject(new Error('Provider child still listening after signal cleanup'));
 		});
 	});
-	assert.deepEqual(await scratch(), before);
-	assert.equal(result.errors, '');
+	assert.deepEqual(temp.left, []);
+	assert.match(result.errors, /^run failed at [a-z-]+: [^\n]+\n$/);
 });
 
 test('external discovery rejects missing/insecure endpoints and issuer mismatch without network calls', () => {

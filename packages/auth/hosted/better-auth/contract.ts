@@ -284,3 +284,17 @@ export function receiptJSON(receipt: Receipt): string {
 		2
 	);
 }
+
+/**
+ * An error's first line, at most 300 characters, with the control key and any URL's query and
+ * fragment (OAuth code and state) removed.
+ */
+export function safeReason(error: unknown, controlKey = ''): string {
+	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
+	// Redacted before it is cut, so a key the cut would split is never half printed.
+	const line = (text.split('\n')[0] ?? '').replace(
+		/(https?:\/\/[^\s?#'"]*)[?#][^\s'"]*/gi,
+		'$1[redacted]'
+	);
+	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
+}

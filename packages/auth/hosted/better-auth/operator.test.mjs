@@ -168,7 +168,10 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 		await signIn();
 		await first.locator('#probe-capture').click();
 		await first.locator('#probe-status').getByText('Captured one session').waitFor();
-		await new Promise((resolveWait) => setTimeout(resolveWait, 13_000));
+		// Past the configured idle lifetime, without refreshing.
+		await new Promise((resolveWait) =>
+			setTimeout(resolveWait, local.config.sessionExpiresIn * 1000 + 1_000)
+		);
 		await first.locator('#probe-verify').click();
 		await first.locator('#probe-status').getByText('Replay rejected: true').waitFor();
 		await first.locator('#refresh').click();
