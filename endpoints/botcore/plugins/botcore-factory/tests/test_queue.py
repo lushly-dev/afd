@@ -181,3 +181,85 @@ async def test_a_failed_issue_read_queues_nothing(make_run):
     )
     assert result.error.code == "READ_FAILED"
     assert run.state()["queue"] == make_run("running").state()["queue"]
+
+
+# S11 and the ignore_branches nit: refused before anything runs.
+
+
+@pytest.mark.parametrize(
+    "body_file", ["../../etc/passwd", "/etc/passwd", "C:\\secrets.txt", "docs\\..\\..\\x", ""]
+)
+async def test_a_pr_body_outside_the_worktree_is_refused(make_run, body_file):
+    run = make_run("running")
+    before = run.snapshot()
+    result = await run.call("lane_enqueue", worktree="wt/parser", body_file=body_file)
+    assert result.error.code == "BODY_FILE_OUTSIDE" and "relative" in result.error.suggestion
+    assert run.snapshot() == before
+
+
+async def test_a_branch_the_adapter_ignores_is_never_queued(make_run, tmp_path, example_repo):
+    run = make_run("running")
+    target = tmp_path / "ignoring"
+    (target / ".github").mkdir(parents=True)
+    labels = (example_repo / ".github" / "labels.json").read_bytes()
+    (target / ".github" / "labels.json").write_bytes(labels)
+    adapter = (example_repo / "botcore.toml").read_text(encoding="utf-8")
+    (target / "botcore.toml").write_text(adapter + 'ignore_branches = ["fix/parser-*"]\n')
+    before = run.snapshot()
+    result = await run.call("lane_enqueue", run.host(target=target), worktree="wt/parser")
+    assert result.error.code == "IGNORED_BRANCH" and "by hand" in result.error.suggestion
+    assert run.snapshot() == before
+
+
+# S4: the stages run outside the state lock, and what joins the queue is the head they checked.
+
+
+async def test_the_prequeue_stages_run_without_the_state_lock(make_run):
+    run = make_run("running")
+    held = []
+
+    class Watching:
+        def __getattr__(self, name):
+            return getattr(run.world.processes, name)
+
+        def run(self, args, cwd, timeout=None, *, label=None):
+            held.append((label, run.store.lock_path.exists()))
+            return run.world.processes.run(args, cwd, timeout, label=label)
+
+    result = await run.call("lane_enqueue", run.host(processes=Watching()), worktree="wt/parser")
+    assert result.success, result.error
+    assert ("prequeue:lint", False) in held and ("prequeue:typecheck", False) in held
+
+
+async def test_a_head_that_moved_while_the_checks_ran_is_refused(make_run):
+    run = make_run("running")
+    before = run.snapshot()
+    reads = []
+
+    class Moving:
+        def __getattr__(self, name):
+            return getattr(run.world.git, name)
+
+        def head(self, path):
+            reads.append(path)
+            return "a1b2c3d" if len(reads) == 1 else "f00dfee"
+
+    result = await run.call("lane_enqueue", run.host(git=Moving()), worktree="wt/parser")
+    assert result.error.code == "HEAD_MOVED" and "a1b2c3d" in result.error.message
+    assert run.snapshot()[1:] == before[1:]
+    assert "originQueueRefs" not in run.world_data()
+
+
+# B2: a repair goes to the front, but never ahead of a branch already merging.
+
+
+async def test_a_repair_is_queued_behind_a_branch_already_merging(make_run):
+    run = make_run("ejected")
+    with run.store.update("merging") as state:
+        state["queue"][0].update(state="merging", pr=600, validatedHead="b2c3d4e+main-0")
+    data = (await run.call("lane_enqueue", worktree="wt/parser")).data
+    assert (data["state"], data["position"]) == ("queued", 2)
+    assert [(e["branch"], e.get("state", "queued")) for e in run.state()["queue"]] == [
+        ("feat/export-csv", "merging"),
+        ("fix/parser-empty-input", "queued"),
+    ]

@@ -24,9 +24,30 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 
 ## Events
 
-`ejected` (answered by a re-enqueue or `lane_drop`), `ejection-limit` (the same), `lane-error`
-(`lane_resume`), `queue-room` (`cell_register`), and the lane loop's others. Any open event can
-be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
+`ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
+`pr-closed`, `ci-failed`, `merge-failed`; with `detail`, `lines` and `logPath`; answered by a
+re-enqueue or `lane_drop`), `ejection-limit` (at `cells.maxEjections`; the same), `lane-error`
+(the lane's own trouble: the network, a timeout, a cancelled check, a required check still
+running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
+`lane_resume`), `queue-room` (`cell_register`),
+`merged`, `merged-without-check`, `main-broken` (coverage on main failed; `suspects` are the PRs
+since the last green run; the lane paused), `queue-empty` (a drained move happens here) and
+`lane-stopped` (the lane process is gone; `lane_start`). Any open event can be answered with
+`event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
+
+## The lane
+
+`lane_host_probe()` on each machine publishes its readiness; `lane_host_list()` reads them;
+`lane_host_set(id)` chooses the host. On the host, `lane_start()` starts the lane detached. It
+queues held branches when there is room, validates in `lane.slots` slots (reserved until pushed;
+`slots.busy` includes those waiting to push; each merges the
+base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
+`validate` in the background), merges serially in queue order (re-validating when the base moved
+since the validation started, checked again just before the merge), pushes the validated commit
+(with a lease on its own last push), opens the PR, waits for `required_check` on that commit and
+squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` merges and at
+once after a merge touching `gate_paths`, which the front of the queue waits for. The lane never
+edits code, and nothing is killed unless its pid and start time both match.
 
 ## Commands
 
@@ -51,11 +72,13 @@ be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists 
   `head`, `attempt`, `prequeue {stages[]}`, `answered[]`, `holdReason` when held. A repaired
   (ejected) branch goes to the front; a full queue (`lane.queueMax`) holds the branch. The head
   is pushed to `refs/factory/queue/<branch>` on origin. Refusals, in this order: `NOT_FOUND` (no
-  worktree, or no cell for its branch), `NOT_LANE_HOST`, `DIRTY_WORKTREE` (names the files),
-  `NOT_CONFIGURED` (no `review_evidence`), `REVIEW_MISSING` (no review recorded for the exact
-  head), `GATE_EDIT_IN_REPAIR` (a repair after a failing check edits `gate_paths`; names
-  them), `PREQUEUE_FAILED` (names the stage, with its first lines), `WRITE_FAILED`. A refusal
-  writes nothing.
+  worktree), `IGNORED_BRANCH` (`ignore_branches`), `BODY_FILE_OUTSIDE` (`body_file` must be a
+  relative path inside the worktree), `NOT_FOUND` (no cell for its branch), `NOT_LANE_HOST`,
+  `DIRTY_WORKTREE` (names the files), `NOT_CONFIGURED` (no `review_evidence`), `REVIEW_MISSING`
+  (no review recorded for the exact head), `GATE_EDIT_IN_REPAIR` (a repair after a failing
+  check edits `gate_paths`; names them), `PREQUEUE_FAILED` (names the stage, with its first
+  lines), `HEAD_MOVED` (the worktree changed while the checks ran; they run outside the state
+  lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?)` -> `events[] {id, type, branch?, reason?, detail?,
   logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`; over MCP
   pass at most 300000.
@@ -68,6 +91,25 @@ be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists 
   back to `status:planned` with one comment and forgets the cell. Refuses `NOT_FOUND`.
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, aboveCeiling, resetsAt}`.
   Refuses `PLANS_UNREADABLE`.
+- `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
+  `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `TOOLCHAIN_MISMATCH`
+  (`packageManager` exactly, `engines.node` at least).
+- `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
+  goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
+  only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be
+  confirmed by its start time.
+- `lane_run(steps?)` -> the loop in the foreground, for debugging the lane itself. Refuses as
+  `lane_start` does.
+- `lane_host_probe()` -> `record {id, name, cores, memoryGb, freeDiskGb, missing[], measured,
+  suggestedSlots, probedAt}`, published to `refs/factory/hosts/<id>` on origin.
+- `lane_host_list()` -> `machines[]` (the records, with `reachable`: probed in the last 24
+  hours, and `ready`: reachable and missing nothing).
+- `lane_host_set(id, drain?, recover?)` -> `host`, `previous`; with `drain`, `draining` and
+  `moveTo`; with `recover`, `rebuilt {queue, claims}` from origin's queue refs and GitHub's
+  claims (a person confirms recovery). Refuses `NOT_FOUND`, `HOST_NOT_READY`, `LANE_BUSY`.
+- `lane_report(run?, compare?)` -> `run`, `mergedPerHour`, `validationsPerMerge`,
+  `productiveShare`, `staleRuns`, `reruns`, `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
+  `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.
 - `dial_set(key, value)` -> `key`, `value`, `previous`, `default`. Refuses `NOT_FOUND`,
   `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`) and
@@ -77,8 +119,9 @@ be answered with `event_resolve(id, note)`. `openEvents` in `lane_status` lists 
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `lane.coverageEvery` 5,
-`claims.leaseHours` 24, `cells.maxEjections` 3, `experience.hold` false, `lane.autostart`
-true, `logs.keepDays` 30, and the owner's `review.*` dials.
+`lane.checkTimeoutMinutes` 90, `claims.leaseHours` 24, `cells.maxEjections` 3,
+`experience.hold` false, `lane.autostart` true, `logs.keepDays` 30, and the owner's `review.*`
+dials.
 
 ## State and claims
 
@@ -95,6 +138,6 @@ ejected and merged, each with its attempt, plan, route and execution profile.
 `labels` (the label definitions intake reads), `prequeue` (named stages:
 `{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued),
 `gate_paths`, and the lane's later keys: `validate`, `coverage`, `install`,
-`required_check`, `receipt`, `ui_paths`, `screens`, `preview`, `ignore_branches`,
-`measure_paths`, `trend_issue`. Commands are argument lists, never shell strings.
+`required_check`, `base_branch` (default `main`), `receipt`, `ui_paths`, `screens`, `preview`,
+`ignore_branches`, `measure_paths`, `trend_issue`. Commands are argument lists, never shell strings.
 """

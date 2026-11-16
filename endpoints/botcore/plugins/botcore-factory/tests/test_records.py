@@ -61,6 +61,10 @@ def history():
             branch="b",
             attempt=1,
             outcome="failed",
+            head="h1+m1",
+            base="m1",
+            tree="t1",
+            command=["pnpm", "verify"],
             checksRun=40,
             testsRun=900,
             minutes=12.5,
@@ -83,11 +87,16 @@ def history():
             branch="b",
             attempt=2,
             outcome="passed",
+            head="h2+m2",
+            base="m2",
+            tree="t2",
+            command=["pnpm", "verify"],
             checksRun=41,
             testsRun=905,
             minutes=11.0,
         ),
-        rec("merged", "t7", branch="b", attempt=2, pr=600, checksRun=41),
+        rec("rerun", "t5b", branch="b", attempt=2, reason="main-moved"),
+        rec("merged", "t7", branch="b", attempt=2, pr=600),
         rec(
             "enqueued",
             "t8",
@@ -112,6 +121,8 @@ def test_attempts_fold_every_fact_about_one_attempt_into_a_row():
     )
     assert first["logPath"] == "attempts/b-1.log" and first["checksRun"] == 40
     assert (second["outcome"], second["pr"], second["mergedAt"]) == ("merged", 600, "t7")
+    assert second["reruns"] == 1 and second["withoutCheck"] is False
+    assert (first["base"], first["tree"]) == ("m1", "t1")
     assert second["firstEnqueuedAt"] == "t1"  # Queue wait counts from the first enqueue.
     assert (third["outcome"], third["droppedAt"]) == ("dropped", "t9")
     assert [row["attempt"] for row in records.merges(history())] == [2]

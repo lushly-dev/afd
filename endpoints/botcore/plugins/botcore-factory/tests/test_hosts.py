@@ -10,6 +10,7 @@ from conftest import REPO_ROOT
 
 from botcore_factory import CELL_COMMANDS, FactoryPlugin
 from botcore_factory.commands import POLICIES
+from botcore_factory.lane_commands import LANE_POLICIES
 
 EVERY = sorted(
     [
@@ -22,9 +23,16 @@ EVERY = sorted(
         "issue_check",
         "lane_drop",
         "lane_enqueue",
+        "lane_host_list",
+        "lane_host_probe",
+        "lane_host_set",
         "lane_pause",
+        "lane_report",
         "lane_resume",
+        "lane_run",
+        "lane_start",
         "lane_status",
+        "lane_stop",
         "lane_wait",
         "plan_list",
     ]
@@ -41,7 +49,7 @@ def test_the_plugin_registers_commands_policies_and_a_docs_topic():
     registry = PluginRegistry()
     FactoryPlugin().register(registry)
     assert sorted(command.__name__ for command in registry.commands) == EVERY
-    assert registry.policies == POLICIES
+    assert registry.policies == {**POLICIES, **LANE_POLICIES}
     assert "issue_check(numbers?, limit?, cursor?)" in registry.docs["factory"]
 
 

@@ -83,6 +83,11 @@ class FactoryConfig(BaseModel):
     coverage: Argv | None = Field(default=None, description="Coverage run on main")
     install: Argv | None = Field(default=None, description="Installs dependencies")
     required_check: str | None = Field(default=None, description="The aggregate required check")
+    base_branch: str = Field(
+        default="main",
+        pattern=r"^[A-Za-z0-9._/-]+$",
+        description="The branch the lane merges into, validates against and runs coverage on",
+    )
     gate_paths: list[str] = Field(default_factory=list, description="Globs of gate files")
     review_evidence: Argv | None = Field(default=None, description="Verifies a head's review")
     receipt: Argv | None = Field(default=None, description="Confirms an earlier validation")
