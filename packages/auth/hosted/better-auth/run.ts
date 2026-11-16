@@ -9,6 +9,8 @@ import {
 	type RunConfig,
 	receiptJSON,
 	renewalEvidenceIsConsistent,
+	reportedVersion,
+	safeReason,
 } from './contract.js';
 import type {} from './fixture.js';
 import { startLocal } from './local.js';
@@ -44,6 +46,8 @@ export async function runHarness(input: {
 		origin: config?.appURL ?? 'https://127.0.0.1',
 		revision: input.revision,
 		node: process.versions.node,
+		providerNode: 'not-observed',
+		providerNodeAfterRestart: 'not-observed',
 		versions: input.versions,
 		browser: 'not-started',
 		assertions: [],
@@ -72,8 +76,9 @@ export async function runHarness(input: {
 		void browser?.close();
 	};
 	input.signal.addEventListener('abort', stopBrowser, { once: true });
-	const check = (valid: unknown) => {
-		if (!valid) throw new Error('Assertion failed');
+	// A label is fixed text or an adapter state name, never a value: it reaches stderr on failure.
+	const check = (valid: unknown, label = '') => {
+		if (!valid) throw new Error(label ? `Assertion failed: ${label}` : 'Assertion failed');
 	};
 	const pass = (name: string) => {
 		receipt.assertions.push(name);
@@ -137,6 +142,7 @@ export async function runHarness(input: {
 					updateAge: number;
 					providerKind: string;
 					providerVersion: string;
+					nodeVersion?: unknown;
 				};
 			};
 			const sessionRead = async (timeout = cfg.operationTimeoutMs) => {
@@ -150,6 +156,9 @@ export async function runHarness(input: {
 			phase = 'fixture-identity';
 			check(/^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(initial.providerVersion));
 			receipt.versions.deployedBetterAuth = initial.providerVersion;
+			// Recorded as the provider reported it; an absent value fails here rather than being guessed.
+			receipt.providerNode = reportedVersion(initial.nodeVersion) ?? 'not-reported';
+			check(receipt.providerNode !== 'not-reported');
 			check(initial.revision === cfg.revision && initial.providerId === cfg.providerId);
 			check(
 				initial.providerKind === receipt.provider &&
@@ -163,11 +172,41 @@ export async function runHarness(input: {
 			pass('fresh Chromium and real AFD hooks signed out');
 			process.send?.({ phase: 'fixture-ready' });
 			async function oauth(decision: 'allow' | 'deny') {
+				// A sign-in after a callback or sign-out waits for the adapter to read signed out on three
+				// consecutive reads. Sign-out toggles Better Auth's session signal on a timer, so a second
+				// refetch can set the adapter to `loading` after the DOM already showed `unauthenticated`;
+				// `before` below is read once `signIn` resolves, and sign-in itself starts no refetch. The
+				// first (deny) call follows a fresh load that has already read signed out.
+				if (decision === 'allow') {
+					let signedOutReads = 0;
+					try {
+						await waitFor(async () => {
+							try {
+								const state = await first.evaluate(() => window.afdHosted.snapshot());
+								signedOutReads = state.status === 'unauthenticated' ? signedOutReads + 1 : 0;
+							} catch {
+								signedOutReads = 0;
+							}
+							return signedOutReads >= 3;
+						}, cfg.operationTimeoutMs);
+					} catch {
+						input.signal.throwIfAborted();
+						check(false, 'adapter did not settle signed out before sign-in');
+					}
+				}
 				const beforeCallback = callbackCount;
 				const outcome = await first.evaluate(() => window.afdHosted.oauth());
-				check(outcome.kind === 'redirect' && outcome.before === 'unauthenticated' && outcome.url);
+				check(outcome.kind === 'redirect', `sign-in returned ${outcome.kind}`);
+				check(outcome.url, 'sign-in redirect carried no URL');
+				check(
+					outcome.before === 'unauthenticated',
+					`adapter read ${outcome.before} when the redirect started`
+				);
 				const authorization = new URL(outcome.url ?? '');
-				check(authorization.searchParams.get('redirect_uri') === cfg.callbackURL);
+				check(
+					authorization.searchParams.get('redirect_uri') === cfg.callbackURL,
+					'authorization redirect_uri is not the configured callback'
+				);
 				await first.goto(authorization.href);
 				if (cfg.mode === 'local') await first.locator(`#${decision}`).click();
 				else
@@ -264,6 +303,7 @@ export async function runHarness(input: {
 			);
 			pass('actual application session is renewed and read back with restart lifetime margin');
 			phase = 'persistent-restart';
+			let replacement: Awaited<ReturnType<typeof info>> | undefined;
 			await restartWithinBudget({
 				timeoutMs: cfg.restartTimeoutMs,
 				restart: async (timeoutMs) => {
@@ -284,16 +324,21 @@ export async function runHarness(input: {
 						try {
 							const remainingMs = timeoutMs - (Date.now() - observationStartedAt);
 							if (remainingMs <= 0) return false;
-							return (
-								(await info(Math.min(cfg.operationTimeoutMs, Math.max(1, remainingMs))))
-									.instanceId !== initial.instanceId
+							const current = await info(
+								Math.min(cfg.operationTimeoutMs, Math.max(1, remainingMs))
 							);
+							if (current.instanceId === initial.instanceId) return false;
+							replacement = current;
+							return true;
 						} catch {
 							return false;
 						}
 					}, timeoutMs);
 				},
 			});
+			receipt.providerNodeAfterRestart =
+				reportedVersion(replacement?.nodeVersion) ?? 'not-reported';
+			check(receipt.providerNodeAfterRestart !== 'not-reported');
 			const postRestartStartedAt = Date.now();
 			const postRestartTimeout = () =>
 				remainingBudgetMs(postRestartStartedAt, cfg.operationTimeoutMs);
@@ -354,7 +399,9 @@ export async function runHarness(input: {
 		} finally {
 			await api.dispose();
 		}
-	} catch {
+	} catch (error) {
+		// The receipt names the phase; stderr says why, one redacted line (#386 ejection diagnosis).
+		process.stderr.write(`run failed at ${phase}: ${safeReason(error, config?.controlKey)}\n`);
 		receipt.failurePhase = phase;
 		receipt.interrupted = input.interrupted?.() ?? input.signal.aborted;
 		receipt.checks[phase] = 'failed';
@@ -395,9 +442,7 @@ export async function runHarness(input: {
 		} catch (error) {
 			// The receipt names the step; stderr says why, one line, with the control key never in it.
 			receipt.cleanupFailure = step;
-			process.stderr.write(
-				`cleanup failed at ${step}: ${cleanupReason(error, config?.controlKey)}\n`
-			);
+			process.stderr.write(`cleanup failed at ${step}: ${safeReason(error, config?.controlKey)}\n`);
 			receipt.cleanup = 'failed';
 			receipt.result = 'failed';
 			await browser?.close().catch(() => {});
@@ -407,12 +452,4 @@ export async function runHarness(input: {
 	process.stdout.write(`${receiptJSON(receipt)}\n`);
 	if (receipt.result === 'failed') process.exitCode = 1;
 	return receipt;
-}
-
-/** An error's first line, at most 300 characters, with the control key removed. */
-function cleanupReason(error: unknown, controlKey = ''): string {
-	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
-	// Redacted before it is cut, so a key the cut would split is never half printed.
-	const line = text.split('\n')[0] ?? '';
-	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
 }

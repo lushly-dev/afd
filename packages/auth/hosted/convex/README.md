@@ -219,7 +219,11 @@ callback completion, the expected synthetic identity, and the same backend prefl
 OAuth, that assertion is `not-run` and the receipt is partial.
 
 The receipt includes assertion statuses, package versions, revision, deployment origin, cleanup
-statuses, and limits. It excludes emails, GitHub account IDs, raw provider profiles, passwords,
+statuses, runtime, and limits. `runtime` is read once Chromium has launched: the executor's Node
+(`process.versions.node`), the Playwright version this process loaded, and the launched browser's
+name and `browser.version()`. A run that never launched the browser records each as
+`not-observed`; nothing is supplied from the pinned versions. The local check launches Chromium
+and confirms these values survive receipt serialization. It excludes emails, GitHub account IDs, raw provider profiles, passwords,
 cookies, JWTs, refresh tokens, OAuth codes, raw error bodies, console errors, and network dumps.
 Provider token rotation is not observable through `AuthAdapter` and is not claimed. The
 `convex-<user id>` session ID is an identity mapping, not a revocable bearer token.
@@ -227,7 +231,8 @@ Provider token rotation is not observable through `AuthAdapter` and is not claim
 The runner verifies scoped account deletion, but it cannot delete the deployment or revoke the
 upstream OAuth grant while it is still executing. Those cleanup items remain `not-run`, so its
 machine receipt remains partial even when every H2 browser assertion passes. After reviewing the
-receipt and recording the in-run cleanup readbacks:
+receipt, saving its `runtime` block with it (the browser and executor are gone after teardown), and
+recording the in-run cleanup readbacks:
 
 1. In GitHub Developer Settings, delete the dedicated OAuth App used for this run (or revoke that
    app's grant and verify the grant is absent). This cleanup must never delete or change the GitHub

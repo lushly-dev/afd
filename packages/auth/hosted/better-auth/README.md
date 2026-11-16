@@ -136,7 +136,12 @@ do not copy an authorization URL between browser contexts. The page exposes
 Refresh session and Sign out buttons, plus DOM-readable status, non-bearer
 session/user IDs, adapter expiry, provider read-back expiry, provider
 session/user match bits and an expected-identity match bit. Read-back evidence
-refreshes when the adapter expiry changes. An Incognito or
+refreshes when the adapter expiry changes. Its `#runtime` block shows the
+revision, process instance, the provider process's own Node version, the
+deployed Better Auth version and this browser's full version as Chrome reports
+it (`not-reported` when it does not); reload after the restart to show the
+replacement process. Save both readings with the manual observations before
+teardown: they cannot be recovered once the deployment is gone. An Incognito or
 Guest window should show `unauthenticated` independently. Inspect cookie
 Secure, HttpOnly, SameSite=Lax and root path in Chrome DevTools.
 
@@ -152,9 +157,10 @@ restart clears captures, so complete each replay before restarting. These
 manual observations should be recorded separately from the automated receipt;
 an interrupted Playwright run remains incomplete.
 The hosted whole-run deadline must exceed the configured session lifetime plus
-the restart and per-operation budgets. Local mode retains its 12-second session,
-1-second renewal age, 3-second restart budget, 5-second operation budget and
-180-second default whole-run deadline for fast evidence.
+the restart and per-operation budgets. Local mode uses a 15-second session,
+1-second renewal age, 3-second restart budget, 8-second operation budget (raised
+from 5 seconds so a loaded shared host does not fail a phase) and 180-second
+default whole-run deadline for fast evidence.
 Missing configuration is an explicit nonzero preflight failure, never a skipped
 provider pass. Startup, navigation/API calls, restart and tests have deadlines. The isolated server process installs a real-fetch network policy before provider initialization: every external server-side request requires HTTPS without URL credentials, redirects are rejected, and each discovery response is checked for the exact configured issuer and HTTPS authorization/token/userinfo/JWKS endpoints. It delegates to native network fetch and does not fabricate provider responses. Only the explicit local test-provider origin permits loopback HTTP.
 
@@ -168,13 +174,25 @@ child process; do not invoke `server.mjs` with copied secret JSON in transcripts
 
 The runner prints a JSON allowlist: source revision, local/runtime/client/server
 versions, browser version, origin, explicit provider kind, named assertion
-results and remaining `not-run` checks, failure phase and cleanup status. When
+results and remaining `not-run` checks, failure phase and cleanup status.
+Runtime fields come from the processes themselves: `node` is the runner's Node,
+`browser` is `browser.version()` after Chromium launches (`not-started` before),
+`versions.playwright` is the Playwright the runner loaded, and `providerNode` and
+`providerNodeAfterRestart` are the Node versions the original and replacement
+provider processes report in `/harness/info`. A value the run never reached
+stays `not-observed`; a provider that answers without one fails the identity or
+restart check and is recorded as `not-reported`, never filled in from a pin. When
 cleanup fails, it adds the step that failed (`cleanupFailure`, such as
 `cleanup-response` or `provider-close`) and, when the cleanup endpoint answered
-without success, its HTTP status (`cleanupStatus`); the error's first line, with
-the control key removed, goes to stderr. It omits configured identity values,
-session/user IDs, OAuth codes/state, cookie values, passwords, secret keys, raw
-errors and raw network logs.
+without success, its HTTP status (`cleanupStatus`). The receipt omits configured
+identity values, session/user IDs, OAuth codes/state, cookie values, passwords,
+secret keys, raw errors and raw network logs.
+
+Diagnostics go to stderr instead, one line each: `cleanup failed at <step>:` or
+`run failed at <phase>:` followed by the error's first line, at most 300
+characters, with the control key, URL credentials and every query or fragment
+removed. Check failures name a fixed condition or an adapter state, never a
+value. These lines are for diagnosis and are not part of the receipt.
 
 `cleanup` describes authenticated deletion and read-back for the configured
 Better Auth user and its session/account rows, plus closing the runner.
