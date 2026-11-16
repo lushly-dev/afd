@@ -470,6 +470,7 @@ starts.
 
 | Date | Session | What changed |
 | --- | --- | --- |
+| 2026-11-16 UTC | Identity verification | The non-owner enrolment privacy assertion excludes opaque membership digests alongside random ids, so a hexadecimal digest containing `ada` does not masquerade as an email leak. Every other returned field stays checked; `agent-members.test.ts` checks the digest's format and identity. Verified on Windows with Node 26.13.1: `pnpm -F @lushly-dev/loam-identity test`, 12 files and 109 tests passed. Test-only correction. |
 | 2026-11-16 UTC | Windows verification | The bootstrap data-directory permission assertion uses the existing `expectMode` helper, as its adjacent file assertions already do: Unix still checks `0700`, while Windows has no POSIX permission bits. Verified on Windows with Node 26.13.1: `pnpm -F @lushly-dev/loam-host exec vitest run src/provider.test.ts`, 23 tests passed. No phase exit or production behavior changes. |
 | 2026-11-13 | Feature lifecycle audit | The proposal's Specimens link now points to its acceptance contract beside the active implementation plan; no phase gate was re-evaluated |
 | 2026-10-30 | Design session with the owner | Research run and synthesized; README, proposal, architecture, decision log (D1 to D20, O1 to O8), trajectory watch, research, sources and this status file drafted; the feature index row added. Planning only: no code |
