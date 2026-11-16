@@ -14,6 +14,7 @@ import { LOAM_DISABLED_PATHS } from '@lushly-dev/loam-identity';
 import { seedTestPeople, TEST_RATE_LIMIT } from '@lushly-dev/loam-identity/testing';
 import { afterEach, describe, expect, it } from 'vitest';
 import { runBootstrap, withBootstrapProvider } from './bootstrap.js';
+import { environmentFindings } from './check.js';
 import { runHostCli } from './cli.js';
 import { type DevProfile, runDev } from './dev.js';
 import { CLIENT_ADDRESS_HEADER, setClientAddress } from './gate.js';
@@ -751,6 +752,44 @@ describe("B1: Better Auth's environment variables never override what Loam trust
 		await withVariable('BETTER_AUTH_TRUSTED_ORIGINS', '', async () => {
 			const profile = await dev(deployment, dist);
 			expect(profile.origin).toMatch(/^https:\/\/localhost:/);
+		});
+	});
+
+	it("BETTER_AUTH_TELEMETRY refuses only a value Better Auth reads as on: '0', 'false' and 'FALSE' start (NIT 1)", async () => {
+		for (const value of ['0', 'false', 'FALSE', 'False']) {
+			expect(environmentFindings({ BETTER_AUTH_TELEMETRY: value }), value).toEqual([]);
+		}
+		for (const value of ['1', 'true', 'yes', 'on', '00']) {
+			expect(
+				environmentFindings({ BETTER_AUTH_TELEMETRY: value }).map(({ code, key }) => [code, key]),
+				value
+			).toEqual([['HOST_ENV_OVERRIDE', 'BETTER_AUTH_TELEMETRY']]);
+		}
+		// The other two refuse any non-empty value, `0` included.
+		expect(
+			environmentFindings({ BETTER_AUTH_SECRETS: '0', BETTER_AUTH_TRUSTED_ORIGINS: 'false' })
+		).toHaveLength(2);
+		const { deployment, dist } = await setup();
+		await withVariable('BETTER_AUTH_TELEMETRY', '0', async () => {
+			const profile = await dev(deployment, dist);
+			expect(profile.origin).toMatch(/^https:\/\/localhost:/);
+		});
+	});
+
+	it('BETTER_AUTH_TRUSTED_ORIGINS set after start widens nothing: a foreign Origin is still 403 INVALID_ORIGIN (IMPROVEMENT 1)', async () => {
+		const { deployment, dist } = await setup();
+		await bootstrapped(deployment);
+		const profile = await dev(deployment, dist);
+		await withVariable('BETTER_AUTH_TRUSTED_ORIGINS', 'https://evil.example', async () => {
+			const foreign = await call(profile, '/api/auth/sign-in/email', {
+				json: { email: 'bea@acme.example', password: PASSWORD },
+				headers: { origin: 'https://evil.example' },
+			});
+			expect(foreign.status).toBe(403);
+			expect(foreign.body).toContain('INVALID_ORIGIN');
+			expect(cookiesOf(foreign).some((value) => value.includes('session_token='))).toBe(false);
+			// The deployment's own origin still signs in.
+			expect((await signIn(profile)).status).toBe(200);
 		});
 	});
 });

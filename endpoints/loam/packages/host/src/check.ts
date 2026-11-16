@@ -49,9 +49,21 @@ export const BETTER_AUTH_OVERRIDES: readonly string[] = Object.freeze([
 	'BETTER_AUTH_TELEMETRY',
 ]);
 
-/** One `HOST_ENV_OVERRIDE` per override variable set to anything but the empty string. */
+/**
+ * Whether Better Auth acts on a variable's value: any non-empty value, but for `BETTER_AUTH_TELEMETRY` only one it
+ * reads as on, which is anything but `""`, `"0"` or `"false"` in any case (its `getBooleanEnvVar`; the final check's
+ * NIT 1), since `=0` is the usual way to opt out of telemetry.
+ */
+function overrides(name: string, value: string | undefined): boolean {
+	const set = value ?? '';
+	if (name === 'BETTER_AUTH_TELEMETRY')
+		return set !== '' && set !== '0' && set.toLowerCase() !== 'false';
+	return set !== '';
+}
+
+/** One `HOST_ENV_OVERRIDE` per override variable set to a value Better Auth acts on. */
 export function environmentFindings(environment: NodeJS.ProcessEnv): HostFinding[] {
-	return BETTER_AUTH_OVERRIDES.filter((name) => (environment[name] ?? '') !== '').map((name) => ({
+	return BETTER_AUTH_OVERRIDES.filter((name) => overrides(name, environment[name])).map((name) => ({
 		code: 'HOST_ENV_OVERRIDE',
 		key: name,
 		message: `\`${name}\` is set: Better Auth would take it over what the deployment and server configuration say.`,
