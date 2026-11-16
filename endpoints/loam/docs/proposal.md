@@ -819,8 +819,9 @@ open on 2026-10-31. What the phase specifications settle is listed in the
 5. Violet appears through the console with no Loam code of its own, Health
    appears as a native app built from the existing dashboard, and the same
    build runs on the desktop through Tauri.
-6. The Lushly support application runs on the shell with its own apps and no
-   change to Loam.
+6. The local, individual Loam, the first consumer, runs with its own apps,
+   mail first, and no change to Loam (D133, D135; until 2026-11-16 this item
+   named the Lushly support application).
 7. Two `notes` documents open side by side and link to each other; the
    copilot edits one through its commands while the other is unchanged;
    both restore after a reload with their backlinks intact.
