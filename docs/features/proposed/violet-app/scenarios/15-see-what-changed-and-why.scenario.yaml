@@ -1,0 +1,45 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2). Times come from the
+# command context's clock, so the steps assert their presence, not their values.
+
+name: See what changed and why
+description: >-
+  When I come back to a tree after weeks, or an agent has worked on it, I want each change to a
+  node or token listed with its old and new value, who made it and the reason given, so that I
+  can tell why a value is what it is and decide whether to keep it.
+job: see-what-changed-and-why
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The dark page color is changed, with a reason
+    command: violet-token-override
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      token: color.surface.page
+      value: "#0e0e10"
+      reason: Deeper page for the new illustrations
+    expect:
+      success: true
+      data:
+        oldValue: "#121214"
+  - description: The token's history names the change, the old value and the reason
+    command: violet-change-list
+    input: { document: "${{ steps[0].data.id }}", token: color.surface.page }
+    expect:
+      success: true
+      data:
+        changes:
+          - node: example/dark
+            operation: override
+            oldValue: "#121214"
+            value: "#0e0e10"
+            reason: Deeper page for the new illustrations
+            actor: { exists: true }
+            at: { exists: true }

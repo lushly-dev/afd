@@ -1,0 +1,58 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2), whose root carries one
+# contrast rule: `color.text.*` against `color.surface.page`, at least 4.5:1.
+
+name: See what a change does before making it
+description: >-
+  When I am about to change tokens on a node, I want to see which nodes change, which are
+  shielded by their own override, and which contrast rules it breaks, and then apply exactly what
+  I saw as one change, so that I never learn of a regression after the change is written.
+job: see-the-change-first
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: Lightening the root's muted text reaches light, is shielded in dark, and breaks a rule
+    command: violet-change-preview
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example
+      changes:
+        - { operation: override, token: color.text.muted, value: "#a0a0aa" }
+    expect:
+      success: true
+      data:
+        written: false
+        summary:
+          changed: { gte: 2 }
+          shielded: 1
+          violationsIntroduced: { gte: 1 }
+        apply:
+          command: violet-change-apply
+  - description: Nothing was written by the preview
+    command: violet-token-lineage
+    input: { document: "${{ steps[0].data.id }}", node: example/light, token: color.text.muted }
+    expect:
+      success: true
+      data:
+        value: "#6b6b75"
+  - description: A safer pair of changes is applied as one change, with one undo
+    command: violet-change-apply
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example
+      changes:
+        - { operation: override, token: color.text.muted, value: "#5f5f69" }
+        - { operation: override, token: color.field.border, value: "#80808a" }
+    expect:
+      success: true
+      data:
+        applied: 2
+        summary:
+          violationsIntroduced: 0

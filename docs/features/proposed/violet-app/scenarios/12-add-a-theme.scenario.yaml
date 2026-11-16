@@ -1,0 +1,64 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2).
+
+name: Add a theme to a tree
+description: >-
+  When a product needs another theme, I want to add it as a child of the node it starts from, and
+  remove it if I change my mind, so that it inherits every value and I only write what differs.
+job: add-a-theme
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: A dimmed theme is added under dark
+    command: violet-node-create
+    input:
+      document: "${{ steps[0].data.id }}"
+      parent: example/dark
+      id: example/dark-dimmed
+      type: theme
+    expect:
+      success: true
+      data:
+        node: { id: example/dark-dimmed, parent: example/dark, type: theme }
+  - description: It resolves to dark's values before any override
+    command: violet-token-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      nodes: [example/dark, example/dark-dimmed]
+    expect:
+      success: true
+      data:
+        summary: { differing: 0 }
+  - description: A second node with the same id is refused
+    command: violet-node-create
+    input:
+      document: "${{ steps[0].data.id }}"
+      parent: example
+      id: example/dark-dimmed
+      type: theme
+    expect:
+      success: false
+      error:
+        code: NODE_ALREADY_EXISTS
+        suggestion: { contains: violet-node-list }
+  - description: Deleting dark while it has a child is refused, naming the child
+    command: violet-node-delete
+    input: { document: "${{ steps[0].data.id }}", node: example/dark }
+    expect:
+      success: false
+      error:
+        code: NODE_HAS_CHILDREN
+        suggestion: { contains: example/dark-dimmed }
+  - description: The new theme is removed, the undo of creating it
+    command: violet-node-delete
+    input: { document: "${{ steps[0].data.id }}", node: example/dark-dimmed }
+    expect:
+      success: true
+      data:
+        node: example/dark-dimmed

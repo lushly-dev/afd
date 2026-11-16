@@ -1,0 +1,42 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2), checked against the
+# seven-entry interface the app's tests pin (scenario 09), so three theme nodes lack one entry.
+
+name: Export a theme for the code that uses it
+description: >-
+  When a theme is ready, I want its resolved values in the format the consuming code reads, CSS
+  under a selector or JSON, with the tree's open checks stated beside it, so that a build uses
+  exactly what the tree resolves and a theme below its floor is never exported unseen.
+job: export-a-theme
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The dark theme exports as CSS under its own selector, with the open checks stated
+    command: violet-export
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      format: css
+      selector: '[data-theme="dark"]'
+    expect:
+      success: true
+      data:
+        format: css
+        tokenCount: 6
+        content: { contains: "#ececf1" }
+        checks: { violations: 0, unfilled: 1 }
+  - description: A format Violet does not write is refused, listing the ones it does
+    command: violet-export
+    input: { document: "${{ steps[0].data.id }}", node: example/dark, format: yaml }
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: css }

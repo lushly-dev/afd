@@ -1,0 +1,63 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: two documents from the `example` template, one of which changes its dark
+# theme's primary action color (proposal, section 4.2).
+
+name: Compare two trees
+description: >-
+  When one product's tree replaces another's, I want a theme of one tree beside the matching theme
+  of the other, only where they differ, and to see which tokens one has that the other lacks, so
+  that I know what my product changes from the default and what it leaves out.
+job: compare-two-trees
+tags: [slice]
+
+steps:
+  - description: The default-like tree is created
+    command: document-create
+    input: { type: violet-tree, template: example, title: Default tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The product tree is created from the same template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Product tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The product tree's dark theme changes its primary action color
+    command: violet-token-override
+    input:
+      document: "${{ steps[1].data.id }}"
+      node: example/dark
+      token: color.action.primary.background
+      value: "#2f7d5c"
+    expect:
+      success: true
+      data:
+        inherited: true
+  - description: The two dark themes differ in that one token, and neither lacks one the other has
+    command: violet-tree-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      other: { document: "${{ steps[1].data.id }}", node: example/dark }
+    expect:
+      success: true
+      data:
+        summary: { differing: 1, onlyHere: 0, onlyThere: 0 }
+        rows:
+          - token: color.action.primary.background
+            here: "#5b3fd1"
+            there: "#2f7d5c"
+  - description: A node the other tree lacks is refused, naming that tree's node list
+    command: violet-tree-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      other: { document: "${{ steps[1].data.id }}", node: example/sepia }
+    expect:
+      success: false
+      error:
+        code: NODE_NOT_FOUND
+        suggestion: { contains: violet-node-list }

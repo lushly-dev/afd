@@ -1,0 +1,73 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: DTCG token files, a root and a dark theme that names its parent under
+# `$extensions["dev.lushly.violet"]`, the format Violet's `import.tree` reads.
+#
+# Not shown: reading the files from, and writing them to, a repository on disk. A native app has
+# no file grant (phase 6 specification, 10.6); the proposal's 4.3 and question 3 place that step
+# with the person's hand now and a mounted engine later.
+
+name: Bring a tree in from its files and write it back
+description: >-
+  When a tree's source of truth is a set of token files in a repository, I want to open those
+  files as a tree, edit it, get the files back with only my change in them, and take in a newer
+  version of the files without losing edits I have not written back, so that the repository stays
+  the source and a review sees a small diff.
+job: bring-a-tree-in-and-out
+tags: [slice]
+
+steps:
+  - description: A blank tree document is created
+    command: document-create
+    input: { type: violet-tree, template: blank, title: Imported tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: Two token files become a root and a dark theme, all or nothing
+    command: violet-tree-import
+    input:
+      document: "${{ steps[0].data.id }}"
+      content:
+        files:
+          - name: base.tokens.json
+            content: '{"color": {"$type": "color", "bg": {"$value": "#ffffff"}, "fg": {"$value": "#1b1b1f"}}}'
+          - name: dark.tokens.json
+            content: '{"$extensions": {"dev.lushly.violet": {"parent": "base", "type": "theme"}}, "color": {"bg": {"$value": "#121214"}}}'
+    expect:
+      success: true
+      data:
+        nodes:
+          - { id: base, parent: null, tokens: 2 }
+          - { id: dark, parent: base, tokens: 1 }
+  - description: The dark background is changed
+    command: violet-token-override
+    input: { document: "${{ steps[0].data.id }}", node: dark, token: color.bg, value: "#0e0e10" }
+    expect:
+      success: true
+      data:
+        oldValue: "#121214"
+  - description: Replacing the tree with newer files is refused while an edit is not written back
+    command: violet-tree-import
+    input:
+      document: "${{ steps[0].data.id }}"
+      replace: true
+      content:
+        files:
+          - name: base.tokens.json
+            content: '{"color": {"$type": "color", "bg": {"$value": "#fafafa"}, "fg": {"$value": "#1b1b1f"}}}'
+    expect:
+      success: false
+      error:
+        code: OPERATION_NOT_ALLOWED
+        suggestion: { contains: violet-tree-export }
+  - description: The files come back, one per node, each holding only that node's own values
+    command: violet-tree-export
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        unexported: 0
+        content:
+          files:
+            - { name: base.tokens.json, content: { contains: "#1b1b1f" } }
+            - { name: dark.tokens.json, content: { contains: "#0e0e10" } }

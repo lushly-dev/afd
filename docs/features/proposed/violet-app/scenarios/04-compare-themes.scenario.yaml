@@ -1,0 +1,59 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2).
+
+name: Compare themes side by side
+description: >-
+  When I review a theme against its siblings, I want only the tokens that differ, side by side,
+  so that I see what a dark or high-contrast theme changes without reading every value.
+job: compare-themes
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: Light against dark shows the four tokens dark overrides, and no others
+    command: violet-token-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      nodes: [example/light, example/dark]
+    expect:
+      success: true
+      data:
+        nodes: [example/light, example/dark]
+        summary: { differing: 4 }
+        rows: { length: 4 }
+  - description: Three themes at once, filtered to text colors, flag each cell against the first
+    command: violet-token-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      nodes: [example/light, example/dark, example/high-contrast]
+      filter: "color.text.*"
+    expect:
+      success: true
+      data:
+        rows:
+          - token: color.text.muted
+            cells:
+              - { node: example/light, value: "#6b6b75", differs: false }
+              - { node: example/dark, value: "#9a9aa6", differs: true }
+              - { node: example/high-contrast, value: "#6b6b75", differs: false }
+          - token: color.text.primary
+            cells:
+              - { node: example/light, value: "#1b1b1f", differs: false }
+              - { node: example/dark, value: "#ececf1", differs: true }
+              - { node: example/high-contrast, value: "#000000", differs: true }
+  - description: More than four nodes is refused, saying the limit
+    command: violet-token-compare
+    input:
+      document: "${{ steps[0].data.id }}"
+      nodes: [example, example/light, example/dark, example/high-contrast, example/light]
+    expect:
+      success: false
+      error:
+        code: VALIDATION_ERROR
+        suggestion: { contains: "4" }
