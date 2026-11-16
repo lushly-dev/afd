@@ -25,8 +25,12 @@ fn print_usage() {
 fn build() -> Result<(ServerConfig, Arc<CommandRegistry>), (ExitCode, String)> {
     let config = ServerConfig::from_env(|name| env::var(name).ok())
         .map_err(|error| (ExitCode::from(2), error))?;
-    let secret = app::approval_secret(env::var("TODO_APPROVAL_SECRET").ok())
-        .map_err(|error| (ExitCode::from(2), error))?;
+    // The key is read only when clears are held, as TypeScript and Python read it.
+    let secret = match config.approvals {
+        Approvals::Agents => app::approval_secret(env::var("TODO_APPROVAL_SECRET").ok())
+            .map_err(|error| (ExitCode::from(2), error))?,
+        Approvals::Off => Vec::new(),
+    };
     let registry =
         app::registry(Arc::new(TodoStore::new()), config.approvals, &secret).map_err(|error| {
             (

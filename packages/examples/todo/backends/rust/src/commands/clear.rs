@@ -72,8 +72,10 @@ impl Command for Clear {
     const NAME: &'static str = "todo-clear";
     const TITLE: &'static str = "Clear todos for good";
     const DESCRIPTION: &'static str = "Remove todos for good: completed ones, or the deleted \
-         todos with deleted: true, or every todo with all: true. A caller that is not a person \
-         waits for a person to approve";
+         todos with deleted: true, or every todo with all: true. Nothing undoes it. Where the \
+         server holds clears for approval, a caller that is not a person waits for a person to \
+         approve; elsewhere it is gated only by its confirmation prompt, where the server \
+         enforces confirmations";
     const TAGS: &'static [&'static str] = &["todo", "clear", "write", "batch", "destructive"];
     const MUTATION: bool = true;
     const DESTRUCTIVE: bool = true;

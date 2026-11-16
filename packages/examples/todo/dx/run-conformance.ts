@@ -112,24 +112,29 @@ async function spawnRustServer(
 	extraEnv: Record<string, string>
 ): Promise<{ base: string; child: ChildProcess }> {
 	const port = await freePort();
-	const manifest = path.join(__dirname, '../backends/rust/Cargo.toml');
-	const child = spawn(
-		'cargo',
-		['run', '--locked', '--quiet', '--manifest-path', manifest, '--', 'server'],
-		{
-			env: { ...process.env, ...extraEnv, HOST: '127.0.0.1', PORT: String(port) },
-			stdio: ['ignore', 'ignore', 'inherit'],
-		}
-	);
+	const child = spawn(rustBinary(), ['server'], {
+		env: { ...process.env, ...extraEnv, HOST: '127.0.0.1', PORT: String(port) },
+		stdio: ['ignore', 'ignore', 'inherit'],
+	});
 	const base = `http://127.0.0.1:${port}`;
 	try {
-		// Generous: the first run may still compile the crate.
-		await waitForHealth(`${base}/health`, child, 300_000);
+		await waitForHealth(`${base}/health`, child, 60_000);
 	} catch (error) {
 		await kill(child);
 		throw error;
 	}
 	return { base, child };
+}
+
+/**
+ * The Rust backend's binary, which the package scripts build first (`cargo build`), in the
+ * target directory cargo uses: `CARGO_TARGET_DIR`, else the backend's own `target`. Spawning it
+ * directly, as for C++, keeps each session from waiting on cargo's build lock.
+ */
+function rustBinary(): string {
+	const target = process.env.CARGO_TARGET_DIR ?? path.join(__dirname, '../backends/rust/target');
+	const name = process.platform === 'win32' ? 'todo-backend-rust.exe' : 'todo-backend-rust';
+	return path.join(path.resolve(target), 'debug', name);
 }
 
 /** Where cargo puts Umbel's binaries (`endpoints/umbel` is its own workspace). */
@@ -268,22 +273,9 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 		};
 	}
 	if (target === 'rs') {
-		// Built by `pnpm test:conformance:rs`; `cargo run` finds it in whatever target directory
-		// cargo is configured with.
+		// Built by `pnpm test:conformance:rs`.
 		return {
-			transport: new StdioClientTransport({
-				command: 'cargo',
-				args: [
-					'run',
-					'--locked',
-					'--quiet',
-					'--manifest-path',
-					path.join(__dirname, '../backends/rust/Cargo.toml'),
-					'--',
-					'stdio',
-				],
-				env,
-			}),
+			transport: new StdioClientTransport({ command: rustBinary(), args: ['stdio'], env }),
 			stop: async () => {},
 		};
 	}
@@ -409,6 +401,15 @@ async function run() {
 	if (!isBackend(target) || !isMode(mode) || !SUITES.includes(suite)) {
 		console.error(
 			`Usage: tsx dx/run-conformance.ts --backend <${BACKENDS.join('|')}> [--mode <${MODES.join('|')}>] [--suite <${SUITES.join('|')}>]`
+		);
+		process.exit(1);
+	}
+
+	if (suite === 'approvals' && (target === 'umbel' || target === 'umbel-mounted')) {
+		// The cases are the Rust backend's, but Umbel serves todo-clear without its approval hold:
+		// a manifest cannot declare a per-caller approval yet.
+		console.error(
+			`The approvals suite does not run against ${target}: Umbel cannot hold todo-clear for agents yet (https://github.com/lushly-dev/afd/issues/1329)`
 		);
 		process.exit(1);
 	}

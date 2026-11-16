@@ -9,7 +9,8 @@
 //!
 //! One difference: the backend holds `todo-clear` for any caller that is not a person, a policy
 //! decided per call, and a manifest declares only a fixed approval (`approval = "required"`). The
-//! plugin drops that policy, so under Umbel a clear is gated by its confirmation prompt alone.
+//! plugin drops that policy, so under Umbel a clear is gated by its confirmation prompt alone
+//! (<https://github.com/lushly-dev/afd/issues/1329>). The command's description says so.
 #![forbid(unsafe_code)]
 
 use std::sync::Arc;

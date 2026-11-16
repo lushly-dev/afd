@@ -22,9 +22,9 @@ pub enum Approvals {
 }
 
 impl Approvals {
-    /// `APPROVALS`: `agents` (the default) or `off`.
+    /// `APPROVALS`: `agents` (the default) or `off`, exactly, as TypeScript and Python read it.
     pub fn from_env(value: Option<&str>) -> Result<Self, String> {
-        match value.map(str::trim) {
+        match value {
             None | Some("agents") => Ok(Self::Agents),
             Some("off") => Ok(Self::Off),
             Some(other) => Err(format!("APPROVALS must be agents or off, not \"{other}\"")),
@@ -61,7 +61,7 @@ pub fn contexts() -> Vec<ContextConfig> {
 }
 
 /// The todo commands over `store`, the bootstrap commands and, with [`Approvals::Agents`], the
-/// approval middleware signing with `secret`.
+/// approval middleware signing with `secret` (unused with [`Approvals::Off`]).
 ///
 /// A held `todo-clear` asks the person behind an MCP client that declares form elicitation
 /// (`ApprovalRelay::McpElicitation`), with a summary of what would go; a client that cannot be

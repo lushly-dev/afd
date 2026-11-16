@@ -261,6 +261,12 @@ async fn a_filtered_list_offers_the_unfiltered_and_the_opposite_view() {
     assert_eq!(alternatives[1]["data"]["todos"][0]["title"], "Pending");
     assert_eq!(alternatives[1]["reason"], "View pending todos instead (1)");
 
+    let empty = call(&registry, "todo-list", json!({ "search": "" })).await;
+    assert_eq!(
+        empty["reasoning"],
+        "Found 2 todos, returning 2 starting at offset 0"
+    );
+
     let search = call(&registry, "todo-list", json!({ "search": "PEND" })).await;
     assert_eq!(search["data"]["total"], 1);
     assert_eq!(search["alternatives"].as_array().map(Vec::len), Some(1));
@@ -563,6 +569,33 @@ async fn history_records_who_changed_what_and_offers_only_the_latest_undo() {
     assert_eq!(other["data"]["total"], 0);
     let paged = call(&registry, "todo-history", json!({ "limit": 1 })).await;
     assert_eq!(paged["data"]["hasMore"], true);
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 8)]
+async fn concurrent_changes_are_recorded_in_the_order_they_happened() {
+    let registry = registry();
+    let id = create(&registry, "Busy").await;
+    let calls: Vec<_> = (0..200)
+        .map(|_| {
+            let registry = Arc::clone(&registry);
+            let id = id.clone();
+            tokio::spawn(async move { call(&registry, "todo-toggle", json!({ "id": id })).await })
+        })
+        .collect();
+    for call in calls {
+        assert_eq!(call.await.expect("the call ran")["success"], true);
+    }
+    // The latest entry is the latest toggle: its undo sets back the state before it.
+    let now = call(&registry, "todo-get", json!({ "id": id })).await;
+    let history = call(&registry, "todo-history", json!({ "limit": 1 })).await;
+    let latest = &history["data"]["entries"][0];
+    assert_eq!(
+        latest["undoArgs"]["completed"],
+        !now["data"]["completed"].as_bool().unwrap()
+    );
+    // Every change was recorded: the create and the 200 toggles.
+    let all = call(&registry, "todo-history", json!({ "limit": 100 })).await;
+    assert_eq!(all["data"]["total"], 201);
 }
 
 #[test]

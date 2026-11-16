@@ -116,6 +116,11 @@ impl<C: Command> CommandHandler for Handler<C> {
                 )
             }
         };
+        if !C::MUTATION {
+            return self.command.run(input, &context);
+        }
+        // The change and its history entry under one lock, so entries keep the changes' order.
+        let _changing = self.store.changing();
         let result = self.command.run(input, &context);
         if result.success {
             record::<C>(&self.store, &result, &context);

@@ -108,6 +108,15 @@ asked, with a summary of what would go ("Remove the completed todos for good (3 
 any other client, a 2025 request over HTTP, and a clear inside `afd-batch` or `afd-pipe` get
 `APPROVAL_REQUIRED` with a suggestion and no token. Deletes are undoable, so they are not held.
 
+The approval suite runs over stdio, so asking the person is tested there in both eras. Over HTTP
+only the hold itself is tested (`src/server/tests.rs`: a client that declares no elicitation gets
+`APPROVAL_REQUIRED` and no token); asking the person over MCP 2026-07-28 HTTP is the library's
+behaviour but not exercised here.
+
+Under Umbel the clear is not held: a plugin manifest cannot yet declare a per-caller approval, so
+the todo plugin drops it and the clear is gated by its confirmation prompt alone
+([#1329](https://github.com/lushly-dev/afd/issues/1329)). The command's description says so.
+
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `APPROVALS` | `agents` | `off` holds nothing; the shared conformance suites run so, since they reset with a clear |

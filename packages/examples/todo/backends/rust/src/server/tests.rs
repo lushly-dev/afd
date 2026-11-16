@@ -615,6 +615,10 @@ async fn an_agents_clear_is_held_unless_approvals_are_off() {
 fn approvals_are_on_unless_turned_off() {
     assert_eq!(config(&[]).approvals, Approvals::Agents);
     assert_eq!(config(&[("APPROVALS", "off")]).approvals, Approvals::Off);
+    // Read exactly, as TypeScript and Python read it.
+    assert!(
+        ServerConfig::from_env(|name| (name == "APPROVALS").then(|| " off".to_string())).is_err()
+    );
     assert!(
         ServerConfig::from_env(|name| (name == "APPROVALS").then(|| "humans".to_string())).is_err()
     );

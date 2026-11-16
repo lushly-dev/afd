@@ -143,7 +143,8 @@ impl Command for List {
         if let Some(priority) = input.priority {
             filters.push(format!("{} priority", priority.as_str()));
         }
-        if let Some(search) = &input.search {
+        // An empty search matches everything, and TypeScript leaves it out of the reasoning.
+        if let Some(search) = input.search.as_deref().filter(|search| !search.is_empty()) {
             filters.push(format!("matching \"{search}\""));
         }
         let filter_text = if filters.is_empty() {

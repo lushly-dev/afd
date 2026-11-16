@@ -311,7 +311,9 @@ code retries with the token once a person approves.
 The Rust backend's command line (`cargo run -- todo-clear '{}'` and the shell) runs as the person
 at the terminal, so a clear there is not held. Under Umbel the clear is not held either: a plugin
 manifest declares only a fixed approval, so the todo plugin drops the per-caller policy and the
-clear keeps its confirmation prompt.
+clear keeps its confirmation prompt ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
+`todo-clear`'s description says both: held for approval where the server holds clears, gated by
+its confirmation prompt elsewhere.
 
 Run a server with `APPROVALS=off` to hold nothing; the conformance runner does, since the shared
 suites reset each case with a clear. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets

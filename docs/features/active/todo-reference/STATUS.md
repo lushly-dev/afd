@@ -414,27 +414,41 @@ On branch `t3/todo-reference-phase5-rust`, not yet merged, written 2026-11-16 ov
   mounted mode still runs the HTTP server.
 - **History.** Each command records its own successful change from its result (actor kind and
   id, time from the context's clock, ids, undo) in the handler wrapper, not a middleware, so the
-  Umbel plugin, which registers the commands in a registry of its own, keeps the history too. The
-  approval middleware runs before the handler, so a held call is never recorded. An undo is
+  Umbel plugin, which registers the commands in a registry of its own, keeps the history too. A
+  change and its entry run under one store lock (`TodoStore::changing`), so concurrent changes
+  are recorded in their order and the right entries are marked superseded; a test runs 200
+  concurrent toggles. The approval middleware runs before the handler, so a held call is never
+  recorded. An undo is
   offered only while it is its todos' latest change; the latest 1,000 are kept.
 - **Approvals.** `APPROVALS` (`agents` by default, `off`) and `TODO_APPROVAL_SECRET` (at least 32
   bytes, else a random key per process), as TypeScript and Python read them. `todo-clear` is held
   for any caller that is not a person, with TypeScript's summary text; the library has the MCP
   relay (`ApprovalRelay::McpElicitation`), so a client that declares form elicitation is asked,
-  and all four approval cases pass in both eras. The command line and shell run as `human` (the
-  person at the terminal), so a clear there is not held.
+  and all four approval cases pass in both eras over stdio. Over HTTP only the hold is tested (a
+  client that declares no elicitation gets `APPROVAL_REQUIRED` and no token); asking the person
+  over MCP 2026-07-28 HTTP is not exercised. `TODO_APPROVAL_SECRET` is read only when clears are
+  held, and `APPROVALS` is read exactly, as TypeScript reads both. The command line and shell run
+  as `human` (the person at the terminal), so a clear there is not held.
 - **Umbel.** `plugins/todo` regenerated: thirteen commands, the backend's descriptions and
   schemas, `contexts` on each and the two `[[contexts]]`. A manifest can declare only a fixed
   approval and Umbel refuses a per-call policy, so the plugin drops `todo-clear`'s; under Umbel the
-  clear is gated by its confirmation prompt alone. A mounted tool may now declare `destructive`
+  clear is gated by its confirmation prompt alone
+  ([#1329](https://github.com/lushly-dev/afd/issues/1329)). So `todo-clear`'s description, shared
+  word for word by TypeScript, Python, Rust and the plugin's manifest, now says a caller that is
+  not a person waits for approval where the server holds clears, and that elsewhere the
+  confirmation prompt gates it, where enforced (the review's blocker: it promised the hold in every
+  host). The runner refuses `--suite approvals` against either Umbel target, naming #1329. A mounted tool may now declare `destructive`
   (`[[mount.tools]]`, sent as `destructiveHint`; the server's own annotations stay untrusted,
   D43), and the `todo-http` fixture marks the deletes and the clear, which closes the phase 1
   follow-up. The plugin's test now compares contexts and the fixture's `destructive`, and checks
   the history under the host.
 - **Spec and CI.** `rust` added to `implementedBy` on both commands, the six test cases and all
-  four approval cases, and to `x-implementedBy` on both inputs. The runner passes `APPROVALS=off`
-  to the backend Umbel mounts. `conformance.yml` runs Rust's confirmations in both eras and its
-  approval suite in both; `scripts/affected/suites.mjs` adds the approval suite to `pnpm verify`.
+  four approval cases, and to `x-implementedBy` on both inputs. The runner spawns the built Rust
+  binary, as for C++, rather than `cargo run`, and passes `APPROVALS=off` to the backend Umbel
+  mounts. `conformance.yml` runs Rust's confirmations and approvals in both eras;
+  `scripts/affected/suites.mjs` adds both suites (legacy) to `pnpm verify` and names the modern
+  runs as remote only. `umbel.yml`'s gate now names `packages/examples/todo/backends/rust/`, so a
+  backend-only change runs the plugin's drift test.
 
 Verified locally on 2026-11-16 with Node 26.13.0 and Rust 1.98.0: `cargo test --locked` (49
 tests), `cargo clippy --locked --all-targets -- -D warnings` (also `--no-default-features`) and
@@ -445,7 +459,8 @@ in legacy and modern modes; `umbel` 41/41 in both modes and confirmations 5/5 mo
 umbel-plugin-todo --all-targets -D warnings` and `cargo fmt --check` in Umbel; TypeScript and
 Python conformance 41/41 and approvals 4/4 and 2/2 (legacy), the TypeScript spec test and the
 Python tests (135 passed). The README's commands were run once. No lockfile changed. Not run:
-`pnpm verify`, Umbel's full workspace `cargo test`, `external-clients.sh`.
+`pnpm verify`, Umbel's full workspace `cargo test`, `external-clients.sh`. The review's fixes
+were checked suite by suite; see the session log.
 
 ## Open questions
 
@@ -470,8 +485,9 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 review | A shared `TODO_APPROVAL_SECRET` lets one token run the clear once on each server, since each process keeps its own nonce store (the library's in-memory default). Documented in both backends' READMEs; a shared nonce store would close it | Open |
 | 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too (and Rust, on the phase 5 Rust branch). Left for the C++ pull request, so this one does not run the C++ suites for a comment | Open, phase 5's C++ pull request |
 | 2026-11-16 | Phase 5 Rust | Rust's title sort folds case with `to_lowercase` and then compares exactly, not as JavaScript's `localeCompare` (Python's `collation.py` approximates it for Latin text). Rust keeps its own in-memory store and shares no database, so no list is compared across languages; porting the collation needs NFD normalization, a new dependency | Open |
-| 2026-11-16 | Phase 5 Rust | Under Umbel `todo-clear` is not held for agents: a plugin manifest declares only a fixed `approval = "required"`, and the loader refuses a definition with a per-call policy (`mismatch` in `endpoints/umbel/src/plugins/loader.rs`), so the plugin drops it. A manifest form for "required unless the caller is a person" would let the plugin keep the backend's hold | Open |
-| 2026-11-16 | Phase 5 Rust | The conformance runner reaches the Rust backend over stdio, so the approval relay over Streamable HTTP (MCP 2026-07-28) is checked only by the backend's HTTP test of a held clear, and Umbel's mounted run uses HTTP with `APPROVALS=off` | Open |
+| 2026-11-16 | Phase 5 Rust | Under Umbel `todo-clear` is not held for agents: a plugin manifest declares only a fixed `approval = "required"`, and the loader refuses a definition with a per-call policy (`mismatch` in `endpoints/umbel/src/plugins/loader.rs`), so the plugin drops it and the clear is gated by its confirmation prompt alone. The description says so in every host | Open: [#1329](https://github.com/lushly-dev/afd/issues/1329) |
+| 2026-11-16 | Phase 5 Rust | The conformance runner reaches the Rust backend over stdio, so asking the person over Streamable HTTP (MCP 2026-07-28) is not exercised: the backend's HTTP test checks only that a client declaring no elicitation gets `APPROVAL_REQUIRED` without a token, and Umbel's mounted run uses HTTP with `APPROVALS=off` | Open |
+| 2026-11-16 | Phase 5 Rust review | Two small differences from TypeScript kept on purpose: Rust's `NOT_FOUND` errors carry `retryable: false`, which TypeScript leaves unset, and the Rust commands are also exposed to its own command line (`expose.cli`) | Kept |
 
 ## Session log
 

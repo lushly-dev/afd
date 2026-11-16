@@ -12,7 +12,7 @@ use serde::Serialize;
 use serde_json::{Map, Value};
 use std::cmp::Ordering;
 use std::collections::HashMap;
-use std::sync::{PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
+use std::sync::{Mutex, MutexGuard, PoisonError, RwLock, RwLockReadGuard, RwLockWriteGuard};
 
 /// How many changes the history keeps; older ones drop off.
 pub const HISTORY_LIMIT: usize = 1000;
@@ -43,6 +43,9 @@ impl Inner {
 #[derive(Default)]
 pub struct TodoStore {
     inner: RwLock<Inner>,
+    /// Held across a change and its history entry ([`TodoStore::changing`]), so concurrent
+    /// changes are recorded in the order they happened.
+    changing: Mutex<()>,
 }
 
 pub struct NewTodo {
@@ -120,6 +123,13 @@ impl TodoStore {
     /// An empty store.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Hold while making a change and recording it: one change and its history entry at a time,
+    /// so a later entry is always a later change and `todo-history` marks the right ones
+    /// superseded. Reads do not take it.
+    pub fn changing(&self) -> MutexGuard<'_, ()> {
+        self.changing.lock().unwrap_or_else(PoisonError::into_inner)
     }
 
     fn read(&self) -> RwLockReadGuard<'_, Inner> {
