@@ -69,6 +69,37 @@ describe('runTurn', () => {
 		]);
 	});
 
+	it('keeps reading the turn when a view call never finishes', async () => {
+		const answers: unknown[] = [];
+		const fetchStub = (async (url: string, init?: RequestInit) => {
+			if (url.endsWith('/chat/answer')) {
+				answers.push(JSON.parse(String(init?.body)));
+				return new Response('{"accepted":true}');
+			}
+			return new Response(
+				stream(
+					ndjson(
+						{ type: 'turn', turn: 't-3' },
+						{ type: 'view', ask: 1, command: 'view-state-get', input: { id: 'todo-filter' } },
+						{ type: 'done', message: 'Moved on', mode: 'change', toolExecutions: [] }
+					)
+				)
+			);
+		}) as typeof fetch;
+		const end = await runTurn({
+			baseUrl: 'http://page',
+			message: 'hi',
+			mode: 'change',
+			fetch: fetchStub,
+			viewTimeoutMs: 20,
+			onEvent: () => {},
+			runView: () => new Promise(() => {}),
+		});
+
+		expect(end).toMatchObject({ type: 'done', message: 'Moved on' });
+		expect(answers).toMatchObject([{ ask: 1, result: { error: { code: 'PAGE_VIEW_FAILED' } } }]);
+	});
+
 	it('ends with the refusal when the server turns the message down', async () => {
 		const fetchStub = (async () =>
 			new Response(

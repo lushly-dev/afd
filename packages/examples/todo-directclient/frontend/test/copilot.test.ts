@@ -218,6 +218,34 @@ describe('the copilot page', () => {
 		await page.context().close();
 	});
 
+	it('keeps what it already shows in place, and focus in the panel, as turns go on', async () => {
+		const done = store.create({ title: 'Shelled the peas' });
+		store.toggle(done.id);
+		const page = await openPage();
+		const focusInPanel = () =>
+			page.evaluate(() => document.activeElement?.closest('.copilot-input') !== null);
+		await ask(page, 'Remind me to water the tomatoes');
+		await lastAnswer(page);
+		expect(await focusInPanel()).toBe(true);
+		// Tag the first message's element: a later turn must not rebuild it
+		await page.evaluate(() => {
+			(document.querySelector('.copilot-entry') as HTMLElement).dataset.seen = 'yes';
+		});
+
+		await ask(page, 'Clear the done ones');
+		const approve = page
+			.locator('violet-approval-card.copilot-approval')
+			.getByRole('button', { name: /approve/i });
+		await approve.focus();
+		await page.keyboard.press('Enter');
+		expect(await lastAnswer(page)).toBe('Cleared.');
+
+		expect(await page.locator('.copilot-entry[data-seen="yes"]').count()).toBe(1);
+		expect(await focusInPanel()).toBe(true);
+		await expect.poll(() => page.locator('.copilot-status').innerText()).toBe('Cleared.');
+		await page.context().close();
+	});
+
 	it('has no serious or critical accessibility violations after a turn', async () => {
 		const page = await openPage();
 		await ask(page, 'Remind me to water the tomatoes');

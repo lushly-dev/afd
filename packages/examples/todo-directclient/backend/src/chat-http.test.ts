@@ -4,7 +4,14 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { setStore, TodoStore } from '@afd/example-todo-ts/store';
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
-import { type ChatBackend, type ChatServer, createChatServer, PublicError } from './chat-http.js';
+import {
+	APPROVAL_WAIT_MS,
+	approvalWaitMs,
+	type ChatBackend,
+	type ChatServer,
+	createChatServer,
+	PublicError,
+} from './chat-http.js';
 import { type Env, loadChatServerConfig } from './http-security.js';
 
 /** A built page stand-in: what `vite build` writes, and a file beside it that must stay private. */
@@ -226,6 +233,15 @@ describe('requests', () => {
 		const { base } = await start({ MAX_BODY_SIZE: '100' });
 		const res = await post(`${base}/chat`, { message: 'x'.repeat(500) });
 		expect(res.status).toBe(413);
+	});
+});
+
+describe('approvalWaitMs', () => {
+	it('waits until the approval token expires, since a later yes could not run the call', () => {
+		const now = Date.parse('2026-11-15T12:00:00Z');
+		expect(approvalWaitMs('2026-11-15T12:05:00Z', now)).toBe(5 * 60_000);
+		expect(approvalWaitMs('2026-11-15T11:59:00Z', now)).toBe(0);
+		expect(approvalWaitMs('', now)).toBe(APPROVAL_WAIT_MS);
 	});
 });
 

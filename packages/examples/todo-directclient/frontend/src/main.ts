@@ -1,7 +1,9 @@
 /**
  * Entry point: the to-do page (`<todo-app>`, from the FAST-AF frontend) and the copilot panel,
  * on one session. The list talks MCP at `/mcp`; the copilot asks `/chat`. Both are this page's
- * server unless the page was opened with `?backend=http://host:port`.
+ * server unless the page was opened with `?backend=http://host:port`, which works only where the
+ * build is served without the server's Content-Security-Policy (`connect-src 'self'`), as the
+ * shared Chromium suite serves it.
  */
 import './elements';
 import { defineTodoApp, type TodoApp } from '@afd/example-todo-fast-af/todo-app';

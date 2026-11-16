@@ -193,6 +193,40 @@ describe("the page's view", () => {
 		expect(lastResults(model)[0]).toMatchObject({ success: true, data: { state: filter } });
 	});
 
+	it('goes to the page of its own turn when two turns run at once', async () => {
+		const pageOf = (name: string, ran: string[]): PageHost => ({
+			async run(command) {
+				ran.push(command);
+				// Yield, so the other turn runs in between
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				return { success: true, data: { page: name } };
+			},
+		});
+		const first: string[] = [];
+		const second: string[] = [];
+		const firstModel = scripted([{ name: 'view-state-list', args: {} }]);
+		const secondModel = scripted([
+			{ name: 'todo-clear', args: {} },
+			{ name: 'view-state-get', args: { id: 'todo-filter' } },
+		]);
+		await Promise.all([
+			copilot(firstModel).run('What views are there?', 'look', { page: pageOf('first', first) }),
+			// The second turn's view call comes after an approval retry, which must keep its page
+			copilot(secondModel).run('Clear, then show me', 'change', {
+				page: pageOf('second', second),
+				onApprovalNeeded: async () => {
+					await new Promise((resolve) => setTimeout(resolve, 5));
+					return true;
+				},
+			}),
+		]);
+
+		expect(first).toEqual(['view-state-list']);
+		expect(second).toEqual(['view-state-get']);
+		expect(lastResults(firstModel)[0]).toMatchObject({ data: { page: 'first' } });
+		expect(lastResults(secondModel)[1]).toMatchObject({ data: { page: 'second' } });
+	});
+
 	it('is validated before it reaches the page', async () => {
 		let reached = false;
 		const page: PageHost = {

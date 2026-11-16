@@ -22,7 +22,7 @@ command. The list on the page is the FAST-AF page's own element
 - **Approvals through `onApprovalNeeded`.** The copilot's calls carry
   `{ kind: 'agent', id: 'todo-copilot' }`, so `todo-history` says it made a change and
   `todo-clear` is held. DirectClient's `onApprovalNeeded` hook asks the page that sent the
-  message, which shows a `violet-approval-card` in the conversation; only a yes from the person
+  message, which shows a `violet-approval-card` in the conversation; only a yes from that page
   runs the clear.
 - **The page hosts the view.** The list follows the `todo-filter` view, which the page serves with
   `view-state-*` commands in its own registry. The copilot's registry holds stand-ins with the
@@ -120,7 +120,10 @@ The defaults are safe for a developer machine; each one is configurable in `.env
   the proxy appended is used. The limiter tracks at most `RATE_LIMIT_MAX_CLIENTS` clients. `/mcp`
   is not rate limited and reads its own bodies, as the main example's server does.
 - **Answers only from the turn's page**: a turn's id is random and goes only to the page that
-  holds its stream; each question takes one answer of its own kind. An approval not answered by
+  holds its stream; each question takes one answer of its own kind. That proves the answer came
+  from whoever asked, not that a person gave it: any program on this machine can open a turn and
+  approve its own clear, as it could also edit the store's file. Knowing which person answered is
+  sign-in's job (`afd-auth`), which this example leaves out. An approval not answered by
   the approval token's expiry, a view call not answered in 10 seconds, and any question still
   open when the page leaves settle as a no.
 - **The approval is the server's**: the page never sees an approval token. It only says yes or
@@ -145,6 +148,12 @@ The defaults are safe for a developer machine; each one is configurable in `.env
 (`APPROVALS`, `TODO_JOURNAL` and the rest), which apply to the copilot's calls and to `/mcp`
 alike. With `TODO_JOURNAL` set, both write one journal; it records the copilot's view-state calls
 too, which `afd replay` against the main example's registry reports as unknown commands.
+
+## Using another server
+
+The page served at `/` talks only to its own server: its Content-Security-Policy allows no other
+origin. `?backend=http://host:port` points the page at another server when a different static
+server, which sends no such policy, serves the build; the shared Chromium suite does this.
 
 ## Speed
 

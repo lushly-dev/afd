@@ -75,7 +75,16 @@ export interface ChatServer {
 
 const MAX_MESSAGE_LENGTH = 2000;
 /** How long to wait for the person when a held call states no expiry. */
-const APPROVAL_WAIT_MS = 5 * 60_000;
+export const APPROVAL_WAIT_MS = 5 * 60_000;
+
+/**
+ * How long to wait for the person's answer to a held call: until its approval token expires (an
+ * answer after that could not run it), or {@link APPROVAL_WAIT_MS} when it states no expiry.
+ */
+export function approvalWaitMs(expiresAt: string, now = Date.now()): number {
+	const expires = Date.parse(expiresAt);
+	return Number.isNaN(expires) ? APPROVAL_WAIT_MS : Math.max(0, expires - now);
+}
 
 /** The types of the files a Vite build writes; any other file is not served. */
 const CONTENT_TYPES: Record<string, string> = {
@@ -264,6 +273,8 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		res.once('close', () => {
 			if (!res.writableEnded) cancel.abort();
 		});
+		// A page that left while its message was being read is already gone: no 'close' will come
+		if (res.destroyed || req.socket.destroyed) cancel.abort();
 		res.writeHead(200, {
 			'Content-Type': 'application/x-ndjson; charset=utf-8',
 			'Cache-Control': 'no-store',
@@ -283,10 +294,8 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 					onEvent: (event) => send({ ...event }),
 					// The person answers in the page; no answer by the token's expiry is a no
 					onApprovalNeeded: async ({ command, summary, expiresAt, signal }) => {
-						const expires = Date.parse(expiresAt);
-						const waitMs = Number.isNaN(expires) ? APPROVAL_WAIT_MS : expires - Date.now();
 						const question = { type: 'approval' as const, command, summary, expiresAt };
-						return (await turn.ask(question, waitMs, signal)) === true;
+						return (await turn.ask(question, approvalWaitMs(expiresAt), signal)) === true;
 					},
 					page: {
 						run: async (command, input, signal) =>

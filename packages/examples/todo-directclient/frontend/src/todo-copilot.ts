@@ -4,6 +4,11 @@
  * it runs, asks the person to approve a held clear, and runs view-state calls in this page, so
  * the list beside it changes (job 6). The mode switch sets what the server's `allow` permits
  * (job 10). Light DOM, like `<todo-app>`, so its landmark and heading are part of the document.
+ *
+ * The conversation is a list of observable objects changed in place, so an event re-renders only
+ * what it changed: the cards a person is reading or tabbing through stay where they are. One
+ * polite status line announces what screen readers need (working, an approval asked, the answer)
+ * rather than the whole conversation.
  */
 
 import type { TodoSession } from '@afd/example-todo-ui/session';
@@ -11,34 +16,64 @@ import { FASTElement, html, observable, repeat, when } from '@lushly-dev/fast-el
 import { answer, type CopilotMode, runTurn, type TurnEvent } from './turn-client';
 
 /** A command the model ran in this turn, as its card shows it. */
-interface CallView {
-	index: number;
-	name: string;
-	args: Record<string, unknown>;
-	state: 'executing' | 'output-available' | 'output-error';
-	summary: string;
-	output: string;
+class CallView {
+	declare state: 'executing' | 'output-available' | 'output-error';
+	declare summary: string;
+	declare output: string;
+
+	constructor(
+		readonly index: number,
+		readonly name: string,
+		readonly args: Record<string, unknown>
+	) {
+		this.state = 'executing';
+		this.summary = 'Running…';
+		this.output = '';
+	}
 }
+for (const name of ['state', 'summary', 'output']) observable(CallView.prototype, name);
 
 /** A held call waiting for the person, and what became of it. */
-interface ApprovalView {
-	turn: string;
-	ask: number;
-	command: string;
-	summary: string;
-	state: 'pending' | 'approved' | 'denied';
-	note: string;
+class ApprovalView {
+	declare state: 'pending' | 'approved' | 'denied';
+	declare note: string;
+
+	constructor(
+		readonly turn: string,
+		readonly ask: number,
+		readonly command: string,
+		readonly summary: string
+	) {
+		this.state = 'pending';
+		this.note = 'The copilot asked for this. Nothing is removed if you deny it.';
+	}
+
+	/** Settle it, once: a later answer does not change what the person was shown. */
+	settle(state: 'approved' | 'denied', note: string): boolean {
+		if (this.state !== 'pending') return false;
+		this.state = state;
+		this.note = note;
+		return true;
+	}
 }
+for (const name of ['state', 'note']) observable(ApprovalView.prototype, name);
 
 /** One message in the panel: the person's, or the copilot's answer with what it ran. */
-interface Entry {
-	id: number;
-	role: 'user' | 'assistant' | 'system';
-	text: string;
-	calls: CallView[];
-	approvals: ApprovalView[];
-	busy: boolean;
+class Entry {
+	declare role: 'user' | 'assistant' | 'system';
+	declare text: string;
+	declare busy: boolean;
+	/** Grown in place, so a new card does not re-render the ones before it. */
+	readonly calls: CallView[] = [];
+	readonly approvals: ApprovalView[] = [];
+
+	constructor(role: Entry['role'], text: string, busy: boolean) {
+		this.role = role;
+		this.text = text;
+		this.busy = busy;
+	}
 }
+for (const name of ['role', 'text', 'busy']) observable(Entry.prototype, name);
 
 const json = (value: unknown) => JSON.stringify(value, null, 2);
 
@@ -98,13 +133,13 @@ const template = html<TodoCopilot>`
 		</violet-segmented-control>
 		<ol
 			class="copilot-messages"
-			aria-live="polite"
 			aria-label="Conversation"
 			@approve="${(x, c) => x.decideFrom(c.event, true)}"
 			@deny="${(x, c) => x.decideFrom(c.event, false)}"
 		>
-			${repeat((x) => x.entries, entryTemplate, { recycle: false })}
+			${repeat((x) => x.entries, entryTemplate)}
 		</ol>
+		<p class="visually-hidden copilot-status" role="status">${(x) => x.status}</p>
 		${when(
 			(x) => x.entries.length === 0,
 			html`<p class="copilot-empty">
@@ -117,7 +152,6 @@ const template = html<TodoCopilot>`
 				class="copilot-input"
 				label="Ask the copilot"
 				:value="${(x) => x.draft}"
-				?disabled="${(x) => x.busy}"
 				@input="${(x, c) => {
 					x.draft = (c.event.target as HTMLInputElement).value;
 				}}"
@@ -138,10 +172,11 @@ export class TodoCopilot extends FASTElement {
 	declare mode: CopilotMode;
 	declare draft: string;
 	declare busy: boolean;
+	/** What the status line announces. */
+	declare status: string;
 	session: TodoSession | undefined;
 	/** The server: this page's origin unless the page was opened with `?backend=`. */
 	baseUrl = '';
-	private nextId = 1;
 	private leaving: AbortController | undefined;
 
 	constructor() {
@@ -150,6 +185,7 @@ export class TodoCopilot extends FASTElement {
 		this.mode = 'change';
 		this.draft = '';
 		this.busy = false;
+		this.status = '';
 	}
 
 	/** Work with this session: its view runs the view calls, and it refreshes after changes. */
@@ -162,16 +198,19 @@ export class TodoCopilot extends FASTElement {
 		if (value === 'change' || value === 'look') this.mode = value;
 	}
 
-	/** Enter sends: violet buttons do not submit a form. */
+	/**
+	 * Enter sends: violet buttons do not submit a form. The field stays enabled while a turn runs,
+	 * so focus can stay in it; only sending waits.
+	 */
 	sendOnEnter(event: KeyboardEvent): boolean {
 		if (event.key !== 'Enter' || event.isComposing) return true;
 		void this.send();
 		return false;
 	}
 
-	/** Replace one entry, so the panel renders the change. */
-	private update(id: number, change: (entry: Entry) => Entry): void {
-		this.entries = this.entries.map((entry) => (entry.id === id ? change(entry) : entry));
+	/** Put the person back in the field, where the next question goes. */
+	private focusInput(): void {
+		this.querySelector<HTMLElement>('.copilot-input')?.focus();
 	}
 
 	/** Send the draft as one turn and show it as it runs. */
@@ -180,19 +219,9 @@ export class TodoCopilot extends FASTElement {
 		if (!message || this.busy) return;
 		this.draft = '';
 		this.busy = true;
-		const reply: Entry = {
-			id: this.nextId++,
-			role: 'assistant',
-			text: '',
-			calls: [],
-			approvals: [],
-			busy: true,
-		};
-		this.entries = [
-			...this.entries,
-			{ id: this.nextId++, role: 'user', text: message, calls: [], approvals: [], busy: false },
-			reply,
-		];
+		this.status = 'The copilot is working.';
+		const reply = new Entry('assistant', '', true);
+		this.entries.push(new Entry('user', message, false), reply);
 		this.leaving = new AbortController();
 		let turn = '';
 		try {
@@ -208,82 +237,50 @@ export class TodoCopilot extends FASTElement {
 				},
 				onEvent: (event) => {
 					if (event.type === 'turn') turn = event.turn;
-					this.show(reply.id, turn, event);
+					this.show(reply, turn, event);
 				},
 			});
-			this.update(reply.id, (entry) => ({
-				...entry,
-				role: end.type === 'error' ? 'system' : 'assistant',
-				text: end.type === 'error' ? `The copilot could not answer: ${end.error}` : end.message,
-				busy: false,
-			}));
+			reply.role = end.type === 'error' ? 'system' : 'assistant';
+			reply.text =
+				end.type === 'error' ? `The copilot could not answer: ${end.error}` : end.message;
+			this.status = reply.text;
 		} catch {
 			// The page is going away
 		} finally {
+			// A question still open when the turn ends can no longer be answered
+			for (const approval of reply.approvals) {
+				approval.settle('denied', 'The answer ended before you decided, so it did not run.');
+			}
+			reply.busy = false;
 			this.busy = false;
 			this.leaving = undefined;
 			// Whatever the copilot changed, the list shows it now
 			void this.session?.refresh();
+			this.focusInput();
 		}
 	}
 
 	/** Show one event of the turn in its reply. */
-	private show(id: number, turn: string, event: TurnEvent): void {
+	private show(reply: Entry, turn: string, event: TurnEvent): void {
 		if (event.type === 'call') {
-			this.update(id, (entry) => ({
-				...entry,
-				calls: [
-					...entry.calls,
-					{
-						index: event.index,
-						name: event.name,
-						args: event.args,
-						state: 'executing',
-						summary: 'Running…',
-						output: '',
-					},
-				],
-			}));
+			reply.calls.push(new CallView(event.index, event.name, event.args));
 		} else if (event.type === 'result') {
-			this.update(id, (entry) => ({
-				...entry,
-				calls: entry.calls.map((call) =>
-					call.index === event.index
-						? {
-								...call,
-								state: event.success ? 'output-available' : 'output-error',
-								summary: resultSummary(event),
-								output: json(event.result),
-							}
-						: call
-				),
-			}));
+			const call = reply.calls.find((item) => item.index === event.index);
+			if (call) {
+				call.state = event.success ? 'output-available' : 'output-error';
+				call.summary = resultSummary(event);
+				call.output = json(event.result);
+			}
 			// A change to the todos shows in the list at once; a view change already has
 			if (event.success && !event.name.startsWith('view-state-')) void this.session?.refresh();
 		} else if (event.type === 'approval') {
-			this.update(id, (entry) => ({
-				...entry,
-				approvals: [
-					...entry.approvals,
-					{
-						turn,
-						ask: event.ask,
-						command: event.command,
-						summary: event.summary || `Run ${event.command}?`,
-						state: 'pending',
-						note: 'The copilot asked for this. Nothing is removed if you deny it.',
-					},
-				],
-			}));
+			const summary = event.summary || `Run ${event.command}?`;
+			reply.approvals.push(new ApprovalView(turn, event.ask, event.command, summary));
+			this.status = `Approval needed: ${summary}`;
 		} else if (event.type === 'withdrawn') {
-			this.update(id, (entry) => ({
-				...entry,
-				approvals: entry.approvals.map((approval) =>
-					approval.ask === event.ask && approval.state === 'pending'
-						? { ...approval, state: 'denied', note: 'No answer in time, so it did not run.' }
-						: approval
-				),
-			}));
+			reply.approvals
+				.find((approval) => approval.ask === event.ask)
+				?.settle('denied', 'No answer in time, so it did not run.');
 		}
 	}
 
@@ -300,25 +297,22 @@ export class TodoCopilot extends FASTElement {
 
 	/** The person's answer to a held call. */
 	async decide(approval: ApprovalView, approved: boolean): Promise<void> {
-		if (approval.state !== 'pending') return;
-		const settle = (state: ApprovalView['state'], note: string) => {
-			this.entries = this.entries.map((entry) => ({
-				...entry,
-				approvals: entry.approvals.map((item) =>
-					item.turn === approval.turn && item.ask === approval.ask ? { ...item, state, note } : item
-				),
-			}));
-		};
-		settle(
+		const settled = approval.settle(
 			approved ? 'approved' : 'denied',
 			approved ? 'You approved it.' : 'You denied it, so it did not run.'
 		);
+		if (!settled) return;
+		// The card's buttons go with the decision: keep focus in the panel, on the next question
+		this.focusInput();
 		const accepted = await answer(this.baseUrl, {
 			turn: approval.turn,
 			ask: approval.ask,
 			approved,
 		}).catch(() => false);
-		if (!accepted) settle('denied', 'The question had already ended, so it did not run.');
+		if (!accepted) {
+			approval.state = 'denied';
+			approval.note = 'The question had already ended, so it did not run.';
+		}
 	}
 
 	override disconnectedCallback(): void {
@@ -327,7 +321,8 @@ export class TodoCopilot extends FASTElement {
 	}
 }
 
-for (const name of ['entries', 'mode', 'draft', 'busy']) observable(TodoCopilot.prototype, name);
+for (const name of ['entries', 'mode', 'draft', 'busy', 'status'])
+	observable(TodoCopilot.prototype, name);
 
 export async function defineTodoCopilot(): Promise<void> {
 	if (customElements.get('todo-copilot')) return;

@@ -57,7 +57,12 @@ export interface TurnOptions {
 	runView: (command: string, input: Record<string, unknown>) => Promise<CommandResult<unknown>>;
 	signal?: AbortSignal;
 	fetch?: typeof fetch;
+	/** How long a view call may take in the page (default {@link VIEW_TIMEOUT_MS}). */
+	viewTimeoutMs?: number;
 }
+
+/** The server waits 10 seconds for a view call's answer; the page gives up as it does. */
+export const VIEW_TIMEOUT_MS = 10_000;
 
 /** The answer a turn ends with: its last `done` or `error` event. */
 export type TurnEnd = Extract<TurnEvent, { type: 'done' } | { type: 'error' }>;
@@ -136,17 +141,25 @@ export async function runTurn(options: TurnOptions): Promise<TurnEnd> {
 			options.onEvent(event);
 			if (event.type === 'turn') turn = event.turn;
 			else if (event.type === 'view') {
-				// Answer while the stream stays open: the turn waits for this result
-				const result = await options.runView(event.command, event.input).catch(
-					(): CommandResult<unknown> => ({
-						success: false,
-						error: {
-							code: 'PAGE_VIEW_FAILED',
-							message: `The page could not run ${event.command}`,
-							suggestion: 'Answer in the chat instead',
-						},
-					})
-				);
+				// Answer while the stream stays open: the turn waits for this result. A view that never
+				// settles must not stop the stream being read, so it gets as long as the server waits
+				const failed = (message: string): CommandResult<unknown> => ({
+					success: false,
+					error: { code: 'PAGE_VIEW_FAILED', message, suggestion: 'Answer in the chat instead' },
+				});
+				let timer: ReturnType<typeof setTimeout> | undefined;
+				const result = await Promise.race([
+					options
+						.runView(event.command, event.input)
+						.catch(() => failed(`The page could not run ${event.command}`)),
+					new Promise<CommandResult<unknown>>((settle) => {
+						timer = setTimeout(
+							() => settle(failed(`The page did not finish ${event.command} in time`)),
+							options.viewTimeoutMs ?? VIEW_TIMEOUT_MS
+						);
+					}),
+				]);
+				clearTimeout(timer);
 				await answer(options.baseUrl, { turn, ask: event.ask, result }, fetchImpl).catch(
 					() => false
 				);

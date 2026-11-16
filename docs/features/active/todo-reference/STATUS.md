@@ -283,11 +283,19 @@ On branch `t3/todo-reference-phase4-page`, not yet merged:
   `-set` and `-list` with the view-state package's own schemas, which send each call to the page
   (`backend/src/page.ts`); the page runs it in its own registry, so the list on screen changes.
   Look mode permits them, since they change what the page shows and never the todos.
-- **Tests:** the turn protocol over HTTP with the real copilot (`src/turn-http.test.ts`), the page's
-  turn client, and the built page in Chromium served by the real server with a scripted model
-  (`frontend/test/copilot.test.ts`: add, job 6, approve, deny, job 10, axe), plus the shared page
-  suite on the same build. Breaking the page's view runs or its approval answers fails them.
-  `conformance.yml` runs the Chromium suites.
+- **Tests:** the turn protocol over HTTP with the real copilot (`src/turn-http.test.ts`), two
+  turns at once keeping their own pages, the page's turn client, and the built page in Chromium
+  served by the real server with a scripted model (`frontend/test/copilot.test.ts`: add, job 6,
+  approve, deny, job 10, the conversation kept in place with focus in the panel, axe), plus the
+  shared page suite on the same build. Breaking the page's view runs or its approval answers
+  fails them. `conformance.yml` runs the Chromium suites.
+- **Review:** a fresh reviewer found the panel rebuilding the whole conversation on every event,
+  which dropped focus and re-read a live region; the panel now changes observable entries in
+  place, keeps focus in its field and announces through one status line, and a test built
+  against the old panel fails. Also from the review: a view call that never settles no longer
+  stalls the page, leftover approval cards close with the turn, a page that leaves while its
+  message is read cancels the turn, the approval wait is tested, and the README says an answer
+  proves who asked, not that a person did.
 
 ## Open questions
 
