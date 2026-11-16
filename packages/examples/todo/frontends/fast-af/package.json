@@ -4,6 +4,9 @@
 	"version": "0.0.0",
 	"description": "The to-do page on FAST-AF and violet-elements",
 	"type": "module",
+	"exports": {
+		"./todo-app": "./src/todo-app.ts"
+	},
 	"scripts": {
 		"dev": "vite",
 		"build": "vite build",

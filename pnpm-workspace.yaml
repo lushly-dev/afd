@@ -15,6 +15,7 @@ packages:
   - "packages/examples/todo/backends/*"
   - "packages/examples/todo/frontends/*"
   - "packages/examples/todo-directclient/backend"
+  - "packages/examples/todo-directclient/frontend"
   - "packages/examples/seed-library"
   - "packages/examples/showcase/backend"
 

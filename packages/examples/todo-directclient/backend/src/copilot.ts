@@ -8,11 +8,13 @@
  *   `listTools()`): each command's own name, description and JSON Schema, exactly as an MCP
  *   server with these commands lists them. No schema is written by hand.
  * - **`allow` decides what the model may run.** In `look` mode only the registry's commands that
- *   declare `mutation: false` are permitted: the rest are left out of the tool list, and a call to
+ *   declare `mutation: false`, and the page's view-state commands, are permitted: the rest are left out of the tool list, and a call to
  *   one fails with `COMMAND_NOT_ALLOWED` before it runs, whatever the model sends. Contexts only
  *   narrow what an agent is offered; `allow` is the boundary.
  * - **The model calls as an agent** (`context.actor`), so the change history says the copilot
  *   made a change, and `todo-clear` is held for the person's approval.
+ * - **It can change what the page shows**: the view-state commands run in the person's page
+ *   (`page.ts`), so it narrows the list on screen instead of copying it into the chat (job 6).
  *
  * The model itself is behind {@link CopilotModel}: Gemini in `gemini.ts`, a scripted one in tests.
  */
@@ -25,6 +27,7 @@ import {
 } from '@lushly-dev/afd-client';
 import type { Actor, CommandResult } from '@lushly-dev/afd-core';
 import type { DirectCommandRegistry } from '@lushly-dev/afd-server';
+import { PAGE_VIEW, type PageHost, pageHost } from './page.js';
 
 /** `change`: the copilot may run every to-do command. `look`: only the ones that read. */
 export type CopilotMode = 'change' | 'look';
@@ -40,8 +43,9 @@ export const COPILOT_ACTOR: Actor = {
 
 /**
  * The commands a mode permits, read from the registry's own commands: in `look` mode those that
- * declare `mutation: false` (a command that says nothing is left out), in `change` mode all of
- * them. Meta-tools (`afd-call`, `afd-batch` and the rest) are not commands, so neither mode
+ * declare `mutation: false` (a command that says nothing is left out) and those in the
+ * `view-state` category, which change what the page shows and never the todos; in `change` mode
+ * all of them. Meta-tools (`afd-call`, `afd-batch` and the rest) are not commands, so neither mode
  * permits them: the model gets each command as its own tool.
  */
 export function allowedCommands(
@@ -51,7 +55,10 @@ export function allowedCommands(
 	return new Set(
 		registry
 			.listCommands()
-			.filter((command) => mode === 'change' || command.mutation === false)
+			.filter(
+				(command) =>
+					mode === 'change' || command.mutation === false || command.category === 'view-state'
+			)
 			.map((command) => command.name)
 	);
 }
@@ -138,21 +145,35 @@ export interface CopilotOptions {
 	maxCalls?: number;
 }
 
+/** A command the model ran, as it starts and as it ends: for a page that shows the turn live. */
+export type CopilotEvent =
+	| { type: 'call'; index: number; name: string; args: Record<string, unknown> }
+	| ({ type: 'result'; index: number } & ToolExecution);
+
 /** What one turn may use besides the message and mode. */
 export interface RunOptions {
 	/** Ends the turn: the model request and any command still running are cancelled. */
 	signal?: AbortSignal;
 	/** Asks the person to approve a held call. Without it, the model gets `APPROVAL_REQUIRED`. */
 	onApprovalNeeded?: DirectApprovalHook;
+	/** The page that asked: it runs the view-state commands. Without it they fail. */
+	page?: PageHost;
+	/** Told of each call as it starts and ends. */
+	onEvent?: (event: CopilotEvent) => void;
 }
+
+const VIEW = `The person's page shows the list as the view "${PAGE_VIEW.id}" sets it: status ${PAGE_VIEW.state.status.join(' | ')}, priority ${PAGE_VIEW.state.priority.join(' | ')}, and search (${PAGE_VIEW.state.search}).
+When the person asks to see some of their todos, set that view with view-state-set so the page shows them, rather than listing them in the chat.`;
 
 const SYSTEM = {
 	change: `You manage the person's todo list with the tools you are given. Use them to act, then answer in one or two sentences.
 Each tool returns a result with success, data and, on failure, an error with a suggestion: follow the suggestion.
-Clearing completed todos can't be undone, so it waits for the person to approve it. If a tool returns APPROVAL_REQUIRED, tell the person it needs their approval.`,
-	look: `You help the person review their todo list. In this mode you can only read it: the tools you are given are the ones that read.
-If the person asks you to change something, say that you are in look-only mode and they can switch to letting you make changes.
-Answer in one or two sentences.`,
+Clearing completed todos can't be undone, so the person is asked to approve it. If a tool returns APPROVAL_REQUIRED, the person did not approve it; say so.
+${VIEW}`,
+	look: `You help the person review their todo list. In this mode you can only read it, and change what the page shows: those are the tools you are given.
+If the person asks you to change a todo, say that you are in look-only mode and they can switch to letting you make changes.
+Answer in one or two sentences.
+${VIEW}`,
 } as const;
 
 /** The result as the model reads it: the whole `CommandResult`, a plain JSON object. */
@@ -204,7 +225,18 @@ export class Copilot {
 	 * changes made before it.
 	 */
 	async run(message: string, mode: CopilotMode, options: RunOptions = {}): Promise<CopilotTurn> {
-		const { signal } = options;
+		// The page's view-state commands find this turn's page through pageHost
+		return options.page
+			? pageHost.run(options.page, () => this.turn(message, mode, options))
+			: this.turn(message, mode, options);
+	}
+
+	private async turn(
+		message: string,
+		mode: CopilotMode,
+		options: RunOptions
+	): Promise<CopilotTurn> {
+		const { signal, onEvent } = options;
 		const client = this.client(mode, options.onApprovalNeeded);
 		const tools = this.tools(mode);
 		const messages: ModelMessage[] = [{ role: 'user', text: message }];
@@ -248,19 +280,23 @@ export class Copilot {
 			const results: ModelToolResult[] = [];
 			for (const call of reply.calls) {
 				signal?.throwIfAborted();
+				const index = turn.toolExecutions.length;
+				onEvent?.({ type: 'call', index, name: call.name, args: call.args });
 				const callStart = performance.now();
 				// allow, validation, approvals and the history all apply here, as for any caller
 				const result = await client.call(call.name, call.args, signal ? { signal } : undefined);
 				const latencyMs = performance.now() - callStart;
 				turn.totalToolLatencyMs += latencyMs;
 				const success = result.success && !isUnknownToolError(result);
-				turn.toolExecutions.push({
+				const execution: ToolExecution = {
 					name: call.name,
 					args: call.args,
 					success,
 					result: success ? result.data : result.error,
 					latencyMs,
-				});
+				};
+				turn.toolExecutions.push(execution);
+				onEvent?.({ type: 'result', index, ...execution });
 				results.push({
 					...(call.id !== undefined && { id: call.id }),
 					name: call.name,

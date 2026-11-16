@@ -1,6 +1,7 @@
 /**
  * @fileoverview The registry the copilot calls through DirectClient: the main to-do example's
- * commands and middleware, run in this process.
+ * commands and middleware, run in this process, and the view-state commands the person's page
+ * hosts (`page.ts`).
  *
  * `createDirectRegistry` runs every call through the same engine as the MCP server: Zod input
  * validation, the middleware (approvals, the change history, logging), error sanitization and
@@ -20,6 +21,7 @@ import {
 	createDirectToolSurface,
 	type DirectCommandRegistry,
 } from '@lushly-dev/afd-server';
+import { createPageViewCommands } from './page.js';
 
 /**
  * The copilot's registry. The middleware is the MCP server's (`createTodoMiddleware`), so a call
@@ -35,7 +37,7 @@ import {
  * ```
  */
 export function createCopilotRegistry(env: Env, deps: TodoServerDeps = {}): DirectCommandRegistry {
-	return createDirectRegistry(allCommands, {
+	return createDirectRegistry([...allCommands, ...createPageViewCommands()], {
 		middleware: createTodoMiddleware(env, deps),
 		tools: createDirectToolSurface(),
 		devMode: env.NODE_ENV === 'development',

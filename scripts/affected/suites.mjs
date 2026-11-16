@@ -365,6 +365,11 @@ export const SUITES = [
 			},
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:scenarios:ts' },
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:page' },
+			{
+				gate: 'todo',
+				tools: [],
+				run: 'pnpm -F @afd/example-todo-directclient-page test:browser',
+			},
 			// The Python backend runs under `uv run`.
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
 			{

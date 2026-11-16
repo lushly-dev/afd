@@ -1,25 +1,32 @@
 /**
- * @fileoverview HTTP server for the AI copilot: routes, security checks and
- * the bundled frontend.
+ * @fileoverview HTTP server for the AI copilot: the page, a turn of the copilot, the page's
+ * answers to it, and MCP.
  *
- * `createChatServer` builds the server without starting it and takes its
- * collaborators as arguments, so tests can drive it with a fake chat model.
- * `chat-server.ts` wires in Gemini and starts it.
+ * `createChatServer` builds the server without starting it and takes its collaborators as
+ * arguments, so tests can drive it with a scripted model. `chat-server.ts` wires in Gemini and
+ * starts it.
+ *
+ * - `POST /chat` streams one turn as JSON lines (`application/x-ndjson`): `turn` (its id), then
+ *   `call` and `result` for each command the model runs, `approval` and `view` questions for the
+ *   page, `withdrawn` when one lapses, and last `done` (the turn) or `error`.
+ * - `POST /chat/answer { turn, ask, approved }` answers an approval, and
+ *   `{ turn, ask, result }` a view call with the page's own command result (`turns.ts`).
+ * - `/mcp` is the main example's MCP server, which the page's to-do list uses.
  *
  * Every request is checked, in order, for:
  * 1. a `Host` header naming this server (DNS rebinding),
  * 2. an allowed `Origin` (never `null` or a wildcard),
  * 3. a per-client rate limit keyed on the socket address (or the trusted
- *    proxy's `X-Forwarded-For` entry when `TRUST_PROXY` is set),
+ *    proxy's `X-Forwarded-For` entry when `TRUST_PROXY` is set), except `/mcp`,
  * 4. a JSON body within `MAX_BODY_SIZE`.
  */
 
-import { readFile } from 'node:fs/promises';
+import { readFile, stat } from 'node:fs/promises';
 import http from 'node:http';
-import { join } from 'node:path';
+import { extname, normalize, resolve, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { CommandResult } from '@lushly-dev/afd-core';
-import { COPILOT_MODES, type CopilotMode } from './copilot.js';
+import { type CommandResult, failure } from '@lushly-dev/afd-core';
+import { COPILOT_MODES, type CopilotMode, type RunOptions } from './copilot.js';
 import {
 	type ChatServerConfig,
 	getClientAddress,
@@ -27,15 +34,11 @@ import {
 	isOriginAllowed,
 	RateLimiter,
 } from './http-security.js';
-
-/** Executes commands for `/execute`: a `DirectClient` over the validating registry. */
-export interface CommandExecutor {
-	call(name: string, args?: Record<string, unknown>): Promise<CommandResult<unknown>>;
-}
+import { TurnDesk } from './turns.js';
 
 /** The AI side of the server (the copilot in `chat.ts`). */
 export interface ChatBackend {
-	processChat(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<unknown>;
+	processChat(message: string, mode: CopilotMode, options?: RunOptions): Promise<unknown>;
 	isConfigured(): boolean;
 	getMetrics(): Record<string, unknown>;
 }
@@ -44,7 +47,6 @@ export interface ChatBackend {
 export class PublicError extends Error {}
 
 export interface ChatServerDeps {
-	executor: CommandExecutor;
 	chat: ChatBackend;
 	/**
 	 * Serves MCP at `/mcp` (`createMcpHandler` over the same commands and store), so the AFD CLI
@@ -52,8 +54,10 @@ export interface ChatServerDeps {
 	 * and Origin checks; it answers CORS itself.
 	 */
 	mcp?: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
-	/** Directory holding `index.html`, `app.js` and `render.js` (default: `../../frontend`). */
+	/** The built page (default: `../../frontend/dist`, from `pnpm build` in `frontend/`). */
 	frontendDir?: string;
+	/** How long the page has to answer a view call, in milliseconds (default 10 000). */
+	viewTimeoutMs?: number;
 	/** Clock for the rate limiter, for tests. */
 	now?: () => number;
 	/** Called for unexpected errors (default: `console.error`). */
@@ -63,19 +67,23 @@ export interface ChatServerDeps {
 export interface ChatServer {
 	server: http.Server;
 	rateLimiter: RateLimiter;
+	/** The turns in progress. */
+	turns: TurnDesk;
 	/** Stop the rate-limit sweep timer. Called automatically when the server closes. */
 	dispose(): void;
 }
 
 const MAX_MESSAGE_LENGTH = 2000;
-const COMMAND_NAME = /^[a-z][a-z0-9-]{0,63}$/;
+/** How long to wait for the person when a held call states no expiry. */
+const APPROVAL_WAIT_MS = 5 * 60_000;
 
-/** Static files served to the browser; nothing else on disk is reachable. */
-const FRONTEND_FILES: Record<string, { file: string; type: string }> = {
-	'/': { file: 'index.html', type: 'text/html; charset=utf-8' },
-	'/index.html': { file: 'index.html', type: 'text/html; charset=utf-8' },
-	'/app.js': { file: 'app.js', type: 'text/javascript; charset=utf-8' },
-	'/render.js': { file: 'render.js', type: 'text/javascript; charset=utf-8' },
+/** The types of the files a Vite build writes; any other file is not served. */
+const CONTENT_TYPES: Record<string, string> = {
+	'.html': 'text/html; charset=utf-8',
+	'.js': 'text/javascript; charset=utf-8',
+	'.css': 'text/css; charset=utf-8',
+	'.svg': 'image/svg+xml',
+	'.woff2': 'font/woff2',
 };
 
 /** Scripts only from this origin (no inline script, so injected markup cannot run code). */
@@ -188,16 +196,19 @@ export async function readJsonObject(
  * @example
  * ```typescript
  * const { server } = createChatServer(loadChatServerConfig(process.env), {
- *   executor: new DirectClient(registry),
- *   chat: { processChat, isConfigured, getMetrics },
+ *   chat: createChatBackend(copilot),
+ *   mcp,
  * });
  * server.listen(config.port, config.host);
  * ```
  */
 export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps): ChatServer {
 	const startedAt = Date.now();
-	const frontendDir =
-		deps.frontendDir ?? fileURLToPath(new URL('../../frontend/', import.meta.url));
+	const frontendDir = resolve(
+		deps.frontendDir ?? fileURLToPath(new URL('../../frontend/dist/', import.meta.url))
+	);
+	const viewTimeoutMs = deps.viewTimeoutMs ?? 10_000;
+	const turns = new TurnDesk();
 	const onError =
 		deps.onError ?? ((error: unknown) => console.error('❌ Chat server error:', error));
 	const rateLimiter = new RateLimiter({ maxKeys: config.rateLimitMaxClients, now: deps.now });
@@ -214,12 +225,22 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		return false;
 	}
 
+	/** A file of the built page, or false: nothing outside its directory, no other types. */
 	async function serveFrontend(res: http.ServerResponse, pathname: string): Promise<boolean> {
-		const entry = FRONTEND_FILES[pathname];
-		if (!entry) return false;
-		const body = await readFile(join(frontendDir, entry.file));
+		let relative: string;
+		try {
+			relative = decodeURIComponent(pathname === '/' ? '/index.html' : pathname);
+		} catch {
+			return false;
+		}
+		const path = normalize(`${frontendDir}${sep}${relative}`);
+		const type = CONTENT_TYPES[extname(path)];
+		if (!type || !path.startsWith(frontendDir + sep)) return false;
+		const found = await stat(path).catch(() => undefined);
+		if (!found?.isFile()) return false;
+		const body = await readFile(path);
 		res.writeHead(200, {
-			'Content-Type': entry.type,
+			'Content-Type': type,
 			'Content-Security-Policy': CONTENT_SECURITY_POLICY,
 			'X-Content-Type-Options': 'nosniff',
 			'Referrer-Policy': 'no-referrer',
@@ -227,23 +248,6 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		});
 		res.end(body);
 		return true;
-	}
-
-	async function execute(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
-		const body = await readJsonObject(req, config.maxBodySize);
-		const name = body.name;
-		if (typeof name !== 'string' || !COMMAND_NAME.test(name)) {
-			throw new HttpError(400, 'Invalid command name', 'Use a kebab-case name such as todo-list');
-		}
-		if (body.args !== undefined && !isRecord(body.args)) {
-			throw new HttpError(400, 'args must be a JSON object');
-		}
-		// The executor is a DirectClient over createDirectRegistry: unknown names,
-		// commands not exposed to the agent and invalid input all fail here,
-		// before any handler runs.
-		const start = performance.now();
-		const result = await deps.executor.call(name, body.args ?? {});
-		sendJson(res, 200, { ...result, latencyMs: performance.now() - start });
 	}
 
 	async function chat(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -254,20 +258,91 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		if (!COPILOT_MODES.includes(mode as CopilotMode)) {
 			throw new HttpError(400, 'Invalid mode', `Use one of: ${COPILOT_MODES.join(', ')}`);
 		}
-		// A page that goes away mid-turn cancels the rest of it: the model request and the commands
+		// A page that goes away mid-turn cancels the rest of it: the model request, the commands
+		// and any question it was waiting to answer
 		const cancel = new AbortController();
 		res.once('close', () => {
 			if (!res.writableEnded) cancel.abort();
 		});
-		sendJson(
-			res,
-			200,
-			await deps.chat.processChat(
+		res.writeHead(200, {
+			'Content-Type': 'application/x-ndjson; charset=utf-8',
+			'Cache-Control': 'no-store',
+			'X-Content-Type-Options': 'nosniff',
+		});
+		const send = (event: Record<string, unknown>) => {
+			if (!res.writableEnded && !res.destroyed) res.write(`${JSON.stringify(event)}\n`);
+		};
+		const turn = turns.open(send);
+		send({ type: 'turn', turn: turn.id });
+		try {
+			const result = await deps.chat.processChat(
 				message.slice(0, MAX_MESSAGE_LENGTH),
 				mode as CopilotMode,
-				cancel.signal
-			)
-		);
+				{
+					signal: cancel.signal,
+					onEvent: (event) => send({ ...event }),
+					// The person answers in the page; no answer by the token's expiry is a no
+					onApprovalNeeded: async ({ command, summary, expiresAt, signal }) => {
+						const expires = Date.parse(expiresAt);
+						const waitMs = Number.isNaN(expires) ? APPROVAL_WAIT_MS : expires - Date.now();
+						const question = { type: 'approval' as const, command, summary, expiresAt };
+						return (await turn.ask(question, waitMs, signal)) === true;
+					},
+					page: {
+						run: async (command, input, signal) =>
+							((await turn.ask({ type: 'view', command, input }, viewTimeoutMs, signal)) as
+								| CommandResult<unknown>
+								| undefined) ??
+							failure({
+								code: 'PAGE_DID_NOT_ANSWER',
+								message: `The page did not run ${command} in time`,
+								suggestion: 'Answer in the chat instead, or ask the person to reload the page',
+							}),
+					},
+				}
+			);
+			send({ type: 'done', ...(result as Record<string, unknown>) });
+		} catch (error) {
+			if (!cancel.signal.aborted) {
+				if (!(error instanceof PublicError)) onError(error);
+				send({
+					type: 'error',
+					error: error instanceof PublicError ? error.message : 'Internal server error',
+				});
+			}
+		} finally {
+			turns.close(turn);
+			res.end();
+		}
+	}
+
+	/** The page's answer to a question a turn asked. */
+	async function answer(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
+		const body = await readJsonObject(req, config.maxBodySize);
+		const { turn: id, ask, approved, result } = body;
+		if (typeof id !== 'string' || typeof ask !== 'number' || !Number.isInteger(ask)) {
+			throw new HttpError(400, 'turn (a string) and ask (an integer) are required');
+		}
+		let accepted: boolean;
+		if (typeof approved === 'boolean') {
+			accepted = turns.get(id)?.answer(ask, 'approval', approved) ?? false;
+		} else if (isRecord(result) && typeof result.success === 'boolean') {
+			accepted = turns.get(id)?.answer(ask, 'view', result) ?? false;
+		} else {
+			throw new HttpError(
+				400,
+				'Send approved (a boolean) or result (a command result)',
+				'Answer an approval with { approved } and a view call with { result }'
+			);
+		}
+		if (!accepted) {
+			throw new HttpError(
+				404,
+				'No such question is open',
+				'It was answered or withdrawn, or its turn ended'
+			);
+		}
+		sendJson(res, 200, { accepted: true });
 	}
 
 	async function route(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -313,7 +388,7 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 				const ready = deps.chat.isConfigured();
 				sendJson(res, ready ? 200 : 503, {
 					ready,
-					checks: { gemini: ready ? 'ok' : 'missing_api_key', directClient: 'ok' },
+					checks: { gemini: ready ? 'ok' : 'missing_api_key' },
 				});
 				return;
 			}
@@ -321,15 +396,16 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 				sendJson(res, 200, {
 					...deps.chat.getMetrics(),
 					uptimeMs: Date.now() - startedAt,
-					rateLimitConfig: { chat: config.rateLimitChat, execute: config.rateLimitExecute },
+					openTurns: turns.size,
+					rateLimitConfig: { chat: config.rateLimitChat, answer: config.rateLimitAnswer },
 				});
 				return;
 			}
 			if (await serveFrontend(res, pathname)) return;
 		}
 
-		if (req.method === 'POST' && pathname === '/execute') {
-			if (limit(res, `${client}:execute`, config.rateLimitExecute)) await execute(req, res);
+		if (req.method === 'POST' && pathname === '/chat/answer') {
+			if (limit(res, `${client}:answer`, config.rateLimitAnswer)) await answer(req, res);
 			return;
 		}
 		if (req.method === 'POST' && pathname === '/chat') {
@@ -367,5 +443,5 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 	const dispose = () => clearInterval(sweep);
 	server.once('close', dispose);
 
-	return { server, rateLimiter, dispose };
+	return { server, rateLimiter, turns, dispose };
 }

@@ -25,7 +25,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
   2026-11-15. The parts they left open belong to later phases, as the findings table says.
 - **In progress:** phase 4, DirectClient. Its first pull request, [#1281](https://github.com/lushly-dev/afd/pull/1281), runs the main commands
-  through the tool surface with `allow`; the page with approvals and view state is next.
+  through the tool surface with `allow`; the page with approvals and view state is on branch
+  `t3/todo-reference-phase4-page`, not yet merged. That completes phase 4.
 - **Not started:** phase 5.
 
 ## Plan
@@ -35,7 +36,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
 | 2. The TypeScript reference | Done, but job 6, which waits for phases 3 and 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
-| 4. DirectClient | In progress: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page next | See [phase 4](#phase-4-directclient) | The page: approvals through `onApprovalNeeded`, the view-state commands, the Vite build |
+| 4. DirectClient | In progress: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), on branch `t3/todo-reference-phase4-page` | See [phase 4](#phase-4-directclient) | The page's pull request |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
 
 ## Findings
@@ -263,6 +264,31 @@ Merged in [#1281](https://github.com/lushly-dev/afd/pull/1281) on 2026-11-15:
   `pnpm benchmark` (2026-11-15, this machine: DirectClient 0.017 ms and MCP 2.1 ms median for
   `todo-list` over 20 todos).
 
+On branch `t3/todo-reference-phase4-page`, not yet merged:
+
+- **The page** (`todo-directclient/frontend`, `@afd/example-todo-directclient-page`): Vite, the
+  FAST-AF page's own `<todo-app>` (now exported as `@afd/example-todo-fast-af/todo-app`) on the
+  shared session over `/mcp`, and a `<todo-copilot>` panel on `violet-message`,
+  `violet-tool-call-card`, `violet-approval-card` and a "Change todos / Only look" switch. Briefed
+  with `components-brief` before the markup. It replaces the vanilla page, its render helpers and
+  `/execute`, so the page's own calls now go through `/mcp` like any MCP client's. Bundle,
+  2026-11-15: 616 kB (154 kB gzipped).
+- **Streamed turns.** `POST /chat` streams a turn as JSON lines: each call as it starts and ends,
+  and the questions the server needs the page to answer, on `POST /chat/answer`
+  (`backend/src/turns.ts`). A question settles as a no when it lapses or the page leaves.
+- **Approvals through `onApprovalNeeded`.** The hook asks the page that sent the message; the
+  person approves or denies in a `violet-approval-card`, and DirectClient retries the held clear
+  with the token in the server's process. The page never sees a token.
+- **The view in the page (job 6).** The copilot's registry holds stand-ins for `view-state-get`,
+  `-set` and `-list` with the view-state package's own schemas, which send each call to the page
+  (`backend/src/page.ts`); the page runs it in its own registry, so the list on screen changes.
+  Look mode permits them, since they change what the page shows and never the todos.
+- **Tests:** the turn protocol over HTTP with the real copilot (`src/turn-http.test.ts`), the page's
+  turn client, and the built page in Chromium served by the real server with a scripted model
+  (`frontend/test/copilot.test.ts`: add, job 6, approve, deny, job 10, axe), plus the shared page
+  suite on the same build. Breaking the page's view runs or its approval answers fails them.
+  `conformance.yml` runs the Chromium suites.
+
 ## Open questions
 
 None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
@@ -292,3 +318,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 3 page | The FAST-AF page on violet-elements with approvals in the page, the shared modules, job 6; the vanilla frontend removed; in #1275 |
 | 2026-11-15 | Phase 3 React | The React page on the same elements and shared session, one browser suite for both; phase 3 done; in #1276 |
 | 2026-11-15 | Phase 4 copilot | todo-directclient on the main commands, tools from `listTools()`, `allow` and job 10, `/mcp` on the same server; in #1281 |
+| 2026-11-15 | Phase 4 page | The copilot page on the FAST-AF element and violet conversation elements, streamed turns, approvals through `onApprovalNeeded`, the page-hosted view (job 6); the vanilla page and `/execute` removed |

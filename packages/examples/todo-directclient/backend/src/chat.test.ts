@@ -41,7 +41,7 @@ describe('createChatBackend', () => {
 			cancel.abort();
 			return { calls: [{ name: 'todo-stats', args: {} }] };
 		});
-		await expect(chat.processChat('hi', 'change', cancel.signal)).rejects.toThrow();
+		await expect(chat.processChat('hi', 'change', { signal: cancel.signal })).rejects.toThrow();
 		expect(chat.getMetrics()).toMatchObject({ errorCount: 1, errorsByType: { cancelled: 1 } });
 	});
 

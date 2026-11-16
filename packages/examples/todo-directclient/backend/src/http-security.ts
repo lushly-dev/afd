@@ -37,8 +37,8 @@ export interface ChatServerConfig {
 	maxBodySize: number;
 	/** `/chat` requests per minute per client (`RATE_LIMIT_CHAT`). */
 	rateLimitChat: number;
-	/** `/execute` requests per minute per client (`RATE_LIMIT_EXECUTE`). */
-	rateLimitExecute: number;
+	/** `/chat/answer` requests per minute per client (`RATE_LIMIT_ANSWER`): approvals and view results. */
+	rateLimitAnswer: number;
 	/** Most clients tracked by the rate limiter at once (`RATE_LIMIT_MAX_CLIENTS`). */
 	rateLimitMaxClients: number;
 }
@@ -125,7 +125,7 @@ export function loadChatServerConfig(env: Env): ChatServerConfig {
 		trustProxy: parseBoolean(env.TRUST_PROXY),
 		maxBodySize: parsePositiveInt('MAX_BODY_SIZE', env.MAX_BODY_SIZE, 10_240),
 		rateLimitChat: parsePositiveInt('RATE_LIMIT_CHAT', env.RATE_LIMIT_CHAT, 30),
-		rateLimitExecute: parsePositiveInt('RATE_LIMIT_EXECUTE', env.RATE_LIMIT_EXECUTE, 120),
+		rateLimitAnswer: parsePositiveInt('RATE_LIMIT_ANSWER', env.RATE_LIMIT_ANSWER, 120),
 		rateLimitMaxClients: parsePositiveInt(
 			'RATE_LIMIT_MAX_CLIENTS',
 			env.RATE_LIMIT_MAX_CLIENTS,
