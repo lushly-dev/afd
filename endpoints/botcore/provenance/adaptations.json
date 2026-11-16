@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "f625d728e7bce29f59a5e44d9cd9009c548c1b4fa3f24b7c42d3d90e4af301a7",
+      "current_import_sha256": "2696ab1a80446116406ced05463cc0b0fb283369ebbf8b2e8be2b476704961c8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows"
     },
     {
       "path": "LICENSE",
@@ -1837,11 +1837,11 @@
       "path": "src/botcore/commands/skill_lint.py",
       "upstream_sha256": "e85fbebe4455c5b8fda929e2cede35e89eee28e25d2308b91a1929e01fe263d0",
       "staged_sha256": "e85fbebe4455c5b8fda929e2cede35e89eee28e25d2308b91a1929e01fe263d0",
-      "current_import_sha256": "2ff80e38336e17987aca04d35d8224436e50488129550eacfdfbe5ad8e1b4471",
+      "current_import_sha256": "3da6c7f6b557d1ab7397b68a6ea75eb0b585bbde39664895579c6ab41e40f6be",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lint a path with the shared skill rules"
+      "import_reason": "Lint a path with the shared skill rules; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows"
     },
     {
       "path": "src/botcore/commands/spec.py",
@@ -5297,11 +5297,11 @@
       "path": "tests/test_package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "3dc4c7660c25bdace14463f204726dbb867e5648b69b66072b6573dbacf4b167",
+      "current_import_sha256": "39fe05f1a7837c410c31683a34b02577fd1587559cbe0d9e7987a7fa7b043947",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Prove child Git fixtures cannot alter the caller index"
+      "import_reason": "Prove child Git fixtures cannot alter the caller index; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows"
     },
     {
       "path": "tests/test_pipeline.py",
