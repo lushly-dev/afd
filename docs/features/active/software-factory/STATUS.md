@@ -5,7 +5,36 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Review evidence and `prepare-pr`'s lane mode, 2026-11-15
+
+AFD's adapter now names `review_evidence`, so `lane-enqueue` no longer refuses AFD branches with
+`NOT_CONFIGURED`. `prepare-pr lane` runs full mode's base sync, review, docs and commit, then
+records the review with `scripts/review-record.mjs write` and calls `lane-enqueue`; it never runs
+the full `pnpm verify`, pushes or opens the PR. The record keeps one entry per review lane in the
+factory gateway's `review-record` shape (lane, model, effort, verdict, fixed, deferred) and lives
+in the worktree's git directory, bound to the commit and tree reviewed. `verify --head <sha>`, the
+adapter's command, accepts only a passing review of that exact, checked-out, clean commit with an
+independent lane; any later commit needs the review recorded again. As with the gateway, the
+verdicts are the cell's report of its reviewers, typed and bound to the head but not proven.
+`REVIEW_MISSING` now carries the verifier's first line (for example, which commit the recorded
+review covers).
+
+Evidence: `scripts/review-record.test.mjs` (32 tests, including a real repository and a linked
+worktree) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
+plugin's real process runner against the real script. PR: this branch,
+`lush/factory-review-evidence` (number filled in when opened).
+
+Phase 1 still needs, as the proposal lists it: the webhook wake, experience review (`pr-preview`
+and the before-and-after screens), `run-fleet`, and one measured AFD fleet run on the
+workstation.
+
 ## Lane-loop repair on the MacBook Air, 2026-11-15
+
+**Merged:** [PR #1295](https://github.com/lushly-dev/afd/pull/1295) merged on 2026-11-15
+(Pacific) as `a8a1f0f9`, with all ten checks green including `ci-ok`. The account below was written
+before the merge; its "no lane-loop PR has merged" and "the final receipt belongs to the PR" are
+superseded by it.
+
 
 The initial draft [PR #1294](https://github.com/lushly-dev/afd/pull/1294) exposed a historical
 agent co-author trailer in checkpoint commit `1ba67bb3`, which the current commit-credit gate
@@ -85,7 +114,7 @@ for the real output and re-check the fixes before shipping the branch.
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
 | 0. Prerequisites | Done 2026-11-13 | The proposal's [Phases](software-factory.proposal.md#phases): intake (#1100), `ci-ok` (#1123, #1136), the pre-push `pnpm verify` record (#1127), the Windows workstation (#1115, #1121, #1130, #1134) |
-| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185). Remaining as the proposal lists it: host probing and selection, the webhook wake, Windows and macOS process control, experience review, `prepare-pr`'s lane mode and `run-fleet`, then one AFD fleet run on the workstation with its numbers reported |
+| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (this branch). Remaining as the proposal lists it: the webhook wake, experience review and `run-fleet`, then one AFD fleet run on the workstation with its numbers reported |
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |

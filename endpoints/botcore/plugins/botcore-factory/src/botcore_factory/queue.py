@@ -87,9 +87,10 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
     argv = [part.replace("{head}", head) for part in command]
     done = factory.world.processes.run(argv, cwd=worktree, label="review-evidence")
     if done.returncode != 0:
+        why = _first_lines(done.stderr + "\n" + done.stdout)[:1]
         raise Refusal(
             "REVIEW_MISSING",
-            f"No review is recorded for {head}",
+            f"No passing review is recorded for {head}" + (f": {why[0][:300]}" if why else ""),
             "Run prepare-pr in lane mode on this head (it records the review), then "
             "lane-enqueue again",
         )

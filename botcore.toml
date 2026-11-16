@@ -72,8 +72,7 @@ trend_issue = 1098
 # The software factory's repository adapter (endpoints/botcore/plugins/botcore-factory; see
 # docs/features/active/software-factory). Botcore reads a plugin's settings under
 # [plugins.<entry point>]. Commands are argument lists, run in a worktree (the cell's, or one of
-# the lane's slots). review_evidence waits for prepare-pr's lane mode, which records the
-# reviewed head; until then lane-enqueue refuses here with NOT_CONFIGURED.
+# the lane's slots).
 [plugins.factory]
 labels = ".github/labels.json"
 install = ["pnpm", "install", "--frozen-lockfile"]
@@ -81,6 +80,9 @@ install = ["pnpm", "install", "--frozen-lockfile"]
 # no checks twice (scripts/verify-record.mjs).
 validate = ["pnpm", "verify"]
 coverage = ["pnpm", "check:all"]
+# prepare-pr's lane mode records the review of the exact head in the worktree's git directory;
+# lane-enqueue accepts only a passing review of that commit (scripts/review-record.mjs).
+review_evidence = ["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
 required_check = "ci-ok"
 ignore_branches = ["changeset-release/*"]
 # The cheap stages of pnpm check, run before a branch joins the queue.

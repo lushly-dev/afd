@@ -16,6 +16,7 @@ What a plugin served through the managed host needs: its own command policies, a
 - **`build_host(..., kebab_names=True)`** serves every command under AFD's kebab-case name (`info-workspace`) instead of its Python function's; existing hosts keep their names.
 - **A `remote-caller` execution profile** for callers a surface authenticated over the network: it admits `inspect`, `service` and `history-write`, never a subprocess, a source or release write, or raw Python. `botcore.context.PROFILE_EFFECTS` lists each profile's effects.
 - **Hosts served over HTTP.** `botcore.host_http.create_host_http_app` serves several managed hosts from one process, one route each, behind per-caller bearer tokens: `call`, `catalog`, `docs/<topic>` and an optional `uploads` route, every answer a CommandResult. `serve_hosts` binds only to loopback or a tailnet address unless told otherwise. `botcore.host_tokens.TokenStore` keeps only token digests in an owner-only file, and `botcore host-token issue|list|revoke` manages it on the serving machine. `botcore.host_client.HostClient` and `create_remote_cli` call a served host with the standard library and report an unreachable one as its own error code, never an exception (`docs/host-composition.md`, "Serving hosts over HTTP").
+- **The Factory plugin's `REVIEW_MISSING` says why.** `lane-enqueue` adds the first line the adapter's `review_evidence` command printed, such as which commit the recorded review covers. AFD's adapter now names `scripts/review-record.mjs verify --head {head}`, which `prepare-pr`'s lane mode feeds, so AFD branches can be enqueued.
 - **A context per call.** `CommandHost.execute(name, args, context)` hands middleware the surface's AFD `CommandContext`, or builds one with a trace ID, AFD's system clock and random source, and the host's `actor` (`CommandHost(..., actor=...)`), so AFD's journal middleware runs behind the host and records the caller. Handlers read it with `botcore.context.current_call()`.
 
 ### Changed
@@ -38,8 +39,8 @@ What a plugin served through the managed host needs: its own command policies, a
   diagnostics from both streams. On macOS, killed zombie processes no longer count as live
   lane holders. Cancellation also kills step descendants in separate POSIX sessions; PRs use
   the configured base, and terminal queue refs are retired with a lease so recovery cannot
-  resurrect them. This is the lane-loop implementation slice; Phase 1 still needs review-evidence
-  integration and a measured factory run.
+  resurrect them. This is the lane-loop implementation slice; Phase 1 still needs a measured
+  factory run.
 - `skill_lint_spec` lists skills in the order `skill_lint` does on every system. On Windows it sorted their directories case-insensitively, so a skill named `Wrong` came after `clean` there and before it elsewhere.
 
 ## [0.7.0] - 2026-11-13
