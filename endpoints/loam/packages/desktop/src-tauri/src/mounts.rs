@@ -629,14 +629,17 @@ async fn close(connection: &Connection) -> Result<(), &'static str> {
             // `TerminateProcess` at once, with no grace to wait out.
             #[cfg(unix)]
             {
-                signal_group(&child, libc::SIGTERM);
-                if tokio::time::timeout(TERMINATE_GRACE, child.wait())
+                // The group's id, kept: once `wait` reaps the leader, `child.id()` is gone, and a member that
+                // ignored `SIGTERM` must still get `SIGKILL`. POSIX reuses no id while its group exists.
+                let group = child.id().and_then(|id| i32::try_from(id).ok());
+                signal_group(group, libc::SIGTERM);
+                let exited = tokio::time::timeout(TERMINATE_GRACE, child.wait())
                     .await
-                    .is_ok()
-                {
+                    .is_ok();
+                signal_group(group, libc::SIGKILL);
+                if exited {
                     return Ok(());
                 }
-                signal_group(&child, libc::SIGKILL);
             }
             child.kill().await.map_err(|_| UNREACHABLE)?;
             Ok(())
@@ -646,9 +649,10 @@ async fn close(connection: &Connection) -> Result<(), &'static str> {
 
 /// A signal to the child's process group, which `spawn` made its own.
 #[cfg(unix)]
-fn signal_group(child: &Child, signal: libc::c_int) {
-    if let Some(id) = child.id().and_then(|id| i32::try_from(id).ok()) {
-        // SAFETY: a signal to the group this process created for its own child, which it has not yet reaped.
+fn signal_group(group: Option<i32>, signal: libc::c_int) {
+    if let Some(id) = group {
+        // SAFETY: a signal to the group this process created for its own child; an empty group is an error
+        // `killpg` reports and nothing else.
         unsafe {
             libc::killpg(id, signal);
         }
