@@ -79,3 +79,6 @@ foundations/specimen/packages/*/bin/
 
 # The local Umbel workspace scripts/umbel-components.mjs writes (Component Briefs, step C5).
 .umbel/
+
+# A factory cell's hand-off to the lane: its PR body and enqueue arguments (prepare-pr lane mode).
+.factory/

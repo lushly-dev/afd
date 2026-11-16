@@ -22,7 +22,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".agents/skills",
-			"listingBudget": 6300,
+			"listingBudget": 6600,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -76,6 +76,7 @@
 				"end-session",
 				"loam-design",
 				"prepare-pr",
+				"run-fleet",
 				"start-session",
 				"triage-issues"
 			]

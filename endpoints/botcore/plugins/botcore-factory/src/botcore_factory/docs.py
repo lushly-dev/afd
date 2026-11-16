@@ -8,6 +8,9 @@ events. The foreman's memory is `lane_status`. Two hosts serve the commands: `fa
 command; the foreman and the owner) and `factory-cell` (what a cell calls). Names are AFD's
 kebab-case as snake_case functions; inputs are snake_case. Every list takes `limit` (1-500,
 default 100) and `cursor` (the `nextCursor` of the previous page); `total` counts each list.
+From a shell, `factory` and `factory-cell` are the two hosts' command lines for the checkout
+they run in: `factory call lane-status`, `factory-cell call lane-enqueue '{"worktree": "."}'`,
+and `catalog` for the inputs. They have no time limit, and exit 1 on a refusal.
 
 ## Order of calls (foreman)
 
