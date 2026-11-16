@@ -28,6 +28,10 @@ What a plugin served through the managed host needs: its own command policies, a
 - Effects a call computes beyond its policy's declared set are `EFFECT_DENIED` (was `INVALID_TARGET_OR_INPUT`).
 - A host no longer warns about a `[plugins.<name>]` section for a plugin it did not select: that section configures another host's plugin, which may be installed in another environment. `load_config(..., selection=True)` says the plugins passed are a host's selection; legacy discovery of every installed plugin still warns about a section no installed plugin reads.
 
+### Fixed
+
+- `skill_lint_spec` lists skills in the order `skill_lint` does on every system. On Windows it sorted their directories case-insensitively, so a skill named `Wrong` came after `clean` there and before it elsewhere.
+
 ## [0.7.0] - 2026-11-13
 
 The bloat sweep, shared with Lushly: a skill and the `[sweep]` section it reads. A `[sweep]` section in `botcore.toml` needs this release, since earlier ones refuse unknown keys.

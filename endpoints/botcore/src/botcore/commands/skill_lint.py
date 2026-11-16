@@ -29,7 +29,9 @@ def _discover_skill_dirs(root: Path) -> list[Path]:
         if child.parent not in skill_dirs:
             skill_dirs.append(child.parent)
 
-    return sorted(skill_dirs)
+    # By name parts, case-sensitively on every system, as the workspace lint orders skills:
+    # Windows paths compare case-insensitively.
+    return sorted(skill_dirs, key=lambda path: path.parts)
 
 
 def _listing_budget(target: Path) -> tuple[int, str | None]:
