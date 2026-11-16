@@ -55,6 +55,12 @@ def admin_cli() -> None:
     default=None,
     help="Serve against a fake GitHub file (local testing only)",
 )
+@click.option(
+    "--app-key",
+    type=click.Path(exists=True, dir_okay=False, path_type=Path),
+    default=None,
+    help="The App's private key (.pem), readable by the service user only",
+)
 @click.option("--allow-any-address", is_flag=True, help="Bind beyond loopback and the tailnet")
 def serve(
     data_dir: Path,
@@ -62,26 +68,49 @@ def serve(
     address: str,
     port: int,
     fake_github: Path | None,
+    app_key: Path | None,
     allow_any_address: bool,
 ) -> None:
-    """Serve the five routes from one process."""
+    """Serve the five routes from one process, as the App named in the configuration."""
     from botcore.host_http import serve_hosts
 
-    from botcore_factory.gateway.github import FakeGitHub
     from botcore_factory.gateway.server import build_gateway_app
 
     config = GatewayConfig.model_validate_json(config_file.read_text(encoding="utf-8"))
-    if fake_github is None:
-        raise click.UsageError(
-            "The GitHub App adapter is not built yet (milestone G0); pass --fake-github to "
-            "serve against a fake GitHub for local testing"
-        )
-    github = FakeGitHub(fake_github, bot=config.bot)
+    github = _github(config, data_dir, fake_github, app_key)
     app = build_gateway_app(data_dir, config, github)
     try:
         serve_hosts(app, address, port, allow_any=allow_any_address)
     except ValueError as exc:
         raise click.UsageError(str(exc)) from None
+
+
+def _github(config: GatewayConfig, data_dir: Path, fake: Path | None, key: Path | None):
+    """The fake GitHub for local testing, or the App with its key; never both, never neither."""
+    if fake is not None and key is not None:
+        raise click.UsageError("Pass --fake-github or --app-key, not both")
+    if fake is not None:
+        from botcore_factory.gateway.github import FakeGitHub
+
+        return FakeGitHub(fake, bot=config.bot)
+    if key is None or config.github_app is None:
+        raise click.UsageError(
+            "Writing to GitHub needs githubApp {appId, installationId} in the configuration and "
+            "--app-key <the App's .pem>; pass --fake-github instead to test locally"
+        )
+    from botcore_factory.gateway.github_app import GitHubApp, read_private_key
+
+    try:
+        private_key = read_private_key(key)
+    except ValueError as exc:
+        raise click.UsageError(str(exc)) from None
+    return GitHubApp(
+        app_id=config.github_app.app_id,
+        installation_id=config.github_app.installation_id,
+        private_key=private_key,
+        bot=config.bot,
+        data_dir=data_dir,
+    )
 
 
 @admin_cli.group("token")

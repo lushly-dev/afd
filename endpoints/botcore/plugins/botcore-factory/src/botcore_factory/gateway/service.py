@@ -21,6 +21,7 @@ from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release,
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.github import (
     GitHub,
+    GitHubRefused,
     GitHubUnavailable,
     HeadMoved,
     MergeMethodNotAllowed,
@@ -57,6 +58,17 @@ def guard(body: Callable[[], CommandResult]) -> CommandResult:
         return refusal.result
     except GitHubUnavailable as exc:
         return unavailable(exc)
+    except GitHubRefused as exc:
+        return refused_by_github(exc)
+
+
+def refused_by_github(exc: GitHubRefused) -> CommandResult:
+    return error(
+        "GITHUB_REFUSED",
+        f"GitHub refused the call: {exc}",
+        suggestion="Read GitHub's message: fix what it names (permission, rule or state), "
+        "then call again; repeating the same call will not help",
+    )
 
 
 def unavailable(exc: Exception) -> CommandResult:
@@ -570,7 +582,15 @@ class Gateway:
         published = []
         if changed:
             self.spend("branch-push")
-            self.github.update_ref(repo, ref, head)
+            try:
+                self.github.update_ref(repo, ref, head, current)
+            except HeadMoved as moved:
+                raise refuse(
+                    "HEAD_MOVED",
+                    f"{ref} moved to {moved.head or 'nothing'} during the push; nothing was pushed",
+                    "Read the ref again (fetch it), rebuild the bundle on it and push again",
+                    head=moved.head,
+                ) from None
             published = self._publish_review(repo, head)
         return success(
             {

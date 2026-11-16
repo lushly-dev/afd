@@ -25,13 +25,15 @@ import signal
 import subprocess
 import threading
 import time
+from collections.abc import Callable
 from datetime import timedelta
 from pathlib import Path
 
 from afd import Actor, CommandResult, error, success
 
 from botcore_factory.gateway.claims import iso
-from botcore_factory.gateway.service import Gateway
+from botcore_factory.gateway.github import GitHubUnavailable
+from botcore_factory.gateway.service import Gateway, unavailable
 
 UPLOAD_LIFETIME = timedelta(hours=1)
 #: Seconds one upload's git work may take in all.
@@ -45,17 +47,28 @@ _mirror_locks_guard = threading.Lock()
 
 
 class GitError(Exception):
-    pass
+    """git failed; the message is its stderr, ``output`` its stdout (a push's porcelain)."""
+
+    def __init__(self, message: str, output: str = "") -> None:
+        super().__init__(message)
+        self.output = output
 
 
-def _mirror_lock(mirror: Path) -> threading.Lock:
+def mirror_lock(mirror: Path) -> threading.Lock:
+    """The lock every git command on ``mirror`` runs under."""
     with _mirror_locks_guard:
         return _mirror_locks.setdefault(mirror.resolve(), threading.Lock())
 
 
-def git(mirror: Path, *arguments: str, deadline: float | None = None) -> str:
-    """Run git against the bare mirror, within ``deadline`` (a ``time.monotonic()`` value).
-    A non-zero exit, or running out of time, is GitError."""
+def git(
+    mirror: Path,
+    *arguments: str,
+    deadline: float | None = None,
+    env: dict[str, str] | None = None,
+) -> str:
+    """Run git against the bare mirror, within ``deadline`` (a ``time.monotonic()`` value),
+    with ``env`` added to its environment (how a credential reaches it, never argv). A
+    non-zero exit, or running out of time, is GitError."""
     remaining = 300.0 if deadline is None else deadline - time.monotonic()
     if remaining <= 0:
         raise GitError("the upload ran out of time")
@@ -71,6 +84,7 @@ def git(mirror: Path, *arguments: str, deadline: float | None = None) -> str:
             "GIT_TERMINAL_PROMPT": "0",
             "GIT_CONFIG_NOSYSTEM": "1",
             "GIT_CONFIG_GLOBAL": os.devnull,
+            **(env or {}),
         },
     )
     try:
@@ -81,7 +95,7 @@ def git(mirror: Path, *arguments: str, deadline: float | None = None) -> str:
         process.communicate()
         raise GitError("the upload ran out of time") from None
     if process.returncode != 0:
-        raise GitError(stderr.strip() or f"git {arguments[0]} failed")
+        raise GitError(stderr.strip() or f"git {arguments[0]} failed", stdout)
     return stdout
 
 
@@ -156,10 +170,18 @@ def read_bundle(mirror: Path, bundle: Path, upload_id: str, deadline: float) -> 
 class BundleUploads:
     """The gateway's upload handler: ``await uploads(route, actor, data, params)``."""
 
-    def __init__(self, gateway: Gateway, data_dir: Path) -> None:
+    def __init__(
+        self,
+        gateway: Gateway,
+        data_dir: Path,
+        refresh_main: Callable[[str, float], None] | None = None,
+    ) -> None:
         self.gateway = gateway
         self.data_dir = data_dir
         self.directory = data_dir / "uploads"
+        #: Brings a mirror's main to GitHub's before a bundle is read (the App adapter's
+        #: ``fetch_main``); without it the mirror's main is whatever was last fetched.
+        self.refresh_main = refresh_main
 
     async def __call__(
         self, route: str, actor: Actor, data: bytes, params: dict | None = None
@@ -198,8 +220,12 @@ class BundleUploads:
         deadline = time.monotonic() + UPLOAD_GIT_SECONDS
         try:
             mirror = ensure_mirror(self.data_dir, repo)
-            with _mirror_lock(mirror):
+            if self.refresh_main is not None:
+                self.refresh_main(repo, deadline)
+            with mirror_lock(mirror):
                 read = read_bundle(mirror, bundle, upload_id, deadline)
+        except GitHubUnavailable as exc:
+            return unavailable(exc)
         except GitError as exc:
             self.discard(upload_id, {"repo": repo})
             return error(
@@ -241,7 +267,7 @@ class BundleUploads:
         if not (mirror / "HEAD").exists():
             return
         try:
-            with _mirror_lock(mirror):
+            with mirror_lock(mirror):
                 refs = git(
                     mirror, "for-each-ref", "--format=%(refname)", f"refs/uploads/{upload_id}/"
                 )
@@ -257,7 +283,7 @@ class BundleUploads:
         if not (mirror / "HEAD").exists():
             return
         try:
-            with _mirror_lock(mirror):
+            with mirror_lock(mirror):
                 git(mirror, "repack", "-a", "-d", "-q")
                 git(mirror, "prune", "--expire=now")
         except GitError:

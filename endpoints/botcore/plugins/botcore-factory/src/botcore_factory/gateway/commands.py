@@ -18,8 +18,14 @@ from botcore.host import CommandPolicy
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from botcore_factory.gateway import records
-from botcore_factory.gateway.github import GitHubUnavailable
-from botcore_factory.gateway.service import Gateway, Refusal, guard, unavailable
+from botcore_factory.gateway.github import GitHubRefused, GitHubUnavailable
+from botcore_factory.gateway.service import (
+    Gateway,
+    Refusal,
+    guard,
+    refused_by_github,
+    unavailable,
+)
 
 Sha = Annotated[str, StringConstraints(pattern=r"^[0-9a-f]{40}$")]
 Repo = Annotated[str, StringConstraints(pattern=r"^[\w.-]+/[\w.-]+$")]
@@ -425,6 +431,8 @@ def _lane_and_records(get: Callable[[], Gateway]) -> dict:
             return refusal.result
         except GitHubUnavailable as exc:
             return unavailable(exc)
+        except GitHubRefused as exc:
+            return refused_by_github(exc)
 
     return {
         "branch-push": branch_push,

@@ -26,6 +26,15 @@ class GitHubUnavailable(Exception):
     """GitHub did not answer, or answered 5xx; the same call may be retried."""
 
 
+class GitHubRefused(Exception):
+    """GitHub refused the call (a 4xx other than a rate limit); repeating it will not help."""
+
+    def __init__(self, status: int, message: str) -> None:
+        super().__init__(f"{status}: {message}" if status else message)
+        self.status = status
+        self.message = message
+
+
 class HeadMoved(Exception):
     """GitHub refused a merge because the pull request's head is no longer the given sha."""
 
@@ -64,7 +73,11 @@ class GitHub(Protocol):
         a queue ref or a fork is not on main."""
         ...
 
-    def update_ref(self, repo: str, ref: str, head: str) -> None: ...
+    def update_ref(self, repo: str, ref: str, head: str, expected: str | None = None) -> None:
+        """Point ``ref`` at ``head`` only if it is still at ``expected`` (None: absent);
+        ``HeadMoved`` with its current head otherwise."""
+        ...
+
     def create_pull(self, repo: str, branch: str, title: str, body: str) -> int:
         """Open a pull request; GitHub links the issues its body's closing lines name."""
         ...
@@ -299,9 +312,12 @@ class FakeGitHub:
             )
             return number
 
-    def update_ref(self, repo, ref, head):
+    def update_ref(self, repo, ref, head, expected=None):
         with self._write(repo) as data:
-            data.setdefault("refs", {})[ref] = head
+            refs = data.setdefault("refs", {})
+            if refs.get(ref) != expected:
+                raise HeadMoved(refs.get(ref) or "")
+            refs[ref] = head
 
     def create_pull(self, repo, branch, title, body, **extra):
         with self._write(repo) as data:
@@ -355,7 +371,7 @@ class FakeGitHub:
         original = self.pull(repo, number)
         branch = f"revert-{number}"
         head = fake_head(f"revert:{number}:{original['head']}")
-        self.update_ref(repo, f"refs/heads/{branch}", head)
+        self.update_ref(repo, f"refs/heads/{branch}", head, self.ref(repo, f"refs/heads/{branch}"))
         return self.create_pull(repo, branch, title, body, revertOf=number)
 
     def create_check_run(self, repo, head, run):
