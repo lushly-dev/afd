@@ -31,5 +31,7 @@ def test_fixture_children_ignore_hook_git_routing(tmp_path, monkeypatch):
     smoke.run(["git", "add", "owned.txt"], child)
     assert (child / ".git" / "index").exists()
     assert not (parent / ".git" / "index").exists()
-    assert smoke.run(["git", "rev-parse", "--show-toplevel"], child).strip() == str(child)
+    # Git prints forward slashes on Windows, so compare paths rather than strings.
+    toplevel = smoke.run(["git", "rev-parse", "--show-toplevel"], child).strip()
+    assert Path(toplevel).resolve() == child.resolve()
     assert all(os.environ[key] == value for key, value in routing.items())
