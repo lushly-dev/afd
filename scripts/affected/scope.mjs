@@ -45,6 +45,12 @@ const PROSE = /\.md$/;
 
 /** Repository inputs outside any package that package tests read directly. */
 export const EXTRA_INPUTS = [
+	// afd-testing runs the todo example's real commands, scenarios and relative fixtures.
+	...[
+		'packages/examples/todo/backends/typescript/src/',
+		'packages/examples/todo/scenarios/',
+		'packages/examples/todo/fixtures/',
+	].map((prefix) => ({ prefix, except: PROSE, packages: ['@lushly-dev/afd-testing'] })),
 	// Wire fixtures, behaviour vectors, spec/VERSION and tool strategies.
 	{
 		prefix: 'spec/',

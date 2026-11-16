@@ -555,6 +555,7 @@ describe('TerminalReporter - color default', () => {
 	it('colors a terminal stream, and colors: false still turns it off', () => {
 		vi.stubEnv('FORCE_COLOR', undefined);
 		vi.stubEnv('NO_COLOR', undefined);
+		vi.stubEnv('TERM', 'xterm-256color');
 		const colored = createCaptureStream();
 		Object.assign(colored.stream, { isTTY: true });
 		new TerminalReporter({ format: 'human', output: colored.stream }).reportScenario(

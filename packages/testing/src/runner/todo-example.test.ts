@@ -77,7 +77,11 @@ beforeEach(async () => {
 });
 
 describe('todo example scenarios', () => {
-	it('seeds the fixture, resolved next to the scenario file, and passes', async () => {
+	it('seeds the relative fixture without clearing existing todos and passes', async () => {
+		const title = 'Existing todo outside the priority fixture';
+		expect((await handler('todo-create', { title })).success).toBe(true);
+		calls = [];
+
 		const result = await scenarioEvaluate({
 			handler,
 			scenarios: [join(TODO_EXAMPLE, 'scenarios/filter-by-priority.scenario.yaml')],
@@ -86,13 +90,21 @@ describe('todo example scenarios', () => {
 		expect(result.data?.report.scenarios[0]?.error).toBeUndefined();
 		expect(result.data?.report.scenarios[0]?.outcome).toBe('pass');
 		expect(result.data?.exitCode).toBe(0);
-		expect(calls.slice(0, 5)).toEqual([
-			'todo-clear',
+		// The scenario overrides the fixture's clearFirst so existing server data survives.
+		expect(calls).toEqual([
 			'todo-create',
 			'todo-create',
 			'todo-create',
 			'todo-create',
+			'todo-list',
+			'todo-list',
+			'todo-list',
+			'todo-delete-batch',
 		]);
+		expect((await handler('todo-list', {})).data).toMatchObject({
+			total: 1,
+			todos: [{ title }],
+		});
 	});
 
 	it('passes every scenario in the example directory', async () => {
