@@ -20,6 +20,7 @@ from botcore_factory.gateway import claims as claim_rules
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.github import (
+    AlreadyMergeable,
     GitHub,
     GitHubRefused,
     GitHubUnavailable,
@@ -770,22 +771,7 @@ class Gateway:
         self.spend("pr-merge")
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
-            try:
-                self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
-            except MergeMethodNotAllowed as refused:
-                raise self._merge_method_refusal(repo, refused.method) from None
-            except HeadMoved as moved:
-                raise refuse(
-                    "HEAD_MOVED",
-                    f"Pull request {number}'s head moved to {moved.head} during the merge",
-                    "The branch moved: validate its current head, record it, and merge that head",
-                    head=moved.head,
-                ) from None
-            self._release_on_merge(repo, pull)
-            return success(
-                {"state": "merged", "autoMerge": False, "changed": True},
-                reasoning=f"Merged {number} at {head[:12]}",
-            )
+            return self._merge_now(repo, pull)
         method = self.config.merge_method(repo)
         try:
             self.github.enable_auto_merge(repo, number, head, method)
@@ -798,9 +784,31 @@ class Gateway:
                 "The branch moved: validate its current head, record it, and merge that head",
                 head=moved.head,
             ) from None
+        except AlreadyMergeable:
+            # GitHub settled mergeability after the read: nothing to wait for, so merge now.
+            return self._merge_now(repo, pull)
         return success(
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
+        )
+
+    def _merge_now(self, repo: str, pull: dict) -> CommandResult:
+        number, head = pull["number"], pull["head"]
+        try:
+            self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
+        except MergeMethodNotAllowed as refused:
+            raise self._merge_method_refusal(repo, refused.method) from None
+        except HeadMoved as moved:
+            raise refuse(
+                "HEAD_MOVED",
+                f"Pull request {number}'s head moved to {moved.head} during the merge",
+                "The branch moved: validate its current head, record it, and merge that head",
+                head=moved.head,
+            ) from None
+        self._release_on_merge(repo, pull)
+        return success(
+            {"state": "merged", "autoMerge": False, "changed": True},
+            reasoning=f"Merged {number} at {head[:12]}",
         )
 
     def _fast_forward(self, repo: str, upload: dict, current: str, head: str) -> bool:

@@ -35,6 +35,10 @@ class GitHubRefused(Exception):
         self.message = message
 
 
+class AlreadyMergeable(Exception):
+    """GitHub refused auto-merge because the pull request can merge now ("clean status")."""
+
+
 class HeadMoved(Exception):
     """GitHub refused a merge because the pull request's head is no longer the given sha."""
 
@@ -88,7 +92,8 @@ class GitHub(Protocol):
         ...
 
     def enable_auto_merge(self, repo: str, number: int, head: str, method: str) -> None:
-        """Auto-merge by ``method``, bound to ``head`` (GraphQL expectedHeadOid)."""
+        """Auto-merge by ``method``, bound to ``head`` (GraphQL expectedHeadOid);
+        ``AlreadyMergeable`` when there is nothing left to wait for."""
         ...
 
     def disable_auto_merge(self, repo: str, number: int) -> None: ...

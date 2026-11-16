@@ -16,6 +16,7 @@ from cryptography.hazmat.primitives.asymmetric import rsa
 
 from botcore_factory.gateway.cli import admin_cli
 from botcore_factory.gateway.github import (
+    AlreadyMergeable,
     GitHubRefused,
     GitHubUnavailable,
     HeadMoved,
@@ -272,14 +273,33 @@ def test_a_ref_is_requested_percent_encoded(github):
     assert mock.requests[-1].url.raw_path.endswith(b"/git/ref/heads/fix/a%2Bb")
 
 
-def test_an_auto_merge_github_finds_already_clean_may_be_retried(github):
+def test_auto_merge_refusals_say_what_github_meant(github):
     app, mock, _ = github
     mock.routes[("GET", f"/repos/{REPO}/pulls/46")] = httpx.Response(200, json={"node_id": "PR_1"})
     mock.graphql.append(
         {"data": None, "errors": [{"message": "Pull request Pull request is in clean status"}]}
     )
-    with pytest.raises(GitHubUnavailable):
+    with pytest.raises(AlreadyMergeable):
         app.enable_auto_merge(REPO, 46, "a" * 40, "merge")
+    refusal = {"data": None, "errors": [{"message": "Expected head oid did not match"}]}
+    mock.graphql += [refusal, {"data": {"repository": {"pullRequest": _pull(46)}}}]
+    with pytest.raises(GitHubRefused):  # The head is still "a" * 40: not a move.
+        app.enable_auto_merge(REPO, 46, "a" * 40, "merge")
+    mock.graphql += [
+        refusal,
+        {"data": {"repository": {"pullRequest": _pull(46, headRefOid="b" * 40)}}},
+    ]
+    with pytest.raises(HeadMoved) as moved:
+        app.enable_auto_merge(REPO, 46, "a" * 40, "merge")
+    assert moved.value.head == "b" * 40
+
+
+def test_an_upload_does_not_wait_for_a_mirror_s_first_fetch(remote):
+    app, _, _, _ = remote
+    import time as clock
+
+    with pytest.raises(GitHubUnavailable, match="startup"):
+        app.fetch_main(REPO, clock.monotonic() + 300)
 
 
 def test_a_stale_head_a_disallowed_method_and_a_clean_merge(github):

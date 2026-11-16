@@ -345,6 +345,21 @@ def test_a_head_that_moves_as_auto_merge_is_set_is_head_moved(run, monkeypatch):
     assert result.error.code == "HEAD_MOVED" and result.error.details["head"] == "9" * 40
 
 
+def test_a_pull_request_github_finds_clean_on_auto_merge_merges_at_once(run, monkeypatch):
+    from botcore_factory.gateway.github import AlreadyMergeable
+
+    def clean(self, repo, number, head, method):
+        raise AlreadyMergeable()
+
+    monkeypatch.setattr(FakeGitHub, "enable_auto_merge", clean)
+    gateway = run()
+    assert gateway(
+        "lane", "verification-record", repo=REPO, head=PR47_HEAD, result="passed", summary="ok"
+    ).success
+    result = gateway("lane", "pr-merge", repo=REPO, number=47, head=PR47_HEAD)
+    assert result.data == {"state": "merged", "autoMerge": False, "changed": True}
+
+
 @pytest.mark.parametrize("branch", ["fix/../../../pulls/1", "fix/x#y", "fix/100%", "a b"])
 def test_pr_open_refuses_a_branch_that_is_not_a_branch_name(run, branch):
     result = run()("lane", "pr-open", repo=REPO, branch=branch, title="T", body="B", closes=[])

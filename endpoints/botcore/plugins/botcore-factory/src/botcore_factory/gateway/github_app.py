@@ -35,6 +35,7 @@ import jwt
 
 from botcore_factory.gateway import uploads
 from botcore_factory.gateway.github import (
+    AlreadyMergeable,
     GitHubRefused,
     GitHubUnavailable,
     HeadMoved,
@@ -392,16 +393,19 @@ class GitHubApp:
 
     def fetch_main(self, repo: str, deadline: float | None = None) -> None:
         """Bring the mirror's ``main`` to GitHub's, so a bundle's new commits are counted
-        against the real main."""
-        mirror = uploads.ensure_mirror(self.data_dir, repo)
-        if (
-            not (mirror / "refs" / "heads" / "main").exists()
-            and not uploads.git(mirror, "for-each-ref", uploads.MAIN).strip()
-        ):
-            # The first fetch carries the whole history: give it its own, longer deadline.
-            deadline = time.monotonic() + FIRST_FETCH_SECONDS
+        against the real main. Without ``deadline`` (at startup) a first fetch of the whole
+        history gets ``FIRST_FETCH_SECONDS``; within an upload's deadline a mirror that has
+        never fetched is refused as not ready rather than primed inside the request."""
         try:
+            mirror = uploads.ensure_mirror(self.data_dir, repo)
             with uploads.mirror_lock(mirror):
+                primed = bool(uploads.git(mirror, "for-each-ref", uploads.MAIN).strip())
+                if not primed and deadline is not None:
+                    raise GitHubUnavailable(
+                        f"the gateway has not fetched {repo} yet; it does at startup"
+                    )
+                if not primed:
+                    deadline = time.monotonic() + FIRST_FETCH_SECONDS
                 uploads.git(
                     mirror,
                     "fetch",
@@ -415,7 +419,8 @@ class GitHubApp:
                 )
         except uploads.GitError as exc:
             text = _redact(str(exc))
-            if re.search(r"not found|Authentication failed|403|denied", text, re.IGNORECASE):
+            pattern = r"not found|Authentication failed|returned error: 403|denied"
+            if re.search(pattern, text, re.IGNORECASE):
                 raise GitHubRefused(0, f"git fetch: {text}") from None
             raise GitHubUnavailable(f"git fetch: {text}") from None
 
@@ -470,14 +475,12 @@ class GitHubApp:
             text = refused.message.lower()
             if "not allowed" in text and "merge" in text:
                 raise MergeMethodNotAllowed(method) from None
-            if re.search(r"expected.*head|head.*(oid|sha|moved|changed|modified)", text):
-                current = self.pull(repo, number)
-                raise HeadMoved((current or {}).get("head") or "") from None
             if "clean status" in text:
-                # Checks passed before GitHub computed mergeability; a retry merges it at once.
-                raise GitHubUnavailable(
-                    "the pull request became mergeable while auto-merge was being enabled"
-                ) from None
+                raise AlreadyMergeable() from None
+            # Whatever GitHub's wording, the head moved only if the pull request says so.
+            current = (self.pull(repo, number) or {}).get("head")
+            if current and current != head:
+                raise HeadMoved(current) from None
             raise
 
     def disable_auto_merge(self, repo, number):
