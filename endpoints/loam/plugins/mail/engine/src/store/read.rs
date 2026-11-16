@@ -121,7 +121,7 @@ pub struct PartRow {
 
 /// The columns a [`MessageListed`] is read from, after `envelope` joined
 /// with `message`.
-const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
+pub(super) const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
     envelope.sender_address, envelope.sender_name, envelope.subject, envelope.snippet,
     envelope.attachments, message.reported_size,
     EXISTS (SELECT 1 FROM held WHERE held.message_id = envelope.message_id
@@ -134,7 +134,7 @@ const LISTED: &str = "envelope.message_id, envelope.thread_id, envelope.date,
     (SELECT count(*) FROM part WHERE part.message_id = envelope.message_id
      AND part.type_differs = 1)";
 
-fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
+pub(super) fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
     let precedence: String = row.get(14)?;
     let auto_submitted: String = row.get(15)?;
     Ok(MessageListed {
@@ -166,6 +166,19 @@ fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed> {
     })
 }
 
+/// A class's listed messages, newest first, from the partial index of the
+/// listed ones.
+pub(super) fn class_list_sql() -> String {
+    format!(
+        "SELECT {LISTED} FROM screening
+         JOIN envelope ON envelope.message_id = screening.message_id
+         JOIN message ON message.id = screening.message_id
+         WHERE screening.class = ?1 AND screening.listed = 1
+           AND (screening.date, screening.message_id) < (?2, ?3)
+         ORDER BY screening.date DESC, screening.message_id DESC LIMIT ?4"
+    )
+}
+
 impl Store {
     /// A thread's messages, oldest first: at most `limit`, starting after
     /// `after` (the date and id of the last message of the page before).
@@ -187,6 +200,48 @@ impl Store {
         ))?;
         let rows = statement.query_map(params![thread.0, date, message, limit], listed)?;
         Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The messages of a screening class that a mailbox other than junk
+    /// and trash shows, newest first: at most `limit`, starting before
+    /// `before` (the date and id of the last message of the page before).
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn class_messages(
+        &self,
+        class: super::Class,
+        before: Option<(i64, MessageId)>,
+        limit: u32,
+    ) -> Result<Vec<MessageListed>, StoreError> {
+        let (date, message) =
+            before.map_or((i64::MAX, i64::MAX), |(date, message)| (date, message.0));
+        let mut statement = self.connection.prepare_cached(&class_list_sql())?;
+        let rows = statement.query_map(params![class.as_str(), date, message, limit], listed)?;
+        Ok(rows.collect::<Result<_, _>>()?)
+    }
+
+    /// The screening class of each of `messages` that is inbound.
+    ///
+    /// # Errors
+    /// When the database refuses.
+    pub fn classes_of(
+        &self,
+        messages: &[MessageId],
+    ) -> Result<std::collections::HashMap<MessageId, super::Class>, StoreError> {
+        let mut statement = self
+            .connection
+            .prepare_cached("SELECT class FROM screening WHERE message_id = ?1")?;
+        let mut classes = std::collections::HashMap::new();
+        for message in messages {
+            let class: Option<String> = statement
+                .query_row([message.0], |row| row.get(0))
+                .optional()?;
+            if let Some(class) = class.as_deref().and_then(super::Class::parse) {
+                classes.insert(*message, class);
+            }
+        }
+        Ok(classes)
     }
 
     /// One message as a list shows it, or `None` when there is no such

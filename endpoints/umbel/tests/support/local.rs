@@ -41,13 +41,36 @@ impl Local {
         Self::start_plugin(extra, plugin).await
     }
 
+    /// As [`Self::start`], with `person.local.public_origin = origin`: the page behind a
+    /// TLS-terminating proxy on this machine.
+    pub async fn start_public(origin: &str) -> Self {
+        Self::start_config(
+            |bind| {
+                config(bind, "").replace(
+                    "enabled = true\n",
+                    &format!("enabled = true\npublic_origin = \"{origin}\"\n"),
+                )
+            },
+            plugin,
+        )
+        .await
+    }
+
     /// As [`Self::start_with`], with the `gate` plugin `make` builds from the record of calls.
     pub async fn start_plugin(
         extra: &str,
         make: impl FnOnce(&Seen) -> super::plugins::Raw,
     ) -> Self {
+        Self::start_config(|bind| config(bind, extra), make).await
+    }
+
+    /// A local page whose configuration `text` writes for its bind.
+    async fn start_config(
+        text: impl FnOnce(SocketAddr) -> String,
+        make: impl FnOnce(&Seen) -> super::plugins::Raw,
+    ) -> Self {
         let (listener, bind) = bound();
-        let dir = super::workspace(&config(bind, extra));
+        let dir = super::workspace(&text(bind));
         let seen = Seen::default();
         let clock = afd::fixed_clock(1_800_000_000_000);
         let host = HostBuilder::open(dir.path())

@@ -1,0 +1,54 @@
+# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# src/scenarios.test.ts through the server's own middleware.
+# Limit: the clock cannot move between steps, so "long after" is shown only as not having the
+# delete's result to hand: the restore uses the id the deleted list returns, newest deletion
+# first, not the delete's undoArgs. The last step reads the original id back, so restoring a
+# different todo with the same title fails the job.
+name: Find a deleted todo later and bring it back
+description: >-
+  When I realise long after a delete that I still needed the todo, I want to find it among the
+  deleted ones and restore it, so that undo is not limited to the moment after the mistake.
+job: find-a-deleted-todo
+tags: [undo]
+steps:
+  - description: A todo exists
+    command: todo-create
+    input: { title: Renew the allotment lease, priority: high }
+    expect:
+      success: true
+  - description: It is deleted
+    command: todo-delete
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+  - description: Asking for it says it is gone and where deleted todos are listed
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: "deleted: true" }
+  - description: The deleted list shows it, most recently deleted first
+    command: todo-list
+    input: { deleted: true, search: Renew the allotment lease, sortBy: deletedAt, sortOrder: desc }
+    expect:
+      success: true
+      data:
+        total: { gte: 1 }
+  - description: The listed id restores it
+    command: todo-restore
+    input: { ids: ["${{ steps[3].data.todos[0].id }}"] }
+    expect:
+      success: true
+      data:
+        summary:
+          successCount: 1
+  - description: The todo that was deleted is back, as it was
+    command: todo-get
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        title: Renew the allotment lease
+        priority: high

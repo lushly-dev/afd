@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "Todo Example Commands",
-	"description": "JSON Schema for the 11 commands of the Todo example, keyed by kebab-case MCP tool name. spec/test-cases.json checks their behaviour.",
+	"description": "JSON Schema for the 13 commands of the Todo example, keyed by kebab-case MCP tool name. Each entry's metadata is the definition every backend declares, which the backends' tests compare; input and output are the shapes. spec/test-cases.json checks their behaviour. A command with implementedBy, or an input property with x-implementedBy, exists so far only in the languages it names: the to-do reference plan adds it to TypeScript in phase 2 and to the others in phase 5, which removes the field.",
 	"definitions": {
 		"Priority": {
 			"type": "string",
@@ -64,7 +64,7 @@
 		},
 		"FailedItem": {
 			"type": "object",
-			"description": "A batch item that failed. todo-create-batch includes the item's input; todo-delete-batch and todo-toggle-batch include its id.",
+			"description": "A batch item that failed. todo-create-batch includes the item's input; todo-delete-batch, todo-toggle-batch and todo-restore include its id.",
 			"properties": {
 				"index": { "type": "integer", "minimum": 0 },
 				"input": { "type": "object" },
@@ -84,6 +84,7 @@
 	},
 	"commands": {
 		"todo-create": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -105,9 +106,19 @@
 			}
 		},
 		"todo-list": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": {
 				"type": "object",
 				"properties": {
+					"deleted": {
+						"type": "boolean",
+						"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones. TypeScript also accepts sortBy deletedAt",
+						"x-implementedBy": ["typescript"]
+					},
 					"completed": { "type": "boolean" },
 					"priority": { "$ref": "#/definitions/Priority" },
 					"search": { "type": "string" },
@@ -153,6 +164,11 @@
 			}
 		},
 		"todo-get": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": {
 				"type": "object",
 				"properties": {
@@ -172,6 +188,7 @@
 			}
 		},
 		"todo-update": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -195,6 +212,7 @@
 			}
 		},
 		"todo-toggle": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -214,6 +232,7 @@
 			}
 		},
 		"todo-delete": {
+			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -240,12 +259,23 @@
 			}
 		},
 		"todo-clear": {
+			"metadata": {
+				"mutation": true,
+				"destructive": true,
+				"contexts": ["todo-editing"],
+				"confirmPrompt": "Delete these todos? This cannot be undone."
+			},
 			"input": {
 				"type": "object",
 				"properties": {
 					"all": {
 						"type": "boolean",
 						"description": "If true, clear all todos regardless of status"
+					},
+					"deleted": {
+						"type": "boolean",
+						"description": "If true, empty the deleted todos instead of removing completed ones",
+						"x-implementedBy": ["typescript"]
 					}
 				}
 			},
@@ -268,6 +298,11 @@
 			}
 		},
 		"todo-stats": {
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
 			"input": { "type": "object" },
 			"output": {
 				"allOf": [
@@ -299,6 +334,7 @@
 			}
 		},
 		"todo-create-batch": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -350,6 +386,7 @@
 			}
 		},
 		"todo-delete-batch": {
+			"metadata": { "mutation": true, "destructive": true, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -388,6 +425,7 @@
 			}
 		},
 		"todo-toggle-batch": {
+			"metadata": { "mutation": true, "destructive": false, "contexts": ["todo-editing"] },
 			"input": {
 				"type": "object",
 				"properties": {
@@ -431,6 +469,104 @@
 									}
 								},
 								"required": ["succeeded", "failed", "summary"]
+							}
+						}
+					}
+				]
+			}
+		},
+		"todo-restore": {
+			"implementedBy": ["typescript"],
+			"metadata": {
+				"mutation": true,
+				"destructive": false,
+				"contexts": ["todo-editing"]
+			},
+			"input": {
+				"type": "object",
+				"properties": { "ids": { "$ref": "#/definitions/BatchIds" } },
+				"required": ["ids"]
+			},
+			"output": {
+				"allOf": [
+					{ "$ref": "#/definitions/CommandResult" },
+					{
+						"properties": {
+							"data": {
+								"type": "object",
+								"properties": {
+									"restoredIds": { "type": "array", "items": { "type": "string" } },
+									"restored": { "type": "array", "items": { "$ref": "#/definitions/Todo" } },
+									"failed": { "type": "array", "items": { "$ref": "#/definitions/FailedItem" } },
+									"summary": {
+										"type": "object",
+										"properties": {
+											"total": { "type": "integer" },
+											"successCount": { "type": "integer" },
+											"failureCount": { "type": "integer" }
+										},
+										"required": ["total", "successCount", "failureCount"]
+									}
+								},
+								"required": ["restoredIds", "restored", "failed", "summary"]
+							}
+						}
+					}
+				]
+			}
+		},
+		"todo-history": {
+			"implementedBy": ["typescript"],
+			"metadata": {
+				"mutation": false,
+				"destructive": false,
+				"contexts": ["todo-reading", "todo-editing"]
+			},
+			"input": {
+				"type": "object",
+				"properties": {
+					"limit": { "type": "integer", "minimum": 1, "maximum": 100, "default": 20 },
+					"offset": { "type": "integer", "minimum": 0, "default": 0 },
+					"actor": { "type": "string", "minLength": 1 },
+					"todoId": { "type": "string", "minLength": 1 }
+				}
+			},
+			"output": {
+				"allOf": [
+					{ "$ref": "#/definitions/CommandResult" },
+					{
+						"properties": {
+							"data": {
+								"type": "object",
+								"properties": {
+									"entries": {
+										"type": "array",
+										"items": {
+											"type": "object",
+											"properties": {
+												"seq": { "type": "integer" },
+												"at": { "type": "string", "format": "date-time" },
+												"actor": {
+													"type": "object",
+													"properties": {
+														"kind": { "type": "string" },
+														"id": { "type": "string" }
+													},
+													"required": ["kind"]
+												},
+												"command": { "type": "string" },
+												"ids": { "type": "array", "items": { "type": "string" } },
+												"undoCommand": { "type": "string" },
+												"undoArgs": { "type": "object" },
+												"superseded": { "const": true }
+											},
+											"required": ["seq", "at", "actor", "command", "ids"]
+										}
+									},
+									"total": { "type": "integer" },
+									"hasMore": { "type": "boolean" }
+								},
+								"required": ["entries", "total", "hasMore"]
 							}
 						}
 					}

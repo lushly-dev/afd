@@ -236,29 +236,66 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * organization plugins, `BetterAuthAdapter` and `SessionSync`, 68,767, set at 72,000; `signInMinified`, 8,489,
  * set at 9,300; `accountMenuMinified`, 3,543, set at 3,900. `late` 73,968 (+493) and the kernel alone 114,402
  * (+153) are within their rows; `switcher` 11,317 is at its ceiling.
+ * Phase 3's step 4 (the account section, members and owners) raised the ceilings it passed under D115, each to its
+ * measurement plus a margin, measured against `main` at `4e11c2ce` on the same machine. First paint 296,364 and
+ * 92,051 gzip, +1,639 and +434 over `main` (294,725 and 91,617), with no allowance in 13: `DeferredAuthAdapter`'s
+ * deferred `organization` and `account` capabilities, the not-a-member notice's invitations button, the account
+ * route and the shell's `invitations` action, and `section-open`'s `account`. `jsGzip` 92,000 to 93,000;
+ * `kernelMinified` 114,444 to 114,800 (114,628, from 114,402); `lateMinified` 75,000 to 77,000 (76,194, from 74,036:
+ * the owner rules in `project-*` and `workspace-app-set`); `lateIdentityMinified` 24,000 to 37,000 (34,529, from
+ * 22,631: the eleven account and member commands); `signInMinified` 9,300 to 10,500 (10,011, from 8,489: "Can't
+ * sign in?"); `urlMinified` 5,247 to 5,700 (5,506, from 5,194: the account section's sync). New row
+ * `accountMinified`, the `account` chunk, 20,530 against 13's estimate of 46,000, set at 22,500: it uses no FAST
+ * element, since importing FAST's `css` there parts FAST's core from first paint into a chunk of its own.
+ * Merged with step 5 and `main` at its later head, step 4 measured again against that `main` on the same machine: first
+ * paint 299,204 and 92,920 gzip, +1,639 and +439 over `main` (297,565 and 92,481). `lateMinified` 77,000 to 78,500
+ * (77,115, from `main`'s 74,573); `lateIdentityMinified` 37,000 to 47,000 (45,777, from `main`'s 32,468: step 4's
+ * eleven commands beside step 5's personas). The kernel alone 115,199 (from 114,973), `sign-in` 10,011,
+ * `account-menu` 5,077, `account` 21,046 and `url-sync` 5,506 are within their rows.
+ * Phase 3's step 5 (persona) raised the ceilings it passed under D115, each to its measurement plus a margin.
+ * First paint 296,567 and 92,170 gzip, +1,842 and +553 over `main` at `4e11c2ce` (294,725 and 91,617), past step
+ * 5's allowance of 750 and 300: stage A's read of `loam.persona~<person>` and each call's `persona` context field
+ * in the kernel, the rail's emphasis (`railOrder`'s rank and `loam-app-entry`'s emphasized state, +658 in the
+ * `events` chunk), the shell's read of the active persona with its announcement, and the title bar's persona
+ * title. `jsGzip` 92,000 to 93,000. `kernelMinified` 114,444 to 115,500 (114,969, +567). `lateIdentityMinified`
+ * 24,000 to 34,000: the five `persona-*` commands, sign-in's landing and project, and the palette's emphasis
+ * (31,821, +9,190). `accountMenuMinified` 3,900 to 5,400: the persona switch (4,868, +1,325). `late` 74,573
+ * (+537) is within its row.
+ * Phase 6's step 3 (provider and deployment version 4) raised `appsMinified` under D115, from 394,973 to 395,700:
+ * measured against `main` at `3c0a3b25` on the same machine, `apps` 394,970 to 395,318 (+348), the projection
+ * validator's chunk reading a version 4 projection's `host` by hand, as it reads version 3's `identity` (phase 6
+ * specification, 14's row "measured first"), and the shared refusal rows naming version 4. First paint +14 and +7
+ * gzip (299,218 and 92,927; `readBoot` reads version 4), the kernel alone +22 and `late` +206
+ * (`workspace-deployment-apply`'s journaled `host`), each within its row.
  */
 export const CEILINGS = Object.freeze({
 	jsMinified: 300_000,
-	jsGzip: 92_000,
+	jsGzip: 93_000,
 	cssMinified: 8_496,
-	kernelMinified: 114_444,
-	lateMinified: 75_000,
+	kernelMinified: 115_500,
+	lateMinified: 78_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
-	lateIdentityMinified: 24_000,
+	lateIdentityMinified: 47_000,
 	authMinified: 72_000,
-	signInMinified: 9_300,
-	accountMenuMinified: 3_900,
-	urlMinified: 5_247,
-	appsMinified: 394_973,
+	signInMinified: 10_500,
+	accountMenuMinified: 5_400,
+	accountMinified: 22_500,
+	urlMinified: 5_700,
+	appsMinified: 395_700,
 	surfacesMinified: 85_000,
-	viewMinified: 25_105,
+	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
+	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
+	viewMinified: 25_900,
 	consoleMinified: 91_222,
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
 	tooltipMinified: 3_126,
-	sectionsMinified: 45_000,
+	// Raised from 45,000 to 46,200 by AFD #1159 (D115): violet-button resolves its id-list ARIA attributes to
+	// element references on its inner button, so they reach across its shadow root; measured 45,651
+	// (+778 over 44,873), plus a margin.
+	sectionsMinified: 46_200,
 	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
@@ -455,6 +492,10 @@ async function measurePage() {
 	const accountMenu = closure(/^assets\/account-menu-/, afterAuth);
 	if (accountMenu.size === 0)
 		throw new Error('budget: the build has no `account-menu` chunk to measure');
+	// Phase 3's step 4: the `account` chunk, the account section, the invitations panel and the join and recovery
+	// pages, loaded when one shows, after `auth` (13's estimate 46,000).
+	const account = closure(/^assets\/account-(?!menu-)/, afterAuth);
+	if (account.size === 0) throw new Error('budget: the build has no `account` chunk to measure');
 	// The bundler parts the kernel's `src/apps/` from the validators, because the host reads with them too.
 	const apps = closure(/^assets\/(apps|validate\.generated|deployment)-/, afterLate);
 	if (apps.size < 3) throw new Error('budget: the build has no `apps` chunks to measure');
@@ -544,6 +585,7 @@ async function measurePage() {
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
 		accountMenuMinified: sizeOf(accountMenu),
+		accountMinified: sizeOf(account),
 		urlMinified: sizeOf(url),
 		appsMinified: sizeOf(apps),
 		surfacesMinified: sizeOf(surfaces),
@@ -633,6 +675,10 @@ const ROWS = [
 	['authMinified', "The `auth` chunk, Better Auth's client and `SessionSync`, minified"],
 	['signInMinified', 'The `sign-in` chunk, `loam-sign-in-dialog`, minified'],
 	['accountMenuMinified', 'The `account-menu` chunk, `loam-account-menu`, minified'],
+	[
+		'accountMinified',
+		'The `account` chunk, the account section and the join and recovery pages, minified',
+	],
 	['urlMinified', "The chrome's `url-sync` chunk and its imports, minified"],
 	['appsMinified', "The kernel's `apps` chunks and imports, with classic Zod"],
 	['surfacesMinified', "The chrome's `surfaces` chunk and its imports, minified"],

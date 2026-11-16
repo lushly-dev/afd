@@ -16,7 +16,10 @@ export type HostErrorCode =
 	| 'HOST_ORIGIN_SHARED'
 	| 'HOST_MISDIRECTED'
 	| 'HOST_PORT_TAKEN'
-	| 'HOST_DEV_PORT_CHANGED';
+	| 'HOST_DEV_PORT_CHANGED'
+	| 'HOST_ENV_OVERRIDE'
+	| 'HOST_NOT_BOOTSTRAPPED'
+	| 'HOST_ALREADY_BOOTSTRAPPED';
 
 /** A refusal or warning, keyed as `loam deployment check` keys its findings. */
 export interface HostFinding {

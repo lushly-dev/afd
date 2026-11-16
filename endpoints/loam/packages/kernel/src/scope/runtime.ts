@@ -40,6 +40,8 @@ export interface ScopeSeen {
 	mainChanged?: 'push' | 'replace';
 	/** The person the kernel decides for changed, by `session-settle` (phase 3 specification, 4.4). */
 	actorChanged?: true;
+	/** The active persona changed, by `persona-set` or `persona-remove` (phase 3 specification, 6.3). */
+	personaChanged?: true;
 	/** A type's instance command that changed this document succeeded (documents specification, 5.7). */
 	document?: string;
 }

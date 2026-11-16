@@ -5,7 +5,7 @@ export const styles = css`
         display: block;
         container-type: inline-size;
         color: var(--color-text-primary, #18181b);
-        font-family: var(--violet-data-grid-font-family, "IBM Plex Sans", "Segoe UI", sans-serif);
+        font-family: var(--violet-data-grid-font-family, var(--font-family-body, "Montserrat", "Segoe UI", sans-serif));
 
         --_surface-page: var(--color-surface-page, #fffefa);
         --_surface-card: var(--color-surface-card, #faf9f5);
@@ -488,6 +488,26 @@ export const styles = css`
 
     .cell-editor:focus {
         outline: none;
+    }
+
+    .cell-editor-hint {
+        position: absolute;
+        /* Above the fill handle, which shares the sticky layer. */
+        z-index: calc(var(--_layer-sticky) + 1);
+        inset-inline-start: var(--_row-padding-inline);
+        inset-block-start: calc(100% - var(--_space-stack-xs));
+        /* A sentence rather than a word: wider than the edit error, still bounded. */
+        inline-size: max-content;
+        max-inline-size: 18rem;
+        padding: 2px var(--_space-stack-xs);
+        border: 1px solid var(--_border-strong);
+        border-radius: calc(var(--_radius-md) / 2);
+        background: var(--_surface-floating);
+        color: var(--_text-primary);
+        box-shadow: var(--_shadow-card);
+        font-size: 0.75rem;
+        line-height: 1.25;
+        white-space: normal;
     }
 
     .cell-editor-error {

@@ -1,0 +1,90 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the lane endpoint. The fixture's secret pattern stands in for real secret rules.
+# Issues and pull requests share numbers, so the new issue is 105, after issue 104 and pull
+# request 47. `expect` cannot reference an earlier step; only `input` can.
+name: Never file the same issue or post the same comment twice, or post a secret
+description: >-
+  When the lane files a flaky test or comments on an issue and then retries after a timeout, or
+  sees the same flake again, I want the gateway to find what it already wrote by a key I choose and
+  to refuse text that holds a secret, so that retries never leave duplicates for people to clean up
+  and a log pasted into a public issue never leaks a credential.
+job: never-file-or-say-it-twice
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The first report of a flake files an issue
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: "Flaky: parser handles nested quotes"
+      body: The nested-quotes test failed once in 40 runs on main.
+      labels: [flaky-test]
+      dedupe_key: flake-3fa9c2
+    expect:
+      success: true
+      data:
+        created: true
+        number: 105
+  - description: The same flake again returns the open issue instead of a new one
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: "Flaky: parser handles nested quotes"
+      body: The nested-quotes test failed once in 40 runs on main.
+      labels: [flaky-test]
+      dedupe_key: flake-3fa9c2
+    expect:
+      success: true
+      data:
+        created: false
+        number: 105
+  - description: A label the repository does not define is refused rather than created
+    command: issue-create
+    input:
+      repo: example-org/example-repo
+      title: "Flaky: lexer timing"
+      body: The lexer timing test failed once.
+      labels: [flakey]
+      dedupe_key: flake-77d01e
+    expect:
+      success: false
+      error:
+        code: LABEL_UNKNOWN
+        message: flakey
+        suggestion: { contains: flaky-test }
+  - description: A recurrence comment posts once
+    command: issue-comment
+    input:
+      repo: example-org/example-repo
+      number: "${{ steps[0].data.number }}"
+      body: Failed again on 2030-02-03.
+      dedupe_key: flake-3fa9c2-2030-02-03
+    expect:
+      success: true
+      data:
+        deduplicated: false
+        url: { contains: issuecomment }
+  - description: A retry of that comment is recognised, not posted again
+    command: issue-comment
+    input:
+      repo: example-org/example-repo
+      number: "${{ steps[0].data.number }}"
+      body: Failed again on 2030-02-03.
+      dedupe_key: flake-3fa9c2-2030-02-03
+    expect:
+      success: true
+      data:
+        deduplicated: true
+  - description: A comment holding something that looks like a secret is refused before it reaches GitHub
+    command: issue-comment
+    input:
+      repo: example-org/example-repo
+      number: "${{ steps[0].data.number }}"
+      body: "Log excerpt: connecting with EXAMPLE-SECRET-4821 failed."
+      dedupe_key: flake-3fa9c2-log
+    expect:
+      success: false
+      error:
+        code: SECRET_IN_BODY
+        suggestion: { contains: remove }

@@ -35,7 +35,21 @@
 				"rules": [
 					"taxonomy.fit"
 				],
-				"type": "VioletImageFit"
+				"type": "\"cover\" | \"contain\" | \"fill\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "cover"
+					},
+					{
+						"basis": "observed",
+						"value": "contain"
+					},
+					{
+						"basis": "declared",
+						"value": "fill"
+					}
+				]
 			},
 			{
 				"basis": "declared",
@@ -45,7 +59,17 @@
 				"rules": [
 					"taxonomy.loading"
 				],
-				"type": "VioletImageLoading"
+				"type": "\"eager\" | \"lazy\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "eager"
+					},
+					{
+						"basis": "observed",
+						"value": "lazy"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -55,7 +79,29 @@
 				"rules": [
 					"taxonomy.ratio"
 				],
-				"type": "VioletImageRatio"
+				"type": "\"auto\" | \"square\" | \"landscape\" | \"portrait\" | \"video\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "auto"
+					},
+					{
+						"basis": "observed",
+						"value": "square"
+					},
+					{
+						"basis": "observed",
+						"value": "landscape"
+					},
+					{
+						"basis": "observed",
+						"value": "portrait"
+					},
+					{
+						"basis": "observed",
+						"value": "video"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -65,7 +111,21 @@
 				"rules": [
 					"taxonomy.shape"
 				],
-				"type": "VioletImageShape"
+				"type": "\"square\" | \"rounded\" | \"circle\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "square"
+					},
+					{
+						"basis": "observed",
+						"value": "rounded"
+					},
+					{
+						"basis": "observed",
+						"value": "circle"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -129,7 +189,7 @@
 		{
 			"basis": "observed",
 			"from": "components-image--error-fallback",
-			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image alt=\"Fallback planting image\" fit=\"cover\" loading=\"lazy\" ratio=\"landscape\" shape=\"rounded\" src=\"https://invalid.invalid/missing-image.jpg\">\n                <violet-text as=\"span\" slot=\"fallback\" tone=\"muted\" variant=\"caption\">Image unavailable</violet-text>\n            </violet-image>\n        </div>"
+			"html": "<div style=\"max-inline-size: 16rem;\">\n            <violet-image alt=\"Fallback planting image\" fit=\"cover\" loading=\"lazy\" ratio=\"landscape\" shape=\"rounded\" src=\"data:image/png;base64,AAAA\">\n                <violet-text as=\"span\" slot=\"fallback\" tone=\"muted\" variant=\"caption\">Image unavailable</violet-text>\n            </violet-image>\n        </div>"
 		}
 	],
 	"format": 1,

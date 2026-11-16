@@ -1,0 +1,18 @@
+{
+	"$command": "request-decide",
+	"$input": {
+		"id": "req-4",
+		"decision": "approve"
+	},
+	"success": false,
+	"error": {
+		"code": "REQUEST_EXPIRED",
+		"message": "req-4 expired at 2030-03-03T10:00:00Z, before it was decided",
+		"suggestion": "The member has to ask again: call loan-create with memberId mem-tobias and varietyId var-crimson",
+		"retryable": false,
+		"details": {
+			"id": "req-4",
+			"expiresAt": "2030-03-03T10:00:00Z"
+		}
+	}
+}

@@ -6,8 +6,10 @@
  * Usage:
  *   node dist/server.js
  *
- * Then connect with the AFD CLI:
- *   afd connect http://localhost:3100/sse
+ * From a terminal it serves HTTP on port 3100; spawned by an MCP client (stdin is not a
+ * terminal) it speaks stdio. TRANSPORT=http or TRANSPORT=stdio forces one. Then connect with
+ * the AFD CLI:
+ *   afd connect http://localhost:3100/mcp
  *   afd tools
  *   afd call todo-create '{"title": "My first todo"}'
  */
@@ -15,6 +17,7 @@
 import { createMcpServer } from '@lushly-dev/afd-server';
 import { allCommands } from './commands/index.js';
 import { createTodoServerOptions } from './server-options.js';
+import { createStore, SqliteStore, setStore } from './store/index.js';
 
 // Transport mode: "auto" (default), "http" (for UI), or "stdio" (for MCP clients)
 const TRANSPORT = (process.env.TRANSPORT ?? 'auto') as 'auto' | 'http' | 'stdio';
@@ -31,6 +34,10 @@ const DEV_MODE = process.env.NODE_ENV === 'development';
 async function main() {
 	// Browser access: the dev frontends from the README (ports 3000, 5173 and 5174)
 	// plus ALLOWED_ORIGINS. See server-options.ts.
+	const store = createStore(process.env);
+	// A SQLite database that cannot be opened fails here, not on the first command
+	if (store instanceof SqliteStore) await store.check();
+	setStore(store);
 	const options = createTodoServerOptions(process.env);
 	const server = createMcpServer({ ...options, transport: TRANSPORT });
 
@@ -59,7 +66,7 @@ async function main() {
 		console.error(`Server running at ${server.getUrl()}`);
 		console.error('');
 		console.error('Connect with the AFD CLI:');
-		console.error(`  afd connect ${server.getUrl()}/sse`);
+		console.error(`  afd connect ${server.getUrl()}/mcp`);
 		console.error('');
 		console.error('Or start a frontend (from packages/examples/todo):');
 		console.error('  pnpm dev:web     # http://localhost:3000');

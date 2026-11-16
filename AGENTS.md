@@ -2,7 +2,7 @@
 
 AFD (Agent-First Development) treats AI agents as first-class users: every capability is a command, reachable from the CLI and over MCP, before any UI exists. This repository holds the four language implementations of that contract, the units built on them and the tooling that keeps them in step.
 
-This is the only project instruction file (never add a `CLAUDE.md`). It carries what every session needs and says where the rest lives. Skills are in `.claude/skills/` (`.codex/skills` is a symlink to it), and a skill's body loads only when it is used.
+This is the only project instruction file (never add a `CLAUDE.md`). It carries what every session needs and says where the rest lives. Skills are in `.claude/skills/`, the only path Claude Code reads; `.agents/skills`, which Codex and other agents read, is a symlink to it. A skill's body loads only when it is used.
 
 ## Layout
 
@@ -39,4 +39,13 @@ Run `pnpm verify` before pushing, on the `.nvmrc` Node, so that remote CI confir
 
 The harness lists every skill with its description. The others cover each language, auth, DirectClient, design, review, documentation and skills, Botcore and MCP servers.
 
+**Credit goes to the owner.** Commits are authored by the owner, never by an agent. An agent that helped is listed with an email-free trailer, `Assisted-by: Claude Code`, never `Co-authored-by:`, which GitHub counts as a full contributor. `scripts/commit-credit.mjs` refuses either in the commit-msg hook and in `ci-ok`.
+
 **Publishing is the maintainer's.** Do not push a tag, create a release, merge the npm version PR (merging it publishes) or run `changeset publish`, a publish script or a publish workflow unless the user names that step in the current turn.
+
+When asking the user questions at the end of a turn:
+
+1. Number each question.
+2. Begin each question with a 1–3 word summary for quick reference.
+3. Provide a recommendation, the reason for it, and your confidence in the recommendation.
+4. Place all open questions at the end of the response so they are easy to find.

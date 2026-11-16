@@ -372,6 +372,8 @@ fn the_schema_accepts_what_the_host_accepts() {
         json!({ "config_version": 7, "person": { "decision_ttl_s": 60 } }),
         json!({ "config_version": 7, "person": { "decision_ttl_s": 86_400 } }),
         json!({ "config_version": 7, "person": { "local": { "bind": "[::1]:7421" } } }),
+        json!({ "config_version": 7, "person": { "local": { "public_origin": "https://garden-host.example-tailnet.ts.net:8443" } } }),
+        json!({ "config_version": 7, "person": { "local": { "public_origin": "https://garden-host.example-tailnet.ts.net/" } } }),
         json!({ "config_version": 7, "spaces": { "garden": { "verified_levels": ["local"] } } }),
         local_json(),
     ];
@@ -415,6 +417,26 @@ fn the_schema_refuses_what_the_host_refuses() {
         }),
         edited(&base, |c| c["person"]["local"]["enabled"] = json!("yes")),
         edited(&base, |c| c["person"]["local"]["port"] = json!(7421)),
+        edited(&base, |c| {
+            c["person"]["local"]["public_origin"] =
+                json!("http://garden-host.example-tailnet.ts.net:8443")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["public_origin"] =
+                json!("https://garden-host.example-tailnet.ts.net:8443/d/")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["public_origin"] =
+                json!("https://garden-host.example-tailnet.ts.net/?bed=3")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["public_origin"] =
+                json!("https://gardener@garden-host.example-tailnet.ts.net")
+        }),
+        edited(&base, |c| {
+            c["person"]["local"]["public_origin"] =
+                json!("https://Garden-Host.example-tailnet.ts.net")
+        }),
         edited(&base, |c| {
             c["spaces"]["garden"]["verified_levels"] = json!([])
         }),

@@ -1,18 +1,21 @@
 /**
  * @fileoverview The child process `startDevHost` runs (phase 6 specification, 5.2): the development profile,
- * with the test-only option that serves a version 1 to 3 deployment until step 3. It reports one line,
+ * as the bin's `dev` runs it. It reports one line,
  * `ready` or `failed`, then serves until `SIGTERM`, when it closes the host and releases the lock. It runs
  * only in a child, so `vitest.config.ts` leaves it out of the units' coverage; the hosted suite runs it.
  */
 
 import { runDev } from '../dev.js';
-import { SERVE_STATIC_DEPLOYMENT } from '../testing-only.js';
 import { type ChildReady, FAILED, READY } from './protocol.js';
 
 async function main(): Promise<void> {
-	const options = JSON.parse(process.argv[2] ?? '{}') as { deployment: string; data?: string };
+	const options = JSON.parse(process.argv[2] ?? '{}') as {
+		deployment: string;
+		data?: string;
+		rateLimit?: { window: number; max: number };
+	};
 	try {
-		const profile = await runDev({ ...options, [SERVE_STATIC_DEPLOYMENT]: true });
+		const profile = await runDev(options);
 		const { origin, sandboxOrigin, spki, certificate, mail, data } = profile;
 		const ready: ChildReady = { origin, sandboxOrigin, spki, certificate, mail, data };
 		process.stdout.write(`${READY} ${JSON.stringify(ready)}\n`);

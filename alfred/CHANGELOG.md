@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- A command called in its other spelling (`dev-lint` for `dev_lint`), which Botcore's host now resolves, gets the same target selection, `.md` suffix and `TARGET_REQUIRED` guard as its registered name.
 - `alfred_quality` reports `description-too-long` above 300 characters (was 120) as a `warning` that does not count toward `issue_count`; each issue carries a `severity` and the result adds `warning_count`.
 
 ## 0.2.0

@@ -12,6 +12,7 @@ import {
 	axe,
 	deploymentEntry,
 	deploymentFile,
+	hostedDeploymentFile,
 	kernelCall,
 	launchForDevHost,
 	measureFirstPaint,
@@ -29,15 +30,19 @@ let browser: Browser;
 let host: DevHost;
 let viewHost: DevHost;
 let config: string;
+let staticConfig: string;
 
 beforeAll(async () => {
-	config = deploymentFile(
+	const entries = [
 		deploymentEntry('hello', await packApp('hello')),
-		deploymentEntry('tally', await packApp('tally'))
-	);
+		deploymentEntry('tally', await packApp('tally')),
+	];
+	config = hostedDeploymentFile([], ...entries);
+	// The same entries for a static host, as phase 2's E1 serves them, which P6-H2 compares the hosted shell with.
+	staticConfig = deploymentFile(...entries);
 	host = await startDevHost({ config });
 	viewHost = await startDevHost({
-		config: deploymentFile(deploymentEntry('hello', await packApp('hello', 'view'))),
+		config: hostedDeploymentFile([], deploymentEntry('hello', await packApp('hello', 'view'))),
 	});
 	browser = await launchForDevHost(host, viewHost);
 }, 180_000);
@@ -82,7 +87,7 @@ async function firstPaintAssets(url: string): Promise<Record<string, number>> {
 
 describe('P6-H2: the shell hosted, as it was static', () => {
 	it("P6-H2: in local mode, the first paint requests phase 2's E1 chunks, the same as serveDeployment's, byte for byte", async () => {
-		const site = await serveDeployment({ config });
+		const site = await serveDeployment({ config: staticConfig });
 		try {
 			const staticAssets = await firstPaintAssets(site.root);
 			const hostedAssets = await firstPaintAssets(host.root);

@@ -7,7 +7,7 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "717c37fde540edf37e76689b4b88f9e7d2b62440750dab01d83ce7bc1406172f",
+      "current_import_sha256": "5018b3c535390041a7c95dc6eda9a1c9587479388d9296577bc91ff8cac97c19",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "528cbbe35d23a9768e6d74c1c865dcdad1fc3bbe0aed7707ceadb6ab03ee7b27",
+      "current_import_sha256": "f625d728e7bce29f59a5e44d9cd9009c548c1b4fa3f24b7c42d3d90e4af301a7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client"
     },
     {
       "path": "LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "98a322fd57753a8a66b7c43db21d75544f7cbdc4e8caad95b1eea9135f435b0a",
+      "current_import_sha256": "c2e8f94c1b2ea01d59d65e1f05d09783ab74194d2103d56e5ac51c9b8df20832",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1487,7 +1487,7 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "97ccfdf5b9475cbc85334a603187d3fae88b88e40746978be4bf6c1fb8c9d8fc",
+      "current_import_sha256": "7e778fce6829828f167184f0fe1b34fd69804aa99e4b0f112c3029ae713dc0d0",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
@@ -1537,11 +1537,11 @@
       "path": "src/botcore/cli.py",
       "upstream_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
       "staged_sha256": "3f9c4f20694615b01b8edabc920c26662d065e09365161a493b41131a3d4a77f",
-      "current_import_sha256": "1fda44819e15358c23f9c523a3b4566c77055f6d709c4ea8f3e601311f587c15",
+      "current_import_sha256": "13426531c236d6cf57d059fb3810a80571b80a48128f589ee2455de7c196de85",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe skill-lint as the shared skill rule set"
+      "import_reason": "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP surface tokens"
     },
     {
       "path": "src/botcore/commands/__init__.py",
@@ -1877,11 +1877,11 @@
       "path": "src/botcore/context.py",
       "upstream_sha256": null,
       "staged_sha256": "36060a185d437f6646c1577a45072821983de70a9f9c55a0ce09ee6b649fd195",
-      "current_import_sha256": "36060a185d437f6646c1577a45072821983de70a9f9c55a0ce09ee6b649fd195",
+      "current_import_sha256": "7fd02252939b3c0d153b977d0b69f68f2131d53deaaaf3d8b990b975546d6f47",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add the explicit task-local worktree/target context",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Add the remote-caller profile, profile effects and the per-call context"
     },
     {
       "path": "src/botcore/docs.py",
@@ -1897,21 +1897,21 @@
       "path": "src/botcore/host.py",
       "upstream_sha256": null,
       "staged_sha256": "d8ecdd977b3e243f030834d4508e8f60e9dd660d4d0ff9280a1f5b3b75b545ba",
-      "current_import_sha256": "5846b17d2883f87adbe0f571b52d6b7eda21a7c0d32e52d6e2b607600ac9bc4a",
+      "current_import_sha256": "6108ab56d184a7cad74b306745909d8f11ea280cba80a3c2685cd8d6a7257df8",
       "stage_classification": "added-in-staging",
       "stage_reason": "Add shared dispatch, effects policy and quality-verdict adapters",
       "import_classification": "modified-after-staging",
-      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection"
+      "import_reason": "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-declared policies that a host may only narrow, carry input schemas and one-line descriptions in the catalog, refuse wrong argument names; load config as an explicit plugin selection; resolve either spelling of a command name with closest-name refusals, serve kebab-case names on request, validate typed inputs, build a context per call, admit effects by profile"
     },
     {
       "path": "src/botcore/host_surfaces.py",
       "upstream_sha256": null,
       "staged_sha256": "9c9daa261ede670474aff53168b4d4095ad6a1b1b7371c46e595904fac0a806a",
-      "current_import_sha256": "32bf5a5863edfd06d73761d447035f44ba9956a8e40f98318db2d2ae060a2e1a",
+      "current_import_sha256": "5b9a9fab4c760afe00e3cfd5a889499cd76968405da8846e2f9d9755abcaf0e8",
       "stage_classification": "added-in-staging",
       "stage_reason": "Expose managed CLI/MCP through the shared host dispatcher",
       "import_classification": "modified-after-staging",
-      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs"
+      "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent"
     },
     {
       "path": "src/botcore/plugin.py",
@@ -3457,11 +3457,11 @@
       "path": "src/botcore/skills/docs-manager/SKILL.md",
       "upstream_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
       "staged_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
-      "current_import_sha256": "28c0cd3a6f88656482180b7a2cd1c06ea6dfe033cf13a402fcb24b07fd36f86d",
+      "current_import_sha256": "cd6d3ca2cb3ada73465c8f84fbaba36cf697b8062b695fbe570b00eaed2bce3e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779)"
+      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779); Add guidance for editing AI-assisted prose: substance first, formulas over word lists, rewrite instead of swapping, check meaning after a rewriting pass"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",
@@ -5257,11 +5257,11 @@
       "path": "tests/test_host.py",
       "upstream_sha256": null,
       "staged_sha256": "f733296254d5b30e0c723330fc238748876afe0a43c8935ff9ad331959081621",
-      "current_import_sha256": "d5ae56dcccdd79dd14da95346c842cf50cf232d4cd446d09d038f63104c7d045",
+      "current_import_sha256": "312dc6857e81657bce690d20ee0ff637e57883718dc5d4e9b758de2fa95f123e",
       "stage_classification": "added-in-staging",
       "stage_reason": "Exercise context isolation, route parity, effects and protocol safety",
       "import_classification": "modified-after-staging",
-      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases"
+      "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name"
     },
     {
       "path": "tests/test_info.py",

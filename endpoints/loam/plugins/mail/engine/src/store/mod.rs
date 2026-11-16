@@ -7,17 +7,32 @@
 //! its thread, where a thread shows, the search index) is in `derived`, and
 //! is written in the same transaction as the bytes it is read from.
 
+mod classes;
+mod decisions;
 mod derived;
 mod parts;
 mod read;
 mod remove;
 mod schema;
+mod screening;
+mod senders;
+mod stories;
 mod sync;
 mod tokens;
 
+pub use classes::{Class, ClassCounts, Readiness};
+pub use decisions::{
+    Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
+};
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use remove::{RemovalPreview, Removed};
+pub use screening::{Grouping, RECURRING, ScreeningCounts, ScreeningReport};
+pub use senders::{SenderPlace, SenderQuery, SenderRow, domain_of, sender_id};
+pub use stories::{
+    KINDS_SHOWN, KindRow, LEAST_MESSAGES, StoryChanges, StoryCursor, StoryMessage, StoryMessages,
+    StoryRow, USUAL_SHAPE,
+};
 pub use sync::{
     AccountRow, BodyWanted, MailboxRow, MailboxStatus, REFETCH_TRIES, Refetch, Refetched, Tried,
 };
@@ -321,6 +336,12 @@ impl Store {
         // Every statement of a batch is prepared once and kept.
         connection.set_prepared_statement_cache_capacity(128);
         schema::migrate(&mut connection, migrations)?;
+        // Mail held before classes existed is classed once (migration 8),
+        // and then given its stories (migration 9).
+        if migrations.len() >= schema::MIGRATIONS.len() {
+            classes::fill_if_marked(&mut connection)?;
+            stories::fill_if_marked(&mut connection)?;
+        }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.
         restrict_to_owner(&home.database().with_extension("sqlite3-wal"))?;
@@ -361,16 +382,33 @@ impl Store {
         address: &str,
         now: i64,
     ) -> Result<AccountId, StoreError> {
-        self.connection.execute(
+        let transaction = self.connection.transaction()?;
+        transaction.execute(
             "INSERT INTO account (provider, address, created_at) VALUES (?1, ?2, ?3)
              ON CONFLICT (provider, address) DO NOTHING",
             params![provider, address, now],
         )?;
-        Ok(AccountId(self.connection.query_row(
+        let id = AccountId(transaction.query_row(
             "SELECT id FROM account WHERE provider = ?1 AND address = ?2",
             params![provider, address],
             |row| row.get(0),
-        )?))
+        )?);
+        // The address is the person's from now on, and no sender's.
+        let turned = senders::settle_senders(
+            &transaction,
+            &std::collections::BTreeSet::from([address.to_lowercase()]),
+            now,
+        )?;
+        classes::settle(
+            &transaction,
+            &classes::Reclassify {
+                senders: Some(&turned),
+                ..Default::default()
+            },
+            now,
+        )?;
+        transaction.commit()?;
+        Ok(id)
     }
 
     /// Records a mailbox as the provider lists it: a new row, or the name and
@@ -382,8 +420,23 @@ impl Store {
         &mut self,
         account: AccountId,
         seen: &MailboxSeen<'_>,
+        now: i64,
     ) -> Result<MailboxId, StoreError> {
-        self.connection.execute(
+        let transaction = self.connection.transaction()?;
+        let was: Option<String> = transaction
+            .query_row(
+                "SELECT role FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
+                params![account.0, seen.provider_key],
+                |row| row.get(0),
+            )
+            .optional()?;
+        let was_sent = was.as_deref().map(|role| role == Role::Sent.as_str());
+        // Junk and trash are left out of the lists by class.
+        let unlisted = |role: &str| role == Role::Junk.as_str() || role == Role::Trash.as_str();
+        let listing_turned = was
+            .as_deref()
+            .is_some_and(|role| unlisted(role) != unlisted(seen.role.as_str()));
+        transaction.execute(
             "INSERT INTO mailbox (account_id, provider_key, name, role, header_only)
              VALUES (?1, ?2, ?3, ?4, ?5)
              ON CONFLICT (account_id, provider_key) DO UPDATE
@@ -397,11 +450,30 @@ impl Store {
                 seen.role.header_only()
             ],
         )?;
-        Ok(MailboxId(self.connection.query_row(
+        let id = MailboxId(transaction.query_row(
             "SELECT id FROM mailbox WHERE account_id = ?1 AND provider_key = ?2",
             params![account.0, seen.provider_key],
             |row| row.get(0),
-        )?))
+        )?);
+        // A mailbox that became a sent mailbox, or stopped being one, changes
+        // which messages are the person's (the specification's 7.1). That is
+        // rare: every sender is computed again.
+        if was_sent.is_some_and(|was| was != (seen.role == Role::Sent)) {
+            let turned = senders::settle_every_sender(&transaction, now)?;
+            classes::settle(
+                &transaction,
+                &classes::Reclassify {
+                    senders: Some(&turned),
+                    ..Default::default()
+                },
+                now,
+            )?;
+        }
+        if listing_turned {
+            classes::relist_mailbox(&transaction, id.0, now)?;
+        }
+        transaction.commit()?;
+        Ok(id)
     }
 
     /// The generation a mailbox's provider ids belong to, and its cursor.
@@ -457,6 +529,7 @@ impl Store {
         if closed > 0 {
             // One row for the mailbox: a view of it reads it again in full.
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
+            classes::relist_mailbox(&transaction, mailbox.0, now)?;
         }
         transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         // The mailbox shows nothing until it is listed again.
@@ -942,6 +1015,7 @@ fn record_header(
                 params![previous, now],
             )?;
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
+            senders::observed(transaction, mailbox.0, message, touched)?;
             outcome.changed += 1;
             // The provider's id may now name another message, and the flags
             // decide what is unread.
@@ -952,6 +1026,7 @@ fn record_header(
         }
         None => {
             observe(transaction, mailbox, validity, seen, message, &flags, now)?;
+            senders::observed(transaction, mailbox.0, message, touched)?;
             outcome.added += 1;
             derived::touch_place(transaction, mailbox.0, message, touched)?;
         }
@@ -1082,6 +1157,14 @@ fn restrict_to_owner(path: &std::path::Path) -> Result<(), StoreError> {
 }
 
 #[cfg(test)]
+mod classes_tests;
+#[cfg(test)]
 mod derived_tests;
+#[cfg(test)]
+mod senders_tests;
+#[cfg(test)]
+mod stories_tests;
+#[cfg(test)]
+mod test_mail;
 #[cfg(test)]
 mod tests;

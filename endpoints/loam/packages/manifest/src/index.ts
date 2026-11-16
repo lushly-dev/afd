@@ -36,7 +36,9 @@ export type {
 	DeploymentV1,
 	DeploymentV2,
 	DeploymentV3,
+	DeploymentV4,
 	DeploymentWorkspaceV2,
+	HostKindV1,
 	ManifestRead,
 	ManifestRefusal,
 	ManifestRefusalCode,
@@ -50,5 +52,6 @@ export type {
 	ProjectionV1,
 	ProjectionV2,
 	ProjectionV3,
+	ProjectionV4,
 	Refusal,
 } from './types.js';

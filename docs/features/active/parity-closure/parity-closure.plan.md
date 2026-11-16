@@ -1,5 +1,7 @@
 # Language Parity Closure Plan
 
+> **Current status (2026-11-13):** [STATUS.md](STATUS.md) records landed work and remaining gaps. The 2026-10-10 stabilization candidate below merged in #367; its unmerged/unpublished warnings are historical.
+
 ## Overview
 
 [`docs/language-parity.md`](../../../language-parity.md) rates every AFD capability for TypeScript, Python, Rust and C++. This plan closes its unintended gaps. It also asks for a decision on every gap that no plan declares, so each gap is either closed or recorded as intentional.
@@ -8,10 +10,10 @@
 |---|---|
 | Status | Active: accepted 2026-09-27, with every recommendation (D1–D8) |
 | Author | jasfalk |
-| Updated | 2026-10-10 |
+| Updated | 2026-11-13 (lifecycle reconciliation; dated wave snapshots retained) |
 | Tracks | [`docs/language-parity.md`](../../../language-parity.md) |
 | Supersedes | The name-only [Python parity plan](../python-parity/python-parity.plan.md) (see [Tracking](#tracking)). The Rust parity plan is marked complete in #289. |
-| Related | [Versioning and release plan](../versioning/versioning.plan.md), [C++ proposal](../../complete/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
+| Related | [Versioning and release plan](../../complete/versioning/versioning.plan.md), [C++ proposal](../../complete/cpp-support/proposal.md), [Rust support](../../proposed/rust-support/00-overview.md) |
 
 **Goal.** Every matrix row is **Yes**, **N/A** with a reason, or **Deferred** with a plan. All four languages consume every `spec/vectors` file in CI, and all four pass a protocol-level conformance tier.
 
@@ -93,7 +95,7 @@ TypeScript leads this wave. It is small and unblocks everything after it.
 | 1.4 | **`spec/vectors/batch-controls.json`,** from `packages/server/src/execution-controls.test.ts`. The C++ work plan already recommends this file. | S–M | Done in #317: 24 batch and 25 pipeline cases from `generate-batch-controls.mjs`, loaded by all four suites. Python and Rust envelope validation and Rust's pipeline deadline now match TypeScript. Candidate #314 aligns malformed AFD envelopes on MCP and POST `/batch` with core failed-batch results |
 | 1.5 | **Command metadata:** list the canonical fields in the spec. Fix the TypeScript split ([#275](https://github.com/lushly-dev/afd/issues/275)): core `CommandDefinition` and `defineCommand` both carry `destructive`, `confirmPrompt` and `undoable`, and `toCommandDefinition()` keeps them. | S (TS minor) | Done in #308: canonical fields in [`spec/command-metadata.md`](../../../../spec/command-metadata.md); `_meta`, afd-detail, afd-help, afd-docs and `afd tools` report `undoable` |
 | 1.6 | **One default reconnect policy.** The TypeScript client's fallback of 5 attempts becomes core's 3. | S | Done for TypeScript in #308. Python's handoff client also falls back to 5; see Wave 2 |
-| 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S | Open |
+| 1.7 | **Contract 1.0:** add the AFD contract version constant (see the [versioning plan](../../complete/versioning/versioning.plan.md#1-a-versioned-afd-contract)). Declare 1.0 once 1.1–1.4 pass in all four languages. | S | Open |
 
 The validation spec (1.3) covers:
 - stripping unknown keys;

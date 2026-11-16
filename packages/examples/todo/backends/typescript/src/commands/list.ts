@@ -8,15 +8,22 @@
 import type { Alternative } from '@lushly-dev/afd-core';
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
 
 const inputSchema = z.object({
+	deleted: z
+		.boolean()
+		.optional()
+		.describe(
+			'If true, list the deleted todos, which todo-restore brings back, instead of live ones'
+		),
 	completed: z.boolean().optional(),
 	priority: z.enum(['low', 'medium', 'high']).optional(),
 	search: z.string().optional(),
-	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title']).default('createdAt'),
+	sortBy: z.enum(['createdAt', 'updatedAt', 'priority', 'title', 'deletedAt']).default('createdAt'),
 	sortOrder: z.enum(['asc', 'desc']).default('desc'),
 	limit: z.number().int().min(1).max(100).default(20),
 	offset: z.number().int().min(0).default(0),
@@ -30,8 +37,10 @@ export interface ListResult {
 
 export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 	name: 'todo-list',
+	title: 'List todos',
 	description: 'List todos with optional filtering and pagination',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'list', 'read'],
 	mutation: false,
@@ -42,10 +51,14 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		total: z.number(),
 		hasMore: z.boolean(),
 	}),
-	contexts: ['todo-editing', 'todo-reading'],
 
+	examples: [
+		{ title: 'Open high-priority todos', input: { completed: false, priority: 'high' } },
+		{ title: 'Deleted todos, most recent first', input: { deleted: true, sortBy: 'deletedAt' } },
+	],
 	async handler(input) {
-		const todos = store.list({
+		const todos = await store.list({
+			deleted: input.deleted,
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
@@ -56,7 +69,8 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 		});
 
 		// Get total count for pagination
-		const allMatching = store.list({
+		const allMatching = await store.list({
+			deleted: input.deleted,
 			completed: input.completed,
 			priority: input.priority,
 			search: input.search,
@@ -67,6 +81,9 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 
 		// Build reasoning
 		const filters: string[] = [];
+		if (input.deleted) {
+			filters.push('deleted');
+		}
 		if (input.completed !== undefined) {
 			filters.push(input.completed ? 'completed' : 'pending');
 		}
@@ -87,13 +104,14 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 
 		if (isFiltered) {
 			// Get unfiltered results as an alternative
-			const allTodos = store.list({
+			const allTodos = await store.list({
+				deleted: input.deleted,
 				sortBy: input.sortBy,
 				sortOrder: input.sortOrder,
 				limit: input.limit,
 				offset: input.offset,
 			});
-			const allTotal = store.list({}).length;
+			const allTotal = (await store.list({ deleted: input.deleted })).length;
 
 			alternatives.push({
 				data: {
@@ -107,7 +125,8 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 
 			// If filtering by completed, offer the opposite
 			if (input.completed !== undefined) {
-				const oppositeTodos = store.list({
+				const oppositeTodos = await store.list({
+					deleted: input.deleted,
 					completed: !input.completed,
 					priority: input.priority,
 					search: input.search,
@@ -116,11 +135,14 @@ export const listTodos = defineCommand<typeof inputSchema, ListResult>({
 					limit: input.limit,
 					offset: input.offset,
 				});
-				const oppositeTotal = store.list({
-					completed: !input.completed,
-					priority: input.priority,
-					search: input.search,
-				}).length;
+				const oppositeTotal = (
+					await store.list({
+						deleted: input.deleted,
+						completed: !input.completed,
+						priority: input.priority,
+						search: input.search,
+					})
+				).length;
 
 				if (oppositeTotal > 0) {
 					alternatives.push({

@@ -108,6 +108,16 @@ pub(super) struct Touched {
     rebuild_cursor: Option<i64>,
     threads: BTreeSet<i64>,
     places: BTreeSet<(i64, i64)>,
+    /// Addresses whose sender row is computed again ([`super::senders`]).
+    pub(super) senders: BTreeSet<String>,
+    /// Messages derived, whose screening class is computed again
+    /// ([`super::classes`]).
+    pub(super) messages: BTreeSet<i64>,
+    /// Template keys a message gained or lost, whose count is computed again.
+    pub(super) templates: BTreeSet<Vec<u8>>,
+    /// Messages a mailbox started or stopped showing, whose place in the
+    /// lists by class is computed again.
+    pub(super) shown: BTreeSet<i64>,
     pub(super) documents: Vec<Document>,
 }
 
@@ -117,6 +127,10 @@ impl Touched {
             rebuild_cursor,
             threads: BTreeSet::new(),
             places: BTreeSet::new(),
+            senders: BTreeSet::new(),
+            messages: BTreeSet::new(),
+            templates: BTreeSet::new(),
+            shown: BTreeSet::new(),
             documents: Vec::new(),
         }
     }
@@ -160,29 +174,35 @@ pub(super) fn derive_header(
     header: &HeaderFields,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
-    let (first_seen, received): (i64, Option<i64>) = transaction.one(
+    let (first_seen, received_at): (i64, Option<i64>) = transaction.one(
         "SELECT first_seen_at, received_at FROM message WHERE id = ?1",
         [message],
         |row| Ok((row.get(0)?, row.get(1)?)),
     )?;
     // A sender writes the Date header, and can write one in the future to
     // stay on top of a list.
+    let received = received_at.unwrap_or(first_seen);
     let date = match header.sent_at {
         Some(sent) if sent <= first_seen.saturating_add(DATE_SLACK_MS) => sent,
-        _ => received.unwrap_or(first_seen),
+        _ => received,
     };
 
     // The message joins every thread that it names or that names it (5.6).
     // When that is more than one, they were one thread all along.
     let mut found: BTreeSet<i64> = BTreeSet::new();
-    let had: Option<i64> = transaction
+    let had: Option<(i64, String)> = transaction
         .one(
-            "SELECT thread_id FROM envelope WHERE message_id = ?1",
+            "SELECT thread_id, sender_address FROM envelope WHERE message_id = ?1",
             [message],
-            |row| row.get(0),
+            |row| Ok((row.get(0)?, row.get(1)?)),
         )
         .optional()?;
-    found.extend(had);
+    let derived_before = had.is_some();
+    if let Some((thread, sender)) = had {
+        found.insert(thread);
+        // A derivation that reads the sender otherwise moves the message.
+        touched.senders.insert(sender);
+    }
     for key in &header.keys {
         let named: Option<i64> = transaction
             .one(
@@ -192,6 +212,12 @@ pub(super) fn derive_header(
             )
             .optional()?;
         found.extend(named);
+    }
+    // A message of the person's derived again names whom it named before
+    // until the row below is replaced: those senders are computed again too.
+    let persons = super::senders::is_persons(transaction, message)?;
+    if persons && derived_before {
+        super::senders::touch_correspondents(transaction, message, touched)?;
     }
     // A thread's id is the lowest id of its messages, this one included.
     let thread = found
@@ -214,9 +240,10 @@ pub(super) fn derive_header(
         "INSERT INTO envelope
              (message_id, parser, thread_id, date, sent_at, sender_address, sender_name,
               subject, unparsed, list_id, unsubscribe, precedence, auto_submitted, reply_to,
-              reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head)
+              reply_to_differs, auth_server, auth_spf, auth_dkim, auth_dmarc, template_head,
+              message_key, answers_key, received, resent_from)
          VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17,
-                 ?18, ?19, ?20)
+                 ?18, ?19, ?20, ?21, ?22, ?23, ?24)
          ON CONFLICT (message_id) DO UPDATE SET
              parser = excluded.parser, thread_id = excluded.thread_id, date = excluded.date,
              sent_at = excluded.sent_at, sender_address = excluded.sender_address,
@@ -226,7 +253,9 @@ pub(super) fn derive_header(
              auto_submitted = excluded.auto_submitted, reply_to = excluded.reply_to,
              reply_to_differs = excluded.reply_to_differs, auth_server = excluded.auth_server,
              auth_spf = excluded.auth_spf, auth_dkim = excluded.auth_dkim,
-             auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head",
+             auth_dmarc = excluded.auth_dmarc, template_head = excluded.template_head,
+             message_key = excluded.message_key, answers_key = excluded.answers_key,
+             received = excluded.received, resent_from = excluded.resent_from",
         params![
             message,
             PARSER_VERSION,
@@ -247,9 +276,15 @@ pub(super) fn derive_header(
             authentication.spf,
             authentication.dkim,
             authentication.dmarc,
-            header.template_head.as_slice()
+            header.template_head.as_slice(),
+            header.message_key.as_ref().map(<[u8; 16]>::as_slice),
+            header.answers_key.as_ref().map(<[u8; 16]>::as_slice),
+            received,
+            header.resent_from
         ],
     )?;
+    super::senders::derive_recipients(transaction, message, header, persons, touched)?;
+    touched.messages.insert(message);
     touched.threads.insert(thread);
     let mut shown = transaction.prepare_cached(
         "SELECT DISTINCT mailbox_id FROM observation WHERE message_id = ?1 AND ended_at IS NULL",
@@ -281,10 +316,10 @@ pub(super) fn derive_body(
     body: BodyFields,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
-    type EnvelopeRow = (i64, i64, String, String, Option<Vec<u8>>);
+    type EnvelopeRow = (i64, i64, String, String, Option<Vec<u8>>, Option<Vec<u8>>);
     let row: Option<EnvelopeRow> = transaction
         .one(
-            "SELECT thread_id, date, sender_address, subject, template_head
+            "SELECT thread_id, date, sender_address, subject, template_head, template_key
              FROM envelope WHERE message_id = ?1",
             [message],
             |row| {
@@ -294,11 +329,12 @@ pub(super) fn derive_body(
                     row.get(2)?,
                     row.get(3)?,
                     row.get(4)?,
+                    row.get(5)?,
                 ))
             },
         )
         .optional()?;
-    let Some((thread, date, sender, subject, head)) = row else {
+    let Some((thread, date, sender, subject, head, had_template)) = row else {
         return Ok(());
     };
     // The template key needs the structure, which only the body gives.
@@ -324,6 +360,12 @@ pub(super) fn derive_body(
             body.body_shape.as_ref().map(<[u8; 16]>::as_slice)
         ],
     )?;
+    // The template it had and the one it has are counted again.
+    touched.templates.extend(had_template);
+    touched
+        .templates
+        .extend(template.as_ref().map(|key| key.to_vec()));
+    touched.messages.insert(message);
     transaction.run("DELETE FROM part WHERE message_id = ?1", [message])?;
     {
         let mut insert = transaction.prepare_cached(
@@ -452,6 +494,7 @@ pub(super) fn touch_place(
     message: i64,
     touched: &mut Touched,
 ) -> Result<(), StoreError> {
+    touched.shown.insert(message);
     let thread: Option<i64> = transaction
         .one(
             "SELECT thread_id FROM envelope WHERE message_id = ?1",
@@ -479,6 +522,17 @@ pub(super) fn settle(
     for (mailbox, thread) in &touched.places {
         compute_place(transaction, *mailbox, *thread)?;
     }
+    let turned = super::senders::settle_senders(transaction, &touched.senders, now)?;
+    super::classes::settle(
+        transaction,
+        &super::classes::Reclassify {
+            messages: Some(&touched.messages),
+            templates: Some(&touched.templates),
+            senders: Some(&turned),
+            shown: Some(&touched.shown),
+        },
+        now,
+    )?;
     Ok(())
 }
 
@@ -889,12 +943,16 @@ impl Store {
         transaction.execute_batch(
             "DELETE FROM part;
              DELETE FROM link;
+             DELETE FROM recipient;
+             DELETE FROM sender;
              DELETE FROM thread_place;
              DELETE FROM thread;
              DELETE FROM thread_key;
              DELETE FROM envelope;
              DELETE FROM index_pending;",
         )?;
+        transaction.execute_batch(super::classes::CLEAR)?;
+        transaction.execute_batch(super::stories::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;
@@ -1041,6 +1099,7 @@ impl Store {
             self.commit_index()?;
             let transaction = self.connection.transaction()?;
             transaction.execute("DELETE FROM engine_state WHERE key = ?1", [REBUILD])?;
+            transaction.execute_batch(&super::stories::prune_sql())?;
             note_change(&transaction, now, "rebuilt", 0)?;
             transaction.commit()?;
             return Ok(RebuildProgress {

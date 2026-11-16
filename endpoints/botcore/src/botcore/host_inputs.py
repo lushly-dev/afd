@@ -18,7 +18,7 @@ from functools import lru_cache
 from typing import Any
 
 from afd import CommandResult, error
-from pydantic import TypeAdapter
+from pydantic import TypeAdapter, ValidationError
 from pydantic.json_schema import PydanticJsonSchemaWarning
 from pydantic_core import to_jsonable_python
 
@@ -215,4 +215,71 @@ def check_arguments(name: str, handler: Callable, arguments: dict) -> CommandRes
         f"{name} {' and '.join(problems)}",
         suggestion=advice[0].upper() + advice[1:],
         details=details,
+    )
+
+
+@lru_cache(maxsize=1024)
+def _adapters(handler: Callable) -> dict[str, TypeAdapter]:
+    """A validator per annotated keyword input. A hint that did not resolve, or one
+    Pydantic cannot build a validator for, is left unchecked, as the catalog leaves it
+    undescribed."""
+    adapters = {}
+    for name, parameter in _signature(handler).parameters.items():
+        annotation = parameter.annotation
+        if parameter.kind not in _KEYWORD or annotation is inspect.Parameter.empty:
+            continue
+        if isinstance(annotation, str):
+            continue
+        try:
+            adapters[name] = TypeAdapter(annotation)
+        except Exception:
+            continue
+    return adapters
+
+
+def _location(name: str, loc: tuple) -> str:
+    path = name
+    for part in loc:
+        path += f"[{part}]" if isinstance(part, int) else f".{part}"
+    return path
+
+
+def validate_arguments(
+    name: str, handler: Callable, arguments: dict
+) -> tuple[dict, CommandResult | None]:
+    """Validate each input against its type hint, as the catalog's schema describes it.
+
+    Returns the validated arguments (a Pydantic model hint arrives as the model, a
+    ``list[int]`` as a list of ints) or a VALIDATION_ERROR whose ``details.invalidFields``
+    names each bad field by its path (``holder.branch``) and what is wrong with it.
+    Validation is Pydantic's lax mode, so a number sent as a JSON string is accepted.
+    """
+    try:
+        adapters = _adapters(handler)
+    except TypeError:  # An unhashable callable is described afresh each time.
+        adapters = _adapters.__wrapped__(handler)
+    validated = dict(arguments)
+    invalid: list[dict[str, str]] = []
+    for key, value in arguments.items():
+        adapter = adapters.get(key)
+        if adapter is None:
+            continue
+        try:
+            validated[key] = adapter.validate_python(value)
+        except ValidationError as exc:
+            invalid += [
+                {"field": _location(key, tuple(problem["loc"])), "problem": problem["msg"]}
+                for problem in exc.errors(include_url=False)
+            ]
+        except Exception:  # A hint Pydantic cannot validate (a forward reference it cannot
+            continue  # resolve) leaves the input unchecked, as the catalog leaves it undescribed.
+    if not invalid:
+        return validated, None
+    shown = "; ".join(f"{entry['field']}: {entry['problem']}" for entry in invalid[:5])
+    more = f" (and {len(invalid) - 5} more)" if len(invalid) > 5 else ""
+    return arguments, error(
+        "VALIDATION_ERROR",
+        f"{name} got invalid input: {shown}{more}",
+        suggestion=f"Send the inputs {name}'s input_schema in the host catalog describes",
+        details={"invalidFields": invalid},
     )

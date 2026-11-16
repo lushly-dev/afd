@@ -154,7 +154,7 @@ pub(crate) fn create_private_dir(path: &Path) -> io::Result<()> {
 }
 
 /// Closes an existing directory to everyone but its owner.
-fn make_private_dir(path: &Path) -> io::Result<()> {
+pub(crate) fn make_private_dir(path: &Path) -> io::Result<()> {
     #[cfg(unix)]
     {
         use std::os::unix::fs::PermissionsExt;

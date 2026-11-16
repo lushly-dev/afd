@@ -63,8 +63,8 @@ Every session PR ends merged, or closed with a recorded reason.
   equivalent change; close a redundant PR as superseded.
 - **Red CI** goes back through `prepare-pr`, which owns push and update.
 - **Merge only when the user authorized it**, through `prepare-pr`'s merge step.
-  `main` has no required checks, so bind the merge to the head whose checks you
-  verified: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
+  Branch protection requires only `ci-ok`, which a newer green head also passes,
+  so bind the merge to the head whose checks you verified: `gh pr merge <n> --squash --match-head-commit <sha>`, with the full
   40-character SHA (a short one is rejected).
 - **A wait that would block the close-out indefinitely** switches to `park`.
 
@@ -85,7 +85,7 @@ naming the PR, who validates it and what they check.
   there, since nobody rereads a dated document. A living document (a `STATUS.md`, a
   specification's status block, a feature plan) keeps its follow-ups table.
 - **Durable knowledge** goes to its owner: repository conventions to the owning
-  skill under `.claude/skills/` (`.codex/skills` mirrors it; a Botcore projection is
+  skill under `.claude/skills/` (`.agents/skills` mirrors it; a Botcore projection is
   edited at its canonical source, per `manage-skills`), cross-session facts to memory.
   Capture only what a future session cannot cheaply re-derive.
 - **Close the task.** Verify that the PR itself updated the `docs/features/` plan or

@@ -1,0 +1,24 @@
+{
+	"$command": "loan-return",
+	"$input": {
+		"id": "loan-1",
+		"savedSeed": {
+			"packets": 3,
+			"harvestYear": 2029
+		}
+	},
+	"success": true,
+	"data": {
+		"id": "loan-1",
+		"status": "returned",
+		"returnedAt": "2030-03-09T10:00:00Z",
+		"lot": {
+			"id": "lot-borlotti-29-r1",
+			"packets": 3
+		}
+	},
+	"undoCommand": "loan-reopen",
+	"undoArgs": {
+		"id": "loan-1"
+	}
+}

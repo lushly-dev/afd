@@ -4,6 +4,10 @@ import { violetSurfaceTokenDefaults } from "../theme/violet-token-defaults";
 
 let violetTooltipId = 0;
 
+function describedBy(element: Element): string[] {
+    return (element.getAttribute("aria-describedby") ?? "").split(/\s+/).filter(Boolean);
+}
+
 const styles = css`
     ${violetSurfaceTokenDefaults}
 
@@ -109,7 +113,7 @@ const template = html<VioletTooltip>`
         role="tooltip"
         popover="hint"
     >
-        <slot name="content">${x => x.content}</slot>
+        <slot name="content" @slotchange="${x => x.syncDescription()}">${x => x.content}</slot>
     </div>
 `;
 
@@ -139,6 +143,10 @@ export class VioletTooltip extends FASTElement {
     #triggerElement: Element | null = null;
     #externalAnchor: HTMLElement | null = null;
     #externalListenersAttached = false;
+    /** The ids this tooltip added to its trigger's aria-describedby, so it removes only those. */
+    #describedByIds: string[] = [];
+    /** The aria-description this tooltip set on its trigger. */
+    #description: string | null = null;
 
     public constructor() {
         super();
@@ -175,6 +183,7 @@ export class VioletTooltip extends FASTElement {
         if (tooltip) {
             tooltip.addEventListener("mouseenter", this.#handleTooltipMouseEnter);
             tooltip.addEventListener("mouseleave", this.#handleTooltipMouseLeave);
+            tooltip.addEventListener("toggle", this.#handleToggle);
         }
 
         this.#resolveExternalAnchor();
@@ -206,20 +215,72 @@ export class VioletTooltip extends FASTElement {
         if (this.$fastController.isConnected) {
             this.#detachExternalListeners();
             this.#resolveExternalAnchor();
+            if (!this.#externalListenersAttached) {
+                this.handleSlotChange();
+            }
         }
     }
 
+    public contentChanged(): void {
+        this.syncDescription();
+    }
+
     public handleSlotChange(): void {
+        if (this.#externalListenersAttached) {
+            return;
+        }
         const slot = this.shadowRoot?.querySelector("slot:not([name])") as HTMLSlotElement | null;
         const assigned = slot?.assignedElements({ flatten: true }) ?? [];
-        if (this.#triggerElement instanceof HTMLElement && !this.#externalListenersAttached) {
-            this.#triggerElement.removeAttribute("aria-describedby");
-        }
+        this.#clearDescription();
         this.#triggerElement = assigned[0] ?? null;
+        this.syncDescription();
+    }
 
-        if (this.#triggerElement) {
-            this.#triggerElement.setAttribute("aria-describedby", this.tooltipId);
+    /**
+     * Describes the trigger with content in the trigger's own tree, since an id inside this
+     * tooltip's shadow root does not resolve from outside it: elements slotted into `content` are
+     * named in aria-describedby, and the `content` attribute alone becomes aria-description.
+     */
+    public syncDescription(): void {
+        const trigger = this.#triggerElement;
+        this.#clearDescription();
+        if (!trigger) {
+            return;
         }
+
+        const slot = this.shadowRoot?.querySelector('slot[name="content"]') as HTMLSlotElement | null;
+        const slotted = slot?.assignedElements({ flatten: true }) ?? [];
+        if (slotted.length > 0) {
+            const ids = slotted.map((element, index) => {
+                if (!element.id) {
+                    element.id = `${this.tooltipId}-content-${index}`;
+                }
+                return element.id;
+            });
+            const own = describedBy(trigger).filter(id => !ids.includes(id));
+            trigger.setAttribute("aria-describedby", [...own, ...ids].join(" "));
+            this.#describedByIds = ids;
+        } else if (this.content) {
+            trigger.setAttribute("aria-description", this.content);
+            this.#description = this.content;
+        }
+    }
+
+    #clearDescription(): void {
+        const trigger = this.#triggerElement;
+        if (trigger && this.#describedByIds.length > 0) {
+            const rest = describedBy(trigger).filter(id => !this.#describedByIds.includes(id));
+            if (rest.length > 0) {
+                trigger.setAttribute("aria-describedby", rest.join(" "));
+            } else {
+                trigger.removeAttribute("aria-describedby");
+            }
+        }
+        if (trigger && this.#description !== null && trigger.getAttribute("aria-description") === this.#description) {
+            trigger.removeAttribute("aria-description");
+        }
+        this.#describedByIds = [];
+        this.#description = null;
     }
 
     #resolveExternalAnchor(): void {
@@ -232,10 +293,11 @@ export class VioletTooltip extends FASTElement {
             return;
         }
 
+        this.#clearDescription();
         this.#externalAnchor = external;
         this.#triggerElement = external;
         external.style.setProperty("anchor-name", "--violet-tooltip-anchor");
-        external.setAttribute("aria-describedby", this.tooltipId);
+        this.syncDescription();
 
         external.addEventListener("mouseenter", this.#handleMouseEnter);
         external.addEventListener("mouseleave", this.#handleMouseLeave);
@@ -253,9 +315,10 @@ export class VioletTooltip extends FASTElement {
         this.#triggerElement.removeEventListener("mouseleave", this.#handleMouseLeave);
         this.#triggerElement.removeEventListener("focusin", this.#handleFocusIn);
         this.#triggerElement.removeEventListener("focusout", this.#handleFocusOut);
-        this.#triggerElement.removeAttribute("aria-describedby");
+        this.#clearDescription();
         this.#externalAnchor.style.removeProperty("anchor-name");
         this.#externalAnchor = null;
+        this.#triggerElement = null;
         this.#externalListenersAttached = false;
     }
 
@@ -284,6 +347,17 @@ export class VioletTooltip extends FASTElement {
         this.#hideTimeout = setTimeout(() => {
             this.open = false;
         }, 100);
+    };
+
+    /**
+     * The browser closes a hint popover itself, on Escape or a light dismiss. Follow it, so `open`
+     * says what is shown and the next hover or focus shows the tooltip again.
+     */
+    #handleToggle = (event: Event): void => {
+        if ((event as ToggleEvent).newState === "closed" && this.open) {
+            this.#clearTimers();
+            this.open = false;
+        }
     };
 
     #handleFocusIn = (): void => {

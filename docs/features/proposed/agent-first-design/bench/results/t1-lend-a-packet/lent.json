@@ -1,0 +1,25 @@
+{
+	"$command": "loan-create",
+	"$input": {
+		"memberId": "mem-ines",
+		"varietyId": "var-borlotti"
+	},
+	"success": true,
+	"data": {
+		"id": "loan-2",
+		"status": "out",
+		"lentAt": "2030-03-09T10:00:00Z",
+		"lot": {
+			"id": "lot-borlotti-29",
+			"harvestYear": 2029,
+			"germination": {
+				"estimate": 0.9,
+				"basis": "tested"
+			}
+		}
+	},
+	"undoCommand": "loan-cancel",
+	"undoArgs": {
+		"id": "loan-2"
+	}
+}

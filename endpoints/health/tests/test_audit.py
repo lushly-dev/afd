@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -231,19 +232,80 @@ class HealthFixture(unittest.TestCase):
         )
         self.assertEqual(self.run_check("node_version_alignment")["status"], "passed")
 
+    def link(self, relative, target):
+        path = self.repo / relative
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.symlink_to(target)
+
     def test_live_skill_mirror(self):
         self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
-        (self.repo / ".codex").mkdir()
-        (self.repo / ".codex/skills").symlink_to("../.claude/skills")
-        self.assertEqual(self.run_check("codex_skills_mirror")["status"], "passed")
+        self.link(".agents/skills", "../.claude/skills")
+        self.assertEqual(self.run_check("agent_skills_mirror")["status"], "passed")
+
+    def test_legacy_codex_mirror_warns(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.link(".codex/skills", "../.claude/skills")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "warn")
+        self.assertIn(".agents/skills", result["remediation"])
+
+    def test_leftover_codex_beside_live_mirror_warns(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.link(".agents/skills", "../.claude/skills")
+        self.write(".codex/skills/shared/SKILL.md", "# Stale\n")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "warn")
+        self.assertIn("Remove .codex/skills", result["remediation"])
 
     def test_missing_and_divergent_mirror(self):
         self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
-        self.assertEqual(self.run_check("codex_skills_mirror")["status"], "failed")
-        self.write(".codex/skills/shared/SKILL.md", "# Different\n")
-        result = self.run_check("codex_skills_mirror")
+        self.assertEqual(self.run_check("agent_skills_mirror")["status"], "failed")
+        self.write(".agents/skills/shared/SKILL.md", "# Different\n")
+        result = self.run_check("agent_skills_mirror")
         self.assertEqual(result["status"], "failed")
         self.assertIn("Divergent", result["message"])
+        self.write(".agents/skills/extra/SKILL.md", "# Extra\n")
+        self.assertIn("Mirror-only items", self.run_check("agent_skills_mirror")["message"])
+
+    def test_identical_copy_and_other_link_are_not_live(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.write(".agents/skills/shared/SKILL.md", "# Shared\n")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("exists separately", result["message"])
+        shutil.rmtree(self.repo / ".agents")
+        self.write("elsewhere/shared/SKILL.md", "# Shared\n")
+        self.link(".agents/skills", "../elsewhere")
+        self.assertIn("exists separately", self.run_check("agent_skills_mirror")["message"])
+
+    def test_file_or_dangling_mirror_is_not_a_directory(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.write(".agents/skills", "../.claude/skills")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("not a directory mirror", result["message"])
+        (self.repo / ".agents/skills").unlink()
+        self.link(".agents/skills", "../.claude/missing")
+        self.assertIn("not a directory mirror", self.run_check("agent_skills_mirror")["message"])
+
+    def test_missing_canonical_skills(self):
+        self.link(".agents/skills", "../.claude/skills")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn(".claude/skills/", result["message"])
+
+    def test_escaping_mirror_is_unavailable(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.link(".agents/skills", str(self.root))
+        self.assertEqual(self.run_check("agent_skills_mirror")["status"], "unavailable")
+
+    def test_divergent_legacy_mirror_points_at_agents(self):
+        self.write(".claude/skills/shared/SKILL.md", "# Shared\n")
+        self.write(".codex/skills/shared/SKILL.md", "# Different\n")
+        result = self.run_check("agent_skills_mirror")
+        self.assertEqual(result["status"], "failed")
+        self.assertIn("Divergent", result["message"])
+        self.assertIn("create .agents/skills", result["remediation"])
 
     def test_declared_input_outside_the_target_is_unavailable(self):
         outside = self.root / "outside.txt"

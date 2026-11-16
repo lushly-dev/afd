@@ -4,6 +4,8 @@
 
 import { defineCommand, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
+import { TodoStatsSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { TodoStats } from '../types.js';
 
@@ -11,8 +13,10 @@ const inputSchema = z.object({});
 
 export const getStats = defineCommand<typeof inputSchema, TodoStats>({
 	name: 'todo-stats',
-	description: 'Get todo statistics',
+	title: 'Todo statistics',
+	description: 'Compute counts of the live todos by status and priority, and the completion rate',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'stats', 'read', 'safe'],
 	requires: ['todo-list'],
@@ -20,8 +24,10 @@ export const getStats = defineCommand<typeof inputSchema, TodoStats>({
 	version: '1.0.0',
 	input: inputSchema,
 
+	output: TodoStatsSchema,
+	examples: [{ title: 'Counts by status and priority', input: {} }],
 	async handler() {
-		const stats = store.getStats();
+		const stats = await store.getStats();
 
 		// Build reasoning with summary
 		const parts: string[] = [];

@@ -119,7 +119,7 @@ async function signInWithPassword(page: Page, email: string): Promise<void> {
 	const dialog = shadow(page, 'loam-sign-in-dialog');
 	await dialog.locator('#email').fill(email);
 	await dialog.locator('#password').fill(PASSWORD);
-	await dialog.locator('button[type="submit"]').click();
+	await dialog.getByRole('button', { name: 'Sign in with a password' }).click();
 	await page.waitForFunction(
 		() => (document.querySelector('loam-shell') as unknown as { account: string }).account !== ''
 	);
@@ -177,9 +177,11 @@ describe('P3-E1: a person signs in with a passkey, through a test-only auth host
 		const credentials = await authenticator.credentials();
 		expect(credentials).toHaveLength(1);
 		beaCredential = credentials[0];
-		// Signed out through the account menu.
+		// Signed out through the account menu (its "Sign out", after "Account" since step 4).
 		await shadow(page.page, 'loam-titlebar .account').click();
-		await shadow(page.page, 'loam-account-menu [role="menuitem"]').click();
+		await shadow(page.page, 'loam-account-menu')
+			.getByRole('menuitem', { name: 'Sign out' })
+			.click();
 		await page.page.waitForFunction(
 			() => (document.querySelector('loam-shell') as unknown as { account: string }).account === ''
 		);
@@ -332,11 +334,54 @@ describe('P3-E11: the sign-in dialog and the account menu, under axe and by keyb
 		await page.page.keyboard.press('Enter');
 		await shadow(page.page, 'loam-account-menu [role="menu"]').waitFor();
 		expect(await button.getAttribute('aria-expanded')).toBe('true');
-		expect((await focused(page.page)).role).toBe('menuitem');
+		// The persona switch's first item, `default` (phase 3 specification, step 5).
+		expect((await focused(page.page)).role).toBe('menuitemradio');
 		expect(await axe(page.page)).toEqual([]);
 		await page.page.keyboard.press('Escape');
 		expect(await button.getAttribute('aria-expanded')).toBe('false');
 		expect((await focused(page.page)).label).toBe('Bea');
+	});
+});
+
+describe('P3-E2: the persona switch in the account menu (6.3, 14)', () => {
+	it('P3-E2: a group of menuitemradio, default checked; choosing one switches, announces it and titles the account button', async () => {
+		const page = await open();
+		await signInWithPassword(page.page, BEA);
+		const made = (await kernelCall(page.page, 'persona-create', { title: 'Reviewer' })) as {
+			data: { id: string };
+		};
+		const button = shadow(page.page, 'loam-titlebar .account');
+		await button.focus();
+		await page.page.keyboard.press('Enter');
+		const radios = shadow(page.page, 'loam-account-menu [role="menuitemradio"]');
+		await radios.first().waitFor();
+		expect(
+			await shadow(page.page, 'loam-account-menu [role="group"]').getAttribute('aria-label')
+		).toBe('Persona');
+		expect((await radios.allTextContents()).map((text) => text.trim())).toEqual([
+			'Default',
+			'Reviewer',
+		]);
+		expect(await radios.nth(0).getAttribute('aria-checked')).toBe('true');
+		expect(await radios.nth(1).getAttribute('aria-checked')).toBe('false');
+		expect(await axe(page.page)).toEqual([]);
+		await page.page.keyboard.press('ArrowDown');
+		expect((await focused(page.page)).label).toBe('Reviewer');
+		await page.page.keyboard.press('Enter');
+		await page.page.waitForFunction(
+			() =>
+				document.querySelector('loam-shell')?.shadowRoot?.querySelector('.announce')
+					?.textContent === 'Persona: Reviewer'
+		);
+		expect((await button.textContent())?.trim()).toBe('Bea · Reviewer');
+		expect((await focused(page.page)).label).toBe('Bea · Reviewer');
+		const listed = (await kernelCall(page.page, 'persona-list')) as { data: { active: string } };
+		expect(listed.data.active).toBe(made.data.id);
+		// Open again: the switch shows the active one checked.
+		await button.click();
+		await radios.first().waitFor();
+		expect(await radios.nth(1).getAttribute('aria-checked')).toBe('true');
+		await page.page.keyboard.press('Escape');
 	});
 });
 

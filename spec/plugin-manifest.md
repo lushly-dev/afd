@@ -9,8 +9,8 @@ a reader that knows the core reads the shared part of either file. Which languag
 [Implementation status](#implementation-status).
 
 Every rule here is new and normative. **MUST**, **MUST NOT**, **SHOULD** and **MAY** are used as in
-RFC 2119. The [shared plugin manifest proposal](../docs/features/active/plugin-manifest/plugin-manifest.proposal.md)
-explains why, and tracks progress in its [status](../docs/features/active/plugin-manifest/STATUS.md).
+RFC 2119. The [shared plugin manifest proposal](../docs/features/complete/plugin-manifest/plugin-manifest.proposal.md)
+explains why, and tracks progress in its [status](../docs/features/complete/plugin-manifest/STATUS.md).
 Decision numbers carry their unit: "Umbel D37", "Loam D10".
 
 The spelling is snake_case. A file is TOML or JSON, read as JSON. The manifest is untrusted input: a
@@ -351,7 +351,7 @@ cannot forge it.
 
 The cases run on Ajv 8.20's 2020-12 build in Node in `scripts/plugin-manifest.test.mjs`. They were also
 run once, on 2026-11-01, on the Rust `jsonschema` crate 0.60.2; the instances and the results are in
-[the status](../docs/features/active/plugin-manifest/STATUS.md#step-1-verification). The two agreed on
+[the status](../docs/features/complete/plugin-manifest/STATUS.md#step-1-verification). The two agreed on
 every answer and on the keys each refusal names, for profiles written as P1 says. What a reader needs
 to know:
 
@@ -409,7 +409,7 @@ A `pointer` is an RFC 6901 JSON Pointer, so `/` in a key is written `~1`.
 
 | Reader | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| Loads [`plugin-manifest.json`](./plugin-manifest.json) | The cases and a reference check of the rules, in `scripts/plugin-manifest.test.mjs` | No reader ([intended](../docs/language-parity.md#intended-differences)) | Checked once with `jsonschema` 0.60.2 ([status](../docs/features/active/plugin-manifest/STATUS.md)); a permanent test is Umbel's choice | No reader ([intended](../docs/language-parity.md#intended-differences)) |
+| Loads [`plugin-manifest.json`](./plugin-manifest.json) | The cases and a reference check of the rules, in `scripts/plugin-manifest.test.mjs` | No reader ([intended](../docs/language-parity.md#intended-differences)) | Checked once with `jsonschema` 0.60.2 ([status](../docs/features/complete/plugin-manifest/STATUS.md)); a permanent test is Umbel's choice | No reader ([intended](../docs/language-parity.md#intended-differences)) |
 | Reads a profile | Loam's, by `@lushly-dev/loam-manifest` | No | Umbel's, without the core | No |
 
 No AFD package reads a manifest. Umbel's host reads its own profile, and Loam's kernel will read its,

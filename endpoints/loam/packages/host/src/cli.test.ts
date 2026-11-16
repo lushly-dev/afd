@@ -44,9 +44,9 @@ describe('loam-host check (3.8)', () => {
 		]);
 		expect(code).toBe(1);
 		expect(result.success).toBe(false);
-		expect(result.error.code).toBe('HOST_DEPLOYMENT_KIND');
+		// A `local` deployment for the hosted server: `start` refuses it (3.3).
+		expect(result.error.code).toBe('HOST_IDENTITY_LOCAL');
 		expect(result.error.details.refusals.map(({ code }: { code: string }) => code)).toEqual([
-			'HOST_DEPLOYMENT_KIND',
 			'HOST_IDENTITY_LOCAL',
 		]);
 		expect(readdirSync(join(root, 'data'))).toEqual([]);
@@ -89,7 +89,7 @@ describe('loam-host doctor, its read-only part (3.8)', () => {
 		const { code, result } = await run(['doctor', '--server', server, '--deployment', deployment]);
 		lock.release();
 		expect(code).toBe(1);
-		expect(result.error.code).toBe('HOST_DEPLOYMENT_KIND');
+		expect(result.error.code).toBe('HOST_IDENTITY_LOCAL');
 		const report = result.error.details;
 		expect(report.lock).toEqual(lock.info);
 		expect(report.files.filter(({ path }: { path: string }) => !path.endsWith('-journal'))).toEqual(

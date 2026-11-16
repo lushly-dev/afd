@@ -1,6 +1,6 @@
 """A world read from a software-factory scenario fixture, persisting its writes.
 
-The fixture format is the one in ``docs/features/proposed/software-factory/scenarios/fixtures``
+The fixture format is the one in ``docs/features/active/software-factory/scenarios/fixtures``
 (``fresh.json`` is every fixture's base). ``split_fixture`` separates what is outside the lane
 (GitHub, git, the clock, the machine, plans) from the lane's own state, which the harness seeds
 into a ``StateStore``. ``FixtureWorld`` keeps the outside part in one JSON file and rewrites it

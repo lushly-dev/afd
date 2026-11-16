@@ -1,0 +1,26 @@
+{
+	"$command": "loan-list",
+	"$input": {
+		"varietyId": "var-borlotti"
+	},
+	"success": true,
+	"data": {
+		"loans": [
+			{
+				"id": "loan-1",
+				"member": {
+					"id": "mem-tobias",
+					"name": "Tobias Reed",
+					"number": "M-027"
+				},
+				"variety": {
+					"id": "var-borlotti",
+					"name": "Borlotti bean"
+				},
+				"lentAt": "2029-04-14T10:30:00Z",
+				"status": "returned"
+			}
+		],
+		"total": 1
+	}
+}

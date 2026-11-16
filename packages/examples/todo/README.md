@@ -10,6 +10,12 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
 - **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust and C++ backends keep their data in memory).
 - **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all four backends.
+- **Shared metadata**: [commands.schema.json](./spec/commands.schema.json) gives each command's
+  `mutation`, `destructive`, `contexts` and `confirmPrompt`, and every backend's tests check that
+  its definitions match.
+
+This example is being brought up to date with current AFD; the plan and its progress are in
+[docs/features/active/todo-reference](../../../docs/features/active/todo-reference/STATUS.md).
 
 The TypeScript commands explicitly set `expose: { mcp: true }`. AFD commands are
 private to external MCP clients by default, so every command intended for a remote
@@ -57,7 +63,11 @@ pnpm test:conformance:cpp
 
 The runner spawns the TypeScript, Python and C++ backends over stdio with `TODO_STORE_TYPE=memory`,
 and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
-case in [spec/test-cases.json](./spec/test-cases.json) and exits non-zero if any case fails.
+case in [spec/test-cases.json](./spec/test-cases.json) that the backend's language implements and
+exits non-zero if any case fails. The TypeScript backend also has an approval suite
+(`pnpm test:conformance:ts --suite approvals`) and a run of AFD's own `validate --surface
+--strict` and `scenario run` against it (`pnpm test:scenarios:ts`); the
+[spec README](./spec/README.md) explains each.
 
 ### 3. Start a Backend (Manual)
 
@@ -76,15 +86,20 @@ uv run --project backends/python todo-server
 
 ### 4. Start a Frontend
 
-**Vanilla JS:**
+**The page, on FAST-AF and violet-elements** (`frontends/fast-af`, http://localhost:5173):
 
 ```bash
-pnpm dev:web
+pnpm dev:ts      # the TypeScript backend on http://localhost:3100
+pnpm dev:web     # the page
 ```
 
-**React:**
+`?backend=http://host:port` points the page at another backend.
+
+**The same page in React 19** (`frontends/react`, http://localhost:5174), on the same elements and
+shared modules:
 
 ```bash
+pnpm dev:ts
 pnpm dev:react
 ```
 
@@ -95,10 +110,13 @@ The TypeScript and Python backends support file-based storage (default) or in-me
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory |
-| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file. A custom path starts empty. |
+| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory, `sqlite` (TypeScript) for a SQLite database through `@lushly-dev/local-db` |
+| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file, or to the database (`data/todos.db`). A custom path starts empty. |
 
-`data/todos.json` is gitignored, so running the example does not change the working tree.
+`data/todos.json` is gitignored, so running the example does not change the working tree. The
+TypeScript backend also keeps deleted todos in `data/todos.deleted.json` and the change history in
+`data/todos.history.json` beside it, so the Python backend, which reads only `todos.json`, never
+shows a deleted todo as live.
 When it is missing, the stores create it from the committed seed `data/todos.seed.json`; delete
 it to reset. Writes are atomic (temporary file + rename), and a file that is not valid JSON is
 reported as an error instead of being treated as empty.
@@ -110,48 +128,58 @@ File-based storage enables:
 
 ## Frontend Features
 
-Both Vanilla JS and React frontends demonstrate AFD UX principles:
+The page, in FAST-AF (`frontends/fast-af`) and in React (`frontends/react`), is a thin surface:
+every action is a backend command over MCP on `/mcp` (Streamable HTTP), and everything it shows
+comes from those commands' results. Its state and actions, the elements it registers, its theme
+and its styles live in plain modules (`frontends/shared`), so the two frontends differ only in how
+they render, and one browser suite (`frontends/shared/test/page-suite.ts`) runs against both.
 
-### Trust & Transparency
-- **Toast Notifications**: Show command results with confidence bars, execution time, and warnings
-- **TrustPanel**: Displays confidence scores, reasoning, sources, and execution plans
-- **CommandLog**: Real-time log of all MCP command calls
+- **Trust:** the last result's confidence (`violet-progress`), reasoning, warnings, sources and
+  alternatives, and the undo it names.
+- **Undo:** after each change, a `violet-snackbar` offers Undo, which runs the `undoCommand` and
+  `undoArgs` the result named. Deleted todos have their own list, with Restore.
+- **Approvals in the page:** the page's MCP client declares form elicitation, so when the server
+  holds `todo-clear` for a person, it asks the page, which shows a `violet-approval-card` and
+  answers with the person's choice. Denying keeps everything and shows the error's suggestion.
+- **Errors:** a `violet-alert` with the code, the message, the suggestion and Retry when the
+  error is retryable.
+- **Recent changes:** `todo-history`, with Undo on each change still the latest to its todos.
+- **Command log:** every command the page ran, with its input and result
+  (`violet-tool-call-card`).
+- **Other clients:** the page polls `todo-history` every 3 seconds and says when another client
+  changed the todos. Without sign-in, the server counts every page and MCP client as an agent.
+- **View state an agent can drive:** the filter (status, priority, search) is view state
+  (`@lushly-dev/afd-view-state`), served in the page as `view-state-get` and `view-state-set` on
+  `todo-filter`. A person's filter controls and an agent's commands change the same state, and
+  the list follows (job 6). Phase 4's in-page copilot calls them.
 
-### User Control
-- **ConfirmModal**: Confirmation dialogs for destructive operations (delete, clear)
-- **ErrorRecovery**: Error panels with retry functionality and actionable suggestions
-- **Batch Operations**: Select all, toggle selected, delete selected
-
-### Multi-Surface Awareness
-- **Remote Change Detection**: Polls every 3 seconds for external changes
-- **Batched Notifications**: Groups multiple changes into single toast (e.g., "4 items added")
-- **Source Indicators**: Shows "🌐 Remote change" for changes from CLI/MCP
-
-### Filtering & Navigation
-- **Filter Buttons**: All / Pending / Completed views
-- **URL Parameters**: `?view=pending` for direct linking (Vanilla)
+`pnpm test:page` builds the backend and both frontends and runs the suite on each in Chromium
+against the backend: add (with the button and with Enter), undo, a clear approved and one denied
+in the page, an agent narrowing the view, and axe.
 
 ## Mix and Match
 
-The frontends work with any backend that serves their HTTP endpoint, because the backends share the same command schemas:
+The page talks MCP on `/mcp`, so it works with a backend that serves Streamable HTTP. It is
+tested against the TypeScript backend. Approvals in the page need MCP 2026-07-28, which the
+page negotiates with it: a 2025-era HTTP request cannot carry the server's question, so against
+such a backend a held clear stays `APPROVAL_REQUIRED`. The Rust backend has no `todo-history` or `todo-restore`
+until the to-do reference plan's phase 5, so against it the page shows no history or deleted
+list; that pairing is not tested yet.
 
 | Backend    | Frontend | Command                          |
 | ---------- | -------- | -------------------------------- |
-| TypeScript | Vanilla  | `pnpm dev:ts` + `pnpm dev:web`   |
+| TypeScript | FAST-AF  | `pnpm dev:ts` + `pnpm dev:web`   |
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
-| Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
-| Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
 
-The frontends POST JSON-RPC to `http://localhost:3100/message`. The TypeScript and Rust
-backends accept browser requests from the dev frontends' origins (`http://localhost:3000` for
-`pnpm dev:web`, `http://localhost:5173` and `5174` for Vite, also on `127.0.0.1`) and refuse
-other origins with 403; add yours with `ALLOWED_ORIGINS`. The Python backend is a stdio
-MCP server without that HTTP endpoint, so use it from an MCP client (see below) and the
-conformance suite rather than the web frontends.
+Both frontends talk MCP on `/mcp`; neither uses the deprecated `/message` lane. The TypeScript
+and Rust backends accept browser requests from the dev frontends' origins (`http://localhost:3000`, `http://localhost:5173` and
+`5174`, also on `127.0.0.1`) and refuse other origins with 403; add yours with
+`ALLOWED_ORIGINS`. The Python backend is a stdio MCP server without that HTTP endpoint, so use it
+from an MCP client (see below) and the conformance suite rather than the web frontends.
 
 ## VS Code MCP Configuration
 
-All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp.json`:
+All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp.json`:
 
 ```jsonc
 {
@@ -170,6 +198,12 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
       "disabled": true
     },
     
+    // C++ backend (stdio transport - build it first: pnpm test:conformance:cpp)
+    "afd-todo-cpp": {
+      "command": "packages/examples/todo/backends/cpp/build/release/todo-server-cpp",
+      "disabled": true
+    },
+
     // Rust backend (MCP over HTTP, JSON responses - requires manual server start)
     "afd-todo-rust": {
       "type": "http",
@@ -186,6 +220,7 @@ All three backends can be configured as MCP servers in VS Code. Edit `.vscode/mc
 |---------|-----------|------------|-------|
 | TypeScript | stdio | ✅ Yes | VS Code spawns the process |
 | Python | stdio | ✅ Yes | VS Code spawns the process |
+| C++ | stdio | ✅ Yes | VS Code spawns the built binary |
 | Rust | HTTP (`POST /mcp`, no SSE) | ❌ No | Must start server manually first |
 
 ### Switching Backends
@@ -208,23 +243,72 @@ Then enable `afd-todo-rust` in mcp.json and reload VS Code.
 
 ## API Contract
 
-The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and the TypeScript, Python and C++ test suites check that it lists exactly the commands each backend defines. The Rust backend has no such check.
+The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and gives each command's metadata. The test suites of all four backends check that it lists exactly the commands each backend defines, with the same metadata; the Rust backend's check leaves out `contexts`, which it does not declare yet.
 
 ## Commands
 
-| Command | Description |
-|---------|-------------|
-| `todo-create` | Create a new todo |
-| `todo-list` | List todos with filtering/pagination |
-| `todo-get` | Get a single todo by ID |
-| `todo-update` | Update a todo's properties |
-| `todo-toggle` | Toggle completion status |
-| `todo-delete` | Delete a todo |
-| `todo-clear` | Clear completed todos |
-| `todo-stats` | Get statistics |
-| `todo-create-batch` | Create multiple todos |
-| `todo-toggle-batch` | Toggle multiple todos |
-| `todo-delete-batch` | Delete multiple todos |
+| Command | Description | Contexts | Destructive |
+|---------|-------------|----------|-------------|
+| `todo-create` | Create a new todo | editing | |
+| `todo-list` | List todos with filtering/pagination | reading, editing | |
+| `todo-get` | Get a single todo by ID | reading, editing | |
+| `todo-update` | Update a todo's properties | editing | |
+| `todo-toggle` | Toggle completion status | editing | |
+| `todo-delete` | Delete a todo; TypeScript keeps it for `todo-restore` | editing | Yes |
+| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript holds it for approval) | editing | Yes |
+| `todo-stats` | Get statistics | reading, editing | |
+| `todo-create-batch` | Create multiple todos | editing | |
+| `todo-toggle-batch` | Toggle multiple todos | editing | |
+| `todo-delete-batch` | Delete multiple todos; TypeScript keeps them for `todo-restore` | editing | Yes |
+| `todo-restore` | Bring deleted todos back as they were (TypeScript only so far) | editing | |
+| `todo-history` | Recent changes: who, when, and each change's undo (TypeScript only so far) | reading, editing | |
+
+`todo-restore` and `todo-history` are the first of the
+[to-do reference plan](../../../docs/features/active/todo-reference/todo-reference.proposal.md)'s
+phase 2. The spec marks them `implementedBy: ["typescript"]`, so the other backends' tests leave
+them out until phase 5 adds them there.
+
+### Undo, history and approvals (TypeScript)
+
+Every change says how to take it back. Its result carries `undoCommand` and `undoArgs`: run that
+command with those arguments, through `afd-call` or the `todo` group tool, since `undoCommand` names
+a command, not a tool. Toggling and editing undo with `todo-update`; creating with `todo-delete`;
+deleting with `todo-restore`. A delete keeps the todo out of every list but
+`todo-list { deleted: true }` until `todo-clear { deleted: true }` or `{ all: true }` removes it,
+so a todo deleted by mistake can be found and restored long after.
+
+`todo-history` lists recent changes, newest first, with the actor that made each one (`human`,
+`agent` and so on, from the command context), the time and its undo. An entry offers its undo only
+while it is the latest change to its todos, so undoing an old entry never overwrites a later edit.
+A middleware records each change from its result (`src/history.ts`); the latest 1,000 are kept.
+
+`todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
+to approve it (`createApprovalMiddleware`). An MCP client that declares form elicitation asks its
+person; any other caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
+every caller counts as an agent, so the page's "clear completed" is held too: the page shows the
+approval and answers with the person's choice, in both frontends. Run the server with
+`APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
+contract every language meets.
+
+### Contexts
+
+The TypeScript and Python servers configure two contexts, so an agent can scope itself before it
+works:
+
+- `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats` (and `todo-history` in
+  TypeScript). A command that changes todos
+  is refused with `COMMAND_NOT_IN_CONTEXT` and a suggestion.
+- `todo-editing` shows every command.
+
+With no context entered every command is visible. `afd-context-list`, `afd-context-enter` and
+`afd-context-exit` manage them; on the stateless `/mcp` endpoint a request names its context in
+`_meta["dev.afd/context"]` instead. The Rust and C++ backends do not serve contexts yet.
+
+Clients that never enter a context are unaffected, with three visible differences: `tools/list`
+includes the three context tools (in the `bootstrap` group under the TypeScript server's default
+grouped strategy), `initialize` on the deprecated `/message` lane returns an `Mcp-Session-Id`
+header that carries the session's context, and `/mcp` marks `tools/list` stale at once
+(`ttlMs: 0`) because its answer depends on the request's context.
 
 ## Performance Features
 
@@ -249,7 +333,7 @@ These return partial success semantics with confidence scores based on success r
 
 ### Transport-Level Batching (`@lushly-dev/afd-core`)
 
-For calling multiple different commands in a single roundtrip, use the `afd.batch` tool:
+For calling multiple different commands in a single roundtrip, use the `afd-batch` tool:
 
 ```bash
 # Execute multiple different commands in one request
@@ -277,34 +361,9 @@ console.log(result.summary); // { total: 3, successCount: 3, failureCount: 0, sk
 console.log(result.confidence); // Aggregated confidence score
 ```
 
-### Streaming (for long-running commands)
+### Streaming
 
-The `@lushly-dev/afd-core` streaming types enable progress updates for long-running operations:
-
-```typescript
-import { McpClient } from '@lushly-dev/afd-client';
-
-const client = new McpClient({ url: 'http://localhost:3100/mcp' });
-await client.connect();
-
-// Stream with progress updates
-for await (const chunk of client.stream('todo-list', { limit: 1000 })) {
-  if (chunk.type === 'progress') {
-    console.log(`Progress: ${chunk.progress * 100}%`);
-  } else if (chunk.type === 'complete') {
-    console.log('Done:', chunk.data);
-  }
-}
-
-// Or with callbacks
-const controller = client.streamWithCallbacks('todo-list', { limit: 1000 }, {
-  onProgress: (chunk) => console.log(`${chunk.progress * 100}%`),
-  onComplete: (chunk) => console.log('Done:', chunk.data),
-  onError: (chunk) => console.error('Error:', chunk.error)
-});
-
-// Cancel if needed
-controller.abort();
-```
-
-See `@lushly-dev/afd-core/batch` and `@lushly-dev/afd-core/streaming` for type definitions.
+No todo command is long-running, so this example does not stream. The server's `/stream`
+endpoint runs a command to completion and then sends its result as `data` chunks and a
+`complete` chunk; it sends no `progress` chunks (see the `@lushly-dev/afd-server` README,
+"Streaming").

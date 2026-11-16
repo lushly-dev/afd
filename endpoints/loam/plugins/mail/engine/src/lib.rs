@@ -5,10 +5,11 @@
 //! command in it must keep, the command line's entry point, the data
 //! directory, the log, the store's tables, what is derived from the log
 //! (fields, threads, the search index), the provider interface and its IMAP
-//! implementation, sync, the keychain, the read commands, the tokens and the
-//! journal, and the server: `serve` over HTTP, `mcp` over stdio, and the
-//! command line's forwarding to a running server. The other commands arrive
-//! with the steps that follow.
+//! implementation, sync, the keychain, the read commands, senders, screening
+//! (classes, the person's decisions and agents' suggestions), stream stories,
+//! the tokens and the journal, and the server: `serve` over HTTP, `mcp` over
+//! stdio, and the command line's forwarding to a running server. The other
+//! commands arrive with the steps that follow.
 
 pub mod cli;
 pub mod commands;
@@ -25,9 +26,12 @@ pub mod parts;
 pub mod provider;
 pub mod read;
 pub mod rules;
+pub mod screening;
 pub mod secrets;
+pub mod senders;
 pub mod serve;
 pub mod store;
+pub mod stories;
 pub mod sync;
 pub mod tokens;
 pub mod work;
@@ -70,6 +74,16 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(read::message_open(Arc::clone(engine)))?;
     registry.register(read::attachment_open(Arc::clone(engine)))?;
     registry.register(read::search(Arc::clone(engine)))?;
+    registry.register(senders::list(Arc::clone(engine)))?;
+    registry.register(senders::show(Arc::clone(engine)))?;
+    registry.register(screening::screen(Arc::clone(engine)))?;
+    registry.register(screening::suggest(Arc::clone(engine)))?;
+    registry.register(screening::accept(Arc::clone(engine)))?;
+    registry.register(screening::dismiss(Arc::clone(engine)))?;
+    registry.register(screening::message_list(Arc::clone(engine)))?;
+    registry.register(stories::story_list(Arc::clone(engine)))?;
+    registry.register(stories::story_open(Arc::clone(engine)))?;
+    registry.register(stories::story_changes(Arc::clone(engine)))?;
     registry.register(tokens::create(Arc::clone(engine)))?;
     registry.register(tokens::list(Arc::clone(engine)))?;
     registry.register(tokens::revoke(Arc::clone(engine)))?;

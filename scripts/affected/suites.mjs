@@ -51,6 +51,8 @@ export const SUITES = [
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element build' },
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element test:chromium' },
 			{ gate: 'components', run: 'pnpm -F "@lushly-dev/violet-elements..." build' },
+			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements verify:exports' },
+			{ gate: 'components', run: 'node scripts/fast-af-generated.mjs' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements lint' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements test:browser' },
 			{
@@ -356,6 +358,13 @@ export const SUITES = [
 				run: 'cargo test --locked',
 			},
 			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:conformance:ts' },
+			{
+				gate: 'todo',
+				tools: [],
+				run: 'pnpm --dir packages/examples/todo test:conformance:ts --suite approvals',
+			},
+			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:scenarios:ts' },
+			{ gate: 'todo', tools: [], run: 'pnpm --dir packages/examples/todo test:page' },
 			// The Python backend runs under `uv run`.
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
 			{

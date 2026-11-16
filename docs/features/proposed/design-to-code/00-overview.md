@@ -1,5 +1,7 @@
 # Design-to-Code Integration Plan
 
+> **Lifecycle review (2026-11-13, `main` at `1024546b`):** Proposed; the schema export, Figma plugin, Make generation and documentation/sync pipeline remain unimplemented. The retired `implement-designs` skill named in the older disposition is not delivery of this feature.
+
 > **Disposition (2026-10-25, audit #349):** **Proposed.** No Figma plugin, schema-export or documentation-pipeline code exists in `packages` or `python`; the only Figma material in the repo is the `implement-designs` skill. Nothing shipped; this stays a multi-part plan.
 
 
@@ -138,7 +140,7 @@ See: [Mint Distribution Plan](../rust-distribution/00-overview.md)
 ## Related Resources
 
 - [AFD Repository](https://github.com/lushly-dev/afd) — Agent-First Development methodology
-- [AFD Philosophy](../philosophy.md) — Why commands first
+- [AFD Philosophy](../../../../.claude/skills/afd/references/philosophy.md) — Why commands first
 - [Figma MCP Server](https://www.figma.com/developers/mcp) — Figma's Model Context Protocol
 - [Figma Make](https://www.figma.com/make) — AI-powered design-to-code
 - [Mint Distribution](../rust-distribution/00-overview.md) — Multi-platform deployment

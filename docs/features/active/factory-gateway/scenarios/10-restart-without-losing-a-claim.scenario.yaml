@@ -1,0 +1,50 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the foreman endpoint. The fixture is the gateway after a restart or a lost disk: its
+# cache is empty and GitHub holds the claim comments. Issue 104's claim was written before the
+# cutover by the owner's account in Lushly's old marker and is not yet stale by Lushly's own
+# four-hour rule. Issue 103 carries two forged claim comments, one in each marker, written by a
+# stranger; neither counts.
+name: Restart the gateway without losing or inventing a claim
+description: >-
+  When the always-on machine restarts or loses its disk, I want the gateway to come back with the
+  claims exactly as GitHub records them, counting only what the gateway wrote (and, during the
+  cutover, the old claims still running), so that a restart costs nothing, no claim is lost, and a
+  comment someone forged is never treated as a claim.
+job: restart-without-losing-a-claim
+tags: [mvp]
+fixture:
+  file: fixtures/restart.json
+  base: gateway.json
+steps:
+  - description: The claims are the bot's two and the owner's old claim still running; the two forged ones are not there
+    command: claim-list
+    input: { repo: example-org/example-repo }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 101, holder: { branch: fix/parser }, legacy: false }
+          - { number: 102, holder: { branch: fix/line-numbers }, legacy: false }
+          - { number: 104, holder: { branch: docs/commas }, legacy: true }
+  - description: The issue with only a forged claim comment can be claimed
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [103]
+      holder: { branch: fix/slow-parser, machine: workstation }
+    expect:
+      success: true
+      data:
+        claims:
+          - { number: 103, holder: { branch: fix/slow-parser } }
+  - description: A claim that came back from GitHub still holds against a second holder
+    command: issue-claim
+    input:
+      repo: example-org/example-repo
+      numbers: [101]
+      holder: { branch: fix/parser-2, machine: laptop }
+    expect:
+      success: false
+      error:
+        code: ALREADY_CLAIMED
+        message: workstation

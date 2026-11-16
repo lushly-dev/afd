@@ -33,6 +33,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                     name: key,
                     role,
                 },
+                NOW,
             )
             .unwrap()
     };
@@ -47,6 +48,7 @@ fn block(number: u32, subject: &str, references: &[u32]) -> Vec<u8> {
     let date = mail_parser::DateTime::from_timestamp((BASE + i64::from(number) * DAY) / 1000);
     let mut block = format!(
         "From: Sender {number} <sender{number}@example.com>\r\n\
+         To: person@example.com\r\n\
          Subject: {subject}\r\n\
          Date: {}\r\n\
          Message-ID: <m{number}@example.com>\r\n",
@@ -118,6 +120,14 @@ fn derived(store: &Store) -> Vec<(String, Vec<Vec<Value>>)> {
         ("thread_key", "key"),
         ("thread", "id"),
         ("thread_place", "mailbox_id, thread_id"),
+        ("recipient", "message_id, address"),
+        ("sender", "address"),
+        ("template", "key"),
+        ("screening", "message_id"),
+        ("story_member", "message_id"),
+        ("story_shape", "story_id, shape"),
+        ("story_kind", "story_id, template_key"),
+        ("story", "id"),
     ]
     .iter()
     .map(|(table, order)| {
@@ -411,8 +421,12 @@ fn a_rebuild_reproduces_every_derived_table_and_the_index() {
     let (mut store, inbox, _) = busy(&home);
     store.commit_index().unwrap();
     let before = derived(&store);
+    // A story needs five messages of one stream, which this store has not;
+    // the tests of stories rebuild those.
     assert!(
-        before.iter().all(|(_, rows)| !rows.is_empty()),
+        before
+            .iter()
+            .all(|(table, rows)| table == "story" || !rows.is_empty()),
         "{before:?}"
     );
     let listed = store.list_threads(inbox, None, 50).unwrap();
@@ -447,6 +461,7 @@ fn a_rebuild_keeps_a_thread_in_each_mailbox_when_its_parts_merge_in_one_batch() 
                 name: "Sent",
                 role: Role::Sent,
             },
+            NOW,
         )
         .unwrap();
     record(&mut store, sent, &[seen(3, "Re: a and b", &[2, 1])]);
@@ -938,7 +953,17 @@ fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
     let (_directory, home) = home();
     {
         let mut store = Store::open_with(&home, &schema::MIGRATIONS[..3]).unwrap();
-        let account = store.add_account("icloud", "a", 0).unwrap();
+        // Written as that version wrote it: there is no sender table yet for
+        // `add_account` to settle.
+        store
+            .connection
+            .execute(
+                "INSERT INTO account (id, provider, address, created_at)
+                 VALUES (1, 'icloud', 'a', 0)",
+                [],
+            )
+            .unwrap();
+        let account = super::AccountId(1);
         let inbox = store
             .upsert_mailbox(
                 account,
@@ -947,6 +972,7 @@ fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
                     name: "INBOX",
                     role: Role::Inbox,
                 },
+                NOW,
             )
             .unwrap();
         // At version 3 the derivation that writes the evidence's columns

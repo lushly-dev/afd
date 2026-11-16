@@ -58,7 +58,8 @@ const handler: CommandHandler = async (name, input) => {
 };
 
 beforeAll(async () => {
-	// The example picks its store when imported; keep it in memory
+	// The example's commands start with an in-memory store until a server chooses one; the
+	// variable keeps any later store choice in memory too
 	process.env.TODO_STORE_TYPE = 'memory';
 	vi.spyOn(console, 'error').mockImplementation(() => {});
 	const url = pathToFileURL(join(TODO_EXAMPLE, 'backends/typescript/src/commands/index.ts')).href;

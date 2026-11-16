@@ -1,0 +1,29 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending"
+	},
+	"success": true,
+	"data": {
+		"requests": [
+			{
+				"id": "req-4",
+				"member": {
+					"id": "mem-tobias",
+					"name": "Tobias Reed",
+					"number": "M-027"
+				},
+				"variety": {
+					"id": "var-crimson",
+					"name": "Crimson-flowered broad bean"
+				},
+				"summary": "Lend one packet of Crimson-flowered broad bean to Tobias Reed",
+				"askedAt": "2030-03-02T10:00:00Z",
+				"expiresAt": "2030-03-03T10:00:00Z",
+				"status": "pending",
+				"packetsAvailable": 1
+			}
+		],
+		"total": 1
+	}
+}

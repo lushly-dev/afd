@@ -704,9 +704,15 @@ impl Drop for HeldMark {
 }
 
 /// `CONFIRMATION_REQUIRED` for a call the local page has not decided (the Ideas host-review
-/// specification, section 7): retryable, with the decision, its page and the list.
+/// specification, section 7): retryable, with the decision, its page and the list. `public` is
+/// `person.local.public_origin` when set, which the suggestion then names (A48).
 #[cfg_attr(not(feature = "auth"), allow(dead_code))]
-pub(crate) fn local_required(command: &str, decision: &str, base: &str) -> CommandError {
+pub(crate) fn local_required(
+    command: &str,
+    decision: &str,
+    base: &str,
+    public: Option<&str>,
+) -> CommandError {
     let mut details = std::collections::HashMap::new();
     details.insert("decision".to_owned(), Value::from(decision));
     details.insert(
@@ -718,9 +724,12 @@ pub(crate) fn local_required(command: &str, decision: &str, base: &str) -> Comma
         error_codes::CONFIRMATION_REQUIRED,
         format!("'{command}' must be confirmed by a person on the local person page: {base}/d/{decision}"),
     )
-    .with_suggestion(
-        "Ask the person to open the url (or the list) in a browser on this machine and confirm; then send the same call again. If nothing answers there, the person runs umbel person page-serve",
-    )
+    .with_suggestion(match public {
+        None => "Ask the person to open the url (or the list) in a browser on this machine and confirm; then send the same call again. If nothing answers there, the person runs umbel person page-serve".to_owned(),
+        Some(origin) => format!(
+            "Ask the person to open the url (or the list) in a browser that reaches {origin} and confirm; then send the same call again. If nothing answers there, the person runs umbel person page-serve"
+        ),
+    })
     .with_retryable(true)
     .with_details(details)
 }

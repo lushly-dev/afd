@@ -13,12 +13,18 @@
  * the fixtures describe, built in the run directory: `repository/botcore.toml` beside this file
  * (its adapter) and AFD's own `.github/labels.json`.
  *
+ * The gateway's jobs run through the same runner: FACTORY_HARNESS names the Python module the
+ * CLI hands each step to (default botcore_factory.harness; the gateway's is
+ * botcore_factory.gateway.harness), and FACTORY_SCENARIO_ENV is a JSON object of extra
+ * environment per scenario file name (the gateway's route for each job). The run directory is
+ * passed as both BOTCORE_FACTORY_HARNESS_DIR and GATEWAY_HARNESS_DIR.
+ *
  * Prints one JSON report: each scenario's outcome and every assertion that did not pass. Exit 0
  * when every scenario passed, 1 when one did not, 2 when the runner could not start.
  */
 import { chmodSync, copyFileSync, existsSync, mkdirSync, mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { basename, join, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -32,6 +38,12 @@ function fail(message) {
 
 const files = process.argv.slice(2);
 if (files.length === 0) fail('Usage: node run.mjs <scenario.yaml>...');
+let perFile = {};
+try {
+	perFile = JSON.parse(process.env.FACTORY_SCENARIO_ENV || '{}');
+} catch {
+	fail('FACTORY_SCENARIO_ENV must be a JSON object of scenario file name to environment');
+}
 if (!existsSync(testingEntry)) {
 	fail(
 		'@lushly-dev/afd-testing is not built. Run: pnpm install --frozen-lockfile && pnpm -F "@lushly-dev/afd-testing..." build'
@@ -42,22 +54,27 @@ if (!existsSync(testingEntry)) {
 // is loaded from its build output rather than resolved by name.
 const testing = await import(pathToFileURL(testingEntry).href);
 
-/** The `factory` fixture adapter: a fixture is applied by the harness, in one call. */
-testing.registerAdapter({
-	name: 'factory',
-	version: '0.1.0',
-	cli: { command: 'factory-cli.mjs', inputFormat: 'json-arg', outputFormat: 'json' },
-	fixture: {
-		async apply(fixture, context) {
-			await context.handler('fixture-apply', { fixture });
-			return { appliedCommands: [{ command: 'fixture-apply' }] };
+/**
+ * The fixture adapter: a fixture is applied by the harness, in one call. The factory's fixtures
+ * name the app `factory`, the gateway's `factory-gateway`.
+ */
+for (const name of ['factory', 'factory-gateway']) {
+	testing.registerAdapter({
+		name,
+		version: '0.1.0',
+		cli: { command: 'factory-cli.mjs', inputFormat: 'json-arg', outputFormat: 'json' },
+		fixture: {
+			async apply(fixture, context) {
+				await context.handler('fixture-apply', { fixture });
+				return { appliedCommands: [{ command: 'fixture-apply' }] };
+			},
+			async reset() {},
 		},
-		async reset() {},
-	},
-	commands: { list: () => [] },
-	errors: { list: () => [] },
-	jobs: { list: () => [] },
-});
+		commands: { list: () => [] },
+		errors: { list: () => [] },
+		jobs: { list: () => [] },
+	});
+}
 
 /** The CLI the runner spawns. POSIX runs it directly, so a temporary copy gets the exec bit. */
 function launcher(runDir) {
@@ -94,7 +111,10 @@ async function runOne(file) {
 			cwd: exampleRepository(runDir),
 			env: {
 				BOTCORE_FACTORY_HARNESS_DIR: join(runDir, 'run'),
+				GATEWAY_HARNESS_DIR: join(runDir, 'run'),
 				FACTORY_PYTHON: process.env.FACTORY_PYTHON || 'python',
+				FACTORY_HARNESS: process.env.FACTORY_HARNESS || 'botcore_factory.harness',
+				...(perFile[basename(file)] || {}),
 			},
 			timeout: 120_000,
 			stopOnFailure: false,

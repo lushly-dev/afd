@@ -15,8 +15,16 @@ export {
 	membershipOf,
 	readBinding,
 } from './binding.js';
-export { createOrganizationHooks } from './hooks.js';
 export {
+	type BootstrapInputV1,
+	type BootstrapResultV1,
+	bootstrapOrganization,
+} from './bootstrap.js';
+export { JOIN_INVITATION_MS, joinLink } from './enrolment.js';
+export { createOrganizationHooks } from './hooks.js';
+export type { RecoveryV1 } from './members.js';
+export {
+	CLIENT_ADDRESS_HEADER,
 	createLoamAuthOptions,
 	FRESH_AGE_SECONDS,
 	LOAM_DISABLED_PATHS,
@@ -25,4 +33,5 @@ export {
 	type LoamOidcProviderV1,
 } from './options.js';
 export { type LoamProviderState, loamServerPlugin } from './plugin.js';
+export { RECOVERY_LINK_MS, recoveryLink } from './recovery.js';
 export { isOwnerRole, loamAccessControl, loamRole, loamRoles } from './roles.js';

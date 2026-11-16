@@ -23,15 +23,15 @@ Each project keeps its documentation next to its code. A status file says exactl
 
 | Project | Start here | Status |
 |---------|-----------|--------|
-| Specimen, a component observation bench | [README](../foundations/specimen/README.md) | [Specimens status](./features/active/specimens/STATUS.md) |
+| Specimen, a component observation bench | [README](../foundations/specimen/README.md) | [Specimens status](./features/complete/specimens/STATUS.md) |
 | FAST-AF, a web component runtime and components | [README](../foundations/fast-af/README.md) | In its README |
-| Violet, a design token engine | [README](../foundations/violet/README.md) | [Transition notes](./features/active/platform-monorepo/violet-transition.md) |
+| Violet, a design token engine | [README](../foundations/violet/README.md) | [Transition notes](./features/complete/platform-monorepo/violet-transition.md) |
 | Umbel, a host for capability plugins | [README](../endpoints/umbel/README.md), [architecture](../endpoints/umbel/docs/architecture.md) | [Umbel status](../endpoints/umbel/docs/STATUS.md) |
 | Loam, an application shell | [README](../endpoints/loam/README.md), [architecture](../endpoints/loam/docs/architecture.md) | [Loam status](../endpoints/loam/docs/STATUS.md) |
-| Botcore, shared agent tooling | [README](../endpoints/botcore/README.md) | [Handoff record](./features/active/platform-monorepo/botcore-handoff.md) |
+| Botcore, shared agent tooling | [README](../endpoints/botcore/README.md) | [Handoff record](./features/complete/platform-monorepo/botcore-handoff.md) |
 | Health, repository audits, and its dashboard | [Health](../endpoints/health/README.md), [dashboard](../endpoints/health-dashboard/README.md) | In each README |
 
-How these came to share one repository, and the rules that keep an imported package from being published by accident, are in the [platform monorepo](./features/active/platform-monorepo/) project and its [status](./features/active/platform-monorepo/STATUS.md).
+How these came to share one repository, and the rules that keep an imported package from being published by accident, are in the [platform monorepo](./features/complete/platform-monorepo/) project and its [status](./features/complete/platform-monorepo/STATUS.md).
 
 ## Features
 

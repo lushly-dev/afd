@@ -1,0 +1,60 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against any endpoint; every class may read.
+name: Know whether a pull request merged without reading GitHub's quirks
+description: >-
+  When I need to know where a pull request stands, I want one answer that says merged, closed
+  without merging or open, with its required check and mergeability, and that says plainly when
+  GitHub has not settled yet and when to ask again, so that no agent mistakes a closed pull request
+  for a merged one or a pending answer for a conflict.
+job: know-whether-it-merged
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: A merged pull request reads as merged
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 41 }
+    expect:
+      success: true
+      data:
+        state: merged
+        mergedAt: 2030-02-02T15:00:00Z
+        settled: true
+  - description: One closed without merging reads as closed, never merged
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 42 }
+    expect:
+      success: true
+      data:
+        state: closed
+        settled: true
+  - description: An open one whose mergeability GitHub has not computed says so and when to ask again
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 43 }
+    expect:
+      success: true
+      data:
+        state: open
+        mergeable: pending
+        settled: false
+        retryAfterMs: { gte: 1000 }
+        requiredCheck: { name: ci-ok, state: running }
+  - description: An open, clean one with its required check green is ready
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 44 }
+    expect:
+      success: true
+      data:
+        state: open
+        mergeable: clean
+        settled: true
+        requiredCheck: { name: ci-ok, state: passed }
+        closes: [100]
+  - description: A number that is not a pull request is refused
+    command: pr-status
+    input: { repo: example-org/example-repo, number: 4040 }
+    expect:
+      success: false
+      error:
+        code: NOT_FOUND
+        suggestion: { contains: issue-get }

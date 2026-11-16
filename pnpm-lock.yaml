@@ -423,9 +423,15 @@ importers:
       '@lushly-dev/loam-cli':
         specifier: workspace:*
         version: link:../cli
+      '@lushly-dev/loam-identity':
+        specifier: workspace:*
+        version: link:../identity
       '@lushly-dev/loam-manifest':
         specifier: workspace:*
         version: link:../manifest
+      better-auth:
+        specifier: 1.7.18
+        version: 1.7.18(mongodb@7.1.0)(pg@8.23.1)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)(vitest@5.1.0)
       hono:
         specifier: 4.13.17
         version: 4.13.17
@@ -1210,7 +1216,7 @@ importers:
         specifier: ^2.6.6
         version: 2.6.6
       '@lushly-dev/violet-core':
-        specifier: workspace:^0.2.0
+        specifier: workspace:^
         version: link:../../foundations/violet/packages/core
       '@types/better-sqlite3':
         specifier: ^9.6.0
@@ -1464,6 +1470,34 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/examples/seed-library:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../server
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../testing
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
+    devDependencies:
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../client
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/examples/showcase/backend:
     dependencies:
       '@lushly-dev/afd-auth':
@@ -1546,10 +1580,16 @@ importers:
       '@lushly-dev/afd-server':
         specifier: workspace:*
         version: link:../../../../server
+      '@lushly-dev/local-db':
+        specifier: workspace:*
+        version: link:../../../../local-db
       zod:
         specifier: ^4.6.6
         version: 4.6.7
     devDependencies:
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../testing
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -1560,8 +1600,36 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  packages/examples/todo/frontends/fast-af:
+    dependencies:
+      '@afd/example-todo-ui':
+        specifier: workspace:*
+        version: link:../shared
+      '@lushly-dev/fast-element':
+        specifier: workspace:*
+        version: link:../../../../../foundations/fast-af/packages/element/packages/fast-element
+    devDependencies:
+      '@afd/example-todo-ts':
+        specifier: workspace:*
+        version: link:../../backends/typescript
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vite:
+        specifier: ^8.3.0
+        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   packages/examples/todo/frontends/react:
     dependencies:
+      '@afd/example-todo-ui':
+        specifier: workspace:*
+        version: link:../shared
       react:
         specifier: ^19.3.0
         version: 19.3.1
@@ -1569,6 +1637,9 @@ importers:
         specifier: ^19.3.0
         version: 19.3.1(react@19.3.1)
     devDependencies:
+      '@afd/example-todo-ts':
+        specifier: workspace:*
+        version: link:../../backends/typescript
       '@types/node':
         specifier: ^26.6.6
         version: 26.6.6
@@ -1587,12 +1658,49 @@ importers:
       vite:
         specifier: ^8.3.0
         version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
-  packages/examples/todo/frontends/vanilla:
+  packages/examples/todo/frontends/shared:
+    dependencies:
+      '@lushly-dev/afd-client':
+        specifier: workspace:*
+        version: link:../../../../client
+      '@lushly-dev/afd-core':
+        specifier: workspace:*
+        version: link:../../../../core
+      '@lushly-dev/afd-server':
+        specifier: workspace:*
+        version: link:../../../../server
+      '@lushly-dev/afd-view-state':
+        specifier: workspace:*
+        version: link:../../../../view-state
+      '@lushly-dev/violet-elements':
+        specifier: workspace:*
+        version: link:../../../../../foundations/fast-af/packages/violet-elements
     devDependencies:
-      vite:
-        specifier: ^8.3.0
-        version: 8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1)
+      '@afd/example-todo-ts':
+        specifier: workspace:*
+        version: link:../../backends/typescript
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../../testing
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      axe-core:
+        specifier: 4.14.0
+        version: 4.14.0
+      playwright:
+        specifier: ^1.64.1
+        version: 1.64.1
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
   packages/local-db:
     devDependencies:

@@ -118,7 +118,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletDateRangePickerSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "observed",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",

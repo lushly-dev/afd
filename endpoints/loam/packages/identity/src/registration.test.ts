@@ -13,6 +13,8 @@ vi.mock('better-auth/api', async (original) => ({
 }));
 
 const { createLoamAuthOptions } = await import('./options.js');
+const { requireFreshPasskeySession } = await import('./sessions.js');
+const { sessionHash } = await import('./recovery.js');
 
 type AfterVerification = (input: { ctx: unknown }) => Promise<unknown>;
 
@@ -95,5 +97,62 @@ describe('P3-E1: registration re-checks the session it reads again (5.8, I3, NEW
 		row('t3', new Date(), 'passkey');
 		authoritative.answer = parsed('t3');
 		await expect(afterVerification()({ ctx: ctx() })).resolves.toEqual({});
+	});
+});
+
+describe("P3-E1: requireFreshPasskeySession decides on the store's own row (#1141's final check)", () => {
+	const found = (token: string) =>
+		({ session: { token, userId: 'u1' }, user: { id: 'u1' } }) as never;
+	const store = (rows: Record<string, Record<string, unknown> | null>) => ({
+		adapter: {
+			findOne: async ({ model, where }: { model: string; where: { value: unknown }[] }) =>
+				model === 'session'
+					? (rows[String(where[0]?.value)] ?? null)
+					: model === 'passkey'
+						? { id: 'pk1' }
+						: model === 'loamRecoveryMark'
+							? (rows.mark ?? null)
+							: null,
+		},
+	});
+
+	it('answers REAUTH_REQUIRED for a found session whose token has no session row', async () => {
+		await expect(
+			requireFreshPasskeySession(store({}) as never, found('gone'))
+		).rejects.toMatchObject({
+			body: { code: 'REAUTH_REQUIRED' },
+		});
+	});
+
+	it("answers REAUTH_REQUIRED for a row of another person's, or a session with no token", async () => {
+		const other = store({
+			t: { token: 't', userId: 'u2', createdAt: new Date(), loamMethod: 'passkey' },
+		});
+		await expect(requireFreshPasskeySession(other as never, found('t'))).rejects.toMatchObject({
+			body: { code: 'REAUTH_REQUIRED' },
+		});
+		await expect(requireFreshPasskeySession(other as never, found(''))).rejects.toMatchObject({
+			body: { code: 'REAUTH_REQUIRED' },
+		});
+	});
+
+	it('lets a session the single sign-on ceremony marked `recovery` register for a holder, and never delete or revoke (5.7, 5.8)', async () => {
+		const marked = store({
+			t: { token: 't', userId: 'u1', createdAt: new Date(), loamMethod: 'oidc' },
+			mark: { userId: 'u1', until: new Date(Date.now() + 60_000), sessionHash: sessionHash('t') },
+		});
+		await expect(
+			requireFreshPasskeySession(marked as never, found('t'), { allowRecovery: true })
+		).resolves.toBeUndefined();
+		await expect(requireFreshPasskeySession(marked as never, found('t'))).rejects.toMatchObject({
+			body: { code: 'REAUTH_REQUIRED' },
+		});
+		const lapsed = store({
+			t: { token: 't', userId: 'u1', createdAt: new Date(), loamMethod: 'oidc' },
+			mark: { userId: 'u1', until: new Date(Date.now() - 1) },
+		});
+		await expect(
+			requireFreshPasskeySession(lapsed as never, found('t'), { allowRecovery: true })
+		).rejects.toMatchObject({ body: { code: 'REAUTH_REQUIRED' } });
 	});
 });

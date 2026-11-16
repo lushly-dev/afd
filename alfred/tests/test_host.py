@@ -107,6 +107,8 @@ async def test_target_errors_and_ambiguous_generic_commands(native):
     (native / 'pnpm-workspace.yaml').write_text('packages: []')
     host = build_alfred_host(native, profile='trusted-local')
     assert (await host.execute('dev_lint')).error.code == 'TARGET_REQUIRED'
+    # The other spelling Botcore resolves gets the same guard, not the whole workspace.
+    assert (await host.execute('dev-lint')).error.code == 'TARGET_REQUIRED'
     for target in ('../', 'missing'):
         assert (await host.execute('info_workspace', {'target': target})).error.code == 'INVALID_TARGET_OR_INPUT'
     (native / 'escape').symlink_to(native.parent)

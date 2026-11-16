@@ -1,0 +1,13 @@
+{
+	"$command": "request-list",
+	"$input": {
+		"status": "pending"
+	},
+	"success": false,
+	"error": {
+		"code": "SERVICE_UNAVAILABLE",
+		"message": "The requests cannot be read just now",
+		"suggestion": "Wait a moment, then call request-list again",
+		"retryable": true
+	}
+}

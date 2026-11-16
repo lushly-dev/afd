@@ -75,6 +75,13 @@
 			"module": "./variants.js",
 			"exportName": "PropertyNamed",
 			"component": "example-field"
+		},
+		{
+			"id": "example-dropdown--shadow-role",
+			"title": "Variants/ShadowRole",
+			"module": "./variants.js",
+			"exportName": "ShadowRole",
+			"component": "example-dropdown"
 		}
 	],
 	"manifest": "./custom-elements.json",

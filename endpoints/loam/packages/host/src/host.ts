@@ -3,9 +3,9 @@
  * `@hono/node-server` 2.1's request listener, with `node:https` when the server terminates TLS. The
  * development profile binds its sockets before its configuration exists (5.1), so the host serves on
  * servers it creates or is handed, rather than through `serve`, which binds as it creates. One process per
- * data directory, one deployment per process. Step 1 serves the written shell and, on the sandbox's
- * origin, its `sandbox/`; the provider, MCP, the trust-record transport and the relay come in later steps,
- * and their paths answer 404 until then (3.3).
+ * data directory, one deployment per process. It serves the written shell and, on the sandbox's origin, its
+ * `sandbox/`; in a `provider` deployment, the provider at `<base><identity.path>` (3.7, step 3). MCP, the
+ * trust-record transport and the relay come in later steps, and their paths answer 404 until then (3.3).
  */
 
 import { readFileSync } from 'node:fs';
@@ -38,14 +38,10 @@ import {
 } from './headers.js';
 import { bindServer, createHostServer, HOST_INTERNALS, type HostInternals } from './internal.js';
 import { acquireDataLock, type DataLock } from './lock.js';
+import type { HostProvider } from './provider.js';
 import type { ResolvedSecrets } from './secrets.js';
 import { type SiteAnswer, serveSite } from './site.js';
-import {
-	type BoundAddresses,
-	recordAddresses,
-	SERVE_STATIC_DEPLOYMENT,
-	type TestOnlyOptions,
-} from './testing-only.js';
+import { type BoundAddresses, recordAddresses, recordProvider } from './testing-only.js';
 
 export interface LoamHostConfig {
 	/** Read by `readServerConfig` (3.2); `createLoamHost` reads it again. */
@@ -138,8 +134,39 @@ async function fileResponse(
 	});
 }
 
-function shellApp(options: { base: string; site: string; pages: Pages }): Hono<Env> {
-	const { base, pages } = options;
+/**
+ * A raw path under the provider's prefix that a URL parser would read as another path: a dot segment, or an
+ * encoded dot, separator or backslash. Better Auth routes on the parsed URL, so such a path is answered 404
+ * before it reaches the handler, as `serveSite` answers its own (step 1's obligation, decided here for the
+ * provider's prefix; the MCP route and the relay decide theirs in steps 4 and 6).
+ */
+const AMBIGUOUS_PATH = /(^|\/)\.\.?(\/|$)|%2e|%2f|%5c|\\|%00/i;
+
+/**
+ * The provider's answer, with 3.5's `Cache-Control: no-store` for every response under its path, and the inert policy
+ * step 1's deviation 1 gives every response on the shell's origin that is neither a shell page nor a script or style
+ * sheet: Better Auth's own `/error` page is HTML, and nothing of the provider's is meant to run as a document.
+ */
+async function providerAnswer(provider: HostProvider, request: Request): Promise<Response> {
+	const answer = await provider.auth.handler(request);
+	const headers = new Headers(answer.headers);
+	headers.set('cache-control', 'no-store');
+	headers.set('content-security-policy', INERT_POLICY);
+	return new Response(answer.body, {
+		status: answer.status,
+		statusText: answer.statusText,
+		headers,
+	});
+}
+
+function shellApp(options: {
+	base: string;
+	site: string;
+	pages: Pages;
+	provider: HostProvider | undefined;
+}): Hono<Env> {
+	const { base, pages, provider } = options;
+	const providerPrefix = provider ? `${provider.path}/` : undefined;
 	const site = serveSite(options.site, { fallback: 'index.html' });
 	const app = new Hono<Env>();
 	// Every route is matched on the raw path here, never a normalized one, so a dot segment cannot reach
@@ -148,6 +175,13 @@ function shellApp(options: { base: string; site: string; pages: Pages }): Hono<E
 		const path = rawPath(c.env.incoming);
 		const method = c.req.method;
 		if (!path.startsWith(base)) return notFound();
+		// The provider's routes, `GET` and `POST` as Better Auth serves them (3.4, 3.7); nothing else under its path
+		// reaches the site.
+		if (provider && providerPrefix && (path === provider.path || path.startsWith(providerPrefix))) {
+			if ((method !== 'GET' && method !== 'POST') || AMBIGUOUS_PATH.test(path))
+				return notFound('no-store');
+			return providerAnswer(provider, c.req.raw);
+		}
 		const rest = path.slice(base.length);
 		if (rest === 'api/health') {
 			return method === 'GET'
@@ -240,9 +274,7 @@ function bindHost(listen: string): string {
  * (section 16): any refusal of 3.2 or 3.3, a locked data directory, or an unreadable secret. It takes the
  * data directory's lock and writes the site before it returns, and holds the lock until `close()`.
  */
-export async function createLoamHost(
-	config: LoamHostConfig & TestOnlyOptions & HostInternals
-): Promise<LoamHost> {
+export async function createLoamHost(config: LoamHostConfig & HostInternals): Promise<LoamHost> {
 	const internals = config[HOST_INTERNALS] ?? {};
 	try {
 		return await construct(config, internals);
@@ -259,7 +291,7 @@ export async function createLoamHost(
 }
 
 async function construct(
-	config: LoamHostConfig & TestOnlyOptions,
+	config: LoamHostConfig,
 	internals: NonNullable<HostInternals[typeof HOST_INTERNALS]>
 ): Promise<LoamHost> {
 	const read = readServerConfig(config.server);
@@ -269,13 +301,12 @@ async function construct(
 		server,
 		deployment: config.deployment,
 		dist: config.dist,
-		purpose: 'serve',
-		serveStatic: config[SERVE_STATIC_DEPLOYMENT] === true,
+		purpose: internals.start ? 'start' : 'serve',
 		...(internals.sandboxOrigin ? { sandboxOrigin: internals.sandboxOrigin } : {}),
 	});
 	if (checked.refusals.length > 0) throw new HostError(checked.refusals);
 	// Held in memory only, never written (section 13, 3.3): the secrets, the limits, and the mounts with
-	// their bearers. Nothing in step 1 reads them; the steps that serve the provider and the relay do.
+	// their bearers. The provider reads the auth secret (step 3); the relay will read the bearers.
 	const memory: {
 		secrets: ResolvedSecrets | undefined;
 		limits: ServerLimitsV1;
@@ -290,6 +321,7 @@ async function construct(
 	let sandboxOrigin: string | null;
 	let common: Record<string, string>;
 	let tls: ResolvedSecrets['tls'];
+	let provider: HostProvider | undefined;
 	try {
 		const written = await writeSite({
 			data: server.data,
@@ -303,12 +335,39 @@ async function construct(
 		const base = checked.analysis?.basePath ?? '/';
 		const pages = readPages(site);
 		if ('code' in pages) throw new HostError([pages]);
+		const identity = checked.analysis?.identity;
+		if (identity?.mode === 'provider') {
+			// Better Auth loads only for a `provider` deployment, so a `local` one's cold start does not pay for it.
+			const { createMail, openProvider } = await import('./provider.js');
+			provider = await openProvider({
+				server,
+				secrets: memory.secrets ?? { oidc: {} },
+				identity,
+				workspace: checked.analysis?.workspace?.id as string,
+				basePath: base,
+				mail: await createMail(server),
+				...(internals.rateLimit ? { rateLimit: internals.rateLimit } : {}),
+			});
+			// Only `start` refuses an organization never bootstrapped; `dev` serves the shell's notice (3.1, 5.1).
+			if (internals.start && !(await provider.bootstrapped())) {
+				throw new HostError([
+					{
+						code: 'HOST_NOT_BOOTSTRAPPED',
+						key: config.deployment,
+						message:
+							"This deployment's organization was never bootstrapped, so no one could sign in.",
+						suggestion:
+							'With the server stopped, run `loam-host bootstrap --server <file> --deployment <file> --slug <slug> --name <name> --owner-email <email>` once, then start.',
+					},
+				]);
+			}
+		}
 		origin = server.origin;
 		sandboxOrigin = server.sandbox?.origin ?? null;
 		listeners = [
 			{
 				listen: server.listen,
-				apps: new Map([[authorityOf(origin), shellApp({ base, site, pages })]]),
+				apps: new Map([[authorityOf(origin), shellApp({ base, site, pages, provider })]]),
 			},
 		];
 		if (sandboxOrigin) {
@@ -322,12 +381,16 @@ async function construct(
 		tls = memory.secrets?.tls;
 		if (server.tls && !tls) throw new Error('The TLS certificate and key were not read.');
 	} catch (cause) {
+		provider?.close();
 		if (!internals.lock) lock.release();
 		throw cause;
 	}
 	const adopted = internals.servers;
-	if (adopted && Boolean(adopted.sandbox) !== listeners.length > 1)
+	if (adopted && Boolean(adopted.sandbox) !== listeners.length > 1) {
+		provider?.close();
+		if (!internals.lock) lock.release();
 		throw new Error('The sockets handed over do not match the listeners the configuration names.');
+	}
 
 	const servers: Server[] = [];
 	const attached = new WeakSet<Server>();
@@ -370,9 +433,11 @@ async function construct(
 			if (closed) return;
 			closed = true;
 			await stopAll(servers.splice(0));
+			provider?.close();
 			lock.release();
 		},
 	};
+	if (provider) recordProvider(host, provider);
 	recordAddresses(host, (): BoundAddresses | null => {
 		const [shellServer, sandboxServer] = servers;
 		if (!shellServer) return null;

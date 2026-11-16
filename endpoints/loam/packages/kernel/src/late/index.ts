@@ -8,7 +8,9 @@ import { createAuthMutationCommands } from '@lushly-dev/afd-auth/commands';
 import type { CommandContext, CommandMiddleware, CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
+import { ICONS_V1 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
+import { APPEARANCE_DENSITIES, APPEARANCE_THEMES } from '../appearance.js';
 import { BOOT_ONLY, INTERNAL_COMMANDS } from '../commands.js';
 import { createDefaultLayout } from '../layout.js';
 import { type AccessActorV1, personKey } from '../scope/access.js';
@@ -40,8 +42,10 @@ import { createDocumentCheck } from './document-types.js';
 import type { EditorParts } from './editor-commands.js';
 import type { EditorDraftsV1 } from './editor-state.js';
 import { createDocumentIndex, createLinkCommands, expireLinks } from './links.js';
+import { canOpen, setMain } from './main-state.js';
 import { createNewParts } from './new-list.js';
 import { createOverlayCommands } from './overlay-commands.js';
+import { isOwner } from './owners.js';
 import { createDocumentRows, type DocumentRows } from './palette-documents.js';
 import { personalWrites } from './personal-writes.js';
 import { appCallable } from './port-callable.js';
@@ -94,6 +98,8 @@ export type LateCommandDeps = ShellCommandDeps &
 		queued: symbol;
 		/** The actor stage A chose the scope for, undefined in it signed out; none before it has (4.4, B1). */
 		stageA?: [AccessActorV1] | undefined;
+		/** The kernel's map of each person's active persona when not `default` (phase 3 specification, 6.1). */
+		personas?: Map<string, string>;
 	} & Pick<ProjectSummaryDeps, 'summaries' | 'run' | 'deadlineMs'> &
 	/** What stage B reads of the apps, from the kernel's options (phase 2 specification, 2.2). */
 	Pick<KernelOptionsV3, 'boot' | 'appsLoader' | 'deployment' | 'identityPorts'>;
@@ -121,6 +127,8 @@ export interface AppliedProjection {
 	generation: string;
 	workspace: { id: string; name: string };
 	apps: readonly object[];
+	/** A version 4 projection's host (phase 6 specification, 3.3). */
+	host?: { kind: 'static' | 'hosted' | 'desktop' };
 }
 
 /**
@@ -143,6 +151,8 @@ export async function applyDeployment(
 			const { boot: _boot, ...kept } = entry as { boot?: unknown };
 			return kept;
 		}),
+		// The kind alone, journaled with the entries, so a replay reads it from this entry (phase 6's 3.3, A5).
+		...(projection.host ? { host: { kind: projection.host.kind } } : {}),
 	});
 	return result.success;
 }
@@ -235,7 +245,16 @@ export async function createLateParts(
 	const [
 		{ createDocumentCommands, trashBefore },
 		{ createEditorParts },
-		{ createSessionSettle, createIdentityCommands, HUMAN_COMMANDS, PROVIDER_COMMANDS },
+		{
+			createSessionSettle,
+			createIdentityCommands,
+			createMemberCommands,
+			createPersona,
+			HUMAN_COMMANDS,
+			MEMBERSHIP_CHANGING_COMMANDS,
+			OWNER_COMMANDS,
+			PROVIDER_COMMANDS,
+		},
 	] = await Promise.all([
 		import('./documents.js'),
 		import('./editor-commands.js'),
@@ -284,6 +303,36 @@ export async function createLateParts(
 		identity: deps.identity,
 		kit: DOCUMENT_KIT,
 	});
+	// Step 4's account and member commands (5.1, 5.3, 5.4, 7.2), decided on the membership the kernel holds.
+	const memberCommands = createMemberCommands({
+		auth: deps.auth,
+		identity: deps.identity,
+		kit: { ...DOCUMENT_KIT, personKey, isOwner },
+		membership: () => deps.scope.membership,
+		agents: () => agents.all(),
+		// Step 5's persona, built below: what other members see, and the active persona's id (step 5's deviation 8).
+		personas: {
+			presentationOf: (person) => persona.presentationOf(person),
+			activeOf: async (person) => (await persona.recordOf(person))?.id ?? 'default',
+		},
+	});
+	/** `appearance-set`'s handler, once the commands are built: `persona-set` applies a persona's through it (6.2). */
+	let appearance: ZodCommandDefinition | undefined;
+	// Persona (phase 3 specification, 6): the commands, each person's active persona, and its emphasis.
+	const persona = createPersona({
+		store: deps.store,
+		scope: deps.scope,
+		apps: deps.apps,
+		personas: deps.personas ?? new Map(),
+		icons: ICONS_V1,
+		themes: APPEARANCE_THEMES,
+		densities: APPEARANCE_DENSITIES,
+		canOpen: (instance, project) => canOpen(deps.apps(), deps.scope, instance, project),
+		setMain: (main) => setMain(deps.viewState, main),
+		appearance: (patch, context) =>
+			(appearance as ZodCommandDefinition).handler(patch, context) as Promise<CommandResult>,
+		kit: DOCUMENT_KIT,
+	});
 	const lateScope = createLateScope({
 		...deps,
 		recorded: PROVIDER_COMMANDS,
@@ -307,6 +356,7 @@ export async function createLateParts(
 		...deps,
 		ports: deps.identityPorts ?? deps.ports,
 		identityCommands,
+		persona,
 		lateScope,
 		drafts,
 		ensureEditor: (project) => editorParts.ensure(project),
@@ -382,17 +432,28 @@ export async function createLateParts(
 			created.command,
 			sessions.command,
 			...identityCommands.commands,
+			...memberCommands.commands,
+			...persona.commands,
 		].map((command) => [command.name, command])
 	);
+	appearance = byName.get('appearance-set');
 	// The kernel's wrapper of `auth-sign-in`, and a signed-out `provider` page's palette (phase 3 specification, 2.1, 4.6).
 	byName.set(
 		'auth-sign-in',
 		identityCommands.signIn(byName.get('auth-sign-in') as ZodCommandDefinition)
 	);
+	// A persona's emphasis orders the palette's results, hiding none (phase 3 specification, 6.2).
+	const categories = new Map(
+		[...byName.values()].map((command) => [command.name, command.category])
+	);
 	byName.set(
 		'palette-search',
 		identityCommands.paletteSearch(
-			byName.get('palette-search') as ZodCommandDefinition,
+			persona.paletteSearch(
+				byName.get('palette-search') as ZodCommandDefinition,
+				deps.paletteRows,
+				(name) => categories.get(name)
+			),
 			SIGNED_OUT_COMMANDS
 		)
 	);
@@ -454,6 +515,7 @@ export async function createLateParts(
 				copied: sessions?.copied,
 				after: (name) => {
 					if (name.startsWith('auth-')) sessions?.afterAuth();
+					else if (MEMBERSHIP_CHANGING_COMMANDS.includes(name)) sessions?.membershipChanged();
 				},
 				before: (name, context) => sessions?.settleFirst(name, context),
 			}),
@@ -465,7 +527,8 @@ export async function createLateParts(
 				(command) =>
 					!INTERNAL_COMMANDS.includes(command.name) &&
 					!PERSON_SESSION.includes(command.name) &&
-					!HUMAN_COMMANDS.includes(command.name)
+					!HUMAN_COMMANDS.includes(command.name) &&
+					!OWNER_COMMANDS.includes(command.name)
 			),
 			middleware: [
 				async (command, _input, context, next) => {

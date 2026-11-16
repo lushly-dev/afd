@@ -243,6 +243,86 @@ def _ci_present(path: Path, language: str) -> dict:
     return {**result, "message": f"CI workflow found: {found}"}
 
 
+def _agent_skills_mirror(path: Path, language: str) -> dict:
+    """Want .agents/skills as a live mirror of .claude/skills; a .codex/skills one only warns.
+
+    Codex and other agents document .agents/skills for repository skills, and Claude Code
+    reads only .claude/skills. The source check still judges a legacy .codex/skills mirror,
+    but every suggestion points at .agents/skills, and a leftover .codex/skills warns.
+    """
+    canonical = path / ".claude" / "skills"
+    mirror = path / ".agents" / "skills"
+    legacy = path / ".codex" / "skills"
+    create = "Create .agents/skills as a symlink or junction to .claude/skills"
+    replace = "Replace .agents/skills with a symlink or junction to .claude/skills"
+    if not canonical.is_dir():
+        return {
+            "status": "fail",
+            "message": ".claude/skills/ directory not found",
+            "suggestion": "Run 'botcore skill-seed' before creating the .agents/skills mirror",
+        }
+    if not os.path.lexists(mirror):
+        if not os.path.lexists(legacy):
+            return {
+                "status": "fail",
+                "message": ".agents/skills mirror not found",
+                "suggestion": create,
+            }
+        result = checks.check_codex_skills_mirror(path, language)
+        if result["status"] != "pass":
+            return {
+                **result,
+                "suggestion": "Move any changes only in .codex/skills into .claude/skills, "
+                f"{create[0].lower()}{create[1:]}, then remove .codex/skills",
+            }
+        return {
+            "status": "warn",
+            "message": ".codex/skills mirrors .claude/skills, but Codex now reads .agents/skills",
+            "suggestion": f"{create}, then remove .codex/skills",
+            "metric": "legacy_mirror",
+        }
+    try:
+        live = os.path.samefile(mirror, canonical)
+    except OSError:
+        live = False
+    if live:
+        if os.path.lexists(legacy):
+            return {
+                "status": "warn",
+                "message": ".agents/skills mirrors .claude/skills, but .codex/skills remains",
+                "suggestion": "Remove .codex/skills; Codex also loads it",
+                "metric": "legacy_mirror_present",
+            }
+        return {
+            "status": "pass",
+            "message": ".agents/skills mirrors .claude/skills",
+            "metric": "mirrored",
+        }
+    if not mirror.is_dir():
+        return {
+            "status": "fail",
+            "message": ".agents/skills exists but is not a directory mirror",
+            "suggestion": replace,
+        }
+    found = [
+        "Mirror-only" + item[len("Codex-only") :] if item.startswith("Codex-only") else item
+        for item in checks._summarize_skill_tree_drift(canonical, mirror)
+    ]
+    if found:
+        return {
+            "status": "fail",
+            "message": ".agents/skills is a standalone copy and has content to migrate: "
+            + "; ".join(found),
+            "suggestion": "Move mirror-only changes into .claude/skills, then replace "
+            ".agents/skills with a symlink or junction",
+        }
+    return {
+        "status": "fail",
+        "message": ".agents/skills exists separately and is not a live mirror of .claude/skills",
+        "suggestion": replace,
+    }
+
+
 CHECKS: dict[str, CheckSpec] = {
     "node_version_alignment": CheckSpec(
         _node_alignment,
@@ -250,9 +330,9 @@ CHECKS: dict[str, CheckSpec] = {
         evidence_paths=(".nvmrc", ".node-version", "package.json", ".github/workflows"),
         scope="repository",
     ),
-    "codex_skills_mirror": CheckSpec(
-        checks.check_codex_skills_mirror,
-        evidence_paths=(".claude/skills", ".codex/skills"),
+    "agent_skills_mirror": CheckSpec(
+        _agent_skills_mirror,
+        evidence_paths=(".claude/skills", ".agents/skills", ".codex/skills"),
         scope="repository",
     ),
     "lefthook_configured": CheckSpec(

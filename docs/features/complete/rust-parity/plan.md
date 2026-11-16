@@ -7,7 +7,7 @@ When this plan was written, the Rust AFD crate covered the core result model, ba
 The canonical name check is:
 
 ```bash
-uv run --project alfred alfred parity --path .
+uv run --project alfred alfred --workspace . parity --path .
 ```
 
 Counts over time:
@@ -33,7 +33,7 @@ This plan tracked the Rust-side closure work only. TypeScript remains the source
 | Updated | 2026-09-27 |
 | Shipped In | 98af776, "Complete Rust export parity (#181)" |
 | Package | `packages/rust` |
-| Source Of Truth | `uv run --project alfred alfred parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
+| Source Of Truth | `uv run --project alfred alfred --workspace . parity --path .` for names; [`docs/language-parity.md`](../../../language-parity.md) for behavior |
 | Depends On | Existing Rust crate foundation in `docs/features/proposed/rust-support/` |
 
 ## Outcome
@@ -306,14 +306,14 @@ Each wave should include:
 - one parity check run before merge:
 
 ```bash
-uv run --project alfred alfred parity --path .
+uv run --project alfred alfred --workspace . parity --path .
 ```
 
 Recommended checkpoint commands:
 
 ```bash
 cargo test
-uv run --project alfred alfred parity --path .
+uv run --project alfred alfred --workspace . parity --path .
 ```
 
 ## Acceptance Criteria

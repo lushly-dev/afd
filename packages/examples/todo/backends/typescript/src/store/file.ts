@@ -15,8 +15,9 @@
 import { existsSync, mkdirSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import type { Priority, Todo, TodoFilter, TodoStats } from '../types.js';
-import { readTodoFile, writeTodoFile } from './json-file.js';
+import type { ChangeEntry, Priority, Stamp, Todo, TodoFilter, TodoStats } from '../types.js';
+import { readHistoryFile, readTodoFile, writeJsonFile, writeTodoFile } from './json-file.js';
+import { TodoStore } from './memory.js';
 
 // From this file: store/ → src/ (or dist/) → typescript/ → backends/ → todo/
 const EXAMPLE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..', '..', '..', '..');
@@ -39,285 +40,178 @@ export interface FileStoreOptions {
 	seedPath?: string;
 }
 
-/**
- * Generate a unique ID.
- */
-function generateId(): string {
-	return `todo-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
+/** The deleted todos' file beside a todo file: `todos.json` → `todos.deleted.json`. */
+export function deletedPathFor(filePath: string): string {
+	return filePath.replace(/(\.json)?$/, '.deleted.json');
 }
 
-/**
- * Get current ISO timestamp.
- */
-function now(): string {
-	return new Date().toISOString();
+/** The change history's file beside a todo file: `todos.json` → `todos.history.json`. */
+export function historyPathFor(filePath: string): string {
+	return filePath.replace(/(\.json)?$/, '.history.json');
 }
 
 /**
  * File-based todo store with JSON persistence.
  *
- * Writes are atomic (temp file + rename), and a file that cannot be parsed throws
- * a `TodoStoreCorruptError` rather than being treated as empty.
+ * The live todos stay in the main file, in the format the Python backend also reads. Deleted
+ * todos and the change history are kept in their own files beside it
+ * ({@link deletedPathFor}, {@link historyPathFor}), so a backend that knows nothing of them
+ * never shows a deleted todo as live. Each operation loads the files, runs the in-memory
+ * store's method on them and saves what changed.
+ *
+ * Each file's write is atomic (temp file + rename), but the three are separate writes, not one
+ * transaction. The file a todo moves into is written first, so a crash between the writes leaves
+ * it in both files rather than neither, and loading keeps the live copy of a todo found in both.
+ * The move to `@lushly-dev/local-db`'s SQLite store (the to-do reference plan's D4) replaces this.
+ * A file that cannot be parsed throws a `TodoStoreCorruptError` rather than being treated as
+ * empty.
  */
 export class FileStore {
 	readonly filePath: string;
+	readonly deletedPath: string;
+	readonly historyPath: string;
 
 	constructor(filePath?: string, options: FileStoreOptions = {}) {
 		this.filePath = filePath ?? DEFAULT_STORE_PATH;
+		this.deletedPath = deletedPathFor(this.filePath);
+		this.historyPath = historyPathFor(this.filePath);
 		const seedPath = options.seedPath ?? (filePath === undefined ? DEFAULT_SEED_PATH : undefined);
 
 		mkdirSync(dirname(this.filePath), { recursive: true });
 
 		if (!existsSync(this.filePath)) {
 			const initial = seedPath && existsSync(seedPath) ? readTodoFile(seedPath) : new Map();
-			this.saveTodos(initial);
+			writeTodoFile(this.filePath, initial);
 		}
 
-		// Fail at startup, not on the first command, when the file is unreadable.
-		this.loadTodos();
+		// Fail at startup, not on the first command, when a file is unreadable.
+		this.load();
 	}
 
 	/**
-	 * Load todos from file.
+	 * Load every file into an in-memory store. A missing file is empty.
 	 *
-	 * @throws TodoStoreCorruptError when the file exists but cannot be parsed
+	 * @throws TodoStoreCorruptError when a file exists but cannot be parsed
 	 */
-	private loadTodos(): Map<string, Todo> {
-		try {
-			return readTodoFile(this.filePath);
-		} catch (error) {
-			// Deleted while the server runs: start again from an empty store.
-			if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
-				return new Map();
-			}
-			throw error;
-		}
-	}
-
-	/**
-	 * Save todos to file atomically.
-	 */
-	private saveTodos(todos: Map<string, Todo>): void {
-		writeTodoFile(this.filePath, todos);
-	}
-
-	/**
-	 * Create a new todo.
-	 */
-	create(data: { title: string; description?: string; priority?: Priority }): Todo {
-		const todos = this.loadTodos();
-
-		const todo: Todo = {
-			id: generateId(),
-			title: data.title,
-			description: data.description,
-			priority: data.priority ?? 'medium',
-			completed: false,
-			createdAt: now(),
-			updatedAt: now(),
-		};
-
-		todos.set(todo.id, todo);
-		this.saveTodos(todos);
-		return todo;
-	}
-
-	/**
-	 * Get a todo by ID.
-	 */
-	get(id: string): Todo | undefined {
-		const todos = this.loadTodos();
-		return todos.get(id);
-	}
-
-	/**
-	 * List todos with optional filtering.
-	 */
-	list(filter: TodoFilter = {}): Todo[] {
-		const todos = this.loadTodos();
-		let results = Array.from(todos.values());
-
-		// Filter by completion status
-		if (filter.completed !== undefined) {
-			results = results.filter((t) => t.completed === filter.completed);
-		}
-
-		// Filter by priority
-		if (filter.priority) {
-			results = results.filter((t) => t.priority === filter.priority);
-		}
-
-		// Search in title/description
-		if (filter.search) {
-			const search = filter.search.toLowerCase();
-			results = results.filter(
-				(t) =>
-					t.title.toLowerCase().includes(search) || t.description?.toLowerCase().includes(search)
-			);
-		}
-
-		// Sort
-		const sortBy = filter.sortBy ?? 'createdAt';
-		const sortOrder = filter.sortOrder ?? 'desc';
-		const priorityOrder: Record<Priority, number> = {
-			high: 3,
-			medium: 2,
-			low: 1,
-		};
-
-		results.sort((a, b) => {
-			let comparison = 0;
-
-			switch (sortBy) {
-				case 'priority':
-					comparison = priorityOrder[a.priority] - priorityOrder[b.priority];
-					break;
-				case 'title':
-					comparison = a.title.localeCompare(b.title);
-					break;
-				case 'updatedAt':
-					comparison = a.updatedAt.localeCompare(b.updatedAt);
-					break;
-				default:
-					comparison = a.createdAt.localeCompare(b.createdAt);
-			}
-
-			return sortOrder === 'asc' ? comparison : -comparison;
+	private load(): TodoStore {
+		const todos = readOrEmpty(
+			() => readTodoFile(this.filePath),
+			() => new Map<string, Todo>()
+		);
+		const deleted = readOrEmpty(
+			() => readTodoFile(this.deletedPath),
+			() => new Map<string, Todo>()
+		);
+		// In both files only after a crash between the writes of a delete or restore: keep it live
+		for (const id of todos.keys()) deleted.delete(id);
+		return new TodoStore({
+			todos,
+			deleted,
+			history: readOrEmpty(
+				() => readHistoryFile(this.historyPath),
+				() => []
+			),
 		});
-
-		// Pagination
-		const offset = filter.offset ?? 0;
-		const limit = filter.limit ?? 100;
-		results = results.slice(offset, offset + limit);
-
-		return results;
 	}
 
-	/**
-	 * Update a todo.
-	 */
-	update(
-		id: string,
-		data: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>>
-	): Todo | undefined {
-		const todos = this.loadTodos();
-		const todo = todos.get(id);
-		if (!todo) {
-			return undefined;
-		}
-
-		// Filter out undefined values to avoid overwriting existing properties
-		const filteredData: Partial<Pick<Todo, 'title' | 'description' | 'priority' | 'completed'>> =
-			{};
-		if (data.title !== undefined) filteredData.title = data.title;
-		if (data.description !== undefined) filteredData.description = data.description;
-		if (data.priority !== undefined) filteredData.priority = data.priority;
-		if (data.completed !== undefined) filteredData.completed = data.completed;
-
-		const updated: Todo = {
-			...todo,
-			...filteredData,
-			updatedAt: now(),
-		};
-
-		// Handle completedAt timestamp
-		if (data.completed !== undefined) {
-			if (data.completed && !todo.completed) {
-				updated.completedAt = now();
-			} else if (!data.completed && todo.completed) {
-				updated.completedAt = undefined;
-			}
-		}
-
-		todos.set(id, updated);
-		this.saveTodos(todos);
-		return updated;
+	/** Run a read against the files' current state. */
+	private read<T>(operation: (store: TodoStore) => T): T {
+		return operation(this.load());
 	}
 
-	/**
-	 * Toggle todo completion status.
-	 */
-	toggle(id: string): Todo | undefined {
-		const todos = this.loadTodos();
-		const todo = todos.get(id);
-		if (!todo) {
-			return undefined;
+	/** Run a change against the files' current state, then save the state atomically. */
+	private change<T>(operation: (store: TodoStore) => T): T {
+		const store = this.load();
+		const deletedBefore = new Set(store.snapshot().deleted.keys());
+		const result = operation(store);
+		const state = store.snapshot();
+		// Write the file a todo moved into first (see the class comment)
+		const intoDeleted = [...state.deleted.keys()].some((id) => !deletedBefore.has(id));
+		if (intoDeleted) {
+			writeTodoFile(this.deletedPath, state.deleted);
+			writeTodoFile(this.filePath, state.todos);
+		} else {
+			writeTodoFile(this.filePath, state.todos);
+			writeTodoFile(this.deletedPath, state.deleted);
 		}
-
-		const completed = !todo.completed;
-		const updated: Todo = {
-			...todo,
-			completed,
-			completedAt: completed ? now() : undefined,
-			updatedAt: now(),
-		};
-
-		todos.set(id, updated);
-		this.saveTodos(todos);
-		return updated;
+		writeJsonFile(this.historyPath, state.history);
+		return result;
 	}
 
-	/**
-	 * Delete a todo.
-	 */
-	delete(id: string): boolean {
-		const todos = this.loadTodos();
-		const existed = todos.delete(id);
-		if (existed) {
-			this.saveTodos(todos);
-		}
-		return existed;
+	create(data: { title: string; description?: string; priority?: Priority }, stamp?: Stamp): Todo {
+		return this.change((store) => store.create(data, stamp));
 	}
 
-	/**
-	 * Clear completed todos.
-	 */
-	clearCompleted(): { cleared: number; remaining: number } {
-		const todos = this.loadTodos();
-		let cleared = 0;
-		for (const [id, todo] of todos) {
-			if (todo.completed) {
-				todos.delete(id);
-				cleared++;
-			}
-		}
-		this.saveTodos(todos);
-		return { cleared, remaining: todos.size };
+	get(id: string): Todo | undefined {
+		return this.read((store) => store.get(id));
 	}
 
-	/**
-	 * Get todo statistics.
-	 */
+	getDeleted(id: string): Todo | undefined {
+		return this.read((store) => store.getDeleted(id));
+	}
+
+	list(filter: TodoFilter = {}): Todo[] {
+		return this.read((store) => store.list(filter));
+	}
+
+	update(id: string, data: Parameters<TodoStore['update']>[1], now?: string): Todo | undefined {
+		return this.change((store) => store.update(id, data, now));
+	}
+
+	toggle(id: string, now?: string): Todo | undefined {
+		return this.change((store) => store.toggle(id, now));
+	}
+
+	delete(id: string, now?: string): Todo | undefined {
+		return this.change((store) => store.delete(id, now));
+	}
+
+	restore(id: string): Todo | undefined {
+		return this.change((store) => store.restore(id));
+	}
+
+	clearCompleted(): { clearedIds: string[]; remaining: number } {
+		return this.change((store) => store.clearCompleted());
+	}
+
+	clearDeleted(): { clearedIds: string[]; remaining: number } {
+		return this.change((store) => store.clearDeleted());
+	}
+
+	clearAll(): { clearedIds: string[]; remaining: number } {
+		return this.change((store) => store.clearAll());
+	}
+
 	getStats(): TodoStats {
-		const todos = this.loadTodos();
-		const allTodos = Array.from(todos.values());
-		const completed = allTodos.filter((t) => t.completed).length;
-		const pending = allTodos.length - completed;
-
-		return {
-			total: allTodos.length,
-			completed,
-			pending,
-			byPriority: {
-				low: allTodos.filter((t) => t.priority === 'low').length,
-				medium: allTodos.filter((t) => t.priority === 'medium').length,
-				high: allTodos.filter((t) => t.priority === 'high').length,
-			},
-			completionRate: allTodos.length > 0 ? completed / allTodos.length : 0,
-		};
+		return this.read((store) => store.getStats());
 	}
 
-	/**
-	 * Clear all todos (for testing).
-	 */
+	record(change: Omit<ChangeEntry, 'seq'>): ChangeEntry {
+		return this.change((store) => store.record(change));
+	}
+
+	history(): ChangeEntry[] {
+		return this.read((store) => store.history());
+	}
+
+	/** Remove everything: live and deleted todos and the history (for tests). */
 	clear(): void {
-		this.saveTodos(new Map());
+		this.change((store) => store.clear());
 	}
 
-	/**
-	 * Get count of todos.
-	 */
 	count(): number {
-		return this.loadTodos().size;
+		return this.read((store) => store.count());
+	}
+}
+
+/** A file's contents, or `empty()` when it does not exist (yet, or any more). */
+function readOrEmpty<T>(read: () => T, empty: () => T): T {
+	try {
+		return read();
+	} catch (error) {
+		if ((error as NodeJS.ErrnoException).code === 'ENOENT') {
+			return empty();
+		}
+		throw error;
 	}
 }

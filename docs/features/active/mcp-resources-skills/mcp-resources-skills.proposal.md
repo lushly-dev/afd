@@ -11,7 +11,7 @@
 | Author | jasfalk (drafted with Claude) |
 | Requested by | [Umbel](../../../../endpoints/umbel/docs/STATUS.md), decision [D47](../../../../endpoints/umbel/docs/decisions.md) and step 0a of its [phase 1 plan](../../../../endpoints/umbel/docs/phases/1-plugin-contract/spec.md#step-0-afd-first); [Loam](../../../../endpoints/loam/docs/architecture.md#afd-prerequisites), which needs `ui://` resources and MCP Apps' `_meta.ui.resourceUri` from the same mechanism. Under Umbel's D25 it lands in AFD, spec first, for every language |
 | Packages | `spec/`, `packages/server`, `python/`, `packages/rust`, `packages/cpp` (with the todo backends) |
-| Related | [Skill Knowledge Layer](../../proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md) (reconciled below); [Hybrid tool strategy](../hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), whose shape this follows; [MCP 2026-07-28 upgrade](../mcp-2026-07-28/proposal.md); [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md), which per-caller resources wait for; [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
+| Related | [Skill Knowledge Layer](../../proposed/skill-knowledge-layer/skill-knowledge-layer.proposal.md) (reconciled below); [Hybrid tool strategy](../../complete/hybrid-tool-strategy/hybrid-tool-strategy.proposal.md), whose shape this follows; [MCP 2026-07-28 upgrade](../../complete/mcp-2026-07-28/proposal.md); [MCP authorization](../mcp-authorization/mcp-authorization.proposal.md), which per-caller resources wait for; [Language parity](../../../language-parity.md) item D2 (C++ `afd::mcp_stdio`, [#341](https://github.com/lushly-dev/afd/issues/341)) |
 
 ## Problem
 
@@ -62,7 +62,7 @@ What follows for the spec:
 - **`server/discover` and `tools/list` cache hints exist in every language**, so R3's rule, reusing
   the `tools/list` TTL option, adds no new option.
 - **No `spec/` page yet said that `Mcp-Name` carries `params.uri` or that lists must not vary per
-  connection**; both were recorded only in the [MCP 2026-07-28 proposal](../mcp-2026-07-28/proposal.md).
+  connection**; both were recorded only in the [MCP 2026-07-28 proposal](../../complete/mcp-2026-07-28/proposal.md).
   R3 and R5 now state them.
 
 ## Proposal

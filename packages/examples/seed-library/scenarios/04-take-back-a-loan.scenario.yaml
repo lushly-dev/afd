@@ -1,0 +1,57 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T1, lend a packet.
+# Not expressible here: the loan's result names its undo in `undoCommand` and `undoArgs`, which
+# a scenario cannot assert. The file runs the command they name.
+name: Take back a loan made by mistake
+description: >-
+  When I lend the wrong packet or lend to the wrong member, I want to take the loan back at once,
+  so that the count and the member's record are right again.
+job: take-back-a-loan
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: A loan made to the wrong member
+    command: loan-create
+    input: { memberId: mem-ines, varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        status: out
+  - description: Taken back
+    command: loan-cancel
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        status: cancelled
+  - description: The packet is back on the shelf
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 6
+  - description: The wrong member's record shows nothing out
+    command: loan-list
+    input: { memberId: mem-ines, status: out }
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: Taking it back twice is refused
+    command: loan-cancel
+    input: { id: "${{ steps[0].data.id }}" }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: loan-list }
+  - description: The packet goes to the member who asked for it
+    command: loan-create
+    input: { memberId: mem-wren, varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        status: out
+        lot: { id: lot-borlotti-29 }

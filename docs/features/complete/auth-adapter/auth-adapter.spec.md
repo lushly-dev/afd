@@ -3,7 +3,7 @@
 > Provider-agnostic authentication for AFD applications
 
 ---
-status: in-progress
+status: complete
 created: 2026-01-31
 updated: 2026-02-21
 proposal: [auth-adapter.proposal.md](./auth-adapter.proposal.md)

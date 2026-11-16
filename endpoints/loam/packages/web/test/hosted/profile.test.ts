@@ -1,25 +1,28 @@
 /**
  * P6-H1 (phase 6 specification, section 19): one command, one process. `loam-host dev` from an empty
- * directory, under `base_path = "/loam/"`, through `startDevHost`'s child, which runs the bin's own `runDev`
- * with the test-only option that serves a `local` deployment of version 2 until step 3. Step 1's cases for
- * the `Host` check, the sandbox, the lock, TLS, health and `base_path` are here, on the real profile.
+ * directory, under `base_path = "/loam/"`, on a version 4 deployment with `[host] kind = "hosted"`: the bin
+ * itself, and `startDevHost`'s child, which runs the bin's own `runDev`. Since step 3 no test-only option serves
+ * an earlier version. Step 1's cases for the `Host` check, the sandbox, the lock, TLS, health and `base_path`
+ * are here, on the real profile.
  */
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawn } from 'node:child_process';
+import { once } from 'node:events';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
-import { symlink, writeFile } from 'node:fs/promises';
+import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
 import { type DevHost, startDevHost } from '@lushly-dev/loam-host/testing';
 import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
 	deploymentEntry,
-	deploymentFile,
+	hostedDeploymentFile,
 	kernelCall,
 	launchForDevHost,
 	openShell,
 	packApp,
 } from '../browser/harness';
-import { hosted, loamHost, writtenPolicy } from './support';
+import { BIN, hosted, loamHost, writtenPolicy } from './support';
 
 const HTML = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8';
 
@@ -44,7 +47,8 @@ const coldStarts: number[] = [];
 let starting: DevHost | undefined;
 
 beforeAll(async () => {
-	const config = deploymentFile(
+	const config = hostedDeploymentFile(
+		[],
 		deploymentEntry('hello', await packApp('hello')),
 		deploymentEntry('tally', await packApp('tally'))
 	);
@@ -163,6 +167,57 @@ describe('P6-H1: one command, one process', () => {
 		}
 		// Only under `base_path`.
 		expect((await hosted(host, '/', { accept: HTML })).status).toBe(404);
+	});
+
+	it('P6-H1: the bin, `loam-host dev --deployment <file>`, from an empty directory prints its origin and serves the shell', async () => {
+		const root = await mkdtemp(join(tmpdir(), 'loam-p6-h1-'));
+		try {
+			const deployment = join(root, 'loam.deployment.toml');
+			await writeFile(
+				deployment,
+				hostedDeploymentFile([], deploymentEntry('hello', await packApp('hello')))
+			);
+			const child = spawn(process.execPath, [BIN, 'dev', '--deployment', deployment], {
+				stdio: ['ignore', 'pipe', 'pipe'],
+			});
+			try {
+				let text = '';
+				child.stdout.on('data', (chunk: Buffer) => {
+					text += chunk.toString('utf8');
+				});
+				const printed = await new Promise<{ data: { origin: string; spki: string } }>(
+					(done, fail) => {
+						const timer = setTimeout(() => fail(new Error(`no result: ${text}`)), 60_000);
+						child.stdout.on('data', () => {
+							try {
+								const result = JSON.parse(text);
+								clearTimeout(timer);
+								done(result);
+							} catch {}
+						});
+						child.once('exit', (code) => fail(new Error(`exited ${code}: ${text}`)));
+					}
+				);
+				expect(printed.data.origin).toMatch(/^https:\/\/localhost:\d+$/);
+				expect(readFileSync(join(root, '.loam-dev', '.gitignore'), 'utf8')).toBe('*\n');
+				const port = Number(new URL(printed.data.origin).port);
+				const answer = await hosted(
+					{
+						origin: printed.data.origin,
+						certificate: join(root, '.loam-dev', 'tls', 'cert.pem'),
+					} as DevHost,
+					'/',
+					{ accept: HTML }
+				);
+				expect(answer.status, String(port)).toBe(200);
+			} finally {
+				const exited = once(child, 'exit');
+				child.kill('SIGTERM');
+				await exited;
+			}
+		} finally {
+			await rm(root, { recursive: true, force: true });
+		}
 	});
 
 	it('P6-H1: a second dev on the same directory, a second process, is HOST_DATA_LOCKED', async () => {

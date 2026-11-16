@@ -21,7 +21,7 @@ import {
 	serverConfig,
 	temporaryDirectory,
 } from './test-support.js';
-import { boundAddresses, SERVE_STATIC_DEPLOYMENT } from './testing-only.js';
+import { boundAddresses } from './testing-only.js';
 
 const HTML = 'text/html,application/xhtml+xml;q=0.9,*/*;q=0.8';
 const SHELL_HOST = 'localhost:8443';
@@ -33,20 +33,13 @@ afterEach(async () => {
 	await Promise.all(hosts.splice(0).map((host) => host.close()));
 });
 
-async function start(
-	options: {
-		body?: string;
-		server?: Partial<LoamHostConfig['server']>;
-		staticOption?: boolean;
-	} = {}
-) {
+async function start(options: { body?: string; server?: Partial<LoamHostConfig['server']> } = {}) {
 	const root = await temporaryDirectory();
 	const data = join(root, 'data');
 	const config = {
 		server: serverConfig(data, options.server),
 		deployment: await deploymentFile(root, options.body),
 		dist: await fixtureDist(root),
-		...(options.staticOption === false ? {} : { [SERVE_STATIC_DEPLOYMENT]: true as const }),
 	};
 	const host = await createLoamHost(config);
 	hosts.push(host);
@@ -347,16 +340,18 @@ describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 });
 
 describe('P6-E1: construction (3.1, section 4)', () => {
-	it('P6-E1: refuses a static deployment without the test-only option, and leaves the directory unlocked', async () => {
+	it('P6-E1: refuses a version 3 deployment, which reads as static, and leaves the directory unlocked: no test-only option serves one since step 3', async () => {
 		const root = await temporaryDirectory();
 		const data = join(root, 'data');
+		const static3 = join(root, 'static.toml');
+		await writeFile(static3, 'deployment_version = 3\n\n[apps]\n');
 		const config = {
 			server: serverConfig(data),
-			deployment: await deploymentFile(root),
+			deployment: static3,
 			dist: await fixtureDist(root),
 		};
 		await expect(createLoamHost(config)).rejects.toMatchObject({ code: 'HOST_DEPLOYMENT_KIND' });
-		const host = await createLoamHost({ ...config, [SERVE_STATIC_DEPLOYMENT]: true });
+		const host = await createLoamHost({ ...config, deployment: await deploymentFile(root) });
 		await host.close();
 	});
 
@@ -406,7 +401,6 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 			server: serverConfig(data),
 			deployment: await deploymentFile(root),
 			dist: await fixtureDist(root),
-			[SERVE_STATIC_DEPLOYMENT]: true,
 		});
 		hosts.push(host);
 		expect(readdirSync(join(data, 'public'))).toEqual(['site']);
@@ -424,7 +418,6 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 				server: serverConfig(data),
 				deployment: await deploymentFile(root),
 				dist: await fixtureDist(root),
-				[SERVE_STATIC_DEPLOYMENT]: true,
 			})
 		).rejects.toMatchObject({ code: 'HOST_SECRET_PERMISSIONS' });
 		expect(readdirSync(data)).toEqual([]);
@@ -437,7 +430,6 @@ describe('P6-E1: construction (3.1, section 4)', () => {
 				server: serverConfig(join(root, 'data'), { origin: 'http://localhost:8443' }),
 				deployment: await deploymentFile(root),
 				dist: await fixtureDist(root),
-				[SERVE_STATIC_DEPLOYMENT]: true,
 			})
 		).rejects.toMatchObject({ code: 'HOST_ORIGIN_INSECURE' });
 	});
@@ -455,7 +447,6 @@ describe('a failed start leaves nothing half-built', () => {
 				server: serverConfig(data),
 				deployment,
 				dist,
-				[SERVE_STATIC_DEPLOYMENT]: true,
 			})
 		).rejects.toMatchObject({ code: 'DEPLOYMENT_PATH_INVALID' });
 		acquireDataLock(data).release();
@@ -472,7 +463,6 @@ describe('a failed start leaves nothing half-built', () => {
 			}),
 			deployment: await deploymentFile(root, `[sandbox]\norigin = "${SANDBOX_ORIGIN}"\n\n`),
 			dist: await fixtureDist(root),
-			[SERVE_STATIC_DEPLOYMENT]: true,
 		});
 		hosts.push(host);
 		await expect(host.listen()).rejects.toMatchObject({ code: 'EADDRINUSE' });
@@ -497,7 +487,6 @@ describe('sockets handed over by the development profile (5.1)', () => {
 			server: serverConfig(data, { listen: `127.0.0.1:${port}` }),
 			deployment: await deploymentFile(root),
 			dist: await fixtureDist(root),
-			[SERVE_STATIC_DEPLOYMENT]: true,
 			[HOST_INTERNALS]: { lock: acquireDataLock(data), servers: { shell } },
 		});
 		hosts.push(host);
@@ -558,7 +547,6 @@ describe('TLS and HSTS (3.1, 3.5)', () => {
 			}),
 			deployment: await deploymentFile(root2),
 			dist: await fixtureDist(root2),
-			[SERVE_STATIC_DEPLOYMENT]: true,
 		});
 		hosts.push(unread);
 		await rm(copy, { recursive: true, force: true });

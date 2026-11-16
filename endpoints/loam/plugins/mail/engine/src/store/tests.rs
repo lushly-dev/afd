@@ -36,6 +36,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                 name: "Inbox",
                 role: Role::Inbox,
             },
+            0,
         )
         .expect("a mailbox");
     let archive = store
@@ -46,6 +47,7 @@ fn seeded(home: &Home) -> (Store, MailboxId, MailboxId) {
                 name: "Archive",
                 role: Role::Archive,
             },
+            0,
         )
         .expect("a mailbox");
     (store, inbox, archive)
@@ -188,6 +190,7 @@ fn the_directory_and_its_files_are_the_owners_alone() {
     let mode = |path: &std::path::Path| path.metadata().unwrap().permissions().mode() & 0o777;
     assert_eq!(mode(home.root()), 0o700);
     assert_eq!(mode(&home.blobs()), 0o700);
+    assert_eq!(mode(&home.index()), 0o700);
     assert_eq!(mode(&home.database()), 0o600);
     assert_eq!(mode(&home.lock_file()), 0o600);
     let mut files = 0;

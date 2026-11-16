@@ -6,6 +6,7 @@
 	"description": "Multi-stack Todo example with AFD patterns",
 	"scripts": {
 		"test:conformance:ts": "pnpm --dir backends/typescript build && tsx dx/run-conformance.ts --backend ts",
+		"test:scenarios:ts": "pnpm --dir backends/typescript build && tsx dx/run-scenarios.ts",
 		"test:conformance:py": "tsx dx/run-conformance.ts --backend py",
 		"test:conformance:rs": "cargo build --locked --manifest-path backends/rust/Cargo.toml && tsx dx/run-conformance.ts --backend rs",
 		"test:conformance:umbel": "(cd ../../../endpoints/umbel && cargo build --locked -p umbel-plugin-todo --bin umbel-todo) && tsx dx/run-conformance.ts --backend umbel",
@@ -14,7 +15,8 @@
 		"typecheck": "tsc -p tsconfig.typecheck.json",
 		"dev:ts": "cd backends/typescript && pnpm dev",
 		"dev:py": "uv run --project backends/python todo-server",
-		"dev:web": "cd frontends/vanilla && npx serve .",
+		"dev:web": "pnpm --dir frontends/fast-af dev",
+		"test:page": "pnpm --dir backends/typescript build && pnpm --dir frontends/fast-af build && pnpm --dir frontends/react build && pnpm --dir frontends/fast-af test:browser && pnpm --dir frontends/react test:browser",
 		"dev:react": "cd frontends/react && pnpm dev"
 	},
 	"devDependencies": {

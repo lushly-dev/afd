@@ -1,0 +1,158 @@
+{
+	"app": "seed-library",
+	"now": "2030-03-09T10:00:00Z",
+	"rules": {
+		"approvalLastsHours": 24,
+		"oldSeedBelow": 0.5,
+		"matchAppliesFrom": 0.9
+	},
+	"members": [
+		{ "id": "mem-ines", "name": "Ines Marlow", "number": "M-014", "canBeTold": true },
+		{ "id": "mem-tobias", "name": "Tobias Reed", "number": "M-027", "canBeTold": true },
+		{ "id": "mem-wren", "name": "Wren Achterberg", "number": "M-031", "canBeTold": false }
+	],
+	"varieties": [
+		{ "id": "var-borlotti", "name": "Borlotti bean", "kind": "vegetable", "rare": false },
+		{ "id": "var-runner", "name": "Scarlet runner bean", "kind": "vegetable", "rare": false },
+		{ "id": "var-painted", "name": "Painted Lady runner bean", "kind": "vegetable", "rare": false },
+		{ "id": "var-czar", "name": "Czar runner bean", "kind": "vegetable", "rare": false },
+		{ "id": "var-glassgem", "name": "Glass Gem corn", "kind": "vegetable", "rare": true },
+		{
+			"id": "var-crimson",
+			"name": "Crimson-flowered broad bean",
+			"kind": "vegetable",
+			"rare": true
+		},
+		{ "id": "var-calendula", "name": "Pot marigold", "kind": "flower", "rare": false },
+		{ "id": "var-nigella", "name": "Love-in-a-mist", "kind": "flower", "rare": false },
+		{ "id": "var-parsnip", "name": "Parsnip", "kind": "vegetable", "rare": false },
+		{ "id": "var-salsify", "name": "Salsify", "kind": "vegetable", "rare": false }
+	],
+	"lots": [
+		{
+			"id": "lot-borlotti-29",
+			"varietyId": "var-borlotti",
+			"harvestYear": 2029,
+			"packets": 6,
+			"source": "donation",
+			"germination": { "estimate": 0.9, "basis": "tested" }
+		},
+		{
+			"id": "lot-painted-28",
+			"varietyId": "var-painted",
+			"harvestYear": 2028,
+			"packets": 3,
+			"source": "return",
+			"germination": { "estimate": 0.8, "basis": "age" }
+		},
+		{
+			"id": "lot-czar-27",
+			"varietyId": "var-czar",
+			"harvestYear": 2027,
+			"packets": 1,
+			"source": "donation",
+			"germination": { "estimate": 0.7, "basis": "age" }
+		},
+		{
+			"id": "lot-glassgem-29",
+			"varietyId": "var-glassgem",
+			"harvestYear": 2029,
+			"packets": 2,
+			"source": "return",
+			"germination": { "estimate": 0.85, "basis": "tested" }
+		},
+		{
+			"id": "lot-crimson-28",
+			"varietyId": "var-crimson",
+			"harvestYear": 2028,
+			"packets": 1,
+			"source": "donation",
+			"germination": { "estimate": 0.75, "basis": "age" }
+		},
+		{
+			"id": "lot-calendula-24",
+			"varietyId": "var-calendula",
+			"harvestYear": 2024,
+			"packets": 4,
+			"source": "donation",
+			"germination": { "estimate": 0.45, "basis": "age" }
+		},
+		{
+			"id": "lot-nigella-27",
+			"varietyId": "var-nigella",
+			"harvestYear": 2027,
+			"packets": 2,
+			"source": "return",
+			"germination": { "estimate": 0.6, "basis": "age" }
+		},
+		{
+			"id": "lot-parsnip-28",
+			"varietyId": "var-parsnip",
+			"harvestYear": 2028,
+			"packets": 2,
+			"source": "donation",
+			"germination": { "estimate": 0.3, "basis": "age" }
+		}
+	],
+	"loans": [
+		{
+			"id": "loan-1",
+			"memberId": "mem-tobias",
+			"varietyId": "var-borlotti",
+			"lotId": "lot-borlotti-29",
+			"lentAt": "2029-04-14T10:30:00Z",
+			"status": "out"
+		}
+	],
+	"waiting": [],
+	"requests": [],
+	"substitutes": [
+		{
+			"for": "var-runner",
+			"offer": "var-painted",
+			"confidence": 0.82,
+			"reason": "Also a climbing runner bean, sown and grown the same way"
+		},
+		{
+			"for": "var-runner",
+			"offer": "var-czar",
+			"confidence": 0.6,
+			"reason": "A runner bean with white flowers; one packet left, from 2027"
+		}
+	],
+	"labelMatches": [
+		{
+			"label": "runner bean",
+			"offers": [
+				{
+					"varietyId": "var-runner",
+					"confidence": 0.62,
+					"reason": "The commonest runner bean in the library"
+				},
+				{
+					"varietyId": "var-painted",
+					"confidence": 0.3,
+					"reason": "A runner bean; the label names no colour"
+				},
+				{
+					"varietyId": "var-czar",
+					"confidence": 0.25,
+					"reason": "A runner bean; the label names no colour"
+				}
+			]
+		}
+	],
+	"evidence": [
+		{
+			"type": "test",
+			"id": "germination-test-2030-02",
+			"title": "The library's germination test, February 2030"
+		},
+		{
+			"type": "document",
+			"id": "viability-table",
+			"title": "How long seed keeps, by crop",
+			"location": "Parsnip: one year"
+		}
+	]
+}

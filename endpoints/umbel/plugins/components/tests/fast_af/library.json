@@ -24,7 +24,7 @@
 			"tag": "violet-approval-card"
 		},
 		{
-			"digest": "sha256:91dbe85e0fef7dcbc6887f949cf6986afdcacac0536c36e9f5dbf946a5b61833",
+			"digest": "sha256:d937bec42065b01cc2e10516ee44d1fd3786baf5c1d1558c7a8075e7e71c8fb5",
 			"status": "stable",
 			"summary": "Compact, non-interactive inline label for a status, category or count.",
 			"tag": "violet-badge"
@@ -42,13 +42,13 @@
 			"tag": "violet-breadcrumb-item"
 		},
 		{
-			"digest": "sha256:8acb12d46e2cc8e666b60b4c8d82b7b3a75a80565545f5551f1921d2b5dd34d8",
+			"digest": "sha256:e65c7896c06b89d242ab1a9e5aa498c7e2a967382b257e5619a9e7962a79cde8",
 			"status": "stable",
 			"summary": "Text button for actions, with before and after slots for icons; also the trigger for menus, disclosures and toggle buttons.",
 			"tag": "violet-button"
 		},
 		{
-			"digest": "sha256:997ff02feb61f502125ed08c5ce21a90a28a813525e5cfff3e40c1975c0fc117",
+			"digest": "sha256:8992f81faeef5e4c7b5c0f962eb34eb53b50917b86afd132089a1baee7cf930d",
 			"status": "stable",
 			"tag": "violet-calendar"
 		},
@@ -69,7 +69,7 @@
 			"tag": "violet-chat-composer"
 		},
 		{
-			"digest": "sha256:5eb858b1f570f6f8139906fec731efcea46b07e57d913eb25e1316283974058c",
+			"digest": "sha256:d40d5db4dc4b715428e11dd86f1734fe725bd901f4707c3bd21b738b505be0fb",
 			"status": "stable",
 			"tag": "violet-chat-suggestions"
 		},
@@ -80,13 +80,13 @@
 			"tag": "violet-checkbox"
 		},
 		{
-			"digest": "sha256:8acfbf28a9112e80c12704177ed38263ccc90cc01166fc78eefe64286912065b",
+			"digest": "sha256:d22fef316a33f107ca267bad9104370d68b7e3396fc2c80fb1913d4cbd9fcf38",
 			"status": "stable",
 			"summary": "Swatch button that opens a color editor popover with a hex field, HSL sliders and preset swatches; use to choose one color as a hex value.",
 			"tag": "violet-color-picker"
 		},
 		{
-			"digest": "sha256:a9b689d78c453d709822957669868d7a4f2ea16bfa3bd5e7266b0424319f9d48",
+			"digest": "sha256:cf18cc44329b0a9869c9a369bd288711f6e6824e709ca3433a51cfaf512624c5",
 			"status": "stable",
 			"tag": "violet-color-swatch"
 		},
@@ -102,27 +102,27 @@
 			"tag": "violet-conversation-thread"
 		},
 		{
-			"digest": "sha256:5df7a88367bb928d23e41f202d96427e89bb7952b27b5a2ffa614c9b562f0887",
+			"digest": "sha256:29b345b6d4f5d18352ebe37f7cdf4552aade57cd69db036b684b1bf9cab8f2b6",
 			"status": "stable",
 			"tag": "violet-data-grid"
 		},
 		{
-			"digest": "sha256:0a1d48b3b23360dd67387fd9950f1a63e182e5b11e2a073583aae18e0062d8a6",
+			"digest": "sha256:2f7a9b8d3a6830bee736bc7e9e9ac068e05cba6fad5f4220ac0fb81a60ca79f1",
 			"status": "stable",
 			"tag": "violet-data-grid-attachment-cell"
 		},
 		{
-			"digest": "sha256:97100d252ff30b2d19918e5491f7236b62c48a662f008559f292492884912186",
+			"digest": "sha256:3ac5326f4357ae582eec222cdeee8713986d8483c0ae0fe4fbaf13cb9bcf4b0b",
 			"status": "stable",
 			"tag": "violet-data-grid-multi-picker"
 		},
 		{
-			"digest": "sha256:27913eb1af4efc96ff80a25f56c9fec21c9a4174d84e7def2393a42c421f4cc6",
+			"digest": "sha256:3f89e3d57b0994e15c588f14c8bbd0192305afb2c1a0b16082e034dc8e66692b",
 			"status": "stable",
 			"tag": "violet-data-grid-persona-picker"
 		},
 		{
-			"digest": "sha256:b3e1c4ef274d1c78e3bce0eee1ab00eb288cccac96e8309365658600b2bd59ba",
+			"digest": "sha256:5ba7142458c6d2b0e4d45c2a11b4d08b7d235690f2bb7190eea6bf970128241e",
 			"status": "stable",
 			"tag": "violet-data-grid-pill-select"
 		},
@@ -132,18 +132,18 @@
 			"tag": "violet-data-grid-rating"
 		},
 		{
-			"digest": "sha256:5aa403908ed0f7f683ceeb943fd99d63498e087226b6218b9db3092416ac58bd",
+			"digest": "sha256:cdf42ff8db6fc9b67a70718d3d32478db9692ae8818b51cd30aafa7405c4f3c2",
 			"status": "stable",
 			"tag": "violet-data-grid-reference-picker"
 		},
 		{
-			"digest": "sha256:e24d814200c35faebb1e089554586a54254bcf88b1cc2b985600a3f2acb0643a",
+			"digest": "sha256:32ffee555f578192bd4fcc1a8fa1c85d0f5ba1fead8934ac18e3797879c3e310",
 			"status": "stable",
 			"summary": "Date field: a native date input plus a button that opens a calendar popup. Use for one calendar date; the value is an ISO date string.",
 			"tag": "violet-date-picker"
 		},
 		{
-			"digest": "sha256:04ebb7a3082896f663e70affc2b969a63c5dbe55a948913001fda044dd93143a",
+			"digest": "sha256:0b7ca1f1cd51f6a999836135184d4a6d6ac393145fbca432bcb81b1d0d4f07ba",
 			"status": "stable",
 			"tag": "violet-date-range-picker"
 		},
@@ -154,30 +154,30 @@
 			"tag": "violet-dialog"
 		},
 		{
-			"digest": "sha256:3e1ccc0b575b0361c184fc149ff5fc625f215599b07709d7c7d2366649c5cd1f",
+			"digest": "sha256:86379c140278042ff4fcd7e4ad43e523d623d4ee95b208bdc7543da594d94cb8",
 			"status": "stable",
 			"summary": "Horizontal or vertical rule between regions; set decorative when the line only adds visual separation.",
 			"tag": "violet-divider"
 		},
 		{
-			"digest": "sha256:f7d22cef62db10f524628b390c9b7a0b59dfc1230c53c986d4ee71ed750097ed",
+			"digest": "sha256:66c1a8f39b95d6c61d2d08fd88c3adce98a07148dbc6eb85d391de04290718cb",
 			"status": "stable",
 			"summary": "Placeholder for a view with no content or no results, with heading, message, media and actions.",
 			"tag": "violet-empty-state"
 		},
 		{
-			"digest": "sha256:6c483cb335e37fe0e5c0fda8eac1393fe62885d4776ed40d67be332a676ebc00",
+			"digest": "sha256:75b8bdaf9ac0de9715be4c307eef987102d9d80486cddfe1161249ae5af59dd2",
 			"status": "stable",
 			"tag": "violet-file-explorer"
 		},
 		{
-			"digest": "sha256:663509cba3eed1ff60e1055e8b859941ea1bc6fa801793e39c5e35dbcb24561b",
+			"digest": "sha256:0eb61e1aeabe3bf8d7c16e71575f0a00672bf83261ca53cb0b678273ab0e29d0",
 			"status": "stable",
 			"summary": "File chooser with a browse button or a drag-and-drop zone that lists the chosen files with remove buttons and submits them with a form.",
 			"tag": "violet-file-upload"
 		},
 		{
-			"digest": "sha256:2fd14f21402257540685188508c5495e75495d28a2f7e6558395d8118f5a5665",
+			"digest": "sha256:d318262511297813b50f794bd37b40fb27dd403703cd0dcfe849cafe167da5df",
 			"status": "stable",
 			"tag": "violet-gantt"
 		},
@@ -188,36 +188,36 @@
 			"tag": "violet-icon"
 		},
 		{
-			"digest": "sha256:248d94cb96cec29ee614abf5f768ff86e52b85ea3fc6d23d47d96d95d0d3bc5c",
+			"digest": "sha256:996db262c724c0315cf7c4665b4c114eeaa6f0ee695cd5bebc0ec17bbf8bb84a",
 			"status": "stable",
 			"summary": "Icon-only button for toolbar and utility actions; the default slot takes the icon and the label attribute names it.",
 			"tag": "violet-icon-button"
 		},
 		{
-			"digest": "sha256:9c6cde0e9449ab9ecabe60562047951cfba06aba93504550de3ba83b3365d2d4",
+			"digest": "sha256:e7d7d26d3b144239b91291440b73bc7833450aff341f8e4be2a1392714682b17",
 			"status": "stable",
 			"tag": "violet-image"
 		},
 		{
-			"digest": "sha256:26d6fece74672282c756547ebb5d36318983488177cec69a4bd56b88cc1529d8",
+			"digest": "sha256:9fe932f6925989557d233f89d835d8217e6678caa344d90dfd8585841b1ea733",
 			"status": "stable",
 			"summary": "Always-visible list of violet-option children for choosing one value, or several with multiple; not a form field.",
 			"tag": "violet-listbox"
 		},
 		{
-			"digest": "sha256:c0a91fe0737a17524d646132773ff0a141f89f039d01ceacb4d449fa26e542b9",
+			"digest": "sha256:2798016c34b9a5228a2f446e97c461d1491ec25a6fb3e275748a0065564d6afd",
 			"status": "stable",
 			"summary": "Action menu: a slotted trigger opens a floating list of violet-menu-item actions. For choosing a value, use a select instead.",
 			"tag": "violet-menu"
 		},
 		{
-			"digest": "sha256:6c641fa1fcb36ae3d77509e92233295fdc36cadad89882eb00479228da2b9867",
+			"digest": "sha256:d95dccf851008c3b8d1cca2cf2cee26dffc5eb7b5ebff93646750c08be5461c3",
 			"status": "stable",
 			"summary": "One action inside violet-menu, with optional before and after slots for an icon or a shortcut hint.",
 			"tag": "violet-menu-item"
 		},
 		{
-			"digest": "sha256:e3f34f2e3da48edda75504bd804da143b81b9843876e94f579a2862e80eff286",
+			"digest": "sha256:c40202943cb4d828e2c76286ac69432dfd1db8a9806fbd9bf6827ef495abf3e6",
 			"status": "stable",
 			"tag": "violet-message"
 		},
@@ -227,7 +227,7 @@
 			"tag": "violet-message-media"
 		},
 		{
-			"digest": "sha256:192714dd8a14a3ec0763d211ec8ea7d4bbfed74cb0963ab90f00caf2636327ee",
+			"digest": "sha256:560889d73a1dbfe5ea3facae08147795eff38356b946e5f3b50b733364ee83af",
 			"status": "stable",
 			"tag": "violet-message-status"
 		},
@@ -254,7 +254,7 @@
 			"tag": "violet-pagination"
 		},
 		{
-			"digest": "sha256:4c28cfcca1a82355626e9991df4bb648e583fe458f768bca99da508baa3457ff",
+			"digest": "sha256:6f440d3e0ab2834d8e71c25ff238c9b9d66ae91ec7b55bc32e389f8b745f9405",
 			"status": "stable",
 			"tag": "violet-persona"
 		},
@@ -265,7 +265,7 @@
 			"tag": "violet-popover"
 		},
 		{
-			"digest": "sha256:f617c826ea1b117d04e7cd3a4d2f9b08fe6ca469f93da3bb0318cfb5a6eb60ce",
+			"digest": "sha256:c60287f973cbde4abd03175208e892c8cc835176216a26692f702cd9fecf6a9f",
 			"status": "stable",
 			"summary": "Linear progress bar on the native progress element, determinate or indeterminate.",
 			"tag": "violet-progress"
@@ -277,24 +277,24 @@
 			"tag": "violet-radio"
 		},
 		{
-			"digest": "sha256:24361d776e4e43275c131eba4304b1cbd0785ee7f9a660b5e43f0c36ce6dcfd3",
+			"digest": "sha256:8e1a69866edf35cab32879421e7b76aef801ce98f8d6c24e5cfe3af4b05a8b3b",
 			"status": "stable",
 			"summary": "Form field that holds violet-radio children and submits the one selected value; use for a single choice among a few visible options.",
 			"tag": "violet-radio-group"
 		},
 		{
-			"digest": "sha256:54f2d467c17d4210fb17adde4888a2805fbe06f1216ab7a909f19c32842a358a",
+			"digest": "sha256:36bfabc27d405d34f1e3ac5cacc150c18c5c1cefa24c2643a8c137d6ce5248b8",
 			"status": "stable",
 			"summary": "Two-thumb range input for choosing a low and a high bound, such as a price range, with a built-in label and supporting text.",
 			"tag": "violet-range-slider"
 		},
 		{
-			"digest": "sha256:c37d0c4e30b276293bbf34c4722875ba13b4ea05f883e6d5c936e4396fc10293",
+			"digest": "sha256:066b32c4ab18bf802a034a1c5582e318d4083b1f91a26bc83cbd17e4fca6634a",
 			"status": "stable",
 			"tag": "violet-reasoning-block"
 		},
 		{
-			"digest": "sha256:567eb7b310e83ad76ef241fe3835dac80885864df6f99257acc5a80e61b35d00",
+			"digest": "sha256:600128a264ab8eebfdfae0b6a55b8cbfbf1e520887966b0d237fc0a8cea88679",
 			"status": "stable",
 			"summary": "One option inside violet-segmented-control: its slotted text is the visible label and its value is what the group selects.",
 			"tag": "violet-segment"
@@ -312,13 +312,13 @@
 			"tag": "violet-select"
 		},
 		{
-			"digest": "sha256:ab8bdef5fc8f0cabca767739e2bf10e6bb070d02e4efd99d580c565e95e46804",
+			"digest": "sha256:759abcf680478a1aef535b4f9efea3083a91ee076dc7eedb5705870f7606f7b5",
 			"status": "stable",
 			"summary": "Decorative placeholder shape shown while content loads.",
 			"tag": "violet-skeleton"
 		},
 		{
-			"digest": "sha256:d7ab8deab32f52cf39ac2820260fba9d78f366f6a179ed9752791583af5423a9",
+			"digest": "sha256:49debd0f7a660395a088980df6d05b13a8550e7122a7833c8b7ecd10e9f6b7d4",
 			"status": "stable",
 			"summary": "Single-thumb range input with a built-in label, supporting text and error text; use to pick one number from a continuous or stepped range.",
 			"tag": "violet-slider"
@@ -334,7 +334,7 @@
 			"tag": "violet-source-citation"
 		},
 		{
-			"digest": "sha256:36ec463c5878fc52c83d9a3c404da3f28a649c74ca83cb90ff2bc7cceba4fb2e",
+			"digest": "sha256:ad15a75d5dcc7916b298075d0dd6b225444f1a1240d106da8cf8630b5b640261",
 			"status": "stable",
 			"summary": "Small indeterminate loading indicator for a local wait, such as inside a button or a panel that is loading.",
 			"tag": "violet-spinner"
@@ -352,24 +352,24 @@
 			"tag": "violet-tab"
 		},
 		{
-			"digest": "sha256:5e7a6c45e29d3b80107762051ce9ee45eb7203ed597cd9531e80145fd0f134ae",
+			"digest": "sha256:2e2528d73260ed2cd94571c062742990f2217e4c2dae031c3da9e1092a434f2f",
 			"status": "stable",
 			"summary": "Content region inside violet-tabs, shown while the tab at the same position is active.",
 			"tag": "violet-tab-panel"
 		},
 		{
-			"digest": "sha256:808269d21b90fde82176bcd81fd7e75e5d42d0fa5a37beed04ae59122fa833ab",
+			"digest": "sha256:022348d5e4adcee7f3eeca4ac31844c5b7b11dfbebda4a67f587c95adf10da12",
 			"status": "stable",
 			"summary": "Tab set that shows one violet-tab-panel at a time, chosen by its violet-tab; for switching views within one section of a page.",
 			"tag": "violet-tabs"
 		},
 		{
-			"digest": "sha256:ce75f41e465af342bf8a0997db4568e6146620d1eca99c4232e18868c7e76c7b",
+			"digest": "sha256:ac2930c3ac30748ce14090f64f53b1ed9cf4075f5d783034c61dc687092f2ac8",
 			"status": "stable",
 			"tag": "violet-teaching-tip"
 		},
 		{
-			"digest": "sha256:265efb935ccce1b96eac2511a5e5aa994069cfcdf4db7db2392e2465d2f36d49",
+			"digest": "sha256:0860aa839eaba45e5a43688e226ffe5865a10bcd940de5f5c55fa78e6b4f3c51",
 			"status": "stable",
 			"tag": "violet-text"
 		},
@@ -380,25 +380,25 @@
 			"tag": "violet-text-area"
 		},
 		{
-			"digest": "sha256:1573631420d2adb97e7a058db9d9c7b3649adc4c235bb275cf52bf08a5802696",
+			"digest": "sha256:206dabb37a9bddb26b49b344c507f3e3f29e8d31d0438859c48031aa7b42e3cb",
 			"status": "stable",
 			"summary": "Single-line text input with a built-in label and supporting text, for text, search, email, url, password, tel, number or date entry.",
 			"tag": "violet-text-field"
 		},
 		{
-			"digest": "sha256:72e1f378f3238e2eb5185ad5a8505e5abcf6f401907196e76e5b9b4c7a800b79",
+			"digest": "sha256:d46677449fba3f3fe62dca7df18ab680e3fcbc2af9fe11ddadbdd78b825f0b00",
 			"status": "stable",
 			"summary": "Scope element that applies a Violet theme preset (light, dark, high-contrast) to its subtree, such as a dark panel in a light page.",
 			"tag": "violet-theme"
 		},
 		{
-			"digest": "sha256:735dac858a7d960283951139c6975af5dcc115563b1afa579203fe036e40698e",
+			"digest": "sha256:bc8141d334b1c438494105d36d3e488ccbd19cb950981c85052d5087565c8d13",
 			"status": "stable",
 			"summary": "Time-of-day field wrapping the native time input, with a label, supporting text and range checks; the value is a 24-hour time string.",
 			"tag": "violet-time-picker"
 		},
 		{
-			"digest": "sha256:b666431f3950647b5451711a1c766742cf1cd6cec54127ad81b455a0f8713521",
+			"digest": "sha256:070e12c3ebc1325fc0d6af7e44501f040428994ec325988b5c262b403c1c00b8",
 			"status": "stable",
 			"summary": "Transient notification fixed to a corner of the viewport, shown while its open attribute is set.",
 			"tag": "violet-toast"
@@ -414,7 +414,7 @@
 			"tag": "violet-tool-result-card"
 		},
 		{
-			"digest": "sha256:0889336d912d9a207e4015da0535e33673ef079a75fe93bc15ef504440459a69",
+			"digest": "sha256:368080fa8770825744ce63bbe322dac35e4603ed935ede89a74f0e563f5140f8",
 			"status": "stable",
 			"summary": "Short plain-text hint shown on hover or focus of the element it wraps or is anchored to; never for essential or interactive content.",
 			"tag": "violet-tooltip"
@@ -426,13 +426,13 @@
 			"tag": "violet-tree"
 		},
 		{
-			"digest": "sha256:8f6022f45e7d270f38403046ac5f3860cc4270bf1f940f1eed82dd6faf342f81",
+			"digest": "sha256:5b2b2cccbc6aa43f4afa82f026be868330b3455ca1df64f65d9fb4e056dbc5c4",
 			"status": "stable",
 			"summary": "One node of a violet-tree; child violet-tree-item elements make it a branch.",
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:a7cdc265bb70b529cadc98906814fa72f7dd1a496c79b8a6f7e2b495664e4b25",
+	"digest": "sha256:1a33e09d4916f1db81a7519f29eb27b9a9064db4b1a0d88f91489ca54548e333",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {

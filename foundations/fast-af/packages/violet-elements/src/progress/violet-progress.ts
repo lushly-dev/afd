@@ -11,7 +11,7 @@ const styles = css`
         color: var(--_text-secondary);
         --_progress-track-size: 8px;
         --_progress-radius: var(--_radius-md);
-        --_progress-fill: var(--color-control-selected-foreground);
+        --_progress-fill: var(--color-control-selected-foreground, #244635);
         --_progress-track: color-mix(in srgb, var(--_surface-subtle) 84%, transparent);
     }
 

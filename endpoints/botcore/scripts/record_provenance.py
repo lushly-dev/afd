@@ -50,6 +50,9 @@ STAGE_REASONS = {
     "tests/test_host.py": ("Exercise context isolation, route parity, effects and protocol safety"),
 }
 IMPORT_REASONS = {
+    "src/botcore/context.py": (
+        "Add the remote-caller profile, profile effects and the per-call context"
+    ),
     "AGENTS.md": ("Provide current AFD endpoint gates and authority instructions"),
     "docs/operations/model-routing.md": (
         "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
@@ -57,9 +60,12 @@ IMPORT_REASONS = {
     "CHANGELOG.md": (
         "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; "
         "Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record "
-        "the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, "
-        "catalog input schemas and argument refusals; Record that a host does not warn about "
-        "unselected plugin sections"
+        "the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog"
+        " input schemas and argument refusals; Record that a host does not warn about "
+        "unselected plugin sections; Record the docs-manager prose guidance; Record either-"
+        "spelling command names, kebab_names, typed inputs, a context per call and the "
+        "remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP"
+        " client"
     ),
     "packages/botcore-agents/pyproject.toml": (
         "Declare optional connectors extra for wildcard discovery"
@@ -85,14 +91,17 @@ IMPORT_REASONS = {
     "src/botcore/_mcp.py": ("Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"),
     "src/botcore/commands/dev/core.py": ("Preserve unavailable/error/failed native-tool outcomes"),
     "src/botcore/host.py": (
-        "Map broken-link failures and typed infrastructure verdicts correctly; merge "
-        "plugin-declared policies that a host may only narrow, carry input schemas and "
-        "one-line descriptions in the catalog, refuse wrong argument names; load config as "
-        "an explicit plugin selection"
+        "Map broken-link failures and typed infrastructure verdicts correctly; merge plugin-"
+        "declared policies that a host may only narrow, carry input schemas and one-line "
+        "descriptions in the catalog, refuse wrong argument names; load config as an explicit"
+        " plugin selection; resolve either spelling of a command name with closest-name "
+        "refusals, serve kebab-case names on request, validate typed inputs, build a context "
+        "per call, admit effects by profile"
     ),
     "src/botcore/plugin.py": ("Let a plugin declare its command policies (add_policy)"),
     "src/botcore/host_surfaces.py": (
-        "Support both SDKs and safe Python aliases for canonical kebab IDs"
+        "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-"
+        "Python aliases through the host; call over MCP as an agent"
     ),
     "src/botcore/server.py": ("Preserve legacy tool names and streaming under SDK 1/2 imports"),
     "src/botcore/utils/runner.py": (
@@ -104,7 +113,8 @@ IMPORT_REASONS = {
     "tests/test_cdp_diagnostics.py": ("Normalize imports under selected Ruff rules"),
     "tests/test_cdp_inspection.py": ("Normalize imports under selected Ruff rules"),
     "tests/test_host.py": (
-        "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases"
+        "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a "
+        "duplicate refusal for two spellings of one name"
     ),
     "tests/test_middleware.py": ("Normalize imports under selected Ruff rules"),
     "tests/test_optional_connectors.py": (
@@ -182,7 +192,10 @@ IMPORT_REASONS = {
         "Test the legacy stamp, unknown-field rejection and listing_budget; test the "
         "[sweep] section"
     ),
-    "src/botcore/cli.py": ("Describe skill-lint as the shared skill rule set"),
+    "src/botcore/cli.py": (
+        "Describe skill-lint as the shared skill rule set; Add the host-token group for HTTP "
+        "surface tokens"
+    ),
     "src/botcore/commands/skill/__init__.py": ("Export the shared skill rules"),
     "src/botcore/commands/skill/adopt.py": ("Record adopted ownership under metadata"),
     "src/botcore/commands/skill/frontmatter.py": (
@@ -205,8 +218,10 @@ IMPORT_REASONS = {
     ),
     "docs/host-composition.md": (
         "Describe versioning, SDK compatibility, optional integration and the AFD publisher; "
-        "describe plugin-declared policies, catalog input schemas and argument refusals; "
-        "say a host leaves unselected plugin sections alone"
+        "describe plugin-declared policies, catalog input schemas and argument refusals; say "
+        "a host leaves unselected plugin sections alone; describe command name spellings, "
+        "kebab_names, typed inputs, the per-call context and the remote-caller profile; "
+        "describe serving hosts over HTTP: routes, tokens, the bind guard and the client"
     ),
     "VALIDATION.md": ("Record actual import checks, scope and provenance corrections, as history"),
     "uv.lock": (

@@ -257,7 +257,7 @@
 		{
 			"basis": "authored",
 			"id": "toast.timeout",
-			"text": "It closes itself after timeout (ms) only while dismissible is false and the actions slot is empty. dismissible defaults to true even without the attribute, so set the property to false in script."
+			"text": "It closes itself after timeout (ms, default 5000) while the actions slot is empty, whether or not it is dismissible; a dismissible toast also shows its close button. Set timeout=\"0\" to keep it open until dismissed."
 		},
 		{
 			"basis": "authored",

@@ -96,7 +96,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletColorPickerSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "declared",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -238,7 +252,7 @@
 		{
 			"basis": "authored",
 			"id": "color-picker.reset",
-			"text": "Form reset clears value to empty instead of restoring the initial value. The built-in swatches are fixed; content in the presets slot renders below them but is not wired to pick a color."
+			"text": "Form reset restores the value the picker had when it was connected. The built-in swatches are fixed; content in the presets slot renders below them but is not wired to pick a color."
 		}
 	]
 }

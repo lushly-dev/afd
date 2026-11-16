@@ -20,7 +20,8 @@ use std::time::{Duration, Instant};
 
 use loam_mail::home::Home;
 use loam_mail::store::{
-    HeaderSeen, MailboxId, MailboxSeen, MessageId, PartSeen, Place, Role, Store, ThreadId,
+    HeaderSeen, KINDS_SHOWN, MailboxId, MailboxSeen, MessageId, PartSeen, Place, Role, Store,
+    StoryMessages, ThreadId,
 };
 use serde_json::json;
 
@@ -483,6 +484,7 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
                         Role::None
                     },
                 },
+                0,
             )
             .unwrap()
     })
@@ -627,6 +629,42 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
     }
     let open_ms = sorted_ms(open_ms);
 
+    // Stories (step C2): every made-up message carries a list header, so
+    // all of it is in a stream. A page of the list; the largest story opened
+    // as `mail-story-open` reads it (its row, its kinds, a page of its
+    // messages); and a page of the least common of the kinds it shows.
+    let stories = store.stories(None, u32::MAX).unwrap();
+    let largest = stories.iter().max_by_key(|story| story.messages).cloned();
+    let mut story_list_ms = Vec::new();
+    let mut story_open_ms = Vec::new();
+    let mut story_kind_ms = Vec::new();
+    for _ in 0..100 {
+        let started = Instant::now();
+        store.stories(None, 51).unwrap();
+        story_list_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+        if let Some(story) = &largest {
+            let started = Instant::now();
+            store.story(story.id).unwrap();
+            let kinds = store.story_kinds(story.id, KINDS_SHOWN).unwrap();
+            store
+                .story_messages(story.id, &StoryMessages::Every, None, 51)
+                .unwrap();
+            story_open_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+            if let Some(kind) = kinds.last() {
+                let started = Instant::now();
+                store
+                    .story_messages(story.id, &StoryMessages::Kind(kind.key.clone()), None, 51)
+                    .unwrap();
+                story_kind_ms.push(started.elapsed().as_secs_f64() * 1000.0);
+            }
+        }
+    }
+    let (story_list_ms, story_open_ms, story_kind_ms) = (
+        sorted_ms(story_list_ms),
+        sorted_ms(story_open_ms),
+        sorted_ms(story_kind_ms),
+    );
+
     let derived_ratio = (database_bytes + index_bytes) as f64 / text_bytes.max(1) as f64;
     let directory_ratio = directory_on_disk as f64 / held_bytes.max(1) as f64;
     let directory_length_ratio = directory_length as f64 / held_bytes.max(1) as f64;
@@ -664,6 +702,14 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
         "list_50_threads_ms": times(&list_ms),
         "search_ms": times(&search_ms),
         "open_message_ms": times(&open_ms),
+        "stories": {
+            "stories": stories.len(),
+            "largest_messages": largest.as_ref().map(|story| story.messages),
+            "largest_kinds": largest.as_ref().map(|story| story.kinds),
+            "list_50_ms": times(&story_list_ms),
+            "open_largest_ms": times(&story_open_ms),
+            "page_of_a_kind_ms": times(&story_kind_ms),
+        },
         "checks": { "threads_listed": listed, "queries": 300, "queries_with_hits": queries_with_hits,
                     "hits": hits, "opened_with_text": opened_with_text },
         "derived_ratio": round(derived_ratio),
@@ -709,6 +755,10 @@ fn the_measurement_runs_at_a_small_size() {
         "{result}"
     );
     assert_eq!(checks["opened_with_text"], 300, "{result}");
+    assert!(
+        result["stories"]["stories"].as_u64().unwrap() > 0,
+        "{result}"
+    );
     assert!(result["bytes"]["index"].as_u64().unwrap() > 0);
 }
 

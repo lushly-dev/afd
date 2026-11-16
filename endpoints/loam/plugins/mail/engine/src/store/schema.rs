@@ -325,6 +325,207 @@ pub(super) const MIGRATIONS: &[&str] = &[
         created_at INTEGER NOT NULL
     ) STRICT;
     ",
+    // 7: senders and their history with the person (section 7.1). Derived from the log like
+    // the rest of `envelope`: rows the derivation wrote before it are stale (their `parser` is
+    // 2) and are derived again, which fills the new columns and `recipient`, and makes each
+    // sender's row.
+    "
+    -- The key of the message's own Message-ID and of the one it answers (as thread_key's).
+    ALTER TABLE envelope ADD COLUMN message_key BLOB CHECK (length(message_key) = 16);
+    ALTER TABLE envelope ADD COLUMN answers_key BLOB CHECK (length(answers_key) = 16);
+    -- When the provider received the message, else when it was first seen. A sender's first
+    -- and last messages are read from it, not from the Date header, which the sender writes.
+    ALTER TABLE envelope ADD COLUMN received INTEGER NOT NULL DEFAULT 0;
+    UPDATE envelope SET received = (SELECT coalesce(received_at, first_seen_at) FROM message
+                                    WHERE message.id = envelope.message_id);
+    -- Who redirected the message (its topmost Resent-From), when someone did.
+    ALTER TABLE envelope ADD COLUMN resent_from TEXT NOT NULL DEFAULT '';
+    CREATE INDEX envelope_message_key ON envelope (message_key) WHERE message_key IS NOT NULL;
+    CREATE INDEX envelope_sender ON envelope (sender_address, received);
+    -- A message with a list or bulk header (7.2's rule 3), by sender.
+    CREATE INDEX envelope_sender_bulk ON envelope (sender_address)
+        WHERE list_id <> '' OR unsubscribe > 0 OR precedence IN ('bulk', 'list', 'junk')
+            OR auto_submitted <> '';
+    -- The lists a sender's messages came through.
+    CREATE INDEX envelope_sender_list ON envelope (sender_address, list_id) WHERE list_id <> '';
+
+    -- Every observation, current or ended, by mailbox: the messages a sent mailbox has shown.
+    CREATE INDEX observation_mailbox ON observation (mailbox_id, message_id);
+
+    -- An address a message was sent to: To, Cc and Bcc.
+    CREATE TABLE recipient (
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        address TEXT NOT NULL,
+        PRIMARY KEY (message_id, address)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A sender other than the person, and its history with them. Computed again from the
+    -- messages, never adjusted, like a thread. Its id is made from its address, so a rebuild
+    -- gives it the same one.
+    CREATE TABLE sender (
+        address TEXT PRIMARY KEY,
+        id INTEGER NOT NULL UNIQUE,
+        -- The registrable domain of the address, for grouping on display.
+        domain TEXT NOT NULL,
+        -- The name on its newest message.
+        name TEXT NOT NULL,
+        -- Its messages, and how many of them carry a list or bulk header.
+        messages INTEGER NOT NULL CHECK (messages >= 0),
+        bulk INTEGER NOT NULL CHECK (bulk >= 0),
+        first_received INTEGER,
+        last_received INTEGER,
+        -- The person's messages to it: those a sent mailbox has shown.
+        written INTEGER NOT NULL CHECK (written >= 0),
+        last_written INTEGER,
+        -- Its messages that a message of the person's answers.
+        answered INTEGER NOT NULL CHECK (answered >= 0),
+        -- The later of its last message and the person's last to it.
+        recent INTEGER NOT NULL
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX sender_recent ON sender (recent DESC, id DESC);
+    CREATE INDEX sender_domain ON sender (domain, recent DESC, id DESC);
+    ",
+    // 8: screening (sections 7.2 and 7.3). How often each template was seen and each inbound
+    // message's class are derived, computed again for each batch that touches them; the
+    // person's decisions on senders and agents' suggestions are not. A store that held mail
+    // before has its templates and classes filled once when it is next opened.
+    "
+    -- A template key and how many messages the store holds with it, wherever they are.
+    CREATE TABLE template (
+        key BLOB PRIMARY KEY CHECK (length(key) = 16),
+        messages INTEGER NOT NULL CHECK (messages > 0)
+    ) STRICT, WITHOUT ROWID;
+
+    -- An inbound message's screening class: a message not from one of the person's own
+    -- addresses. Its date and sender are the envelope's, kept here for the lists by class, and
+    -- `listed` is whether a mailbox other than junk and trash shows it now, which is what those
+    -- lists show.
+    CREATE TABLE screening (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        class TEXT NOT NULL CHECK (class IN ('blocked', 'known', 'bulk', 'unknown')),
+        date INTEGER NOT NULL,
+        sender_address TEXT NOT NULL,
+        listed INTEGER NOT NULL CHECK (listed IN (0, 1))
+    ) STRICT;
+    CREATE INDEX screening_listed ON screening (class, date DESC, message_id DESC)
+        WHERE listed = 1;
+    CREATE INDEX screening_sender ON screening (sender_address, class, listed);
+
+    -- The person's decision on an address: in, out, or theirs. Never derived, so it survives a
+    -- rebuild. `suggestion` is the agent's suggestion the person accepted, when it came from one.
+    CREATE TABLE sender_decision (
+        address TEXT PRIMARY KEY,
+        -- The address's sender id, so a decision is found by it when the address has no row.
+        id INTEGER NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out', 'mine')),
+        decided_at INTEGER NOT NULL,
+        suggestion INTEGER REFERENCES sender_suggestion (id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX sender_decision_id ON sender_decision (id);
+    CREATE INDEX sender_decision_at ON sender_decision (decision, decided_at);
+
+    -- An agent's suggestion of a decision. It changes no class until the person accepts it.
+    CREATE TABLE sender_suggestion (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        address TEXT NOT NULL,
+        decision TEXT NOT NULL CHECK (decision IN ('in', 'out')),
+        -- Who proposed it: the kind of caller, and the agent's token id when it had one.
+        proposer_kind TEXT NOT NULL,
+        proposer_id TEXT,
+        created_at INTEGER NOT NULL,
+        state TEXT NOT NULL CHECK (state IN ('open', 'accepted', 'dismissed', 'superseded')),
+        closed_at INTEGER,
+        CHECK ((state = 'open') = (closed_at IS NULL))
+    ) STRICT;
+    CREATE INDEX sender_suggestion_open ON sender_suggestion (address) WHERE state = 'open';
+    CREATE INDEX sender_suggestion_proposer ON sender_suggestion (proposer_kind, proposer_id)
+        WHERE state = 'open';
+
+    -- Classes for the mail already held are filled when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'screening-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    ",
+    // 9: stream stories (section 8). Every row but a stream's id is derived from the screening
+    // classes and the envelopes, computed again for each batch that touches it. A store that held
+    // mail before has its stories filled once when it is next opened.
+    "
+    -- A stream: a list's id or a sender's address (`list <id>` or `sender <address>`), and the
+    -- id its story has. Not derived: an id once given is kept, so a rebuild gives a story the
+    -- same one and no two streams share one. A rebuild that finishes drops the streams of mail
+    -- no longer held.
+    CREATE TABLE stream (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        key TEXT NOT NULL UNIQUE
+    ) STRICT;
+
+    -- A bulk message a mailbox other than junk and trash shows, and the stream it belongs to:
+    -- its list, or else its sender. Its date, template key and body shape are the envelope's,
+    -- kept here so that a story's counts read an index alone. `exception` is whether its body
+    -- shape is not one of its story's usual ones. A stream is a story from its fifth message,
+    -- so a row's story may have no `story` row yet.
+    CREATE TABLE story_member (
+        message_id INTEGER PRIMARY KEY REFERENCES message (id),
+        story_id INTEGER NOT NULL,
+        date INTEGER NOT NULL,
+        template_key BLOB CHECK (template_key IS NULL OR length(template_key) = 16),
+        body_shape BLOB CHECK (body_shape IS NULL OR length(body_shape) = 16),
+        exception INTEGER NOT NULL CHECK (exception IN (0, 1))
+    ) STRICT;
+    -- A story's members by date, with each one's kind and shape: a body that arrives rewrites
+    -- its entry in place, near its story's newest, so an import writes no page an index keyed by
+    -- a hash would scatter it across. A kind's or a shape's members are read from the story's
+    -- range.
+    CREATE INDEX story_member_date
+        ON story_member (story_id, date DESC, message_id DESC, template_key, body_shape);
+    CREATE INDEX story_member_exception ON story_member (story_id, date DESC, message_id DESC)
+        WHERE exception = 1;
+
+    -- How many of a stream's members have each body shape, and each template key, kept by what
+    -- each batch changes. A count that reaches nothing is removed in the statement after; one
+    -- below nothing is a story counted wrong, which is counted again whole.
+    CREATE TABLE story_shape (
+        story_id INTEGER NOT NULL,
+        shape BLOB NOT NULL CHECK (length(shape) = 16),
+        messages INTEGER NOT NULL,
+        PRIMARY KEY (story_id, shape)
+    ) STRICT, WITHOUT ROWID;
+    CREATE TABLE story_kind (
+        story_id INTEGER NOT NULL,
+        template_key BLOB NOT NULL CHECK (length(template_key) = 16),
+        messages INTEGER NOT NULL,
+        PRIMARY KEY (story_id, template_key)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A stream with members, and a story from its fifth. Its counts are kept by what each batch
+    -- changes, since a story of a large folder is too large to count again for each. Its id is
+    -- its stream's. `list_id` is '' for a story by sender; `sender_address` is its sender, or
+    -- for a list the sender of its newest message; `title` is the list's id, or the name on the
+    -- newest message, or else the address. `kinds` counts its template keys, `exceptions` its
+    -- exceptions and `usual` its usual shapes. A burst (section 7.4) is step C3's.
+    CREATE TABLE story (
+        id INTEGER PRIMARY KEY,
+        kind TEXT NOT NULL CHECK (kind IN ('stream', 'burst')),
+        list_id TEXT NOT NULL,
+        sender_address TEXT NOT NULL,
+        title TEXT NOT NULL,
+        messages INTEGER NOT NULL CHECK (messages > 0),
+        exceptions INTEGER NOT NULL CHECK (exceptions >= 0),
+        kinds INTEGER NOT NULL CHECK (kinds >= 0),
+        usual INTEGER NOT NULL CHECK (usual >= 0),
+        first_date INTEGER NOT NULL,
+        last_date INTEGER NOT NULL
+    ) STRICT;
+    CREATE INDEX story_recent ON story (last_date DESC, id DESC) WHERE messages >= 5;
+
+    -- What changed since a cursor is read by kind.
+    CREATE INDEX change_kind ON change (kind, seq);
+
+    -- Stories for the mail already held are filled when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'story-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    -- The stories' epoch, which a cursor of what changed carries; each rebuild moves it on.
+    INSERT INTO engine_state (key, value) VALUES ('story-epoch', abs(random() % 2147483647) + 1);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

@@ -1,0 +1,29 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T1, lend a packet.
+# Not expressible here: the other half of the job. A catalogue that cannot be read fails with
+# SERVICE_UNAVAILABLE (retryable), and a fixture cannot make the service fail.
+name: Nothing found is not an error
+description: >-
+  When a search finds nothing, or the catalogue cannot be read, I want to be told which of the two
+  it is, so that I know whether to search again or to wait.
+job: nothing-to-show
+tags: [t1]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: A search that matches no variety succeeds with an empty list
+    command: variety-list
+    input: { query: quince }
+    expect:
+      success: true
+      data:
+        total: 0
+        varieties: { length: 0 }
+  - description: The same for a member nobody has heard of
+    command: member-list
+    input: { query: Nobody }
+    expect:
+      success: true
+      data:
+        total: 0
+        members: { length: 0 }

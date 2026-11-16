@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "image",
+				"state": "default"
+			}
+		],
 		"statements": []
 	},
 	"api": {
@@ -38,7 +44,17 @@
 				"rules": [
 					"taxonomy.shape"
 				],
-				"type": "VioletColorSwatchShape"
+				"type": "\"square\" | \"circle\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "square"
+					},
+					{
+						"basis": "observed",
+						"value": "circle"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -48,7 +64,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletColorSwatchSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "observed",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -94,9 +124,6 @@
 		},
 		{
 			"kind": "a11y-statement"
-		},
-		{
-			"kind": "role"
 		}
 	],
 	"import": "@lushly-dev/violet-elements",

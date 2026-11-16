@@ -276,4 +276,4 @@ The `gh` CLI may output tokens or sensitive URLs. Connectors must:
 
 ---
 
-*Status: Approved with changes. Ready for implementation.*
+*Historical review verdict: approved with changes; subsequently shipped in #92 and #155.*

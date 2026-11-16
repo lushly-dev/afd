@@ -52,7 +52,7 @@ const NAME_HELP = '1 to 80 characters.';
 const FIELD_OF: Readonly<Record<string, 'name' | 'slug'>> = {
 	PROJECT_NAME_INVALID: 'name',
 	PROJECT_SLUG_INVALID: 'slug',
-	PROJECT_SLUG_TAKEN: 'slug',
+	PROJECT_SLUG_UNAVAILABLE: 'slug',
 };
 
 const createForm = html<LoamProjectsSection>`

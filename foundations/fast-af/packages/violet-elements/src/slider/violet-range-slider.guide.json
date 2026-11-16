@@ -49,7 +49,7 @@
   "a11y": [
     {
       "id": "range-slider.thumb-names",
-      "text": "Each thumb is a native slider named only by label-start or label-end (default \"Minimum\", \"Maximum\"); the label attribute is in neither name. Name the quantity, e.g. label-start=\"Minimum price\".",
+      "text": "Each thumb is a native slider named by label, then label-start or label-end (default \"Minimum\", \"Maximum\"): with label=\"Price\", \"Price Minimum\" and \"Price Maximum\". Without label, only label-start or label-end.",
       "members": [
         "label-start",
         "label-end",

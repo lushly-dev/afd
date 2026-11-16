@@ -25,29 +25,57 @@ async fn create(registry: &CommandRegistry, title: &str) -> String {
         .to_string()
 }
 
+/// The shared contract, `spec/commands.schema.json`: the commands Rust implements, those without
+/// `implementedBy` or naming it.
+fn spec_commands() -> serde_json::Map<String, Value> {
+    let spec: Value = serde_json::from_str(include_str!("../../../../spec/commands.schema.json"))
+        .expect("the spec is JSON");
+    spec["commands"]
+        .as_object()
+        .expect("commands")
+        .iter()
+        .filter(|(_, entry)| {
+            entry["implementedBy"]
+                .as_array()
+                .is_none_or(|languages| languages.iter().any(|language| language == "rust"))
+        })
+        .map(|(name, entry)| (name.clone(), entry.clone()))
+        .collect()
+}
+
 #[tokio::test]
-async fn registers_all_eleven_spec_commands_exposed_to_mcp_and_cli() {
+async fn registers_exactly_the_spec_commands_exposed_with_their_metadata() {
     let registry = registry();
-    let mut names: Vec<String> = registry.list().iter().map(|c| c.name.clone()).collect();
-    names.sort();
-    assert_eq!(
-        names,
-        [
-            "todo-clear",
-            "todo-create",
-            "todo-create-batch",
-            "todo-delete",
-            "todo-delete-batch",
-            "todo-get",
-            "todo-list",
-            "todo-stats",
-            "todo-toggle",
-            "todo-toggle-batch",
-            "todo-update",
-        ]
-    );
-    for command in registry.list() {
+    let spec = spec_commands();
+    let commands = registry.list();
+    let mut names: Vec<&str> = commands.iter().map(|c| c.name.as_str()).collect();
+    names.sort_unstable();
+    let mut expected: Vec<&str> = spec.keys().map(String::as_str).collect();
+    expected.sort_unstable();
+    assert_eq!(names, expected);
+    for command in &commands {
         assert!(command.expose.mcp && command.expose.cli, "{}", command.name);
+        let metadata = &spec[&command.name]["metadata"];
+        assert_eq!(
+            json!(command.mutation),
+            metadata["mutation"],
+            "{}",
+            command.name
+        );
+        assert_eq!(
+            json!(command.destructive.unwrap_or(false)),
+            metadata["destructive"],
+            "{}",
+            command.name
+        );
+        assert_eq!(
+            command.confirm_prompt.as_deref(),
+            metadata["confirmPrompt"].as_str(),
+            "{}",
+            command.name
+        );
+        // Contexts come with the move onto the library server (docs/features/active/todo-reference,
+        // phase 5); the Umbel todo plugin registers these definitions as they are.
     }
 }
 

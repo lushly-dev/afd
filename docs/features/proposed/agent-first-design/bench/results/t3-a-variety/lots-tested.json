@@ -1,0 +1,31 @@
+{
+	"$command": "lot-list",
+	"$input": {
+		"varietyId": "var-borlotti"
+	},
+	"success": true,
+	"data": {
+		"lots": [
+			{
+				"id": "lot-borlotti-29",
+				"harvestYear": 2029,
+				"packets": 6,
+				"source": "donation",
+				"germination": {
+					"estimate": 0.9,
+					"basis": "tested"
+				}
+			}
+		],
+		"total": 1
+	},
+	"reasoning": "The 2029 lot's estimate comes from the library's own germination test in February 2030",
+	"confidence": 0.9,
+	"sources": [
+		{
+			"type": "test",
+			"id": "germination-test-2030-02",
+			"title": "The library's germination test, February 2030"
+		}
+	]
+}

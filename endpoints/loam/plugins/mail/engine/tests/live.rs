@@ -227,7 +227,12 @@ fn a_pass_against_icloud() {
         .enable_all()
         .build()
         .unwrap();
-    let options = Options::default();
+    // The batch the B3 to B5 runs sampled with, so that "a few batches" of
+    // bodies stay a few hundred.
+    let options = Options {
+        body_batch: 50,
+        ..Options::default()
+    };
     let started = Instant::now();
     let report_line = std::sync::Mutex::new(Instant::now());
     let first = runtime

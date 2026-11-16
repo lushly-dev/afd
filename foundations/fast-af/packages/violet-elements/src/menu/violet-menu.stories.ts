@@ -149,7 +149,8 @@ export const Overview: Story = {
         await waitFor(() => {
             expect(trigger.getAttribute("aria-haspopup")).toBe("menu");
             expect(trigger.getAttribute("aria-expanded")).toBe("false");
-            expect(trigger.getAttribute("aria-controls")).toBe(menu.panelId);
+            // The trigger names the host; its shadow root forwards the reference to the panel.
+            expect(trigger.getAttribute("aria-controls")).toBe(menu.id);
         });
 
         // Click trigger to open

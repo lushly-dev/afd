@@ -13,13 +13,19 @@ import type {
 	DeploymentV1,
 	DeploymentV2,
 	DeploymentV3,
+	DeploymentV4,
 	DeploymentWorkspaceV2,
+	HostKindV1,
 } from './types.js';
 import {
 	validateDeployment,
 	validateDeploymentV2,
 	validateDeploymentV3,
+	validateDeploymentV4,
 } from './validate-host.generated.js';
+
+/** Every version this reader reads. */
+type AnyDeployment = DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4;
 
 type Instance = DeploymentV1['apps'][string];
 
@@ -183,13 +189,27 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const SEGMENT = /^[A-Za-z0-9._~-]+$/;
 const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
+/** A version 4 `identity.path` that would shadow one of the hosted server's own routes (3.4). */
+function shadowsHostRoute(path: string): boolean {
+	const first = path.split('/')[0];
+	return (
+		first === 'mcp' ||
+		first === '.well-known' ||
+		path === 'api' ||
+		/(^|\/)api\/(kernel|health)(\/|$)/.test(path)
+	);
+}
+
 /**
  * Version 3's `[identity]` (phase 3 specification, 2.2): each refusal `DEPLOYMENT_IDENTITY_INVALID`, and a
  * `provider` deployment with a mounted `stdio` instance `DEPLOYMENT_STDIO_TEAM` (D95, the owner's decision of
  * 2026-11-09, which narrows D56). `path` is relative to `site.base_path`, so its first segment may name
  * neither a deployment's own file nor the workspace, whose routes start there.
  */
-function identityRefusals(deployment: DeploymentV3, workspace: string): DeploymentRefusal[] {
+function identityRefusals(
+	deployment: DeploymentV3 | DeploymentV4,
+	workspace: string
+): DeploymentRefusal[] {
 	const identity = deployment.identity;
 	if (identity === undefined) return [];
 	const refusals: DeploymentRefusal[] = [];
@@ -223,6 +243,15 @@ function identityRefusals(deployment: DeploymentV3, workspace: string): Deployme
 			`Use \`${DEFAULT_IDENTITY_PATH}\`.`
 		);
 	}
+	// I1 of step 3's review (phase 6 specification, 3.4): in version 4 the provider's prefix never shadows the hosted
+	// server's own routes, the MCP route, the origin's well-known paths, `api/kernel` and `api/health`.
+	if (path !== undefined && deployment.deployment_version === 4 && shadowsHostRoute(path)) {
+		refuse(
+			'/path',
+			'`path` would take routes the hosted server answers itself: `mcp`, `.well-known`, `api`, `api/kernel` and `api/health`.',
+			`Use \`${DEFAULT_IDENTITY_PATH}\`, or another path under \`api/\`.`
+		);
+	}
 	const methods = identity.methods;
 	if (
 		methods !== undefined &&
@@ -252,8 +281,11 @@ function identityRefusals(deployment: DeploymentV3, workspace: string): Deployme
 }
 
 /** The identity a read deployment carries: `[identity]` with its defaults, or `local`. */
-function identityOf(deployment: DeploymentV1 | DeploymentV2 | DeploymentV3): IdentityV1 {
-	const identity = deployment.deployment_version === 3 ? deployment.identity : undefined;
+function identityOf(deployment: AnyDeployment): IdentityV1 {
+	const identity =
+		deployment.deployment_version === 3 || deployment.deployment_version === 4
+			? deployment.identity
+			: undefined;
 	if (identity?.mode !== 'provider') return { mode: 'local' };
 	return {
 		mode: 'provider',
@@ -264,9 +296,7 @@ function identityOf(deployment: DeploymentV1 | DeploymentV2 | DeploymentV3): Ide
 }
 
 /** The origin reaches the shell's CSP and a frame's address, so it must be one origin and no more. */
-function sandboxRefusals({
-	sandbox,
-}: DeploymentV1 | DeploymentV2 | DeploymentV3): DeploymentRefusal[] {
+function sandboxRefusals({ sandbox }: AnyDeployment): DeploymentRefusal[] {
 	if (sandbox === undefined || canonicalOrigin(sandbox.origin)) return [];
 	return [
 		{
@@ -279,9 +309,7 @@ function sandboxRefusals({
 }
 
 /** `p` would read as a URL's project segment (phase 2 specification, 6.1). */
-function reservedInstances(
-	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3
-): DeploymentRefusal[] {
+function reservedInstances(deployment: AnyDeployment): DeploymentRefusal[] {
 	return Object.keys(deployment.apps)
 		.filter((id) => id === 'p')
 		.map((id) => ({
@@ -292,43 +320,108 @@ function reservedInstances(
 		}));
 }
 
+/** The host a file names: version 4's `[host] kind`, else `static`, as versions 1 to 3 read (phase 6 specification, 3.3). */
+export function hostKindOf(deployment: AnyDeployment): HostKindV1 {
+	return (deployment.deployment_version === 4 ? deployment.host?.kind : undefined) ?? 'static';
+}
+
 /**
- * Reads versions 1 to 3; a version 1 file means the `personal` workspace and `/`, and a file before 3, or
- * one with no `[identity]`, the `local` identity (phase 3 specification, 2.2).
+ * 3.3's rules between the host and the identity (phase 6 specification): a `provider` deployment for a static
+ * host is a warning, since a static host serves no provider (phase 3's test-only auth host still serves one in
+ * tests), and for the desktop a refusal, since the desktop joins no hosted workspace (10.1).
+ */
+function hostFindings(
+	host: HostKindV1,
+	identity: IdentityV1
+): { refusals: DeploymentRefusal[]; warnings: DeploymentRefusal[] } {
+	if (identity.mode !== 'provider') return { refusals: [], warnings: [] };
+	if (host === 'desktop') {
+		return {
+			refusals: [
+				{
+					code: 'DEPLOYMENT_DESKTOP_PROVIDER',
+					key: 'host.kind',
+					message:
+						'A `provider` deployment is served by the hosted server; the desktop runs a personal shell.',
+					suggestion:
+						'Use `[host] kind = "hosted"` for a team, or `[identity] mode = "local"` on the desktop.',
+				},
+			],
+			warnings: [],
+		};
+	}
+	return host === 'static'
+		? {
+				refusals: [],
+				warnings: [
+					{
+						code: 'DEPLOYMENT_PROVIDER_NEEDS_HOST',
+						key: 'host.kind',
+						message:
+							'A provider deployment needs the hosted server; a static host serves no provider.',
+						suggestion:
+							'Serve it with `loam-host`: `deployment_version = 4` with `[host] kind = "hosted"`.',
+					},
+				],
+			}
+		: { refusals: [], warnings: [] };
+}
+
+/**
+ * Reads versions 1 to 4; a version 1 file means the `personal` workspace and `/`, a file before 3, or one
+ * with no `[identity]`, the `local` identity (phase 3 specification, 2.2), and a file before 4, or one with no
+ * `[host]`, the `static` host (phase 6 specification, 3.3).
  */
 export function readDeployment(json: unknown): DeploymentRead {
 	const version = (json as { deployment_version?: unknown } | null)?.deployment_version;
 	const [validate, schema] =
-		version === 3
-			? ([validateDeploymentV3, 'deploymentV3'] as const)
-			: version === 2
-				? ([validateDeploymentV2, 'deploymentV2'] as const)
-				: ([validateDeployment, 'deployment'] as const);
+		version === 4
+			? ([validateDeploymentV4, 'deploymentV4'] as const)
+			: version === 3
+				? ([validateDeploymentV3, 'deploymentV3'] as const)
+				: version === 2
+					? ([validateDeploymentV2, 'deploymentV2'] as const)
+					: ([validateDeployment, 'deployment'] as const);
 	if (!validate(json)) {
-		// Any `[identity]` key out of shape is its own code (2.2), here and not in the page's shared rows.
+		// Any `[identity]` key out of shape is its own code (2.2), and version 4's workspace ids name the hosted
+		// server's segments too (phase 6 specification, 3.3), here and not in the page's shared rows.
 		const refusals = deploymentRefusals(validate.errors ?? [], schema).map((refusal) =>
-			schema === 'deploymentV3' && refusal.key.startsWith('identity')
+			schema === 'deploymentV4' && refusal.key === 'workspace.id'
 				? {
 						...refusal,
-						code: 'DEPLOYMENT_IDENTITY_INVALID' as const,
-						message: `\`${refusal.key}\` is not an identity this shell reads.`,
-						suggestion:
-							'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+						message:
+							"`workspace.id` must be lowercase letters, digits and `-`, at most 63, and not a name a deployment's own files or the hosted server's routes use.",
+						suggestion: `${refusal.suggestion.replace(/ and `404\.html` are reserved\.$/, ', `404.html`')}, \`api\`, \`mcp\` and \`.well-known\` are reserved.`,
 					}
-				: refusal
+				: (schema === 'deploymentV3' || schema === 'deploymentV4') &&
+						refusal.key.startsWith('identity')
+					? {
+							...refusal,
+							code: 'DEPLOYMENT_IDENTITY_INVALID' as const,
+							message: `\`${refusal.key}\` is not an identity this shell reads.`,
+							suggestion:
+								'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+						}
+					: refusal
 		);
 		return { ok: false, refusals, warnings: [] };
 	}
-	const deployment = json as DeploymentV1 | DeploymentV2 | DeploymentV3;
+	const deployment = json as AnyDeployment;
 	const named = deployment.deployment_version !== 1 ? deployment.workspace : undefined;
 	const id = named?.id ?? DEFAULT_WORKSPACE_V2.id;
 	const refusals = [
 		...sandboxRefusals(deployment),
 		...(deployment.deployment_version !== 1 ? reservedInstances(deployment) : []),
 		...Object.entries(deployment.apps).flatMap(([id, entry]) => instanceRefusals(id, entry)),
-		...(deployment.deployment_version === 3 ? identityRefusals(deployment, id) : []),
+		...(deployment.deployment_version === 3 || deployment.deployment_version === 4
+			? identityRefusals(deployment, id)
+			: []),
 	];
 	if (refusals.length > 0) return { ok: false, refusals, warnings: [] };
+	const identity = identityOf(deployment);
+	const host = hostKindOf(deployment);
+	const found = hostFindings(host, identity);
+	if (found.refusals.length > 0) return { ok: false, refusals: found.refusals, warnings: [] };
 	return {
 		ok: true,
 		deployment,
@@ -336,7 +429,8 @@ export function readDeployment(json: unknown): DeploymentRead {
 			? { id, name: named.name ?? workspaceNameOf(id) }
 			: { ...DEFAULT_WORKSPACE_V2, ...(named?.name ? { name: named.name } : {}) },
 		basePath: (deployment.deployment_version !== 1 && deployment.site?.base_path) || '/',
-		identity: identityOf(deployment),
-		warnings: [],
+		identity,
+		host,
+		warnings: found.warnings,
 	};
 }

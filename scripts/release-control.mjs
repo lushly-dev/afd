@@ -3,6 +3,7 @@
 import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, relative, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import semver from 'semver';
 import {
 	AUTOMATIC_ROUTES,
 	assertAdmission,
@@ -46,6 +47,28 @@ export function assertPublishersExist(plan, registryEvidence) {
 	if (absent.length)
 		throw new Error(
 			`npm has no package ${absent.join(', ')}; trusted publishing cannot create one. Publish a placeholder for each and link its trusted publisher, then re-run`
+		);
+}
+/** A `0.0.0-*` version: the placeholder a maintainer publishes so that npm has the name. */
+const placeholder = (version) => version.startsWith('0.0.0-') && semver.valid(version) !== null;
+/**
+ * A prerelease must never become what a plain install resolves. The upload names only its own tag,
+ * and npm moves `latest` by itself only for a package that has none; so a prerelease plan needs
+ * every name to have a `latest`, on a stable version or the `0.0.0` placeholder, and stops before
+ * the run claims anything otherwise. Moving `latest` is the maintainer's (`npm dist-tag add`).
+ */
+export function assertLatestNotPrerelease(plan, registryEvidence) {
+	if (plan.route !== 'npm-prerelease') return;
+	const misplaced = plan.artifacts.flatMap(({ name }) => {
+		const latest = registryEvidence.find((entry) => entry.name === name)?.distTags?.latest;
+		if (!latest) return [`${name} has none`];
+		// A tag that is not a version fails closed: `semver.prerelease` reads it as stable.
+		if (typeof latest !== 'string' || !semver.valid(latest)) return [`${name}@${latest} (invalid)`];
+		return semver.prerelease(latest) && !placeholder(latest) ? [`${name}@${latest}`] : [];
+	});
+	if (misplaced.length)
+		throw new Error(
+			`A ${plan.distTag} prerelease needs npm's latest tag on a stable version or the 0.0.0 placeholder: ${misplaced.join(', ')}. The maintainer moves it (npm dist-tag add <name>@<version> latest), then re-run`
 		);
 }
 function evidence(root, file, selectedUnits, route) {
@@ -190,6 +213,7 @@ export function main(args = process.argv.slice(2)) {
 			],
 		});
 		assertPublishersExist(result, registryEvidence);
+		assertLatestNotPrerelease(result, registryEvidence);
 		mkdirSync(dirname(destination), { recursive: true });
 		writeFileSync(destination, `${JSON.stringify(result, null, '\t')}\n`);
 	} else if (command === 'publish') {

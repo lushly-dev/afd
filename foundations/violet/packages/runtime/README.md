@@ -3,7 +3,7 @@
 Web SDK for Violet Design tokens: load a node's resolved tokens from the Violet API, cache them, apply them as CSS custom properties, and switch themes at runtime.
 
 ```bash
-npm install @lushly-dev/violet-runtime
+npm install @lushly-dev/violet-runtime@preview
 ```
 
 ```ts

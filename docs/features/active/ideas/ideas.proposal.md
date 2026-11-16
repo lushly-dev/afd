@@ -11,12 +11,13 @@ Its working name is Ideas, and the plugin id is `ideas` ([section 11](#11-for-th
 
 ## Status
 
-- **State:** active, with phase 0 under way. Progress is in [STATUS.md](STATUS.md), which is the
+- **State:** active, partially complete. Phase 0's findings are recorded with owner checks
+  remaining; host steps B1 to B4, plugin steps C1 to C5 and the local review page H3 are merged. Progress is in [STATUS.md](STATUS.md), which is the
   ledger; read it first. Written 2026-11-11 against `main` at `8ef7aa68`, from a design
   discussion with the owner on 2026-11-10 and 2026-11-11, and revised three times the same day
   ([Revision](#revision-of-2026-11-11)), the third time against `main` at `069af7b6`. The owner
   merged the third revision, answered the questions that stood before phase 0, and directed that
-  the work carry on through its phases ([section 11](#11-for-the-owner)). Nothing is implemented.
+  the work carry on through its phases ([section 11](#11-for-the-owner)). Current implementation progress is recorded above.
 - **Verified:** the facts in [What exists today](#2-what-exists-today) were read on `main` at
   `8ef7aa68` in the files each row names, and in `lushly-dev/violet` at `c4e8663` for Violet's
   web interface and plans. The rows on the person page, the tool list, guidance, loading

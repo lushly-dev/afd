@@ -90,7 +90,12 @@ def create_host_mcp_server(
         name=f"{host.name}-call", description="Call a registered command under host policy"
     )
     async def call(command: str, arguments: dict | None = None) -> dict:
-        return _dump(await host.execute(command, arguments))
+        from afd import Actor
+        from afd.core.commands import CommandContext
+
+        # An MCP caller is an agent unless the host names who calls through it.
+        context = CommandContext(actor=host.actor or Actor(kind="agent"))
+        return _dump(await host.execute(command, arguments, context))
 
     @server.tool(name=f"{host.name}-docs", description="Read a host documentation topic")
     async def docs(topic: str = "overview") -> str:
@@ -114,7 +119,7 @@ def create_host_mcp_server(
                 async def invoke(*args, **kwargs):
                     import inspect
 
-                    signature = inspect.signature(host._commands[command_name])
+                    signature = inspect.signature(host.handler(command_name))
                     bound = signature.bind(*args, **kwargs)
                     return await host.execute(command_name, dict(bound.arguments))
 

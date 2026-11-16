@@ -1,0 +1,308 @@
+{
+	"$comment": "Draft process manifest for the Factory Gateway (see the proposal's 'Keeping the process current'). The check that reads it is built in G1; until a milestone's 'landed' is true, nothing is enforced for it. Paths are relative to each repository's root.",
+	"version": 1,
+	"milestones": {
+		"G0": {
+			"landed": false,
+			"afd": [
+				{
+					"path": "docs/operations/factory-gateway.md",
+					"names": ["gateway-status"]
+				},
+				{
+					"path": "SETUP.md",
+					"names": ["gateway-status"]
+				}
+			],
+			"lushly": [
+				{
+					"path": "SETUP.md",
+					"names": ["gateway-status"]
+				}
+			]
+		},
+		"G1": {
+			"landed": false,
+			"afd": [
+				{
+					"path": "AGENTS.md",
+					"names": ["factory gateway"]
+				},
+				{
+					"path": ".claude/skills/triage-issues/SKILL.md",
+					"names": ["issue-label", "issue-comment"]
+				},
+				{
+					"path": ".claude/skills/prepare-pr/SKILL.md",
+					"names": ["branch-push"]
+				},
+				{
+					"path": "endpoints/botcore/plugins/botcore-factory/src/botcore_factory/docs.py",
+					"names": [
+						"issue-claim",
+						"branch-push",
+						"pr-open",
+						"verification-record",
+						"pr-merge",
+						"pr-status"
+					]
+				},
+				{
+					"path": ".claude/skills/start-session/SKILL.md",
+					"names": ["issue-claim"]
+				},
+				{
+					"path": ".claude/settings.json",
+					"names": ["gh", "git push"]
+				},
+				{
+					"path": ".mcp.json",
+					"names": ["gateway"]
+				}
+			],
+			"lushly": [
+				{
+					"path": "AGENTS.md",
+					"names": ["issue-claim"]
+				},
+				{
+					"path": "INIT.md",
+					"names": ["issue-claim", "claim-list"]
+				},
+				{
+					"path": ".claude/skills/do-init-lushly/SKILL.md",
+					"names": ["issue-claim"]
+				},
+				{
+					"path": ".claude/skills/do-triage/SKILL.md",
+					"names": ["issue-label", "issue-comment"]
+				},
+				{
+					"path": ".claude/skills/do-run-fleet/SKILL.md",
+					"names": ["claim-list", "gateway-audit"]
+				},
+				{
+					"path": ".claude/skills/do-end-session/SKILL.md",
+					"names": ["issue-release", "pr-status"]
+				},
+				{
+					"path": "Docs/operations/merge-lane.md",
+					"names": ["branch-push", "pr-open", "verification-record", "pr-merge"]
+				},
+				{
+					"path": "scripts/issue-claim.mjs",
+					"names": ["issue-claim", "issue-release"]
+				},
+				{
+					"path": "scripts/final-validation-flakes.mjs",
+					"names": ["issue-create", "issue-comment"]
+				},
+				{
+					"path": "scripts/merge-lane-worker.mjs",
+					"names": ["branch-push", "pr-open", "pr-merge"]
+				},
+				{
+					"path": "scripts/merge-lane-operations.mjs",
+					"names": ["branch-push", "pr-open", "pr-merge"]
+				},
+				{
+					"path": "scripts/merge-lane-ci.mjs",
+					"names": ["pr-status", "pr-merge"]
+				},
+				{
+					"path": ".claude/settings.json",
+					"names": ["gh", "git push"]
+				},
+				{
+					"path": ".mcp.json",
+					"names": ["gateway"]
+				},
+				{
+					"path": ".claude/skills/do-prepare-pr/SKILL.md",
+					"names": ["branch-push"]
+				}
+			]
+		},
+		"G2": {
+			"landed": false,
+			"afd": [
+				{
+					"path": ".claude/skills/prepare-pr/SKILL.md",
+					"names": ["review-record"]
+				},
+				{
+					"path": ".claude/skills/review-code/SKILL.md",
+					"names": ["review-record"]
+				}
+			],
+			"lushly": [
+				{
+					"path": ".claude/skills/review-code-lushly/SKILL.md",
+					"names": ["review-record"]
+				},
+				{
+					"path": ".claude/skills/do-prepare-pr/SKILL.md",
+					"names": ["review-record"]
+				},
+				{
+					"path": "scripts/check-review-lanes.mjs",
+					"names": ["review-get"]
+				},
+				{
+					"path": ".claude/skills/review-code-lushly/references/review-lanes.md",
+					"names": ["review-record"]
+				}
+			]
+		},
+		"G3": {
+			"landed": false,
+			"afd": [
+				{
+					"path": "docs/operations/factory-gateway.md",
+					"names": ["gateway-wait"]
+				}
+			],
+			"lushly": [
+				{
+					"path": ".claude/skills/do-run-fleet/SKILL.md",
+					"names": ["gateway-wait"]
+				},
+				{
+					"path": "Docs/operations/merge-lane.md",
+					"names": ["gateway-wait"]
+				},
+				{
+					"path": ".claude/skills/lushly-worktree-discipline/SKILL.md",
+					"names": ["pr-status"]
+				}
+			]
+		},
+		"G4": {
+			"landed": false,
+			"afd": [
+				{
+					"path": "SETUP.md",
+					"names": ["cell token"]
+				},
+				{
+					"path": "endpoints/botcore/plugins/botcore-factory/src/botcore_factory/cells.py",
+					"names": ["cell token"]
+				}
+			],
+			"lushly": [
+				{
+					"path": "SETUP.md",
+					"names": ["cell token"]
+				},
+				{
+					"path": ".claude/skills/do-run-fleet/SKILL.md",
+					"names": ["cell token"]
+				},
+				{
+					"path": ".claude/skills/lushly-worktree-discipline/SKILL.md",
+					"names": ["cell token"]
+				}
+			]
+		}
+	},
+	"door": {
+		"$comment": "gh writes the gateway serves. The door check refuses them in instruction files, skills, runbooks, scripts (text and argument lists), hooks and MCP configuration. GitHub Actions workflows and tests are out of scope: workflows run as GITHUB_TOKEN, not as an agent. Each allowed file may keep its gh writes until the named milestone lands; after that the check fails on it.",
+		"patterns": [
+			"gh issue edit",
+			"gh issue comment",
+			"gh issue create",
+			"gh pr create",
+			"gh pr merge",
+			"gh variable set",
+			"gh api .*/labels"
+		],
+		"argvPatterns": [
+			"[\"']issue[\"'],\\s*[\"'](edit|comment|create)[\"']",
+			"[\"']pr[\"'],\\s*[\"'](create|merge)[\"']",
+			"[\"']variable[\"'],\\s*[\"']set[\"']"
+		],
+		"exclude": [".github/workflows/**", "**/*.test.mjs", "**/tests/**"],
+		"allow": [
+			{
+				"repo": "lushly",
+				"path": "scripts/merge-lane-ci.mjs",
+				"until": "G1"
+			},
+			{
+				"repo": "lushly",
+				"path": ".claude/skills/do-triage/SKILL.md",
+				"until": "G1"
+			},
+			{
+				"repo": "afd",
+				"path": ".claude/skills/triage-issues/SKILL.md",
+				"until": "G1"
+			},
+			{
+				"repo": "lushly",
+				"path": ".claude/skills/do-prepare-pr/SKILL.md",
+				"until": "G5"
+			},
+			{
+				"repo": "lushly",
+				"path": ".claude/skills/do-sweep/SKILL.md",
+				"until": "G5"
+			},
+			{
+				"repo": "lushly",
+				"path": ".claude/skills/lushly-worktree-discipline/SKILL.md",
+				"until": "G5"
+			},
+			{
+				"repo": "lushly",
+				"path": "Docs/operations/ci-performance.md",
+				"until": "G5"
+			},
+			{
+				"repo": "afd",
+				"path": ".claude/skills/prepare-pr/SKILL.md",
+				"until": "G5"
+			},
+			{
+				"repo": "afd",
+				"path": ".claude/skills/end-session/SKILL.md",
+				"until": "G5"
+			},
+			{
+				"repo": "lushly",
+				"path": "scripts/merge-lane-worker.mjs",
+				"until": "G1"
+			},
+			{
+				"repo": "lushly",
+				"path": "scripts/merge-lane-operations.mjs",
+				"until": "G1"
+			},
+			{
+				"repo": "lushly",
+				"path": "scripts/final-validation-flakes.mjs",
+				"until": "G1"
+			},
+			{
+				"repo": "lushly",
+				"path": ".claude/skills/bloat-sweeper/scripts/sweep.mjs",
+				"until": "G5"
+			},
+			{
+				"repo": "afd",
+				"path": ".claude/skills/sweep-bloat/scripts/sweep.mjs",
+				"until": "G5"
+			},
+			{
+				"repo": "afd",
+				"path": "endpoints/botcore/src/botcore/skills/bloat-sweeper/scripts/sweep.mjs",
+				"until": "G5"
+			},
+			{
+				"repo": "afd",
+				"path": "endpoints/botcore/src/botcore/commands/undo.py",
+				"until": "G5"
+			}
+		]
+	}
+}

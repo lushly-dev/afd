@@ -4,12 +4,18 @@ This directory contains the shared API contract for the Todo example. All four b
 
 ## Files
 
-- `commands.schema.json`: JSON Schema defining the input and output for all 11 commands,
-  keyed by MCP tool name. The TypeScript, Python and C++ backend test suites fail if it does
-  not list exactly the commands their backend defines; the C++ backend also validates every
-  input against it. The Rust backend has no such check.
+- `commands.schema.json`: JSON Schema defining the input and output for all 13 commands,
+  keyed by MCP tool name, and each command's `metadata`: `mutation`, `destructive`, `contexts`
+  and, on `todo-clear`, `confirmPrompt`. The test suites of all four backends fail if it does not
+  list exactly the commands their backend defines with that metadata (Rust's leaves out
+  `contexts`, which it does not declare yet); the C++ backend also validates every input
+  against it. A command with `implementedBy` (`todo-restore`, `todo-history`), or an input
+  property with `x-implementedBy`, exists so far only in the languages it names, and only their
+  tests expect it: the [to-do reference plan](../../../../docs/features/active/todo-reference/todo-reference.proposal.md)
+  adds it to TypeScript in phase 2 and to the others in phase 5, which removes the field.
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
+- `approval-cases.json`: Approval hold cases (`--suite approvals`), TypeScript only so far.
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -28,6 +34,11 @@ The Rust script needs a Rust toolchain (`backends/rust/rust-toolchain.toml` pins
 script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first. Before each
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
+
+A case with `implementedBy` runs only against backends in those languages, like the commands
+marked so in `commands.schema.json`. Six cases in `test-cases.json` (undo metadata, deleting and
+restoring, emptying the deleted todos, history) are TypeScript's; the other backends run the 35
+shared ones, and phase 5 removes the field as each catches up.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays
 and read `.length` (`data.todos.0.title`, `data.todos.length`). The value is either the exact
@@ -50,7 +61,27 @@ command is shown to have changed nothing.
 | TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes, every protocol mode |
 | Python | `pnpm test:conformance:py --suite confirmations` | Yes, every protocol mode |
 | Rust | `pnpm test:conformance:rs --suite confirmations --mode modern` | Yes. In legacy mode the accept and decline cases fail by design: a 2025 request over the backend's stateless HTTP has no back channel, so the backend answers `CONFIRMATION_REQUIRED` |
-| C++ | Not yet | Planned |
+| C++ | Not yet | No. `todo-clear` declares the prompt, but the backend's own stdio loop does not enforce confirmations; that waits on the library's `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)) |
+
+## Approval Cases
+
+`--suite approvals` runs `approval-cases.json` against a backend started with `APPROVALS=agents`,
+where `todo-clear`, the one change nothing undoes, is held for any caller that is not a person
+([`spec/command-metadata.md`](../../../../spec/command-metadata.md#approvals)); an MCP caller is an
+agent. The client kinds are the confirmation suite's: `acknowledge` declares no elicitation, so a
+held clear fails with `APPROVAL_REQUIRED`; `accept` and `decline` declare form elicitation, so the
+server asks the person, and the client answers every question that way. A clear would be held, so
+the reset before each case deletes the live todos with `todo-delete-batch` instead. TypeScript
+runs it in both protocol modes (`pnpm test:conformance:ts --suite approvals`); the other languages
+gain approvals in phase 5.
+
+## Scenarios and Surface Validation
+
+`pnpm test:scenarios:ts` serves the TypeScript backend over Streamable HTTP with an in-memory
+store and runs AFD's own clients against it (`dx/run-scenarios.ts`): `afd validate --surface
+--strict` (four input overlaps suppressed, each with its reason), then `afd scenario run` on every
+file in `scenarios/` and `backends/typescript/scenarios/` except those tagged `deterministic` or
+`contexts`, which the backend's own tests run in-process. It uses a temporary `afd` config home.
 
 ## Data Types
 

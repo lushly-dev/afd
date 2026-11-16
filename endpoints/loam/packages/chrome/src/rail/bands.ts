@@ -30,11 +30,24 @@ export function bandFor(
 	return { band: 'top', dimmed: !entry.available };
 }
 
-/** The one comparator of both bands, R8's seam: `order`, then the instance. */
+/**
+ * The one comparator of both bands, R8's seam: the active persona's emphasized apps first, in the order it
+ * names them (phase 3 specification, 6.2), then `order`, then the instance. Emphasis orders and never hides.
+ */
 export const railOrder = (
 	a: Pick<AppSummaryV2, 'order' | 'instance'>,
-	b: Pick<AppSummaryV2, 'order' | 'instance'>
-): number => a.order - b.order || (a.instance < b.instance ? -1 : a.instance > b.instance ? 1 : 0);
+	b: Pick<AppSummaryV2, 'order' | 'instance'>,
+	emphasis: readonly string[] = []
+): number => {
+	// An emphasized app's place in the list, and every other's after them all.
+	const rank = (app: { instance: string }) =>
+		(emphasis.indexOf(app.instance) + emphasis.length + 1) % (emphasis.length + 1);
+	return (
+		rank(a) - rank(b) ||
+		a.order - b.order ||
+		(a.instance < b.instance ? -1 : a.instance > b.instance ? 1 : 0)
+	);
+};
 
 /** A dimmed entry's tooltip: why it cannot open here. */
 export const dimmedTip = (title: string, project: string | undefined): string =>

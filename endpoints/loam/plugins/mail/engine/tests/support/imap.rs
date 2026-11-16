@@ -47,6 +47,9 @@ pub struct Mailbox {
     /// UIDs a `FETCH` breaks on: the server answers with bytes no IMAP
     /// reader can parse.
     pub poison: HashSet<u32>,
+    /// UIDs a `FETCH` of the whole message or of a part breaks on, as
+    /// [`Mailbox::poison`]; their headers are returned.
+    pub poison_body: HashSet<u32>,
     /// UIDs whose `BODYSTRUCTURE` nests 2 000 deep, as a server's might for
     /// a message built to.
     pub nested: HashSet<u32>,
@@ -75,6 +78,8 @@ pub struct World {
     pub stall: bool,
     /// Answer `NO` to a search while this mailbox is open.
     pub refuse_search_in: Option<String>,
+    /// Answer the opening of this mailbox with a reply nested 2 000 deep.
+    pub nest_examine_of: Option<String>,
     /// Give a mailbox a new `UIDVALIDITY` when it is opened with QRESYNC, as
     /// if it changed between two openings.
     pub renumber_on_qresync: Option<String>,
@@ -95,6 +100,7 @@ impl World {
             down: false,
             stall: false,
             refuse_search_in: None,
+            nest_examine_of: None,
             renumber_on_qresync: None,
             connections: 0,
         }
@@ -112,6 +118,7 @@ impl World {
             never_return: HashSet::new(),
             never_return_body: HashSet::new(),
             poison: HashSet::new(),
+            poison_body: HashSet::new(),
             nested: HashSet::new(),
         });
     }
@@ -420,6 +427,11 @@ fn examine(
         world.renumber_on_qresync = None;
         world.renumber(name);
     }
+    if world.nest_examine_of.as_deref() == Some(name.as_str()) {
+        session.open = None;
+        text(out, format!("* FLAGS {}\r\n", "(".repeat(2_000)));
+        return;
+    }
     let Some(mailbox) = world.mailboxes.iter().find(|mailbox| &mailbox.name == name) else {
         session.open = None;
         text(out, format!("{tag} NO no such mailbox\r\n"));
@@ -549,7 +561,10 @@ fn fetch(
         {
             continue;
         }
-        if items.contains("BODY.PEEK") && mailbox.poison.contains(uid) {
+        let body_asked = items.contains("BODY.PEEK[]") || !places.is_empty();
+        if (items.contains("BODY.PEEK") && mailbox.poison.contains(uid))
+            || (body_asked && mailbox.poison_body.contains(uid))
+        {
             out.push(Chunk::Bytes(b"* 1 FETCH (UID ((( broken\r\n".to_vec()));
             out.push(Chunk::Drop);
             return;

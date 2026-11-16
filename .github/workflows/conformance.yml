@@ -4,7 +4,8 @@ name: Conformance
 # against the TypeScript, Python, Rust and C++ backends, plus each backend's own
 # checks. The Python backend installs the repository's python/ package, the
 # Rust backend depends on packages/rust and the C++ backend on packages/cpp, so
-# changes there are checked too.
+# changes there are checked too. The TypeScript job also runs the AFD CLI's validate and scenario
+# run against its backend (dx/run-scenarios.ts), so CLI and testing package changes run it.
 
 on:
   push:
@@ -13,6 +14,12 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/server/**'
       - 'packages/core/**'
+      - 'packages/cli/**'
+      - 'packages/client/**'
+      - 'packages/testing/**'
+      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
+      - 'packages/view-state/**'
+      - 'foundations/fast-af/**'
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
@@ -26,6 +33,12 @@ on:
       - 'packages/examples/todo/**'
       - 'packages/server/**'
       - 'packages/core/**'
+      - 'packages/cli/**'
+      - 'packages/client/**'
+      - 'packages/testing/**'
+      # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
+      - 'packages/view-state/**'
+      - 'foundations/fast-af/**'
       - 'packages/rust/**'
       - 'packages/cpp/**'
       - 'python/**'
@@ -62,7 +75,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --path python/ --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
       - id: rust
         run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
@@ -127,6 +140,28 @@ jobs:
 
       - name: Confirmations (TypeScript backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:ts --suite confirmations --mode modern
+
+      # spec/approval-cases.json with APPROVALS=agents: todo-clear held for an agent, approved or
+      # declined by a person asked through form elicitation. TypeScript only until phase 5.
+      - name: Approvals (TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite approvals
+
+      - name: Approvals (TypeScript backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:ts --suite approvals --mode modern
+
+      # afd validate --surface --strict and afd scenario run against the TypeScript backend over
+      # Streamable HTTP (dx/run-scenarios.ts).
+      - name: Surface and scenarios (TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:scenarios:ts
+
+      # Both pages (FAST-AF and React) in Chromium against the TypeScript backend: add, undo, approve
+      # and deny a clear in the page, an agent narrowing the view (job 6) and axe, one shared suite
+      # (frontends/shared/test/page-suite.ts).
+      - name: Install Chromium
+        run: pnpm -F @afd/example-todo-ui exec playwright install --with-deps chromium
+
+      - name: The page (Chromium, TypeScript backend)
+        run: pnpm --dir packages/examples/todo test:page
 
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py

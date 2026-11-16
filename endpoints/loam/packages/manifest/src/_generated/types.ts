@@ -1116,6 +1116,176 @@ export interface ProjectionV3 {
 	}[];
 }
 
+export interface DeploymentV4 {
+	deployment_version: 4;
+	workspace?: {
+		id?: string;
+		name?: string;
+	};
+	site?: {
+		base_path?: string;
+	};
+	sandbox?: {
+		origin: string;
+	};
+	identity?: {
+		mode?: 'local' | 'provider';
+		provider?: 'better-auth';
+		organization?: string;
+		path?: string;
+		methods?: string[];
+	};
+	host?: {
+		kind?: 'static' | 'hosted' | 'desktop';
+	};
+	apps: {
+		[k: string]: {
+			app: string;
+			package: string;
+			order?: number;
+			title?: string;
+			config?: {
+				[k: string]: unknown;
+			};
+			prefix?: string;
+			audience?: 'team' | 'person';
+			transport?: 'http' | 'stdio';
+			url?: string;
+			bearer_file?: string;
+			bearer_env?: string;
+			/**
+			 * @minItems 1
+			 */
+			command?: [string, ...string[]];
+			cwd?: string;
+			projects?: string[];
+			space?: {
+				[k: string]: string;
+			};
+			expose?: {
+				agent?: boolean;
+				palette?: boolean;
+				mcp?: false;
+				cli?: false;
+			};
+			commands?: {
+				[k: string]: {
+					expose?: {
+						agent?: boolean;
+						palette?: boolean;
+						mcp?: false;
+						cli?: false;
+					};
+					/**
+					 * @minItems 1
+					 */
+					effects?: [
+						'inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write',
+						...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
+					];
+					destructive?: boolean;
+				};
+			};
+		};
+	};
+}
+
+export interface ProjectionV4 {
+	deployment_version: 2 | 3 | 4;
+	generation: string;
+	workspace: {
+		id: string;
+		name: string;
+	};
+	sandbox_origin: string | null;
+	identity?: {
+		mode: 'local' | 'provider';
+		organization?: string;
+		path?: string;
+		/**
+		 * @minItems 1
+		 */
+		methods?: [string, ...string[]];
+	};
+	host?: {
+		kind: 'static' | 'hosted' | 'desktop';
+		kernel?: 'api/kernel';
+	};
+	apps: {
+		instance: string;
+		app: string;
+		package: string;
+		order?: number;
+		title?: string;
+		config?: {
+			[k: string]: unknown;
+		};
+		prefix?: string;
+		audience?: 'team' | 'person';
+		transport?: 'http' | 'stdio';
+		route?: string;
+		projects?: string[];
+		space?: {
+			[k: string]: string;
+		};
+		expose?: {
+			agent?: boolean;
+			palette?: boolean;
+			mcp?: false;
+			cli?: false;
+		};
+		commands?: {
+			[k: string]: {
+				expose?: {
+					agent?: boolean;
+					palette?: boolean;
+					mcp?: false;
+					cli?: false;
+				};
+				/**
+				 * @minItems 1
+				 */
+				effects?: [
+					'inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write',
+					...('inspect' | 'plugin-state' | 'external' | 'store-write' | 'workspace-write')[]
+				];
+				destructive?: boolean;
+			};
+		};
+		boot?: {
+			title: string;
+			kind: 'native' | 'view' | 'mounted';
+			icon: string;
+			order: number;
+			/**
+			 * @minItems 1
+			 */
+			scope_levels: ['workspace' | 'project', ...('workspace' | 'project')[]];
+			rail: boolean;
+			parts: ('sidebar' | 'inspector' | 'panel')[];
+			layout: {
+				sidebar?: {
+					open?: boolean;
+					width?: number;
+				};
+				inspector?: {
+					open?: boolean;
+					width?: number;
+				};
+				panel?: {
+					open?: boolean;
+					height?: number;
+				};
+			};
+			refusal: {
+				code: string;
+				message: string;
+				suggestion: string;
+			} | null;
+		};
+	}[];
+}
+
 export interface ServerConfigV1 {
 	server_version: 1;
 	origin: string;

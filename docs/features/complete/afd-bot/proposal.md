@@ -1,5 +1,11 @@
 # Alfred — AFD's Repo Quality Agent
 
+> **Status (2026-11-13): partially complete; shipped scope archived.** Alfred implements
+> `afd-lint`, `afd-parity` and `afd-quality` in `alfred/src/alfred/commands/`.
+> `afd-validate-schemas`, `afd-release-check` and most Tier 2 commands below were not built.
+> Their disposition remains [#553](https://github.com/lushly-dev/afd/issues/553), open when checked.
+> This archive does not mean every command in the original proposal shipped.
+
 > Alfred handles the deterministic work so agents can focus on reasoning.
 
 ## Summary

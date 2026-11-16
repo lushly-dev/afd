@@ -1,0 +1,60 @@
+{
+	"$command": "donation-get",
+	"$input": {
+		"id": "don-1"
+	},
+	"success": true,
+	"data": {
+		"id": "don-1",
+		"status": "cancelled",
+		"succeeded": [
+			{
+				"index": 0,
+				"label": "Borlotti bean",
+				"packets": 4,
+				"harvestYear": 2029,
+				"varietyId": "var-borlotti"
+			},
+			{
+				"index": 1,
+				"label": "Pot marigold",
+				"packets": 2,
+				"harvestYear": 2029,
+				"varietyId": "var-calendula"
+			},
+			{
+				"index": 2,
+				"label": "Parsnip",
+				"packets": 3,
+				"harvestYear": 2029,
+				"varietyId": "var-parsnip"
+			}
+		],
+		"unsettled": [],
+		"failed": [],
+		"summary": {
+			"total": 3,
+			"successCount": 3,
+			"unsettledCount": 0,
+			"failureCount": 0,
+			"leftOutCount": 0
+		}
+	},
+	"plan": [
+		{
+			"id": "row-0",
+			"action": "Take in row 1: Borlotti bean, 4 packets",
+			"status": "complete"
+		},
+		{
+			"id": "row-1",
+			"action": "Take in row 2: Pot marigold, 2 packets",
+			"status": "complete"
+		},
+		{
+			"id": "row-2",
+			"action": "Take in row 3: Parsnip, 3 packets",
+			"status": "complete"
+		}
+	]
+}

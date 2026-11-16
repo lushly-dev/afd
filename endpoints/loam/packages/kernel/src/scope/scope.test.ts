@@ -400,8 +400,9 @@ describe('P2-E4: the project commands', () => {
 		expect(created.undoCommand).toBe('project-archive');
 		expect(await workspace.store.get('workspace', 'personal')).toMatchObject({ id: 'personal' });
 		const refusals: Array<[Record<string, unknown>, string]> = [
-			[{ name: 'Again', slug: 'big-plans' }, 'PROJECT_SLUG_TAKEN'],
-			[{ name: 'All', slug: 'all' }, 'PROJECT_SLUG_INVALID'],
+			// Phase 3's 7.3: one code and one message for a slug held and a reserved one.
+			[{ name: 'Again', slug: 'big-plans' }, 'PROJECT_SLUG_UNAVAILABLE'],
+			[{ name: 'All', slug: 'all' }, 'PROJECT_SLUG_UNAVAILABLE'],
 			[{ name: 'x', slug: 'Bad_Slug' }, 'PROJECT_SLUG_INVALID'],
 			[{ name: '' }, 'PROJECT_NAME_INVALID'],
 			[{ name: 'x'.repeat(81) }, 'PROJECT_NAME_INVALID'],

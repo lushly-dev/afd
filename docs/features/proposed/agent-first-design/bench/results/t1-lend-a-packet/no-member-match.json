@@ -1,0 +1,11 @@
+{
+	"$command": "member-list",
+	"$input": {
+		"query": "Nobody"
+	},
+	"success": true,
+	"data": {
+		"members": [],
+		"total": 0
+	}
+}

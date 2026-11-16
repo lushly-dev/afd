@@ -4,9 +4,11 @@
 
 import { defineCommand, failure, success } from '@lushly-dev/afd-server';
 import { z } from 'zod';
+import { TODO_READ_CONTEXTS } from '../contexts.js';
 import { TodoSchema } from '../schemas.js';
 import { store } from '../store/index.js';
 import type { Todo } from '../types.js';
+import { todoNotFound } from './shared.js';
 
 const inputSchema = z.object({
 	id: z.string().min(1, 'Todo ID is required'),
@@ -14,8 +16,10 @@ const inputSchema = z.object({
 
 export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	name: 'todo-get',
+	title: 'Get a todo',
 	description: 'Get a single todo by ID',
 	category: 'todo',
+	contexts: TODO_READ_CONTEXTS,
 	expose: { mcp: true },
 	tags: ['todo', 'get', 'read', 'single'],
 	mutation: false,
@@ -23,17 +27,13 @@ export const getTodo = defineCommand<typeof inputSchema, Todo>({
 	input: inputSchema,
 	output: TodoSchema,
 	errors: ['NOT_FOUND'],
-	contexts: ['todo-editing', 'todo-reading'],
 
+	examples: [{ title: 'One todo by id', input: { id: 'todo-1700000000000-abc1234' } }],
 	async handler(input) {
-		const todo = store.get(input.id);
+		const todo = await store.get(input.id);
 
 		if (!todo) {
-			return failure({
-				code: 'NOT_FOUND',
-				message: `Todo with ID "${input.id}" not found`,
-				suggestion: 'Use todo-list to see available todos',
-			});
+			return failure(todoNotFound(input.id));
 		}
 
 		return success(todo, {

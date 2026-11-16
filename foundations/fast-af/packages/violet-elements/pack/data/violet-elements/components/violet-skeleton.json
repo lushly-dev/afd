@@ -44,7 +44,21 @@
 				"rules": [
 					"taxonomy.shape"
 				],
-				"type": "VioletSkeletonShape"
+				"type": "\"rect\" | \"circle\" | \"text\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "rect"
+					},
+					{
+						"basis": "observed",
+						"value": "circle"
+					},
+					{
+						"basis": "observed",
+						"value": "text"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -54,7 +68,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletSkeletonSize"
+				"type": "\"sm\" | \"md\" | \"lg\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "sm"
+					},
+					{
+						"basis": "observed",
+						"value": "md"
+					},
+					{
+						"basis": "observed",
+						"value": "lg"
+					}
+				]
 			}
 		],
 		"commands": [],

@@ -23,13 +23,15 @@ use crate::commands::{provider_failure, store_failure};
 use crate::derive;
 use crate::engine::Engine;
 use crate::fetch::{FetchError, fetch_body, fetch_part};
-use crate::store::{MailboxId, MessageId, MessageListed, StoreError, ThreadId};
+use std::collections::HashMap;
+
+use crate::store::{Class, MailboxId, MessageId, MessageListed, StoreError, ThreadId};
 
 /// The room a result's own fields need beside its items, in bytes.
 const ROOM: usize = 1024;
 
 /// A content part: what came from a message, labelled as such.
-fn content(mut value: Value) -> Value {
+pub(crate) fn content(mut value: Value) -> Value {
     if let Some(object) = value.as_object_mut() {
         object.insert("trust".to_string(), json!("content"));
     }
@@ -58,8 +60,14 @@ fn measured(data: &Value) -> usize {
 /// canonical form may write it differently.
 const SLACK: usize = 64;
 
+/// Whether `data` fits a budget of `budget` bytes, as the registry
+/// measures a result.
+pub(crate) fn fits(data: &Value, budget: usize) -> bool {
+    measured(data).saturating_add(SLACK) <= budget
+}
+
 /// The failure of a result that cannot be made to fit the call's budget.
-fn too_small(budget: usize) -> CommandError {
+pub(crate) fn too_small(budget: usize) -> CommandError {
     CommandError::new(
         afd::error_codes::OUTPUT_BUDGET_EXCEEDED,
         format!("the result does not fit this call's output budget of {budget} bytes"),
@@ -74,12 +82,12 @@ fn too_small(budget: usize) -> CommandError {
 }
 
 /// The effective budget, in bytes.
-fn budget(context: &CommandContext, default: u64) -> usize {
+pub(crate) fn budget(context: &CommandContext, default: u64) -> usize {
     usize::try_from(context.output_budget().unwrap_or(default)).unwrap_or(usize::MAX)
 }
 
 /// An optional integer input.
-fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> {
+pub(crate) fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> {
     match input.get(name) {
         None | Some(Value::Null) => Ok(None),
         Some(value) => value.as_i64().map(Some).ok_or_else(|| {
@@ -92,7 +100,7 @@ fn integer(input: &Value, name: &str) -> Result<Option<i64>, Box<CommandError>> 
 }
 
 /// A required integer input.
-fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
+pub(crate) fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
     integer(input, name)?.ok_or_else(|| {
         Box::new(
             CommandError::new("INVALID_INPUT", format!("`{name}` is required"))
@@ -102,7 +110,7 @@ fn required(input: &Value, name: &str) -> Result<i64, Box<CommandError>> {
 }
 
 /// How many items a list may hold: `limit`, from 1 to `most`.
-fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError>> {
+pub(crate) fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError>> {
     Ok(match integer(input, "limit")? {
         None => default,
         Some(asked) => u32::try_from(asked.clamp(1, i64::from(most))).unwrap_or(default),
@@ -110,7 +118,7 @@ fn limit(input: &Value, default: u32, most: u32) -> Result<u32, Box<CommandError
 }
 
 /// A cursor: the date and id of the last item of the page before.
-fn cursor(input: &Value) -> Result<Option<(i64, i64)>, Box<CommandError>> {
+pub(crate) fn cursor(input: &Value) -> Result<Option<(i64, i64)>, Box<CommandError>> {
     let Some(text) = input.get("cursor").and_then(Value::as_str) else {
         return Ok(None);
     };
@@ -138,7 +146,7 @@ fn message_not_found() -> CommandError {
 
 /// Items fitted to a budget: as many as fit, in order, and whether any
 /// were left out.
-fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
+pub(crate) fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
     let mut used = ROOM;
     let mut kept = Vec::with_capacity(items.len());
     let total = items.len();
@@ -154,7 +162,7 @@ fn fit(items: Vec<Value>, budget: usize) -> (Vec<Value>, bool) {
     (kept, cut)
 }
 
-fn parameter(
+pub(crate) fn parameter(
     name: &str,
     kind: JsonSchemaType,
     description: &str,
@@ -172,7 +180,7 @@ fn parameter(
 }
 
 /// Exposed to the command line and to MCP (the specification's section 11).
-fn read_exposure() -> ExposeOptions {
+pub(crate) fn read_exposure() -> ExposeOptions {
     ExposeOptions::new().with_cli(true).with_mcp(true)
 }
 
@@ -215,7 +223,7 @@ fn evidence(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError
 }
 
 /// A message as a list shows it.
-fn message_item(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError> {
+pub(crate) fn message_item(engine: &Engine, listed: &MessageListed) -> Result<Value, StoreError> {
     Ok(json!({
         "message": listed.message.0,
         "thread": listed.thread.0,
@@ -294,13 +302,55 @@ impl CommandHandler for ThreadList {
     }
 }
 
-const LIST_BUDGET: u64 = 32 * 1024;
-const OPEN_BUDGET: u64 = 64 * 1024;
+/// The screening classes of `messages`, or `None` while screening waits for
+/// messages to be derived again, when a class could be wrong.
+fn classes_of(
+    store: &crate::store::Store,
+    messages: &[MessageListed],
+) -> Result<Option<HashMap<MessageId, Class>>, StoreError> {
+    if !store.screening_readiness()?.ready() {
+        return Ok(None);
+    }
+    let ids: Vec<MessageId> = messages.iter().map(|listed| listed.message).collect();
+    store.classes_of(&ids).map(Some)
+}
+
+/// The story each of `messages` is in, or `None` while screening waits, as
+/// stories are made from classes.
+pub(crate) fn stories_of(
+    store: &crate::store::Store,
+    messages: &[MessageListed],
+) -> Result<Option<HashMap<MessageId, i64>>, StoreError> {
+    if !store.screening_readiness()?.ready() {
+        return Ok(None);
+    }
+    let ids: Vec<MessageId> = messages.iter().map(|listed| listed.message).collect();
+    store.stories_of(&ids).map(Some)
+}
+
+/// The story a message is in as a result gives it: its id, or null when it
+/// is in none or screening waits (the specification's section 8).
+pub(crate) fn story_value(stories: Option<&HashMap<MessageId, i64>>, message: MessageId) -> Value {
+    json!(stories.and_then(|stories| stories.get(&message)))
+}
+
+/// A message's class as a result gives it: its screening class, `own` for
+/// mail from one of the person's own addresses, which has none, or null
+/// while screening waits (the specification's 7.2).
+fn class_value(classes: Option<&HashMap<MessageId, Class>>, message: MessageId) -> Value {
+    match classes {
+        None => Value::Null,
+        Some(classes) => json!(classes.get(&message).map_or("own", |class| class.as_str())),
+    }
+}
+
+pub(crate) const LIST_BUDGET: u64 = 32 * 1024;
+pub(crate) const OPEN_BUDGET: u64 = 64 * 1024;
 /// The largest budget a read may be asked for. A call to a running server
 /// may return 4 MiB (the specification's 3.2), and over MCP a result goes
 /// out twice, as text and as structured content, with the text escaped: so
 /// a little under half of that.
-const MOST_BUDGET: u64 = 1792 * 1024;
+pub(crate) const MOST_BUDGET: u64 = 1792 * 1024;
 
 /// `mail-thread-list`: a mailbox's threads, newest first, paged by cursor.
 #[must_use]
@@ -351,7 +401,10 @@ impl CommandHandler for ThreadOpen {
                     if !store.thread_exists(thread)? {
                         return Ok(None);
                     }
-                    store.thread_messages(thread, after, limit + 1).map(Some)
+                    let messages = store.thread_messages(thread, after, limit + 1)?;
+                    let classes = classes_of(store, &messages)?;
+                    let stories = stories_of(store, &messages)?;
+                    Ok(Some((messages, classes, stories)))
                 })
                 .map_err(|error| Box::new(store_failure(&error)))?
                 .ok_or_else(|| {
@@ -362,13 +415,15 @@ impl CommandHandler for ThreadOpen {
                             ),
                     )
                 })?;
+            let (messages, classes, stories) = messages;
             let more = messages.len() > limit as usize;
             let mut items = Vec::new();
             for listed in messages.iter().take(limit as usize) {
-                items.push(
-                    message_item(engine, listed)
-                        .map_err(|error| Box::new(store_failure(&error)))?,
-                );
+                let mut item = message_item(engine, listed)
+                    .map_err(|error| Box::new(store_failure(&error)))?;
+                item["class"] = class_value(classes.as_ref(), listed.message);
+                item["story"] = story_value(stories.as_ref(), listed.message);
+                items.push(item);
             }
             let (kept, cut) = fit(items, budget(&context, OPEN_BUDGET));
             let next = (more || cut)

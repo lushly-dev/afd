@@ -582,6 +582,8 @@ export class VioletColorPicker extends FASTElement {
     readonly #internals: ElementInternals;
     // The color `change` compares against: the last author-set or committed value, normalized.
     #committedColor = "";
+    /** The value when the picker was connected, which a form reset restores. */
+    #defaultValue = "";
     #applyingColor = false;
     readonly #handleViewportChange = () => {
         if (this.open) {
@@ -663,6 +665,7 @@ export class VioletColorPicker extends FASTElement {
 
     public connectedCallback(): void {
         super.connectedCallback();
+        this.#defaultValue = this.value;
         this.#committedColor = this.currentSelectedColor;
         this.syncFromColor(this.value);
         this.#syncFormState();
@@ -946,7 +949,7 @@ export class VioletColorPicker extends FASTElement {
     }
 
     public formResetCallback(): void {
-        this.value = "";
+        this.value = this.#defaultValue;
         this.syncFromColor(this.value);
         this.#syncFormState();
     }

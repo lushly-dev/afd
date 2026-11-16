@@ -1,0 +1,76 @@
+# JTBD scenario for the seed library, run by src/scenarios.test.ts.
+# The data is invented. Screen: T3, a variety's page.
+# Not expressible here: the return's result names its undo in `undoCommand` and `undoArgs`, which
+# a scenario cannot assert. The file runs the command they name.
+# The runner resolves step references only in `input`, so a step that compares with an earlier
+# step's result names the id the fixture's counters give it.
+name: Record a return, and take it back if it was wrong
+description: >-
+  When a member brings back saved seed, I want to record the return and the new lot it makes, and
+  to take it back if I got it wrong, so that the library grows by what members return.
+job: record-a-return
+tags: [t3]
+fixture:
+  file: fixtures/library.json
+steps:
+  - description: The loan comes back, entered with three packets of saved seed
+    command: loan-return
+    input: { id: loan-1, savedSeed: { packets: 3, harvestYear: 2029 } }
+    expect:
+      success: true
+      data:
+        status: returned
+        lot: { id: { matches: '^lot-' }, packets: 3 }
+  - description: The saved seed is a new lot of the variety
+    command: lot-list
+    input: { varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        total: 2
+  - description: Recording the same return twice is refused, with the way to take it back
+    command: loan-return
+    input: { id: loan-1 }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: loan-reopen }
+  - description: The count was wrong, since the member brought five packets, so the return is taken back
+    command: loan-reopen
+    input: { id: loan-1 }
+    expect:
+      success: true
+      data:
+        status: out
+        lotRemoved: lot-borlotti-29-r1
+  - description: The new lot is gone and the loan is out again
+    command: lot-list
+    input: { varietyId: var-borlotti }
+    expect:
+      success: true
+      data:
+        total: 1
+  - description: A loan that is out cannot be reopened
+    command: loan-reopen
+    input: { id: loan-1 }
+    expect:
+      success: false
+      error:
+        code: CONFLICT
+        suggestion: { contains: loan-return }
+  - description: The return is recorded again with the right count
+    command: loan-return
+    input: { id: loan-1, savedSeed: { packets: 5, harvestYear: 2029 } }
+    expect:
+      success: true
+      data:
+        status: returned
+        lot: { packets: 5 }
+  - description: The library has grown by what the member returned
+    command: variety-get
+    input: { id: var-borlotti }
+    expect:
+      success: true
+      data:
+        packetsAvailable: 11

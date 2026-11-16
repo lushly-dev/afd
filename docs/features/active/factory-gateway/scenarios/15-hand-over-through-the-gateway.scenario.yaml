@@ -1,0 +1,64 @@
+# Draft JTBD scenario for the Factory Gateway proposal. Commands and shapes are proposals; the data is invented.
+# Runs against the cell endpoint. The factory's lane-enqueue pushes the cell's head to its queue ref;
+# with the gateway it does so through branch-push, so the cell needs no push credential. Binding a
+# cell's token to its own queue ref is G4 and needs unit tests; a scenario cannot set the token.
+name: Hand a branch to the lane through the gateway
+description: >-
+  When a cell on any machine finishes its branch, I want to hand it to the lane by pushing to its
+  queue ref through the gateway, and be refused anywhere else, so that cells feed the lane without
+  holding a credential that can write a branch people see or main.
+job: hand-over-through-the-gateway
+tags: [mvp]
+fixture:
+  file: fixtures/gateway.json
+steps:
+  - description: The cell's head goes to its queue ref
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/factory/queue/fix/tokens
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-9
+    expect:
+      success: true
+      data:
+        ref: refs/factory/queue/fix/tokens
+        head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+        changed: true
+  - description: A cell may not push a branch people see; that is the lane's, after validation
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/fix/tokens
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-9
+    expect:
+      success: false
+      error:
+        code: REF_NOT_ALLOWED
+        suggestion: { contains: refs/factory/queue }
+  - description: Nor main
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/heads/main
+      head: d4e5f6a7b8c9d0e1f2a3b4c5d6e7f8a9b0c1d2e3
+      bundle: bundle-9
+    expect:
+      success: false
+      error:
+        code: PROTECTED_REF
+  - description: >-
+      A branch whose commit an agent authored is refused before anything is pushed, so work is
+      credited to the owner and an agent that helped is only an Assisted-by trailer
+    command: branch-push
+    input:
+      repo: example-org/example-repo
+      ref: refs/factory/queue/fix/agent-authored
+      head: e7f8a9b0c1d2e3f4a5b6c7d8e9f0a1b2c3d4e5f6
+      bundle: bundle-agent
+    expect:
+      success: false
+      error:
+        code: COMMIT_AUTHOR_NOT_OWNER
+        suggestion: { contains: Assisted-by }

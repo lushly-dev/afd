@@ -5,6 +5,7 @@ import { pathToFileURL } from 'node:url';
 import { afterAll, describe, expect, it } from 'vitest';
 import { checkTheme, compareComponentExport, sourceFiles } from './check.js';
 import {
+	compareInterface,
 	findFallbacks,
 	fixFallbacks,
 	lightValuesByProperty,
@@ -17,6 +18,17 @@ import { COMPONENT_TOKENS, THEMES, themeNode } from './tree/index.js';
 const outputs = await buildOutputs();
 const contractUrl = new URL('../contract/tokens.json', import.meta.url);
 const lightValues = lightValuesByProperty(outputs.componentExport, outputs.contract);
+
+/** A token interface listing `ids` as the contract has them. */
+const interfaceOf = (ids: string[]) => ({
+	contractVersion: 1,
+	tokens: Object.fromEntries(
+		ids.map((id) => {
+			const { property, type } = outputs.contract.tokens[id] as { property: string; type: string };
+			return [id, { property, type }];
+		})
+	),
+});
 
 /** The sizes of section 5.2, as the kernel's `LAYOUT_DEFAULTS_V0` gives them. */
 const layoutDefaults = {
@@ -130,19 +142,54 @@ describe('the fallback scan (2.4)', () => {
 	});
 });
 
+describe("violet-elements' token interface", () => {
+	it('fails on an id the tree lacks, a shell id, or a different property or type', () => {
+		const wanted = interfaceOf(['color.text.muted']);
+		expect(compareInterface(wanted, outputs.contract)).toEqual([]);
+		const errors = compareInterface(
+			{
+				contractVersion: 2,
+				tokens: {
+					...wanted.tokens,
+					'color.brand.glow': { property: '--color-brand-glow', type: 'color' },
+					'shell.size.sidebar.default': {
+						property: '--shell-size-sidebar-default',
+						type: 'dimension',
+					},
+					'radius.sm': { property: '--radius-sm', type: 'number' },
+				},
+			},
+			outputs.contract
+		);
+		expect(errors).toHaveLength(3);
+		expect(errors[0]).toMatch(/contractVersion 2\) lists 'color\.brand\.glow'/);
+		expect(errors[1]).toMatch(/'shell\.size\.sidebar\.default', which Loam's tree does not supply/);
+		expect(errors[2]).toBe(
+			"interface.json lists 'radius.sm' as --radius-sm (number), Loam's contract as --radius-sm (dimension)"
+		);
+		expect(compareInterface({ tokens: {} }, outputs.contract)).toHaveLength(1);
+	});
+});
+
 describe('theme:check with the component paths', () => {
 	const roots: string[] = [];
 	afterAll(async () => {
 		await Promise.all(roots.map((root) => rm(root, { recursive: true, force: true })));
 	});
-	const fixture = async (source: string, exportJson = outputs.componentExportJson) => {
+	const fixture = async (
+		source: string,
+		exportJson = outputs.componentExportJson,
+		interfaceJson = JSON.stringify(interfaceOf(['color.text.muted', 'font.family.body']))
+	) => {
 		const root = await mkdtemp(join(tmpdir(), 'loam-theme-components-'));
 		roots.push(root);
 		await mkdir(join(root, 'src', 'button'), { recursive: true });
 		await writeFile(join(root, 'export.json'), exportJson);
+		await writeFile(join(root, 'interface.json'), interfaceJson);
 		await writeFile(join(root, 'src', 'button', 'button.ts'), source);
 		await writeFile(join(root, 'src', 'notes.md'), 'var(--color-text-muted, #000000)');
 		return {
+			interfacePath: pathToFileURL(join(root, 'interface.json')),
 			exportPath: pathToFileURL(join(root, 'export.json')),
 			sourceDirectory: pathToFileURL(`${join(root, 'src')}/`),
 		};
@@ -166,6 +213,19 @@ describe('theme:check with the component paths', () => {
 			'violet-elements/src/button/button.ts:1: var(--color-text-muted, #6b7280) differs from the light value #616775'
 		);
 		expect(errors.at(-1)).toMatch(/^1 fallbacks differ from the light theme/);
+	});
+
+	it('fails when the tree does not supply an interface id', async () => {
+		const components = await fixture(
+			'var(--color-text-muted, #616775)',
+			outputs.componentExportJson,
+			JSON.stringify({
+				contractVersion: 1,
+				tokens: { 'color.brand.glow': { property: '--color-brand-glow', type: 'color' } },
+			})
+		);
+		const { errors } = await checkTheme(contractUrl, { outputs, components, layoutDefaults });
+		expect(errors).toEqual([expect.stringMatching(/lists 'color\.brand\.glow'/)]);
 	});
 
 	it('reports a source directory it cannot read', async () => {

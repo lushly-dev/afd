@@ -100,12 +100,15 @@ export async function fixtureDist(root: string): Promise<string> {
 	return dist;
 }
 
-/** A deployment file at `root/loam.deployment.toml`. */
+/** The table a deployment file for the hosted server names (phase 6 specification, 3.3). */
+export const HOSTED = '[host]\nkind = "hosted"\n\n';
+
+/** A version 4 deployment file for the hosted server at `root/loam.deployment.toml`. */
 export async function deploymentFile(root: string, body = ''): Promise<string> {
 	const path = join(root, 'loam.deployment.toml');
 	await writeFile(
 		path,
-		`deployment_version = 2\n\n${body}${body.includes('[apps') ? '' : '\n[apps]\n'}`
+		`deployment_version = 4\n\n${HOSTED}${body}${body.includes('[apps') ? '' : '\n[apps]\n'}`
 	);
 	return path;
 }
@@ -134,13 +137,27 @@ export interface RawAnswer {
 export function raw(
 	port: number,
 	path: string,
-	options: { host?: string; method?: string; accept?: string; tls?: boolean } = {}
+	options: {
+		host?: string;
+		method?: string;
+		accept?: string;
+		tls?: boolean;
+		/** More headers, sent as given: a forged address, an `Origin`, a cookie. */
+		headers?: Record<string, string>;
+		/** A JSON body, sent with `Content-Type: application/json`. */
+		json?: unknown;
+	} = {}
 ): Promise<RawAnswer> {
 	const send = options.tls ? httpsRequest : httpRequest;
 	return new Promise((done, fail) => {
-		const headers: Record<string, string> = {};
+		const headers: Record<string, string> = { ...options.headers };
 		if (options.host !== undefined) headers.host = options.host;
 		if (options.accept !== undefined) headers.accept = options.accept;
+		const body = options.json === undefined ? undefined : JSON.stringify(options.json);
+		if (body !== undefined) {
+			headers['content-type'] = 'application/json';
+			headers['content-length'] = String(Buffer.byteLength(body));
+		}
 		const outgoing = send(
 			{
 				host: '127.0.0.1',
@@ -164,7 +181,7 @@ export function raw(
 			}
 		);
 		outgoing.on('error', fail);
-		outgoing.end();
+		outgoing.end(body);
 	});
 }
 

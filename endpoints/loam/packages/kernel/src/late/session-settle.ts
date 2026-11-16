@@ -24,6 +24,8 @@ import type { KernelPortsV1 } from '../types.js';
 import type { DocumentKit } from './document-kit.js';
 import type { EditorDraftsV1, EditorStateV1 } from './editor-state.js';
 import type { IdentityCommands } from './identity-commands.js';
+import { OWNER_COMMANDS } from './member-commands.js';
+import type { Persona } from './persona.js';
 
 export {
 	createIdentityCommands,
@@ -31,6 +33,12 @@ export {
 	type IdentityCommands,
 	PROVIDER_COMMANDS,
 } from './identity-commands.js';
+export {
+	createMemberCommands,
+	MEMBERSHIP_CHANGING_COMMANDS,
+	OWNER_COMMANDS,
+} from './member-commands.js';
+export { createPersona, type Persona } from './persona.js';
 
 /** Why the kernel settles (4.4): stage B's first act, an expiry, another tab or the adapter, a membership read. */
 export type SessionSettleReasonV1 = 'provider' | 'expiry' | 'tab' | 'membership';
@@ -74,12 +82,12 @@ export const REFRESH_RETRY_MAX_MS = 300_000;
 export const MEMBERSHIP_READ_TIMEOUT_MS = 10_000;
 
 /**
- * The commands before which the kernel reads the person's membership again (7.6): the owner cases of shared
- * commands and the owner commands that exist so far; step 4 adds the rest of `OWNER_COMMANDS`.
+ * The commands before which the kernel reads the person's membership again (7.6): every owner command, every
+ * `project-create`, and every `project-update` carrying `access`.
  */
 const rereads = (name: string, input: unknown): boolean =>
 	name === 'project-create' ||
-	name === 'workspace-app-set' ||
+	OWNER_COMMANDS.includes(name) ||
 	(name === 'project-update' && typeof input === 'object' && input !== null && 'access' in input);
 
 /** `session-settle`'s input schema, from the kit's Zod: this chunk imports none of first paint's (13). */
@@ -157,6 +165,11 @@ export interface SessionSettleDeps {
 	ports?: Pick<KernelPortsV1, 'schedule' | 'readMembership' | 'watchMembership'> | undefined;
 	/** The workspace store, whose `~signed-out` records each sign-out clears (4.5). */
 	store?: DataAdapter | undefined;
+	/**
+	 * The persona part (phase 3 specification, 6): a person who arrives has their active persona read, and at
+	 * sign-in its project and landing apply (6.2).
+	 */
+	persona?: Pick<Persona, 'hear' | 'recordOf' | 'projectAt' | 'land' | 'reload'> | undefined;
 	/** Step 3's commands, whose `HUMAN_REQUIRED` this part's line −1 answers (3.4). */
 	identityCommands?: Pick<IdentityCommands, 'humanRequired'> | undefined;
 	/** The page's `beforeunload`, when a held draft makes it ask (4.5); `globalThis` by default. */
@@ -219,6 +232,12 @@ export interface SessionSettle {
 	afterAuth(): void;
 	/** Whether line 0 waits for the membership read before `name`, in `run` rather than before it (I5). */
 	rereadsBefore(name: string): boolean;
+	/**
+	 * After a command that may have changed the person's own membership (an invitation accepted, a member removed or
+	 * their role set, 5.3, 7.2), once its entry is journaled: the membership is read again, and the next call waits
+	 * for it, as after a sign-in.
+	 */
+	membershipChanged(): void;
 	/**
 	 * Before a command that reads membership again (7.6), on the settles' chain: a changed digest is a top-level
 	 * `session-settle` with `reason: 'membership'`, before the call that needed it runs. Answers a refusal:
@@ -651,17 +670,34 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		if (deps.personal) await hydrate(deps.personal, to);
 		if (deps.personal && to === null) await clearSignedOut();
 		const recorded = deps.personal ? state.scopeProject() : before.project;
-		const at: ScopeV1 =
-			recorded && scope.allows(actorOf(to), { workspace: before.workspace, project: recorded })
+		const allowed = (where: ScopeV1) => scope.allows(actorOf(to), where);
+		let at: ScopeV1 =
+			recorded && allowed({ workspace: before.workspace, project: recorded })
 				? { workspace: before.workspace, project: recorded }
 				: { workspace: before.workspace };
+		// The arriving person's persona: its id for their calls, and at sign-in its project, through
+		// `decideAccess`, and its landing, through `canOpen`, each refused silently (6.2).
+		const persona = to === null ? undefined : await personaOf(to);
+		at = deps.persona?.projectAt(persona, at, allowed) ?? at;
 		deps.lateScope.applyScopeChange(at, 'actor', context);
 		await deps.ensureEditor(at.project);
+		if (deps.persona?.land(persona, at)) scope.note(context.traceId, { mainChanged: 'push' });
 		if (at.workspace !== before.workspace || at.project !== before.project) {
 			scope.note(context.traceId, {
 				scopeChanged: { from: before, to: at, reason: 'actor' },
 				mainChanged: 'push',
 			});
+		}
+	}
+
+	/** A person's active persona, read; a read that fails is `default`, never a failed settle. */
+	async function personaOf(person: string) {
+		try {
+			await deps.persona?.hear(person, true);
+			return await deps.persona?.recordOf(person);
+		} catch (cause) {
+			report(cause);
+			return undefined;
 		}
 	}
 
@@ -804,9 +840,12 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 							await change(person, call);
 							deps.scope.note(call.traceId, { actorChanged: true });
 						} else {
-							// `local` mode's records are everyone's: only the drafts move (4.5).
+							// `local` mode's records are everyone's: only the drafts move (4.5), and the persona the
+							// next person's calls carry (6.1), read.
 							decided = person;
 							switchDrafts(from, person);
+							// Signed out, a `local` call's person is `local` (`personOf`).
+							await personaOf(person ?? 'local');
 						}
 					}
 				}
@@ -828,9 +867,18 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				if (reading === check) reading = undefined;
 			});
 		},
+		membershipChanged() {
+			const person = current();
+			if (!provider || replaying() || person === null) return;
+			const check = checkMembership(person);
+			reading = check;
+			void check.finally(() => {
+				if (reading === check) reading = undefined;
+			});
+		},
 		rereadsBefore: (name) =>
 			provider &&
-			(name === 'project-create' || name === 'workspace-app-set' || name === 'project-update'),
+			(name === 'project-create' || name === 'project-update' || OWNER_COMMANDS.includes(name)),
 		reread(name, input) {
 			if (!provider || replaying() || !rereads(name, input)) return Promise.resolve(undefined);
 			return serial(async () => {
@@ -869,6 +917,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 		},
 		person: () => decided,
 		reload() {
+			deps.persona?.reload();
 			settled = null;
 			decided = undefined;
 			target = undefined;
