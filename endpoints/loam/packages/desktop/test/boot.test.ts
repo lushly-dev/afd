@@ -129,8 +129,12 @@ describe('P6-D1: the same build on the desktop', () => {
 		await watchViolations(desktop.browser);
 		for (const theme of ['light', 'dark'] as const) {
 			expect((await desktop.agentCall('appearance-set', { theme })).success).toBe(true);
-			expect(await desktop.browser.execute(() => document.documentElement.dataset.loamTheme)).toBe(
-				theme
+			// The shell applies the theme in its next frame.
+			await desktop.browser.waitUntil(
+				async () =>
+					(await desktop.browser.execute(() => document.documentElement.dataset.loamTheme)) ===
+					theme,
+				{ timeout: 5_000 }
 			);
 			// The theme's colours transition; axe reads them once every transition has ended.
 			await desktop.browser.execute(() =>
