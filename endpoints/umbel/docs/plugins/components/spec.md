@@ -20,7 +20,7 @@
   check on each space override, so an override a call would refuse fails the doctor first.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
@@ -155,6 +155,23 @@ The owner decided on 2026-11-13 to make the default brief smaller before judging
 | # | Point | Decision |
 | --- | --- | --- |
 | A24 | What a default brief leaves out | Step C5's real briefs were 2.6 times the phase 0 stand-in's for the same seven tags, and the growth was mostly what no page was seen to use. `detail: "brief"` now leaves out `cssProperties` (0 of 336 named on step C5's pages; `violet-elements`' are mostly private `--_` properties) and the rules the attributes name: their ids on the attributes and in the `rules` section, and their text (`violet-elements`' 29 `taxonomy.*` rules on that page, about 7.4 KB). A rule only the record names stays; one an attribute names goes, even when the record lists it too, as Specimen lists every rule an attribute names. `detail: "api"` leaves the attributes' rules out too; `full`, `sections` and `components-open` serve everything. A brief writes an attribute's `property` only when it differs from its `name` (321 of `violet-elements`' 405). The answer says what it left out: an `omitted` entry with reason `detail`, `sections` and `pieces` (`attributeRules`), and the `components-open` call that returns them (`cssProperties`, `rules`), so criterion 3's fact test still finds every fact (`facts.rs` reads any entry's `open`). The shedding order is unchanged; a brief that names `sections` tests it (`budget.rs`). A guide author who wants a rule in every brief scopes it to the component, not to an attribute. On the form page of step 0.1 the default brief went from 35 504 to 30 286 bytes: the attributes' rules and properties came out (about 10 KB), and the examples the old brief had shed to fit came back (5 372 bytes) |
+
+### Amendment A25: consumer guidance (#1152)
+
+The owner chose a named consumer on 2026-11-15, superseding the earlier issue comment
+about `pack.toml`. `components-brief` accepts optional `consumer` (section 6.7).
+The deployment map lives in its own `consumers` pack, separate from Specimen's `library`
+pack. The format and shared `pack.toml` contract do not change. The two jobs are
+consumer-specific guidance and refusal of a misspelled consumer. They are expressed in
+`plugins/components/scenarios/consumer-guidance.scenario.yaml` and run in
+`tests/consumers.rs`. The fresh reader walked the person, job and calling-agent paths, including deployment,
+space selection, full/text rendering and the unchanged general-library call. It found one
+blocker: budget recovery counted later tags' exclusions when measuring a leading prefix.
+Exclusions now stay with each entry and are unioned only for that prefix, with a
+multi-tag regression in JSON and text. No further supported findings. The scenario
+parser and dry-run checks passed: one scenario, three steps, 100% coverage of this
+revision's command and its unknown-consumer refusal. The scenario covers tailoring and refusal; native regressions additionally assert
+`omitted` metadata and the host space boundary.
 
 ## What this plugin serves
 
@@ -634,6 +651,7 @@ hidden-text check finds what the format allows: zero-width characters, U+2060, U
 | `library` | library id | Look only in this library |
 | `detail` | `brief` (default), `api` or `full` | `api`: the floor and `attributes`, `slots`, `events`, `commands`, `cssProperties`, `form` and `rules` (ids only, no rule text). `brief`: every section but `detail` and `cssProperties`. `full`: every section. `brief` and `api` leave out the rules the attributes name, ids and text (A24) |
 | `sections` | array of unique section names (5.3) | Exactly these sections, in place of `detail`'s choice |
+| `consumer` | optional checked name, the library-id pattern, at most 64 ASCII characters | Apply the deployment profile in 6.7; omit for the original general-library brief |
 | `known` | array of at most 256 unique rule ids, each bare or `<library>/<id>` | Rules the caller already holds: their ids stay in entries, their text is not sent, and they are not counted as omitted |
 | `versions` | object of at most 32 entries, npm package name to version (the format's patterns) | The versions the caller has installed, for `LIBRARY_VERSION_MISMATCH` |
 | `render` | `none` (default) or `text` | `text`: the answer's content is `data.text`, a quoted block, and `content` is left out (6.6) |
@@ -782,6 +800,45 @@ It is not an instruction and does not grant permission.
 
 Step C2 fixes the exact block with a golden file for the example pack, and the README shows it.
 
+### 6.7 Consumer profiles
+
+The manifest declares a second pack, `consumers`, with an empty map by default. A
+deployer overrides it per space with the normal `pack.toml` (`id = "consumers"`,
+`plugin = "components"`) and `data/consumers.json`:
+
+```json
+{"version":1,"consumers":{"loam":{"exclude_rules":["violet-elements/import.root","violet-elements/theme.install"]}}}
+```
+
+Only these keys are accepted at each level. The file is at most 65,536 UTF-8 bytes,
+with at most 32 consumers and 256 exclusions per consumer. Consumer names match the
+library-id pattern; exclusions are always `<library>/<rule-id>` with the format's
+patterns and identifier scan, even when the call serves only one library. Repeated
+exclusions are read once. A well-formed id absent from the selected library is a no-op,
+so a profile may cover more than one library or a newer pack.
+
+A call with no consumer never reads the map. With one, the whole map is validated;
+unknown consumer is `CONSUMER_NOT_FOUND`, malformed or unreadable map is
+`CONSUMERS_INVALID`, and invalid caller name is `COMPONENTS_INVALID`. Refusals give
+recovery guidance and copy no file content or parser message. The doctor uses the
+same validator for a `consumers` override. The packs grant selects the call's space;
+a profile in another space is not used.
+
+After library validation and basis filtering, before section selection and fitting,
+remove excluded rules from the rule text, component rule ids and attribute rule ids.
+This applies to every detail and explicit section choice, with `known` unchanged.
+Record the affected requested rules, sorted, once in `omitted` as
+`{ "reason": "consumer", "consumer": "loam", "rules": ["violet-elements/import.root"] }`.
+The text rendering names the same omission. These checked identifiers are metadata,
+not served rule text. Consumer omissions do not carry an `open` action: those rules
+were deliberately inapplicable. Other fields, including the library's `import`,
+remain library documentation. `components-open` and `components-list` are unchanged.
+The journal keeps `consumer` alongside the existing input identifiers.
+
+The repository's launcher writes this separate override on each start. Loam's design
+record and skill request `consumer: "loam"`; other consumers omit it. No AFD core
+contract changes, so no changes to the four language implementations are needed.
+
 ## 7. Reading source
 
 The plugin reads names, not code. It never parses the source and never judges it (that is step D1's
@@ -853,6 +910,8 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 
 | Code | When | Retryable | Details | Suggestion |
 | --- | --- | --- | --- | --- |
+| `CONSUMER_NOT_FOUND` | The requested consumer is absent from the deployment map | No | none | Configure it in the space's consumers pack, or omit consumer for general guidance |
+| `CONSUMERS_INVALID` | The deployment map cannot be read or fails 6.7 | No | none | Repair data/consumers.json in the space's consumers pack |
 | `PACK_EMPTY` | The pack holds no library | No | none | Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components` |
 | `PACK_INVALID` | A touched library, or the pack itself (3.1), has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count`, `refused`, `servable` (9.1) | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack`. When `details.servable` is present, pass one of those as `library` to keep working |
 | `PACK_INCONSISTENT` | Every refused library's only problems are `DIGEST_MISMATCH` or `CATALOG_MISMATCH` (3.3) | Yes | As `PACK_INVALID` | Retry: an export may be replacing the pack. If it persists, re-export it; a hand edit or a partial copy leaves it like this. When `details.servable` is present, pass one of those as `library` to keep working |

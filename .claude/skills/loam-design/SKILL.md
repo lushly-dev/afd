@@ -246,7 +246,7 @@ holds the sidebar part with tabs or without.
 ## Brief before writing markup
 
 Before writing or changing markup with `violet-*` components, call
-`components-brief` once for the whole page (`source` for an existing file,
+`components-brief` once for the whole page with `consumer: "loam"` (`source` for an existing file,
 `tags` for a new one) and work from its answer; `components-open` a
 component only when the brief's `omitted` names what you need. It is the
 `umbel` server in `.mcp.json` (`scripts/umbel-components.mjs`; needs a
