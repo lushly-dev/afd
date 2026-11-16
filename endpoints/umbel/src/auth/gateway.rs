@@ -1162,6 +1162,20 @@ mod tests {
             let error = files::read_trusted(&path, Secrecy::Public).unwrap_err();
             assert!(error.contains("writable by group or other"), "{error}");
         }
+        #[cfg(windows)]
+        {
+            let output = std::process::Command::new("icacls")
+                .arg(&path)
+                .args(["/grant", "*S-1-5-32-545:(M)"])
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            let error = files::read_trusted(&path, Secrecy::Public).unwrap_err();
+            assert!(
+                error.contains("grants S-1-5-32-545 write access"),
+                "{error}"
+            );
+        }
         assert!(files::read_trusted(dir.path(), Secrecy::Public).is_err());
     }
 

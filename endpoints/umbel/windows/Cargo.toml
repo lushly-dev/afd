@@ -1,0 +1,36 @@
+[package]
+name = "umbel-windows"
+version = "0.1.0"
+edition = "2024"
+rust-version = "1.97"
+publish = false
+license = "MIT"
+description = "AFD Umbel on Windows: the system calls the host makes there (a file's owner and ACL, the current user, a volume's drive type) behind safe functions"
+repository = "https://github.com/lushly-dev/afd"
+
+# The library is empty on every other platform. `windows-sys` 0.61, already in the lock (features
+# do not change the lock).
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = [
+	"Win32_Foundation",
+	"Win32_Security",
+	"Win32_Security_Authorization",
+	"Win32_Storage_FileSystem",
+	"Win32_System_Threading",
+] }
+
+[dev-dependencies]
+tempfile = "3"
+
+# The workspace lints, with one scoped exception: the host forbids `unsafe`, and this crate is
+# where its Windows FFI lives, so `unsafe_code` is `deny`, not `forbid`, and only the modules that
+# call Windows say `#[allow(unsafe_code)]`, with a `SAFETY` comment at every call.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

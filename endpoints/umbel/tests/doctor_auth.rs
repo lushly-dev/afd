@@ -277,6 +277,16 @@ async fn mode_none_has_no_hosted_checks_but_still_checks_its_tls_files() {
     let key = write_tls(dir.path(), &year_ca());
     #[cfg(unix)]
     chmod(&dir.path().join("tls/key.pem"), 0o644);
+    // Windows: BUILTIN\Users may read it.
+    #[cfg(windows)]
+    {
+        let output = std::process::Command::new("icacls")
+            .arg(dir.path().join("tls/key.pem"))
+            .args(["/grant", "*S-1-5-32-545:(R)"])
+            .output()
+            .unwrap();
+        assert!(output.status.success(), "{output:?}");
+    }
     let report = doctor(dir.path(), &kit).await;
     let auth: Vec<String> = report
         .ids()
@@ -290,6 +300,15 @@ async fn mode_none_has_no_hosted_checks_but_still_checks_its_tls_files() {
         assert!(message.contains("http.tls.key"), "{message}");
         assert!(
             message.contains("readable or writable by group or other"),
+            "{message}"
+        );
+    }
+    #[cfg(windows)]
+    {
+        let message = report.expect("auth.tls", "fail");
+        assert!(message.contains("http.tls.key"), "{message}");
+        assert!(
+            message.contains("grants S-1-5-32-545 read or write access"),
             "{message}"
         );
     }
@@ -477,6 +496,8 @@ async fn tls_checks_the_certificate_the_key_and_the_client_ca() {
 
     // A certificate valid for a year, a key its owner alone reads: pass.
     let dir = workspace(&with_tls(""));
+    // Read by the Unix-only permission checks below.
+    #[cfg_attr(not(unix), allow(unused_variables))]
     let key = write_tls(dir.path(), &year_ca());
     let report = doctor(dir.path(), &kit).await;
     report.expect("auth.tls", "pass");

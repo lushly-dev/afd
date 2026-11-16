@@ -18,6 +18,14 @@
 //!   must be owned by the user the host runs as, or by root, and the directory holding it (as
 //!   named, and as resolved through links) must not be writable by group or other unless it is
 //!   sticky, so that no one else can replace the file by a rename.
+//! - **Permissions** (Windows). The same rules, judged on each object's owner and DACL by SID
+//!   (`umbel-windows`): no allow entry, explicit, inherited or inherit-only, may grant anyone but
+//!   this user, SYSTEM (`S-1-5-18`) and Administrators (`S-1-5-32-544`) read or write rights to a
+//!   private key, or write rights (write or append data, delete, change permissions, take
+//!   ownership, generic write or all) to any other file; the owner of the file, and of each
+//!   directory holding it, must be one of those three, since an owner may always rewrite the DACL;
+//!   and no one else may add or remove a directory's entries, as there is no sticky bit. An ACL
+//!   that cannot be read is refused.
 //!
 //! No message here ever holds a file's contents or a parser's account of them: only the path and
 //! what is wrong.
@@ -252,10 +260,266 @@ pub(crate) enum Secrecy {
     Public,
 }
 
-/// Whether this platform's file permissions are checked: Unix only.
-pub(crate) const PERMISSIONS_CHECKED: bool = cfg!(unix);
+/// Whether this platform's file permissions are checked: Unix by mode and owner, Windows by
+/// owner and ACL.
+pub(crate) const PERMISSIONS_CHECKED: bool = cfg!(any(unix, windows));
+
+/// The Windows rules ([module documentation](self)), on an owner and DACL as `umbel-windows`
+/// reads them. Pure, so that they are unit-tested on every platform.
+#[cfg(any(windows, test))]
+mod acl {
+    use super::Secrecy;
+
+    /// `NT AUTHORITY\SYSTEM`.
+    pub(super) const SYSTEM_SID: &str = "S-1-5-18";
+    /// `BUILTIN\Administrators`.
+    pub(super) const ADMINISTRATORS_SID: &str = "S-1-5-32-544";
+
+    // The access mask's bits (winnt.h). On a directory, `FILE_WRITE_DATA` is `FILE_ADD_FILE`
+    // and `FILE_APPEND_DATA` is `FILE_ADD_SUBDIRECTORY`.
+    const FILE_READ_DATA: u32 = 0x1;
+    const FILE_WRITE_DATA: u32 = 0x2;
+    const FILE_APPEND_DATA: u32 = 0x4;
+    const FILE_DELETE_CHILD: u32 = 0x40;
+    const DELETE: u32 = 0x1_0000;
+    const WRITE_DAC: u32 = 0x4_0000;
+    const WRITE_OWNER: u32 = 0x8_0000;
+    const GENERIC_ALL: u32 = 0x1000_0000;
+    const GENERIC_WRITE: u32 = 0x4000_0000;
+    const GENERIC_READ: u32 = 0x8000_0000;
+
+    /// What rewrites or replaces a file, or grants its holder that: POSIX's 0o022.
+    const WRITE_RIGHTS: u32 = FILE_WRITE_DATA
+        | FILE_APPEND_DATA
+        | DELETE
+        | WRITE_DAC
+        | WRITE_OWNER
+        | GENERIC_WRITE
+        | GENERIC_ALL;
+    /// What reads a file, besides: POSIX's 0o077.
+    const SECRET_RIGHTS: u32 = WRITE_RIGHTS | FILE_READ_DATA | GENERIC_READ;
+    /// What adds or removes a directory's entries, or replaces the directory, or grants that.
+    const DIRECTORY_RIGHTS: u32 = WRITE_RIGHTS | FILE_DELETE_CHILD;
+
+    /// One entry of a DACL.
+    #[derive(Debug, Clone, Copy)]
+    pub(super) struct Entry<'a> {
+        pub(super) sid: &'a str,
+        pub(super) allow: bool,
+        pub(super) mask: u32,
+    }
+
+    /// What an object is, for the rights others must not hold on it.
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    pub(super) enum Object {
+        File(Secrecy),
+        Directory,
+    }
+
+    fn rights(object: Object) -> (u32, &'static str) {
+        match object {
+            Object::File(Secrecy::Secret) => (SECRET_RIGHTS, "read or write access"),
+            Object::File(Secrecy::Public) => (WRITE_RIGHTS, "write access"),
+            Object::Directory => (DIRECTORY_RIGHTS, "the right to add or remove its entries"),
+        }
+    }
+
+    /// Whether `sid` is this user (`me`), SYSTEM or Administrators.
+    fn trusted(sid: &str, me: &str) -> bool {
+        sid == me || sid == SYSTEM_SID || sid == ADMINISTRATORS_SID
+    }
+
+    fn powershell_quote(value: &str) -> String {
+        format!("'{}'", value.replace('\'', "''"))
+    }
+
+    /// The SIDs beyond this user, SYSTEM and Administrators that an allow entry grants one of
+    /// `object`'s rights, in the order of the entries, each once. Deny entries never widen
+    /// access; inherited and inherit-only entries count as explicit ones do.
+    pub(super) fn exposed<'a>(entries: &[Entry<'a>], me: &str, object: Object) -> Vec<&'a str> {
+        let (mask, _) = rights(object);
+        let mut found: Vec<&str> = Vec::new();
+        for entry in entries {
+            if entry.allow
+                && entry.mask & mask != 0
+                && !trusted(entry.sid, me)
+                && !found.contains(&entry.sid)
+            {
+                found.push(entry.sid);
+            }
+        }
+        found
+    }
+
+    /// Why the object at `shown` (its path as given in messages) may be read or replaced by
+    /// someone it should not: an owner other than this user, SYSTEM or Administrators, or an
+    /// allow entry granting another SID one of `object`'s rights. Each problem names the
+    /// `icacls` command that removes it.
+    pub(super) fn problems(
+        shown: &str,
+        owner: &str,
+        entries: &[Entry<'_>],
+        me: &str,
+        object: Object,
+    ) -> Vec<String> {
+        let mut found = Vec::new();
+        let quoted_path = powershell_quote(shown);
+        if !trusted(owner, me) {
+            let owner_argument = powershell_quote(&format!("*{me}"));
+            found.push(format!(
+                "is owned by {owner}, neither this user ({me}) nor SYSTEM or Administrators (run in PowerShell: icacls {quoted_path} /setowner {owner_argument})"
+            ));
+        }
+        let others = exposed(entries, me, object);
+        if !others.is_empty() {
+            let (_, what) = rights(object);
+            let grant = match object {
+                Object::Directory => "(OI)(CI)(F)",
+                Object::File(_) => "(F)",
+            };
+            let grant = powershell_quote(&format!("*{me}:{grant}"));
+            let remove: Vec<String> = others
+                .iter()
+                .map(|sid| powershell_quote(&format!("*{sid}")))
+                .collect();
+            found.push(format!(
+                "grants {} {what} beyond this user, SYSTEM and Administrators (run in PowerShell: icacls {quoted_path} /inheritance:d /grant:r {grant} /remove:g {})",
+                others.join(", "),
+                remove.join(" ")
+            ));
+        }
+        found
+    }
+}
+
+/// A path as messages show it: without the `\\?\` prefix `canonicalize` gives on Windows.
+#[cfg(windows)]
+fn shown(path: &Path) -> String {
+    let text = path.display().to_string();
+    match text.strip_prefix(r"\\?\") {
+        Some(rest) if rest.as_bytes().get(1) == Some(&b':') => rest.to_owned(),
+        Some(rest) => rest
+            .strip_prefix(r"UNC\")
+            .map_or_else(|| text.clone(), |unc| format!(r"\\{unc}")),
+        None => text,
+    }
+}
+
+/// The SID of the user the host runs as, read once.
+#[cfg(windows)]
+fn windows_user() -> Result<&'static str, String> {
+    static USER: std::sync::OnceLock<Result<String, String>> = std::sync::OnceLock::new();
+    USER.get_or_init(|| {
+        umbel_windows::security::current_user()
+            .map_err(|error| format!("the user this process runs as cannot be read: {error}"))
+    })
+    .as_deref()
+    .map_err(Clone::clone)
+}
+
+/// The problems of one object's owner and DACL, read already, for `object`.
+#[cfg(windows)]
+fn windows_problems(
+    path: &Path,
+    security: &umbel_windows::security::Security,
+    object: acl::Object,
+) -> Vec<String> {
+    let me = match windows_user() {
+        Ok(me) => me,
+        Err(problem) => return vec![format!("cannot be judged, so it is refused: {problem}")],
+    };
+    let entries: Vec<acl::Entry<'_>> = security
+        .aces
+        .iter()
+        .map(|ace| acl::Entry {
+            sid: &ace.sid,
+            allow: ace.allow,
+            mask: ace.mask,
+        })
+        .collect();
+    acl::problems(&shown(path), &security.owner, &entries, me, object)
+}
+
+/// Why the file at `path`, and the directories holding it as named and as resolved, may be read
+/// or replaced by someone they should not, on Windows. A file that does not exist has no problem
+/// here (reading it reports that); an ACL that cannot be read is one.
+#[cfg(windows)]
+fn windows_too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
+    use umbel_windows::security::security_of_path;
+    let mut problems: Vec<String> = match security_of_path(path) {
+        Ok(security) => windows_problems(path, &security, acl::Object::File(secrecy)),
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => return None,
+        Err(error) => {
+            return Some(format!(
+                "{}'s owner and ACL cannot be read ({error}), so it is refused",
+                path.display()
+            ));
+        }
+    };
+    problems.extend(windows_directory_problems(path, |path| {
+        std::fs::canonicalize(path)
+    }));
+    (!problems.is_empty()).then(|| format!("{} {}", path.display(), problems.join(" and ")))
+}
+
+/// Check every required parent, refusing resolution failures as well as unreadable ACLs.
+#[cfg(windows)]
+fn windows_directory_problems(
+    path: &Path,
+    canonicalize: impl Fn(&Path) -> std::io::Result<std::path::PathBuf>,
+) -> Vec<String> {
+    use umbel_windows::security::security_of_path;
+    let resolved = match canonicalize(path) {
+        Ok(resolved) => resolved,
+        Err(error) => {
+            return vec![format!(
+                "cannot be resolved to check its directories ({error}), so it is refused"
+            )];
+        }
+    };
+    let Some(resolved_parent) = resolved.parent() else {
+        return vec!["has no resolved parent directory, so it is refused".into()];
+    };
+    let directories = [path.parent().unwrap_or(Path::new(".")), resolved_parent];
+    let mut problems = Vec::new();
+    let mut seen = Vec::new();
+    for directory in directories {
+        let directory = if directory.as_os_str().is_empty() {
+            Path::new(".")
+        } else {
+            directory
+        };
+        let canonical = match canonicalize(directory) {
+            Ok(canonical) => canonical,
+            Err(error) => {
+                problems.push(format!(
+                    "is in a directory, {}, that cannot be resolved ({error}), so it is refused",
+                    shown(directory)
+                ));
+                continue;
+            }
+        };
+        if seen.contains(&canonical) {
+            continue;
+        }
+        match security_of_path(&canonical) {
+            Ok(security) => problems.extend(
+                windows_problems(&canonical, &security, acl::Object::Directory)
+                    .into_iter()
+                    .map(|problem| format!("is in a directory, {}, that {problem}", shown(&canonical))),
+            ),
+            Err(error) => problems.push(format!(
+                "is in a directory, {}, whose owner and ACL cannot be read ({error}), so it is refused",
+                shown(&canonical)
+            )),
+        }
+        seen.push(canonical);
+    }
+    problems
+}
 
 /// Why the mode `mode` is too wide for `secrecy`.
+#[cfg(any(unix, test))]
 fn mode_problem(mode: u32, secrecy: Secrecy) -> Option<String> {
     let mode = mode & 0o777;
     let (mask, what) = match secrecy {
@@ -267,6 +531,7 @@ fn mode_problem(mode: u32, secrecy: Secrecy) -> Option<String> {
 
 /// Why a file owned by `owner` may be rewritten by someone other than the user `me` the host
 /// runs as: an owner that is neither `me` nor root.
+#[cfg(any(unix, test))]
 fn owner_problem(owner: u32, me: u32) -> Option<String> {
     (owner != me && owner != 0)
         .then(|| format!("is owned by user {owner}, neither this user ({me}) nor root"))
@@ -274,6 +539,7 @@ fn owner_problem(owner: u32, me: u32) -> Option<String> {
 
 /// Why a directory with mode `mode` lets others replace the files in it: writable by group or
 /// other without the sticky bit.
+#[cfg(any(unix, test))]
 fn directory_problem(mode: u32) -> Option<String> {
     (mode & 0o022 != 0 && mode & 0o1000 == 0).then(|| {
         format!(
@@ -284,9 +550,9 @@ fn directory_problem(mode: u32) -> Option<String> {
 }
 
 /// Why the file at `path` may be read or replaced by someone it should not, for `secrecy`, or
-/// `None` when it may not (or the platform has no Unix permissions; see
-/// [`PERMISSIONS_CHECKED`]). The file's mode and owner are read through symbolic links, and the
-/// directory holding it is checked as named and as resolved.
+/// `None` when it may not (or the platform's permissions are not checked; see
+/// [`PERMISSIONS_CHECKED`]). The file's mode and owner (on Windows, its owner and ACL) are read
+/// through symbolic links, and the directory holding it is checked as named and as resolved.
 pub(crate) fn too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
     #[cfg(unix)]
     {
@@ -322,7 +588,11 @@ pub(crate) fn too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
         }
         (!problems.is_empty()).then(|| format!("{} {}", path.display(), problems.join(" and ")))
     }
-    #[cfg(not(unix))]
+    #[cfg(windows)]
+    {
+        windows_too_open(path, secrecy)
+    }
+    #[cfg(not(any(unix, windows)))]
     {
         let _ = (path, secrecy);
         None
@@ -330,9 +600,9 @@ pub(crate) fn too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
 }
 
 /// The bytes of the trust file at `path`, as [`read_limited`] reads a file, checked for
-/// `secrecy` on the file that was opened (its own `fstat`, so a file renamed into place after the
-/// check cannot be read in its stead) and on the directories holding it, as [`too_open`] checks
-/// them.
+/// `secrecy` on the file that was opened (its own `fstat`, or on Windows its handle's owner and
+/// ACL, so a file renamed into place after the check cannot be read in its stead) and on the
+/// directories holding it, as [`too_open`] checks them.
 ///
 /// # Errors
 /// What is wrong, naming the path: it cannot be read, is not a regular file, is too large, or may
@@ -361,6 +631,24 @@ pub(crate) fn read_trusted(path: &Path, secrecy: Secrecy) -> Result<Vec<u8>, Str
             return Err(format!("{} {}", path.display(), problems.join(" and ")));
         }
     }
+    #[cfg(windows)]
+    {
+        // The opened file's own owner and ACL, from its handle, as Unix reads its `fstat`.
+        let problems = match umbel_windows::security::security_of(&file) {
+            Ok(security) => windows_problems(path, &security, acl::Object::File(secrecy)),
+            Err(error) => vec![format!(
+                "has an owner and ACL that cannot be read ({error}), so it is refused"
+            )],
+        };
+        if !problems.is_empty() {
+            return Err(format!("{} {}", path.display(), problems.join(" and ")));
+        }
+        let problems = windows_directory_problems(path, |path| std::fs::canonicalize(path));
+        if !problems.is_empty() {
+            return Err(format!("{} {}", path.display(), problems.join(" and ")));
+        }
+    }
+    #[cfg(not(windows))]
     if let Some(problem) = too_open(path, secrecy) {
         return Err(problem);
     }
@@ -545,5 +833,245 @@ mod tests {
         std::os::unix::fs::symlink(&target, &link).unwrap();
         let problem = too_open(&link, Secrecy::Public).unwrap();
         assert!(problem.contains("without the sticky bit"), "{problem}");
+    }
+
+    #[test]
+    fn acl_owners_and_grants_follow_the_files_secrecy() {
+        use acl::{ADMINISTRATORS_SID, Entry, Object, SYSTEM_SID, exposed, problems};
+        const ME: &str = "S-1-5-21-1-2-3-1001";
+        const USERS: &str = "S-1-5-32-545";
+        const OTHER: &str = "S-1-5-21-1-2-3-1002";
+        let allow = |sid, mask| Entry {
+            sid,
+            allow: true,
+            mask,
+        };
+        let secret = Object::File(Secrecy::Secret);
+        let public = Object::File(Secrecy::Public);
+        // This user, SYSTEM and Administrators hold everything; nothing is exposed.
+        let private = [
+            allow(ME, 0x1F_01FF),
+            allow(SYSTEM_SID, 0x1F_01FF),
+            allow(ADMINISTRATORS_SID, 0x1000_0000),
+        ];
+        for object in [secret, public, Object::Directory] {
+            assert!(problems("f", ME, &private, ME, object).is_empty());
+            assert!(problems("f", SYSTEM_SID, &private, ME, object).is_empty());
+            assert!(problems("f", ADMINISTRATORS_SID, &private, ME, object).is_empty());
+        }
+        // Read and execute (FILE_GENERIC_READ | FILE_GENERIC_EXECUTE) for Users: refused for a
+        // key, allowed for a certificate and a directory.
+        let readable = [allow(ME, 0x1F_01FF), allow(USERS, 0x12_00A9)];
+        assert_eq!(exposed(&readable, ME, secret), [USERS]);
+        assert!(exposed(&readable, ME, public).is_empty());
+        assert!(exposed(&readable, ME, Object::Directory).is_empty());
+        // GENERIC_READ alone, as an inherit-only entry carries it, is reading too.
+        assert_eq!(exposed(&[allow(USERS, 0x8000_0000)], ME, secret), [USERS]);
+        // Each write-type right alone is refused for every object.
+        for mask in [
+            0x2,
+            0x4,
+            0x1_0000,
+            0x4_0000,
+            0x8_0000,
+            0x4000_0000,
+            0x1000_0000,
+        ] {
+            for object in [secret, public, Object::Directory] {
+                assert_eq!(
+                    exposed(&[allow(OTHER, mask)], ME, object),
+                    [OTHER],
+                    "{mask:#x} {object:?}"
+                );
+            }
+        }
+        // FILE_DELETE_CHILD lets others remove a directory's entries; on a file it is nothing.
+        assert_eq!(
+            exposed(&[allow(OTHER, 0x40)], ME, Object::Directory),
+            [OTHER]
+        );
+        assert!(exposed(&[allow(OTHER, 0x40)], ME, public).is_empty());
+        // A deny entry never widens access; one SID is named once.
+        let denied = Entry {
+            sid: OTHER,
+            allow: false,
+            mask: 0x1F_01FF,
+        };
+        assert!(exposed(&[denied], ME, secret).is_empty());
+        assert_eq!(
+            exposed(&[allow(OTHER, 0x2), allow(OTHER, 0x4)], ME, public),
+            [OTHER]
+        );
+        // An owner other than this user, SYSTEM or Administrators may rewrite the DACL.
+        let found = problems("C:\\k.pem", OTHER, &private, ME, secret);
+        assert_eq!(found.len(), 1, "{found:?}");
+        assert!(
+            found[0].contains(&format!("is owned by {OTHER}")),
+            "{found:?}"
+        );
+        assert!(
+            found[0].contains(&format!("/setowner '*{ME}'")),
+            "{found:?}"
+        );
+        // The remedy names the SIDs to remove.
+        let found = problems("C:\\k.pem", ME, &readable, ME, secret);
+        assert!(
+            found[0].contains("grants S-1-5-32-545 read or write access"),
+            "{found:?}"
+        );
+        assert!(
+            found[0].contains(&format!(
+                "icacls 'C:\\k.pem' /inheritance:d /grant:r '*{ME}:(F)' /remove:g '*S-1-5-32-545'"
+            )),
+            "{found:?}"
+        );
+        let quoted = problems("C:\\owner's & %TEMP%\\k.pem", OTHER, &private, ME, secret);
+        assert!(quoted[0].contains("icacls 'C:\\owner''s & %TEMP%\\k.pem'"));
+    }
+
+    /// `icacls` on `path` with `args`, which must succeed.
+    #[cfg(windows)]
+    fn icacls(path: &Path, args: &[&str]) {
+        let output = std::process::Command::new("icacls")
+            .arg(path)
+            .args(args)
+            .output()
+            .unwrap();
+        assert!(
+            output.status.success(),
+            "{} {args:?}: {output:?}",
+            path.display()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn directory_resolution_errors_are_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("file");
+        std::fs::write(&path, "x").unwrap();
+        let denied = || std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let problems = windows_directory_problems(&path, |_| Err(denied()));
+        assert!(
+            problems
+                .iter()
+                .any(|problem| problem.contains("cannot be resolved"))
+        );
+        let problems = windows_directory_problems(&path, |requested| {
+            if requested == temp.path() {
+                Err(denied())
+            } else {
+                std::fs::canonicalize(requested)
+            }
+        });
+        assert!(problems.iter().any(|problem| {
+            problem.contains("is in a directory") && problem.contains("cannot be resolved")
+        }));
+        assert!(windows_directory_problems(&path, |path| std::fs::canonicalize(path)).is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_unreadable_acl_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("file");
+        std::fs::write(&path, "x").unwrap();
+        let powershell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        // OWNER RIGHTS suppresses the owner's implicit READ_CONTROL. Keep DELETE allowed:
+        // this disposable file is removed before checking the results, even after a panic.
+        let inspection = std::panic::catch_unwind(|| {
+            let script = r"
+$ErrorActionPreference='Stop'
+$acl=Get-Acl -LiteralPath $env:UMBEL_ACL_TEST_PATH
+$rule=New-Object System.Security.AccessControl.FileSystemAccessRule ([System.Security.Principal.SecurityIdentifier]'S-1-3-4'),([System.Security.AccessControl.FileSystemRights]::ReadPermissions),([System.Security.AccessControl.AccessControlType]::Deny)
+$acl.AddAccessRule($rule)
+Set-Acl -LiteralPath $env:UMBEL_ACL_TEST_PATH -AclObject $acl
+";
+            let output = std::process::Command::new(powershell)
+                .args(["-NoProfile", "-NonInteractive", "-Command", script])
+                .env("UMBEL_ACL_TEST_PATH", &path)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            (
+                umbel_windows::security::security_of_path(&path),
+                too_open(&path, Secrecy::Public),
+                read_trusted(&path, Secrecy::Public),
+            )
+        });
+        std::fs::remove_file(&path).unwrap();
+        let (security, problem, read) = inspection.unwrap();
+        assert_eq!(
+            security.unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert!(problem.unwrap().contains("cannot be read"));
+        assert!(read.is_err());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn acls_follow_the_files_secrecy() {
+        // BUILTIN\Users, which every account is a member of.
+        const USERS: &str = "*S-1-5-32-545";
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("file");
+        std::fs::write(&path, "x").unwrap();
+        // A new file in a temporary directory: this user, SYSTEM and Administrators only.
+        assert_eq!(too_open(&path, Secrecy::Secret), None);
+        assert_eq!(too_open(&path, Secrecy::Public), None);
+        assert!(read_trusted(&path, Secrecy::Secret).is_ok());
+        // Readable by Users: refused for a key, allowed for a certificate.
+        icacls(&path, &["/grant", &format!("{USERS}:(R)")]);
+        let problem = too_open(&path, Secrecy::Secret).unwrap();
+        assert!(
+            problem.contains("grants S-1-5-32-545 read or write access"),
+            "{problem}"
+        );
+        assert!(problem.contains("icacls"), "{problem}");
+        assert!(
+            read_trusted(&path, Secrecy::Secret)
+                .unwrap_err()
+                .contains("S-1-5-32-545")
+        );
+        assert_eq!(too_open(&path, Secrecy::Public), None);
+        assert!(read_trusted(&path, Secrecy::Public).is_ok());
+        // Writable by Users, through one right alone: refused for both.
+        for right in ["(W)", "(AD)", "(WDAC)", "(WO)", "(DE)", "(GW)", "(GA)"] {
+            icacls(&path, &["/grant:r", &format!("{USERS}:{right}")]);
+            let problem = too_open(&path, Secrecy::Public);
+            assert!(problem.is_some(), "{right}");
+            assert!(read_trusted(&path, Secrecy::Public).is_err(), "{right}");
+            assert!(too_open(&path, Secrecy::Secret).is_some(), "{right}");
+        }
+        // A deny entry never widens access (BUILTIN\Guests, which this user is not in).
+        icacls(&path, &["/remove:g", USERS]);
+        icacls(&path, &["/deny", "*S-1-5-32-546:(R)"]);
+        assert_eq!(too_open(&path, Secrecy::Secret), None);
+        icacls(&path, &["/remove:d", "*S-1-5-32-546"]);
+        // A directory others may add files to lets them replace the file: there is no sticky
+        // bit to stop them.
+        let dir = temp.path();
+        icacls(dir, &["/grant", &format!("{USERS}:(WD)")]);
+        let problem = too_open(&path, Secrecy::Public).unwrap();
+        assert!(problem.contains("is in a directory"), "{problem}");
+        assert!(
+            problem.contains("the right to add or remove its entries"),
+            "{problem}"
+        );
+        assert!(read_trusted(&path, Secrecy::Public).is_err());
+        // Removing its entries, too.
+        icacls(dir, &["/grant:r", &format!("{USERS}:(DC)")]);
+        assert!(too_open(&path, Secrecy::Public).is_some());
+        // An inherit-only entry counts as an explicit one.
+        icacls(dir, &["/remove:g", USERS]);
+        assert_eq!(too_open(&path, Secrecy::Public), None);
+        icacls(dir, &["/grant", &format!("{USERS}:(OI)(IO)(W)")]);
+        assert!(too_open(&path, Secrecy::Public).is_some());
+        icacls(dir, &["/remove:g", USERS]);
+        assert_eq!(too_open(&path, Secrecy::Public), None);
+        // A missing file is no problem here: reading it reports that.
+        assert_eq!(too_open(&dir.join("missing"), Secrecy::Secret), None);
     }
 }

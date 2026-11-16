@@ -300,15 +300,16 @@ async fn a_certificate_thumbprint_comes_from_the_handshake_and_never_from_a_head
     let reply = call(hosted.client(Some(&other)), vec![]).await;
     assert_eq!(reply.status, 401);
     // No certificate on the connection, but every header a proxy might use to forward one,
-    // naming the holder's: refused, and the verifier saw no certificate.
+    // naming the holder's: refused, and the verifier saw no certificate. PEM text ends its lines
+    // with CRLF on Windows, and neither may stay in a header value.
     let forged = vec![
         (
             "x-client-cert".to_owned(),
-            holder.certificate_pem().replace('\n', " "),
+            holder.certificate_pem().replace(['\r', '\n'], " "),
         ),
         (
             "x-ssl-client-cert".to_owned(),
-            holder.certificate_pem().replace('\n', " "),
+            holder.certificate_pem().replace(['\r', '\n'], " "),
         ),
         (
             "x-forwarded-client-cert".to_owned(),

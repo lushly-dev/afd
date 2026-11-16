@@ -175,7 +175,7 @@ async fn tokens_route_by_shape_and_never_reach_an_issuer_that_did_not_issue_them
     // introspected: it is routed by its `iss` among the JWT issuers, which it is not one of.
     let kit = TestIdp::start().await.unwrap();
     kit.authorization_server()
-        .register_client(KitClient::confidential("umbel-rs", &home()).introspection());
+        .register_client(KitClient::confidential("umbel-rs", &client_secret()).introspection());
     let running = Running::serve(kit, &introspected("as-intro-route"), None).await;
     let server = running.kit.authorization_server();
     let jws = running.token().sign();
@@ -312,17 +312,17 @@ async fn required_bound_tokens_need_the_presented_certificate() {
     assert!(logged("as-bound", "binding"));
 }
 
-/// The value of `HOME`, the environment variable the introspection tests name as their client
+/// The value of `PATH`, the environment variable the introspection tests name as their client
 /// secret: a variable every test process has, so no test sets one.
-fn home() -> String {
-    std::env::var("HOME").unwrap()
+fn client_secret() -> String {
+    std::env::var("PATH").unwrap()
 }
 
 /// A setup whose authorization server is the introspection issuer `alias`.
 fn introspected(alias: &str) -> Setup<'_> {
     Setup {
         alias,
-        issuer: "verify = \"introspection\"\nintrospection = { client_id = \"umbel-rs\", client_secret_env = \"HOME\" }",
+        issuer: "verify = \"introspection\"\nintrospection = { client_id = \"umbel-rs\", client_secret_env = \"PATH\" }",
         ..Setup::default()
     }
 }
@@ -332,7 +332,7 @@ fn introspected(alias: &str) -> Setup<'_> {
 async fn introspection(alias: &str) -> Running {
     let kit = TestIdp::start().await.unwrap();
     kit.authorization_server()
-        .register_client(KitClient::confidential("umbel-rs", &home()).introspection());
+        .register_client(KitClient::confidential("umbel-rs", &client_secret()).introspection());
     Running::serve(kit, &introspected(alias), None).await
 }
 
@@ -501,7 +501,7 @@ async fn an_introspection_issuer_without_its_secret_does_not_start() {
 async fn a_slow_introspection_endpoint_fails_closed_at_the_timeout() {
     let kit = TestIdp::start().await.unwrap();
     kit.authorization_server()
-        .register_client(KitClient::confidential("umbel-rs", &home()).introspection());
+        .register_client(KitClient::confidential("umbel-rs", &client_secret()).introspection());
     let running = Running::serve(
         kit,
         &introspected("as-intro-slow"),
@@ -537,7 +537,7 @@ async fn a_slow_introspection_endpoint_fails_closed_at_the_timeout() {
 async fn a_cached_introspection_answer_is_bound_again_to_each_requests_certificate() {
     let kit = TestIdp::start().await.unwrap();
     kit.authorization_server()
-        .register_client(KitClient::confidential("umbel-rs", &home()).introspection());
+        .register_client(KitClient::confidential("umbel-rs", &client_secret()).introspection());
     let tls = tls_table("any");
     let mut setup = introspected("as-intro-bound");
     setup.rest = &tls;

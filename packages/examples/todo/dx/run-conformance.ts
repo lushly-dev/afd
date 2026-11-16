@@ -1,4 +1,5 @@
 import { type ChildProcess, spawn } from 'node:child_process';
+import { existsSync } from 'node:fs';
 import { cp, mkdir, mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -276,9 +277,12 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 	if (target === 'cpp') {
 		// Built by `pnpm test:conformance:cpp` (CMake); speaks MCP over stdio like ts and py.
 		const executable = process.platform === 'win32' ? 'todo-server-cpp.exe' : 'todo-server-cpp';
+		// A multi-config generator (Visual Studio, Xcode) puts the Release build in a `Release` folder.
+		const build = path.join(__dirname, '../backends/cpp/build/release');
+		const single = path.join(build, executable);
 		return {
 			transport: new StdioClientTransport({
-				command: path.join(__dirname, '../backends/cpp/build/release', executable),
+				command: existsSync(single) ? single : path.join(build, 'Release', executable),
 				env,
 			}),
 			stop: async () => {},

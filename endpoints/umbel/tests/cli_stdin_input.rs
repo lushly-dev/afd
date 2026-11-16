@@ -165,7 +165,9 @@ fn the_test_variables_exist_only_under_the_testkit_feature() {
             } else if path.extension().is_some_and(|ext| ext == "rs") {
                 let text = std::fs::read_to_string(&path).unwrap();
                 if text.contains("UMBEL_TEST_HUMAN_PRESENT") || text.contains("UMBEL_TEST_CLOCK") {
-                    found.push(path.strip_prefix(root).unwrap().display().to_string());
+                    // With `/` on every system, as the expectation names it.
+                    let relative = path.strip_prefix(root).unwrap().to_string_lossy();
+                    found.push(relative.replace('\\', "/"));
                 }
             }
         }

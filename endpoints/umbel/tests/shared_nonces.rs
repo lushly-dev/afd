@@ -198,8 +198,19 @@ async fn a_store_that_cannot_answer_refuses_the_approval_as_the_stores_failure()
     let token = hold(&host, "ada", &tokens).await;
     // (The read limit, which the library caller meets, already made state/shared.)
     let shared = dir.path().join("state").join("shared");
-    let _ = std::fs::remove_dir_all(&shared);
-    std::fs::write(&shared, b"not a directory").unwrap();
+    #[cfg(not(windows))]
+    {
+        let _ = std::fs::remove_dir_all(&shared);
+        std::fs::write(&shared, b"not a directory").unwrap();
+    }
+    // Windows deletes no file the host holds open, so state/shared stays: a directory where the
+    // nonce store's file goes makes the store as impossible to create.
+    #[cfg(windows)]
+    {
+        assert!(shared.is_dir());
+        assert!(!store(dir.path()).exists());
+        std::fs::create_dir_all(store(dir.path()).join("not-a-database")).unwrap();
+    }
     let refused = approve(&host, "ada", &token).await.error.unwrap();
     assert_eq!(refused.code, "INTERNAL_ERROR");
     assert_eq!(refused.retryable, Some(true));

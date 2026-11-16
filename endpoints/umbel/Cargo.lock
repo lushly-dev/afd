@@ -4003,6 +4003,7 @@ dependencies = [
  "umbel-store",
  "umbel-store-embedded",
  "umbel-testkit-idp",
+ "umbel-windows",
  "url",
  "wasmtime",
  "wasmtime-wasi",
@@ -4355,6 +4356,14 @@ dependencies = [
  "tokio-rustls",
  "tower",
  "url",
+]
+
+[[package]]
+name = "umbel-windows"
+version = "0.1.0"
+dependencies = [
+ "tempfile",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
