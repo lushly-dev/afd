@@ -1,5 +1,11 @@
 # @lushly-dev/specimen-afd
 
+## 2.2.0-preview.4
+
+### Patch Changes
+
+- [#1079](https://github.com/lushly-dev/afd/pull/1079) [`f485589`](https://github.com/lushly-dev/afd/commit/f485589495d4a08b371609c0066e43c81cd6f677) Thanks [@Falkicon](https://github.com/Falkicon)! - Each integration's peer on `@lushly-dev/specimen` (and, for `specimen-fast-af`, on `@lushly-dev/fast-element`) now requires at least the version it was built against, instead of any preview of that line. A consumer who updated only an integration used to install an older Specimen cleanly and then hit missing commands at runtime: `specimen-themes` and `specimen-pack*` in `specimen-afd`, and guide sources in `specimen-fast-af`. The install now asks for the Specimen it needs. Update Specimen with the integration.
+
 ## 2.2.0-preview.3
 
 ### Minor Changes
