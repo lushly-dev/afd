@@ -707,7 +707,7 @@
 		{
 			"name": "toggle_names_its_undo",
 			"description": "A toggle names todo-update with the previous state as its undo",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [{ "command": "todo-create", "input": { "title": "Undo me" }, "capture": "todo" }],
 			"command": "todo-toggle",
 			"input": { "id": "$todo.id" },
@@ -721,7 +721,7 @@
 		{
 			"name": "delete_keeps_the_todo_for_restore",
 			"description": "A deleted todo leaves the live list, appears with deleted: true, and names todo-restore as its undo",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" }, "capture": "todo" }],
 			"command": "todo-delete",
 			"input": { "id": "$todo.id" },
@@ -740,7 +740,7 @@
 		{
 			"name": "restore_brings_a_deleted_todo_back",
 			"description": "todo-restore returns a deleted todo to the live list as it was",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [
 				{
 					"command": "todo-create",
@@ -765,7 +765,7 @@
 		{
 			"name": "restore_reports_an_id_it_cannot_restore",
 			"description": "An id with no deleted todo is reported as failed with NOT_FOUND and a suggestion, and the call succeeds",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [],
 			"command": "todo-restore",
 			"input": { "ids": ["todo-never-deleted"] },
@@ -779,7 +779,7 @@
 		{
 			"name": "clear_deleted_empties_the_deleted_todos",
 			"description": "todo-clear with deleted: true removes the deleted todos for good and leaves live ones",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [
 				{ "command": "todo-create", "input": { "title": "Stay" } },
 				{ "command": "todo-create", "input": { "title": "Go for good" }, "capture": "gone" },
@@ -797,7 +797,7 @@
 		{
 			"name": "history_records_the_latest_change",
 			"description": "todo-history lists the latest change first with its command, actor, time and undo",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [{ "command": "todo-create", "input": { "title": "Watch me" } }],
 			"command": "todo-history",
 			"input": { "limit": 1 },

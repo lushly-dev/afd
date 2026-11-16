@@ -16,25 +16,29 @@ forces one.
 
 ## Storage Configuration
 
-By default, the server uses **file-based storage** (`packages/examples/todo/data/todos.json`) so that:
+By default, the server keeps its todos in a **SQLite database**
+(`packages/examples/todo/data/todos.db`, see [SQLite storage](#sqlite-storage)) so that:
 - MCP clients (stdio transport) share data with the HTTP server
 - The UI and MCP tools see the same todos
-- The TypeScript and Python backends share the same data
+- The TypeScript and Python backends share the same data: the Python backend opens the same file
 
-`data/todos.json` is gitignored. When it is missing, it is created from the committed seed
-`data/todos.seed.json`; delete it to reset the data. Deleted todos and the change history are kept
-beside it in `todos.deleted.json` and `todos.history.json` (also gitignored), so the Python
-backend, which shares `todos.json`, never sees a deleted todo as live. Each file's write is atomic,
-but they are separate writes; the planned move to SQLite replaces them with one transaction. Writes are atomic (a temporary file renamed
-over `todos.json`), and a file that is not valid JSON stops the server with an error naming the
-file instead of being treated as empty.
+`data/todos.db` is gitignored. When the default database is new, the store adds the todos in the
+committed seed `data/todos.seed.json`; delete `todos.db` and its `-wal` and `-shm` files to reset
+the data.
+
+`TODO_STORE_TYPE=file` keeps the todos in JSON files instead, which the Python backend also
+reads: the live todos in `data/todos.json` (created from the seed when missing), the deleted todos
+and the change history beside it in `todos.deleted.json` and `todos.history.json` (all
+gitignored). Each file's write is atomic (a temporary file renamed over it), but the three are
+separate writes, not one transaction. A file that is not valid JSON stops the server with an error
+naming the file instead of being treated as empty.
 
 ### Environment Variables
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TODO_STORE_TYPE` | `file` | Storage type: `file`, `memory` or `sqlite` |
-| `TODO_STORE_PATH` | `data/todos.json` (seeded), or `data/todos.db` | Path to the JSON file or the SQLite database. A custom path starts empty. |
+| `TODO_STORE_TYPE` | `sqlite` | Storage type: `sqlite`, `file` or `memory` |
+| `TODO_STORE_PATH` | `data/todos.db`, or `data/todos.json` for `file` (both seeded) | Path to the SQLite database or the JSON file. A custom path starts empty. |
 | `PORT` | `3100` | HTTP server port |
 | `HOST` | `localhost` | HTTP server host |
 | `TRANSPORT` | `auto` | Transport mode: `auto`, `http`, or `stdio` |
@@ -58,14 +62,17 @@ add its exact origin to `ALLOWED_ORIGINS`. The list is built in
 ### Examples
 
 ```bash
-# Default: file storage, shared between MCP and HTTP
+# Default: the SQLite database, shared between MCP and HTTP and with the Python backend
 pnpm start
+
+# The JSON files instead
+TODO_STORE_TYPE=file pnpm start
 
 # Use in-memory storage (isolated per process)
 TODO_STORE_TYPE=memory pnpm start
 
 # Custom storage path
-TODO_STORE_PATH=/path/to/todos.json pnpm start
+TODO_STORE_PATH=/path/to/todos.db pnpm start
 ```
 
 ## Commands
@@ -87,21 +94,23 @@ TODO_STORE_PATH=/path/to/todos.json pnpm start
 | `todo-history`     | query    | Recent changes: who, when, and each change's undo |
 
 Each change's result names its undo in `undoCommand` and `undoArgs`; the example README's
-[Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript) explains them.
+[Undo, history and approvals](../../README.md#undo-history-and-approvals-typescript-and-python) explains them.
 
 ### SQLite storage
 
-`TODO_STORE_TYPE=sqlite` keeps the todos, the deleted todos and the history in one SQLite
-database (`data/todos.db`, gitignored) through `@lushly-dev/local-db`'s adapter on `node:sqlite`
-(`src/store/sqlite.ts`). Each write is one transaction, so a delete or restore moves its todo
+The default store, `TODO_STORE_TYPE=sqlite`, keeps the todos, the deleted todos and the history
+in one SQLite database (`data/todos.db`, gitignored) through `@lushly-dev/local-db`'s adapter on
+`node:sqlite` (`src/store/sqlite.ts`). Each write is one transaction, so a delete or restore moves its todo
 between the live and deleted tables all or nothing, and a write to a todo another process removed
 since it was read rolls back and reports the todo missing. Several processes can share the file.
 The history entry for a change is a separate write after it. Filtering, sorting (ties included)
 and undo are the in-memory store's rules; the backend's tests run every job against both the
 in-memory and the SQLite store. A path that cannot hold a database fails at startup.
 
-The JSON file stays the default until the Python backend reads the same database (the to-do
-reference plan's phase 5); until then only the file store is shared with Python.
+The Python backend reads and writes the same file, in the adapter's layout, through the standard
+library's `sqlite3` (the to-do reference plan's D4). `pnpm test:interop`, from
+`packages/examples/todo`, runs both servers at once on one database and checks that each reads
+what the other wrote.
 
 ## Recording and replaying a session
 
@@ -143,7 +152,7 @@ changes todos, an approval policy.
 ## Conformance
 
 Run the unit tests and the conformance suite (the runner uses an in-memory store, so it never
-touches `data/todos.json`):
+touches the data files):
 
 ```bash
 pnpm test

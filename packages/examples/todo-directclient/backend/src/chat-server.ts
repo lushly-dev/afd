@@ -7,7 +7,7 @@
  * - `/mcp` serves the same commands over MCP (`createMcpHandler` with the main example's
  *   options), so `afd connect http://localhost:3201/mcp` reaches the todos the copilot changes.
  * - The store is the main example's: `TODO_STORE_TYPE` and `TODO_STORE_PATH` choose it, and by
- *   default it is the JSON file the main example's server also uses.
+ *   default it is the SQLite database the main example's servers, TypeScript and Python, also use.
  *
  * Security defaults (see `http-security.ts`, all configurable in `.env`): binds 127.0.0.1 only,
  * browser requests only from this server's own localhost origins (`null` and `*` refused), a

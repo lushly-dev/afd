@@ -19,7 +19,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   decided D1 to D3 the same day (the proposal's [decisions](todo-reference.proposal.md#decisions)):
   React stays beside the FAST-AF frontend, both on `violet-elements`.
 - **Last verified:** 2026-11-15 on branch `t3/todo-reference-phase2-localdb`, based on `main` at
-  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed.
+  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed. The phase 5 Python branch was
+  checked suite by suite on 2026-11-16 (see [phase 5](#python)); its full `pnpm verify` has not
+  run.
 - **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). Phase 2, in the
   TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
   journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
@@ -27,7 +29,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Done:** phase 4, DirectClient: the main commands through the tool surface with `allow` in
   [#1281](https://github.com/lushly-dev/afd/pull/1281), and the page with approvals and view state in
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
-- **Not started:** phase 5.
+- **In progress:** phase 5. The Python pull request is on branch
+  `t3/todo-reference-phase5-python`, not yet merged: Python at parity with TypeScript, and both
+  backends on one SQLite database by default (D4). Rust and C++ are not started.
 
 ## Plan
 
@@ -37,21 +41,21 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
+| 5. The other languages | In progress: Python on branch `t3/todo-reference-phase5-python`, not yet merged; Rust and C++ not started | See [phase 5](#phase-5-the-other-languages) | The Python pull request's `pnpm verify` and review; then Rust, and C++ after [#341](https://github.com/lushly-dev/afd/issues/341) |
 
 ## Findings
 
 | Finding | State |
 | --- | --- |
 | W1 `total` capped at 100 in TypeScript | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
-| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231). C++ declares them but serves no context tools (its own stdio loop, phase 5). Rust declares none (phase 5) |
+| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts on the phase 5 branch. C++ declares them but serves no context tools (its own stdio loop, phase 5). Rust declares none (phase 5) |
 | W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes still advertise `destructiveHint: false`, because a mounted tool cannot declare `destructive` (see follow-ups) |
 | W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforcement open, phase 5 with `afd::mcp_stdio` |
 | W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
 | W8 todo-directclient's copied commands and hand-written tools | Fixed in [#1281](https://github.com/lushly-dev/afd/pull/1281): the main commands (D5), tools from `listTools()`, and `allow` in look mode |
-| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). Alternatives, ordering ties, ID formats and tool lists open, phase 5 |
+| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read in `pnpm test:interop` alike on one database, order and alternatives included; Python makes ids in TypeScript's format from the context's random, and its tests check its titles against the TypeScript sources. Rust and C++ ordering ties, ID formats and tool lists open, phase 5 |
 
 ## Phase 1: fix what is wrong
 
@@ -297,6 +301,68 @@ Merged in [#1303](https://github.com/lushly-dev/afd/pull/1303) on 2026-11-15:
   message is read cancels the turn, the approval wait is tested, and the README says an answer
   proves who asked, not that a person did.
 
+## Phase 5: the other languages
+
+### Python
+
+On branch `t3/todo-reference-phase5-python`, not yet merged:
+
+- **Commands at parity (D2, D3).** Every command declares TypeScript's `title`, `version`,
+  `examples`, an `output_schema` (Pydantic models in `models.py`), `undoable` and, on every
+  mutation, an `approval` policy. `todo-restore` and `todo-history` are new, `todo-list` and
+  `todo-clear` take `deleted`, and deleted todos are kept until a clear empties them (D7). Each
+  result names its undo as TypeScript's does, with the same error codes, suggestions (the
+  not-found one now points to the deleted list) and warnings (`RESTORABLE`, `NO_SINGLE_UNDO`).
+  Handlers take their time and ids from `context.clock` and `context.random`, in TypeScript's ID
+  format. The commands are built before the server (`all_commands`), since the approval
+  middleware reads them when it is created.
+- **History.** `history.py` is TypeScript's `src/history.ts`: a middleware inside the approval
+  hold records each successful change with its actor's kind and id, time, ids and undo, and
+  `todo-history` offers an undo only while it is the latest change to its todos.
+- **Approvals.** `APPROVALS` (`agents` by default, `off`) and `TODO_APPROVAL_SECRET` (at least 32
+  bytes, else a random key) as TypeScript reads them; `todo-clear` is held for any caller that is
+  not a person through `create_approval_middleware`, with TypeScript's summary text. The store is
+  synchronous here, so the summary reads its counts directly, with no counts middleware. The
+  approval suite's two `acknowledge` cases now name Python; `accept` and `decline` stay
+  TypeScript's until the library can ask over MCP
+  ([#1312](https://github.com/lushly-dev/afd/issues/1312)). The runner now skips a client kind
+  with no case for the language, and still fails a suite that leaves it none.
+- **The shared SQLite store (D4).** `store/sqlite.py` reads and writes local-db's layout through
+  `sqlite3`: the `records` table, `user_version` 1 decided inside `BEGIN IMMEDIATE`, a foreign
+  file refused untouched, WAL, `synchronous = FULL`, a 5-second busy timeout; the `todos`,
+  `deleted_todos` and `changes` tables, `_order`, 12-digit change ids and the 1,000-change limit.
+  Each write reads its rows inside its transaction, which gives the TypeScript store's guard
+  against a row another process removed. The JSON file store gained the deleted and history files
+  TypeScript's has, so both stores are shared, and `store.py` became a package as in TypeScript.
+- **The default moved to SQLite in both languages.** `TODO_STORE_TYPE` defaults to `sqlite` in
+  TypeScript and Python, at `data/todos.db`, which both resolve beside `data/todos.json`. A new
+  default database is seeded from `data/todos.seed.json`, as the JSON file was: in Python inside
+  the transaction that creates the table, in TypeScript in `SqliteStore.check()` when the store
+  created the file. The READMEs, todo-directclient's README, `.env.example` and its server comment
+  say so.
+- **Interop.** `pnpm test:interop` (`dx/run-interop.ts`) runs both servers at once on one new
+  database and changes the todos through each in turn: 11 checks, and each read's data and
+  alternatives compared between the two. `conformance.yml` runs it and now also starts on `packages/local-db/**`, whose
+  layout both stores depend on.
+- **Tests.** `afd.testing`'s assertions throughout, and its scenario runner on the TypeScript
+  backend's jobs in-process on all three stores (job 7 skipped, since Python records no journal;
+  job 9 a strict `xfail`, see the follow-ups). The store tests read the adapter's schema text from
+  `packages/local-db/src/sqlite-adapter.ts` and compare the file Python writes with it.
+- **Lint (D8).** The repository's ruff rules (`python/pyproject.toml`) in the backend's
+  `pyproject.toml`, `N815` excepted in `models.py` for the wire's camelCase; `ruff check` and
+  `ruff format --check` in `conformance.yml` and `scripts/affected/suites.mjs`, with Python's
+  approval suite and the interop run.
+- **Spec.** `python` added to `implementedBy` on both commands, the six test cases and the two
+  approval cases, and to `x-implementedBy` on both inputs; `spec/README.md`'s counts and tables.
+
+Verified locally on 2026-11-16 with Node 26.13.0 and Python 3.14: `uv run --locked pytest -q`
+(131 passed, 3 skipped, 3 xfailed), `ruff check` and `ruff format --check`; Python conformance
+41/41 and confirmations 5/5 in legacy and modern modes, approvals 2/2 in both; TypeScript
+conformance 41/41, confirmations 5/5 and approvals 4/4 in both modes; `pnpm test:scenarios:ts`
+(surface validation and 10 scenarios); `pnpm test:interop`; `pnpm -F @afd/example-todo-ts test`
+(181 tests) and `pnpm -F @afd/example-todo-directclient test` (85 tests); `pnpm test:tooling`.
+The full `pnpm verify` has not run on this branch.
+
 ## Open questions
 
 None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
@@ -312,7 +378,11 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
 | 2026-11-15 | Phase 4 page | `afd-testing`'s `src/runner/todo-example.test.ts` still expected the fixture to clear first, which #1260 turned off (`clearFirst: false`); CI never ran it, because it reads the todo example's commands and scenarios by path and the affected-units scope did not know | Fixed in [#1297](https://github.com/lushly-dev/afd/pull/1297): the expectation, and `EXTRA_INPUTS` entries in `scripts/affected/scope.mjs`; #1303 marks them `ownTests`, a new option, so only `afd-testing`'s own tests run |
 | 2026-11-15 | Phase 4 review | DirectClient's `COMMAND_NOT_ALLOWED` suggestion tells a model to "Call one of the commands returned by listCommandNames()", a JavaScript method a model cannot call (`packages/client`) | Open |
-| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
+| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed on branch `t3/todo-reference-phase5-python` (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
+| 2026-11-16 | Phase 5 Python | `afd.testing` cannot be imported with only the `testing` extra: `afd/testing/__init__.py` imports `fixtures.py`, which imports `afd.transports` and so `httpx` from the `client` extra (`python/pyproject.toml`). The example lists both extras | Open |
+| 2026-11-16 | Phase 5 Python | `afd.testing`'s scenario evaluator compares an expected array of objects whole (`_deep_equal` in `python/src/afd/testing/scenarios/evaluator.py`), where TypeScript's matches it item by item with matchers (`evaluateArrayAssertions` in `packages/testing/src/runner/evaluator.ts`), so job 9 fails against Python; its test is a strict `xfail` | Open |
+| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
+| 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too. Left for the C++ pull request, so this one does not run the C++ suites for a comment | Open, phase 5's C++ pull request |
 
 ## Session log
 
@@ -328,3 +398,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 3 React | The React page on the same elements and shared session, one browser suite for both; phase 3 done; in #1276 |
 | 2026-11-15 | Phase 4 copilot | todo-directclient on the main commands, tools from `listTools()`, `allow` and job 10, `/mcp` on the same server; in #1281 |
 | 2026-11-15 | Phase 4 page | The copilot page on the FAST-AF element and violet conversation elements, streamed turns, approvals through `onApprovalNeeded`, the page-hosted view (job 6); the vanilla page and `/execute` removed; in #1303 |
+| 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; on branch `t3/todo-reference-phase5-python`, not yet merged |

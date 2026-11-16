@@ -62,9 +62,9 @@ each mode, a refused call, and an approval asked for and answered.
 To work on the page with Vite, run the server with `ALLOWED_ORIGINS=http://localhost:5175`, then
 `pnpm dev` in `frontend/`, which sends `/chat`, `/mcp` and `/health` to it.
 
-The store is the main example's, chosen by `TODO_STORE_TYPE` (`file`, `sqlite` or `memory`) and
-`TODO_STORE_PATH`. The default is the JSON file the main example's server also uses, so both
-servers show the same todos.
+The store is the main example's, chosen by `TODO_STORE_TYPE` (`sqlite`, `file` or `memory`) and
+`TODO_STORE_PATH`. The default is the SQLite database, `data/todos.db`, that the main example's
+TypeScript and Python servers also use, so every server shows the same todos.
 
 ## Architecture
 
