@@ -5,12 +5,28 @@
 
 mod support;
 
+#[cfg(unix)]
 use std::os::unix::ffi::OsStrExt;
+#[cfg(unix)]
 use std::os::unix::fs::MetadataExt;
+use std::path::Path;
 use std::time::{Duration, Instant};
 
 use serde_json::json;
 use support::*;
+
+/// A symbolic link at `link` to `target`. Windows links a directory and a file differently; a
+/// target that does not exist is linked as a file.
+fn symlink(target: impl AsRef<Path>, link: impl AsRef<Path>) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).unwrap();
+    #[cfg(windows)]
+    if target.as_ref().is_dir() {
+        std::os::windows::fs::symlink_dir(target, link).unwrap();
+    } else {
+        std::os::windows::fs::symlink_file(target, link).unwrap();
+    }
+}
 
 #[tokio::test]
 async fn a_collection_or_space_named_with_a_path_reads_nothing() {
@@ -65,10 +81,10 @@ async fn a_symbolic_link_inside_a_root_is_never_followed() {
     )
     .unwrap();
     let root = fx.path("spaces/main/handbook");
-    std::os::unix::fs::symlink(outside.path().join("stolen.md"), root.join("link.md")).unwrap();
-    std::os::unix::fs::symlink(outside.path().join("dir"), root.join("linked-dir")).unwrap();
-    std::os::unix::fs::symlink(root.join("real.md"), root.join("loop.md")).unwrap();
-    std::os::unix::fs::symlink("/nonexistent/target.md", root.join("dangling.md")).unwrap();
+    symlink(outside.path().join("stolen.md"), root.join("link.md"));
+    symlink(outside.path().join("dir"), root.join("linked-dir"));
+    symlink(root.join("real.md"), root.join("loop.md"));
+    symlink("/nonexistent/target.md", root.join("dangling.md"));
     fx.handbook("real.md", "# Real\n");
     let result = fx.sync(json!({})).await;
     assert_eq!(collection(&result, "handbook")["added"], 1);
@@ -87,7 +103,7 @@ async fn a_directory_replaced_by_a_link_after_a_sync_removes_its_documents() {
     let outside = tempfile::tempdir().unwrap();
     std::fs::write(outside.path().join("a.md"), "# Elsewhere\n").unwrap();
     std::fs::remove_dir_all(fx.path("spaces/main/handbook/sub")).unwrap();
-    std::os::unix::fs::symlink(outside.path(), fx.path("spaces/main/handbook/sub")).unwrap();
+    symlink(outside.path(), fx.path("spaces/main/handbook/sub"));
     let result = fx.sync(json!({})).await;
     assert_eq!(collection(&result, "handbook")["deleted"], 1);
     assert_eq!(fx.documents("main"), 0);
@@ -98,8 +114,7 @@ async fn a_root_that_is_a_link_to_a_directory_inside_the_workspace_is_read() {
     let fx = Fx::new();
     std::fs::remove_dir_all(fx.path("spaces/main/handbook")).unwrap();
     fx.write("elsewhere/inside/a.md", b"# Through the root link\n");
-    std::os::unix::fs::symlink(fx.path("elsewhere/inside"), fx.path("spaces/main/handbook"))
-        .unwrap();
+    symlink(fx.path("elsewhere/inside"), fx.path("spaces/main/handbook"));
     let result = fx.sync(json!({})).await;
     assert_eq!(collection(&result, "handbook")["added"], 1);
     assert_eq!(fx.ids("main"), ["handbook/a"]);
@@ -113,6 +128,7 @@ async fn a_hard_link_reads_as_the_regular_file_it_is_and_the_sync_never_writes_t
     std::fs::write(&original, "# Shared with another place\n").unwrap();
     std::fs::hard_link(&original, fx.path("spaces/main/handbook/hard.md")).unwrap();
     let before = std::fs::metadata(&original).unwrap();
+    #[cfg(unix)]
     assert_eq!(before.nlink(), 2);
     let result = fx.sync(json!({})).await;
     // Section 5.2: a hard link is indistinguishable from a file and is read.
@@ -123,9 +139,16 @@ async fn a_hard_link_reads_as_the_regular_file_it_is_and_the_sync_never_writes_t
     );
     // Reading changed nothing: same bytes, same inode, same link count, same mtime.
     let after = std::fs::metadata(&original).unwrap();
+    #[cfg(unix)]
     assert_eq!(
         (after.ino(), after.nlink(), after.mtime(), after.len()),
         (before.ino(), before.nlink(), before.mtime(), before.len())
+    );
+    // Windows has no stable inode or link count in std: the modification time and size stand in.
+    #[cfg(not(unix))]
+    assert_eq!(
+        (after.modified().unwrap(), after.len()),
+        (before.modified().unwrap(), before.len())
     );
     assert_eq!(
         std::fs::read_to_string(&original).unwrap(),
@@ -133,6 +156,8 @@ async fn a_hard_link_reads_as_the_regular_file_it_is_and_the_sync_never_writes_t
     );
 }
 
+// Windows file systems refuse newlines, tabs and backslashes in a name, and names are UTF-16.
+#[cfg(unix)]
 #[tokio::test]
 async fn names_that_cannot_be_ids_are_skipped_not_followed() {
     let fx = Fx::new();
