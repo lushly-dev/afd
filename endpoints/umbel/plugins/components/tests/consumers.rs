@@ -122,8 +122,8 @@ fn expect(actual: &Value, expected: &Value) {
     if let Some(object) = expected.as_object() {
         if let Some(length) = object.get("length") {
             assert_eq!(
-                actual.as_array().unwrap().len() as u64,
-                length.as_u64().unwrap()
+                actual.as_array().map(Vec::len),
+                length.as_u64().map(|n| n as usize)
             );
         } else {
             for (key, value) in object {
