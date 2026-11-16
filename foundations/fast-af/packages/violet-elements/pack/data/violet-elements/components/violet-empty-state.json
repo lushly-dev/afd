@@ -34,7 +34,21 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletEmptyStateAppearance"
+				"type": "\"plain\" | \"subtle\" | \"outline\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "plain"
+					},
+					{
+						"basis": "observed",
+						"value": "subtle"
+					},
+					{
+						"basis": "observed",
+						"value": "outline"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -64,7 +78,17 @@
 				"rules": [
 					"taxonomy.orientation"
 				],
-				"type": "VioletEmptyStateOrientation"
+				"type": "\"vertical\" | \"horizontal\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "vertical"
+					},
+					{
+						"basis": "observed",
+						"value": "horizontal"
+					}
+				]
 			}
 		],
 		"commands": [],

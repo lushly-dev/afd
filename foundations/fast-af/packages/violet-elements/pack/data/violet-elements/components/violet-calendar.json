@@ -68,7 +68,17 @@
 				"rules": [
 					"taxonomy.selection-mode"
 				],
-				"type": "VioletCalendarSelectionMode"
+				"type": "\"single\" | \"range\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "single"
+					},
+					{
+						"basis": "observed",
+						"value": "range"
+					}
+				]
 			},
 			{
 				"basis": "observed",

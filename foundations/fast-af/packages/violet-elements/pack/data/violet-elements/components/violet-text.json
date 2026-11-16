@@ -18,7 +18,45 @@
 				"rules": [
 					"taxonomy.as"
 				],
-				"type": "VioletTextAs"
+				"type": "\"span\" | \"p\" | \"small\" | \"strong\" | \"label\" | \"h1\" | \"h2\" | \"h3\" | \"h4\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "span"
+					},
+					{
+						"basis": "observed",
+						"value": "p"
+					},
+					{
+						"basis": "observed",
+						"value": "small"
+					},
+					{
+						"basis": "declared",
+						"value": "strong"
+					},
+					{
+						"basis": "observed",
+						"value": "label"
+					},
+					{
+						"basis": "declared",
+						"value": "h1"
+					},
+					{
+						"basis": "observed",
+						"value": "h2"
+					},
+					{
+						"basis": "observed",
+						"value": "h3"
+					},
+					{
+						"basis": "declared",
+						"value": "h4"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -28,7 +66,33 @@
 				"rules": [
 					"taxonomy.tone"
 				],
-				"type": "VioletTextTone"
+				"type": "\"default\" | \"secondary\" | \"muted\" | \"success\" | \"warning\" | \"danger\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "default"
+					},
+					{
+						"basis": "observed",
+						"value": "secondary"
+					},
+					{
+						"basis": "observed",
+						"value": "muted"
+					},
+					{
+						"basis": "observed",
+						"value": "success"
+					},
+					{
+						"basis": "observed",
+						"value": "warning"
+					},
+					{
+						"basis": "observed",
+						"value": "danger"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -48,7 +112,29 @@
 				"rules": [
 					"taxonomy.variant"
 				],
-				"type": "VioletTextVariant"
+				"type": "\"body\" | \"label\" | \"caption\" | \"title-sm\" | \"title-md\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "body"
+					},
+					{
+						"basis": "observed",
+						"value": "label"
+					},
+					{
+						"basis": "observed",
+						"value": "caption"
+					},
+					{
+						"basis": "observed",
+						"value": "title-sm"
+					},
+					{
+						"basis": "observed",
+						"value": "title-md"
+					}
+				]
 			}
 		],
 		"commands": [],

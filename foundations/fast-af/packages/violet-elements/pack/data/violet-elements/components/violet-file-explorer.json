@@ -68,7 +68,21 @@
 				"rules": [
 					"taxonomy.selection-mode"
 				],
-				"type": "VioletFileExplorerSelectionMode"
+				"type": "\"none\" | \"single\" | \"multiple\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "none"
+					},
+					{
+						"basis": "observed",
+						"value": "single"
+					},
+					{
+						"basis": "observed",
+						"value": "multiple"
+					}
+				]
 			}
 		],
 		"commands": [],

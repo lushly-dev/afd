@@ -136,7 +136,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletDatePickerSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "observed",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",
