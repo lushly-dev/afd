@@ -128,6 +128,8 @@ export interface AppliedProjection {
 	generation: string;
 	workspace: { id: string; name: string };
 	apps: readonly object[];
+	/** A version 4 projection's host (phase 6 specification, 3.3). */
+	host?: { kind: 'static' | 'hosted' | 'desktop' };
 }
 
 /**
@@ -150,6 +152,8 @@ export async function applyDeployment(
 			const { boot: _boot, ...kept } = entry as { boot?: unknown };
 			return kept;
 		}),
+		// The kind alone, journaled with the entries, so a replay reads it from this entry (phase 6's 3.3, A5).
+		...(projection.host ? { host: { kind: projection.host.kind } } : {}),
 	});
 	return result.success;
 }

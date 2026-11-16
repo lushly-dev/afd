@@ -7,11 +7,13 @@ import type {
 	DeploymentV1,
 	DeploymentV2,
 	DeploymentV3,
+	DeploymentV4,
 	ManifestV1,
 	ManifestV2,
 	ProjectionV1,
 	ProjectionV2,
 	ProjectionV3,
+	ProjectionV4,
 } from './_generated/types.js';
 import type { IdentityV1 } from './read-boot.js';
 
@@ -19,12 +21,17 @@ export type {
 	DeploymentV1,
 	DeploymentV2,
 	DeploymentV3,
+	DeploymentV4,
 	ManifestV1,
 	ManifestV2,
 	ProjectionV1,
 	ProjectionV2,
 	ProjectionV3,
+	ProjectionV4,
 };
+
+/** Which host serves a deployment (phase 6 specification, 3.3): a file before version 4 reads as `static`. */
+export type HostKindV1 = 'static' | 'hosted' | 'desktop';
 
 /** One entry of a projection. Version 2's entry is version 1's with its boot record. */
 export type ProjectionAppV1 = ProjectionV1['apps'][number];
@@ -99,12 +106,14 @@ export type DeploymentRefusalCode =
 	| 'DEPLOYMENT_AUDIENCE_REQUIRED'
 	| 'DEPLOYMENT_BASE_PATH_INVALID'
 	| 'DEPLOYMENT_CREDENTIAL_CONFLICT'
+	| 'DEPLOYMENT_DESKTOP_PROVIDER'
 	| 'DEPLOYMENT_EXPOSE_UNAVAILABLE'
 	| 'DEPLOYMENT_INSTANCE_MISMATCH'
 	| 'DEPLOYMENT_IDENTITY_INVALID'
 	| 'DEPLOYMENT_INSTANCE_RESERVED'
 	| 'DEPLOYMENT_INVALID'
 	| 'DEPLOYMENT_PROJECT_INVALID'
+	| 'DEPLOYMENT_PROVIDER_NEEDS_HOST'
 	| 'DEPLOYMENT_STDIO_TEAM'
 	| 'DEPLOYMENT_TEAM_NEEDS_HTTP'
 	| 'DEPLOYMENT_TRANSPORT_KEYS'
@@ -137,17 +146,19 @@ export interface DeploymentWorkspaceV2 {
 export type DeploymentRead =
 	| {
 			ok: true;
-			deployment: DeploymentV1 | DeploymentV2 | DeploymentV3;
+			deployment: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4;
 			/** The file's, or `personal` for a version 1 file or one that names none. */
 			workspace: DeploymentWorkspaceV2;
 			/** Version 3's `[identity]` with its defaults, or `local` (phase 3 specification, 2.2). */
 			identity: IdentityV1;
 			/** `site.base_path`, or `/`. */
 			basePath: string;
+			/** Version 4's `[host] kind`, or `static` (phase 6 specification, 3.3). */
+			host: HostKindV1;
 			warnings: DeploymentRefusal[];
 	  }
 	| { ok: false; refusals: DeploymentRefusal[]; warnings: DeploymentRefusal[] };
 
 export type ProjectionRead =
-	| { ok: true; projection: ProjectionV3; warnings: DeploymentRefusal[] }
+	| { ok: true; projection: ProjectionV4; warnings: DeploymentRefusal[] }
 	| { ok: false; refusals: DeploymentRefusal[]; warnings: DeploymentRefusal[] };

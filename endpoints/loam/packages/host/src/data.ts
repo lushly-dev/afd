@@ -45,6 +45,8 @@ export async function writeSite(options: {
 		config: options.deployment,
 		dist: options.dist,
 		out: site,
+		// `--host hosted` (3.3): the projection names the hosted server; `loam-host` serves nothing else.
+		host: 'hosted',
 		...(options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }),
 	});
 	if (written.ok) await makePrivate(publicDirectory);

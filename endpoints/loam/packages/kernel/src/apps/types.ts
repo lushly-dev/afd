@@ -7,7 +7,7 @@
 import type { CommandResult } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
 import type { ViewStateRegistry } from '@lushly-dev/afd-view-state';
-import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import type { DataAdapter } from '@lushly-dev/local-db';
 import type { AppCommandRowV1, CommandOwner } from '../apps-runtime.js';
 import type { KernelCallFields } from '../context-fields.js';
@@ -19,7 +19,7 @@ import type { ShellState } from '../shell-state.js';
 import type { CallOptionsV1, CommandSummaryV1, KernelPortsV1 } from '../types.js';
 
 export interface AppsHost {
-	deployment: ProjectionV3;
+	deployment: ProjectionV4;
 	/** Absent when the host gave none: each app is then refused, and not the kernel. */
 	ports?: KernelPortsV1;
 	store: DataAdapter;

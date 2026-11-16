@@ -6,11 +6,12 @@ import { afterEach, describe, expect, it } from 'vitest';
 import { runDev } from '../dev.js';
 import { createMailSink } from '../dev-files.js';
 import { fixtureDist, raw, temporaryDirectory } from '../test-support.js';
-import { SERVE_STATIC_DEPLOYMENT } from '../testing-only.js';
 import { createDevHost, type DevHost, withBasePath } from './dev-host.js';
 import type { Launcher } from './launcher.js';
 
-const CONFIG = 'deployment_version = 2\n\n[apps]\n';
+const CONFIG = 'deployment_version = 4\n\n[host]\nkind = "hosted"\n\n[apps]\n';
+const PROVIDER =
+	'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[host]\nkind = "hosted"\n\n[identity]\nmode = "provider"\norganization = "acme"\nmethods = ["passkey", "password"]\n\n[apps]\n';
 const hosts: DevHost[] = [];
 afterEach(async () => {
 	await Promise.all(hosts.splice(0).map((host) => host.close()));
@@ -35,7 +36,7 @@ async function inProcess(): Promise<{ launch: Launcher; calls: Call[] }> {
 			stops: [],
 		};
 		calls.push(call);
-		const profile = await runDev({ deployment, dist, [SERVE_STATIC_DEPLOYMENT]: true });
+		const profile = await runDev({ deployment, dist });
 		logs.push(`ready ${profile.origin}`);
 		const { origin, sandboxOrigin, spki, certificate, mail, data } = profile;
 		return {
@@ -58,14 +59,64 @@ async function start(options: Partial<Parameters<typeof createDevHost>[0]> = {})
 
 describe('startDevHost, in-process (5.2)', () => {
 	it.each([
-		['organization', { slug: 'acme', name: 'Acme' }, 'step 3'],
-		['people', [], 'step 3'],
 		['resources', ['https://example.com/mcp'], 'step 4'],
 		['accessTokenTtlSeconds', 60, 'step 4'],
 		['modules', [], 'HostModule'],
 	])('refuses `%s` until the step that builds it', async (key, value, step) => {
 		const { launch, calls } = await inProcess();
 		await expect(createDevHost({ config: CONFIG, [key]: value }, launch)).rejects.toThrow(step);
+		expect(calls).toEqual([]);
+	});
+
+	it('bootstraps the organization and seeds its people before the profile starts, through bootstrap --dev (5.2, 3.7)', async () => {
+		const { host, calls } = await start({
+			config: PROVIDER,
+			organization: { slug: 'acme', name: 'Acme', owner: 'first@acme.example' },
+			people: [
+				{
+					email: 'olu@acme.example',
+					name: 'Olu',
+					role: 'owner',
+					methods: ['password'],
+					password: 'p'.repeat(12),
+				},
+				{ email: 'bea@acme.example', name: 'Bea', role: 'member' },
+			],
+		});
+		expect(calls).toHaveLength(1);
+		const mail = await host.mail();
+		expect(mail.map(({ to }) => to)).toEqual(['first@acme.example']);
+		expect(mail[0]?.text).toContain(`${host.origin}/~/join?invitation=`);
+		const { auth } = host.db();
+		const members = auth
+			.prepare(
+				'SELECT u.email AS email, m.role AS role FROM member m JOIN user u ON u.id = m.userId ORDER BY u.email'
+			)
+			.all();
+		expect(members).toEqual([
+			{ email: 'bea@acme.example', role: 'member' },
+			{ email: 'olu@acme.example', role: 'owner' },
+		]);
+	});
+
+	it('refuses `people` with no organization, and a password method with no password', async () => {
+		const { launch, calls } = await inProcess();
+		await expect(
+			createDevHost(
+				{ config: PROVIDER, people: [{ email: 'a@b.c', name: 'A', role: 'member' }] },
+				launch
+			)
+		).rejects.toThrow('organization');
+		await expect(
+			createDevHost(
+				{
+					config: PROVIDER,
+					organization: { slug: 'acme', name: 'Acme' },
+					people: [{ email: 'a@b.c', name: 'A', role: 'member', methods: ['password'] }],
+				},
+				launch
+			)
+		).rejects.toThrow('password');
 		expect(calls).toEqual([]);
 	});
 
@@ -108,7 +159,9 @@ describe('startDevHost, in-process (5.2)', () => {
 			'{"seq":1,"command":"project-create"}\n{"seq":2,"comm'
 		);
 		expect(await host.journal()).toEqual([{ seq: 1, command: 'project-create' }]);
-		expect(() => host.db()).toThrow('`auth.sqlite` does not exist yet.');
+		// Each database opens when it is read, so `auth` reads before `loam.sqlite` exists (step 4).
+		expect(() => host.db().auth).toThrow('`auth.sqlite` does not exist yet.');
+		expect(() => host.db().loam).toThrow('`loam.sqlite` does not exist yet.');
 		for (const name of ['auth.sqlite', 'loam.sqlite']) {
 			const database = new DatabaseSync(join(host.data, name));
 			database.exec('CREATE TABLE t (v TEXT)');
@@ -169,9 +222,9 @@ describe("startDevHost's base path (5.2)", () => {
 	it('adds a [site] table, or sets base_path in the one the config has', () => {
 		expect(withBasePath(CONFIG, undefined)).toBe(CONFIG);
 		expect(withBasePath(CONFIG, '/loam/')).toBe(`${CONFIG}\n\n[site]\nbase_path = "/loam/"`);
-		const sited = 'deployment_version = 2\n\n[site]\n\n[apps]\n';
+		const sited = 'deployment_version = 4\n\n[site]\n\n[apps]\n';
 		expect(withBasePath(sited, '/loam/')).toBe(
-			'deployment_version = 2\n\n[site]\nbase_path = "/loam/"\n\n[apps]\n'
+			'deployment_version = 4\n\n[site]\nbase_path = "/loam/"\n\n[apps]\n'
 		);
 	});
 

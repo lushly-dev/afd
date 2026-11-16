@@ -34,15 +34,31 @@
 			"answer": "button"
 		},
 		{
-			"id": "button-appearance-type",
-			"question": "What type does violet-button's appearance attribute have?",
+			"id": "button-appearance-values",
+			"question": "Which values does violet-button's appearance attribute take?",
 			"tag": "violet-button",
 			"section": "attributes",
 			"match": {
 				"name": "appearance"
 			},
-			"field": "type",
-			"answer": "VioletButtonAppearance"
+			"field": "values",
+			"answer": [
+				{
+					"value": "primary"
+				},
+				{
+					"value": "secondary"
+				},
+				{
+					"value": "quiet"
+				},
+				{
+					"value": "transparent"
+				},
+				{
+					"value": "danger"
+				}
+			]
 		},
 		{
 			"id": "button-disabled-type",

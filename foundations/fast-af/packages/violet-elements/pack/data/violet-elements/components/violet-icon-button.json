@@ -5,7 +5,13 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [],
+		"role": [
+			{
+				"basis": "observed",
+				"role": "button",
+				"state": "default"
+			}
+		],
 		"statements": [
 			{
 				"basis": "authored",
@@ -25,7 +31,25 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletIconButtonAppearance"
+				"type": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "primary"
+					},
+					{
+						"basis": "observed",
+						"value": "secondary"
+					},
+					{
+						"basis": "observed",
+						"value": "quiet"
+					},
+					{
+						"basis": "observed",
+						"value": "transparent"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -124,9 +148,6 @@
 	],
 	"format": 1,
 	"gaps": [
-		{
-			"kind": "role"
-		},
 		{
 			"kind": "unobserved",
 			"name": "type",

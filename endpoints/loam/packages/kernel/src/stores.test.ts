@@ -5,7 +5,12 @@
 
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { MemoryJournalSink } from '@lushly-dev/afd-core';
-import { type BootProjectionV2, type ProjectionV3, readBoot } from '@lushly-dev/loam-manifest';
+import {
+	type BootProjectionV2,
+	type ProjectionV3,
+	type ProjectionV4,
+	readBoot,
+} from '@lushly-dev/loam-manifest';
 import { type DataAdapter, MemoryAdapter } from '@lushly-dev/local-db';
 import { IndexedDbAdapter } from '@lushly-dev/local-db/indexeddb';
 import { IDBFactory } from 'fake-indexeddb';
@@ -213,6 +218,36 @@ describe.each(adapters)('P2-E10: the stores over %s', (_name, adapter) => {
 		});
 		expect(await store.get('workspace-app', 'tasks')).toMatchObject({ listed: null });
 		expect(await store.get('workspace', 'personal')).toMatchObject({ generation: 'next' });
+	});
+
+	it("P6-E1: `workspace-deployment-apply`'s journaled input holds a version 4 projection's `host.kind`, and nothing more of it", async () => {
+		const journal = new MemoryJournalSink();
+		const boot = async (deployment: ProjectionV4) => {
+			const kernel = await createKernel({
+				store: adapter(),
+				storeKind: 'memory',
+				journal,
+				auth: new MockAuthAdapter(),
+				environment: createFixedEnvironment(),
+				host: 'test',
+				deployment,
+			});
+			kernels.push(kernel);
+			return kernel;
+		};
+		const hosted: ProjectionV4 = {
+			...scopedDeployment(),
+			deployment_version: 4,
+			generation: 'hosted',
+			host: { kind: 'hosted', kernel: 'api/kernel' },
+		};
+		await boot(hosted);
+		await boot({ ...scopedDeployment(), generation: 'static' });
+		const inputs = (await journal.read())
+			.filter((entry) => entry.command === 'workspace-deployment-apply')
+			.map((entry) => entry.input as { host?: unknown });
+		expect(inputs.map((input) => input.host)).toEqual([{ kind: 'hosted' }, undefined]);
+		expect(Object.keys(inputs[1] ?? {})).not.toContain('host');
 	});
 
 	it('journals none of it on an empty shell', async () => {

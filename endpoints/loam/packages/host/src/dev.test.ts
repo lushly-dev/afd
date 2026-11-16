@@ -12,10 +12,10 @@ import {
 	deploymentFile,
 	expectMode,
 	fixtureDist,
+	HOSTED,
 	raw,
 	temporaryDirectory,
 } from './test-support.js';
-import { SERVE_STATIC_DEPLOYMENT } from './testing-only.js';
 
 const HTML = 'text/html';
 const running: DevProfile[] = [];
@@ -29,7 +29,7 @@ async function setup(body = '') {
 }
 
 async function dev(options: Parameters<typeof runDev>[0]): Promise<DevProfile> {
-	const profile = await runDev({ ...options, [SERVE_STATIC_DEPLOYMENT]: true });
+	const profile = await runDev(options);
 	running.push(profile);
 	return profile;
 }
@@ -223,7 +223,7 @@ describe('the development profile, in 5.1 order', () => {
 		const first = await dev({ deployment, dist });
 		await first.host.close();
 		running.splice(running.indexOf(first), 1);
-		await writeFile(deployment, `deployment_version = 2\n\n${await viewApp(root)}`);
+		await writeFile(deployment, `deployment_version = 4\n\n${HOSTED}${await viewApp(root)}`);
 		const second = await dev({ deployment, dist });
 		expect(second.origin).toBe(first.origin);
 		expect(second.sandboxOrigin).toMatch(/^https:\/\/127\.0\.0\.1:\d+$/);
@@ -239,7 +239,7 @@ describe('the development profile, in 5.1 order', () => {
 		const sandboxPort = portOf(first.sandboxOrigin as string);
 		await first.host.close();
 		running.splice(running.indexOf(first), 1);
-		await writeFile(deployment, 'deployment_version = 2\n\n[apps]\n');
+		await writeFile(deployment, `deployment_version = 4\n\n${HOSTED}[apps]\n`);
 		const plain = await dev({ deployment, dist });
 		expect(plain.sandboxOrigin).toBeNull();
 		expect(JSON.parse(readFileSync(join(plain.data, 'dev.json'), 'utf8')).sandboxPort).toBe(
@@ -247,7 +247,10 @@ describe('the development profile, in 5.1 order', () => {
 		);
 		await plain.host.close();
 		running.splice(running.indexOf(plain), 1);
-		await writeFile(deployment, `deployment_version = 2\n\n${await viewApp(join(root, 'again'))}`);
+		await writeFile(
+			deployment,
+			`deployment_version = 4\n\n${HOSTED}${await viewApp(join(root, 'again'))}`
+		);
 		expect((await dev({ deployment, dist })).sandboxOrigin).toBe(first.sandboxOrigin);
 	});
 
@@ -259,8 +262,9 @@ describe('the development profile, in 5.1 order', () => {
 });
 
 describe('loam-host dev, the bin', () => {
-	it('refuses a version 2 deployment as HOST_DEPLOYMENT_KIND until step 3, and leaves the lock free', async () => {
+	it('refuses a version 2 deployment as HOST_DEPLOYMENT_KIND, and leaves the lock free', async () => {
 		const { root, deployment, dist } = await setup();
+		await writeFile(deployment, 'deployment_version = 2\n\n[apps]\n');
 		let text = '';
 		const code = await runHostCli(['dev', '--deployment', deployment, '--dist', dist], {
 			stdout: (chunk) => (text += chunk),
@@ -268,9 +272,30 @@ describe('loam-host dev, the bin', () => {
 		});
 		expect(code).toBe(1);
 		expect(JSON.parse(text).error.code).toBe('HOST_DEPLOYMENT_KIND');
+		await writeFile(deployment, `deployment_version = 4\n\n${HOSTED}[apps]\n`);
 		expect((await dev({ deployment, dist, data: join(root, '.loam-dev') })).origin).toMatch(
 			/^https:\/\/localhost:/
 		);
+	});
+
+	it('serves a version 4 hosted deployment through the bin, as P6-H1 runs it, and closes on stop', async () => {
+		const { deployment, dist } = await setup();
+		let text = '';
+		let stop: () => void = () => {};
+		const stopped = new Promise<void>((done) => {
+			stop = done;
+		});
+		const running = runHostCli(['dev', '--deployment', deployment, '--dist', dist], {
+			stdout: (chunk) => (text += chunk),
+			untilStopped: () => stopped,
+		});
+		await new Promise((done) => setTimeout(done, 0));
+		while (text === '') await new Promise((done) => setTimeout(done, 20));
+		const result = JSON.parse(text);
+		expect(result.success).toBe(true);
+		expect(result.data.origin).toMatch(/^https:\/\/localhost:\d+$/);
+		stop();
+		expect(await running).toBe(0);
 	});
 
 	it('refuses a port that is not one', async () => {

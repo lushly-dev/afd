@@ -261,6 +261,12 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * 24,000 to 34,000: the five `persona-*` commands, sign-in's landing and project, and the palette's emphasis
  * (31,821, +9,190). `accountMenuMinified` 3,900 to 5,400: the persona switch (4,868, +1,325). `late` 74,573
  * (+537) is within its row.
+ * Phase 6's step 3 (provider and deployment version 4) raised `appsMinified` under D115, from 394,973 to 395,700:
+ * measured against `main` at `3c0a3b25` on the same machine, `apps` 394,970 to 395,318 (+348), the projection
+ * validator's chunk reading a version 4 projection's `host` by hand, as it reads version 3's `identity` (phase 6
+ * specification, 14's row "measured first"), and the shared refusal rows naming version 4. First paint +14 and +7
+ * gzip (299,218 and 92,927; `readBoot` reads version 4), the kernel alone +22 and `late` +206
+ * (`workspace-deployment-apply`'s journaled `host`), each within its row.
  * Phase 3's step 6 (agent members) raised the two lazy ceilings it passed under D115, each to its measurement plus a
  * margin, against the figures step 4 recorded at `main`'s head (`3c0a3b25`) on the same machine. First paint 299,247
  * and 92,939 gzip, +43 and +19 (the two settle commands' names in `BOOT_ONLY`), within its ceilings, so neither is
@@ -284,7 +290,7 @@ export const CEILINGS = Object.freeze({
 	accountMenuMinified: 5_400,
 	accountMinified: 28_000,
 	urlMinified: 5_700,
-	appsMinified: 394_973,
+	appsMinified: 395_700,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.

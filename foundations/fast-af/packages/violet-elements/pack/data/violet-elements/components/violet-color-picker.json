@@ -96,7 +96,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletColorPickerSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "declared",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",

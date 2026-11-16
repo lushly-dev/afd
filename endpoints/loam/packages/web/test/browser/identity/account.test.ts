@@ -436,7 +436,8 @@ describe('P3-E11: the account section by keyboard and under axe', () => {
 		await expect
 			.poll(() => section.locator('.status').textContent())
 			.toBe('Your passkey is added.');
-		expect(await section.locator('tbody tr').count()).toBeGreaterThan(0);
+		// The section announces the add, then reads the list again: the row arrives after the status (#1268).
+		await expect.poll(() => section.locator('tbody tr').count()).toBeGreaterThan(0);
 		expect(await axe(page.page)).toEqual([]);
 		await section.getByRole('tab', { name: 'Sessions' }).click();
 		await expect.poll(() => section.locator('td').allTextContents()).toContain('This device');

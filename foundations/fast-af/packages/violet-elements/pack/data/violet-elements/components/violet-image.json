@@ -5,13 +5,7 @@
 			"exceptions": [],
 			"violations": 0
 		},
-		"role": [
-			{
-				"basis": "observed",
-				"role": "image",
-				"state": "default"
-			}
-		],
+		"role": [],
 		"statements": []
 	},
 	"api": {
@@ -41,7 +35,21 @@
 				"rules": [
 					"taxonomy.fit"
 				],
-				"type": "VioletImageFit"
+				"type": "\"cover\" | \"contain\" | \"fill\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "cover"
+					},
+					{
+						"basis": "observed",
+						"value": "contain"
+					},
+					{
+						"basis": "declared",
+						"value": "fill"
+					}
+				]
 			},
 			{
 				"basis": "declared",
@@ -51,7 +59,17 @@
 				"rules": [
 					"taxonomy.loading"
 				],
-				"type": "VioletImageLoading"
+				"type": "\"eager\" | \"lazy\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "eager"
+					},
+					{
+						"basis": "observed",
+						"value": "lazy"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -61,7 +79,29 @@
 				"rules": [
 					"taxonomy.ratio"
 				],
-				"type": "VioletImageRatio"
+				"type": "\"auto\" | \"square\" | \"landscape\" | \"portrait\" | \"video\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "auto"
+					},
+					{
+						"basis": "observed",
+						"value": "square"
+					},
+					{
+						"basis": "observed",
+						"value": "landscape"
+					},
+					{
+						"basis": "observed",
+						"value": "portrait"
+					},
+					{
+						"basis": "observed",
+						"value": "video"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -71,7 +111,21 @@
 				"rules": [
 					"taxonomy.shape"
 				],
-				"type": "VioletImageShape"
+				"type": "\"square\" | \"rounded\" | \"circle\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "square"
+					},
+					{
+						"basis": "observed",
+						"value": "rounded"
+					},
+					{
+						"basis": "observed",
+						"value": "circle"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -148,6 +202,9 @@
 		},
 		{
 			"kind": "a11y-statement"
+		},
+		{
+			"kind": "role"
 		},
 		{
 			"kind": "unobserved",

@@ -45,7 +45,17 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletFileUploadAppearance"
+				"type": "\"button\" | \"dropzone\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "button"
+					},
+					{
+						"basis": "observed",
+						"value": "dropzone"
+					}
+				]
 			},
 			{
 				"basis": "observed",
@@ -145,7 +155,21 @@
 				"rules": [
 					"taxonomy.size"
 				],
-				"type": "VioletFileUploadSize"
+				"type": "\"compact\" | \"natural\" | \"comfortable\"",
+				"values": [
+					{
+						"basis": "declared",
+						"value": "compact"
+					},
+					{
+						"basis": "observed",
+						"value": "natural"
+					},
+					{
+						"basis": "declared",
+						"value": "comfortable"
+					}
+				]
 			},
 			{
 				"basis": "observed",

@@ -30,7 +30,29 @@
 				"rules": [
 					"taxonomy.appearance"
 				],
-				"type": "VioletButtonAppearance"
+				"type": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\" | \"danger\"",
+				"values": [
+					{
+						"basis": "observed",
+						"value": "primary"
+					},
+					{
+						"basis": "observed",
+						"value": "secondary"
+					},
+					{
+						"basis": "observed",
+						"value": "quiet"
+					},
+					{
+						"basis": "observed",
+						"value": "transparent"
+					},
+					{
+						"basis": "observed",
+						"value": "danger"
+					}
+				]
 			},
 			{
 				"basis": "observed",

@@ -53,8 +53,15 @@ const SUBCOMMANDS: Record<string, Subcommand> = {
 	},
 	'deployment write': {
 		command: deploymentWriteCommand,
-		usage: 'loam deployment write --config <file> --dist <dir> --out <dir> [--mounts-out <path>]',
-		options: { config: 'config', dist: 'dist', out: 'out', 'mounts-out': 'mountsOut' },
+		usage:
+			'loam deployment write --config <file> --dist <dir> --out <dir> [--mounts-out <path>] [--host static|hosted|desktop]',
+		options: {
+			config: 'config',
+			dist: 'dist',
+			out: 'out',
+			'mounts-out': 'mountsOut',
+			host: 'host',
+		},
 		positionals: [],
 	},
 };

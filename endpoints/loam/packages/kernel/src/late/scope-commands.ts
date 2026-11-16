@@ -191,10 +191,13 @@ const entry = z.strictObject({
 	expose: z.optional(z.record(z.string(), z.boolean())),
 	commands: z.optional(z.record(z.string(), z.unknown())),
 });
+/** A version 4 projection's host (phase 6 specification, 3.3): journaled, so a replay knows the kind (A5). */
+const HOST_KINDS = ['static', 'hosted', 'desktop'] as const;
 const applyInput = z.strictObject({
 	generation: z.string(),
 	workspace: z.strictObject({ id: z.string(), name: z.string() }),
 	entries: z.array(entry),
+	host: z.optional(z.strictObject({ kind: z.enum(HOST_KINDS) })),
 });
 const STRING: JsonSchema = { type: 'string' };
 const RECORD_JSON = (values: object): JsonSchema =>
@@ -915,6 +918,12 @@ export function createScopeCommands(deps: ScopeCommandDeps): ZodCommandDefinitio
 					additionalProperties: false,
 				},
 				entries: { type: 'array', items: ENTRY_JSON },
+				host: {
+					type: 'object',
+					properties: { kind: { type: 'string', enum: [...HOST_KINDS] } },
+					required: ['kind'],
+					additionalProperties: false,
+				},
 			},
 			required: ['generation', 'workspace', 'entries'],
 			additionalProperties: false,

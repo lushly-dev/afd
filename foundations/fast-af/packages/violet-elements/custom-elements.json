@@ -634,7 +634,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletBadgeAppearance"
+                "text": "\"filled\" | \"outline\" | \"subtle\""
               },
               "privacy": "public",
               "default": "\"filled\"",
@@ -645,7 +645,7 @@
               "kind": "field",
               "name": "color",
               "type": {
-                "text": "VioletBadgeColor"
+                "text": "\"neutral\" | \"accent\" | \"success\" | \"warning\" | \"danger\""
               },
               "privacy": "public",
               "default": "\"neutral\"",
@@ -709,7 +709,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletBadgeSize"
+                "text": "\"sm\" | \"md\" | \"lg\""
               },
               "privacy": "public",
               "default": "\"md\"",
@@ -736,7 +736,7 @@
             {
               "name": "appearance",
               "type": {
-                "text": "VioletBadgeAppearance"
+                "text": "\"filled\" | \"outline\" | \"subtle\""
               },
               "default": "\"filled\"",
               "fieldName": "appearance"
@@ -744,7 +744,7 @@
             {
               "name": "color",
               "type": {
-                "text": "VioletBadgeColor"
+                "text": "\"neutral\" | \"accent\" | \"success\" | \"warning\" | \"danger\""
               },
               "default": "\"neutral\"",
               "fieldName": "color"
@@ -752,7 +752,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletBadgeSize"
+                "text": "\"sm\" | \"md\" | \"lg\""
               },
               "default": "\"md\"",
               "fieldName": "size"
@@ -1142,7 +1142,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletButtonAppearance"
+                "text": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\" | \"danger\""
               },
               "privacy": "public",
               "description": "Visual emphasis variant for the button.",
@@ -1451,7 +1451,7 @@
               "name": "appearance",
               "description": "Visual emphasis variant for the button.",
               "type": {
-                "text": "VioletButtonAppearance"
+                "text": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\" | \"danger\""
               },
               "default": "\"primary\"",
               "fieldName": "appearance"
@@ -1925,7 +1925,7 @@
               "kind": "field",
               "name": "selectionMode",
               "type": {
-                "text": "VioletCalendarSelectionMode"
+                "text": "\"single\" | \"range\""
               },
               "privacy": "public",
               "default": "\"single\"",
@@ -2041,7 +2041,7 @@
             {
               "name": "selection-mode",
               "type": {
-                "text": "VioletCalendarSelectionMode"
+                "text": "\"single\" | \"range\""
               },
               "default": "\"single\"",
               "fieldName": "selectionMode"
@@ -4358,7 +4358,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletColorPickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -4655,7 +4655,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletColorPickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"
@@ -5043,7 +5043,7 @@
               "kind": "field",
               "name": "shape",
               "type": {
-                "text": "VioletColorSwatchShape"
+                "text": "\"square\" | \"circle\""
               },
               "privacy": "public",
               "default": "\"square\"",
@@ -5054,7 +5054,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletColorSwatchSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -5106,7 +5106,7 @@
             {
               "name": "shape",
               "type": {
-                "text": "VioletColorSwatchShape"
+                "text": "\"square\" | \"circle\""
               },
               "default": "\"square\"",
               "fieldName": "shape"
@@ -5114,7 +5114,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletColorSwatchSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"
@@ -16917,7 +16917,7 @@
               "kind": "field",
               "name": "density",
               "type": {
-                "text": "VioletDataGridDensity"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "description": "Density variant for the grid row spacing.",
@@ -17370,7 +17370,7 @@
               "kind": "field",
               "name": "focusMode",
               "type": {
-                "text": "VioletDataGridFocusMode"
+                "text": "\"row\" | \"cell\""
               },
               "privacy": "public",
               "description": "Keyboard navigation mode for the grid surface.",
@@ -19326,7 +19326,7 @@
               "kind": "field",
               "name": "selectionMode",
               "type": {
-                "text": "VioletDataGridSelectionMode"
+                "text": "\"none\" | \"single\" | \"multiple\""
               },
               "privacy": "public",
               "description": "Selection behavior for the grid.\nUses reflected primitive attribute state for HTML configuration.",
@@ -19547,7 +19547,7 @@
               "kind": "field",
               "name": "sortMode",
               "type": {
-                "text": "VioletDataGridSortMode"
+                "text": "\"local\" | \"external\""
               },
               "privacy": "public",
               "description": "Sorting behavior for the grid.\nLocal mode reorders rows in the component, external mode only reflects sort state and emits intent.",
@@ -19913,7 +19913,7 @@
               "name": "selection-mode",
               "description": "Selection behavior for the grid.\nUses reflected primitive attribute state for HTML configuration.",
               "type": {
-                "text": "VioletDataGridSelectionMode"
+                "text": "\"none\" | \"single\" | \"multiple\""
               },
               "default": "\"none\"",
               "fieldName": "selectionMode"
@@ -19966,7 +19966,7 @@
               "name": "density",
               "description": "Density variant for the grid row spacing.",
               "type": {
-                "text": "VioletDataGridDensity"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "density"
@@ -19975,7 +19975,7 @@
               "name": "focus-mode",
               "description": "Keyboard navigation mode for the grid surface.",
               "type": {
-                "text": "VioletDataGridFocusMode"
+                "text": "\"row\" | \"cell\""
               },
               "default": "\"row\"",
               "fieldName": "focusMode"
@@ -19984,7 +19984,7 @@
               "name": "sort-mode",
               "description": "Sorting behavior for the grid.\nLocal mode reorders rows in the component, external mode only reflects sort state and emits intent.",
               "type": {
-                "text": "VioletDataGridSortMode"
+                "text": "\"local\" | \"external\""
               },
               "default": "\"local\"",
               "fieldName": "sortMode"
@@ -20600,7 +20600,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletDatePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -20815,7 +20815,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletDatePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"
@@ -21189,7 +21189,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletDateRangePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -21386,7 +21386,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletDateRangePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"
@@ -22492,7 +22492,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletDividerAppearance"
+                "text": "\"subtle\" | \"strong\""
               },
               "privacy": "public",
               "default": "\"subtle\"",
@@ -22514,7 +22514,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletDividerOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "privacy": "public",
               "default": "\"horizontal\"",
@@ -22531,7 +22531,7 @@
             {
               "name": "appearance",
               "type": {
-                "text": "VioletDividerAppearance"
+                "text": "\"subtle\" | \"strong\""
               },
               "default": "\"subtle\"",
               "fieldName": "appearance"
@@ -22539,7 +22539,7 @@
             {
               "name": "orientation",
               "type": {
-                "text": "VioletDividerOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "default": "\"horizontal\"",
               "fieldName": "orientation"
@@ -22640,7 +22640,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletEmptyStateAppearance"
+                "text": "\"plain\" | \"subtle\" | \"outline\""
               },
               "privacy": "public",
               "default": "\"plain\"",
@@ -22721,7 +22721,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletEmptyStateOrientation"
+                "text": "\"vertical\" | \"horizontal\""
               },
               "privacy": "public",
               "default": "\"vertical\"",
@@ -22754,7 +22754,7 @@
             {
               "name": "appearance",
               "type": {
-                "text": "VioletEmptyStateAppearance"
+                "text": "\"plain\" | \"subtle\" | \"outline\""
               },
               "default": "\"plain\"",
               "fieldName": "appearance"
@@ -22762,7 +22762,7 @@
             {
               "name": "orientation",
               "type": {
-                "text": "VioletEmptyStateOrientation"
+                "text": "\"vertical\" | \"horizontal\""
               },
               "default": "\"vertical\"",
               "fieldName": "orientation"
@@ -23829,7 +23829,7 @@
               "kind": "field",
               "name": "selectionMode",
               "type": {
-                "text": "VioletFileExplorerSelectionMode"
+                "text": "\"none\" | \"single\" | \"multiple\""
               },
               "privacy": "public",
               "default": "\"single\"",
@@ -23908,7 +23908,7 @@
             {
               "name": "selection-mode",
               "type": {
-                "text": "VioletFileExplorerSelectionMode"
+                "text": "\"none\" | \"single\" | \"multiple\""
               },
               "default": "\"single\"",
               "fieldName": "selectionMode"
@@ -24264,7 +24264,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletFileUploadAppearance"
+                "text": "\"button\" | \"dropzone\""
               },
               "privacy": "public",
               "default": "\"button\"",
@@ -24901,7 +24901,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletFileUploadSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -25039,7 +25039,7 @@
             {
               "name": "appearance",
               "type": {
-                "text": "VioletFileUploadAppearance"
+                "text": "\"button\" | \"dropzone\""
               },
               "default": "\"button\"",
               "fieldName": "appearance"
@@ -25047,7 +25047,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletFileUploadSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"
@@ -26702,7 +26702,7 @@
               "kind": "field",
               "name": "density",
               "type": {
-                "text": "VioletGanttDensity"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "description": "Density controls the minimum logical row height; rows grow to fit visible item lanes.",
@@ -27231,7 +27231,7 @@
               "name": "density",
               "description": "Density controls the minimum logical row height; rows grow to fit visible item lanes.",
               "type": {
-                "text": "VioletGanttDensity"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "density"
@@ -27307,7 +27307,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletIconButtonAppearance"
+                "text": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\""
               },
               "privacy": "public",
               "description": "Visual emphasis variant for the button.",
@@ -27362,7 +27362,7 @@
               "name": "appearance",
               "description": "Visual emphasis variant for the button.",
               "type": {
-                "text": "VioletIconButtonAppearance"
+                "text": "\"primary\" | \"secondary\" | \"quiet\" | \"transparent\""
               },
               "default": "\"secondary\"",
               "fieldName": "appearance"
@@ -27736,7 +27736,7 @@
               "kind": "field",
               "name": "fit",
               "type": {
-                "text": "VioletImageFit"
+                "text": "\"cover\" | \"contain\" | \"fill\""
               },
               "privacy": "public",
               "default": "\"cover\"",
@@ -27766,7 +27766,7 @@
               "kind": "field",
               "name": "loading",
               "type": {
-                "text": "VioletImageLoading"
+                "text": "\"eager\" | \"lazy\""
               },
               "privacy": "public",
               "default": "\"lazy\"",
@@ -27777,7 +27777,7 @@
               "kind": "field",
               "name": "ratio",
               "type": {
-                "text": "VioletImageRatio"
+                "text": "\"auto\" | \"square\" | \"landscape\" | \"portrait\" | \"video\""
               },
               "privacy": "public",
               "default": "\"auto\"",
@@ -27788,7 +27788,7 @@
               "kind": "field",
               "name": "shape",
               "type": {
-                "text": "VioletImageShape"
+                "text": "\"square\" | \"rounded\" | \"circle\""
               },
               "privacy": "public",
               "default": "\"rounded\"",
@@ -27861,7 +27861,7 @@
             {
               "name": "fit",
               "type": {
-                "text": "VioletImageFit"
+                "text": "\"cover\" | \"contain\" | \"fill\""
               },
               "default": "\"cover\"",
               "fieldName": "fit"
@@ -27869,7 +27869,7 @@
             {
               "name": "ratio",
               "type": {
-                "text": "VioletImageRatio"
+                "text": "\"auto\" | \"square\" | \"landscape\" | \"portrait\" | \"video\""
               },
               "default": "\"auto\"",
               "fieldName": "ratio"
@@ -27877,7 +27877,7 @@
             {
               "name": "shape",
               "type": {
-                "text": "VioletImageShape"
+                "text": "\"square\" | \"rounded\" | \"circle\""
               },
               "default": "\"rounded\"",
               "fieldName": "shape"
@@ -27885,7 +27885,7 @@
             {
               "name": "loading",
               "type": {
-                "text": "VioletImageLoading"
+                "text": "\"eager\" | \"lazy\""
               },
               "default": "\"lazy\"",
               "fieldName": "loading"
@@ -31062,7 +31062,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletRadioGroupOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "privacy": "public",
               "description": "Layout orientation for the group.",
@@ -31308,7 +31308,7 @@
               "name": "orientation",
               "description": "Layout orientation for the group.",
               "type": {
-                "text": "VioletRadioGroupOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "default": "\"vertical\"",
               "fieldName": "orientation"
@@ -33558,7 +33558,7 @@
               "kind": "field",
               "name": "shape",
               "type": {
-                "text": "VioletSkeletonShape"
+                "text": "\"rect\" | \"circle\" | \"text\""
               },
               "privacy": "public",
               "default": "\"rect\"",
@@ -33569,7 +33569,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletSkeletonSize"
+                "text": "\"sm\" | \"md\" | \"lg\""
               },
               "privacy": "public",
               "default": "\"md\"",
@@ -33586,7 +33586,7 @@
             {
               "name": "shape",
               "type": {
-                "text": "VioletSkeletonShape"
+                "text": "\"rect\" | \"circle\" | \"text\""
               },
               "default": "\"rect\"",
               "fieldName": "shape"
@@ -33594,7 +33594,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletSkeletonSize"
+                "text": "\"sm\" | \"md\" | \"lg\""
               },
               "default": "\"md\"",
               "fieldName": "size"
@@ -34337,7 +34337,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletRangeSliderOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "privacy": "public",
               "default": "\"horizontal\"",
@@ -34715,7 +34715,7 @@
             {
               "name": "orientation",
               "type": {
-                "text": "VioletRangeSliderOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "default": "\"horizontal\"",
               "fieldName": "orientation"
@@ -35323,7 +35323,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletSliderOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "privacy": "public",
               "default": "\"horizontal\"",
@@ -35626,7 +35626,7 @@
             {
               "name": "orientation",
               "type": {
-                "text": "VioletSliderOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "default": "\"horizontal\"",
               "fieldName": "orientation"
@@ -37073,7 +37073,7 @@
               "kind": "field",
               "name": "appearance",
               "type": {
-                "text": "VioletTabsAppearance"
+                "text": "\"open\" | \"closed\" | \"mixed\""
               },
               "privacy": "public",
               "description": "Visual treatment for the tab rail.",
@@ -37146,7 +37146,7 @@
               "kind": "field",
               "name": "orientation",
               "type": {
-                "text": "VioletTabsOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "privacy": "public",
               "description": "Orientation for the tablist keyboard and layout framing.",
@@ -37199,7 +37199,7 @@
               "name": "appearance",
               "description": "Visual treatment for the tab rail.",
               "type": {
-                "text": "VioletTabsAppearance"
+                "text": "\"open\" | \"closed\" | \"mixed\""
               },
               "default": "\"open\"",
               "fieldName": "appearance"
@@ -37217,7 +37217,7 @@
               "name": "orientation",
               "description": "Orientation for the tablist keyboard and layout framing.",
               "type": {
-                "text": "VioletTabsOrientation"
+                "text": "\"horizontal\" | \"vertical\""
               },
               "default": "\"horizontal\"",
               "fieldName": "orientation"
@@ -38834,7 +38834,7 @@
               "kind": "field",
               "name": "type",
               "type": {
-                "text": "VioletTextFieldType"
+                "text": "\"text\" | \"search\" | \"email\" | \"url\" | \"password\" | \"tel\" | \"number\" | \"date\""
               },
               "privacy": "public",
               "description": "Native input type.",
@@ -38948,7 +38948,7 @@
               "name": "type",
               "description": "Native input type.",
               "type": {
-                "text": "VioletTextFieldType"
+                "text": "\"text\" | \"search\" | \"email\" | \"url\" | \"password\" | \"tel\" | \"number\" | \"date\""
               },
               "default": "\"text\"",
               "fieldName": "type"
@@ -39112,7 +39112,7 @@
               "kind": "field",
               "name": "as",
               "type": {
-                "text": "VioletTextAs"
+                "text": "\"span\" | \"p\" | \"small\" | \"strong\" | \"label\" | \"h1\" | \"h2\" | \"h3\" | \"h4\""
               },
               "privacy": "public",
               "default": "\"span\"",
@@ -39123,7 +39123,7 @@
               "kind": "field",
               "name": "tone",
               "type": {
-                "text": "VioletTextTone"
+                "text": "\"default\" | \"secondary\" | \"muted\" | \"success\" | \"warning\" | \"danger\""
               },
               "privacy": "public",
               "default": "\"default\"",
@@ -39145,7 +39145,7 @@
               "kind": "field",
               "name": "variant",
               "type": {
-                "text": "VioletTextVariant"
+                "text": "\"body\" | \"label\" | \"caption\" | \"title-sm\" | \"title-md\""
               },
               "privacy": "public",
               "default": "\"body\"",
@@ -39162,7 +39162,7 @@
             {
               "name": "as",
               "type": {
-                "text": "VioletTextAs"
+                "text": "\"span\" | \"p\" | \"small\" | \"strong\" | \"label\" | \"h1\" | \"h2\" | \"h3\" | \"h4\""
               },
               "default": "\"span\"",
               "fieldName": "as"
@@ -39170,7 +39170,7 @@
             {
               "name": "variant",
               "type": {
-                "text": "VioletTextVariant"
+                "text": "\"body\" | \"label\" | \"caption\" | \"title-sm\" | \"title-md\""
               },
               "default": "\"body\"",
               "fieldName": "variant"
@@ -39178,7 +39178,7 @@
             {
               "name": "tone",
               "type": {
-                "text": "VioletTextTone"
+                "text": "\"default\" | \"secondary\" | \"muted\" | \"success\" | \"warning\" | \"danger\""
               },
               "default": "\"default\"",
               "fieldName": "tone"
@@ -40296,7 +40296,7 @@
               "kind": "field",
               "name": "size",
               "type": {
-                "text": "VioletTimePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "privacy": "public",
               "default": "\"natural\"",
@@ -40509,7 +40509,7 @@
             {
               "name": "size",
               "type": {
-                "text": "VioletTimePickerSize"
+                "text": "\"compact\" | \"natural\" | \"comfortable\""
               },
               "default": "\"natural\"",
               "fieldName": "size"

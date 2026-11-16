@@ -14,11 +14,15 @@ import { lineSplitter, readChildLine } from './protocol.js';
 const CHILD = fileURLToPath(new URL('./dev-child.js', import.meta.url));
 const READY_TIMEOUT_MS = 60_000;
 
-export const childLauncher: Launcher = (deployment, env, logs) => {
-	const child = spawn(process.execPath, [CHILD, JSON.stringify({ deployment })], {
-		env: { ...process.env, ...env },
-		stdio: ['ignore', 'pipe', 'pipe'],
-	});
+export const childLauncher: Launcher = (deployment, env, logs, rateLimit) => {
+	const child = spawn(
+		process.execPath,
+		[CHILD, JSON.stringify({ deployment, ...(rateLimit ? { rateLimit } : {}) })],
+		{
+			env: { ...process.env, ...env },
+			stdio: ['ignore', 'pipe', 'pipe'],
+		}
+	);
 	const stop = async (signal: NodeJS.Signals): Promise<void> => {
 		if (child.exitCode !== null || child.signalCode !== null) return;
 		const exited = once(child, 'exit');

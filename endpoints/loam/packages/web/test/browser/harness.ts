@@ -21,7 +21,7 @@ import {
 	type TestAuthHost,
 	type TestAuthHostOptions,
 } from '@lushly-dev/loam-identity/testing';
-import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import {
 	type Browser,
 	type BrowserContext,
@@ -207,7 +207,7 @@ export interface DeploymentSite extends HeldRequests {
 	log: LoggedRequest[];
 	/** The directory `writeDeployment` wrote. */
 	out: string;
-	projection: ProjectionV3;
+	projection: ProjectionV4;
 	/** With `sandbox: true`, the second origin that serves `sandbox/`, and its log. */
 	sandbox?: { origin: string; log: LoggedRequest[] };
 	/** With `mounts: true`, the test-only relay at `mounts/<instance>/mcp`, and its log. */
@@ -294,7 +294,7 @@ export async function serveDeployment(options: {
 	sandbox?: true;
 	mounts?: true;
 	/** Serve this in place of the projection `writeDeployment` wrote: a hostile or lying one (E1). */
-	rewrite?: (projection: ProjectionV3) => unknown;
+	rewrite?: (projection: ProjectionV4) => unknown;
 	/** `site.base_path`, written into the file and served as the site's prefix (6.2). Default `/`. */
 	basePath?: string;
 	/**
@@ -388,6 +388,41 @@ export function deploymentEntry(
 
 export const deploymentFile = (...entries: string[]): string =>
 	['deployment_version = 2', '', ...entries.map((entry) => `${entry}\n`)].join('\n');
+
+/**
+ * A version 4 deployment file for the hosted server (phase 6 specification, 3.3), as `startDevHost` serves it: `[host]
+ * kind = "hosted"`, then `head`'s tables (`[workspace]`, `[identity]`), then the entries, or an empty `[apps]`.
+ */
+export const hostedDeploymentFile = (head: string[], ...entries: string[]): string =>
+	[
+		'deployment_version = 4',
+		'',
+		'[host]',
+		'kind = "hosted"',
+		'',
+		...head,
+		...(entries.length === 0 ? ['[apps]', ''] : entries.map((entry) => `${entry}\n`)),
+	].join('\n');
+
+/** A `provider` deployment for the hosted server: workspace `acme`, bound to the organization `acme` (3.3, 3.7). */
+export const hostedProviderDeployment = (
+	methods: readonly string[] = ['passkey', 'password'],
+	...entries: string[]
+): string =>
+	hostedDeploymentFile(
+		[
+			'[workspace]',
+			'id = "acme"',
+			'name = "Acme"',
+			'',
+			'[identity]',
+			'mode = "provider"',
+			'organization = "acme"',
+			`methods = ${JSON.stringify(methods)}`,
+			'',
+		],
+		...entries
+	);
 
 // ─── Pages ─────────────────────────────────────────────────────────────────────
 
