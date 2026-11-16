@@ -68,7 +68,7 @@
 		"@lushly-dev/violet-core": "workspace:^"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.6.6",
+		"@biomejs/biome": "^2.6.7",
 		"@lushly-dev/violet-core": "workspace:^",
 		"@types/better-sqlite3": "^9.6.0",
 		"@types/node": "^26.6.6",
