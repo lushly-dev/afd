@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { enterFrames, FIND_VIEW_SCRIPT, leaveFrames, openView, viewDeployment } from './frames';
+import { enterFrames, leaveFrames, openView, viewDeployment } from './frames';
 import { type Desktop, ORIGINS, openDesktop, violations, watchViolations } from './harness';
 
 const RESULTS = fileURLToPath(new URL('../test-results/', import.meta.url));
@@ -21,44 +21,62 @@ afterAll(async () => {
 });
 
 describe('P6-D3: a view on the desktop', () => {
-	it('P6-D3: records what this webview reports of the two schemes and the proxy frame (diagnostic, not asserted)', async () => {
+	it('P6-D3: records what this webview reports of the two schemes and the view (diagnostic, not asserted)', async () => {
 		const { browser } = desktop;
+		await browser.execute(() => {
+			const held = window as unknown as { loamErrors: string[] };
+			held.loamErrors = [];
+			window.addEventListener('error', (event) => held.loamErrors.push(`error ${event.message}`));
+			window.addEventListener('unhandledrejection', (event) =>
+				held.loamErrors.push(`rejection ${String(event.reason)}`)
+			);
+		});
 		const shell = await browser.execute(() =>
 			JSON.stringify({
 				location: location.origin,
-				self: self.origin,
 				parsedSandbox: new URL('loam-sandbox://localhost/sandbox/proxy.html').origin,
 			})
 		);
-		await desktop.call('app-open', { instance: 'hello' });
-		let proxy = 'no view frame';
-		try {
-			await browser.waitUntil(
-				async () =>
-					(await browser.execute(
-						`${FIND_VIEW_SCRIPT} return find(document)?.getAttribute('src') ?? null;`
-					)) !== null,
-				{ timeout: 20_000 }
-			);
-			await enterFrames(desktop, false);
-			proxy = await browser.execute(() =>
-				JSON.stringify({
-					href: location.href,
-					origin: self.origin,
-					title: document.title,
-					readyState: document.readyState,
-					scripts: document.scripts.length,
-					iframes: document.querySelectorAll('iframe').length,
-					body: document.body?.innerHTML.slice(0, 200) ?? null,
-				})
-			);
-			await leaveFrames(desktop);
-		} catch (error) {
-			proxy = `unreadable: ${String(error).slice(0, 200)}`;
-			await leaveFrames(desktop).catch(() => {});
-		}
+		const opened = await desktop.call('app-open', { instance: 'hello' });
+		await new Promise((resolve) => setTimeout(resolve, 8_000));
+		const app = await desktop.call('app-get', { instance: 'hello' });
+		const view = await browser.execute(() => {
+			const find = (root: Document | ShadowRoot, tag: string): Element | null => {
+				const found = root.querySelector(tag);
+				if (found) return found;
+				for (const element of root.querySelectorAll('*'))
+					if (element.shadowRoot) {
+						const nested = find(element.shadowRoot, tag);
+						if (nested) return nested;
+					}
+				return null;
+			};
+			const frame = find(document, 'loam-view-frame') as
+				| (Element & { state?: unknown; failure?: unknown })
+				| null;
+			const main = find(document, 'loam-main') as HTMLElement | null;
+			return JSON.stringify({
+				frame: frame
+					? {
+							state: frame.state ?? null,
+							failure: frame.failure ?? null,
+							src:
+								(
+									frame.shadowRoot?.querySelector('iframe') ?? frame.querySelector('iframe')
+								)?.getAttribute('src') ?? null,
+						}
+					: null,
+				main: main
+					? {
+							app: main.dataset.app ?? null,
+							text: (main.shadowRoot?.textContent ?? '').trim().slice(0, 300),
+						}
+					: null,
+				errors: (window as unknown as { loamErrors: string[] }).loamErrors,
+			});
+		});
 		process.stderr.write(
-			`P6-D3 diagnostic on ${process.platform}: shell ${shell}; proxy ${proxy}\n`
+			`P6-D3 diagnostic on ${process.platform}: shell ${shell}; open ${JSON.stringify(opened).slice(0, 300)}; app ${JSON.stringify(app.data ?? app.error).slice(0, 600)}; view ${view}\n`
 		);
 	});
 
