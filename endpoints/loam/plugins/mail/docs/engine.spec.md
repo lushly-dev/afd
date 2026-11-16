@@ -1210,11 +1210,12 @@ A decision on a sender is in, out or undecided, and is the person's alone.
 
 ### 7.4 Bursts
 
-A **burst** is many messages in a short time from senders never seen before. For each account,
-the engine detects one when the count of messages from first-time senders in any 24 hours is at
-least 30 and at least ten times the median daily count over the previous 90 days. On a quiet
-account that median is zero and the first number governs. Headers in the junk mailbox count:
-a flood the provider filed there is still a flood.
+A **burst** is many messages in a short time from senders never seen before. For each account, the
+engine detects one when the count of messages from first-time senders in any 24 hours is at least
+30 and at least ten times the median daily count over the previous 90 days, and they come from at
+least 10 different senders (added with the owner's agreement on 2026-11-15, after step C3's first
+try). On a quiet account that median is zero and the first number governs. Headers in the junk
+mailbox count: a flood the provider filed there is still a flood.
 
 - The messages of a burst form one story, of kind `burst`, in place of a row or a queue entry
   each. A message that is both in a burst and `bulk` belongs to the burst story and to no
@@ -1239,16 +1240,19 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
   mail deleted since: a flood the provider filed away, or the person threw away, was still a
   flood. It is **kept** when a mailbox of the account other than junk and trash has shown it.
 - **A burst** is found where an account's first contacts in any 24 hours, a window that starts at
-  one of them, pass the thresholds; windows that overlap are one burst, which holds every first
-  contact in them, whatever its class. Days are days in UTC.
+  one of them, pass the thresholds, and come from at least 10 different senders; windows that
+  overlap are one burst, which holds every first contact in them, whatever its class. Days are
+  days in UTC. The owner agreed to the senders' minimum on 2026-11-15, after the first try below:
+  a few new senders' busy first day, such as a service the person has just joined, is no burst,
+  since blocking them is enough, while a flood of sign-ups comes from many sites.
 - **Days with no history are not quiet days.** Providers empty junk and trash, so a window is
-  judged twice and is a burst when either passes: all its first contacts, against the median over
-  the covered days from where every junk and trash mailbox's history starts (the latest of their
-  earliest first contacts, and the account's own); and its kept ones, against the median of kept
-  ones from the account's earliest. A median needs 30 covered days before the window, so a flood
-  in the first month of an account's history is never a burst, and nor is one wholly in a junk
-  mailbox within a month of the oldest mail it still holds: the first sync of an account whose
-  provider empties junk monthly sees none there.
+  judged twice and is a burst when either passes: all its first contacts and their senders,
+  against the median over the covered days from where every junk and trash mailbox's history
+  starts (the latest of their earliest first contacts, and the account's own); and its kept ones
+  and their senders, against the median of kept ones from the account's earliest. A median needs
+  30 covered days before the window, so a flood in the first month of an account's history is
+  never a burst, and nor is one wholly in a junk mailbox within a month of the oldest mail it
+  still holds: the first sync of an account whose provider empties junk monthly sees none there.
 - **An account's bursts are found once it has been listed whole**, every mailbox it had then
   listed at least once (`mailbox.first_listed_at`, `account.listed_at`). Sync fetches newest
   first, so until then each sender's oldest message so far looks like its first. Nor while a
@@ -1264,7 +1268,10 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
   made again, and one that turns sent, every account's. The tests compare every row with finding
   them from nothing after each change and through random sequences of floods, older mail, sent
   mail, decisions, mail thrown away, mailboxes that change role, appear, go and come back, two
-  accounts and rebuilds.
+  accounts and rebuilds; and the window's counts against counting each window whole, on random
+  first contacts. The rule has a number, kept in `engine_state` as `burst-rule` and raised
+  with any change to it, a threshold included: a store whose bursts another rule found finds every
+  account's again when it is opened, and the stories they change.
 - **A burst's story** holds its first contacts that are `unknown` or `bulk` and listed, in place of
   a queue entry or a stream story each: they leave the queue, the `unknown` and `bulk` lists and
   `mail-sender-list`'s `waiting`. A message two accounts hold is in its earliest burst's story. A
@@ -1283,10 +1290,16 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
 **Tried on the owner's mail** on 2026-11-15, with `engine/tests/live_screening.rs` on the copy of
 the iCloud store ([the counts](live-icloud-c3.results.json)). The owner named 2024 and 2025, but
 had deleted most of that flood's mail, so the store holds none of it; and the owner reports no
-flood on Gmail. Of 3 600 first contacts, the busiest 24 hours held 73. The rule finds one burst:
-75 messages in February 2022, every one `bulk`, from 4 new senders through 16 lists, 72 of them in
-one folder: one service's first day, not a flood of strangers. The rule counts messages, not
-senders, so it cannot tell the two apart.
+flood on Gmail. Of 3 600 first contacts, the busiest 24 hours held 73. The rule as first built,
+on messages alone, found one burst: 75 messages in February 2022, every one `bulk`, from 4 new
+senders through 16 lists, 72 of them in one folder: one service's first day, not a flood of
+strangers. With the senders' minimum it finds none, on the same copy
+([the counts](live-icloud-c3-senders.results.json)): opening the copy, which found every burst
+again by the new rule, took 225 ms, and the burst's story is gone, its messages back in their
+streams. Its other timings were taken while another session loaded the machine (a load average
+near 13), so `classifyEverythingMs`, 22 446 against 16 941, is no measure of the change; finding
+an account's bursts reads each first contact's sender as well, and the 4.4 import was not
+measured again.
 
 **Import with bursts** ([4.4](#44-limits-to-meet)): during an account's first sync its bursts are
 not found, and a batch rechecks the first contacts of only the senders whose first day it touches
@@ -1811,7 +1824,7 @@ file.
 | B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
-| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods |
+| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal |

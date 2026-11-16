@@ -22,8 +22,8 @@ mod sync;
 mod tokens;
 
 pub use bursts::{
-    BurstRow, COVERED_LEAST, LEAST as BURST_LEAST, MEDIAN_DAYS, TIMES as BURST_TIMES,
-    WINDOW as BURST_WINDOW,
+    BurstRow, COVERED_LEAST, LEAST as BURST_LEAST, MEDIAN_DAYS,
+    SENDERS_LEAST as BURST_SENDERS_LEAST, TIMES as BURST_TIMES, WINDOW as BURST_WINDOW,
 };
 pub use classes::{Class, ClassCounts, Readiness};
 pub use decisions::{
@@ -342,11 +342,13 @@ impl Store {
         connection.set_prepared_statement_cache_capacity(128);
         schema::migrate(&mut connection, migrations)?;
         // Mail held before classes existed is classed once (migration 8),
-        // and then given its stories (migration 9).
+        // and then given its stories (migration 9) and bursts (migration
+        // 10); bursts another rule found are found again.
         if migrations.len() >= schema::MIGRATIONS.len() {
             classes::fill_if_marked(&mut connection)?;
             stories::fill_if_marked(&mut connection)?;
             bursts::fill_if_marked(&mut connection)?;
+            bursts::find_if_rule_changed(&mut connection)?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.

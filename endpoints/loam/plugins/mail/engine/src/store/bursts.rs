@@ -9,19 +9,22 @@
 //!   away, or the person threw away, was still a flood. It is **kept** when a
 //!   mailbox of the account other than junk and trash has shown it.
 //! - **A burst** is found where an account's first contacts in any 24 hours
-//!   (a window that starts at one of them) are at least [`LEAST`] and at
-//!   least [`TIMES`] times the median of its daily first contacts over the
-//!   [`MEDIAN_DAYS`] days before. Windows that overlap are one burst, which
-//!   holds every first contact in them, whatever its class.
+//!   (a window that starts at one of them) are at least [`LEAST`], come from
+//!   at least [`SENDERS_LEAST`] senders, and are at least [`TIMES`] times
+//!   the median of its daily first contacts over the [`MEDIAN_DAYS`] days
+//!   before. Windows that overlap are one burst, which holds every first
+//!   contact in them, whatever its class. A few new senders' busy first
+//!   day, such as a service the person has just joined, is no burst:
+//!   blocking them is enough.
 //! - **Days with no history are not quiet days.** Providers empty junk and
 //!   trash, so a window is judged twice, and is a burst when either holds:
-//!   on all its first contacts, against a median over the days from when
-//!   every junk and trash mailbox's history starts (the latest of their
-//!   earliest first contacts, and the account's own); and on its kept ones,
-//!   against a median of kept ones over the days from the account's
-//!   earliest kept one. A median needs [`COVERED_LEAST`] covered days before
-//!   the window: a flood in an account's first month of history is no
-//!   burst.
+//!   on all its first contacts and their senders, against a median over the
+//!   days from when every junk and trash mailbox's history starts (the
+//!   latest of their earliest first contacts, and the account's own); and
+//!   on its kept ones and their senders, against a median of kept ones over
+//!   the days from the account's earliest kept one. A median needs
+//!   [`COVERED_LEAST`] covered days before the window: a flood in an
+//!   account's first month of history is no burst.
 //! - **An account's bursts are found once it has been listed whole**: every
 //!   mailbox it had then listed at least once. Not before, since sync
 //!   fetches newest first and until then each sender's oldest message so far
@@ -34,7 +37,8 @@
 //!   story ([`super::stories`]), in place of a queue entry or a stream story
 //!   each; a `known` sender's mail is never in one.
 //!
-//! The thresholds are data, set here.
+//! The thresholds are data, set here. [`RULE`] names the rule they make: a
+//! store whose bursts another rule found finds them again when opened.
 //!
 //! Everything here is derived, so a rebuild gives the same rows. First
 //! contacts are computed again for each sender a batch touches, and written
@@ -49,7 +53,7 @@
 //! that grows back in time takes a new one, and the next rebuild drops the
 //! old.
 
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashMap};
 
 use rusqlite::{Connection, OptionalExtension, Transaction, params};
 
@@ -57,6 +61,9 @@ use super::{Kept, Store, StoreError, count};
 
 /// A burst holds at least this many first contacts in a window.
 pub const LEAST: i64 = 30;
+
+/// A burst's window holds first contacts from at least this many senders.
+pub const SENDERS_LEAST: i64 = 10;
 
 /// A burst's window holds at least this many times the median day before.
 pub const TIMES: i64 = 10;
@@ -78,6 +85,21 @@ const DAY: i64 = 24 * 60 * 60 * 1000;
 /// An hour, in milliseconds: the margin around a burst that the known
 /// senders who wrote during it are read with.
 const HOUR: i64 = 60 * 60 * 1000;
+
+/// The rule that finds bursts. Raise it whenever what makes a burst
+/// changes, a threshold above included.
+///
+/// The store refuses a build of an earlier schema, not of an earlier rule:
+/// such a build that opens it finds the bursts of each account a batch
+/// touches by its own rule, until a batch of this one touches the account
+/// again. Raise it with a migration, which earlier builds refuse, once
+/// builds of the earlier rule are in use. Rule 1, on messages alone, never
+/// left its branch.
+pub(super) const RULE: i64 = 2;
+
+/// The `engine_state` key that holds the [`RULE`] a store's bursts were
+/// found by.
+const RULE_KEY: &str = "burst-rule";
 
 /// The `engine_state` key that marks a store whose mail was held before
 /// bursts existed: they are found when it is next opened.
@@ -123,7 +145,7 @@ const ON_DAY: &str = "SELECT count(*), coalesce(sum(kept), 0) FROM first_contact
      WHERE account_id = ?1 AND received >= ?2 AND received < ?3";
 
 /// An account's first contacts, in order.
-const ALL: &str = "SELECT received, message_id, kept FROM first_contact
+const ALL: &str = "SELECT received, message_id, kept, sender_address FROM first_contact
      WHERE account_id = ?1 ORDER BY received, message_id";
 
 /// An account's daily counts.
@@ -387,10 +409,11 @@ impl<'a> Medians<'a> {
         })
     }
 
-    /// Whether `held` first contacts in a window that starts on `day` pass
-    /// the burst's thresholds.
-    fn passes(&mut self, held: i64, day: i64) -> bool {
+    /// Whether `held` first contacts from `senders` senders, in a window
+    /// that starts on `day`, pass the burst's thresholds.
+    fn passes(&mut self, held: i64, senders: i64, day: i64) -> bool {
         held >= LEAST
+            && senders >= SENDERS_LEAST
             && self
                 .of(day)
                 .is_some_and(|median| held as f64 >= TIMES as f64 * median)
@@ -398,8 +421,35 @@ impl<'a> Medians<'a> {
 }
 
 /// An account's first contact as a burst is found from: when the provider
-/// received it, the message, and whether it is kept.
-type Timed = (i64, i64, bool);
+/// received it, the message, whether it is kept, and its sender, numbered.
+type Timed = (i64, i64, bool, usize);
+
+/// The first contacts in a window and how many senders they come from,
+/// counted as the window moves.
+#[derive(Default)]
+struct Window {
+    of_sender: Vec<i64>,
+    senders: i64,
+}
+
+impl Window {
+    fn add(&mut self, sender: usize) {
+        if self.of_sender.len() <= sender {
+            self.of_sender.resize(sender + 1, 0);
+        }
+        self.of_sender[sender] += 1;
+        if self.of_sender[sender] == 1 {
+            self.senders += 1;
+        }
+    }
+
+    fn remove(&mut self, sender: usize) {
+        self.of_sender[sender] -= 1;
+        if self.of_sender[sender] == 0 {
+            self.senders -= 1;
+        }
+    }
+}
 
 /// The bursts in an account's first contacts, in order: each its first and
 /// last time and its messages. `all` and `kept` judge a window's first
@@ -412,20 +462,36 @@ fn bursts_in(
     // How many kept first contacts come before each one.
     let mut kept_before = Vec::with_capacity(contacts.len() + 1);
     kept_before.push(0_i64);
-    for (_, _, is_kept) in contacts {
+    for (_, _, is_kept, _) in contacts {
         kept_before.push(kept_before.last().copied().unwrap_or(0) + i64::from(*is_kept));
     }
+    // The senders of the window's first contacts, and of its kept ones.
+    let (mut senders, mut kept_senders) = (Window::default(), Window::default());
     let mut found: Vec<(usize, usize)> = Vec::new();
     let mut end = 0;
     for start in 0..contacts.len() {
-        end = end.max(start);
+        if start > 0 {
+            let (_, _, was_kept, sender) = contacts[start - 1];
+            senders.remove(sender);
+            if was_kept {
+                kept_senders.remove(sender);
+            }
+        }
+        // A window always holds the first contact it starts at.
         while end < contacts.len() && contacts[end].0 < contacts[start].0 + WINDOW {
+            let (_, _, is_kept, sender) = contacts[end];
+            senders.add(sender);
+            if is_kept {
+                kept_senders.add(sender);
+            }
             end += 1;
         }
         let held = i64::try_from(end - start).unwrap_or(i64::MAX);
         let held_kept = kept_before[end] - kept_before[start];
         let day = day_of(contacts[start].0);
-        if !all.passes(held, day) && !kept.passes(held_kept, day) {
+        if !all.passes(held, senders.senders, day)
+            && !kept.passes(held_kept, kept_senders.senders, day)
+        {
             continue;
         }
         match found.last_mut() {
@@ -442,7 +508,7 @@ fn bursts_in(
                 contacts[end - 1].0,
                 contacts[start..end]
                     .iter()
-                    .map(|(_, message, _)| *message)
+                    .map(|(_, message, _, _)| *message)
                     .collect(),
             )
         })
@@ -458,10 +524,25 @@ type Found = (i64, i64, BTreeSet<i64>);
 fn find(transaction: &Transaction<'_>, account: i64) -> Result<BTreeSet<i64>, StoreError> {
     let mut new: BTreeMap<i64, Found> = BTreeMap::new();
     if listed(transaction, account)? && !rebuilding(transaction)? {
-        let contacts: Vec<Timed> = transaction
-            .prepare_cached(ALL)?
-            .query_map([account], |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)))?
-            .collect::<Result<_, _>>()?;
+        let mut numbered: HashMap<String, usize> = HashMap::new();
+        let mut contacts: Vec<Timed> = Vec::new();
+        {
+            let mut statement = transaction.prepare_cached(ALL)?;
+            let rows = statement.query_map([account], |row| {
+                Ok((
+                    row.get::<_, i64>(0)?,
+                    row.get::<_, i64>(1)?,
+                    row.get::<_, bool>(2)?,
+                    row.get::<_, String>(3)?,
+                ))
+            })?;
+            for row in rows {
+                let (received, message, kept, sender) = row?;
+                let next = numbered.len();
+                let sender = *numbered.entry(sender).or_insert(next);
+                contacts.push((received, message, kept, sender));
+            }
+        }
         let mut all_counts = BTreeMap::new();
         let mut kept_counts = BTreeMap::new();
         {
@@ -644,7 +725,42 @@ pub(super) fn fill_if_marked(connection: &mut Connection) -> Result<(), StoreErr
     compose_all(&transaction)?;
     super::stories::compose_all(&transaction, super::wall_clock())?;
     transaction.execute("DELETE FROM engine_state WHERE key = ?1", [FILL])?;
+    note_rule(&transaction)?;
     transaction.commit()?;
+    Ok(())
+}
+
+/// Finds every account's bursts again, and the stories they change, when
+/// the store's were found by another [`RULE`] than this one. A rebuild
+/// that runs finds them by this one when it ends.
+pub(super) fn find_if_rule_changed(connection: &mut Connection) -> Result<(), StoreError> {
+    let found_by: Option<i64> = connection
+        .query_row(
+            "SELECT value FROM engine_state WHERE key = ?1",
+            [RULE_KEY],
+            |row| row.get(0),
+        )
+        .optional()?;
+    if found_by == Some(RULE) {
+        return Ok(());
+    }
+    let transaction = connection.transaction()?;
+    if !rebuilding(&transaction)? {
+        let changed = find_all(&transaction)?;
+        super::stories::settle(&transaction, &changed, super::wall_clock())?;
+    }
+    note_rule(&transaction)?;
+    transaction.commit()?;
+    Ok(())
+}
+
+/// Notes that the store's bursts are found by this [`RULE`].
+fn note_rule(transaction: &Transaction<'_>) -> Result<(), StoreError> {
+    transaction.run(
+        "INSERT INTO engine_state (key, value) VALUES (?1, ?2)
+         ON CONFLICT (key) DO UPDATE SET value = excluded.value",
+        params![RULE_KEY, RULE],
+    )?;
     Ok(())
 }
 
@@ -792,4 +908,95 @@ impl Store {
             })?
             .collect::<Result<_, _>>()?)
     }
+}
+
+/// [`bursts_in`] against counting every window from nothing, on random
+/// first contacts: ties, few senders and many, kept and not, and busy days.
+#[cfg(test)]
+#[test]
+fn bursts_in_gives_what_counting_each_window_whole_gives() {
+    let mut state = 0x2545_f491_4f6c_dd1d_u64;
+    let mut below = |n: u64| {
+        state = state
+            .wrapping_mul(6_364_136_223_846_793_005)
+            .wrapping_add(1_442_695_040_888_963_407);
+        (state >> 33) % n.max(1)
+    };
+    let start = 20_000 * DAY;
+    let mut found = 0;
+    for _ in 0..2_000 {
+        let n = below(160);
+        let senders = 1 + below(30);
+        // Times ten minutes apart at the finest, so that some tie.
+        let mut contacts: Vec<Timed> = (0..n)
+            .map(|i| {
+                let at = start + i64::try_from(below(6 * 24 * 6)).unwrap_or(0) * 600_000;
+                let sender = usize::try_from(below(senders)).unwrap_or(0);
+                (at, i64::try_from(i).unwrap_or(0), below(3) != 0, sender)
+            })
+            .collect();
+        contacts.sort_unstable();
+        // A median of none, or of a few a day.
+        let busy = |median: i64| -> BTreeMap<i64, i64> {
+            (day_of(start) - 200..day_of(start) + 10)
+                .map(|day| (day, median))
+                .collect()
+        };
+        let (all_median, kept_median) = (
+            i64::try_from(below(4)).unwrap_or(0),
+            i64::try_from(below(4)).unwrap_or(0),
+        );
+        let (all_counts, kept_counts) = (busy(all_median), busy(kept_median));
+        let covered_from = day_of(start) - 200;
+        let got = bursts_in(
+            &contacts,
+            &mut Medians::new(&all_counts, covered_from),
+            &mut Medians::new(&kept_counts, covered_from),
+        );
+        // Each window counted whole.
+        let passes = |held: usize, senders: usize, median: i64| {
+            let (held, senders) = (
+                i64::try_from(held).unwrap_or(0),
+                i64::try_from(senders).unwrap_or(0),
+            );
+            held >= LEAST && senders >= SENDERS_LEAST && held >= TIMES * median
+        };
+        let mut want: Vec<(usize, usize)> = Vec::new();
+        for first in 0..contacts.len() {
+            let window: Vec<&Timed> = contacts[first..]
+                .iter()
+                .take_while(|contact| contact.0 < contacts[first].0 + WINDOW)
+                .collect();
+            let all_senders: BTreeSet<usize> = window.iter().map(|contact| contact.3).collect();
+            let kept: Vec<&&Timed> = window.iter().filter(|contact| contact.2).collect();
+            let kept_senders: BTreeSet<usize> = kept.iter().map(|contact| contact.3).collect();
+            if !passes(window.len(), all_senders.len(), all_median)
+                && !passes(kept.len(), kept_senders.len(), kept_median)
+            {
+                continue;
+            }
+            let end = first + window.len();
+            match want.last_mut() {
+                Some(last) if first < last.1 => last.1 = last.1.max(end),
+                _ => want.push((first, end)),
+            }
+        }
+        let want: Vec<(i64, i64, Vec<i64>)> = want
+            .into_iter()
+            .map(|(first, end)| {
+                (
+                    contacts[first].0,
+                    contacts[end - 1].0,
+                    contacts[first..end]
+                        .iter()
+                        .map(|contact| contact.1)
+                        .collect(),
+                )
+            })
+            .collect();
+        found += want.len();
+        assert_eq!(got, want);
+    }
+    // The random cases hold bursts, not only windows that fail.
+    assert!(found > 100, "{found} bursts");
 }

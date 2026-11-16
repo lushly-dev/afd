@@ -95,11 +95,25 @@ impl Mail {
         n: i64,
         at: i64,
     ) -> Vec<(MessageId, HeaderSeen)> {
+        self.flood_from(mailbox, prefix, fields, n, n, at)
+    }
+
+    /// As [`Mail::flood_seen`], from only `senders` new senders, each in
+    /// turn.
+    fn flood_from(
+        &mut self,
+        mailbox: MailboxId,
+        prefix: &str,
+        fields: &[&str],
+        n: i64,
+        senders: i64,
+        at: i64,
+    ) -> Vec<(MessageId, HeaderSeen)> {
         (0..n)
             .map(|i| {
                 self.add_at_seen(
                     mailbox,
-                    &format!("{prefix}{i}@flood.example"),
+                    &format!("{prefix}{}@flood.example", i % senders),
                     fields,
                     at + i * 60_000,
                 )
@@ -167,6 +181,47 @@ fn twenty_nine_in_a_day_is_no_burst() {
     mail.add_at(inbox, "soon@flood.example", &[], FLOOD + 23 * HOUR);
     assert_eq!(mail.bursts().len(), 1);
     assert_eq!(mail.bursts()[0].messages, 30);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_few_new_senders_busy_first_day_is_no_burst() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    // Forty-five from nine new senders, as a service just joined sends.
+    mail.flood_from(inbox, "s", &[], 45, 9, FLOOD);
+    assert!(mail.bursts().is_empty());
+    assert_eq!(mail.store.queue_counts().unwrap(), (45, 9));
+    // A tenth new sender within the day makes it one.
+    mail.add_at(inbox, "tenth@flood.example", &[], FLOOD + HOUR);
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    assert_eq!(bursts[0].messages, 46);
+    let story = mail.store.story(bursts[0].id).unwrap().expect("a story");
+    assert_eq!(story.title, "46 messages from 10 new senders");
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn kept_first_contacts_are_judged_on_their_own_senders() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    // Junk's history starts ten days before the flood, too short a
+    // history to judge all first contacts on.
+    let junk = mail.mailbox("Junk", Role::Junk);
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 10 * DAY);
+    // Forty kept from five new senders, and ten more senders in junk.
+    mail.flood_from(inbox, "s", &[], 40, 5, FLOOD);
+    mail.flood(junk, "j", &[], 10, FLOOD + HOUR);
+    assert!(
+        mail.bursts().is_empty(),
+        "junk's senders do not count toward the kept first contacts'"
+    );
+    // Five more kept senders within the day make it one.
+    mail.flood(inbox, "t", &[], 5, FLOOD + 2 * HOUR);
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    assert_eq!(bursts[0].messages, 55);
     mail.assert_as_from_nothing();
 }
 
@@ -329,6 +384,112 @@ fn a_store_that_held_mail_before_bursts_has_them_when_opened() {
         "SELECT count(*) FROM engine_state WHERE key = 'burst-fill'",
     );
     assert_eq!(marks, [vec![Value::Integer(0)]]);
+}
+
+#[test]
+fn a_store_whose_bursts_another_rule_found_finds_them_again_when_opened() {
+    let mut mail = Mail::with_history();
+    let (account, inbox) = (mail.account, mail.inbox);
+    // One burst that holds, and forty from four senders, which a rule on
+    // messages alone made one of.
+    let flood = mail.flood(inbox, "s", &[], 40, FLOOD);
+    let few: Vec<i64> = mail
+        .flood_from(inbox, "few", &[], 40, 4, FLOOD + 30 * DAY)
+        .into_iter()
+        .map(|(message, _)| message.0)
+        .collect();
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    let queue = mail.store.queue_counts().unwrap();
+    assert_eq!(queue, (40, 4));
+    let derived = mail.derived();
+    // As a store whose bursts rule 1 found: it missed the first and made
+    // a burst, and its story, of the second.
+    {
+        let transaction = mail.store.connection.transaction().unwrap();
+        transaction
+            .execute_batch("DELETE FROM burst_message; DELETE FROM burst;")
+            .unwrap();
+        let first = FLOOD + 30 * DAY;
+        let key = format!("burst {} {first}", account.0);
+        transaction
+            .execute("INSERT INTO stream (key) VALUES (?1)", [&key])
+            .unwrap();
+        let stale = transaction.last_insert_rowid();
+        transaction
+            .execute(
+                "INSERT INTO burst (id, account_id, first, last, messages)
+                 VALUES (?1, ?2, ?3, ?4, 40)",
+                rusqlite::params![stale, account.0, first, first + 39 * 60_000],
+            )
+            .unwrap();
+        for message in &few {
+            transaction
+                .execute(
+                    "INSERT INTO burst_message (burst_id, message_id) VALUES (?1, ?2)",
+                    rusqlite::params![stale, message],
+                )
+                .unwrap();
+        }
+        stories::compose_all(&transaction, NOW).unwrap();
+        transaction
+            .execute(
+                "UPDATE engine_state SET value = 1 WHERE key = 'burst-rule'",
+                [],
+            )
+            .unwrap();
+        transaction.commit().unwrap();
+        // The first flood is the queue's, the second the stale story's.
+        assert_eq!(mail.store.queue_counts().unwrap(), (40, 40));
+        assert_eq!(mail.story_of(MessageId(few[0])), Some(stale));
+    }
+    let mut mail = mail.reopen();
+    assert_eq!(mail.bursts(), bursts);
+    assert_eq!(mail.story_of(flood[0]), Some(bursts[0].id));
+    // The stale burst's story is gone, its mail the queue's again.
+    assert_eq!(mail.story_of(MessageId(few[0])), None);
+    assert_eq!(mail.store.queue_counts().unwrap(), queue);
+    let rule = table(
+        &mail.store,
+        "SELECT value FROM engine_state WHERE key = 'burst-rule'",
+    );
+    assert_eq!(rule, [vec![Value::Integer(bursts::RULE)]]);
+    mail.assert_as_from_nothing();
+    // The burst's story id is kept; the stale burst's stream is pruned at
+    // the next rebuild, as any burst key without a burst is.
+    let kept = mail.derived();
+    let stale_key = format!("burst {} {}", account.0, FLOOD + 30 * DAY);
+    let stale_streams = format!("SELECT count(*) FROM stream WHERE key = '{stale_key}'");
+    assert_eq!(
+        table(&mail.store, &stale_streams),
+        [vec![Value::Integer(1)]]
+    );
+    mail.store.rebuild(NOW, |_| {}).unwrap();
+    assert_eq!(mail.derived(), kept);
+    assert_eq!(mail.derived(), derived);
+    assert_eq!(
+        table(&mail.store, &stale_streams),
+        [vec![Value::Integer(0)]]
+    );
+}
+
+#[test]
+fn the_rule_is_raised_when_a_threshold_changes() {
+    // A threshold changed here without raising the rule leaves the bursts
+    // that stores found by the old thresholds: raise [`bursts::RULE`], then
+    // this.
+    assert_eq!(
+        (
+            bursts::RULE,
+            BURST_LEAST,
+            BURST_SENDERS_LEAST,
+            BURST_TIMES,
+            BURST_WINDOW,
+            MEDIAN_DAYS,
+            COVERED_LEAST
+        ),
+        (2, 30, 10, 10, 24 * HOUR, 90, 30)
+    );
 }
 
 #[test]
@@ -634,7 +795,14 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                     };
                     let at = FLOOD + i64::from(steps.below(60) as u8) * DAY;
                     let n = 10 + steps.below(30) as i64;
-                    let flood = mail.flood_seen(mailbox, &format!("f{floods}x"), fields, n, at);
+                    // From as many senders as messages, or from a few.
+                    let senders = if steps.below(2) == 0 {
+                        n
+                    } else {
+                        1 + steps.below(12) as i64
+                    };
+                    let flood =
+                        mail.flood_from(mailbox, &format!("f{floods}x"), fields, n, senders, at);
                     if steps.below(3) == 0 {
                         let copies: Vec<HeaderSeen> = flood
                             .into_iter()
