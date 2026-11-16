@@ -329,6 +329,10 @@ mod acl {
         sid == me || sid == SYSTEM_SID || sid == ADMINISTRATORS_SID
     }
 
+    fn powershell_quote(value: &str) -> String {
+        format!("'{}'", value.replace('\'', "''"))
+    }
+
     /// The SIDs beyond this user, SYSTEM and Administrators that an allow entry grants one of
     /// `object`'s rights, in the order of the entries, each once. Deny entries never widen
     /// access; inherited and inherit-only entries count as explicit ones do.
@@ -359,9 +363,11 @@ mod acl {
         object: Object,
     ) -> Vec<String> {
         let mut found = Vec::new();
+        let quoted_path = powershell_quote(shown);
         if !trusted(owner, me) {
+            let owner_argument = powershell_quote(&format!("*{me}"));
             found.push(format!(
-                "is owned by {owner}, neither this user ({me}) nor SYSTEM or Administrators (run icacls \"{shown}\" /setowner *{me})"
+                "is owned by {owner}, neither this user ({me}) nor SYSTEM or Administrators (run in PowerShell: icacls {quoted_path} /setowner {owner_argument})"
             ));
         }
         let others = exposed(entries, me, object);
@@ -371,9 +377,13 @@ mod acl {
                 Object::Directory => "(OI)(CI)(F)",
                 Object::File(_) => "(F)",
             };
-            let remove: Vec<String> = others.iter().map(|sid| format!("*{sid}")).collect();
+            let grant = powershell_quote(&format!("*{me}:{grant}"));
+            let remove: Vec<String> = others
+                .iter()
+                .map(|sid| powershell_quote(&format!("*{sid}")))
+                .collect();
             found.push(format!(
-                "grants {} {what} beyond this user, SYSTEM and Administrators (run icacls \"{shown}\" /inheritance:d /grant:r *{me}:{grant} /remove:g {})",
+                "grants {} {what} beyond this user, SYSTEM and Administrators (run in PowerShell: icacls {quoted_path} /inheritance:d /grant:r {grant} /remove:g {})",
                 others.join(", "),
                 remove.join(" ")
             ));
@@ -446,21 +456,48 @@ fn windows_too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
             ));
         }
     };
-    let directories = [
-        path.parent().map(Path::to_path_buf),
+    problems.extend(windows_directory_problems(path, |path| {
         std::fs::canonicalize(path)
-            .ok()
-            .and_then(|real| real.parent().map(Path::to_path_buf)),
-    ];
+    }));
+    (!problems.is_empty()).then(|| format!("{} {}", path.display(), problems.join(" and ")))
+}
+
+/// Check every required parent, refusing resolution failures as well as unreadable ACLs.
+#[cfg(windows)]
+fn windows_directory_problems(
+    path: &Path,
+    canonicalize: impl Fn(&Path) -> std::io::Result<std::path::PathBuf>,
+) -> Vec<String> {
+    use umbel_windows::security::security_of_path;
+    let resolved = match canonicalize(path) {
+        Ok(resolved) => resolved,
+        Err(error) => {
+            return vec![format!(
+                "cannot be resolved to check its directories ({error}), so it is refused"
+            )];
+        }
+    };
+    let Some(resolved_parent) = resolved.parent() else {
+        return vec!["has no resolved parent directory, so it is refused".into()];
+    };
+    let directories = [path.parent().unwrap_or(Path::new(".")), resolved_parent];
+    let mut problems = Vec::new();
     let mut seen = Vec::new();
-    for directory in directories.into_iter().flatten() {
+    for directory in directories {
         let directory = if directory.as_os_str().is_empty() {
-            std::path::PathBuf::from(".")
+            Path::new(".")
         } else {
             directory
         };
-        let Ok(canonical) = std::fs::canonicalize(&directory) else {
-            continue;
+        let canonical = match canonicalize(directory) {
+            Ok(canonical) => canonical,
+            Err(error) => {
+                problems.push(format!(
+                    "is in a directory, {}, that cannot be resolved ({error}), so it is refused",
+                    shown(directory)
+                ));
+                continue;
+            }
         };
         if seen.contains(&canonical) {
             continue;
@@ -478,7 +515,7 @@ fn windows_too_open(path: &Path, secrecy: Secrecy) -> Option<String> {
         }
         seen.push(canonical);
     }
-    (!problems.is_empty()).then(|| format!("{} {}", path.display(), problems.join(" and ")))
+    problems
 }
 
 /// Why the mode `mode` is too wide for `secrecy`.
@@ -606,7 +643,12 @@ pub(crate) fn read_trusted(path: &Path, secrecy: Secrecy) -> Result<Vec<u8>, Str
         if !problems.is_empty() {
             return Err(format!("{} {}", path.display(), problems.join(" and ")));
         }
+        let problems = windows_directory_problems(path, |path| std::fs::canonicalize(path));
+        if !problems.is_empty() {
+            return Err(format!("{} {}", path.display(), problems.join(" and ")));
+        }
     }
+    #[cfg(not(windows))]
     if let Some(problem) = too_open(path, secrecy) {
         return Err(problem);
     }
@@ -867,7 +909,10 @@ mod tests {
             found[0].contains(&format!("is owned by {OTHER}")),
             "{found:?}"
         );
-        assert!(found[0].contains(&format!("/setowner *{ME}")), "{found:?}");
+        assert!(
+            found[0].contains(&format!("/setowner '*{ME}'")),
+            "{found:?}"
+        );
         // The remedy names the SIDs to remove.
         let found = problems("C:\\k.pem", ME, &readable, ME, secret);
         assert!(
@@ -876,10 +921,12 @@ mod tests {
         );
         assert!(
             found[0].contains(&format!(
-                "icacls \"C:\\k.pem\" /inheritance:d /grant:r *{ME}:(F) /remove:g *S-1-5-32-545"
+                "icacls 'C:\\k.pem' /inheritance:d /grant:r '*{ME}:(F)' /remove:g '*S-1-5-32-545'"
             )),
             "{found:?}"
         );
+        let quoted = problems("C:\\owner's & %TEMP%\\k.pem", OTHER, &private, ME, secret);
+        assert!(quoted[0].contains("icacls 'C:\\owner''s & %TEMP%\\k.pem'"));
     }
 
     /// `icacls` on `path` with `args`, which must succeed.
@@ -890,7 +937,77 @@ mod tests {
             .args(args)
             .output()
             .unwrap();
-        assert!(output.status.success(), "{output:?}");
+        assert!(
+            output.status.success(),
+            "{} {args:?}: {output:?}",
+            path.display()
+        );
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn directory_resolution_errors_are_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("file");
+        std::fs::write(&path, "x").unwrap();
+        let denied = || std::io::Error::from(std::io::ErrorKind::PermissionDenied);
+        let problems = windows_directory_problems(&path, |_| Err(denied()));
+        assert!(
+            problems
+                .iter()
+                .any(|problem| problem.contains("cannot be resolved"))
+        );
+        let problems = windows_directory_problems(&path, |requested| {
+            if requested == temp.path() {
+                Err(denied())
+            } else {
+                std::fs::canonicalize(requested)
+            }
+        });
+        assert!(problems.iter().any(|problem| {
+            problem.contains("is in a directory") && problem.contains("cannot be resolved")
+        }));
+        assert!(windows_directory_problems(&path, |path| std::fs::canonicalize(path)).is_empty());
+    }
+
+    #[cfg(windows)]
+    #[test]
+    fn an_unreadable_acl_is_refused() {
+        let temp = tempfile::tempdir().unwrap();
+        let path = temp.path().join("file");
+        std::fs::write(&path, "x").unwrap();
+        let powershell = std::path::PathBuf::from(std::env::var_os("SystemRoot").unwrap())
+            .join("System32/WindowsPowerShell/v1.0/powershell.exe");
+        // OWNER RIGHTS suppresses the owner's implicit READ_CONTROL. Keep DELETE allowed:
+        // this disposable file is removed before checking the results, even after a panic.
+        let inspection = std::panic::catch_unwind(|| {
+            let script = r"
+$ErrorActionPreference='Stop'
+$acl=Get-Acl -LiteralPath $env:UMBEL_ACL_TEST_PATH
+$rule=New-Object System.Security.AccessControl.FileSystemAccessRule ([System.Security.Principal.SecurityIdentifier]'S-1-3-4'),([System.Security.AccessControl.FileSystemRights]::ReadPermissions),([System.Security.AccessControl.AccessControlType]::Deny)
+$acl.AddAccessRule($rule)
+Set-Acl -LiteralPath $env:UMBEL_ACL_TEST_PATH -AclObject $acl
+";
+            let output = std::process::Command::new(powershell)
+                .args(["-NoProfile", "-NonInteractive", "-Command", script])
+                .env("UMBEL_ACL_TEST_PATH", &path)
+                .output()
+                .unwrap();
+            assert!(output.status.success(), "{output:?}");
+            (
+                umbel_windows::security::security_of_path(&path),
+                too_open(&path, Secrecy::Public),
+                read_trusted(&path, Secrecy::Public),
+            )
+        });
+        std::fs::remove_file(&path).unwrap();
+        let (security, problem, read) = inspection.unwrap();
+        assert_eq!(
+            security.unwrap_err().kind(),
+            std::io::ErrorKind::PermissionDenied
+        );
+        assert!(problem.unwrap().contains("cannot be read"));
+        assert!(read.is_err());
     }
 
     #[cfg(windows)]
@@ -933,13 +1050,6 @@ mod tests {
         icacls(&path, &["/deny", "*S-1-5-32-546:(R)"]);
         assert_eq!(too_open(&path, Secrecy::Secret), None);
         icacls(&path, &["/remove:d", "*S-1-5-32-546"]);
-        // An ACL this user cannot read is refused: denying Users, this user among them, read
-        // access denies reading the ACL too.
-        icacls(&path, &["/deny", &format!("{USERS}:(R)")]);
-        let problem = too_open(&path, Secrecy::Public).unwrap();
-        assert!(problem.contains("cannot be read"), "{problem}");
-        assert!(read_trusted(&path, Secrecy::Public).is_err());
-        icacls(&path, &["/remove:d", USERS]);
         // A directory others may add files to lets them replace the file: there is no sticky
         // bit to stop them.
         let dir = temp.path();

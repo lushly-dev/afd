@@ -290,6 +290,7 @@ impl TantivyIndex {
     /// # Errors
     /// `Io` or `Corrupt` if the index's metadata cannot be read.
     pub fn check(&self) -> Result<IndexCheck, StoreError> {
+        let _meta = self.meta.reading();
         let damaged = self
             .index
             .validate_checksum()
