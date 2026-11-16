@@ -17,8 +17,7 @@ command is still missing (`cell-park`, `lane-revert`, `lane-handoff`), and that 
 lane host until `lane-handoff` exists. The skill listing budget rose to 6,600 under the owner's
 standing rule. The command line reads JSON from `--args-file` for Windows PowerShell and makes a
 relative `worktree` absolute, so the lane later reads the cell's PR body (`.factory/pr-body.md`,
-git-ignored) from the cell's worktree; `prepare-pr lane` now passes a title and body. PR: this
-branch, `lush/factory-run-fleet`.
+git-ignored) from the cell's worktree; `prepare-pr lane` now passes a title and body. PR: [#1310](https://github.com/lushly-dev/afd/pull/1310).
 
 Review (Opus 5.5; it reported low effort though high was asked) found four blockers, fixed: the
 foreman could hang at the finish (an open `queue-empty` is not repeated and the wait had no
@@ -158,7 +157,7 @@ for the real output and re-check the fixes before shipping the branch.
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
 | 0. Prerequisites | Done 2026-11-13 | The proposal's [Phases](software-factory.proposal.md#phases): intake (#1100), `ci-ok` (#1123, #1136), the pre-push `pnpm verify` record (#1127), the Windows workstation (#1115, #1121, #1130, #1134) |
-| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305); the `factory` and `factory-cell` command lines and `run-fleet` (this branch). Remaining as the proposal lists it: the webhook wake and experience review, then one AFD fleet run on the workstation with its numbers reported |
+| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305); the `factory` and `factory-cell` command lines and `run-fleet` (#1310). Remaining as the proposal lists it: the webhook wake and experience review, then one AFD fleet run on the workstation with its numbers reported |
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |
