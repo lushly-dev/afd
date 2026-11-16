@@ -435,9 +435,9 @@ Merged in [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16:
   word for word by TypeScript, Python, Rust and the plugin's manifest, now says a caller that is
   not a person waits for approval where the server holds clears, and that elsewhere the
   confirmation prompt gates it, where enforced (the review's blocker: it promised the hold in every
-  host). The runner refuses `--suite approvals` against either Umbel target, naming #1329. A mounted tool may now declare `destructive`
-  (`[[mount.tools]]`, sent as `destructiveHint`; the server's own annotations stay untrusted,
-  D43), and the `todo-http` fixture marks the deletes and the clear, which closes the phase 1
+  host). The runner refuses `--suite approvals` against either Umbel target, naming #1329. Mounted tools can declare `destructive` since
+  [#1338](https://github.com/lushly-dev/afd/pull/1338) (split out for Umbel's plugin-isolation
+  gate), and the `todo-http` fixture marks the deletes and the clear, which closes the phase 1
   follow-up. The plugin's test now compares contexts and the fixture's `destructive`, and checks
   the history under the host.
 - **Spec and CI.** `rust` added to `implementedBy` on both commands, the six test cases and all
@@ -470,7 +470,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Also needs `pnpm -F @lushly-dev/specimen build:host` for the export (2026-11-15); with the three built it serves. A session whose server failed at startup does not reconnect without `/mcp` |
-| 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Fixed in #1335: a `destructive` key on `[[mount.tools]]`, set by the `todo-http` fixture |
+| 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Fixed: a `destructive` key on `[[mount.tools]]` in #1338, set by the `todo-http` fixture in #1335 |
 | 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Fixed: both pages ask through form elicitation, FAST-AF in [#1275](https://github.com/lushly-dev/afd/pull/1275), React in [#1276](https://github.com/lushly-dev/afd/pull/1276) |
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
 | 2026-11-15 | Phase 4 page | `afd-testing`'s `src/runner/todo-example.test.ts` still expected the fixture to clear first, which #1260 turned off (`clearFirst: false`); CI never ran it, because it reads the todo example's commands and scenarios by path and the affected-units scope did not know | Fixed in [#1297](https://github.com/lushly-dev/afd/pull/1297): the expectation, and `EXTRA_INPUTS` entries in `scripts/affected/scope.mjs`; #1303 marks them `ownTests`, a new option, so only `afd-testing`'s own tests run |

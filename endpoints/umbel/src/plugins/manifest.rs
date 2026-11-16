@@ -179,7 +179,6 @@ const MOUNT_TOOL_KEYS: &[&str] = &[
     "effects",
     "bind_space",
     "confirm_prompt",
-    "destructive",
     "approval",
     "first_class",
 ];
@@ -604,9 +603,6 @@ pub struct MountTool {
     pub bind_space: bool,
     /// The confirmation prompt.
     pub confirm_prompt: Option<String>,
-    /// Whether the tool deletes data, which MCP clients see as `destructiveHint`. The deployer
-    /// declares it, as the effects: the server's own annotations are not trusted (D43).
-    pub destructive: bool,
     /// Whether an approval is required.
     pub approval_required: bool,
     /// A suggestion for the first-class tool set.
@@ -2082,7 +2078,6 @@ fn mount_tools(table: &Tbl<'_>, prefix: &str) -> Result<Vec<MountTool>, PluginEr
             effects: entry.effects("effects", false)?,
             bind_space: entry.boolean("bind_space")?.unwrap_or(false),
             confirm_prompt: entry.optional_text("confirm_prompt", 500)?,
-            destructive: entry.boolean("destructive")?.unwrap_or(false),
             approval_required: approval,
             first_class: entry.boolean("first_class")?.unwrap_or(false),
         });
