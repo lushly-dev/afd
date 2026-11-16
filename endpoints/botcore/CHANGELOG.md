@@ -34,6 +34,11 @@ What a plugin served through the managed host needs: its own command policies, a
 
 ### Fixed
 
+- **Windows HTTP token stores are private and coordinated across processes.** New
+  files and directories receive ACLs for the operator, SYSTEM and Administrators
+  at creation; unsafe owners, ACLs and reparse points refuse access. Readers and
+  writers share a native lock, preserving tokens issued by concurrent operator
+  commands and avoiding read/replace races. Unix modes and `flock` remain intact.
 - The Factory plugin's lane loop pushes the exact validated commit from its validation
   checkout, retaining the worktree's pre-push verification record until the push. Completed
   slots stay reserved; an earlier repair or revalidation can release a later reservation

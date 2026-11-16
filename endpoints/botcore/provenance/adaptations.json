@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "5afbe39198e844c5482c3d1d832713c4ca85b58608f65af64d01c8e458a9c4d3",
+      "current_import_sha256": "58bab9d82f35dcd05d9a13ec14882e9805713603336dc928b10079785a85c1d8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Record the factory report's plan counts"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "LICENSE",
@@ -737,11 +737,11 @@
       "path": "docs/host-composition.md",
       "upstream_sha256": null,
       "staged_sha256": "770e808013d3d866493ed03690d48330a06ca076eec838f720449592103d53ce",
-      "current_import_sha256": "c2e8f94c1b2ea01d59d65e1f05d09783ab74194d2103d56e5ac51c9b8df20832",
+      "current_import_sha256": "308b079d1d87c848629c74192889d82cab130caf43d991e45b794db0ba7466bb",
       "stage_classification": "added-in-staging",
       "stage_reason": "Document bounded host capabilities and compatibility limits",
       "import_classification": "modified-after-staging",
-      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client"
+      "import_reason": "Describe versioning, SDK compatibility, optional integration and the AFD publisher; describe plugin-declared policies, catalog input schemas and argument refusals; say a host leaves unselected plugin sections alone; describe command name spellings, kebab_names, typed inputs, the per-call context and the remote-caller profile; describe serving hosts over HTTP: routes, tokens, the bind guard and the client; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "docs/operations/model-routing.md",
@@ -1487,21 +1487,21 @@
       "path": "scripts/record_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "7e778fce6829828f167184f0fe1b34fd69804aa99e4b0f112c3029ae713dc0d0",
+      "current_import_sha256": "052b41963a8e1143765f8d2a56f4bdfc00481984d4188a00e8e27fc9b74a2248",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff"
+      "import_reason": "Derive immutable Git-object evidence and explicit adaptation chain; record the lushly-botcore publisher handoff; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
     },
     {
       "path": "scripts/verify_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "ae6fe166b943db8a9a5fcef53e32adcef29ba9e3ef8b60b03945559b1f975153",
+      "current_import_sha256": "5c4df65c718e2d769b82b0196f2cec68dff3aa96e5a76e54963afd85c1f4dd58",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state"
+      "import_reason": "Pin immutable digests and verify classifications/current hashes and publication state; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
     },
     {
       "path": "src/botcore/__init__.py",
@@ -1532,6 +1532,17 @@
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
       "import_reason": "Adapt SDK 1/2 imports without eagerly requiring MCP in base installs"
+    },
+    {
+      "path": "src/botcore/_windows_security.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "7c4b9e9e96335d8c31400dc39b304bbf190cbf9bcd0200cab2fe8af8e21f6596",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "src/botcore/cli.py",
@@ -1912,6 +1923,17 @@
       "stage_reason": "Expose managed CLI/MCP through the shared host dispatcher",
       "import_classification": "modified-after-staging",
       "import_reason": "Support both SDKs and safe Python aliases for canonical kebab IDs; resolve raw-Python aliases through the host; call over MCP as an agent"
+    },
+    {
+      "path": "src/botcore/host_tokens.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "01349cb31a583f0a6e9abec5969b01488b870c1984e65020be283004654853ca",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock"
     },
     {
       "path": "src/botcore/plugin.py",
@@ -5264,6 +5286,17 @@
       "import_reason": "Test SDK 2 envelopes, real broken links, typed outcomes and raw aliases; expect a duplicate refusal for two spellings of one name"
     },
     {
+      "path": "tests/test_host_http.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "db284fafc24627b8b05bfa7bfa91913d61cad9a4cd6b0fd2ab4d64b3199ae122",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
+    },
+    {
       "path": "tests/test_info.py",
       "upstream_sha256": "2f14d244343f199460bcf5f48c115190c3480f3e2931282312bbd90de9d44c3a",
       "staged_sha256": "2f14d244343f199460bcf5f48c115190c3480f3e2931282312bbd90de9d44c3a",
@@ -5337,11 +5370,11 @@
       "path": "tests/test_provenance.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "680d3cd53c36bdf9087e6a203286f0adfd5be426dc46df17288c0353174b9747",
+      "current_import_sha256": "6f3b4c6810d841df94f55aef5d40b11c7f225bb2eeb8db2353ae692ee5be12ef",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Reject rehashed false provenance and incorrect change classifications"
+      "import_reason": "Reject rehashed false provenance and incorrect change classifications; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence"
     },
     {
       "path": "tests/test_registry.py",
@@ -5484,6 +5517,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "tests/test_windows_security.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "0669081d0bdcc72753601d702daca9fbe247abde030496107d597c61dea0e5a9",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Import the Windows module only inside its Windows test"
+    },
+    {
       "path": "tests/test_workspace.py",
       "upstream_sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
       "staged_sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
@@ -5492,6 +5536,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "tests/windows_acl.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "f3288f91c2df164ed542c9a70405380b9d0c18ff6e45b94b428d046d5de3b830",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Refuse intermediate reparse points and hold the directory chain open through each token-store operation on Windows; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Import the Windows module only inside its Windows test"
     },
     {
       "path": "uv.lock",

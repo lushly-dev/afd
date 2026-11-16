@@ -34,10 +34,11 @@ On Windows 11, use the tools above and run repository commands from Git Bash. Th
 - **C and C++.** Visual Studio 2022 Build Tools with the C++ workload (MSVC), CMake, and NASM, which `aws-lc-sys` needs to build `packages/rust` (`winget install NASM.NASM`, then put `%LOCALAPPDATA%\bin\NASM` on `PATH`). OpenSSL from `winget install ShiningLight.OpenSSL.Light` (`C:\Program Files\OpenSSL-Win64\bin`).
 - **Rust.** `rustup` with the `wasm32-wasip2` target, which Umbel's `rust-toolchain.toml` names. Run Cargo from the crate's directory to select its pinned toolchain; `--manifest-path` alone does not select a nested rustup override.
 - **Loam profiles.** Windows PowerShell provisions new and profile-owned directories with private ACLs for the current account, SYSTEM and Administrators before files are written. Existing data-directory ACLs are checked; the host reports `HOST_SECRET_PERMISSIONS` when access cannot be verified. Use a dedicated data directory.
+- **Botcore HTTP tokens.** Use a dedicated private directory for `--store`. Botcore creates private files and coordinates operator commands with native Windows locks; unsafe existing permissions are refused. See [the token-store rules](endpoints/botcore/docs/host-composition.md#serving-hosts-over-http).
 - **Ownership.** Git refuses a checkout another account owns ("detected dubious ownership"), as on a drive or folder created by an administrator, and so does every script that runs `git`. Prefer taking ownership of the folder; for one command, `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=<path>` trusts it without editing your configuration.
 - **A fresh worktree** needs `pnpm install --frozen-lockfile` and `pnpm build` before the first commit: the hooks neither install nor build, and packages import each other's `dist`.
 
-Windows runtime and test gaps are tracked in [Specimen #1262](https://github.com/lushly-dev/afd/issues/1262), [Loam's status](endpoints/loam/docs/STATUS.md), [Umbel's status](endpoints/umbel/docs/STATUS.md) and [Botcore's HTTP token-store follow-up](https://github.com/lushly-dev/afd/issues/1286). Installing the toolchain alone does not make `pnpm verify --all` green.
+Windows runtime and test gaps are tracked in [Specimen #1262](https://github.com/lushly-dev/afd/issues/1262), [Loam's status](endpoints/loam/docs/STATUS.md) and [Umbel's status](endpoints/umbel/docs/STATUS.md). Installing the toolchain alone does not make `pnpm verify --all` green.
 
 ## Install
 
