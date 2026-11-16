@@ -383,11 +383,9 @@ pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
 /// What completes when the person presses Ctrl-C. A signal that cannot be
 /// listened for is never taken for one that came.
 #[cfg(not(unix))]
-pub fn stopped() -> impl std::future::Future<Output = ()> + Send + 'static {
-    async {
-        if tokio::signal::ctrl_c().await.is_err() {
-            std::future::pending::<()>().await;
-        }
+pub async fn stopped() {
+    if tokio::signal::ctrl_c().await.is_err() {
+        std::future::pending::<()>().await;
     }
 }
 

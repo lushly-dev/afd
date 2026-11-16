@@ -286,9 +286,15 @@ test('real Chromium deadline failure removes child server, database, generated k
 	assert.equal(result.errors, '');
 });
 
-// Exercise the actual OS signal path, not only the harness's own browser timer.
+// Exercise the actual OS signal path, not only the harness's own browser timer. Windows has no
+// SIGTERM to deliver: Node's kill() there ends the process at once, so no handler can unwind, and the
+// test exists only where the signal does. The deadline test above covers the same cleanup everywhere.
 test('SIGTERM during a real local run unwinds provider, browser, store and certificate cleanup', {
 	timeout: 15_000,
+	skip:
+		process.platform === 'win32'
+			? 'Windows does not deliver POSIX SIGTERM; deadline cleanup is tested above'
+			: false,
 }, async () => {
 	const scratch = async () =>
 		(await readdir(tmpdir())).filter((name) => name.startsWith('afd-better-auth-')).sort();
