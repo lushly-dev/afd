@@ -11,6 +11,7 @@ import os
 import subprocess
 import sys
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 
@@ -574,16 +575,28 @@ def test_git_lists_queue_refs_and_publishes_a_host_record_without_the_checkout()
     ]
 
 
+def test_git_slots_sit_beside_a_bare_repository_and_never_under_git(tmp_path):
+    bare = tmp_path / "afd.git"
+    run = FakeRun({"git rev-parse --path-format=absolute": str(bare) + "\n"})
+    assert CliGit(run, str(bare))._slot_path("2") == str(tmp_path / "afd.git.factory-slots" / "2")
+    submodule = tmp_path / "super" / ".git" / "modules" / "afd"
+    run = FakeRun({"git rev-parse --path-format=absolute": str(submodule) + "\n"})
+    with pytest.raises(WorldError, match="submodule"):
+        CliGit(run, str(tmp_path))._slot_path("1")
+
+
 def test_git_prepares_a_slot_merges_main_and_reports_a_conflict(tmp_path):
     run = FakeRun(
         {
             "git rev-parse --path-format=absolute": str(tmp_path / ".git") + "\n",
-            "git -C " + str(tmp_path / ".git" / "factory" / "slots" / "1"): "",
+            "git -C " + str(tmp_path.with_name(f"{tmp_path.name}.factory-slots") / "1"): "",
         }
     )
     git = CliGit(run, str(tmp_path))
     path = git.prepare_slot("1", "fix/a", "abc")
-    assert path == str(tmp_path / ".git" / "factory" / "slots" / "1")
+    # Beside the checkout, never under .git, where TypeScript refuses some declarations.
+    assert path == str(tmp_path.with_name(f"{tmp_path.name}.factory-slots") / "1")
+    assert ".git" not in Path(path).parts
     calls = [args for args, _ in run.calls]
     assert [
         "git",
