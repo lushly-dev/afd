@@ -38,6 +38,10 @@ fn work_registry() -> (CommandRegistry, Arc<AtomicUsize>) {
                     required: false,
                     ..CommandParameter::required_number("index", "Index")
                 },
+                CommandParameter {
+                    required: false,
+                    ..CommandParameter::required_boolean("slow", "Slow")
+                },
             ],
             ControlledHandler {
                 active: Arc::new(AtomicUsize::new(0)),
@@ -62,7 +66,15 @@ impl CommandHandler for ControlledHandler {
     ) -> CommandResult<serde_json::Value> {
         let active = self.active.fetch_add(1, Ordering::SeqCst) + 1;
         self.peak.fetch_max(active, Ordering::SeqCst);
-        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+        // Slow work outlasts a short deadline by many timer ticks: Windows' are about 15.6ms, so a
+        // 10ms sleep and a 1ms deadline can both have passed when the runtime next wakes.
+        let slow = input.get("slow") == Some(&serde_json::Value::Bool(true));
+        tokio::time::sleep(std::time::Duration::from_millis(if slow {
+            500
+        } else {
+            10
+        }))
+        .await;
         self.active.fetch_sub(1, Ordering::SeqCst);
         if input.get("fail") == Some(&serde_json::Value::Bool(true)) {
             failure(CommandError::new("EXPECTED", "controlled failure"))
@@ -200,9 +212,11 @@ async fn test_batch_honors_deadline_and_max_failures() {
     let (registry, peak) = work_registry();
     let timed_out = registry
         .execute_batch(
-            BatchRequest::new(vec![
-                BatchCommand::new("work-run", serde_json::json!({})).with_id("slow")
-            ])
+            BatchRequest::new(vec![BatchCommand::new(
+                "work-run",
+                serde_json::json!({"slow": true}),
+            )
+            .with_id("slow")])
             .with_options(BatchOptions::new().with_timeout(1.0)),
         )
         .await;

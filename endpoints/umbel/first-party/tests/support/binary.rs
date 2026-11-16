@@ -74,21 +74,42 @@ impl Bin {
         let repo = root.join("repos/example");
         std::fs::create_dir_all(repo.join(".git")).unwrap();
         let clock_file = root.join("clock");
+        #[cfg(not(windows))]
         let wrapper = root.join("umbel-first-party-at-clock");
-        let quoted = |path: &Path| format!("'{}'", path.display());
-        let mut unset = String::new();
-        for name in SCRUBBED {
-            unset.push_str(&format!("-u {name} "));
+        #[cfg(not(windows))]
+        {
+            let quoted = |path: &Path| format!("'{}'", path.display());
+            let mut unset = String::new();
+            for name in SCRUBBED {
+                unset.push_str(&format!("-u {name} "));
+            }
+            std::fs::write(
+                &wrapper,
+                format!(
+                    "#!/bin/sh\nexec env {unset}UMBEL_TEST_CLOCK=\"$(cat {})\" {} \"$@\"\n",
+                    quoted(&clock_file),
+                    quoted(Path::new(BIN)),
+                ),
+            )
+            .unwrap();
         }
-        std::fs::write(
-            &wrapper,
-            format!(
-                "#!/bin/sh\nexec env {unset}UMBEL_TEST_CLOCK=\"$(cat {})\" {} \"$@\"\n",
-                quoted(&clock_file),
-                quoted(Path::new(BIN)),
-            ),
-        )
-        .unwrap();
+        // Windows runs no shell script: a batch file, which `Command` runs through `cmd.exe`,
+        // clears the same variables, reads the clock and runs the binary with its arguments.
+        #[cfg(windows)]
+        let wrapper = root.join("umbel-first-party-at-clock.cmd");
+        #[cfg(windows)]
+        {
+            let mut script = String::from("@echo off\r\n");
+            for name in SCRUBBED {
+                script.push_str(&format!("set \"{name}=\"\r\n"));
+            }
+            script.push_str(&format!(
+                "set /p UMBEL_TEST_CLOCK=<\"{}\"\r\n\"{}\" %*\r\nexit /b %ERRORLEVEL%\r\n",
+                clock_file.display(),
+                Path::new(BIN).display(),
+            ));
+            std::fs::write(&wrapper, script).unwrap();
+        }
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

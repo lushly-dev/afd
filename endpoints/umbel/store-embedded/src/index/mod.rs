@@ -40,6 +40,47 @@ const INDEX_DIR: &str = "index";
 const WRITER_BUDGET: usize = 64 * 1024 * 1024;
 /// How often a waiter retries the writer lock.
 const LOCK_POLL: Duration = Duration::from_millis(50);
+
+/// For readers and writer sessions using one [`TantivyIndex`] instance, keeps reading its
+/// `meta.json` apart from replacing it on Windows: an open file can make replacement fail with
+/// "access denied". Reads share the guard; a commit holds it alone while replacing metadata.
+/// Independently opened indexes are not coordinated. Elsewhere this does nothing.
+#[derive(Clone, Default)]
+pub(crate) struct MetaGuard(#[cfg(windows)] std::sync::Arc<std::sync::RwLock<()>>);
+
+impl MetaGuard {
+    /// Held while `meta.json` is read.
+    #[cfg(windows)]
+    pub(crate) fn reading(&self) -> std::sync::RwLockReadGuard<'_, ()> {
+        self.0
+            .read()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Held while `meta.json` is replaced.
+    #[cfg(windows)]
+    pub(crate) fn writing(&self) -> std::sync::RwLockWriteGuard<'_, ()> {
+        self.0
+            .write()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    /// Held while `meta.json` is read.
+    #[cfg(not(windows))]
+    pub(crate) fn reading(&self) -> Unguarded {
+        Unguarded
+    }
+
+    /// Held while `meta.json` is replaced.
+    #[cfg(not(windows))]
+    pub(crate) fn writing(&self) -> Unguarded {
+        Unguarded
+    }
+}
+
+/// [`MetaGuard`]'s hold where it does nothing.
+#[cfg(not(windows))]
+pub(crate) struct Unguarded;
 /// A snippet's length, in characters (the concise form of section 8.2).
 const SNIPPET_CHARS: usize = 240;
 /// Scores are rounded to this many decimal places (section 8.2).
@@ -74,6 +115,7 @@ pub struct TantivyIndex {
     fields: Fields,
     reader: IndexReader,
     lock_timeout: Duration,
+    meta: MetaGuard,
     /// The readable chunks of each reader, per segment set (phase 5 section 9.1).
     statistics: stats::Cache,
 }
@@ -185,6 +227,7 @@ impl TantivyIndex {
             fields,
             reader,
             lock_timeout,
+            meta: MetaGuard::default(),
             statistics: stats::Cache::default(),
         })
     }
@@ -197,6 +240,7 @@ impl TantivyIndex {
 
     /// A searcher over the latest commit, whoever made it.
     fn searcher(&self) -> Result<Searcher, StoreError> {
+        let _meta = self.meta.reading();
         self.reader.reload().map_err(|e| map_tantivy(&e))?;
         Ok(self.reader.searcher())
     }
@@ -215,7 +259,10 @@ impl TantivyIndex {
             .map(|m| m.len())
             .sum();
         Ok(IndexInfo {
-            applied: read_applied(&self.index)?,
+            applied: {
+                let _meta = self.meta.reading();
+                read_applied(&self.index)?
+            },
             schema_version: SCHEMA_VERSION,
             segments: searcher.segment_readers().len(),
             chunks: searcher.num_docs(),
@@ -375,7 +422,12 @@ impl SearchIndex for TantivyIndex {
                 .writer_with_num_threads::<TantivyDocument>(1, WRITER_BUDGET)
             {
                 Ok(writer) => {
-                    let session = writer::Session::new(&self.index, writer, self.fields.clone())?;
+                    let session = writer::Session::new(
+                        &self.index,
+                        writer,
+                        self.fields.clone(),
+                        self.meta.clone(),
+                    )?;
                     return Ok(Box::new(session));
                 }
                 Err(TantivyError::LockFailure(LockError::LockBusy, _))
@@ -389,6 +441,7 @@ impl SearchIndex for TantivyIndex {
     }
 
     fn applied(&self) -> Result<Rev, StoreError> {
+        let _meta = self.meta.reading();
         read_applied(&self.index)
     }
 

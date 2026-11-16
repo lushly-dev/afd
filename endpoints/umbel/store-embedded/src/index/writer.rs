@@ -10,7 +10,7 @@ use tantivy::{Index, IndexWriter, TantivyDocument, Term};
 use umbel_store::{DocId, IndexChunk, IndexWriterSession, Rev, StoreError};
 
 use super::schema::{self, Fields, MAX_CHUNKS_PER_DOCUMENT};
-use super::{map_tantivy, read_applied};
+use super::{MetaGuard, map_tantivy, read_applied};
 
 /// One exclusive writer on the space's index.
 pub(crate) struct Session {
@@ -21,6 +21,8 @@ pub(crate) struct Session {
     tokenizers: TokenizerManager,
     /// The revision the index reflects, read under the lock and moved by this session's commit.
     applied: Rev,
+    /// Keeps this process's readers of `meta.json` apart from the commit that replaces it.
+    meta: MetaGuard,
 }
 
 impl Session {
@@ -29,13 +31,19 @@ impl Session {
         index: &Index,
         writer: IndexWriter<TantivyDocument>,
         fields: Fields,
+        meta: MetaGuard,
     ) -> Result<Self, StoreError> {
+        let applied = {
+            let _meta = meta.reading();
+            read_applied(index)?
+        };
         Ok(Self {
             writer: Some(writer),
             schema: index.schema(),
             fields,
             tokenizers: index.tokenizers().clone(),
-            applied: read_applied(index)?,
+            applied,
+            meta,
         })
     }
 
@@ -100,9 +108,12 @@ impl IndexWriterSession for Session {
         }
         let payload =
             serde_json::json!({ "applied": applied, "schema": schema::SCHEMA_VERSION }).to_string();
+        let meta = self.meta.clone();
         let writer = self.open()?;
         let mut prepared = writer.prepare_commit().map_err(|e| map_tantivy(&e))?;
         prepared.set_payload(&payload);
+        // The commit, and the merges waited for below, replace `meta.json`.
+        let _meta = meta.writing();
         prepared.commit().map_err(|e| map_tantivy(&e))?;
         self.applied = applied;
         // Let the merges this commit made eligible finish while the lock is still held, so no

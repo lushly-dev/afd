@@ -579,6 +579,8 @@ impl TempWorkspace {
             getrandom::fill(&mut bytes).map_err(|error| io::Error::other(error.to_string()))?;
             let suffix: String = bytes.iter().map(|byte| format!("{byte:02x}")).collect();
             let path = base.join(format!("umbel-plugin-check-{suffix}"));
+            // Only Unix sets a mode; Windows' temporary directory is the user's own.
+            #[cfg_attr(not(unix), allow(unused_mut))]
             let mut builder = fs::DirBuilder::new();
             #[cfg(unix)]
             {

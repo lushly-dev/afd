@@ -774,10 +774,16 @@ fn atomic(env: &Env<'_>) -> CaseResult {
     };
     const N: usize = 50;
     let done = AtomicBool::new(false);
+    // A write that failed is the case's failure: the reader stops rather than wait for chunks
+    // that will never be committed.
+    let failed = AtomicBool::new(false);
     let seen: Result<(), String> = std::thread::scope(|scope| {
         let reader_thread = scope.spawn(|| -> Result<(), String> {
             let space = everyone();
             loop {
+                if failed.load(Ordering::SeqCst) {
+                    return Ok(());
+                }
                 let finished = done.load(Ordering::SeqCst);
                 let query = IndexQuery {
                     limit: 400,
@@ -810,6 +816,7 @@ fn atomic(env: &Env<'_>) -> CaseResult {
             writer.commit(1).ctx("commit")
         };
         let written = write();
+        failed.store(written.is_err(), Ordering::SeqCst);
         done.store(true, Ordering::SeqCst);
         let read = reader_thread
             .join()

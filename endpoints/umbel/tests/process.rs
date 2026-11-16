@@ -299,6 +299,8 @@ mod http {
     use super::*;
 
     struct Served {
+        // Signalled by the Unix-only shutdown test.
+        #[cfg_attr(not(unix), allow(dead_code))]
         process: Process,
         port: u16,
         token: String,
@@ -312,7 +314,11 @@ mod http {
         let line = process.stderr_line();
         let port = listening_port(&line);
         assert!(line.contains("(token in "), "{line}");
-        assert!(line.contains("state/keys/http.token"), "{line}");
+        // The path is the platform's (with `\` on Windows).
+        assert!(
+            line.replace('\\', "/").contains("state/keys/http.token"),
+            "{line}"
+        );
         assert!(
             line.contains(&format!("http://127.0.0.1:{port}/mcp")),
             "{line}"

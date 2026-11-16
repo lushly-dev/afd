@@ -331,7 +331,11 @@ fn tls(inputs: &Inputs<'_>) -> Check {
     found.into_check(
         "auth.tls",
         passed,
-        "Serve a non-loopback bind with [http.tls]; renew a certificate before it expires; run chmod 600 on the key and chmod go-w on the certificate, CA and key set files; pin the gateway's public keys, each with its kid and alg.",
+        if cfg!(windows) {
+            "Serve a non-loopback bind with [http.tls]; renew a certificate before it expires; run the icacls command each finding names, so that only you, SYSTEM and Administrators can read the key or write the certificate, CA and key set files and their directories; pin the gateway's public keys, each with its kid and alg."
+        } else {
+            "Serve a non-loopback bind with [http.tls]; renew a certificate before it expires; run chmod 600 on the key and chmod go-w on the certificate, CA and key set files; pin the gateway's public keys, each with its kid and alg."
+        },
     )
 }
 
@@ -366,7 +370,11 @@ fn ca_files(inputs: &Inputs<'_>) -> Check {
     found.into_check(
         "auth.ca_files",
         passed,
-        "Point ca_file at a PEM file of the issuer's root certificates, each within its validity, writable only by its owner (chmod go-w); renew a root before it expires.",
+        if cfg!(windows) {
+            "Point ca_file at a PEM file of the issuer's root certificates, each within its validity, writable only by you, SYSTEM and Administrators (the icacls command each finding names); renew a root before it expires."
+        } else {
+            "Point ca_file at a PEM file of the issuer's root certificates, each within its validity, writable only by its owner (chmod go-w); renew a root before it expires."
+        },
     )
 }
 
@@ -1443,7 +1451,17 @@ fn shared(root: &Path) -> Check {
     )
 }
 
-/// What kind of file system holds a path.
+/// What kind of file system holds a path. Linux, macOS and Windows tell `Local` from `Remote`;
+/// elsewhere every path is `Unknown`, which the check reports as a warning.
+#[cfg_attr(
+    not(any(
+        target_os = "linux",
+        target_os = "android",
+        target_os = "macos",
+        windows
+    )),
+    allow(dead_code)
+)]
 enum FileSystem {
     Local,
     Remote(String),
@@ -1519,7 +1537,25 @@ fn file_system(path: &Path) -> FileSystem {
     }
 }
 
-#[cfg(not(any(target_os = "linux", target_os = "android", target_os = "macos")))]
+/// Windows: the drive type of the volume that holds the path. A network drive or share is
+/// remote; a fixed, removable or RAM disk is local; anything else cannot be told.
+#[cfg(windows)]
+fn file_system(path: &Path) -> FileSystem {
+    use umbel_windows::volume::{Drive, drive_of};
+    match drive_of(path) {
+        Ok(Drive::Remote) => FileSystem::Remote("network drive".to_owned()),
+        Ok(Drive::Fixed | Drive::Removable | Drive::RamDisk) => FileSystem::Local,
+        Ok(other) => FileSystem::Unknown(format!("its volume's drive type is {other:?}")),
+        Err(error) => FileSystem::Unknown(format!("its volume cannot be read: {error}")),
+    }
+}
+
+#[cfg(not(any(
+    target_os = "linux",
+    target_os = "android",
+    target_os = "macos",
+    windows
+)))]
 fn file_system(_path: &Path) -> FileSystem {
     FileSystem::Unknown("this platform's file system type is not read".to_owned())
 }

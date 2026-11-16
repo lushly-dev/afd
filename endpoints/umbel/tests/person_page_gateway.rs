@@ -47,6 +47,8 @@ fn person_login_with(kit: &TestIdp, acr: &str) -> String {
 }
 
 /// [`person_login_with`] asking for `phr` alone.
+// Read by the Unix-only `umbel serve --http` test.
+#[cfg_attr(not(unix), allow(dead_code))]
 fn person_login(kit: &TestIdp) -> String {
     person_login_with(kit, "\"phr\"")
 }

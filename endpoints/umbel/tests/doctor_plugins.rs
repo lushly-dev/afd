@@ -776,8 +776,12 @@ fn a_space_override_is_validated_for_the_spaces_the_instance_is_enabled_for() {
     let report = doctor::run(&root);
     let found = check(&report, "plugins.packs");
     assert_eq!(found.status, CheckStatus::Fail);
+    // The path is the platform's (with `\` on Windows).
     assert!(
-        found.message.contains("spaces/research/packs/style/voice"),
+        found
+            .message
+            .replace('\\', "/")
+            .contains("spaces/research/packs/style/voice"),
         "{}",
         found.message
     );

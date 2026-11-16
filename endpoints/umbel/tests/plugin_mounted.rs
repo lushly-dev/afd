@@ -106,6 +106,16 @@ async fn retry<T>(mut attempt: impl AsyncFnMut() -> Option<T>) -> Option<T> {
 
 /// Whether `pid` is a running process. A zombie is not: `kill -0` succeeds on one, and a killed child
 /// stays a zombie until a runtime's process driver reaps it, which may be another test's or none.
+#[cfg(windows)]
+fn process_alive(pid: u64) -> bool {
+    // An exited process leaves the list even while a handle to it is open.
+    std::process::Command::new("tasklist")
+        .args(["/FI", &format!("PID eq {pid}"), "/FO", "CSV", "/NH"])
+        .output()
+        .is_ok_and(|output| String::from_utf8_lossy(&output.stdout).contains(&format!("\"{pid}\"")))
+}
+
+#[cfg(not(windows))]
 fn process_alive(pid: u64) -> bool {
     std::process::Command::new("ps")
         .args(["-o", "stat=", "-p", &pid.to_string()])
