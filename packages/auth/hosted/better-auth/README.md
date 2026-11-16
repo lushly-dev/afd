@@ -184,12 +184,15 @@ stays `not-observed`; a provider that answers without one fails the identity or
 restart check and is recorded as `not-reported`, never filled in from a pin. When
 cleanup fails, it adds the step that failed (`cleanupFailure`, such as
 `cleanup-response` or `provider-close`) and, when the cleanup endpoint answered
-without success, its HTTP status (`cleanupStatus`); the error's first line, with
-the control key removed, goes to stderr. A failed phase likewise writes one
-`run failed at <phase>: <reason>` line to stderr, with the control key and any
-URL query or fragment removed. It omits configured identity values,
-session/user IDs, OAuth codes/state, cookie values, passwords, secret keys, raw
-errors and raw network logs.
+without success, its HTTP status (`cleanupStatus`). The receipt omits configured
+identity values, session/user IDs, OAuth codes/state, cookie values, passwords,
+secret keys, raw errors and raw network logs.
+
+Diagnostics go to stderr instead, one line each: `cleanup failed at <step>:` or
+`run failed at <phase>:` followed by the error's first line, at most 300
+characters, with the control key, URL credentials and every query or fragment
+removed. Check failures name a fixed condition or an adapter state, never a
+value. These lines are for diagnosis and are not part of the receipt.
 
 `cleanup` describes authenticated deletion and read-back for the configured
 Better Auth user and its session/account rows, plus closing the runner.

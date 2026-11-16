@@ -219,6 +219,14 @@ test('failure reasons are one line without the control key or OAuth query', () =
 		reason,
 		'Error: page.waitForURL: Timeout at https://127.0.0.1:4/api/auth/callback/x[redacted] with [control key]'
 	);
+	for (const leaky of [
+		'failed at /api/auth/callback/test?code=CODE1&state=S2',
+		'127.0.0.1:4433/cb?code=CODE2',
+		'ws://h/cb?code=CODE3',
+		"https://h/cb?state=ab'cd&code=CODE4",
+		'https://u:PASS5@h.example/p',
+	])
+		assert.ok(!/CODE|PASS/.test(safeReason(leaky)), safeReason(leaky));
 	assert.ok(safeReason('x'.repeat(500)).length <= 300);
 });
 test('receipts whitelist output and strip OAuth query/fragment/credentials', () => {

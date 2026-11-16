@@ -172,21 +172,32 @@ export async function runHarness(input: {
 			pass('fresh Chromium and real AFD hooks signed out');
 			process.send?.({ phase: 'fixture-ready' });
 			async function oauth(decision: 'allow' | 'deny') {
-				// The adapter itself must read signed out, and stay so for three consecutive reads: the DOM
-				// attribute can lead it, and a sign-out sync can still be refetching in either tab.
-				let signedOutReads = 0;
-				await waitFor(async () => {
+				// A sign-in after a callback or sign-out waits for the adapter to read signed out on three
+				// consecutive reads. Sign-out toggles Better Auth's session signal on a timer, so a second
+				// refetch can set the adapter to `loading` after the DOM already showed `unauthenticated`;
+				// `before` below is read once `signIn` resolves, and sign-in itself starts no refetch. The
+				// first (deny) call follows a fresh load that has already read signed out.
+				if (decision === 'allow') {
+					let signedOutReads = 0;
 					try {
-						const state = await first.evaluate(() => window.afdHosted.snapshot());
-						signedOutReads = state.status === 'unauthenticated' ? signedOutReads + 1 : 0;
+						await waitFor(async () => {
+							try {
+								const state = await first.evaluate(() => window.afdHosted.snapshot());
+								signedOutReads = state.status === 'unauthenticated' ? signedOutReads + 1 : 0;
+							} catch {
+								signedOutReads = 0;
+							}
+							return signedOutReads >= 3;
+						}, cfg.operationTimeoutMs);
 					} catch {
-						signedOutReads = 0;
+						input.signal.throwIfAborted();
+						check(false, 'adapter did not settle signed out before sign-in');
 					}
-					return signedOutReads >= 3;
-				}, cfg.operationTimeoutMs);
+				}
 				const beforeCallback = callbackCount;
 				const outcome = await first.evaluate(() => window.afdHosted.oauth());
-				check(outcome.kind === 'redirect' && outcome.url, `sign-in returned ${outcome.kind}`);
+				check(outcome.kind === 'redirect', `sign-in returned ${outcome.kind}`);
+				check(outcome.url, 'sign-in redirect carried no URL');
 				check(
 					outcome.before === 'unauthenticated',
 					`adapter read ${outcome.before} when the redirect started`

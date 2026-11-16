@@ -292,9 +292,9 @@ export function receiptJSON(receipt: Receipt): string {
 export function safeReason(error: unknown, controlKey = ''): string {
 	const text = error instanceof Error ? `${error.name}: ${error.message}` : String(error);
 	// Redacted before it is cut, so a key the cut would split is never half printed.
-	const line = (text.split('\n')[0] ?? '').replace(
-		/(https?:\/\/[^\s?#'"]*)[?#][^\s'"]*/gi,
-		'$1[redacted]'
-	);
+	// Any query or fragment (OAuth code/state), with or without a scheme, and any URL credentials.
+	const line = (text.split('\n')[0] ?? '')
+		.replace(/[?#][^\s]+/g, '[redacted]')
+		.replace(/\/\/[^\s/@]+@/g, '//[redacted]@');
 	return (controlKey ? line.replaceAll(controlKey, '[control key]') : line).slice(0, 300);
 }
