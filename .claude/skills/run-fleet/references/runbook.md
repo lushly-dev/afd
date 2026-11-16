@@ -13,7 +13,8 @@ First: git fetch origin '+refs/heads/main:refs/remotes/origin/main', then
 git switch -c <branch> origin/main, and start-session. The lane has claimed the issues;
 never claim, push, open a PR, run the full pnpm verify or merge: the lane does.
 Own the work without phase approvals: implementation, an independent review on your own
-provider's routes, and repairs. Then run prepare-pr in lane mode: it records the review with
+provider's routes (wait for it in this turn: a turn that ends reads as the cell finishing),
+and repairs. Then run prepare-pr in lane mode: it records the review with
 scripts/review-record.mjs and enqueues with a title and body through factory-cell. End your
 turn once the branch is queued (or held); you are resumed only if it is ejected.
 Run the tests you changed, not whole suites or reproduction loops: the lane's validation shares
@@ -41,7 +42,7 @@ until it is resolved.
 | Event | Act |
 |---|---|
 | Cell ended, branch queued | Nothing. Start another cell if `canStartCell` |
-| Cell ended without queueing | The lane cannot see this; T3 Code tells you. Answer a question about the work; access or authority goes to the owner. Otherwise `lane-drop` it with the reason |
+| Cell ended without queueing | The lane cannot see this; T3 Code tells you. If its thread has a run in progress (`t3_thread_read`), it resumed itself, as a cell does when a background reviewer returns: wait. Otherwise answer a question about the work; access or authority goes to the owner. Otherwise `lane-drop` it with the reason |
 | Cell reports `GATE_EDIT_IN_REPAIR` | A diagnosis on the stronger route, never a looser check. If the gate edit is the right repair, `gate-allow` it with the reason and resume the cell to enqueue again |
 | `ejected` | Resume the cell's thread (`t3_thread_send`) with the reason, detail and `logPath`. It repairs and enqueues again, at the front |
 | Second ejection of one branch | A diagnosis on the stronger route first, then resume the cell with it |
