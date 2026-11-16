@@ -319,7 +319,7 @@ mod durable {
         Ok(())
     }
 
-    #[cfg(any(target_vendor = "apple", target_os = "linux", target_os = "android"))]
+    #[cfg(unix)]
     use std::fs::File;
     use std::io;
     use std::path::{Path, PathBuf};
