@@ -48,7 +48,8 @@ screens side by side.
   is resumed only if its branch is ejected.
 - **Ejection, not repair.** A failing branch goes back to its cell with its log. The lane
   never resolves conflicts or edits code. The lane's own trouble (network, sign-in, a
-  killed run) is a `lane-error` that pauses the lane and ejects nothing.
+  killed run, a cancelled check, a check that outlasts `lane.checkTimeoutMinutes`) is a
+  `lane-error` that pauses the lane and ejects nothing.
 - **Allocation by plan room.** Start each cell on the plan with the most room (share of
   the weekly window elapsed minus share used), skipping plans above `plans.ceiling`.
 - **Control points.** Jason is asked only for product decisions (`needs:decision`) and
@@ -134,7 +135,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | `cell-register` | `issues[]`, `branch`, `route`, `thread?` | `cell` with the `plan` the lane assigned; claims the issues on GitHub. Called **before** `delegate_task`, so a refusal costs nothing | `ALREADY_EXISTS`, `ALREADY_CLAIMED`, `NOT_DISPATCHABLE`, `CELLS_FULL`, `PLAN_ABOVE_CEILING`, `HOST_LOADED`, `TOO_MANY_ISSUES` |
 | `cell-attach` | `branch`, `thread` | `cell`: the thread `delegate_task` returned | `NOT_FOUND` |
 | `cell-park` | `branch`, `question` | `parked`: the issue gets `needs:decision` and the question as one comment, the seat is freed, the worktree and a long lease are kept; it shows in `owner-queue` until triage plans it again | `NOT_FOUND` |
-| `lane-enqueue` | `worktree`; `title?` and `body_file?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }`; the head is also pushed to `refs/factory/queue/<branch>` on `origin`, so a replacement host can rebuild the queue | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `NOT_CONFIGURED` (the adapter names no `review_evidence`), `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR` |
+| `lane-enqueue` | `worktree`; `title?` and `body_file?` (default to the previous attempt's) | `state` (`queued` or `held`), `position`, `head`, `prequeue { stages[] }`; the head is also pushed to `refs/factory/queue/<branch>` on `origin`, so a replacement host can rebuild the queue | `NOT_FOUND` (no cell for the branch), `NOT_LANE_HOST`, `NOT_CONFIGURED` (the adapter names no `review_evidence`), `IGNORED_BRANCH` (an `ignore_branches` branch), `BODY_FILE_OUTSIDE` (`body_file` is not a relative path inside the worktree), `DIRTY_WORKTREE`, `REVIEW_MISSING`, `PREQUEUE_FAILED`, `GATE_EDIT_IN_REPAIR`, `HEAD_MOVED` (the worktree changed while its checks ran) |
 | `lane-handoff` | As `lane-enqueue` | As `lane-enqueue`, from a machine that is not the lane host | As `lane-enqueue` |
 | `lane-handoff-status` | — | `queue[]`, `cellsActive`, this machine's `cells[]` | — |
 | `lane-handoff-sync` | `worktree` | `head`, `logPath`: the lane's copy of the branch and the ejection's log, fetched into the worktree | `NOT_FOUND` |
@@ -163,7 +164,7 @@ dies between reading and acting loses nothing: the next one finds it in `lane-st
 
 | Event | Meaning | The foreman's action |
 |---|---|---|
-| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
+| `ejected` | A branch failed: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`, `pr-closed`, `ci-failed`, `merge-failed`, `coverage-failed` | Resume the cell with the detail and log; a second ejection gets a diagnosis on the stronger route first |
 | `ejection-limit` | A branch reached `cells.maxEjections` (counted by the lane, not an agent) | `cell-park` it with the diagnosis, or `lane-drop` it |
 | `merged` | A branch landed | Start another cell if `canStartCell` |
 | `queue-room` | A held branch can be queued, or a seat is free | The lane queues held branches itself; the foreman starts a cell if `canStartCell` |
@@ -224,6 +225,7 @@ so each repository states its own contract:
 | `screens` | Capture changed stories and routes before and after, desktop and phone | Lushly's capture script |
 | `preview` | Serve the app for a given commit | `merge-lane preview` |
 | `ignore_branches` | `changeset-release/*` (the release PR is never the lane's) | Same |
+| `base_branch` | `main` (the default) | Same |
 | `measure_paths` | The plugin's records, cause map, health and judging modules and their fixed-records test, and the adapter's `review` keys and this key | Its `merge-lane` report, health and flake-rule code |
 | `trend_issue` | A new issue, as `[sweep]`'s #1098 | A new Lushly issue |
 
@@ -401,6 +403,7 @@ Lushly's lane assumes macOS. The plugin must not:
 | `plans.ceiling` | 85% | Factory use of a plan's week against Jason's own sessions |
 | `fable.ceiling` | 50% | Ordinary Fable routes against keeping Fable for hard cases |
 | `lane.coverageEvery` | 5 | Merges between coverage runs on `main` |
+| `lane.checkTimeoutMinutes` | 90 | Waiting for a slow required check against holding the lane on one that never finishes (past it, a `lane-error` with the PR left open) |
 | `claims.leaseHours` | 24 | How long a silent claim holds an issue |
 | `cells.maxEjections` | 3 | Repair attempts before a branch is parked or dropped |
 | `experience.hold` | off | Merging UI changes at once against seeing them first |

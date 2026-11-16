@@ -185,8 +185,9 @@ def register(factory: Factory, issues: list[int], branch: str, route: str, threa
                 f"A cell is already registered for {branch}",
                 f"Register under another branch name, or lane-drop {branch} first",
             )
-        backlog = _check_issues(factory, issues)
+        # The host's limits first: a loaded host refuses before anything is read from GitHub.
         choice = _check_capacity(factory, state)
+        backlog = _check_issues(factory, issues)
         world = factory.world
         now = world.clock.now()
         hours = dials.value(state["dials"], "claims.leaseHours")
@@ -278,6 +279,11 @@ def drop(factory: Factory, branch: str, reason: str) -> dict:
         cell = find(state, branch)
         was_full = len(seated(state)) >= dials.value(state["dials"], "cells.max")
         held_seat = cell in seated(state)
+        for entry in [*state["queue"], *state["held"]]:
+            if entry["branch"] == branch:
+                if entry.get("run"):
+                    factory.world.processes.kill(entry["run"])
+                factory.world.git.delete_queue_ref(branch, entry["head"])
         released = _release(factory, cell, reason)
         now = format_time(factory.world.clock.now())
         state["cells"].remove(cell)

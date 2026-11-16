@@ -30,6 +30,16 @@ What a plugin served through the managed host needs: its own command policies, a
 
 ### Fixed
 
+- The Factory plugin's lane loop pushes the exact validated commit from its validation
+  checkout, retaining the worktree's pre-push verification record until the push. Completed
+  slots stay reserved; an earlier repair or revalidation can release a later reservation
+  without changing queue order. Install failures read the job's timeout boolean, GitHub
+  policy refusals requeue only when the base actually moved, and git errors retain bounded
+  diagnostics from both streams. On macOS, killed zombie processes no longer count as live
+  lane holders. Cancellation also kills step descendants in separate POSIX sessions; PRs use
+  the configured base, and terminal queue refs are retired with a lease so recovery cannot
+  resurrect them. This is the lane-loop implementation slice; Phase 1 still needs review-evidence
+  integration and a measured factory run.
 - `skill_lint_spec` lists skills in the order `skill_lint` does on every system. On Windows it sorted their directories case-insensitively, so a skill named `Wrong` came after `clean` there and before it elsewhere.
 
 ## [0.7.0] - 2026-11-13

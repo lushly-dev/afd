@@ -48,6 +48,18 @@ const PROSE = /\.md$/;
  * `ownTests`, only the listed package's own tests read them, so its dependents are not selected.
  */
 export const EXTRA_INPUTS = [
+	// afd-testing's todo-example test runs the todo example's real commands, scenarios and relative
+	// fixtures, which it reads by path rather than as a dependency; no dependent reads them.
+	...[
+		'packages/examples/todo/backends/typescript/src/',
+		'packages/examples/todo/scenarios/',
+		'packages/examples/todo/fixtures/',
+	].map((prefix) => ({
+		prefix,
+		except: PROSE,
+		packages: ['@lushly-dev/afd-testing'],
+		ownTests: true,
+	})),
 	// Wire fixtures, behaviour vectors, spec/VERSION and tool strategies.
 	{
 		prefix: 'spec/',
@@ -68,18 +80,6 @@ export const EXTRA_INPUTS = [
 	// of an app or a document type (phase 2 specification, section 1 and D2).
 	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },
 	{ prefix: 'endpoints/loam/packages/chrome/', packages: ['@lushly-dev/loam-web'] },
-	// afd-testing's todo-example test runs the todo example's TypeScript commands against its
-	// scenario files and fixtures, which it reads by path rather than as a dependency.
-	{
-		prefix: 'packages/examples/todo/backends/typescript/src/',
-		packages: ['@lushly-dev/afd-testing'],
-		ownTests: true,
-	},
-	{
-		prefix: 'packages/examples/todo/scenarios/',
-		packages: ['@lushly-dev/afd-testing'],
-		ownTests: true,
-	},
 	// The seed library's tests check the bench's results against its output schemas, and its
 	// confirmation prompts against the tasks that quote them.
 	{

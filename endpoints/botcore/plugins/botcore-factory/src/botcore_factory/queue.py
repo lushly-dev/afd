@@ -12,10 +12,13 @@ branches, the ejection it repairs is answered and an ``enqueued`` record is writ
 
 from __future__ import annotations
 
+from pathlib import PurePosixPath
+
 from botcore_factory import dials, records
 from botcore_factory.adapter import matches
 from botcore_factory.claims import format_time
 from botcore_factory.events import answer
+from botcore_factory.lane_base import open_index
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
@@ -155,14 +158,36 @@ def _profile(factory: Factory, issues: list[int]) -> str:
     return profiles[0] if profiles else "unknown"
 
 
+def _check_inputs(factory: Factory, branch: str, body_file: str | None) -> None:
+    if matches(branch, factory.config.ignore_branches):
+        raise Refusal(
+            "IGNORED_BRANCH",
+            f"{branch} is a branch the lane never takes (ignore_branches)",
+            "Merge it by hand: the release PR, for one, is operator work",
+        )
+    if body_file is not None:
+        path = PurePosixPath(body_file.replace("\\", "/"))
+        if not body_file or path.is_absolute() or ".." in path.parts or ":" in body_file:
+            raise Refusal(
+                "BODY_FILE_OUTSIDE",
+                f"body_file must be a path inside the worktree: {body_file!r}",
+                "Pass the PR body's path relative to the worktree, e.g. pr-body.md",
+            )
+
+
 def _admit(state: dict, entry: dict, repaired: bool) -> tuple[str, int]:
-    """Queue the entry (a repair at the front) or hold it when the queue is full."""
+    """Queue the entry (a repair at the front, behind a branch already merging) or hold it when
+    the queue is full."""
+    previous = next((e for e in state["queue"] if e.get("branch") == entry["branch"]), None)
+    if previous is not None and previous.get("pr"):
+        entry["pr"] = previous["pr"]  # Its PR stays open; the next push updates it.
     for listing in (state["queue"], state["held"]):
         listing[:] = [item for item in listing if item.get("branch") != entry["branch"]]
     most = dials.value(state["dials"], "lane.queueMax")
     if repaired:
-        state["queue"].insert(0, entry)
-        return "queued", 1
+        index = open_index(state["queue"])
+        state["queue"].insert(index, entry)
+        return "queued", index + 1
     if len(state["queue"]) >= most:
         state["held"].append({**entry, "holdReason": "queue-full"})
         return "held", len(state["held"])
@@ -170,23 +195,38 @@ def _admit(state: dict, entry: dict, repaired: bool) -> tuple[str, int]:
     return "queued", len(state["queue"])
 
 
+def _find_cell(state: dict, branch: str) -> dict:
+    cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
+    if cell is None:
+        raise Refusal(
+            "NOT_FOUND",
+            f"No cell is registered for {branch}",
+            "The foreman registers a cell with cell-register before starting it; a branch "
+            "without one cannot be queued",
+        )
+    return cell
+
+
 def enqueue(factory: Factory, worktree: str, title: str | None, body_file: str | None) -> dict:
+    """The checks run outside the state lock (the cheap stages take minutes); the worktree is
+    read again under it, so what joins the queue is the head that was checked."""
     branch, head = _worktree(factory, worktree)
+    _check_inputs(factory, branch, body_file)
+    cell = _find_cell(factory.store.read(), branch)
+    _check_host(factory)
+    _check_clean(factory, worktree)
+    _check_review(factory, worktree, head)
+    _check_gate(factory, worktree, branch, cell, factory.store.read())
+    stages = _prequeue(factory, worktree)
+    profile = _profile(factory, cell.get("issues", []))
     with factory.store.update(f"lane-enqueue {branch}") as state:
-        cell = next((c for c in state["cells"] if c.get("branch") == branch), None)
-        if cell is None:
+        cell = _find_cell(state, branch)
+        if factory.world.git.head(worktree) != head or factory.world.git.uncommitted(worktree):
             raise Refusal(
-                "NOT_FOUND",
-                f"No cell is registered for {branch}",
-                "The foreman registers a cell with cell-register before starting it; a branch "
-                "without one cannot be queued",
+                "HEAD_MOVED",
+                f"{worktree} changed while its checks ran (they checked {head})",
+                "Commit everything, then lane-enqueue again: the checks run on the new head",
             )
-        _check_host(factory)
-        _check_clean(factory, worktree)
-        _check_review(factory, worktree, head)
-        _check_gate(factory, worktree, branch, cell, state)
-        stages = _prequeue(factory, worktree)
-        profile = _profile(factory, cell.get("issues", []))
         try:
             factory.world.git.push_queue_ref(worktree, branch, head)
         except WorldError as exc:

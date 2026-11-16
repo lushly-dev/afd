@@ -374,9 +374,10 @@ describe('P3-E17: enrolment by invitation only, at the provider (5.6, 5.8)', () 
 		const bea = await signedIn('bea@example.com');
 		const seen = (await bea.call('/loam/members')).body as { people: Record<string, unknown>[] };
 		const others = seen.people.filter((person) => person.name !== 'Bea');
-		// Every field a member sees but the opaque ids, which are random.
+		// Opaque ids and membership digests can contain a short email part by chance.
+		// Check every other field; agent-members.test.ts checks the digest's format and identity.
 		const shown = JSON.stringify(
-			others.map(({ id: _id, memberId: _member, ...rest }) => rest)
+			others.map(({ id: _id, memberId: _member, digest: _digest, ...rest }) => rest)
 		).toLowerCase();
 		const emails = database
 			.prepare('SELECT email FROM user WHERE id IN (SELECT userId FROM member)')

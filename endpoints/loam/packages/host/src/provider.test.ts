@@ -6,7 +6,7 @@
  * provider's answers are `no-store`. Bootstrap and `start`'s refusals are here too (3.1, 3.7, D95).
  */
 
-import { existsSync, readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -446,7 +446,7 @@ describe('bootstrap (3.7): both forms, one path', () => {
 			AUTH_DATABASE,
 		])
 			expectMode(join(data, file), 0o600, file);
-		expect(statSync(data).mode & 0o777).toBe(0o700);
+		expectMode(data, 0o700, 'data directory');
 		const [message] = readFileSync(join(data, 'mail.jsonl'), 'utf8')
 			.trim()
 			.split('\n')

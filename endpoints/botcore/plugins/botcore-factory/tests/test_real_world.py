@@ -37,10 +37,10 @@ class FakeRun:
         self.fail = fail or {}
         self.calls: list[tuple[list[str], str | None]] = []
 
-    def __call__(self, args, stdin=None):
+    def __call__(self, args, stdin=None, check=True):
         self.calls.append((list(args), stdin))
         key = " ".join(args[:3])
-        if key in self.fail:
+        if key in self.fail and check:
             raise WorldError(self.fail[key])
         return self.answers.get(key, "")
 
@@ -294,3 +294,450 @@ def test_no_plan_windows_is_unreadable(tmp_path):
 def test_the_real_world_is_assembled_for_a_target(tmp_path):
     world = real_world(tmp_path, caches=tmp_path)
     assert isinstance(world, World) and isinstance(world.plans, T3Plans)
+
+
+def test_gh_signs_in_reads_required_checks_and_drives_a_pr():
+    rules = json.dumps(
+        [
+            {
+                "type": "required_status_checks",
+                "parameters": {"required_status_checks": [{"context": "ci-ok"}]},
+            }
+        ]
+    )
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/rules/branches/main": rules,
+            "gh pr list": "[]",
+            "gh pr create": "https://github.com/o/r/pull/612\n",
+            "gh pr view": json.dumps({"state": "MERGED"}),
+        },
+        fail={"gh api repos/o/r/branches/main/protection/required_status_checks": "HTTP 404"},
+    )
+    github = GhGitHub(run)
+    assert github.signed_in() is True
+    assert github.required_checks("main") == ["ci-ok"]
+    assert github.open_pr("fix/a", "Fix a", "Body") == 612
+    github.merge_pr(612, "abc")
+    assert github.pr_state(612) == "MERGED"
+    calls = [args for args, _ in run.calls]
+    assert [
+        "gh",
+        "pr",
+        "list",
+        "--head",
+        "fix/a",
+        "--base",
+        "main",
+        "--state",
+        "open",
+        "--json",
+        "number,isCrossRepository",
+    ] in calls
+    assert [
+        "gh",
+        "pr",
+        "create",
+        "--head",
+        "fix/a",
+        "--base",
+        "main",
+        "--title",
+        "Fix a",
+        "--body-file",
+        "-",
+    ] in calls
+    assert ["gh", "pr", "merge", "612", "--squash", "--match-head-commit", "abc"] in calls
+    assert GhGitHub(FakeRun(fail={"gh auth status": "not logged in"})).signed_in() is False
+
+
+def check_run(conclusion=None, started="2030-01-01T09:00:00Z", name="ci-ok"):
+    status = "completed" if conclusion else "in_progress"
+    return {"name": name, "status": status, "conclusion": conclusion, "started_at": started}
+
+
+CHECK_RUNS = [
+    ([check_run()], "pending"),
+    ([check_run("success")], "success"),
+    ([check_run("failure")], "failure"),
+    ([check_run("timed_out")], "failure"),
+    ([check_run("cancelled")], "cancelled"),
+    ([check_run("failure"), check_run("success", "2030-01-01T10:00:00Z")], "success"),
+    ([check_run("success", name="other")], "missing"),
+]
+
+
+@pytest.mark.parametrize(
+    "runs,expected", CHECK_RUNS, ids=[f"{c[1]}{i}" for i, c in enumerate(CHECK_RUNS)]
+)
+def test_a_check_is_read_on_the_head_itself(runs, expected):
+    """B1: a check is the head's own, never the PR's latest whatever its head."""
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/commits/abc/check-runs?per_page=100": json.dumps(
+                {"check_runs": runs}
+            ),
+            "gh api repos/o/r/commits/abc/status": json.dumps({"statuses": []}),
+        }
+    )
+    assert GhGitHub(run).check_status(612, "ci-ok", "abc") == expected
+
+
+def test_a_commit_status_stands_in_for_a_missing_check_run():
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/commits/abc/check-runs?per_page=100": json.dumps({"check_runs": []}),
+            "gh api repos/o/r/commits/abc/status": json.dumps(
+                {"statuses": [{"context": "ci-ok", "state": "pending"}]}
+            ),
+        }
+    )
+    assert GhGitHub(run).check_status(612, "ci-ok", "abc") == "pending"
+
+
+def test_an_open_pr_for_the_branch_is_reused_but_never_a_fork_s():
+    run = FakeRun({"gh pr list": json.dumps([{"number": 77, "isCrossRepository": False}])})
+    assert GhGitHub(run).open_pr("fix/a", "t", "b") == 77
+    assert all(args[:3] != ["gh", "pr", "create"] for args, _ in run.calls)
+    fork = FakeRun(
+        {
+            "gh pr list": json.dumps([{"number": 78, "isCrossRepository": True}]),
+            "gh pr create": "https://github.com/o/r/pull/79\n",
+        }
+    )
+    assert GhGitHub(fork).open_pr("fix/a", "t", "b") == 79
+
+
+def test_a_nondefault_base_is_bound_to_pr_lookup_and_creation():
+    run = FakeRun({"gh pr list": "[]", "gh pr create": "https://github.com/o/r/pull/80\n"})
+    assert GhGitHub(run).open_pr("fix/a", "t", "b", "develop") == 80
+    for args, _ in run.calls:
+        assert args[args.index("--base") + 1] == "develop"
+
+
+def test_queue_ref_retirement_is_idempotent_and_bound_to_the_enqueued_head():
+    ref = "refs/factory/queue/fix/a"
+    run = FakeRun({"git ls-remote origin": f"abc\t{ref}\n"})
+    CliGit(run).delete_queue_ref("fix/a", "abc")
+    assert run.calls[-1][0] == [
+        "git",
+        "push",
+        "--quiet",
+        f"--force-with-lease={ref}:abc",
+        "origin",
+        f":{ref}",
+    ]
+    absent = FakeRun()
+    CliGit(absent).delete_queue_ref("fix/a", "abc")
+    assert len(absent.calls) == 1
+
+
+def test_the_validated_head_is_pushed_from_its_checkout_by_commit_with_a_lease():
+    """B1 and S1: the head pushed is the validated commit, over the lane's own last push."""
+    run = FakeRun({"git -C slot-a": "merge1\n", "git -C slot-b": "merge2\n"})
+    git = CliGit(run)
+    git.push_head("slot-a", "fix/a", "merge1", "merge0")
+    git.push_head("slot-b", "fix/b", "merge2", None)
+    assert [args for args, _ in run.calls] == [
+        [
+            "git",
+            "-C",
+            "slot-a",
+            "rev-parse",
+            "HEAD",
+        ],
+        [
+            "git",
+            "-C",
+            "slot-a",
+            "push",
+            "--quiet",
+            "--porcelain",
+            "--force-with-lease=refs/heads/fix/a:merge0",
+            "origin",
+            "merge1:refs/heads/fix/a",
+        ],
+        ["git", "-C", "slot-b", "rev-parse", "HEAD"],
+        [
+            "git",
+            "-C",
+            "slot-b",
+            "push",
+            "--quiet",
+            "--porcelain",
+            "origin",
+            "merge2:refs/heads/fix/b",
+        ],
+    ]
+
+
+def test_a_reused_checkout_is_refused_before_pushing():
+    run = FakeRun({"git -C slot-a": "another-head\n"})
+    with pytest.raises(WorldError, match="no longer holds"):
+        CliGit(run).push_head("slot-a", "fix/a", "validated-head", None)
+    assert not any("push" in args for args, _ in run.calls)
+
+
+@pytest.mark.parametrize(
+    "stderr,stdout",
+    [
+        (
+            "error: failed to push some refs to 'https://github.com/o/r.git'\n"
+            "hint: Updates were rejected because the tip of your current branch is behind\n",
+            "",
+        ),
+        (
+            "error: failed to push some refs to 'https://github.com/o/r.git'\n",
+            "To https://github.com/o/r.git\n"
+            "!\tabc:refs/heads/fix/a\t[rejected] (stale info)\nDone\n",
+        ),
+    ],
+)
+def test_git_failures_keep_rejection_diagnostics_from_both_streams(tmp_path, stderr, stdout):
+    from botcore_factory.lane_base import NON_FAST_FORWARD
+
+    code = f"import sys; sys.stderr.write({stderr!r}); sys.stdout.write({stdout!r}); sys.exit(1)"
+    with pytest.raises(WorldError) as caught:
+        make_runner(str(tmp_path))([sys.executable, "-c", code])
+    assert NON_FAST_FORWARD.search(str(caught.value))
+    assert str(caught.value).endswith((stderr.strip() + "\n" + stdout.strip()).strip())
+
+
+def test_runner_failure_diagnostics_are_bounded_and_keep_the_tail(tmp_path):
+    code = (
+        "import sys; sys.stderr.write('noise' * 10000 + '\\n[rejected] (stale info)'); sys.exit(1)"
+    )
+    with pytest.raises(WorldError) as caught:
+        make_runner(str(tmp_path))([sys.executable, "-c", code])
+    assert str(caught.value).endswith("[rejected] (stale info)")
+    assert len(str(caught.value)) < 12000
+
+
+def test_the_base_is_fetched_by_the_adapter_s_branch_name():
+    run = FakeRun({"git rev-parse refs/remotes/origin/develop": "base1\n"})
+    assert CliGit(run).fetch_base("develop") == "base1"
+    assert run.calls[0][0] == ["git", "fetch", "--quiet", "--no-tags", "origin"]
+
+
+def test_a_merge_that_did_not_happen_is_an_error_not_a_clean_merge():
+    """S6: no conflict is not a merge; the base must be in the head's history."""
+
+    class Unmerged(FakeRun):
+        def __call__(self, args, stdin=None, check=True):
+            self.calls.append((list(args), stdin))
+            if "merge-base" in args:
+                raise WorldError("exit 1")
+            return "head1\n" if "rev-parse" in args else ""  # No unmerged paths.
+
+    with pytest.raises(WorldError, match="did not happen"):
+        CliGit(Unmerged()).merge_main("slot", "main1")
+
+    merged = FakeRun()
+    assert CliGit(merged).merge_main("slot", "main1").clean is True
+    assert ["git", "-C", "slot", "merge-base", "--is-ancestor", "main1", "HEAD"] in [
+        args for args, _ in merged.calls
+    ]
+
+
+def test_git_lists_queue_refs_and_publishes_a_host_record_without_the_checkout():
+    run = FakeRun(
+        {
+            "git ls-remote origin": (
+                "abc\trefs/factory/queue/fix/a\ndef\trefs/factory/queue/fix/b\n"
+            ),
+            "git hash-object -w": "blob1\n",
+            "git mktree": "tree1\n",
+            "git -c user.name=botcore-factory": "commit1\n",
+        }
+    )
+    git = CliGit(run)
+    assert git.queue_refs() == [
+        {"branch": "fix/a", "head": "abc"},
+        {"branch": "fix/b", "head": "def"},
+    ]
+    from botcore_factory.world import HostRecord
+
+    git.publish_host_record(HostRecord(id="workstation", cores=16))
+    calls = run.calls
+    assert json.loads(calls[1][1])["id"] == "workstation"
+    assert calls[2][1] == "100644 blob blob1\thost.json\n"
+    assert calls[-1][0] == [
+        "git",
+        "push",
+        "--force",
+        "--quiet",
+        "origin",
+        "commit1:refs/factory/hosts/workstation",
+    ]
+
+
+def test_git_prepares_a_slot_merges_main_and_reports_a_conflict(tmp_path):
+    run = FakeRun(
+        {
+            "git rev-parse --path-format=absolute": str(tmp_path / ".git") + "\n",
+            "git -C " + str(tmp_path / ".git" / "factory" / "slots" / "1"): "",
+        }
+    )
+    git = CliGit(run, str(tmp_path))
+    path = git.prepare_slot("1", "fix/a", "abc")
+    assert path == str(tmp_path / ".git" / "factory" / "slots" / "1")
+    calls = [args for args, _ in run.calls]
+    assert [
+        "git",
+        "fetch",
+        "--quiet",
+        "origin",
+        "+refs/factory/queue/fix/a:refs/factory/queue/fix/a",
+    ] in calls
+    assert ["git", "worktree", "add", "--force", "--detach", path, "abc"] in calls
+
+    class Conflicted(FakeRun):
+        def __call__(self, args, stdin=None, check=True):
+            self.calls.append((list(args), stdin))
+            if args[3:5] == ["diff", "--name-only"]:
+                return "src/a.ts\n"
+            return ""
+
+    conflicted = Conflicted()
+    outcome = CliGit(conflicted).merge_main("slot", "main1")
+    assert (outcome.clean, outcome.conflicts) == (False, ("src/a.ts",))
+    assert ["git", "-C", "slot", "merge", "--abort"] in [args for args, _ in conflicted.calls]
+
+
+def wait_for(predicate, seconds=30):
+    import time
+
+    deadline = time.monotonic() + seconds
+    while time.monotonic() < deadline:
+        value = predicate()
+        if value:
+            return value
+        time.sleep(0.05)
+    return predicate()
+
+
+def python(code):
+    return [sys.executable, "-c", code]
+
+
+def test_a_job_runs_its_steps_in_order_and_names_the_one_that_failed(tmp_path):
+    processes = OsProcesses()
+    steps = [
+        {"label": "install", "args": python("print('installed')")},
+        {"label": "validate", "args": python("import sys; print('FAIL x'); sys.exit(3)")},
+    ]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "j.log"), label="validate")
+    done = wait_for(lambda: processes.poll(handle))
+    assert (done.returncode, done.step) == (3, "validate")
+    assert "installed" in done.stdout and "FAIL x" in done.stdout
+    with pytest.raises(WorldError):
+        processes.poll(handle)  # Done and collected: a later poll has no such job.
+    passed = processes.start_job(steps[:1], str(tmp_path), str(tmp_path / "p.log"), label="v")
+    done = wait_for(lambda: processes.poll(passed))
+    assert (done.returncode, done.step) == (0, None)
+
+
+def test_an_install_that_hangs_times_out_as_the_job_s_failure(tmp_path):
+    """S4: install never blocks the lane: it runs in the job, bounded by its timeout."""
+    processes = OsProcesses()
+    steps = [
+        {"label": "install", "args": python("import time; time.sleep(60)"), "timeout": 1},
+        {"label": "validate", "args": python("print('never')")},
+    ]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "t.log"), label="validate")
+    done = wait_for(lambda: processes.poll(handle))
+    assert (done.returncode, done.step) == (124, "install")
+    assert '"timedOut": true' in done.stdout and "never" not in done.stdout
+
+
+def test_a_killed_job_is_gone(tmp_path):
+    processes = OsProcesses()
+    steps = [{"label": "validate", "args": python("import time; time.sleep(60)")}]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "k.log"), label="validate")
+    pid = int(handle.split("@")[0])
+    processes.kill(handle)
+    assert wait_for(lambda: not processes.alive(pid), 10)
+    with pytest.raises(WorldError):
+        processes.poll(handle)
+
+
+@pytest.mark.parametrize("timeout", [False, True], ids=["cancel", "timeout"])
+def test_stopping_a_job_kills_steps_and_descendants_in_their_own_sessions(tmp_path, timeout):
+    processes = OsProcesses()
+    pids = tmp_path / "step-pids.json"
+    code = "\n".join(
+        [
+            "import json, os, subprocess, sys, time",
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'], "
+            "start_new_session=True)",
+            f"open({str(pids)!r}, 'w').write(json.dumps([os.getpid(), child.pid]))",
+            "time.sleep(60)",
+        ]
+    )
+    steps = [{"label": "install", "args": python(code), "timeout": 2 if timeout else 60}]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "tree.log"), label="v")
+    assert wait_for(lambda: pids.exists() and pids.read_text())
+    descendants = json.loads(pids.read_text())
+    assert all(processes.alive(pid) for pid in descendants)
+    if timeout:
+        done = wait_for(lambda: processes.poll(handle))
+        assert (done.returncode, done.step) == (124, "install")
+    else:
+        processes.kill(handle)
+    assert wait_for(lambda: all(not processes.alive(pid) for pid in descendants), 10)
+
+
+def test_terminate_kills_only_a_verified_process_and_its_whole_tree(tmp_path):
+    """B3 and S10: the start time must match, and what the lane started dies with it."""
+    processes = OsProcesses()
+    assert processes.terminate(os.getpid(), None) is False  # Unverifiable: left alone.
+    assert processes.terminate(os.getpid(), 0.0) is False  # Another process's pid.
+    child_file = tmp_path / "child.pid"
+    code = "\n".join(
+        [
+            "import subprocess, sys, time",
+            "child = subprocess.Popen([sys.executable, '-c', 'import time; time.sleep(60)'])",
+            f"open({str(child_file)!r}, 'w').write(str(child.pid))",
+            "time.sleep(60)",
+        ]
+    )
+    parent = processes.start_detached(python(code), str(tmp_path), str(tmp_path / "d.log"))
+    assert wait_for(lambda: child_file.exists() and child_file.read_text())
+    child = int(child_file.read_text())
+    started = processes.start_time(parent)
+    assert started is not None and processes.alive(parent, started)
+    assert processes.terminate(parent, started) is True
+    assert wait_for(lambda: not processes.alive(parent), 10)
+    assert wait_for(lambda: not processes.alive(child), 10)
+
+
+def test_a_mac_start_time_comes_from_ps(monkeypatch):
+    """B3: on macOS a reused pid is told apart by its start time too."""
+    import time
+
+    from botcore_factory import real_system
+    from botcore_factory.world import Completed
+
+    asked = []
+
+    def ps(args, **_):
+        asked.append(list(args))
+        return Completed(tuple(args), 0, "Fri Nov 13 09:30:05 2026\n", "")
+
+    monkeypatch.setattr(real_system, "run_process", ps)
+    monkeypatch.setattr(real_system.sys, "platform", "darwin")
+    expected = time.mktime(time.strptime("Fri Nov 13 09:30:05 2026", "%a %b %d %H:%M:%S %Y"))
+    assert OsProcesses().start_time(4242) == expected
+    assert asked == [["ps", "-o", "lstart=", "-p", "4242"]]
+
+
+def test_this_machine_s_programs_symlinks_and_versions():
+    machine = LocalMachine()
+    assert machine.has_program(sys.executable) is True
+    assert machine.has_program("botcore-factory-no-such-program") is False
+    assert isinstance(machine.symlinks(), bool)
+    assert machine.tool_version(sys.executable).count(".") == 2
+    assert machine.tool_version("botcore-factory-no-such-program") is None
