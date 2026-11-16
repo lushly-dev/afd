@@ -19,6 +19,14 @@ for a background reviewer reads to the foreman as finished, so the brief now has
 its turn and the runbook checks for a run in progress before dropping one; and `delegate_task`'s
 worktree isolation worked.
 
+Queued, the branch was ejected at the lane's final validation: Loam's kernel failed its typecheck
+(TS2883 on zod's types) and Loam's CLI and apps failed their tests, in code the branch never
+touched.
+The cause was the slot's place, `.git/factory/slots/1`: TypeScript refuses those declarations in a
+project whose path has a `.git` segment (the same checkout, copied elsewhere, passed). The lane's
+slots are now `<checkout>.factory-slots/<n>`, beside the repository; a slot left at the old place
+is removed with `git worktree remove --force .git/factory/slots/<n>` while the lane is stopped.
+
 ## The fleet's command lines and `run-fleet`, 2026-11-15
 
 `factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two
