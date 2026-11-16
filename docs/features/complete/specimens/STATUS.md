@@ -4,8 +4,8 @@ Read this before the implementation plan. This ledger records verified progress,
 
 ## Where the epic stands
 
-**Local MCP endpoint (proposed in [#1320](https://github.com/lushly-dev/afd/pull/1320),
-branch `lush/specimen-mcp-server`).** `endpoints/specimen-server`
+**Local MCP endpoint ([#1320](https://github.com/lushly-dev/afd/pull/1320)).**
+`endpoints/specimen-server`
 hosts the 19 existing `defineCommand` definitions from `integrations/specimen-afd`
 over stdio, using the CLI's validated execution path, input schemas, mutation and
 destructive metadata, and unchanged `CommandResult` envelopes. The endpoint is
