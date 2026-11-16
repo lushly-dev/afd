@@ -1,5 +1,5 @@
 /**
- * Todo UI and AI sidebar. Served by the chat server (`npx tsx src/chat-server.ts`,
+ * Todo UI and AI sidebar. Served by the server (`pnpm dev` in backend/,
  * then open http://localhost:3201), so every call below is same-origin.
  *
  * Rendering goes through `render.js`, which never parses strings as HTML.
@@ -9,7 +9,6 @@ import { renderChatMessage, renderEmpty, renderLogEntry, renderTodoItem } from '
 
 const EXECUTE_URL = '/execute';
 const CHAT_URL = '/chat';
-const MCP_HEALTH_URL = 'http://localhost:3200/health';
 
 const byId = (id) => document.getElementById(id);
 
@@ -152,21 +151,16 @@ async function sendChat() {
 // ═══════════════════════════════════════════════════════════════
 
 async function checkServers() {
-	// The MCP server is optional (CLI access); its origin list includes this page.
-	try {
-		const r = await fetch(MCP_HEALTH_URL);
-		byId('serverStatus').classList.toggle('connected', r.ok);
-	} catch {
-		byId('serverStatus').classList.remove('connected');
-	}
-
+	// One server: the page, /execute, /chat and MCP at /mcp. The second dot is Gemini.
 	try {
 		const r = await fetch('/health');
 		const data = await r.json();
-		const connected = r.ok && data.geminiConfigured;
-		byId('chatStatus').classList.toggle('connected', connected);
-		byId('aiStatus').textContent = connected ? 'Ready' : 'No API Key';
+		byId('serverStatus').classList.toggle('connected', r.ok);
+		const configured = r.ok && data.geminiConfigured;
+		byId('chatStatus').classList.toggle('connected', configured);
+		byId('aiStatus').textContent = configured ? 'Ready' : 'No API Key';
 	} catch {
+		byId('serverStatus').classList.remove('connected');
 		byId('chatStatus').classList.remove('connected');
 		byId('aiStatus').textContent = 'Offline';
 	}

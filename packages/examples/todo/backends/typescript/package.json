@@ -5,6 +5,24 @@
 	"description": "Todo example - TypeScript backend implementing AFD patterns",
 	"type": "module",
 	"main": "dist/server.js",
+	"exports": {
+		"./commands": {
+			"types": "./dist/commands/index.d.ts",
+			"import": "./dist/commands/index.js"
+		},
+		"./contexts": {
+			"types": "./dist/contexts.d.ts",
+			"import": "./dist/contexts.js"
+		},
+		"./server-options": {
+			"types": "./dist/server-options.d.ts",
+			"import": "./dist/server-options.js"
+		},
+		"./store": {
+			"types": "./dist/store/index.d.ts",
+			"import": "./dist/store/index.js"
+		}
+	},
 	"scripts": {
 		"build": "tsc",
 		"typecheck": "tsc -p tsconfig.typecheck.json",

@@ -140,6 +140,8 @@ walked them (below). Each job moved beside the code that runs it once it was bui
 and 7 to 9 in [`backends/typescript/scenarios/`](../../../../packages/examples/todo/backends/typescript/scenarios/),
 run by `src/scenarios.test.ts`, and job 6, the page's, in
 [`frontends/shared/scenarios/`](../../../../packages/examples/todo/frontends/shared/scenarios/).
+Job 10, phase 4's, is in
+[`todo-directclient/backend/scenarios/`](../../../../packages/examples/todo-directclient/backend/scenarios/).
 
 | # | Job | File | Tags |
 |---|-----|------|------|
@@ -152,8 +154,9 @@ run by `src/scenarios.test.ts`, and job 6, the page's, in
 | 7 | A developer turns an agent session's journal into a regression test | [07](../../../../packages/examples/todo/backends/typescript/scenarios/07-replay-a-session.scenario.yaml) | `journal`, `deterministic`, `developer` |
 | 8 | Find a deleted todo long after the delete and bring it back | [08](../../../../packages/examples/todo/backends/typescript/scenarios/08-find-a-deleted-todo.scenario.yaml) | `undo` |
 | 9 | See what changed, who changed it, and undo it from there | [09](../../../../packages/examples/todo/backends/typescript/scenarios/09-see-what-changed.scenario.yaml) | `slice`, `undo`, `history` |
+| 10 | Let the copilot look at the todos without being able to change them | [10](../../../../packages/examples/todo-directclient/backend/scenarios/10-look-without-changing.scenario.yaml) | `allow` |
 
-Keeping an agent from changing anything at all is a phase 4 job, served by DirectClient's
+Keeping an agent from changing anything at all is phase 4's job 10, served by DirectClient's
 `allow`: contexts narrow what an agent is offered and are not a security boundary
 (`packages/server/README.md`, "Contexts").
 

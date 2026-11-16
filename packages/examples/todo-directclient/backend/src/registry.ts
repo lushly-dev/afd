@@ -1,38 +1,43 @@
 /**
- * @fileoverview Command Registry - Exportable without starting a server
+ * @fileoverview The registry the copilot calls through DirectClient: the main to-do example's
+ * commands and middleware, run in this process.
  *
- * This is the KEY INNOVATION for in-process binding:
- * - Registry can be imported directly by co-located agents
- * - No server startup required for direct execution
- * - Same command definitions power both the MCP server and direct calls
- *
- * `createDirectRegistry` runs every call through the same engine as the MCP
- * server: Zod input validation (so `{ "title": { "nested": true } }` is
- * rejected before it reaches the store), middleware, error sanitization, and
- * the `expose.agent` check. Do not hand-roll a registry that calls
- * `command.handler(input)` directly; it skips all of that.
+ * `createDirectRegistry` runs every call through the same engine as the MCP server: Zod input
+ * validation, the middleware (approvals, the change history, logging), error sanitization and
+ * the `expose.agent` check. `createDirectToolSurface` adds the server's own tool list, so
+ * `listTools()` returns what an MCP server with these commands lists. Do not hand-roll a registry
+ * that calls `command.handler(input)` directly: it skips all of that.
  */
 
-import { createDirectRegistry, type DirectCommandRegistry } from '@lushly-dev/afd-server';
-import { allCommands } from './commands/index.js';
+import { allCommands } from '@afd/example-todo-ts/commands';
+import {
+	createTodoMiddleware,
+	type Env,
+	type TodoServerDeps,
+} from '@afd/example-todo-ts/server-options';
+import {
+	createDirectRegistry,
+	createDirectToolSurface,
+	type DirectCommandRegistry,
+} from '@lushly-dev/afd-server';
 
 /**
- * The command registry type, compatible with `DirectClient`.
- */
-export type CommandRegistry = DirectCommandRegistry;
-
-/**
- * Singleton registry instance for the in-app agent.
- * Import this for direct command execution.
+ * The copilot's registry. The middleware is the MCP server's (`createTodoMiddleware`), so a call
+ * from the copilot is held, journaled and recorded exactly as the same call over MCP would be.
  *
  * @example
  * ```typescript
- * import { registry } from '@afd/example-todo-directclient/registry';
- *
- * // Direct execution - no server, no transport overhead, still validated
- * const result = await registry.execute('todo-create', { title: 'Fast!' });
+ * const client = createDirectClient(createCopilotRegistry(process.env), {
+ *   actor: { kind: 'agent' },
+ *   allow: (name) => name === 'todo-list',
+ * });
+ * await client.call('todo-list', {});
  * ```
  */
-export const registry: CommandRegistry = createDirectRegistry(allCommands, {
-	interface: 'agent',
-});
+export function createCopilotRegistry(env: Env, deps: TodoServerDeps = {}): DirectCommandRegistry {
+	return createDirectRegistry(allCommands, {
+		middleware: createTodoMiddleware(env, deps),
+		tools: createDirectToolSurface(),
+		devMode: env.NODE_ENV === 'development',
+	});
+}
