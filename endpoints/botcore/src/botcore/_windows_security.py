@@ -10,7 +10,7 @@ from __future__ import annotations
 import ctypes as c
 import msvcrt
 import os
-from contextlib import contextmanager
+from contextlib import ExitStack, contextmanager
 from ctypes import wintypes as w
 from functools import cache
 from pathlib import Path
@@ -135,7 +135,7 @@ def _attributes(directory: bool):
         _free(descriptor)
 
 
-def _check(handle, path: Path, *, directory: bool) -> None:
+def _check(handle, path: Path, *, directory: bool, ancestor=False) -> None:
     attributes = _FileAttributes()
     if not _file_info(handle, 9, c.byref(attributes), c.sizeof(attributes)):
         raise c.WinError(c.get_last_error())  # FileAttributeTagInfo
@@ -149,7 +149,12 @@ def _check(handle, path: Path, *, directory: bool) -> None:
         raise c.WinError(status)
     try:
         trusted = _trusted()
-        if _sid(owner) not in trusted or not dacl:
+        owner_sid = _sid(owner)
+        # The volume root anchors the path namespace (and Windows commonly gives
+        # it to TrustedInstaller). Every other owner must be one of the three
+        # trusted principals, including owners that could change an ancestor ACL.
+        root = ancestor and path.parent == path
+        if (owner_sid not in trusted and not root) or not dacl:
             raise PermissionError(f"{path}: unsafe Windows token-store owner or ACL")
         for index in range(c.cast(dacl, c.POINTER(_Acl)).contents.count):
             ace = _P()
@@ -160,12 +165,25 @@ def _check(handle, path: Path, *, directory: bool) -> None:
                 continue
             if header.kind != 0 or header.size < 16:
                 raise PermissionError(f"{path}: unsupported Windows token-store ACL entry")
+            if (
+                ancestor and header.flags & 0x08
+            ):  # INHERIT_ONLY does not grant this ancestor access.
+                continue
             sid = ace.value + 8  # ACCESS_ALLOWED_ACE: header, mask, SID
             if not _valid_sid(sid) or _sid_length(sid) > header.size - 8:
                 raise PermissionError(f"{path}: unreadable Windows token-store ACL entry")
             # OWNER RIGHTS refers to the object's owner, which was checked above.
             principal = _sid(sid)
-            if principal not in trusted and principal != "S-1-3-4":
+            allowed = principal in trusted or (principal == "S-1-3-4" and owner_sid in trusted)
+            rights = w.DWORD.from_address(ace.value + 4).value
+            # Ancestors may be readable or permit adding a new subdirectory (as
+            # C:\ does). Refuse grants that could redirect an existing component:
+            # write data/reparse metadata, write attributes (enough to make an empty
+            # directory a mount point, even while it is held), delete children/the
+            # object, change its ACL or owner, and generic write/all. New components
+            # get private ACLs.
+            mutation = 0x2 | 0x40 | 0x100 | 0x10000 | 0x40000 | 0x80000 | 0x10000000 | 0x40000000
+            if not allowed and (not ancestor or rights & mutation):
                 raise PermissionError(
                     f"{path}: Windows token store grants another principal access"
                 )
@@ -173,8 +191,10 @@ def _check(handle, path: Path, *, directory: bool) -> None:
         _free(descriptor)
 
 
-def _open(path: Path, access: int, disposition: int, *, directory=False, lock=False):
-    # Lock files cannot be renamed/deleted while in use. Data handles permit atomic replacement.
+def _open(
+    path: Path, access: int, disposition: int, *, directory=False, lock=False, ancestor=False
+):
+    # Directory-chain and lock handles deny deletion; data handles permit atomic replacement.
     flags = 0x00200000 | (0x02000000 if directory else 0x80)
     with _attributes(directory) as attributes:
         handle = _create_file(
@@ -184,28 +204,52 @@ def _open(path: Path, access: int, disposition: int, *, directory=False, lock=Fa
     if handle == _P(-1).value:
         raise c.WinError(code)
     try:
-        _check(handle, path, directory=directory)
+        _check(handle, path, directory=directory, ancestor=ancestor)
         return handle
     except BaseException:
         _close(handle)
         raise
 
 
+@contextmanager
+def pinned_directory(path: Path):
+    """Check every path component, holding each against redirection until the operation ends."""
+    path = Path(os.path.abspath(path))  # Normalize lexical components without following reparses.
+    with ExitStack() as held:
+        handles = []
+        for component in (*reversed(path.parents), path):
+            options = {"directory": True, "lock": True, "ancestor": component != path}
+            try:
+                handle = _open(component, 0x00020000, 3, **options)  # READ_CONTROL, OPEN_EXISTING
+            except FileNotFoundError:
+                if component.parent == component:
+                    raise
+                with _attributes(True) as attributes:
+                    if not _create_directory(str(component), c.byref(attributes)):
+                        code = c.get_last_error()
+                        if code != 183:  # A concurrent operator may have made it first.
+                            raise c.WinError(code)
+                handle = _open(component, 0x00020000, 3, **options)
+            held.callback(_close, handle)
+            handles.append((handle, component))
+        # A held directory cannot be renamed or deleted, but one still empty when it was
+        # checked could have been made a mount point before its child was created. Once
+        # every component is held, each holds the next, so none can become one now.
+        for handle, component in handles:
+            attributes = _FileAttributes()
+            if not _file_info(handle, 9, c.byref(attributes), c.sizeof(attributes)):
+                raise c.WinError(c.get_last_error())  # FileAttributeTagInfo
+            if attributes.attributes & 0x400:
+                raise PermissionError(
+                    f"{component}: a private token path must not be a reparse point"
+                )
+        yield path
+
+
 def ensure_directory(path: Path) -> None:
-    """Create missing directories privately; refuse an unsafe existing holding directory."""
-    try:
-        handle = _open(path, 0x00020000, 3, directory=True)  # READ_CONTROL, OPEN_EXISTING
-    except FileNotFoundError:
-        if path.parent == path:
-            raise
-        ensure_directory(path.parent)
-        with _attributes(True) as attributes:
-            if not _create_directory(str(path), c.byref(attributes)):
-                code = c.get_last_error()
-                if code != 183:  # A concurrent operator may have made it first.
-                    raise c.WinError(code)
-        handle = _open(path, 0x00020000, 3, directory=True)
-    _close(handle)
+    """Create private directories and check existing components without changing their ACLs."""
+    with pinned_directory(path):
+        pass
 
 
 def open_private(path: Path, *, create=False, lock=False) -> int:

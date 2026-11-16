@@ -8,8 +8,15 @@ from concurrent.futures import ThreadPoolExecutor
 
 import pytest
 
+from botcore import _windows_security
 from botcore.host_tokens import TokenStore
-from tests.windows_acl import assert_private, change_acl, grant_everyone
+from tests.windows_acl import (
+    assert_private,
+    change_acl,
+    grant_everyone,
+    junction,
+    mount_held_directory,
+)
 
 pytestmark = pytest.mark.skipif(os.name != "nt", reason="Native Windows ACL and file-lock behavior")
 
@@ -106,6 +113,65 @@ def test_reparse_points_cannot_supply_a_token_store_path(tmp_path, target):
         other = store
     with pytest.raises(PermissionError, match="reparse point"):
         other.list()
+
+
+def test_an_intermediate_junction_cannot_redirect_the_store_away_from_its_lock(tmp_path):
+    store = TokenStore(tmp_path / "tree" / "private" / "tokens.json")
+    store.issue("lane", "service", "operator")
+    alias = tmp_path / "alias"
+    junction(alias, tmp_path / "tree")
+    with pytest.raises(PermissionError, match="reparse point"):
+        TokenStore(alias / "private" / "tokens.json").list()
+
+
+@pytest.mark.parametrize(
+    "rights",
+    ["Write", "WriteAttributes", "Delete", "DeleteSubdirectoriesAndFiles", "ChangePermissions"],
+)
+def test_an_ancestor_cannot_grant_another_principal_path_mutation(tmp_path, rights):
+    ancestor = tmp_path / "tree"
+    store = TokenStore(ancestor / "private" / "tokens.json")
+    store.issue("lane", "service", "operator")
+    grant_everyone(ancestor, rights)
+    with pytest.raises(PermissionError, match="another principal"):
+        store.list()
+
+
+def test_an_empty_ancestor_mounted_while_held_cannot_redirect_creation(tmp_path, monkeypatch):
+    # A held, already-checked ancestor that is still empty can be made a mount point before its
+    # child is created; the creation then follows it. The operation must refuse, and leave
+    # nothing in the mount's target.
+    ancestor = tmp_path / "tree"
+    ancestor.mkdir()
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    create = _windows_security._create_directory
+    mounted = []
+
+    def racing(name, attributes):
+        if not mounted:
+            mounted.append(name)
+            mount_held_directory(ancestor, elsewhere)
+        return create(name, attributes)
+
+    monkeypatch.setattr(_windows_security, "_create_directory", racing)
+    with pytest.raises(PermissionError, match="reparse point"):
+        TokenStore(ancestor / "new" / "tokens.json").issue("lane", "service", "operator")
+    assert mounted
+    assert not any(elsewhere.rglob("tokens.json*"))
+
+
+def test_readable_ancestors_are_allowed_and_remain_pinned_during_an_operation(tmp_path):
+    ancestor = tmp_path / "tree"
+    store = TokenStore(ancestor / "private" / "tokens.json")
+    record, secret = store.issue("lane", "service", "operator")
+    grant_everyone(ancestor, "Read")
+    assert store.verify(secret) == record
+    with store._exclusive(), pytest.raises(PermissionError):
+        ancestor.rename(tmp_path / "moved")
+    ancestor.rename(tmp_path / "moved")
+    (tmp_path / "moved").rename(ancestor)
+    assert store.verify(secret) == record
 
 
 @pytest.mark.parametrize("operation", ["issue", "verify"])

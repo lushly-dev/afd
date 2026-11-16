@@ -5,8 +5,10 @@ import os
 import subprocess
 
 
-def powershell(path, script):
+def powershell(path, script, *, target=None):
     env = {**os.environ, "BOTCORE_TEST_ACL_PATH": str(path)}
+    if target is not None:
+        env["BOTCORE_TEST_ACL_TARGET"] = str(target)
     result = subprocess.run(
         [
             "powershell.exe",
@@ -67,7 +69,14 @@ def change_acl(path, operation):
 
 
 def grant_everyone(path, rights="Read"):
-    assert rights in ("Read", "Delete", "Write", "DeleteSubdirectoriesAndFiles")
+    assert rights in (
+        "Read",
+        "Delete",
+        "Write",
+        "WriteAttributes",
+        "DeleteSubdirectoriesAndFiles",
+        "ChangePermissions",
+    )
     change_acl(
         path,
         """
@@ -76,3 +85,56 @@ def grant_everyone(path, rights="Read"):
         $acl.AddAccessRule($rule)
     """.replace("RIGHTS", rights),
     )
+
+
+def junction(path, target):
+    powershell(
+        path,
+        """
+        New-Item -ItemType Junction -Path $env:BOTCORE_TEST_ACL_PATH `
+            -Target $env:BOTCORE_TEST_ACL_TARGET | Out-Null
+    """,
+        target=target,
+    )
+
+
+def mount_held_directory(directory, target):
+    """Make an empty directory a mount point through a FILE_WRITE_ATTRIBUTES-only handle.
+
+    Such a handle shares read and write, so it succeeds even while the token store holds the
+    directory open against deletion and renaming.
+    """
+    import ctypes as c
+    import struct
+    from ctypes import wintypes as w
+
+    kernel = c.WinDLL("kernel32", use_last_error=True)
+    create = kernel.CreateFileW
+    create.restype = w.HANDLE
+    create.argtypes = [w.LPCWSTR, w.DWORD, w.DWORD, c.c_void_p, w.DWORD, w.DWORD, w.HANDLE]
+    control = kernel.DeviceIoControl
+    control.restype = w.BOOL
+    control.argtypes = [
+        w.HANDLE,
+        w.DWORD,
+        c.c_void_p,
+        w.DWORD,
+        c.c_void_p,
+        w.DWORD,
+        c.POINTER(w.DWORD),
+        c.c_void_p,
+    ]
+    # FILE_WRITE_ATTRIBUTES; OPEN_EXISTING; BACKUP_SEMANTICS | OPEN_REPARSE_POINT
+    handle = create(str(directory), 0x100, 3, None, 3, 0x02000000 | 0x00200000, None)
+    if handle == c.c_void_p(-1).value:
+        raise c.WinError(c.get_last_error())
+    try:
+        name = ("\??\\" + str(target)).encode("utf-16-le")
+        buffer = struct.pack("<HHHH", 0, len(name), len(name) + 2, 0) + name + b"\0\0\0\0"
+        request = struct.pack("<IHH", 0xA0000003, len(buffer), 0) + buffer
+        returned = w.DWORD()
+        # FSCTL_SET_REPARSE_POINT with IO_REPARSE_TAG_MOUNT_POINT
+        if not control(handle, 0x000900A4, request, len(request), None, 0, returned, None):
+            raise c.WinError(c.get_last_error())
+    finally:
+        kernel.CloseHandle(handle)

@@ -19,14 +19,15 @@ import os
 import secrets
 import tempfile
 import threading
+import time
 from collections.abc import Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 
 if os.name == "nt":
-    from ._windows_security import ensure_directory, open_private
+    from ._windows_security import ensure_directory, open_private, pinned_directory
 
 PREFIX = "bct_"
 ACTOR_KINDS = ("human", "agent", "service")
@@ -71,7 +72,7 @@ class TokenStore:
     """Tokens in ``path``: issue, verify, list and revoke."""
 
     def __init__(self, path: Path) -> None:
-        self.path = Path(path)
+        self.path = Path(os.path.abspath(path)) if os.name == "nt" else Path(path)
         self._lock = threading.Lock()
         self._loaded: tuple[tuple, dict[str, TokenRecord]] | None = None
 
@@ -102,24 +103,41 @@ class TokenStore:
     def _exclusive(self) -> Iterator[None]:
         """This process's lock, and an OS lock on ``<store>.lock`` across processes."""
         with self._lock:
-            lock = self._directory() / f"{self.path.name}.lock"
-            descriptor = (
-                open_private(lock, create=True, lock=True)
+            guard = (
+                pinned_directory(self.path.parent)
                 if os.name == "nt"
-                else os.open(lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                else nullcontext(self._directory())
             )
-            try:
-                if os.name == "nt":
-                    import msvcrt
+            with guard as directory:
+                lock = directory / f"{self.path.name}.lock"
+                descriptor = (
+                    open_private(lock, create=True, lock=True)
+                    if os.name == "nt"
+                    else os.open(lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
+                )
+                try:
+                    if os.name == "nt":
+                        import msvcrt
 
-                    msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
-                else:
-                    import fcntl
+                        # LK_LOCK retries once a second, which would stall an HTTP
+                        # handler for a second on any contention. Poll instead, with
+                        # the same ten-second limit, and fail closed past it.
+                        deadline = time.monotonic() + 10
+                        while True:
+                            try:
+                                msvcrt.locking(descriptor, msvcrt.LK_NBLCK, 1)
+                                break
+                            except OSError:
+                                if time.monotonic() >= deadline:
+                                    raise
+                                time.sleep(0.01)
+                    else:
+                        import fcntl
 
-                    fcntl.flock(descriptor, fcntl.LOCK_EX)
-                yield
-            finally:
-                os.close(descriptor)  # Closing releases the OS lock.
+                        fcntl.flock(descriptor, fcntl.LOCK_EX)
+                    yield
+                finally:
+                    os.close(descriptor)  # Closing releases the OS lock.
 
     @contextmanager
     def _reading(self) -> Iterator[None]:

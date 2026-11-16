@@ -52,6 +52,111 @@ def test_upstream_staged_and_current_bytes_are_classified_and_packaged_identical
     assert server["import_classification"] == "modified-after-staging"
 
 
+def local_addition(payloads, name="src/botcore/new_local.py"):
+    adaptations = json.loads(payloads["adaptations.json"])
+    adaptations["files"].append(
+        {
+            "path": name,
+            "origin": "local-after-import",
+            "upstream_sha256": None,
+            "staged_sha256": None,
+            "current_import_sha256": "1" * 64,
+            "stage_classification": "not-in-staging",
+            "stage_reason": "No source-byte claim",
+            "import_classification": "added-after-staging",
+            "import_reason": "Reviewed local addition",
+        }
+    )
+    return adaptations
+
+
+def test_local_additions_preserve_both_immutable_manifests():
+    payloads = records()
+    original = {
+        name: payloads[name] for name in ("upstream-selected.json", "staged-input-allowlist.json")
+    }
+    replace_record(payloads, "adaptations", local_addition(payloads))
+    verifier().verify_records(payloads.__getitem__)
+    assert all(payloads[name] == raw for name, raw in original.items())
+
+
+@pytest.mark.parametrize(
+    "field,value,match",
+    [
+        ("origin", "upstream", "Unclassified"),
+        ("upstream_sha256", "1" * 64, "cannot claim"),
+        ("staged_sha256", "1" * 64, "cannot claim"),
+    ],
+)
+def test_local_additions_cannot_claim_unknown_source_bytes(field, value, match):
+    payloads = records()
+    adaptations = local_addition(payloads)
+    adaptations["files"][-1][field] = value
+    replace_record(payloads, "adaptations", adaptations)
+    with pytest.raises(AssertionError, match=match):
+        verifier().verify_records(payloads.__getitem__)
+
+
+def test_known_source_cannot_be_reclassified_as_a_local_addition():
+    payloads = records()
+    adaptations = json.loads(payloads["adaptations.json"])
+    adaptations["files"][0]["origin"] = "local-after-import"
+    replace_record(payloads, "adaptations", adaptations)
+    with pytest.raises(AssertionError, match="cannot be relabeled"):
+        verifier().verify_records(payloads.__getitem__)
+
+
+@pytest.mark.parametrize("name", ["../escape.py", "C:/escape.py", "src\\escape.py", "/escape.py"])
+def test_adaptation_paths_cannot_escape_the_unit(name):
+    payloads = records()
+    replace_record(payloads, "adaptations", local_addition(payloads, name))
+    with pytest.raises(AssertionError, match="Invalid adaptation path"):
+        verifier().verify_records(payloads.__getitem__)
+
+
+def test_refresh_records_local_bytes_and_keeps_the_mirrors_and_frozen_evidence(
+    tmp_path, monkeypatch
+):
+    import shutil
+
+    monkeypatch.syspath_prepend(str(ROOT / "scripts"))
+    spec = importlib.util.spec_from_file_location(
+        "botcore_record", ROOT / "scripts/record_provenance.py"
+    )
+    recorder = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(recorder)
+    payloads = records()
+    for row in json.loads(payloads["adaptations.json"])["files"]:
+        source = ROOT / row["path"]
+        if source.is_file():
+            target = tmp_path / row["path"]
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(source, target)
+    for directory in (tmp_path / "provenance", tmp_path / "src/botcore/provenance"):
+        directory.mkdir(parents=True, exist_ok=True)
+        for name, raw in payloads.items():
+            (directory / name).write_bytes(raw)
+    monkeypatch.setattr(recorder, "ROOT", tmp_path)
+    local = tmp_path / "src/botcore/new_local.py"
+    local.write_text("# AFD-authored fixture\n")
+    recorder.refresh(["src/botcore/new_local.py"], "Fixture addition")
+    first = (tmp_path / "provenance/adaptations.json").read_bytes()
+    recorder.refresh(["src/botcore/new_local.py"], "Fixture addition")
+    assert (tmp_path / "provenance/adaptations.json").read_bytes() == first
+    refreshed = {path.name: path.read_bytes() for path in (tmp_path / "provenance").glob("*.json")}
+    verifier().verify_records(refreshed.__getitem__, current=tmp_path)
+    for name, raw in refreshed.items():
+        assert (tmp_path / "src/botcore/provenance" / name).read_bytes() == raw
+    for name in ("upstream-selected.json", "staged-input-allowlist.json"):
+        assert refreshed[name] == payloads[name]
+    before = dict(refreshed)
+    with pytest.raises(ValueError):
+        recorder.refresh(["../escape.py"], "Invalid path")
+    assert {
+        path.name: path.read_bytes() for path in (tmp_path / "provenance").glob("*.json")
+    } == before
+
+
 @pytest.mark.parametrize(
     "key,name",
     [("upstream", "upstream-selected.json"), ("staged_input", "staged-input-allowlist.json")],

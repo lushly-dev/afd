@@ -227,10 +227,17 @@ On Windows, creation gives the directory, temporary file and lock a protected AC
 allowing only the operator account, SYSTEM and Administrators. Existing store
 files, locks and holding directories must have a trusted owner and no grants to
 other principals; `OWNER RIGHTS` is checked as the object's owner. Unreadable
-ACLs, unsupported ACL entries and reparse points are refused. Choose a private
+ACLs, unsupported ACL entries and reparse points anywhere in the path are refused.
+Ancestors must not let other principals redirect the path; the directory chain
+is held open against replacement throughout the operation. Choose a private
 directory for `--store`; Botcore does not change permissions on existing paths.
-Windows readers take the same byte-range lock as writers, with a bounded lock
-wait, so a read cannot obstruct replacement. Unix keeps `flock` and its existing
+These rules are stricter than Loam's host check (#1134): the owner must be the
+operator account, SYSTEM or Administrators; any allow entry for another
+principal refuses a store file, whatever its rights; and an ancestor may grant
+others reading or adding a subdirectory, but not writing data or attributes,
+deleting, or changing its ACL or owner.
+Windows readers take the same byte-range lock as writers, polling for up to ten
+seconds before the operation fails, so a read cannot obstruct replacement. Unix keeps `flock` and its existing
 file-mode protections. Neither platform needs an optional package for locking.
 
 `serve_hosts(app, address, port)` runs it with Uvicorn and binds only to
