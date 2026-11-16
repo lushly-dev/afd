@@ -1,0 +1,104 @@
+{
+	"bytes": {
+		"database": 860217344,
+		"directory": 7372158559,
+		"directory_on_disk": 10028138496,
+		"held": 10872983530,
+		"index": 922188927,
+		"index_on_disk": 970137600,
+		"log": 5589719520,
+		"log_on_disk": 8184565760,
+		"messages_without_attachments": 6218869666
+	},
+	"checks": {
+		"hits": 15000,
+		"opened_with_text": 300,
+		"queries": 300,
+		"queries_with_hits": 300,
+		"threads_listed": 14950
+	},
+	"derived_ratio": 0.29,
+	"directory_ratio": 0.92,
+	"directory_ratio_by_file_length": 0.68,
+	"import": {
+		"bodies_to_a_batch": 50,
+		"messages_per_second": 521.34,
+		"seconds": 959.06,
+		"seconds_bodies": 622.05,
+		"seconds_headers": 334.37
+	},
+	"limits": {
+		"derived_ratio": {
+			"limit": 3.0,
+			"met": true
+		},
+		"directory_ratio": {
+			"limit": 1.5,
+			"met": true
+		},
+		"import_per_second": {
+			"limit": 500.0,
+			"met": true
+		},
+		"list_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"open_p95_ms": {
+			"limit": 50.0,
+			"met": true
+		},
+		"search_p95_ms": {
+			"limit": 200.0,
+			"met": true
+		}
+	},
+	"list_50_threads_ms": {
+		"max": 0.14,
+		"p50": 0.06,
+		"p95": 0.09
+	},
+	"load_averages": {
+		"at_end": "6.01 7.08 6.68",
+		"at_start": "6.42 6.12 4.52"
+	},
+	"messages": 500000,
+	"open_message_ms": {
+		"max": 5.59,
+		"p50": 0.76,
+		"p95": 1.43
+	},
+	"search_ms": {
+		"max": 7.47,
+		"p50": 0.76,
+		"p95": 4.97
+	},
+	"shape": {
+		"in_threads": 0.67,
+		"senders": 2906,
+		"templated": 0.82,
+		"vocabulary": 50000
+	},
+	"stories": {
+		"largest_kinds": 517,
+		"largest_messages": 42060,
+		"list_50_ms": {
+			"max": 0.08,
+			"p50": 0.04,
+			"p95": 0.06
+		},
+		"open_largest_ms": {
+			"max": 0.61,
+			"p50": 0.4,
+			"p95": 0.46
+		},
+		"page_of_a_kind_ms": {
+			"max": 3.63,
+			"p50": 1.92,
+			"p95": 2.35
+		},
+		"stories": 2370
+	},
+	"threads": 156443,
+	"tool": "loam_mail limits"
+}

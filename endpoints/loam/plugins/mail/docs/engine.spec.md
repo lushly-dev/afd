@@ -1298,8 +1298,8 @@ strangers. With the senders' minimum it finds none, on the same copy
 again by the new rule, took 225 ms, and the burst's story is gone, its messages back in their
 streams. Its other timings were taken while another session loaded the machine (a load average
 near 13), so `classifyEverythingMs`, 22 446 against 16 941, is no measure of the change; finding
-an account's bursts reads each first contact's sender as well, and the 4.4 import was not
-measured again.
+an account's bursts reads each first contact's sender as well; the 4.4 import, measured again
+with no other session running, is below.
 
 **Import with bursts** ([4.4](#44-limits-to-meet)): during an account's first sync its bursts are
 not found, and a batch rechecks the first contacts of only the senders whose first day it touches
@@ -1310,6 +1310,19 @@ message from the person, moved). Measured at 500 000 made-up messages beside `ma
 ([the results](limits-500000-c3.results.json), [`main`'s](limits-500000-c3-main.results.json));
 neither met 500 under that load. Listing the account found its bursts in about a millisecond, and
 a batch of 250 headers after it took 184 ms.
+
+**Measured again** on 2026-11-16, after the senders' minimum merged, on the Mac's own disk with no
+other session running (at the start Spotlight and the file provider used about a core each; the
+1-minute load average went 2.9 to 8.8, 6.4 to 6.0 and 3.3 to 2.0 across the three runs): `main`
+at `70d6c136`, with bursts, then `main` just before them (`1c53dae8`), then `70d6c136` again.
+Every limit of 4.4 is met in all three. Import is 511 and 513 messages a second with bursts
+against 521 without: bursts cost at most about 2%, from one run without them, and within the
+noise, since the header and body phases each moved about 7% between the runs, in opposite
+directions. Import's room over the limit is now 2%
+([the results](limits-500000-c3-idle.results.json),
+[before bursts](limits-500000-c3-idle-main.results.json),
+[the second run](limits-500000-c3-idle-2.results.json)). Listing the account found its bursts in
+1.3 to 1.5 ms, and a batch of 250 headers after it took 159 to 211 ms.
 
 ## 8. Stories
 
