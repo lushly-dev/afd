@@ -13,11 +13,15 @@ const HELLO = join(UMBEL, 'plugins/hello');
 
 /** `$LOAM_UMBEL_TARGET_DIR`, else `$CARGO_TARGET_DIR`, else Umbel's own `target`. */
 function targetDirectory(): string {
-	return process.env.LOAM_UMBEL_TARGET_DIR ?? process.env.CARGO_TARGET_DIR ?? join(UMBEL, 'target');
+	return resolve(
+		UMBEL,
+		process.env.LOAM_UMBEL_TARGET_DIR || process.env.CARGO_TARGET_DIR || 'target'
+	);
 }
 
+/** A built binary; Windows names it with `.exe`. */
 export const binary = (name: 'umbel' | 'hello-mcp'): string =>
-	join(targetDirectory(), 'debug', name);
+	join(targetDirectory(), 'debug', process.platform === 'win32' ? `${name}.exe` : name);
 
 /** A missing binary says how to build it. */
 async function requireBinaries(): Promise<void> {

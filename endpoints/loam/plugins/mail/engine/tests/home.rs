@@ -30,12 +30,17 @@ fn the_variable_names_the_directory() {
 
 #[test]
 fn without_the_variable_the_platform_decides() {
-    let home = Home::resolve(environment(&[("LOAM_MAIL_HOME", ""), ("HOME", "/home/p")]))
-        .expect("a directory");
+    let home = Home::resolve(environment(&[
+        ("LOAM_MAIL_HOME", ""),
+        ("HOME", "/home/p"),
+        ("LOCALAPPDATA", r"C:\Users\p\AppData\Local"),
+    ]))
+    .expect("a directory");
     let expected = if cfg!(target_os = "macos") {
         "/home/p/Library/Application Support/loam-mail"
     } else if cfg!(windows) {
-        return;
+        // The local profile, never HOME.
+        r"C:\Users\p\AppData\Local\loam-mail"
     } else {
         "/home/p/.local/share/loam-mail"
     };

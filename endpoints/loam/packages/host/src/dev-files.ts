@@ -10,6 +10,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from 'node:fs';
 import { appendFile, chmod, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
+import { restrictAcls } from './acl.js';
 import { HostError } from './errors.js';
 
 export const DEV_FILE = 'dev.json';
@@ -17,16 +18,23 @@ export const MAIL_FILE = 'mail.jsonl';
 export const TLS_DIRECTORY = 'tls';
 export const SECRETS_DIRECTORY = 'secrets';
 
-/** A private file, written whole: removed first, since a mode applies only when a file is created. */
+/**
+ * A private file, written whole: removed first, since a mode applies only when a file is created. On
+ * Windows the new file takes its directory's ACL, which `privateDirectory` makes private.
+ */
 export async function writePrivate(path: string, contents: string | Buffer): Promise<void> {
 	await rm(path, { force: true });
 	await writeFile(path, contents, { mode: 0o600, flag: 'wx' });
 }
 
-/** A private directory, created 0700, or made 0700 if it is this profile's and exists. */
+/**
+ * A private directory, created 0700, or made 0700 if it is this profile's and exists. On Windows, where
+ * modes are not enforced, its ACL becomes its own, private and inherited by what is written in it.
+ */
 export async function privateDirectory(path: string): Promise<void> {
 	await mkdir(path, { recursive: true, mode: 0o700 });
 	await chmod(path, 0o700);
+	if (process.platform === 'win32') restrictAcls([path]);
 }
 
 /** The `.gitignore` the profile writes in its data directory. */

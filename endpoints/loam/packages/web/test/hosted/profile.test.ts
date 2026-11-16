@@ -11,7 +11,7 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { mkdtemp, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join, relative } from 'node:path';
-import { type DevHost, startDevHost } from '@lushly-dev/loam-host/testing';
+import { type DevHost, exposedTo, readAcls, startDevHost } from '@lushly-dev/loam-host/testing';
 import type { Browser } from 'playwright';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import {
@@ -74,6 +74,19 @@ afterAll(async () => {
 	await host?.close();
 });
 
+/** A process's resident memory: `ps`'s RSS (KiB), or on Windows its working set. */
+const residentBytes = (pid: number): number =>
+	process.platform === 'win32'
+		? Number(
+				execFileSync(
+					'powershell.exe',
+					['-NoProfile', '-NonInteractive', '-Command', `(Get-Process -Id ${pid}).WorkingSet64`],
+					{ encoding: 'utf8' }
+				).trim()
+			)
+		: Number(execFileSync('ps', ['-o', 'rss=', '-p', String(pid)], { encoding: 'utf8' }).trim()) *
+			1024;
+
 const pidOf = (host: DevHost): number =>
 	(JSON.parse(readFileSync(join(host.data, '.lock'), 'utf8')) as { pid: number }).pid;
 
@@ -84,15 +97,27 @@ describe('P6-H1: one command, one process', () => {
 		expect(host.spki).toMatch(/^[A-Za-z0-9+/]{43}=$/);
 		expect(relative(dirname(host.data), host.data)).toBe('.loam-dev');
 		expect(readFileSync(join(host.data, '.gitignore'), 'utf8')).toBe('*\n');
+		// Windows enforces no mode bits: there each path's ACL grants no one but its owner, SYSTEM and
+		// Administrators, the host's own check (HOST_SECRET_PERMISSIONS).
+		const windows = process.platform === 'win32';
+		const paths: string[] = [];
 		const walk = (directory: string): void => {
-			expect(statSync(directory).mode & 0o777, directory).toBe(0o700);
+			if (windows) paths.push(directory);
+			else expect(statSync(directory).mode & 0o777, directory).toBe(0o700);
 			for (const entry of readdirSync(directory, { withFileTypes: true })) {
 				const path = join(directory, entry.name);
 				if (entry.isDirectory()) walk(path);
-				else if (entry.isFile()) expect(statSync(path).mode & 0o777, path).toBe(0o600);
+				else if (!entry.isFile()) continue;
+				else if (windows) paths.push(path);
+				else expect(statSync(path).mode & 0o777, path).toBe(0o600);
 			}
 		};
 		walk(host.data);
+		if (windows)
+			readAcls(paths).reads.forEach((read, index) => {
+				expect(read.state, paths[index]).toBe('read');
+				expect(read.state === 'read' && exposedTo(read), paths[index]).toEqual([]);
+			});
 		expect(host.logs().some((line) => line.startsWith('LOAM_DEV_READY'))).toBe(true);
 	});
 
@@ -265,10 +290,7 @@ describe('P6-H1: one command, one process', () => {
 	it("P6-H1: section 14's rows: cold start to the first 200 on <base>, and resident memory after boot and E1's scenario", async () => {
 		const opened = await openShell(browser, host.root);
 		await opened.context.close();
-		const residentMb =
-			Number(
-				execFileSync('ps', ['-o', 'rss=', '-p', String(pidOf(host))], { encoding: 'utf8' }).trim()
-			) / 1024;
+		const residentMb = residentBytes(pidOf(host)) / 1024 / 1024;
 		// The line `loam.yml`'s `Hosted development profile` job's samples are read from (section 14).
 		console.log(
 			`P6-H1 measurement: cold start ${Math.round(coldStartMs)} ms (median of ${coldStarts.map(Math.round).join(', ')}), resident ${Math.round(residentMb)} MB`

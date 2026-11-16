@@ -4,7 +4,7 @@ import { randomUUID } from 'node:crypto';
 import { mkdir, rm } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import test from 'node:test';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { build } from 'esbuild';
 import { chromium } from 'playwright';
 import { buildFixture } from './build.mjs';
@@ -32,7 +32,7 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 			outfile: resolve(output, 'local.mjs'),
 			logLevel: 'silent',
 		});
-		const { startLocal } = await import(resolve(output, 'local.mjs'));
+		const { startLocal } = await import(pathToFileURL(resolve(output, 'local.mjs')).href);
 		local = await startLocal(output, revision, 80_000, controller.signal);
 		browser = await chromium.launch({ headless: true });
 		const context = await browser.newContext({ ignoreHTTPSErrors: true });
