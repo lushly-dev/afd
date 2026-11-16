@@ -37,7 +37,7 @@ export async function fixtureTable(): Promise<string[]> {
  * Script text that finds the view frame's `<iframe>` through every shadow root, `loam-view-frame`'s own
  * included. Text, since WebDriver sends a function's source alone, without what it closes over.
  */
-const FIND_VIEW = `
+export const FIND_VIEW_SCRIPT = `
 	const find = (root) => {
 		const frame = root.querySelector('loam-view-frame');
 		const inside = frame?.shadowRoot?.querySelector('iframe') ?? frame?.querySelector('iframe');
@@ -55,9 +55,9 @@ export async function openView(desktop: Desktop): Promise<string> {
 	const { browser } = desktop;
 	await desktop.call('app-open', { instance: 'hello' });
 	const src = () =>
-		browser.execute(`${FIND_VIEW} return find(document)?.getAttribute('src') ?? null;`) as Promise<
-			string | null
-		>;
+		browser.execute(
+			`${FIND_VIEW_SCRIPT} return find(document)?.getAttribute('src') ?? null;`
+		) as Promise<string | null>;
 	await browser.waitUntil(async () => (await src()) !== null, { timeout: 20_000 });
 	return (await src()) as string;
 }
@@ -65,7 +65,7 @@ export async function openView(desktop: Desktop): Promise<string> {
 /** Switches WebDriver into the proxy frame, then, with `inner`, into the view's. Back with `leaveFrames`. */
 export async function enterFrames(desktop: Desktop, inner: boolean): Promise<void> {
 	const { browser } = desktop;
-	const outer = await browser.execute(`${FIND_VIEW} return find(document);`);
+	const outer = await browser.execute(`${FIND_VIEW_SCRIPT} return find(document);`);
 	await browser.switchFrame(outer as never);
 	if (!inner) return;
 	await browser.waitUntil(() => browser.execute(() => document.querySelector('iframe') !== null), {

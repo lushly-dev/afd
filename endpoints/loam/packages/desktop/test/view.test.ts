@@ -6,7 +6,7 @@ import { mkdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { enterFrames, leaveFrames, openView, viewDeployment } from './frames';
+import { enterFrames, FIND_VIEW_SCRIPT, leaveFrames, openView, viewDeployment } from './frames';
 import { type Desktop, ORIGINS, openDesktop, violations, watchViolations } from './harness';
 
 const RESULTS = fileURLToPath(new URL('../test-results/', import.meta.url));
@@ -21,38 +21,44 @@ afterAll(async () => {
 });
 
 describe('P6-D3: a view on the desktop', () => {
-	it('P6-D3: records the origins this webview reports for the two schemes (diagnostic, not asserted)', async () => {
-		const shell = await desktop.browser.execute(() => ({
-			location: location.origin,
-			self: self.origin,
-			parsedShell: new URL(location.href).origin,
-			parsedSandbox: new URL('loam-sandbox://localhost/sandbox/proxy.html').origin,
-			parsedHttpSandbox: new URL('http://loam-sandbox.localhost/').origin,
-		}));
+	it('P6-D3: records what this webview reports of the two schemes and the proxy frame (diagnostic, not asserted)', async () => {
+		const { browser } = desktop;
+		const shell = await browser.execute(() =>
+			JSON.stringify({
+				location: location.origin,
+				self: self.origin,
+				parsedSandbox: new URL('loam-sandbox://localhost/sandbox/proxy.html').origin,
+			})
+		);
 		await desktop.call('app-open', { instance: 'hello' });
-		await new Promise((resolve) => setTimeout(resolve, 3_000));
-		const instances = await desktop.call('app-instance-list');
-		const frame = await desktop.browser.execute(() => {
-			const find = (root: Document | ShadowRoot): Element | null => {
-				const view = root.querySelector('loam-view-frame');
-				if (view) return view;
-				for (const element of root.querySelectorAll('*'))
-					if (element.shadowRoot) {
-						const nested = find(element.shadowRoot);
-						if (nested) return nested;
-					}
-				return null;
-			};
-			const view = find(document);
-			const iframe = view?.shadowRoot?.querySelector('iframe') ?? view?.querySelector('iframe');
-			return {
-				state: view?.getAttribute('state') ?? null,
-				error: view?.shadowRoot?.textContent?.slice(0, 300) ?? null,
-				src: iframe?.getAttribute('src') ?? null,
-			};
-		});
+		let proxy = 'no view frame';
+		try {
+			await browser.waitUntil(
+				async () =>
+					(await browser.execute(
+						`${FIND_VIEW_SCRIPT} return find(document)?.getAttribute('src') ?? null;`
+					)) !== null,
+				{ timeout: 20_000 }
+			);
+			await enterFrames(desktop, false);
+			proxy = await browser.execute(() =>
+				JSON.stringify({
+					href: location.href,
+					origin: self.origin,
+					title: document.title,
+					readyState: document.readyState,
+					scripts: document.scripts.length,
+					iframes: document.querySelectorAll('iframe').length,
+					body: document.body?.innerHTML.slice(0, 200) ?? null,
+				})
+			);
+			await leaveFrames(desktop);
+		} catch (error) {
+			proxy = `unreadable: ${String(error).slice(0, 200)}`;
+			await leaveFrames(desktop).catch(() => {});
+		}
 		process.stderr.write(
-			`P6-D3 origins on ${process.platform}: ${JSON.stringify({ shell, frame, instances: instances.data })}\n`
+			`P6-D3 diagnostic on ${process.platform}: shell ${shell}; proxy ${proxy}\n`
 		);
 	});
 

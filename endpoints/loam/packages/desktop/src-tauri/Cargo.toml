@@ -35,6 +35,8 @@ libc = "0.2"
 
 [dev-dependencies]
 tempfile = "3"
+# P6-D4's origin case drives the commands through Tauri's own IPC, on its mock runtime.
+tauri = { version = "=2.12.5", features = ["test"] }
 
 [features]
 # `tauri build` turns this on, so the release binary serves its own protocols rather than a dev server.

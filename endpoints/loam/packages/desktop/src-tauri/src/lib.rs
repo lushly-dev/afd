@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::menu::{Menu, MenuItem, PredefinedMenuItem, Submenu};
-use tauri::{AppHandle, Manager, RunEvent, State, WebviewUrl, WebviewWindowBuilder};
+use tauri::{AppHandle, Manager, RunEvent, Runtime, State, WebviewUrl, WebviewWindowBuilder};
 
 /// The one webview the capability file names.
 pub const MAIN: &str = "main";
@@ -21,25 +21,42 @@ const DATA_DIRECTORY: &str = "LOAM_DESKTOP_DATA_DIR";
 
 struct SiteState(site::Site);
 
-fn data_directory(app: &AppHandle) -> PathBuf {
+fn data_directory<R: Runtime>(app: &AppHandle<R>) -> PathBuf {
     std::env::var_os(DATA_DIRECTORY)
         .map(PathBuf::from)
         .or_else(|| app.path().app_data_dir().ok())
         .expect("an app data directory")
 }
 
-/// A refusal from a command other than the main webview's. The capability file grants the three commands to
-/// that webview alone; this is the same rule, stated where the command runs.
-fn main_only(webview: &tauri::Webview) -> Result<(), String> {
-    if webview.label() == MAIN {
+/// A command's refusal of a caller that is not the shell (phase 6 specification, 10.2, as amended by the
+/// coordinator on 2026-11-16): a bare code, as every refusal over IPC is.
+pub const ORIGIN_REFUSED: &str = "DESKTOP_ORIGIN_REFUSED";
+
+/// Who may call: the main webview, by its label, as the capability file says; and, as extra defence, only a
+/// request whose `Origin` is the shell's. Tauri counts every registered custom scheme as a local origin, the
+/// sandbox's included, and on WebView2 its IPC script is in every frame, so neither the capability nor the
+/// label tells the proxy frame from the shell. The browser sets `Origin` on the IPC fetch, which a page cannot
+/// forge; Tauri's message fallback carries none, and is refused, since the shell's fetch is never blocked.
+fn from_shell<R: Runtime>(
+    webview: &tauri::Webview<R>,
+    request: &tauri::ipc::Request<'_>,
+) -> Result<(), String> {
+    if webview.label() != MAIN {
+        return Err(mounts::UNREACHABLE.into());
+    }
+    let origin = request
+        .headers()
+        .get("Origin")
+        .and_then(|value| value.to_str().ok());
+    if origin == Some(site::shell_origin()) {
         Ok(())
     } else {
-        Err("MOUNT_UNREACHABLE".into())
+        Err(ORIGIN_REFUSED.into())
     }
 }
 
 /// Where a server's notification goes: one fixed statement in the main webview (`notify`).
-fn notifier(app: AppHandle) -> Notify {
+fn notifier<R: Runtime>(app: AppHandle<R>) -> Notify {
     Arc::new(
         move |handle, message: Value| match notify::script(handle, &message) {
             Some(script) => {
@@ -55,14 +72,20 @@ fn notifier(app: AppHandle) -> Notify {
     )
 }
 
+/// The three commands, and no other (10.4): what the app registers, and what P6-D4's IPC test drives.
+pub fn handler<R: Runtime>() -> impl Fn(tauri::ipc::Invoke<R>) -> bool + Send + Sync + 'static {
+    tauri::generate_handler![mount_open, mount_send, mount_close]
+}
+
 #[tauri::command]
-async fn mount_open(
-    app: AppHandle,
-    webview: tauri::Webview,
+async fn mount_open<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
     mounts: State<'_, Arc<Mounts>>,
     instance: String,
 ) -> Result<u64, String> {
-    main_only(&webview)?;
+    from_shell(&webview, &request)?;
     mounts
         .open(&instance, notifier(app))
         .await
@@ -70,14 +93,15 @@ async fn mount_open(
 }
 
 #[tauri::command]
-async fn mount_send(
-    app: AppHandle,
-    webview: tauri::Webview,
+async fn mount_send<R: Runtime>(
+    app: AppHandle<R>,
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
     mounts: State<'_, Arc<Mounts>>,
     handle: u64,
     message: Value,
 ) -> Result<Value, String> {
-    main_only(&webview)?;
+    from_shell(&webview, &request)?;
     mounts
         .send(handle, message, notifier(app))
         .await
@@ -85,12 +109,13 @@ async fn mount_send(
 }
 
 #[tauri::command]
-async fn mount_close(
-    webview: tauri::Webview,
+async fn mount_close<R: Runtime>(
+    webview: tauri::Webview<R>,
+    request: tauri::ipc::Request<'_>,
     mounts: State<'_, Arc<Mounts>>,
     handle: u64,
 ) -> Result<(), String> {
-    main_only(&webview)?;
+    from_shell(&webview, &request)?;
     mounts.close(handle).await.map_err(String::from)
 }
 
