@@ -1,5 +1,5 @@
 import { access, readFile } from 'node:fs/promises';
-import { join, resolve } from 'node:path';
+import { isAbsolute, join, relative as relativePath, resolve, sep } from 'node:path';
 import { performance } from 'node:perf_hooks';
 import type { LoadedConfig } from './config.js';
 import type { ComponentSchema } from './plugin.js';
@@ -156,8 +156,13 @@ export async function runContract(
 			suggestion: SUGGESTIONS[code] ?? 'Fix this and run the contract again.',
 			...where,
 		});
-	const relative = (file: string) =>
-		file.startsWith(`${config.root}/`) ? `./${file.slice(config.root.length + 1)}` : file;
+	// A file under the root as `./`-relative with `/` separators on every system; others as they are.
+	const relative = (file: string) => {
+		const path = relativePath(config.root, file);
+		return !path || path === '..' || path.startsWith(`..${sep}`) || isAbsolute(path)
+			? file
+			: `./${path.split(sep).join('/')}`;
+	};
 
 	// The preview's own policy, not any story's: what a story that says nothing inherits.
 	const first = entries[0];

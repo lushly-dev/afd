@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { type ExecFileOptions, execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -10,8 +10,16 @@ import { createSpecimenBench, DiscoveryError } from './bench.js';
 // fixtures, and the two must agree on every identity and on what fails to index.
 const run = promisify(execFile);
 const compat = resolve(import.meta.dirname, '../compat');
-const storybook = resolve(import.meta.dirname, '../node_modules/.bin/storybook');
+const storybook = resolve(import.meta.dirname, '../node_modules/storybook/dist/bin/dispatcher.js');
 let scratch: string;
+
+/**
+ * Invoke the installed JavaScript CLI directly, so paths and arguments never pass through
+ * cmd.exe on Windows.
+ */
+function runBin(command: string, args: string[], options: ExecFileOptions) {
+	return run(process.execPath, [command, ...args], options);
+}
 
 interface IndexEntry {
 	id: string;
@@ -33,7 +41,7 @@ async function storybookIndex(
 		Object.entries(process.env).filter(([key]) => !key.startsWith('GIT_'))
 	);
 	try {
-		await run(storybook, ['index', '-c', '.storybook', '-o', output], {
+		await runBin(storybook, ['index', '-c', '.storybook', '-o', output], {
 			cwd: join(compat, directory),
 			env: { ...env, STORYBOOK_DISABLE_TELEMETRY: '1' },
 		});

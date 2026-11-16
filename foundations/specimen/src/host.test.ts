@@ -8,10 +8,10 @@ import {
 	writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import { chromiumExecutable, hostBinaryPath, hostPackageName } from './host.js';
+import { chromiumExecutable, hostBinaryName, hostBinaryPath, hostPackageName } from './host.js';
 
 const specimen = join(import.meta.dirname, '..');
 const read = (path: string) => JSON.parse(readFileSync(path, 'utf8'));
@@ -22,7 +22,8 @@ describe('prebuilt host packages', () => {
 		expect(hostPackageName('darwin', 'x64')).toBe('@lushly-dev/specimen-host-darwin-x64');
 		expect(hostPackageName('linux', 'x64')).toBe('@lushly-dev/specimen-host-linux-x64-gnu');
 		expect(hostPackageName('linux', 'arm64')).toBe('@lushly-dev/specimen-host-linux-arm64-gnu');
-		expect(hostPackageName('win32', 'x64')).toBeUndefined();
+		expect(hostPackageName('win32', 'x64')).toBe('@lushly-dev/specimen-host-win32-x64');
+		expect(hostPackageName('win32', 'arm64')).toBeUndefined();
 		expect(hostPackageName('linux', 'ia32')).toBeUndefined();
 	});
 
@@ -31,16 +32,17 @@ describe('prebuilt host packages', () => {
 		const packages = readdirSync(join(specimen, 'packages'))
 			.filter((name) => name.startsWith('host-'))
 			.map((name) => read(join(specimen, 'packages', name, 'package.json')));
-		expect(packages).toHaveLength(4);
+		expect(packages).toHaveLength(5);
 		for (const host of packages) {
+			const binary = `bin/${hostBinaryName(host.os[0])}`;
 			expect(hostPackageName(host.os[0], host.cpu[0])).toBe(host.name);
 			expect(host.version).toBe(manifest.version);
-			expect(host.files).toContain('bin/specimen-host');
+			expect(host.files).toContain(binary);
 			// Packing keeps a file executable only when it is a declared bin. It is declared for
 			// publication alone: the binary does not exist at install, so a top-level bin makes pnpm
 			// warn in every source checkout.
 			expect(host.bin).toBeUndefined();
-			expect(host.publishConfig.bin).toEqual({ 'specimen-host': 'bin/specimen-host' });
+			expect(host.publishConfig.bin).toEqual({ 'specimen-host': binary });
 			expect(host.libc).toEqual(host.os[0] === 'linux' ? ['glibc'] : undefined);
 		}
 		expect(manifest.optionalDependencies).toEqual(
@@ -59,8 +61,8 @@ describe('hostBinaryPath', () => {
 		const directory = join(root, 'node_modules', name);
 		mkdirSync(join(directory, 'bin'), { recursive: true });
 		writeFileSync(join(directory, 'package.json'), JSON.stringify({ name }));
-		if (binary) writeFileSync(join(directory, 'bin', 'specimen-host'), 'host');
-		return join(directory, 'bin', 'specimen-host');
+		if (binary) writeFileSync(join(directory, 'bin', hostBinaryName()), 'host');
+		return join(directory, 'bin', hostBinaryName());
 	};
 
 	beforeEach(() => {
@@ -90,8 +92,8 @@ describe('hostBinaryPath', () => {
 		install(true);
 		const built = join(root, 'node_modules', '@lushly-dev', 'specimen', 'host/target/release');
 		mkdirSync(built, { recursive: true });
-		writeFileSync(join(built, 'specimen-host'), 'host');
-		expect(hostBinaryPath(moduleUrl)).toBe(join(built, 'specimen-host'));
+		writeFileSync(join(built, hostBinaryName()), 'host');
+		expect(hostBinaryPath(moduleUrl)).toBe(join(built, hostBinaryName()));
 	});
 
 	it.runIf(name)('finds the installed platform package’s binary', () => {
@@ -114,7 +116,7 @@ describe('the Chromium headless shell', () => {
 		else process.env.PLAYWRIGHT_BROWSERS_PATH = configured;
 	});
 
-	// Where no native host is built (Windows among them), the lookup stops before the shell's path.
+	// Where no native host is built, the lookup stops before the shell's path.
 	it.runIf(hostPackageName() === undefined)(
 		'names a system the native host does not support',
 		() => {
@@ -132,7 +134,7 @@ describe('the Chromium headless shell', () => {
 			const { version } = read(join(specimen, 'node_modules/playwright/package.json'));
 			try {
 				expect(() => chromiumExecutable()).toThrow(
-					`for Playwright ${version}, is missing at ${empty}/`
+					`for Playwright ${version}, is missing at ${empty}${sep}`
 				);
 				expect(() => chromiumExecutable()).toThrow(
 					`install it with \`npx playwright@${version} install --only-shell chromium\``

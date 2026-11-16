@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { type ExecFileOptions, execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
@@ -12,8 +12,16 @@ import type { StoryRun } from './types.js';
 // kind of reason, and each fixture must end the way it was written to.
 const run = promisify(execFile);
 const compat = resolve(import.meta.dirname, '../compat');
-const vitest = resolve(import.meta.dirname, '../node_modules/.bin/vitest');
+const vitest = resolve(import.meta.dirname, '../node_modules/vitest/vitest.mjs');
 let scratch: string;
+
+/**
+ * Invoke the installed JavaScript CLI directly, so paths and arguments never pass through
+ * cmd.exe on Windows.
+ */
+function runBin(command: string, args: string[], options: ExecFileOptions) {
+	return run(process.execPath, [command, ...args], options);
+}
 
 interface IncumbentTest {
 	file: string;
@@ -37,7 +45,11 @@ function incumbentEnvironment(): NodeJS.ProcessEnv {
 async function incumbentExit(project: string): Promise<{ code: number; output: string }> {
 	const options = { cwd: join(compat, project), env: incumbentEnvironment() };
 	try {
-		const { stdout, stderr } = await run(vitest, ['run', '--config', 'vitest.config.ts'], options);
+		const { stdout, stderr } = await runBin(
+			vitest,
+			['run', '--config', 'vitest.config.ts'],
+			options
+		);
 		return { code: 0, output: `${stdout}${stderr}` };
 	} catch (error) {
 		const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
@@ -50,7 +62,7 @@ async function incumbent(project: string): Promise<IncumbentTest[]> {
 	const output = join(scratch, `${project.replaceAll('/', '-') || 'compat'}.json`);
 	const cwd = join(compat, project);
 	try {
-		await run(
+		await runBin(
 			vitest,
 			['run', '--config', 'vitest.config.ts', '--reporter=json', `--outputFile=${output}`],
 			{ cwd, env: incumbentEnvironment() }

@@ -9,12 +9,12 @@ use crate::cdp::{self, Cdp};
 use crate::console::{Collector, Messages};
 use crate::keyboard::Keyboard;
 use crate::page::{Page, Viewport, emulate, prepare};
+use crate::process::{self, Child};
 use anyhow::{Result, anyhow};
 use base64::Engine;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::path::PathBuf;
-use std::process::Child;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio::time::{Instant, sleep, timeout};
@@ -100,25 +100,10 @@ fn switches(user_data: &str) -> Vec<String> {
     args
 }
 
-/// Whether the process has exited, without reaping it: until it is reaped its id, and so its
-/// process group's, cannot be reused by another process.
-fn exited(pid: u32) -> bool {
-    let mut info: libc::siginfo_t = unsafe { std::mem::zeroed() };
-    let status = unsafe {
-        libc::waitid(
-            libc::P_PID,
-            pid as libc::id_t,
-            &mut info,
-            libc::WEXITED | libc::WNOWAIT | libc::WNOHANG,
-        )
-    };
-    status == 0 && unsafe { info.si_pid() } != 0
-}
-
 pub struct Browser {
     cdp: Cdp,
     child: Mutex<Option<Child>>,
-    /// The browser's process id, which is also its process group.
+    /// The browser's process id: on Unix also its process group; on Windows, in its own job.
     pub pid: u32,
     user_data: PathBuf,
     /// The handshake's outcome: the browser version, or why it did not start.
@@ -187,24 +172,24 @@ impl Browser {
                 )
                 .await;
                 let deadline = Instant::now() + Duration::from_millis(2000);
-                while !exited(self.pid) && Instant::now() < deadline {
+                while !child.exited() && Instant::now() < deadline {
                     sleep(Duration::from_millis(10)).await;
                 }
             }
-            // Its own process group: stop the browser if it did not exit, and any descendant
-            // that outlived it. The browser is not reaped until after this, so its id, which
-            // names the group, cannot have been reused.
-            unsafe { libc::killpg(self.pid as i32, libc::SIGKILL) };
-            let _ = child.wait();
+            // Its own process group (a job on Windows): stop the browser if it did not exit,
+            // and any descendant that outlived it. The browser is not reaped until after this,
+            // so its id, which names the group, cannot have been reused.
+            child.kill_tree();
+            child.wait();
         }
-        let _ = std::fs::remove_dir_all(&self.user_data);
+        process::remove_tree(&self.user_data);
     }
 
     /// Stop the browser group immediately, without waiting: for a host losing its owner.
     /// The browser has not been reaped, so the group id is still its own.
     pub fn kill(&self) {
-        if self.child.lock().unwrap().is_some() {
-            unsafe { libc::killpg(self.pid as i32, libc::SIGKILL) };
+        if let Some(child) = self.child.lock().unwrap().as_ref() {
+            child.kill_tree();
         }
     }
 }

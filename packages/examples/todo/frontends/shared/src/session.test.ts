@@ -41,7 +41,7 @@ async function startBackend(port: number): Promise<ChildProcess> {
 }
 
 async function stopBackend(child: ChildProcess): Promise<void> {
-	if (child.exitCode !== null) return;
+	if (child.exitCode !== null || child.signalCode !== null) return;
 	const exited = new Promise((resolve) => child.once('exit', resolve));
 	child.kill();
 	await exited;

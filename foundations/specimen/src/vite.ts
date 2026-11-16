@@ -2,7 +2,14 @@ import { cp, mkdir, mkdtemp, readdir, readFile, realpath, rm, writeFile } from '
 import { tmpdir } from 'node:os';
 import { basename, dirname, extname, isAbsolute, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { build, createServer, type Plugin, type Rolldown, type ViteDevServer } from 'vite';
+import {
+	build,
+	createServer,
+	normalizePath,
+	type Plugin,
+	type Rolldown,
+	type ViteDevServer,
+} from 'vite';
 import { bundled, defaultContext, type LoadedConfig } from './config.js';
 import type { SpecimenEntry } from './types.js';
 
@@ -277,13 +284,15 @@ async function buildStatic(
 	await mkdir(directory, { recursive: true });
 	// Specimen's own helpers go with the others, whoever imports them, and so does all they bring.
 	const nativeHelper = /^(?:test|evidence)\.[cm]?[jt]s$/;
+	// Module ids are Vite's, `/`-separated on every system; the runtime's path is the system's.
+	const runtimeId = normalizePath(runtime);
 	const helperCode = new Set<string>();
 	const isHelper = (id: string) => HELPERS.test(id) || helperCode.has(id);
 	const helperAccounting: Plugin = {
 		name: 'afd-specimen-helper-accounting',
 		buildEnd() {
 			const pending = [...this.getModuleIds()].filter(
-				(id) => dirname(id) === dirname(dirname(runtime)) && nativeHelper.test(basename(id))
+				(id) => dirname(id) === dirname(dirname(runtimeId)) && nativeHelper.test(basename(id))
 			);
 			for (let id = pending.pop(); id; id = pending.pop()) {
 				if (helperCode.has(id)) continue;
@@ -325,9 +334,9 @@ async function buildStatic(
 	// The proposal's categories: the shell lists and mounts a plain fixture; retained stories'
 	// runtime is interaction support and axe is the accessibility engine, each loaded only by
 	// the cases that need them and each counted against its own budget, never left out.
-	const runtimeDirectory = dirname(runtime);
-	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser', 'expectations'].map((name) =>
-		join(runtimeDirectory, name)
+	const runtimeDirectory = dirname(runtimeId);
+	const lazyRuntime = ['story-runtime', 'csf', 'vitest-browser', 'expectations'].map(
+		(name) => `${runtimeDirectory}/${name}`
 	);
 	const packageSource = dirname(runtimeDirectory);
 	// What a consumer's preview imports is a line of the consumer's own preview, wherever it lands.
@@ -380,7 +389,7 @@ async function buildStatic(
 	const total = Object.values(categoryBytes).reduce((sum, bytes) => sum + bytes, 0);
 	const files = result.output.map((output) => output.fileName);
 	// Its emitted, minified file. A build without it would publish an unstyled index, so it fails.
-	const stylesheet = join(runtimeDirectory, 'page.css');
+	const stylesheet = join(dirname(runtime), 'page.css');
 	const styles = result.output.find(
 		(output) =>
 			output.type === 'asset' &&
