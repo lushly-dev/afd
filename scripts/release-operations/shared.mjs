@@ -81,22 +81,49 @@ export function tree(root, prefix = '', options = {}) {
 		return [[file, entryHash(input)]];
 	});
 }
-export function readRegistry(name) {
+/**
+ * The evidence `npm view <name> versions dist-tags --json` prints: an object with both fields,
+ * where a package with one version prints that version as a string.
+ */
+export function registryView(name, output) {
+	const result = JSON.parse(output);
+	if (!result || typeof result !== 'object' || Array.isArray(result))
+		throw new Error(`Unexpected registry view for ${name}`);
+	const { versions } = result;
+	return {
+		registry: 'npm',
+		name,
+		versions: Array.isArray(versions) ? versions : [versions],
+		distTags: result['dist-tags'] ?? {},
+	};
+}
+/** The evidence for a name npm reports as absent (E404), or null for any other failure. */
+export function registryMiss(name, output) {
+	let response;
 	try {
-		const result = JSON.parse(
-			run('npm', ['view', name, 'versions', '--json', '--registry', registryUrl], process.cwd())
+		response = JSON.parse(output);
+	} catch {
+		return null;
+	}
+	return response?.error?.code === 'E404'
+		? { registry: 'npm', name, versions: [], distTags: {} }
+		: null;
+}
+/** A name's published versions and its npm tags, which a prerelease plan reads for `latest`. */
+export function readRegistry(name) {
+	let output;
+	try {
+		output = run(
+			'npm',
+			['view', name, 'versions', 'dist-tags', '--json', '--registry', registryUrl],
+			process.cwd()
 		);
-		return { registry: 'npm', name, versions: Array.isArray(result) ? result : [result] };
 	} catch (error) {
-		let response;
-		try {
-			response = JSON.parse(error.stdout?.toString() || error.stderr?.toString());
-		} catch {
-			/* fail closed below */
-		}
-		if (response?.error?.code === 'E404') return { registry: 'npm', name, versions: [] };
+		const missing = registryMiss(name, error.stdout?.toString() || error.stderr?.toString());
+		if (missing) return missing;
 		throw new Error(`Registry lookup failed for ${name}: ${error.message}`);
 	}
+	return registryView(name, output);
 }
 
 export { registryNames } from './prerequisites.mjs';

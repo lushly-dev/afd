@@ -288,6 +288,24 @@ def test_an_upload_that_does_not_list_its_commits_pushes_nothing(run, upload):
     assert ref not in gateway.github()["refs"]
 
 
+def test_an_upload_for_another_repository_cannot_be_pushed(run):
+    upload = {
+        "heads": [AGENT_HEAD],
+        "commits": [{"sha": AGENT_HEAD, "authorEmail": "owner@example.com"}],
+        "repo": "example-org/other",
+        "expiresAt": "2030-02-03T11:00:00Z",
+    }
+    result = run(uploads={"bundle-x": upload})(
+        "cell",
+        "branch-push",
+        repo=REPO,
+        ref="refs/factory/queue/fix/x",
+        head=AGENT_HEAD,
+        bundle="bundle-x",
+    )
+    assert result.error.code == "UPLOAD_NOT_FOUND" and "example-org/other" in result.error.message
+
+
 def test_owner_emails_match_without_regard_to_case(run):
     gateway = run(ownerEmails=["Owner@Example.com"])
     result = gateway(

@@ -30,7 +30,16 @@ dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
+    "lushly-botcore[mcp]",
 ]
+# Serving the factory gateway over HTTP (Starlette and Uvicorn, through botcore's mcp extra).
+gateway = [
+    "lushly-botcore[mcp]",
+]
+
+[project.scripts]
+factory-gateway = "botcore_factory.gateway.cli:client_cli"
+factory-gateway-admin = "botcore_factory.gateway.cli:admin_cli"
 
 [project.entry-points."botcore.plugins"]
 factory = "botcore_factory:FactoryPlugin"

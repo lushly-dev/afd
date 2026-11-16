@@ -52,14 +52,19 @@ shape of the [Patterns status](../patterns/STATUS.md).
   session, runs it, checks its tool calls for leaks, keeps the budget and scores the story file
   through Specimen. Its walks, readers and statistics are not written. See
   [the runner](#the-runner).
+- **In progress:** the bench's reference build, built 2026-11-15 and kept beside the runner,
+  outside the repository, since it answers every task. It passes all 308 checks, runs each
+  screen's jobs end to end, and was reviewed by three models, with every finding that needed a
+  change fixed. It waits for the owner's look; the faults, persona cards and walks are then
+  settled against it and frozen. See [the reference build](#the-reference-build).
 - **Not done:** for the proposal's own thirteen jobs, drafted commands, scenario files, the
   three scenario checks and reader walks; the owner's remaining answers; moving each part
   into the proposal that owns it; and everything in the phases. See
   [What is not done](#what-is-not-done).
 - **Blocked on:** the owner confirming the bench's rules for "go". That is due before the first
   run of step 0.1 and does not hold up building the bench, whose domain and budget the owner
-  approved. Before any session of phase 0 runs, the runner is finished and the reference build
-  written, the faults, persona cards and walks are settled against that build and frozen, and
+  approved. Before any session of phase 0 runs, the runner is finished, the owner has looked at
+  the reference build, the faults, persona cards and walks are settled against it and frozen, and
   the four pilots give what a session takes. Questions 4, 8, 9 and 10 of the proposal are open
   and block nothing yet.
 - **Order:** the owner answers the direction and ranks the draft jobs before commands are
@@ -67,7 +72,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
 - **Last verified:** 2026-11-15, the runner's tests and dry runs on the second machine, the
-  link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
+  reference build's 308 checks, its runs end to end and its reviews, the link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
   and results, the reviews below, and the seed library's tests, `pnpm check` and `pnpm verify`
   on the built application, and the held-back jobs run against it.
 - **Follow-ups:** the [table below](#follow-ups-not-yet-issues).
@@ -90,7 +95,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | The bench: the application and its schemas | In progress. Built 2026-11-15 on `feat/seed-library-example`, merged in #1239: 24 commands with zod input and output schemas, an in-memory store, the approval hook and the steward's middleware. Its tests run the 17 jobs, 113 of 113 steps passing, two of them over MCP with confirmations enforced, and check the 74 results against the output schemas | [`packages/examples/seed-library`](../../../../packages/examples/seed-library/README.md) |
 | The bench: the held material | In progress. Written 2026-11-15 outside the repository and reviewed in two passes. Stage 1, the checks (308 over 50 states) and the two held-back jobs, is frozen, its manifest's SHA-256 `6e2a2d7d7daeb8326ef32f7dbae8f405ec40f59bf6cd2604732b822c396cdb31`. Stage 2, the twelve faults, five persona cards and four walk scripts, is drafted and is frozen before the first counted walk, once the reference build exists | [`bench.md`](bench.md#status) |
 | The bench: the runner | In progress. Written 2026-11-15 outside the repository, on the second machine's external drive, as the owner decided for the held material, and approved in its design by the owner the same day. Session setup, the `claude -p` session, the leak check, the budget and scoring the checks are written and tested without a model session, and two smoke sessions ran, the second inside the sandbox with the narrowed tools. Walks, readers and step 0.2's statistics are not. Recorded in #1253 | [The runner](#the-runner) |
-| The bench: the reference build and the pilots | Not started. The reference build comes next, as the owner decided | [`bench.md`](bench.md) |
+| The bench: the reference build | In progress. Built 2026-11-15 outside the repository, on the second machine's external drive, kept there like the held material because it answers every task, T4 included; the session sandbox refuses it. All four screens, one story per state and the running app with its journal. It passes all 308 checks, every walked job runs end to end, and three reviewers of different models reviewed it. The owner looks at it before faults are planted | [The reference build](#the-reference-build) |
+| The bench: the pilots | Not started | [`bench.md`](bench.md) |
 | Phase 0, steps 0.1 to 0.6 | Not started. Each waits on the bench being built, the pilots, and the owner confirming the rules for "go" | Proposal, section 7 |
 | Phases A to D | Not started; each needs phase 0's decision | Proposal, section 7 |
 
@@ -398,6 +404,11 @@ the last run of phase 0. What it does, without its check matching:
   applied to every arm alike, and those are committed with the record. One, put to the owner,
   was settled on 2026-11-15 as recommended. The bare arm is never told the states' names, so
   its builds are matched to states by its reader and not scored by name.
+- **Animation settled.** A story is rendered for its checks with Specimen's `motion: 'settled'`.
+  Without it, the accessibility check after the story settles could sample a component's entry
+  animation inside a shadow root part-way and report a contrast failure that is not there once
+  it ends; a story failed three times in three without it and passed three times in three with
+  it (2026-11-15). Every arm is rendered the same way.
 - **Neighbouring proposals,** Patterns, Design Decisions, Screens from Jobs, Pointing, Scales
   and Component Briefs, discuss result states and design review. As first written, the runner
   left them in every arm's tree and counted reads of them. The owner decided on 2026-11-15 to
@@ -441,6 +452,51 @@ the last run of phase 0. What it does, without its check matching:
 - **Not written:** walks with the personas through Botcore's `cdp_*` commands, the journal and
   reading a path for step 0.4; the readers of steps 0.1 and 0.3; step 0.2's statistics; arm 2's
   statements in the brief and arm 3's skill.
+
+## The reference build
+
+Built 2026-11-15 against `4a77c273` on the second machine, in a local repository on its external
+drive with no remote, beside the runner and the held material. The owner approved its design the
+same day. It is committed with the record after the last run of phase 0. What can be said here,
+without its screens:
+
+- **What it is:** the four screens of the seed library, built with `violet-elements`, and one
+  story per state of each task, mounting the task's results: 14, 13, 10 and 13 stories. The
+  screens run the commands in the page through a DirectClient, as the volunteer or the steward,
+  with the journal middleware recording every command, failures included, and a batch recorded
+  as one entry with its inner calls. A small server on the loopback address serves it and writes
+  the journal; a walk opens it on the screen and starting state its script names.
+- **Scored by the runner,** as a session's build is: all 308 checks pass. Building it found two
+  problems outside it, recorded as follow-ups: an accessibility check that can sample a
+  component part-way through its entry animation, and an alert component that shows a cross
+  for every tone at first.
+- **Run end to end** in Chromium: one job per screen, as a walk will run it, and the screen's
+  other jobs; the journal shows no page error and every command recorded.
+- **Reviewed by three models on one brief,** none shown the checks: Codex (GPT-6.1 Sol, at high
+  reasoning effort), Claude Opus 5.5 and Claude Fable 5.2 (at their default effort). A fresh
+  verifier, on Claude Opus 5.5, checked every finding against the code and screenshots: of 32
+  distinct issues, 28 were real, 3 partly and 1 not. The screens' builders fixed the 30 that
+  needed a change; one partly real issue needed none in this app. A focused second pass found
+  28 fixed, 2 in part and 5 new problems the fixes made, one a blocker; the two partial fixes
+  were finished and the five problems fixed, and both were checked.
+- **What the reviewers' comparison suggests,** at the owner's request:
+
+  | | Codex | Opus 5.5 | Fable 5.2 |
+  | --- | --- | --- | --- |
+  | Distinct issues raised | 12 | 19 | 22 |
+  | Real or partly real | 12 | 18 | 22 |
+  | Real issues no other reviewer raised | 3 | 4 | 7 |
+  | Share of the 31 real issues covered | 39 % | 58 % | 71 % |
+  | Blockers the verifier also rated blockers | 2 of 6 | 3 of 4 | 3 of 3 |
+
+  All three found the seven largest. Codex's three issues of its own were bugs in data and state
+  that neither Claude reviewer found; it rated severity higher than the verifier did. Fable
+  covered the most and rated severity as the verifier did; Opus overlapped Fable most. This is
+  one build reviewed once by each, at unmatched effort, with a verifier of the same model as one
+  reviewer and the same family as two, who knew which reviewer wrote which finding: it suggests that a second family adds findings and that Fable 5.2 is the
+  broader Claude reviewer here, and it shows neither.
+- **Not done:** the owner's look; the faults planted in a copy, with each proof run on both
+  builds; and the freeze of the faults, the persona cards and the walk scripts as stage 2.
 
 ## What was read to write it
 
@@ -493,6 +549,8 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | Independent review of the bench specification | Botcore's `cdp_emulate` takes `user_agent` and `cpu_throttle`, reports them as emulated with "(requires CDP)" and applies neither (`endpoints/botcore/src/botcore/commands/cdp/diagnostics.py:745`) | Open |
 | 2026-11-15 | The bench's runner | Specimen's capture records each element's role, name and focus but not everything the checks read, so the runner renders each story a second time. A capture channel for the rest would let it render once; what it needs is recorded with the runner | Open |
 | 2026-11-15 | Independent review of the bench's runner | One way a build can render a control is scored strictly until the owner decides how the frozen checks read it. The question, which would give away a check, is kept with the held material and put to the owner directly | Closed 2026-11-15: the owner settled it as recommended, and the runner records the reading with the held material |
+| 2026-11-15 | The bench's reference build | `violet-alert` registers its tone icons in `connectedCallback` after `super.connectedCallback()` has rendered its template, so the first alert of each tone shows the icon registry's fallback, a cross (`foundations/fast-af/packages/violet-elements/src/alert/violet-alert.ts`). Registering before rendering fixes it. Violet is an imported unit, so the change needs a provenance record | Open; worth an issue |
+| 2026-11-15 | The bench's reference build | Specimen's settled accessibility check can run while a component's entry animation inside a shadow root is still under way, and report a colour-contrast violation that is gone once it ends: a story of a dialog failed it three times in three and passed three times in three with `motion: 'settled'`. Either the settled check should wait for animations in shadow roots, or settledAccessibility should imply settled motion | Open; worth an issue |
 | 2026-11-15 | The bench's runner, the smoke session | Proposals that discuss result states and design review (Patterns, Design Decisions, Screens from Jobs, Pointing, Scales, Component Briefs) are in every arm's tree. The runner counts reads of them; whether to remove them is the owner's call | Closed 2026-11-15: the owner decided to remove them from every arm's tree, and the runner does |
 
 ## Session log
@@ -516,3 +574,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's held material | The owner agreed to keep the held material in a private folder on the second machine's external drive and to write it before the runner and the reference build. It was written outside the repository: checks for every state, twelve faults, five persona cards, a walk script for each screen and two held-back jobs. Two reviews changed it: the faults, cards and walks now wait to be frozen until the reference build exists, the held-back jobs were replaced, and the checks were tightened. The checks and the held-back jobs were frozen, their manifest's hash recorded here, and the folder placed on the second machine. `bench.md` now proposes how step 0.4 reads a path |
 | 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how the probe read some page text and in what the leak check missed, both fixed, the second with a sandbox under every session, and eight improvements, seven taken and one put to the owner. Walks, readers and statistics are not written |
 | 2026-11-15 | The bench's runner, the owner's decisions | The owner agreed with the four recommendations put after #1253: a second smoke session, which ran and cost $0.119 once the sandbox let Claude Code start; the open question on reading one kind of control, settled; the neighbouring proposals removed from every arm's tree; and the week's reset taken from the owner's screenshot |
+| 2026-11-15 | The bench's reference build | The owner approved the reference build's design and a reviewer of another model family, and asked whether that reviewer adds new insight and how Opus 5.5 compares with Fable 5.2. The build was written outside the repository: four screens, their stories and the running app with its journal, passing all 308 checks and running each walked job end to end. Three reviewers (Codex, Opus 5.5, Fable 5.2) reviewed it on one brief; a verifier checked their findings, the 30 that needed a change were fixed, and a second pass checked the fixes. The runner now renders stories with animation settled. The comparison is in the reference build's section. It waits for the owner's look |

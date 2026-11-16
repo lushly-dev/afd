@@ -1,8 +1,8 @@
-# Drafted for phase 2; nothing here is built yet. Checked, not run.
-# Runs against the host of the frontend's view-state commands (phase 4's DirectClient page, or a
-# phase 3 test registry), not the backend: view state is the page's, not the store's. The draft
-# registers one view, `todo-filter`, with state { status, priority, search }.
-# Limit: a scenario cannot see the screen; the page's own tests check that it follows the state.
+# Built in the to-do reference plan's phase 3 (docs/features/active/todo-reference).
+# Runs against the page's own view-state commands (src/view-state.ts), which the page hosts
+# through createDirectRegistry: view state is the page's, not the store's. src/view-state.test.ts
+# runs it and checks the page's filter follows; frontends/fast-af/test/page.test.ts checks the list
+# on screen follows an agent's view-state-set in Chromium.
 name: An agent narrows the view
 description: >-
   When I ask the copilot to show only my urgent open todos, I want the list on screen to change
