@@ -21,7 +21,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Last verified:** 2026-11-15 on branch `t3/todo-reference-phase2-localdb`, based on `main` at
   `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed. On the phase 5 Python
   branch, `pnpm verify` passed on `d5c93a57` on 2026-11-16; the review fixes since were checked
-  suite by suite (see [phase 5](#python)). On the phase 5 Rust branch, 2026-11-16, suite by suite
+  suite by suite (see [phase 5](#python)). In #1335, 2026-11-16, suite by suite
   (see [Rust](#rust)); `pnpm verify` not run.
 - **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). Phase 2, in the
   TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
@@ -31,9 +31,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1281](https://github.com/lushly-dev/afd/pull/1281), and the page with approvals and view state in
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
-  TypeScript, and both backends on one SQLite database by default (D4). Rust is on branch
-  `t3/todo-reference-phase5-rust`, not yet merged: Rust and both Umbel modes at parity, every
-  approval case included. C++ is not started.
+  TypeScript, and both backends on one SQLite database by default (D4). Rust is merged in
+  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++ is not started.
 
 ## Plan
 
@@ -43,21 +42,21 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust on branch `t3/todo-reference-phase5-rust`, not yet merged; C++ not started | See [phase 5](#phase-5-the-other-languages) | Rust's review and merge, and C++ after [#341](https://github.com/lushly-dev/afd/issues/341) |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++ not started | See [phase 5](#phase-5-the-other-languages) | C++, after [#341](https://github.com/lushly-dev/afd/issues/341) |
 
 ## Findings
 
 | Finding | State |
 | --- | --- |
 | W1 `total` capped at 100 in TypeScript | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
-| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts in [#1319](https://github.com/lushly-dev/afd/pull/1319). Rust declares and serves them on the phase 5 Rust branch (and the Umbel plugin's manifest declares them). C++ declares them but serves no context tools (its own stdio loop, phase 5) |
-| W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes advertised `destructiveHint: false`, since a mounted tool could not declare `destructive`; on the phase 5 Rust branch it can, and the `todo-http` fixture does (see follow-ups) |
+| W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts in [#1319](https://github.com/lushly-dev/afd/pull/1319). Rust declares and serves them in #1335 (and the Umbel plugin's manifest declares them). C++ declares them but serves no context tools (its own stdio loop, phase 5) |
+| W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes advertised `destructiveHint: false`, since a mounted tool could not declare `destructive`; in #1335 it can, and the `todo-http` fixture does (see follow-ups) |
 | W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforcement open, phase 5 with `afd::mcp_stdio` |
 | W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
 | W8 todo-directclient's copied commands and hand-written tools | Fixed in [#1281](https://github.com/lushly-dev/afd/pull/1281): the main commands (D5), tools from `listTools()`, and `allow` in look mode |
-| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read `pnpm test:interop` makes alike on one database, order (an accented, mixed-case title sort among them) and alternatives included, and describe every command alike in `afd-detail` (title, description, category, tags, mutation); Python makes ids in TypeScript's format from the context's random. Title order follows JavaScript's `localeCompare` for Latin text, digits and ASCII punctuation (`collation.py`), not every script. On the phase 5 Rust branch Rust returns TypeScript's `alternatives`, keeps ties in insertion order in both directions, makes ids in TypeScript's format from the context's random (a seeded id checked against TypeScript's), and lists TypeScript's grouped tools (`todo` and `bootstrap`, from the library's tool list). Rust's title sort folds case its own way, not `localeCompare` (see follow-ups). C++ ordering ties, ID formats and tool lists open, phase 5 |
+| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read `pnpm test:interop` makes alike on one database, order (an accented, mixed-case title sort among them) and alternatives included, and describe every command alike in `afd-detail` (title, description, category, tags, mutation); Python makes ids in TypeScript's format from the context's random. Title order follows JavaScript's `localeCompare` for Latin text, digits and ASCII punctuation (`collation.py`), not every script. In #1335 Rust returns TypeScript's `alternatives`, keeps ties in insertion order in both directions, makes ids in TypeScript's format from the context's random (a seeded id checked against TypeScript's), and lists TypeScript's grouped tools (`todo` and `bootstrap`, from the library's tool list). Rust's title sort folds case its own way, not `localeCompare` (see follow-ups). C++ ordering ties, ID formats and tool lists open, phase 5 |
 
 ## Phase 1: fix what is wrong
 
@@ -388,8 +387,7 @@ below and have not yet had a full `pnpm verify`.
 
 ### Rust
 
-On branch `t3/todo-reference-phase5-rust`, not yet merged, written 2026-11-16 over `main` at
-`f8b696bd`:
+Merged in [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16:
 
 - **Commands at parity (D2, D3, D7).** Every command declares TypeScript's `title`, `version`,
   `tags`, `examples`, contexts, a declared output shape (`returns`), `undoable` and, on every
@@ -472,7 +470,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | Date | Raised by | Follow-up | Status |
 | --- | --- | --- | --- |
 | 2026-11-14 | Phase 1 session | The `umbel` MCP server (`components-brief`) does not start in a fresh worktree until `pnpm build` and `cargo build --release -p umbel-first-party` have run; phase 3 needs it | Also needs `pnpm -F @lushly-dev/specimen build:host` for the export (2026-11-15); with the three built it serves. A session whose server failed at startup does not reconnect without `/mcp` |
-| 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Fixed on the phase 5 Rust branch: a `destructive` key on `[[mount.tools]]`, set by the `todo-http` fixture |
+| 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Fixed in #1335: a `destructive` key on `[[mount.tools]]`, set by the `todo-http` fixture |
 | 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Fixed: both pages ask through form elicitation, FAST-AF in [#1275](https://github.com/lushly-dev/afd/pull/1275), React in [#1276](https://github.com/lushly-dev/afd/pull/1276) |
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
 | 2026-11-15 | Phase 4 page | `afd-testing`'s `src/runner/todo-example.test.ts` still expected the fixture to clear first, which #1260 turned off (`clearFirst: false`); CI never ran it, because it reads the todo example's commands and scenarios by path and the affected-units scope did not know | Fixed in [#1297](https://github.com/lushly-dev/afd/pull/1297): the expectation, and `EXTRA_INPUTS` entries in `scripts/affected/scope.mjs`; #1303 marks them `ownTests`, a new option, so only `afd-testing`'s own tests run |
@@ -483,7 +481,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
 | 2026-11-16 | Phase 5 review | TypeScript's `SqliteStore.record()` reads the next `seq` outside its write, so two writers (TypeScript and Python, or two TypeScript servers) can take one `seq` and one history entry replaces the other; the reviewer saw 79 of 80 entries once in 5 mixed runs. Python's store reads it inside the write. Documented in both stores, the todo README and the TypeScript README | Open: [#1317](https://github.com/lushly-dev/afd/issues/1317) |
 | 2026-11-16 | Phase 5 review | A shared `TODO_APPROVAL_SECRET` lets one token run the clear once on each server, since each process keeps its own nonce store (the library's in-memory default). Documented in both backends' READMEs; a shared nonce store would close it | Open |
-| 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too (and Rust, on the phase 5 Rust branch). Left for the C++ pull request, so this one does not run the C++ suites for a comment | Open, phase 5's C++ pull request |
+| 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too (and Rust, in #1335). Left for the C++ pull request, so this one does not run the C++ suites for a comment | Open, phase 5's C++ pull request |
 | 2026-11-16 | Phase 5 Rust | Rust's title sort folds case with `to_lowercase` and then compares exactly, not as JavaScript's `localeCompare` (Python's `collation.py` approximates it for Latin text). Rust keeps its own in-memory store and shares no database, so no list is compared across languages; porting the collation needs NFD normalization, a new dependency | Open |
 | 2026-11-16 | Phase 5 Rust | Under Umbel `todo-clear` is not held for agents: a plugin manifest declares only a fixed `approval = "required"`, and the loader refuses a definition with a per-call policy (`mismatch` in `endpoints/umbel/src/plugins/loader.rs`), so the plugin drops it and the clear is gated by its confirmation prompt alone. The description says so in every host | Open: [#1329](https://github.com/lushly-dev/afd/issues/1329) |
 | 2026-11-16 | Phase 5 Rust | The conformance runner reaches the Rust backend over stdio, so asking the person over Streamable HTTP (MCP 2026-07-28) is not exercised: the backend's HTTP test checks only that a client declaring no elicitation gets `APPROVAL_REQUIRED` without a token, and Umbel's mounted run uses HTTP with `APPROVALS=off` | Open |
@@ -504,4 +502,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 4 copilot | todo-directclient on the main commands, tools from `listTools()`, `allow` and job 10, `/mcp` on the same server; in #1281 |
 | 2026-11-15 | Phase 4 page | The copilot page on the FAST-AF element and violet conversation elements, streamed turns, approvals through `onApprovalNeeded`, the page-hosted view (job 6); the vanilla page and `/execute` removed; in #1303 |
 | 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; in #1319 |
-| 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. On branch `t3/todo-reference-phase5-rust`, not yet merged |
+| 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. In #1335 |
