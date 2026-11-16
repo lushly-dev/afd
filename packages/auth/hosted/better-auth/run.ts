@@ -9,6 +9,7 @@ import {
 	type RunConfig,
 	receiptJSON,
 	renewalEvidenceIsConsistent,
+	reportedVersion,
 } from './contract.js';
 import type {} from './fixture.js';
 import { startLocal } from './local.js';
@@ -44,6 +45,8 @@ export async function runHarness(input: {
 		origin: config?.appURL ?? 'https://127.0.0.1',
 		revision: input.revision,
 		node: process.versions.node,
+		providerNode: 'not-observed',
+		providerNodeAfterRestart: 'not-observed',
 		versions: input.versions,
 		browser: 'not-started',
 		assertions: [],
@@ -137,6 +140,7 @@ export async function runHarness(input: {
 					updateAge: number;
 					providerKind: string;
 					providerVersion: string;
+					nodeVersion?: unknown;
 				};
 			};
 			const sessionRead = async (timeout = cfg.operationTimeoutMs) => {
@@ -150,6 +154,9 @@ export async function runHarness(input: {
 			phase = 'fixture-identity';
 			check(/^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(initial.providerVersion));
 			receipt.versions.deployedBetterAuth = initial.providerVersion;
+			// Recorded as the provider reported it; an absent value fails here rather than being guessed.
+			receipt.providerNode = reportedVersion(initial.nodeVersion) ?? 'not-reported';
+			check(receipt.providerNode !== 'not-reported');
 			check(initial.revision === cfg.revision && initial.providerId === cfg.providerId);
 			check(
 				initial.providerKind === receipt.provider &&
@@ -264,6 +271,7 @@ export async function runHarness(input: {
 			);
 			pass('actual application session is renewed and read back with restart lifetime margin');
 			phase = 'persistent-restart';
+			let replacement: Awaited<ReturnType<typeof info>> | undefined;
 			await restartWithinBudget({
 				timeoutMs: cfg.restartTimeoutMs,
 				restart: async (timeoutMs) => {
@@ -284,16 +292,21 @@ export async function runHarness(input: {
 						try {
 							const remainingMs = timeoutMs - (Date.now() - observationStartedAt);
 							if (remainingMs <= 0) return false;
-							return (
-								(await info(Math.min(cfg.operationTimeoutMs, Math.max(1, remainingMs))))
-									.instanceId !== initial.instanceId
+							const current = await info(
+								Math.min(cfg.operationTimeoutMs, Math.max(1, remainingMs))
 							);
+							if (current.instanceId === initial.instanceId) return false;
+							replacement = current;
+							return true;
 						} catch {
 							return false;
 						}
 					}, timeoutMs);
 				},
 			});
+			receipt.providerNodeAfterRestart =
+				reportedVersion(replacement?.nodeVersion) ?? 'not-reported';
+			check(receipt.providerNodeAfterRestart !== 'not-reported');
 			const postRestartStartedAt = Date.now();
 			const postRestartTimeout = () =>
 				remainingBudgetMs(postRestartStartedAt, cfg.operationTimeoutMs);

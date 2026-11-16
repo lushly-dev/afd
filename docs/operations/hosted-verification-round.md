@@ -8,7 +8,9 @@ H2/H3 retain source `718d7830ab813b0975429a74b3f1c9d473c30b98` and verified
 unchanged runtime content. Independent receipt review approved the functional
 and cleanup claims. Missing exact H2 Chromium, H3 Node and earlier H1 Node patches
 are explicitly deferred to [#386](https://github.com/lushly-dev/afd/issues/386);
-this round does not claim complete per-lane version evidence. Failed automated
+this round does not claim complete per-lane version evidence. The #386
+instrumentation records those values in future runs only: it does not backfill
+this round, whose receipts stay as they were with the gaps labelled. Failed automated
 Google and control attempts remain failed receipts.
 
 Both Render services/disks and their Blueprint are absent. The Convex development
@@ -180,7 +182,10 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    Chrome. Use the fixture's visible Refresh/Sign out controls and DOM session
    evidence; use its one-use capture/verify controls for revoked and idle-expired
    cookie rejection. Inspect cookie flags in Chrome DevTools and check an isolated
-   Guest/Incognito window separately. Record these manual observations apart from
+   Guest/Incognito window separately. Save the fixture's `#runtime` block before
+   the restart and again after reloading once it completes: the first reading
+   cannot be taken after the restart, and on this path it is the only record of
+   the replacement process's Node. Record these manual observations apart from
    the incomplete automated receipt.
 5. **H2 last.** Configure Convex Password + GitHub, deploy checked-in auth schema/
    routes/functions, verify the authenticated revision/capabilities, and run real
@@ -195,7 +200,14 @@ and runtime dependencies; do not prune Better Auth/esbuild/React needed by serve
    Reuse #362 for harness/provider preparation; file reproduced SDK defects as
    linked fixes. A source repair creates a new candidate with fresh review/gates.
    Do not blindly rerun writes or uncertain OAuth cleanup.
-7. **External cleanup and review.** Delete this run's application records,
+7. **External cleanup and review.** Before any teardown, save each lane's
+   runtime metadata with its receipt: the H1 receipt's `node`, `browser`,
+   `versions.playwright`, `providerNode` and `providerNodeAfterRestart`, plus the
+   fixture's `#runtime` block before and after restart for regular-Chrome
+   evidence; the H2 receipt's `runtime` block; and the H3 write/read receipts'
+   `providerNode`. Disposal removes the processes that reported them, so a value
+   missing at this point is recorded as missing, never reconstructed later.
+   Then delete this run's application records,
    accounts and sessions, verify absence, then revoke dedicated provider grants/
    clients and remove services/disks/Convex deployment. Remove local secret files/
    provider browser state and any dedicated identity created for this round,
@@ -254,7 +266,9 @@ the supervised browser, without credentials in the harness. See
 ## Receipt and closure gates
 
 Each lane needs assertion-level results, exact source/deploy binding, nonsecret
-resource identities, SDK/runtime/browser versions, independent state readbacks,
+resource identities, SDK/runtime/browser versions as the executing processes and
+browser reported them (`not-observed` or `not-reported` where they did not,
+never an inferred patch), independent state readbacks,
 external restart/outage evidence where applicable, and cleanup evidence. A caller-
 supplied SHA, restart acknowledgement or phase exit alone is not attestation.
 

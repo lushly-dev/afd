@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { readFile } from 'node:fs/promises';
 
 export class ConfigurationError extends Error {
 	constructor(missing) {
@@ -283,6 +284,49 @@ export async function executeCleanup(cleaners, timeoutMs) {
 	return results;
 }
 
+/**
+ * Runtime metadata read once Chromium has launched: this executor's Node, the Playwright this process
+ * loaded and the launched browser's own report. Nothing comes from a manifest pin or a guess.
+ */
+export async function observeRuntime(browser) {
+	const playwright = new URL('./package.json', import.meta.resolve('playwright'));
+	return {
+		executorNode: process.versions.node,
+		playwright: JSON.parse(await readFile(playwright, 'utf8')).version,
+		browser: { name: browser.browserType().name(), version: browser.version() },
+	};
+}
+
+/** Launches the runner's browser and observes its runtime together, so no receipt can skip it. */
+export async function launchObserved(browserType, options) {
+	const browser = await browserType.launch(options);
+	try {
+		return { browser, runtime: await observeRuntime(browser) };
+	} catch (error) {
+		await browser.close().catch(() => {});
+		throw error;
+	}
+}
+
+const NOT_OBSERVED = 'not-observed';
+const observed = (value, pattern) =>
+	typeof value === 'string' && pattern.test(value) ? value : NOT_OBSERVED;
+// Node and Playwright are semver; Chromium reports four numeric parts.
+const SEMVER = /^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i;
+const BROWSER_VERSION = /^\d+(?:\.\d+){1,3}$/;
+
+/** Missing or malformed runtime values stay `not-observed`; none is supplied in their place. */
+function runtimeReceipt(runtime) {
+	return {
+		executorNode: observed(runtime?.executorNode, SEMVER),
+		playwright: observed(runtime?.playwright, SEMVER),
+		browser: {
+			name: observed(runtime?.browser?.name, /^[a-z]+$/),
+			version: observed(runtime?.browser?.version, BROWSER_VERSION),
+		},
+	};
+}
+
 export function createReceipt({
 	runId,
 	revision,
@@ -290,6 +334,7 @@ export function createReceipt({
 	assertions,
 	cleanup,
 	oauthConfigured,
+	runtime,
 }) {
 	const requiredPassed = assertions.every((assertion) => assertion.status === 'passed');
 	const cleanupPassed = cleanup.every((item) => item.status === 'passed');
@@ -302,6 +347,7 @@ export function createReceipt({
 		revision,
 		deploymentOrigin: deploymentUrl.origin,
 		provider: { convex: '1.32.0', convexAuth: '0.0.95', oauthConfigured },
+		runtime: runtimeReceipt(runtime),
 		assertions,
 		cleanup,
 		limits: [

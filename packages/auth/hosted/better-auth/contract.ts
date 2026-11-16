@@ -222,6 +222,10 @@ export interface Receipt {
 	origin: string;
 	revision: string;
 	node: string;
+	/** The provider process's Node, from /harness/info; `not-observed` until it answers. */
+	providerNode: string;
+	/** The replacement process's Node after the restart; `not-observed` if the run never got there. */
+	providerNodeAfterRestart: string;
 	versions: Record<string, string>;
 	browser: string;
 	assertions: string[];
@@ -246,6 +250,13 @@ export type CleanupStep =
 	| 'browser-close'
 	| 'provider-close';
 
+/** A reported runtime version, or undefined: a missing or malformed value is never inferred. */
+export function reportedVersion(value: unknown): string | undefined {
+	return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(value)
+		? value
+		: undefined;
+}
+
 export function receiptJSON(receipt: Receipt): string {
 	return JSON.stringify(
 		{
@@ -255,6 +266,8 @@ export function receiptJSON(receipt: Receipt): string {
 			origin: new URL(receipt.origin).origin,
 			revision: receipt.revision,
 			node: receipt.node,
+			providerNode: receipt.providerNode,
+			providerNodeAfterRestart: receipt.providerNodeAfterRestart,
 			versions: receipt.versions,
 			browser: receipt.browser,
 			assertions: receipt.assertions,

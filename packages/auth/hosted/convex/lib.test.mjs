@@ -9,6 +9,7 @@ import {
 	ConfigurationError,
 	createReceipt,
 	executeCleanup,
+	launchObserved,
 	loadConfig,
 	safeFailureKind,
 	withDeadline,
@@ -281,4 +282,53 @@ test('receipt is redacted and remains partial without OAuth or complete cleanup'
 	assert.match(receipt.receiptId, /^[0-9a-f-]{36}$/);
 	assert.equal(receipt.deploymentOrigin, 'https://example.convex.cloud');
 	assert.equal(serialized.includes('secret'), false);
+});
+
+test('receipt runtime is read from the launched browser and stays explicit when missing', async () => {
+	const base = {
+		runId: 'run-12345678',
+		revision: 'abc123',
+		deploymentUrl: new URL('https://example.convex.cloud'),
+		assertions: [],
+		cleanup: [],
+		oauthConfigured: false,
+	};
+	const notObserved = {
+		executorNode: 'not-observed',
+		playwright: 'not-observed',
+		browser: { name: 'not-observed', version: 'not-observed' },
+	};
+	// A launch that never happened supplies nothing, and nothing is inferred in its place.
+	assert.deepEqual(createReceipt(base).runtime, notObserved);
+	assert.deepEqual(
+		createReceipt({
+			...base,
+			runtime: { executorNode: 'v24', playwright: '', browser: { name: 'Chromium!', version: 7 } },
+		}).runtime,
+		notObserved
+	);
+	// A value no local install has proves the receipt took the launched browser's own report.
+	const launched = {
+		browserType: () => ({ name: () => 'chromium' }),
+		version: () => '999.0.1234.5',
+	};
+	const { browser, runtime } = await launchObserved({ launch: async () => launched }, {});
+	assert.equal(browser, launched);
+	const receipt = JSON.parse(JSON.stringify(createReceipt({ ...base, runtime })));
+	assert.equal(receipt.runtime.browser.version, '999.0.1234.5');
+	assert.equal(receipt.runtime.browser.name, 'chromium');
+	assert.equal(receipt.runtime.executorNode, process.versions.node);
+	assert.match(receipt.runtime.playwright, /^\d+\.\d+\.\d+/);
+	// A browser whose runtime cannot be read is closed, not leaked, and the failure propagates.
+	let closed = false;
+	const unreadable = {
+		browserType: () => {
+			throw new Error('unreadable');
+		},
+		close: async () => {
+			closed = true;
+		},
+	};
+	await assert.rejects(launchObserved({ launch: async () => unreadable }, {}), /unreadable/);
+	assert.equal(closed, true);
 });

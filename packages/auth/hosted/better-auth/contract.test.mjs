@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { readdir } from 'node:fs/promises';
+import { readdir, readFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { createConnection } from 'node:net';
 import { tmpdir } from 'node:os';
@@ -16,10 +16,15 @@ import {
 	RESTART_CLOCK_SKEW_MARGIN_MS,
 	receiptJSON,
 	renewalEvidenceIsConsistent,
+	reportedVersion,
 	requiredRestartLifetimeMs,
 } from './contract.ts';
 import { secureProviderFetch, validateDiscovery } from './provider-fetch.ts';
 import { remainingBudgetMs, restartWithinBudget, withinTimeout } from './restart.ts';
+
+const playwrightVersion = JSON.parse(
+	await readFile(new URL('./package.json', import.meta.resolve('playwright')), 'utf8')
+).version;
 
 const valid = {
 	AFD_BA_DISPOSABLE: '1',
@@ -194,6 +199,12 @@ test('restart command and observation spend one shared timeout budget', async ()
 		})
 	);
 });
+test('reported runtime versions are kept as reported and never inferred when absent', () => {
+	assert.equal(reportedVersion('99.1.2'), '99.1.2');
+	assert.equal(reportedVersion('24.22.0-pre'), '24.22.0-pre');
+	for (const missing of [undefined, null, '', '24', 'v24.22.0', 24, {}])
+		assert.equal(reportedVersion(missing), undefined);
+});
 test('receipts whitelist output and strip OAuth query/fragment/credentials', () => {
 	const secret = 'SECRET-SENTINEL-DO-NOT-PERSIST';
 	const encoded = receiptJSON({
@@ -203,6 +214,8 @@ test('receipts whitelist output and strip OAuth query/fragment/credentials', () 
 		origin: `https://user:${secret}@example.test/path?code=${secret}#${secret}`,
 		revision: 'abcdef0',
 		node: '24',
+		providerNode: '24.22.0',
+		providerNodeAfterRestart: '24.22.1',
 		versions: { betterAuth: '1.7.2' },
 		browser: '156',
 		assertions: ['named assertion'],
@@ -217,6 +230,8 @@ test('receipts whitelist output and strip OAuth query/fragment/credentials', () 
 	});
 	assert.ok(!encoded.includes(secret));
 	assert.equal(JSON.parse(encoded).origin, 'https://example.test');
+	assert.equal(JSON.parse(encoded).providerNode, '24.22.0');
+	assert.equal(JSON.parse(encoded).providerNodeAfterRestart, '24.22.1');
 	assert.ok(!encoded.includes('environment'));
 	const failed = JSON.parse(
 		receiptJSON({
@@ -282,6 +297,18 @@ test('real Chromium deadline failure removes child server, database, generated k
 	assert.equal(receipt.cleanup, 'passed');
 	assert.equal(receipt.resourceCleanup, 'passed');
 	assert.ok(receipt.assertions.length > 2); // It ran real provider/browser work before the deadline.
+	// Runtime metadata survives serialization: the runner's and forked provider's Node, the launched
+	// browser and the loaded Playwright. A restart the deadline cut off leaves its value explicitly absent.
+	assert.equal(receipt.node, process.versions.node);
+	assert.equal(receipt.providerNode, process.versions.node);
+	assert.ok(
+		[process.versions.node, 'not-observed'].includes(receipt.providerNodeAfterRestart),
+		receipt.providerNodeAfterRestart
+	);
+	if (receipt.checks['persistent-restart'] === 'passed')
+		assert.equal(receipt.providerNodeAfterRestart, process.versions.node);
+	assert.match(receipt.browser, /^\d+\.\d+\.\d+\.\d+$/);
+	assert.equal(receipt.versions.playwright, playwrightVersion);
 	assert.deepEqual(await scratch(), before);
 	assert.equal(result.errors, '');
 });

@@ -226,6 +226,14 @@ export function storeIdentity(config, health) {
 	return identity;
 }
 
+/** The service's reported Node version, or `not-reported`: a missing value is never inferred. */
+export function providerNode(health) {
+	const value = health?.nodeVersion;
+	return typeof value === 'string' && /^\d+\.\d+\.\d+(?:[-+][a-z0-9.-]+)?$/i.test(value)
+		? value
+		: 'not-reported';
+}
+
 export async function expectHttpFailure(promise, status, label) {
 	try {
 		await promise;

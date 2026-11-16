@@ -8,6 +8,7 @@ import {
 	ConfigurationError,
 	createReceipt,
 	executeCleanup,
+	launchObserved,
 	loadConfig,
 	safeFailureKind,
 } from './lib.mjs';
@@ -52,6 +53,7 @@ async function main() {
 	};
 	let server;
 	let browser;
+	let runtime;
 	let failure = null;
 	let cleanup = [];
 	try {
@@ -62,10 +64,10 @@ async function main() {
 			deploymentUrl: config.deploymentUrl,
 			origin: config.oauth?.returnUrl.origin,
 		});
-		browser = await chromium.launch({
+		({ browser, runtime } = await launchObserved(chromium, {
 			headless: config.oauth ? !config.oauth.headful : true,
 			timeout: config.deadlineMs,
-		});
+		}));
 		await runWithInterruption(
 			async () => {
 				await runCredentials(browser, server, config, assertions, cleanupState);
@@ -173,6 +175,7 @@ async function main() {
 		assertions,
 		cleanup,
 		oauthConfigured: config.oauth !== null,
+		runtime,
 	});
 	const receiptFile = config.receiptFile ?? join(tmpdir(), `afd-convex-hosted-${Date.now()}.json`);
 	await writeFile(receiptFile, `${JSON.stringify(receipt, null, 2)}\n`, { mode: 0o600 });

@@ -136,7 +136,12 @@ do not copy an authorization URL between browser contexts. The page exposes
 Refresh session and Sign out buttons, plus DOM-readable status, non-bearer
 session/user IDs, adapter expiry, provider read-back expiry, provider
 session/user match bits and an expected-identity match bit. Read-back evidence
-refreshes when the adapter expiry changes. An Incognito or
+refreshes when the adapter expiry changes. Its `#runtime` block shows the
+revision, process instance, the provider process's own Node version, the
+deployed Better Auth version and this browser's full version as Chrome reports
+it (`not-reported` when it does not); reload after the restart to show the
+replacement process. Save both readings with the manual observations before
+teardown: they cannot be recovered once the deployment is gone. An Incognito or
 Guest window should show `unauthenticated` independently. Inspect cookie
 Secure, HttpOnly, SameSite=Lax and root path in Chrome DevTools.
 
@@ -168,7 +173,14 @@ child process; do not invoke `server.mjs` with copied secret JSON in transcripts
 
 The runner prints a JSON allowlist: source revision, local/runtime/client/server
 versions, browser version, origin, explicit provider kind, named assertion
-results and remaining `not-run` checks, failure phase and cleanup status. When
+results and remaining `not-run` checks, failure phase and cleanup status.
+Runtime fields come from the processes themselves: `node` is the runner's Node,
+`browser` is `browser.version()` after Chromium launches (`not-started` before),
+`versions.playwright` is the Playwright the runner loaded, and `providerNode` and
+`providerNodeAfterRestart` are the Node versions the original and replacement
+provider processes report in `/harness/info`. A value the run never reached
+stays `not-observed`; a provider that answers without one fails the identity or
+restart check and is recorded as `not-reported`, never filled in from a pin. When
 cleanup fails, it adds the step that failed (`cleanupFailure`, such as
 `cleanup-response` or `provider-close`) and, when the cleanup endpoint answered
 without success, its HTTP status (`cleanupStatus`); the error's first line, with

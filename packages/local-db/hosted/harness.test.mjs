@@ -7,7 +7,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import test from 'node:test';
 import { fileURLToPath } from 'node:url';
-import { idsFor } from './harness-support.mjs';
+import { idsFor, providerNode } from './harness-support.mjs';
 
 const directory = new URL('.', import.meta.url);
 const localScript = fileURLToPath(new URL('run-local.mjs', directory));
@@ -76,8 +76,8 @@ function lastReceipt(output) {
 	return JSON.parse(line);
 }
 
-async function startFixture(databasePath, tokenA, tokenB) {
-	const child = spawn(process.execPath, [serverScript], {
+async function startFixture(databasePath, tokenA, tokenB, execArgv = []) {
+	const child = spawn(process.execPath, [...execArgv, serverScript], {
 		env: {
 			...process.env,
 			AFD_FIXTURE_DB_PATH: databasePath,
@@ -191,6 +191,46 @@ test('local lifecycle proves restart, recovery, and exact cleanup', {
 		mode: 'native-fetch-rejection',
 		controlAcknowledged: true,
 	});
+	// Each served phase keeps the Node its server process reported, through both serializations.
+	assert.deepEqual(
+		receipt.phases.map((phase) => phase.providerNode),
+		[process.versions.node, undefined, process.versions.node, undefined]
+	);
+});
+
+test("write receipt keeps the Node the serving process reports, not the runner's", {
+	timeout: 20_000,
+}, async () => {
+	const temporaryDirectory = await mkdtemp(join(tmpdir(), 'afd-362-test-'));
+	const tokenA = randomUUID();
+	const tokenB = randomUUID();
+	let fixture;
+	try {
+		fixture = await startFixture(join(temporaryDirectory, 'fixture.sqlite'), tokenA, tokenB, [
+			"--import=data:text/javascript,Object.defineProperty(process.versions,'node',{value:'99.1.2'})",
+		]);
+		const environment = phaseEnvironment(fixture.baseURL, `node-${randomUUID()}`, tokenA, tokenB, {
+			AFD_TEST_HTTP_STORE_ID: fixture.storeId,
+			AFD_TEST_HTTP_EXPECT_FIXTURE_AUTH: '1',
+		});
+		const write = await runProcess(phaseScript, { ...environment, AFD_TEST_HTTP_PHASE: 'write' });
+		assert.equal(write.code, 0, write.stderr);
+		assert.equal(lastReceipt(write.stdout).providerNode, '99.1.2');
+		const cleanup = await runProcess(phaseScript, {
+			...environment,
+			AFD_TEST_HTTP_PHASE: 'cleanup',
+		});
+		assert.equal(cleanup.code, 0, cleanup.stderr);
+	} finally {
+		await stopFixture(fixture);
+		await rm(temporaryDirectory, { recursive: true });
+	}
+});
+
+test('provider Node is kept as the service reported it and never inferred', () => {
+	assert.equal(providerNode({ nodeVersion: '99.1.2' }), '99.1.2');
+	for (const health of [{}, { nodeVersion: '' }, { nodeVersion: 'v24.22.0' }, { nodeVersion: 24 }])
+		assert.equal(providerNode(health), 'not-reported');
 });
 
 test('malformed URL cannot count as controlled unavailability', async () => {

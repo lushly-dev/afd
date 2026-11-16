@@ -279,6 +279,8 @@ const server = createServer(async (request, response) => {
 				uptime: Date.now() - startedAt,
 				storeId,
 				instanceId,
+				// This process's own runtime, so receipts never infer it from the deployment's pin.
+				nodeVersion: process.versions.node,
 			});
 		}
 		if (target.table === 'batch' && target.id === undefined && request.method === 'POST') {
