@@ -2,7 +2,8 @@
 
 ## Status
 
-- **State:** draft, for the owner to approve. Written 2026-11-15 against `main` at `6eeb545d`:
+- **State:** approved by the owner on 2026-11-16, with every recommendation in
+  [section 12](#12-for-the-owner) accepted. Written 2026-11-15 against `main` at `6eeb545d`:
   fifteen jobs as scenario files that pass the three checks, a recommended app kind, a document
   type, twenty-two drafted commands and the gaps they expose. Walked once by a fresh reader in
   three seats, and revised ([section 8](#8-what-the-walk-changed)). Nothing is implemented, and
@@ -10,13 +11,14 @@
 - **Verified:** every claim about existing code in [section 2](#2-what-exists-today) cites a file
   and line or a command name read first-hand on 2026-11-15 at `6eeb545d`. Anything inferred says
   so with *(inferred)*.
-- **Next:** the owner cuts, adds and ranks the jobs and answers [section 12](#12-for-the-owner).
+- **Next:** the specification, in `endpoints/loam/plugins/violet/docs/`, once the slice's gaps
+  (#1322, #1323, #1324, #1325) land in `violet-afd`.
 
 | Field | Value |
 | --- | --- |
 | Units likely touched | A new `endpoints/loam/plugins/violet/`; `integrations/violet-afd` for the engine gaps in [5.2](#52-gaps-in-violet); `.github/workflows/loam-plugins.yml` |
 | Related | [Loam](../../../../endpoints/loam/README.md) and its [status](../../../../endpoints/loam/docs/STATUS.md); [Mail](../../active/mail/mail.proposal.md), the first plugin; the [Violet foundation](../../../../foundations/violet/README.md); Lushly's token-tree plan, in the private Lushly repository, read for its jobs only |
-| Supersedes, if approved | The `violet` row of Loam's [first-party apps](../../../../endpoints/loam/docs/proposal.md#first-party-apps) (`proposal.md:674`: "Mounted, then native views", phase 5) |
+| Supersedes | The `violet` row of Loam's [first-party apps](../../../../endpoints/loam/docs/proposal.md#first-party-apps) (`proposal.md:674`: "Mounted, then native views", phase 5) |
 
 ## 1. Problem and goal
 
@@ -376,13 +378,13 @@ them too (the honesty check), and each waits for the session now working in Viol
 
 | | Gap | Job | Evidence |
 | --- | --- | --- | --- |
-| G1 | Write a tree back as files, one per node with only its own operations: the inverse of `import.tree` | 9 | `import.tree` has no inverse; `export` resolves ([2.1](#21-violet)) |
-| G2 | Check a tree against `violet-elements`' interface: every id resolved in each theme node | 11, 12 | `loam-theme`'s check does it outside Violet, and Lushly's plan will too |
-| G3 | Contrast with alpha compositing, as `loam-theme`'s `contrast.ts` does | 8 | `validators.ts:475-484` reads RGB only |
-| G4 | Record why a failing rule stays: a reason beside `enabled` | 8 | `constraint.ts:98-106` has `enabled` and no reason |
-| G8 | Remove a node's own operation, the undo of `token.add` | 11 | The store has `removeOperation` (`packages/core/src/storage.ts:17`); no command exposes it |
-| G9 | Take time and ids from the caller | Replay of every write | `override.ts:110-111` |
-| G10 | Refuse a value its type cannot hold safely, on write, import and CSS export | 7, 10 | `css.ts:98-100` emits strings raw |
+| G1 (#1322) | Write a tree back as files, one per node with only its own operations: the inverse of `import.tree` | 9 | `import.tree` has no inverse; `export` resolves ([2.1](#21-violet)) |
+| G2 (#1323) | Check a tree against `violet-elements`' interface: every id resolved in each theme node | 11, 12 | `loam-theme`'s check does it outside Violet, and Lushly's plan will too |
+| G3 (#1326) | Contrast with alpha compositing, as `loam-theme`'s `contrast.ts` does | 8 | `validators.ts:475-484` reads RGB only |
+| G4 (#1327) | Record why a failing rule stays: a reason beside `enabled` | 8 | `constraint.ts:98-106` has `enabled` and no reason |
+| G8 (#1328) | Remove a node's own operation, the undo of `token.add` | 11 | The store has `removeOperation` (`packages/core/src/storage.ts:17`); no command exposes it |
+| G9 (#1324) | Take time and ids from the caller | Replay of every write | `override.ts:110-111` |
+| G10 (#1325) | Refuse a value its type cannot hold safely, on write, import and CSS export | 7, 10 | `css.ts:98-100` emits strings raw |
 
 And three in how `violet-server` meets Loam, for the mounted step only: it answers no
 `afd-help` or `afd-detail` (G5), its tool names are not `domain-action` (G6; Loam's renaming
@@ -486,6 +488,11 @@ spend, which waits for phase 5's host to be measured.
   (#1195, #1297). This proposal edits no Violet code; the gaps are filed for that work.
 
 ## 12. For the owner
+
+**Answered 2026-11-16:** the owner accepted every recommendation below: the slice as tagged
+(jobs 1 to 10); the native app now and the mounted engine later; trees as DTCG files; the seven
+gaps filed (G1 #1322, G2 #1323, G3 #1326, G4 #1327, G8 #1328, G9 #1324, G10 #1325); and trees at
+both the project and the workspace level.
 
 1. **Ranking.** Cut, add and rank the fifteen jobs. *Recommendation:* the slice as tagged (jobs 1
    to 10), because job 9 is what makes the app touch a real tree and job 4 is the comparison

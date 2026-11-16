@@ -15,16 +15,17 @@ not, so an agent never has to scan the code to learn what is current. It follows
 
 ## Status block
 
-- **State:** draft, for the owner to approve. Written 2026-11-15 against `main` at `6eeb545d`.
+- **State:** approved by the owner on 2026-11-16, every recommendation accepted. Written 2026-11-15 against `main` at `6eeb545d`.
   Nothing is implemented, and no Violet code is changed.
 - **Done:** what exists today, verified first-hand with file and line; fifteen jobs as scenario
   files that pass the three checks; a recommended app kind; the `violet-tree` document type;
   screens by part and layout class; twenty-two drafted commands; ten gaps (G1 to G10); the
   dependencies; the home and tests; five questions for the owner with recommendations.
-- **Not done:** the owner's ranking of the jobs and answers to the five questions. Then a
-  specification in `endpoints/loam/plugins/violet/docs/`, and the build.
+- **Not done:** the slice's gaps in `violet-afd` (#1322, #1323, #1324, #1325); moving Loam's
+  tree to DTCG files (question 3); then a specification in `endpoints/loam/plugins/violet/docs/`, and the build.
 - **Order:** the [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md),
-  steps 1 to 6 done, with one walk; step 9, the owner's ranking, next.
+  steps 1 to 6 done, with one walk; step 9, the owner's ranking, done 2026-11-16; the
+  specification next.
 
 ## Steps
 
@@ -34,7 +35,7 @@ not, so an agent never has to scan the code to learn what is current. It follows
 | Jobs and drafted commands | Done 2026-11-15 | Proposal, sections 3 and 5 |
 | Each job as a scenario, and the three checks | Done 2026-11-15 | [`scenarios/`](scenarios/), fifteen files, 61 steps; [How the jobs were checked](#how-the-jobs-were-checked) |
 | Walk the paths with a reader who did not write them | Done 2026-11-15: one fresh reader, three seats; six blockers and eleven improvements, all applied; three jobs and four commands added | Proposal, [section 8](violet-app.proposal.md#8-what-the-walk-changed) |
-| The owner ranks the jobs and answers section 12 | Open | |
+| The owner ranks the jobs and answers section 12 | Done 2026-11-16 | Every recommendation accepted; proposal, [section 12](violet-app.proposal.md#12-for-the-owner) |
 | Specification, in the plugin's folder | Open, after approval | |
 | Build: the first slice (`slice` scenarios) | Open | |
 
@@ -58,16 +59,17 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | Loam phase 6, step 11 (the desktop lane's mounts) | In progress, by the owner's brief; Loam's STATUS.md lists steps 4 to 13 as not done at `6eeb545d` | Running the app in the desktop Loam; `stdio` mounts for the later engine |
 | Loam phase 5 (`calls`, plain mounts, mounted document types, the copilot) | Not started | The mounted engine (question 2) |
 | Loam's plugin-engine specification (Mail's L5) | Open since 2026-11-10 | The mounted engine, as an alternative to phase 5's `calls` |
-| Violet gaps G1, G2, G9 and G10 in `violet-afd` | Not filed | The slice: tree export, the interface check, replay and safe values |
+| Violet gaps G1, G2, G9 and G10 in `violet-afd` | Filed 2026-11-16: #1322, #1323, #1324, #1325 | The slice: tree export, the interface check, replay and safe values |
 | The Violet session working on `violet-elements` and packaging (#1195, #1297) | Both merged; further work may be in flight | Any change to Violet's code here waits for it |
 
 ## Follow-ups not yet issues
 
 | Date | Raised by | Follow-up |
 | --- | --- | --- |
-| 2026-11-15 | This proposal | File G1 to G4 and G8 to G10 against `violet-afd` once the owner answers question 4 |
+| 2026-11-15 | This proposal | Superseded 2026-11-16: filed as #1322 (G1), #1323 (G2), #1326 (G3), #1327 (G4), #1328 (G8), #1324 (G9) and #1325 (G10) |
 | 2026-11-15 | This proposal | `violet-server` answers no `afd-help` or `afd-detail`, so Loam cannot discover it as an AFD server (G5 to G7) |
-| 2026-11-15 | This proposal | Amend the `violet` row of Loam's first-party apps (`endpoints/loam/docs/proposal.md:674`) if question 2 is answered as recommended |
+| 2026-11-15 | This proposal | Superseded 2026-11-16: the `violet` row of Loam's first-party apps is amended in #1314 |
+| 2026-11-16 | Owner (question 3) | Move Loam's tree from TypeScript to DTCG token files, and write Lushly's that way from the start |
 | 2026-11-15 | This proposal | Measure Loam's tree, and later Lushly's, as DTCG files against the 256 KiB bound on an instance command's input |
 
 ## Session log
@@ -75,3 +77,4 @@ On 2026-11-15, at `6eeb545d`, on Node 26.13.1, after `pnpm install --frozen-lock
 | Date | Session | What happened |
 | --- | --- | --- |
 | 2026-11-15 | Proposal | Drafted the proposal, twelve scenarios and this file at `6eeb545d`; ran the three checks; one fresh reader walked the paths in three seats; applied every finding (three jobs and four commands added, undo and unsafe values fixed, agents stated plainly); reran the checks |
+| 2026-11-16 | Proposal | The owner accepted every recommendation in section 12; filed the seven gaps (#1322 to #1328); amended the `violet` row of Loam's first-party apps; told the desktop-lane session the app waits on its step 11 only to run on the desktop |
