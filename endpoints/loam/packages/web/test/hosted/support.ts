@@ -20,7 +20,14 @@ export interface Answer {
 export function hosted(
 	host: DevHost,
 	path: string,
-	options: { host?: string; method?: string; accept?: string; origin?: string } = {}
+	options: {
+		host?: string;
+		method?: string;
+		accept?: string;
+		origin?: string;
+		/** More headers, sent as given: a cookie, an `Origin`. */
+		headers?: Record<string, string>;
+	} = {}
 ): Promise<Answer> {
 	const origin = new URL(options.origin ?? host.origin);
 	return new Promise((done, fail) => {
@@ -34,6 +41,7 @@ export function hosted(
 				ca: readFileSync(host.certificate),
 				setHost: false,
 				headers: {
+					...options.headers,
 					host: options.host ?? origin.host,
 					...(options.accept ? { accept: options.accept } : {}),
 				},
@@ -55,7 +63,7 @@ export function hosted(
 	});
 }
 
-const BIN = fileURLToPath(new URL('../../../host/bin/loam-host.mjs', import.meta.url));
+export const BIN = fileURLToPath(new URL('../../../host/bin/loam-host.mjs', import.meta.url));
 
 /** The `loam-host` bin, as a person runs it: its JSON, and its exit code. */
 export function loamHost(

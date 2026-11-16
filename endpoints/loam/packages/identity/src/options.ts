@@ -65,7 +65,60 @@ export interface LoamAuthConfig {
 	shell?: string;
 	/** The single sign-on providers `methods` names as `oidc:<id>`, and no other. */
 	oidc?: readonly LoamOidcProviderV1[];
+	/**
+	 * Tests only: a higher limit for a suite that legitimately makes many requests from one address. It raises the
+	 * limit, Better Auth's default and its stricter sign-in and mail rules alike; nothing turns the limiter off.
+	 */
+	rateLimit?: { window: number; max: number };
 }
+
+/** Better Auth 1.7.18's default rate limit: 100 requests in 10 s per address and path. */
+const DEFAULT_RATE_LIMIT = Object.freeze({ window: 10, max: 100 });
+
+/** Better Auth's own stricter rules (1.7.18's `getDefaultSpecialRules`), which a test's higher limit raises too. */
+const SPECIAL_RATE_LIMIT_PATHS = [
+	'/sign-in/*',
+	'/sign-up/*',
+	'/change-password',
+	'/change-email',
+	'/request-password-reset',
+	'/send-verification-email',
+] as const;
+
+/**
+ * The provider's rate limit, on in every mode (the coordinator's decision of 2026-11-15, phase 3's 5.8): Better Auth
+ * turns its limiter on only when `NODE_ENV` is `production`, and Loam's safety never rests on `NODE_ENV`. It keys
+ * each request by A7's `x-loam-client-ip`.
+ */
+function rateLimitOf(
+	raised: LoamAuthConfig['rateLimit']
+): NonNullable<BetterAuthOptions['rateLimit']> {
+	if (!raised) return { enabled: true };
+	// Only a raise (N2): a finite `max` of at least Better Auth's default, over a window no longer than its default, so
+	// no value lowers a rule or reads as unlimited.
+	if (
+		!Number.isInteger(raised.max) ||
+		raised.max < DEFAULT_RATE_LIMIT.max ||
+		!Number.isInteger(raised.window) ||
+		raised.window < 1 ||
+		raised.window > DEFAULT_RATE_LIMIT.window
+	)
+		throw new Error(
+			`A raised rate limit is a finite max of at least ${DEFAULT_RATE_LIMIT.max} over a window of 1 to ${DEFAULT_RATE_LIMIT.window} s`
+		);
+	const rule = { window: raised.window, max: raised.max };
+	return {
+		enabled: true,
+		...rule,
+		customRules: Object.fromEntries(SPECIAL_RATE_LIMIT_PATHS.map((path) => [path, rule])),
+	};
+}
+
+/**
+ * The header the hosted server sets from the socket's address before any route, after deleting any incoming
+ * copy and `x-forwarded-for` (A7): the only one the provider reads a client's address from.
+ */
+export const CLIENT_ADDRESS_HEADER = 'x-loam-client-ip';
 
 /** Better Auth's routes no Loam deployment serves (5.7, 9.4): resets and email change are recovery's. */
 export const LOAM_DISABLED_PATHS: readonly string[] = Object.freeze([
@@ -165,11 +218,26 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		baseURL: url.origin,
 		basePath: url.pathname.replace(/\/$/, ''),
 		secret: config.secret,
+		// The secret given, never one from the environment: Better Auth 1.7.18 takes `BETTER_AUTH_SECRETS` over `secret`
+		// when no `secrets` are passed (B1 of step 3's review; the coordinator's decision of 2026-11-16). `loam-host`
+		// also refuses to start while that variable is set.
+		secrets: [{ version: 1, value: config.secret }],
+		// Off, and `loam-host` refuses `BETTER_AUTH_TELEMETRY`, which Better Auth 1.7.18 ORs with this option.
+		telemetry: { enabled: false },
 		database: config.database,
 		trustedOrigins: [url.origin],
 		session: { cookieCache: { enabled: false }, freshAge: FRESH_AGE_SECONDS },
-		// Better Auth skips its origin and CSRF checks when `NODE_ENV` is `test`; Loam's provider never does.
-		advanced: { useSecureCookies: true, disableOriginCheck: false, disableCSRFCheck: false },
+		rateLimit: rateLimitOf(config.rateLimit),
+		advanced: {
+			useSecureCookies: true,
+			// Better Auth skips its origin and CSRF checks when `NODE_ENV` is `test`; Loam's provider never does.
+			disableOriginCheck: false,
+			disableCSRFCheck: false,
+			// A7 (phase 6 specification): the client's address only from the header the hosted server sets from
+			// the socket, after deleting any incoming copy and `x-forwarded-for`, so no client picks its own
+			// rate-limit bucket, and no two clients share one for want of an address.
+			ipAddress: { ipAddressHeaders: [CLIENT_ADDRESS_HEADER] },
+		},
 		disabledPaths: [...LOAM_DISABLED_PATHS],
 		user: { changeEmail: { enabled: false } },
 		emailAndPassword: password

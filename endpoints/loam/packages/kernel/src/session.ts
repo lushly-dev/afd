@@ -6,7 +6,7 @@
 import { MockAuthAdapter } from '@lushly-dev/afd-auth';
 import { type JournalEntry, MemoryJournalSink } from '@lushly-dev/afd-core';
 import type { ZodCommandDefinition } from '@lushly-dev/afd-server/define';
-import type { ProjectionV3 } from '@lushly-dev/loam-manifest';
+import type { ProjectionV4 } from '@lushly-dev/loam-manifest';
 import { MemoryAdapter } from '@lushly-dev/local-db';
 import type { AppearanceV0 } from './appearance.js';
 import { createKernelParts, type KernelInterfaceV0 } from './kernel.js';
@@ -40,7 +40,7 @@ export interface RecordSessionOptions {
 	start?: number;
 	/** Random seed. Default: `'loam'`. */
 	seed?: string;
-	deployment?: ProjectionV3;
+	deployment?: ProjectionV4;
 	ports?: KernelPortsV1;
 }
 
@@ -58,7 +58,7 @@ export interface TestKernelOptions {
 	commands?: ZodCommandDefinition[];
 	clock?: () => number;
 	random?: () => number;
-	deployment?: ProjectionV3;
+	deployment?: ProjectionV4;
 	ports?: KernelPortsV1;
 	/** Resolve after stage A, as the web host does (phase 2 specification, 2.2). */
 	boot?: KernelOptionsV3['boot'];

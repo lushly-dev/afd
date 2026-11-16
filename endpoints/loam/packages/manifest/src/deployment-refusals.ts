@@ -10,7 +10,12 @@ import { pointerOf, refusesKey, reportedErrors, type ValidatorError } from './va
 const EXPOSE_KEY = /^\/apps\/[^/]+\/(?:commands\/[^/]+\/)?expose\/(apps|mcp|cli)$/;
 
 /** A schema the readers report against: a deployment file of either version, or the projection. */
-export type DeploymentSchema = 'deployment' | 'deploymentV2' | 'deploymentV3' | 'projection';
+export type DeploymentSchema =
+	| 'deployment'
+	| 'deploymentV2'
+	| 'deploymentV3'
+	| 'deploymentV4'
+	| 'projection';
 
 const PROJECT_KEY = /^\/apps\/[^/]+\/projects\/\d+$/;
 
@@ -54,7 +59,7 @@ function deploymentRow(
 				code: 'DEPLOYMENT_VERSION_UNSUPPORTED',
 				message: `\`deployment_version\` ${error.message ?? 'is not served'}.`,
 				suggestion:
-					'This shell reads `deployment_version = 1`, `2` and `3`; `3` is needed only for `[identity]`.',
+					'This shell reads `deployment_version = 1` to `4`; `3` is needed only for `[identity]`, and `4` only for `[host]`.',
 			};
 		}
 		const versionTwo = schema !== 'deployment' ? versionTwoRow(pointer, key) : undefined;
@@ -74,9 +79,9 @@ function deploymentRow(
 			};
 		}
 	}
-	const table = ADMITTED_KEYS[schema === 'deploymentV3' ? 'deploymentV2' : schema] as Readonly<
-		Record<string, readonly string[]>
-	>;
+	const table = ADMITTED_KEYS[
+		schema === 'deploymentV3' || schema === 'deploymentV4' ? 'deploymentV2' : schema
+	] as Readonly<Record<string, readonly string[]>>;
 	if (refusesKey(error)) {
 		const parts = pointer.split('/');
 		const name = parts.at(-1) as string;

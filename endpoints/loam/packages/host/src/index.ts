@@ -4,13 +4,13 @@
  */
 
 export {
+	BETTER_AUTH_OVERRIDES,
 	type CheckHostOptions,
 	checkHost,
-	HOST_ROUTE_SEGMENTS,
+	environmentFindings,
 	type HostCheck,
 	type HostKind,
 	hostKindOf,
-	hostRouteSegments,
 } from './check.js';
 export { type HostCliIO, runHostCli } from './cli.js';
 export { hostCheckCommand, hostDoctorCommand } from './commands.js';

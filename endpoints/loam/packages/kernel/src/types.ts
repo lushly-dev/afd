@@ -21,7 +21,7 @@ import type {
 	ManifestV2,
 	ProjectionMountedV1,
 	ProjectionV1,
-	ProjectionV3,
+	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
 import type {
 	AppDefinitionV1,
@@ -472,7 +472,7 @@ export interface MountTransportV2 extends Omit<MountTransportV1, 'callTool'> {
 
 /** What stage B reads: the validated projection and the ports, or why the reader refused it (2.2). */
 export type AppsLoadV2 =
-	| { deployment: ProjectionV3; ports: KernelPortsV1 }
+	| { deployment: ProjectionV4; ports: KernelPortsV1 }
 	| {
 			/** The reader's message: each entry is listed `failed` with `DEPLOYMENT_INVALID`. */
 			refused: string;
@@ -480,7 +480,7 @@ export type AppsLoadV2 =
 
 export interface KernelOptionsV2 extends Omit<KernelOptionsV1, 'deployment' | 'appsUnavailable'> {
 	/** With no `boot`: the validated projection, and `createKernel` runs stage B before it resolves. */
-	deployment?: ProjectionV3;
+	deployment?: ProjectionV4;
 	/** What `readBoot` read. With it, `createKernel` resolves after stage A (2.2). */
 	boot?: BootProjectionV2;
 	/** What stage B reads. Required with `boot` when it lists an app. */

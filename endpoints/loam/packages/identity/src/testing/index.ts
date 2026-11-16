@@ -20,6 +20,7 @@ import type { IdentityMethodV1 } from '@lushly-dev/loam-manifest';
 import type { LoamMailV1, LoamOidcProviderV1 } from '../options.js';
 
 export { startTestOidcProvider, type TestOidcPersonV1, type TestOidcProvider } from './oidc.js';
+export { seedTestPeople, TEST_RATE_LIMIT } from './provider.js';
 export { type Answer, linkIn, TestBrowser } from './requests.js';
 export { SoftAuthenticator, type SoftCredentialV1 } from './webauthn.js';
 

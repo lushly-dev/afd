@@ -13,11 +13,13 @@ import type {
 	DeploymentV1,
 	DeploymentV2,
 	DeploymentV3,
+	DeploymentV4,
 	DeploymentWorkspaceV2,
+	HostKindV1,
 	IdentityV1,
 	ProjectionAppV2,
 	ProjectionBootV2,
-	ProjectionV3,
+	ProjectionV4,
 } from '@lushly-dev/loam-manifest';
 import { DEFAULT_WORKSPACE_V2, readProjection } from '@lushly-dev/loam-manifest/validate';
 import {
@@ -50,13 +52,18 @@ export interface WriteDeploymentOptions {
 	mountsOut?: string;
 	/** Write the site as if the file's `[sandbox] origin` were this one (`AnalyzeDeploymentOptions`). */
 	sandboxOrigin?: string;
+	/**
+	 * `--host` (phase 6 specification, 3.3): the kind, set when the file names none and refused when it names
+	 * another (`DEPLOYMENT_HOST_MISMATCH`). The hosted server writes its site with `hosted`.
+	 */
+	host?: HostKindV1;
 }
 
 export type WriteDeploymentResult =
 	| {
 			ok: true;
 			out: string;
-			projection: ProjectionV3;
+			projection: ProjectionV4;
 			/** In memory: what the caller's relay needs. */
 			mounts: MountAccess[];
 			/** Each instance the kernel will refuse, and the packages' warnings. */
@@ -127,29 +134,38 @@ export function canonicalJson(value: unknown): string {
 
 /**
  * `sha256-` and the digest of `{ workspace, apps }` with each `boot` left out (2.2): it changes when a
- * deployer's entry changes, not when a package's display does.
+ * deployer's entry changes, not when a package's display does. A version 4 projection's `host` joins it, so a
+ * change of kind is applied, and journaled, as a change of entries is (phase 6 specification, 3.3 and A5); an
+ * earlier projection's generation is unchanged.
  */
 export function generationOf(
 	workspace: DeploymentWorkspaceV2,
-	apps: readonly ProjectionAppV2[]
+	apps: readonly ProjectionAppV2[],
+	host?: NonNullable<ProjectionV4['host']>
 ): string {
 	const entries = apps.map(({ boot: _boot, ...entry }) => entry);
-	const digest = createHash('sha256').update(canonicalJson({ workspace, apps: entries }));
+	const digest = createHash('sha256').update(
+		canonicalJson({ workspace, apps: entries, ...(host ? { host } : {}) })
+	);
 	return `sha256-${digest.digest('hex')}`;
 }
 
 /**
  * The whitelist of what reaches a browser. A key not named here cannot arrive there. A version 3 file
  * writes a version 3 projection, with its identity's mode, slug, path and methods and nothing else of
- * it (phase 3 specification, 2.2); an earlier file, version 2, so phase 2's projections are unchanged.
+ * it (phase 3 specification, 2.2); an earlier file, version 2, so phase 2's projections are unchanged. A
+ * version 4 file writes a version 4 projection, which adds the host's kind, and for the hosted server the
+ * same-origin path of its trust-record transport under `base_path`, and nothing else of it (phase 6
+ * specification, 3.3).
  */
 export function projectionOf(
-	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4,
 	instances: readonly InstanceEffect[],
 	workspace: DeploymentWorkspaceV2 = DEFAULT_WORKSPACE_V2,
 	findings: readonly DeploymentFinding[] = [],
-	identity: IdentityV1 = { mode: 'local' }
-): ProjectionV3 {
+	identity: IdentityV1 = { mode: 'local' },
+	kind: HostKindV1 = 'static'
+): ProjectionV4 {
 	const apps: ProjectionAppV2[] = instances.map((effect) => {
 		const { id, entry, mounted, prefix, transport } = effect;
 		return {
@@ -170,13 +186,17 @@ export function projectionOf(
 			boot: bootRecordOf(effect, findings),
 		};
 	});
-	const version = deployment.deployment_version === 3 ? 3 : 2;
+	const version =
+		deployment.deployment_version === 4 ? 4 : deployment.deployment_version === 3 ? 3 : 2;
+	const host: ProjectionV4['host'] =
+		version === 4 ? (kind === 'hosted' ? { kind, kernel: 'api/kernel' } : { kind }) : undefined;
 	return {
 		deployment_version: version,
-		generation: generationOf(workspace, apps),
+		generation: generationOf(workspace, apps, host),
 		workspace: { id: workspace.id, name: workspace.name },
 		sandbox_origin: deployment.sandbox?.origin ?? null,
-		...(version === 3 && deployment.deployment_version === 3 && deployment.identity !== undefined
+		...((deployment.deployment_version === 3 || deployment.deployment_version === 4) &&
+		deployment.identity !== undefined
 			? {
 					identity:
 						identity.mode === 'provider'
@@ -190,6 +210,7 @@ export function projectionOf(
 							: { mode: 'local' },
 				}
 			: {}),
+		...(host ? { host } : {}),
 		apps,
 	};
 }
@@ -197,7 +218,7 @@ export function projectionOf(
 /** A projection the schema refuses stops the write: nothing with an unknown key is ever served. */
 export function checkedProjection(
 	candidate: unknown
-): { ok: true; projection: ProjectionV3 } | { ok: false; refusals: DeploymentFinding[] } {
+): { ok: true; projection: ProjectionV4 } | { ok: false; refusals: DeploymentFinding[] } {
 	const read = readProjection(candidate);
 	return read.ok
 		? { ok: true, projection: read.projection }
@@ -265,7 +286,7 @@ async function pathRefusals(
 	options: WriteDeploymentOptions,
 	dist: string,
 	out: string,
-	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3,
+	deployment: DeploymentV1 | DeploymentV2 | DeploymentV3 | DeploymentV4,
 	instances: readonly InstanceEffect[]
 ): Promise<DeploymentFinding[]> {
 	const found: DeploymentFinding[] = [];
@@ -352,10 +373,10 @@ async function planCopy(
 export async function writeDeployment(
 	options: WriteDeploymentOptions
 ): Promise<WriteDeploymentResult> {
-	const analysis = await analyzeDeployment(
-		options.config,
-		options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }
-	);
+	const analysis = await analyzeDeployment(options.config, {
+		...(options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }),
+		...(options.host === undefined ? {} : { host: options.host }),
+	});
 	const warnings = [...analysis.instanceRefusals, ...analysis.warnings];
 	const stop = (refusals: DeploymentFinding[]): WriteDeploymentResult => ({
 		ok: false,
@@ -363,6 +384,19 @@ export async function writeDeployment(
 		warnings,
 	});
 	if (analysis.refusals.length > 0 || !analysis.deployment) return stop(analysis.refusals);
+	// The desktop's sources in the `<meta>` policy and its `stdio` mounts come with phase 6's step 11 (10.2,
+	// 10.4); until then a desktop deployment is not written, rather than written with a browser's policy.
+	if (analysis.host === 'desktop') {
+		return stop([
+			{
+				code: 'DEPLOYMENT_HOST_UNAVAILABLE',
+				key: 'host.kind',
+				message:
+					"The desktop's deployment is written once the desktop lane exists (phase 6, step 11).",
+				suggestion: 'Write it for `static` or `hosted` until then.',
+			},
+		]);
+	}
 	const dist = await realish(options.dist);
 	const out = await realish(options.out);
 	const paths = await pathRefusals(options, dist, out, analysis.deployment, analysis.instances);
@@ -373,7 +407,8 @@ export async function writeDeployment(
 			analysis.instances,
 			analysis.workspace,
 			analysis.instanceRefusals,
-			analysis.identity
+			analysis.identity,
+			analysis.host
 		)
 	);
 	if (!checked.ok) return stop(checked.refusals);

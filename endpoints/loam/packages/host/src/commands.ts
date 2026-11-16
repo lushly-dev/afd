@@ -5,11 +5,14 @@
 
 import { type CommandResult, defineCommand, failure, success } from '@lushly-dev/afd-server/define';
 import { z } from 'zod';
+import { runBootstrap } from './bootstrap.js';
 import { checkHost } from './check.js';
 import { loadServerConfig } from './config.js';
 import { type DevProfile, runDev } from './dev.js';
 import { doctorReport } from './doctor.js';
 import { HostError, type HostFinding } from './errors.js';
+import { createLoamHost, type LoamHost } from './host.js';
+import { HOST_INTERNALS } from './internal.js';
 
 /** A CLI command is on no shell surface. */
 const EXPOSE = { cli: true, palette: false, agent: false, mcp: false };
@@ -76,11 +79,11 @@ export const hostDoctorCommand = defineCommand({
 	},
 });
 
-/** The profile `dev` started, which the bin closes on `SIGINT` or `SIGTERM`. */
-let started: DevProfile | undefined;
+/** The host `dev` or `start` started, which the bin closes on `SIGINT` or `SIGTERM`. */
+let started: { host: LoamHost } | undefined;
 
-/** Takes the profile the last `dev` started, so whoever runs the bin can stop it. */
-export function takeStartedDev(): DevProfile | undefined {
+/** Takes the host the last `dev` or `start` started, so whoever runs the bin can stop it. */
+export function takeStartedDev(): { host: LoamHost } | undefined {
 	const profile = started;
 	started = undefined;
 	return profile;
@@ -105,8 +108,9 @@ export const hostDevCommand = defineCommand({
 	mutation: true,
 	expose: EXPOSE,
 	async handler({ deployment, data, port, dist }) {
+		let profile: DevProfile;
 		try {
-			started = await runDev({
+			profile = await runDev({
 				deployment,
 				...(data !== undefined ? { data } : {}),
 				...(port !== undefined ? { port } : {}),
@@ -116,14 +120,99 @@ export const hostDevCommand = defineCommand({
 			if (cause instanceof HostError) return refused(cause.refusals, {});
 			throw cause;
 		}
+		started = profile;
 		return success(
 			{
-				origin: started.origin,
-				sandboxOrigin: started.sandboxOrigin,
-				spki: started.spki,
-				mail: started.mail,
+				origin: profile.origin,
+				sandboxOrigin: profile.sandboxOrigin,
+				spki: profile.spki,
+				mail: profile.mail,
 			},
-			{ reasoning: `Serving ${started.origin} until it is stopped.` }
+			{ reasoning: `Serving ${profile.origin} until it is stopped.` }
 		);
+	},
+});
+
+export const hostStartCommand = defineCommand({
+	name: 'host-start',
+	title: 'Start the hosted server',
+	description:
+		'Check, take the lock, write the site and serve a hosted provider deployment until stopped; refuses a local deployment and an organization never bootstrapped.',
+	input: z.object({ server: z.string(), deployment: z.string(), dist: z.string() }),
+	mutation: true,
+	expose: EXPOSE,
+	async handler({ server: file, deployment, dist }) {
+		const loaded = await loadServerConfig(file);
+		if (!loaded.ok) return refused(loaded.refusals, { warnings: loaded.warnings });
+		let host: LoamHost;
+		try {
+			host = await createLoamHost({
+				server: loaded.server,
+				deployment,
+				dist,
+				[HOST_INTERNALS]: { start: true },
+			});
+			await host.listen().catch(async (cause: unknown) => {
+				await host.close();
+				throw cause;
+			});
+		} catch (cause) {
+			if (cause instanceof HostError) return refused(cause.refusals, {});
+			throw cause;
+		}
+		started = { host };
+		return success(
+			{ origin: host.origin, sandboxOrigin: host.sandboxOrigin },
+			{ reasoning: `Serving ${host.origin} until it is stopped.` }
+		);
+	},
+});
+
+const BOOTSTRAP_INPUT = {
+	deployment: z.string(),
+	slug: z.string(),
+	name: z.string(),
+	ownerEmail: z.string(),
+};
+
+export const hostBootstrapCommand = defineCommand({
+	name: 'host-bootstrap',
+	title: "Bootstrap the deployment's organization",
+	description:
+		"Create the deployment's organization, pin its binding and send its first owner a join link, with no server running; again while it has no member, send a new link.",
+	input: z.union([
+		// One form or the other: `--server` with `--dev` or `--data` is a usage error, never one of them silently.
+		z.strictObject({ ...BOOTSTRAP_INPUT, server: z.string() }),
+		z.strictObject({ ...BOOTSTRAP_INPUT, dev: z.literal(true), data: z.string().optional() }),
+	]),
+	mutation: true,
+	expose: EXPOSE,
+	async handler(input) {
+		try {
+			let report: Awaited<ReturnType<typeof runBootstrap>>;
+			if ('server' in input && input.server !== undefined) {
+				const loaded = await loadServerConfig(input.server);
+				if (!loaded.ok) return refused(loaded.refusals, { warnings: loaded.warnings });
+				report = await runBootstrap({ ...input, form: 'server', server: loaded.server });
+			} else {
+				const data = 'data' in input ? input.data : undefined;
+				report = await runBootstrap({
+					deployment: input.deployment,
+					slug: input.slug,
+					name: input.name,
+					ownerEmail: input.ownerEmail,
+					form: 'dev',
+					...(data !== undefined ? { data } : {}),
+				});
+			}
+			return success(report, {
+				reasoning: report.reissued
+					? `Sent ${report.invited} a new link; the earlier one no longer works.`
+					: `Created ${report.organization.slug} and sent ${report.invited} the first owner's link.`,
+			});
+		} catch (cause) {
+			if (cause instanceof HostError) return refused(cause.refusals, {});
+			throw cause;
+		}
 	},
 });

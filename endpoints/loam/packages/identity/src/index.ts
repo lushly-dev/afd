@@ -24,6 +24,7 @@ export { JOIN_INVITATION_MS, joinLink } from './enrolment.js';
 export { createOrganizationHooks } from './hooks.js';
 export type { RecoveryV1 } from './members.js';
 export {
+	CLIENT_ADDRESS_HEADER,
 	createLoamAuthOptions,
 	FRESH_AGE_SECONDS,
 	LOAM_DISABLED_PATHS,

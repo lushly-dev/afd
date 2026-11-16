@@ -30,7 +30,7 @@ interface Built {
 	basePath: string;
 	trustedOrigins: string[];
 	session: unknown;
-	advanced: { useSecureCookies: boolean };
+	advanced: { useSecureCookies: boolean; ipAddress?: { ipAddressHeaders?: string[] } };
 	disabledPaths: string[];
 	user: { changeEmail: { enabled: boolean } };
 	emailAndPassword: unknown;
@@ -91,6 +91,8 @@ describe('createLoamAuthOptions (2.6)', () => {
 		});
 		expect(FRESH_AGE_SECONDS).toBe(300);
 		expect(options.advanced.useSecureCookies).toBe(true);
+		// A7: the client's address only from the header the hosted server sets from the socket.
+		expect(options.advanced.ipAddress).toEqual({ ipAddressHeaders: ['x-loam-client-ip'] });
 		expect(options.plugins.map((plugin) => plugin.id).sort()).toEqual([
 			'loam',
 			'organization',

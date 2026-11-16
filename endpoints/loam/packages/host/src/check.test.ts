@@ -1,7 +1,7 @@
 import { chmod, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import { checkHost, HOST_ROUTE_SEGMENTS, hostKindOf, hostRouteSegments } from './check.js';
+import { checkHost, hostKindOf } from './check.js';
 import { loadServerConfig } from './config.js';
 import { resolveSecrets } from './secrets.js';
 import {
@@ -45,8 +45,8 @@ const codes = (findings: Array<{ code: string; key: string }>) =>
 	findings.map(({ code, key }) => `${code} ${key}`);
 
 describe('P6-E1: the server configuration against the machine and the deployment (3.2, 3.3)', () => {
-	it('P6-E1: a version 1 or 2 deployment reads as static, and the hosted server refuses it as HOST_DEPLOYMENT_KIND', async () => {
-		for (const version of [1, 2]) {
+	it('P6-E1: a version 1 to 3 deployment reads as static, and the hosted server refuses it as HOST_DEPLOYMENT_KIND', async () => {
+		for (const version of [1, 2, 3]) {
 			const { root, data, dist } = await setup();
 			const deployment = join(root, `v${version}.toml`);
 			await writeFile(deployment, `deployment_version = ${version}\n\n[apps]\n`);
@@ -62,14 +62,29 @@ describe('P6-E1: the server configuration against the machine and the deployment
 		}
 	});
 
-	it('P6-E1: the test-only option serves a local static deployment until step 3, and `start` still refuses it as HOST_IDENTITY_LOCAL', async () => {
+	it('P6-E1: a version 4 deployment for another host is HOST_DEPLOYMENT_KIND, and one with no `[host]` reads as static', async () => {
+		for (const host of ['[host]\nkind = "static"\n\n', '[host]\nkind = "desktop"\n\n', '']) {
+			const { root, data, dist } = await setup();
+			const deployment = join(root, 'other.toml');
+			await writeFile(deployment, `deployment_version = 4\n\n${host}[apps]\n`);
+			const checked = await checkHost({
+				server: serverConfig(data),
+				deployment,
+				dist,
+				purpose: 'serve',
+			});
+			expect(hostKindOf(checked.analysis as never), host).not.toBe('hosted');
+			expect(codes(checked.refusals), host).toEqual([`HOST_DEPLOYMENT_KIND ${deployment}`]);
+		}
+	});
+
+	it('P6-E1: a local hosted deployment is served for `dev`, and `start` refuses it as HOST_IDENTITY_LOCAL', async () => {
 		const { data, dist, deployment } = await setup();
 		const served = await checkHost({
 			server: serverConfig(data),
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(served.refusals).toEqual([]);
 		const started = await checkHost({
@@ -77,7 +92,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'start',
-			serveStatic: true,
 		});
 		expect(codes(started.refusals)).toEqual([`HOST_IDENTITY_LOCAL ${deployment}`]);
 	});
@@ -96,7 +110,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 				deployment,
 				dist,
 				purpose: 'serve',
-				serveStatic: true,
 			});
 			expect(codes(checked.refusals), `${body} ${origin}`).toEqual([expected]);
 		}
@@ -106,7 +119,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(same.refusals).toEqual([]);
 	});
@@ -123,26 +135,26 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(codes(checked.refusals)).toEqual(['HOST_SANDBOX_INVALID sandbox']);
 	});
 
-	it('P6-E1: the test-only option serves a version 3 local deployment, and never a provider one', async () => {
+	it('P6-E1: a version 3 deployment, local or provider, is HOST_DEPLOYMENT_KIND: no test-only option serves one since step 3', async () => {
 		const { root, data, dist } = await setup();
 		const local = join(root, 'local.toml');
 		await writeFile(local, 'deployment_version = 3\n\n[identity]\nmode = "local"\n\n[apps]\n');
 		expect(
-			(
-				await checkHost({
-					server: serverConfig(data),
-					deployment: local,
-					dist,
-					purpose: 'serve',
-					serveStatic: true,
-				})
-			).refusals
-		).toEqual([]);
+			codes(
+				(
+					await checkHost({
+						server: serverConfig(data),
+						deployment: local,
+						dist,
+						purpose: 'serve',
+					})
+				).refusals
+			)
+		).toEqual([`HOST_DEPLOYMENT_KIND ${local}`]);
 		const provider = join(root, 'provider.toml');
 		await writeFile(
 			provider,
@@ -153,18 +165,18 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment: provider,
 			dist,
 			purpose: 'start',
-			serveStatic: true,
 		});
 		expect(codes(served.refusals)).toEqual([`HOST_DEPLOYMENT_KIND ${provider}`]);
 	});
 
-	it("P6-E1: holds [oidc] tables to a version 3 deployment's oidc methods", async () => {
+	it("P6-E1: holds [oidc] tables to a provider deployment's oidc methods", async () => {
 		const { root, data, dist } = await setup();
 		const secret = await secretFile(root, 'oidc-corp', 'client-secret');
+		const auth = await secretFile(root, 'auth', SECRET);
 		const deployment = join(root, 'provider.toml');
 		await writeFile(
 			deployment,
-			'deployment_version = 3\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\nmethods = ["passkey", "oidc:corp", "oidc:partner"]\n\n[apps]\n'
+			'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[host]\nkind = "hosted"\n\n[identity]\nmode = "provider"\norganization = "acme"\nmethods = ["passkey", "oidc:corp", "oidc:partner"]\n\n[apps]\n'
 		);
 		const checked = await checkHost({
 			server: serverConfig(data, {
@@ -180,28 +192,83 @@ describe('P6-E1: the server configuration against the machine and the deployment
 						client_secret_file: secret,
 					},
 				},
+				auth: { secret_file: auth },
+				mail: { transport: 'sink' },
 			}),
 			deployment,
 			dist,
 			purpose: 'start',
 		});
 		expect(codes(checked.refusals)).toEqual([
-			`HOST_DEPLOYMENT_KIND ${deployment}`,
 			'HOST_OIDC_INVALID oidc.partner',
 			'HOST_OIDC_INVALID oidc.extra',
 		]);
 	});
 
-	it("P6-E1: adds a provider's own identity.path first segment to the host's route segments", () => {
-		const provider = (path: string) =>
-			({
-				identity: { mode: 'provider', organization: 'acme', path, methods: ['passkey'] },
-			}) as never;
-		expect(hostRouteSegments({ identity: { mode: 'local' } } as never)).toEqual(
-			HOST_ROUTE_SEGMENTS
+	it('P6-E1: a provider deployment needs `[auth]` and `[mail]`, and `smtp` waits for the production profile', async () => {
+		const { root, data, dist } = await setup();
+		const auth = await secretFile(root, 'auth', SECRET);
+		const deployment = join(root, 'provider.toml');
+		await writeFile(
+			deployment,
+			'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[host]\nkind = "hosted"\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps]\n'
 		);
-		expect(hostRouteSegments(provider('api/auth'))).toEqual(HOST_ROUTE_SEGMENTS);
-		expect(hostRouteSegments(provider('login/x'))).toEqual([...HOST_ROUTE_SEGMENTS, 'login']);
+		const bare = await checkHost({
+			server: serverConfig(data),
+			deployment,
+			dist,
+			purpose: 'start',
+		});
+		expect(codes(bare.refusals)).toEqual([
+			'HOST_SECRET_UNAVAILABLE auth',
+			'HOST_CONFIG_INVALID mail',
+		]);
+		for (const refusal of bare.refusals) expect(refusal.suggestion).toBeTruthy();
+		const smtp = await checkHost({
+			server: serverConfig(data, {
+				auth: { secret_file: auth },
+				mail: {
+					transport: 'smtp',
+					from: 'Loam <loam@example.com>',
+					smtp_url_env: 'LOAM_TEST_SMTP_URL',
+				},
+			}),
+			deployment,
+			dist,
+			purpose: 'start',
+			environment: { LOAM_TEST_SMTP_URL: 'smtps://mail.example.com' },
+		});
+		expect(codes(smtp.refusals)).toEqual(['HOST_CONFIG_INVALID mail.transport']);
+		const sink = await checkHost({
+			server: serverConfig(data, { auth: { secret_file: auth }, mail: { transport: 'sink' } }),
+			deployment,
+			dist,
+			purpose: 'start',
+		});
+		expect(sink.refusals).toEqual([]);
+	});
+
+	it("P6-E1: a workspace id the hosted server answers itself, or the identity path's first segment, is refused by version 4's reader", async () => {
+		for (const [body, code] of [
+			['[workspace]\nid = "api"\n\n', 'DEPLOYMENT_WORKSPACE_INVALID'],
+			['[workspace]\nid = "mcp"\n\n', 'DEPLOYMENT_WORKSPACE_INVALID'],
+			[
+				'[workspace]\nid = "auth"\n\n[identity]\nmode = "provider"\norganization = "acme"\npath = "auth/x"\n\n',
+				'DEPLOYMENT_IDENTITY_INVALID',
+			],
+		] as const) {
+			const { data, dist, deployment } = await setup(body);
+			const checked = await checkHost({
+				server: serverConfig(data),
+				deployment,
+				dist,
+				purpose: 'serve',
+			});
+			expect(
+				checked.refusals.map(({ code }) => code),
+				body
+			).toContain(code);
+		}
 	});
 
 	it('P6-E1: a version 3 identity.path whose first segment is the workspace id is refused', async () => {
@@ -216,7 +283,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(checked.refusals.map(({ code }) => code)).toContain('DEPLOYMENT_IDENTITY_INVALID');
 	});
@@ -237,7 +303,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(codes(checked.refusals)).toEqual(['HOST_OIDC_INVALID oidc.corp']);
 	});
@@ -251,7 +316,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 				deployment,
 				dist,
 				purpose: 'serve',
-				serveStatic: true,
 			});
 			expect(codes(checked.refusals)).toEqual(['DEPLOYMENT_WORKSPACE_INVALID workspace.id']);
 		}
@@ -266,7 +330,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 				deployment,
 				dist,
 				purpose: 'serve',
-				serveStatic: true,
 			});
 			expect(codes(checked.refusals)).toEqual(['DEPLOYMENT_WORKSPACE_INVALID workspace.id']);
 		}
@@ -279,7 +342,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(checked.refusals).toEqual([]);
 	});
@@ -291,7 +353,6 @@ describe('P6-E1: the server configuration against the machine and the deployment
 			deployment,
 			dist,
 			purpose: 'serve',
-			serveStatic: true,
 		});
 		expect(checked.refusals).toEqual([]);
 		expect(codes(checked.warnings)).toEqual(['HOST_ORIGIN_SHARED site.base_path']);

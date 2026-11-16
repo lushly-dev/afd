@@ -365,8 +365,8 @@ package = "broken"
 	});
 
 	it('stops on what makes the file unreadable, leaving the output alone', async () => {
-		// Version 3 is read from phase 3 (phase 3 specification, 2.1's `deployment_version` row).
-		const paths = await layout('deployment_version = 4\napps = {}\n');
+		// Version 3 is read from phase 3, and version 4 from phase 6 (its 3.3); 5 is not.
+		const paths = await layout('deployment_version = 5\napps = {}\n');
 		const written = await write_(paths);
 		expect(written).toMatchObject({ ok: false });
 		expect(written.ok === false && written.refusals[0]?.code).toBe(
@@ -1173,5 +1173,126 @@ describe('readDeployment, the sandbox origin', () => {
 		['https://a"b', false],
 	])('%s: %s', (origin, ok) => {
 		expect(readDeployment({ deployment_version: 1, sandbox: { origin }, apps: {} }).ok).toBe(ok);
+	});
+});
+
+describe('P6-E1: deployment write --host, and the version 4 projection (phase 6 specification, 3.3)', () => {
+	const FOUR = 'deployment_version = 4\napps = {}\n\n[workspace]\nid = "acme"\n';
+	const withHost = (kind: string) =>
+		`deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[host]\nkind = "${kind}"\n\n[apps]\n`;
+	const projectionOf = (out: string) =>
+		JSON.parse(readFileSync(join(out, 'deployment.json'), 'utf8')) as Record<string, unknown>;
+
+	it('P6-E1: a version 4 file writes `host` and nothing more of it: its kind, and the transport path for the hosted server', async () => {
+		const hosted = await layout(withHost('hosted'));
+		expect(await write_(hosted)).toMatchObject({ ok: true });
+		const projection = projectionOf(hosted.out);
+		expect(projection.deployment_version).toBe(4);
+		expect(projection.host).toEqual({ kind: 'hosted', kernel: 'api/kernel' });
+		const statics = await layout(withHost('static'));
+		expect(await write_(statics)).toMatchObject({ ok: true });
+		expect(projectionOf(statics.out).host).toEqual({ kind: 'static' });
+		expect(readProjection(projectionOf(statics.out)).ok).toBe(true);
+	});
+
+	it('P6-E1: `--host` sets the kind when the file names none, and a file before version 4 keeps its projection', async () => {
+		const paths = await layout(FOUR);
+		expect(await writeDeployment({ ...paths, host: 'hosted' })).toMatchObject({ ok: true });
+		expect(projectionOf(paths.out).host).toEqual({ kind: 'hosted', kernel: 'api/kernel' });
+		const three = await layout('deployment_version = 3\n\napps = {}\n');
+		expect(await writeDeployment({ ...three, host: 'static' })).toMatchObject({ ok: true });
+		expect(projectionOf(three.out)).not.toHaveProperty('host');
+		expect(projectionOf(three.out).deployment_version).toBe(3);
+	});
+
+	it('P6-E1: `--host` against the file is DEPLOYMENT_HOST_MISMATCH, through the CLI too, and nothing is written', async () => {
+		const declared = await layout(withHost('static'));
+		const refused = await writeDeployment({ ...declared, host: 'hosted' });
+		expect(refused.ok === false && refused.refusals.map(({ code, key }) => [code, key])).toEqual([
+			['DEPLOYMENT_HOST_MISMATCH', 'host.kind'],
+		]);
+		expect(existsSync(declared.out)).toBe(false);
+		// A file before version 4 is for a static host.
+		const two = await layout('deployment_version = 2\n\napps = {}\n');
+		const older = await writeDeployment({ ...two, host: 'hosted' });
+		expect(older.ok === false && older.refusals[0]?.code).toBe('DEPLOYMENT_HOST_MISMATCH');
+		expect(older.ok === false && older.refusals[0]?.suggestion).toContain('deployment_version = 4');
+		let text = '';
+		const code = await runCli(
+			[
+				'deployment',
+				'write',
+				'--config',
+				declared.config,
+				'--dist',
+				declared.dist,
+				'--out',
+				declared.out,
+				'--host',
+				'hosted',
+			],
+			{ stdout: (chunk) => (text += chunk) }
+		);
+		expect(code).toBe(1);
+		expect(JSON.parse(text).error).toMatchObject({ code: 'DEPLOYMENT_HOST_MISMATCH' });
+		expect(JSON.parse(text).error.suggestion).toBeTruthy();
+	});
+
+	it('P6-E1: `--host` takes only the three kinds', async () => {
+		const paths = await layout(FOUR);
+		let text = '';
+		const code = await runCli(
+			[
+				'deployment',
+				'write',
+				'--config',
+				paths.config,
+				'--dist',
+				paths.dist,
+				'--out',
+				paths.out,
+				'--host',
+				'cloud',
+			],
+			{ stdout: (chunk) => (text += chunk) }
+		);
+		expect(code).toBe(1);
+		expect(JSON.parse(text).error.code).toBe('CLI_USAGE');
+	});
+
+	it('P6-E1: a provider deployment for a static host writes, with DEPLOYMENT_PROVIDER_NEEDS_HOST among its warnings', async () => {
+		const paths = await layout(
+			'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps]\n'
+		);
+		const written = await write_(paths);
+		expect(written.ok && written.warnings.map(({ code }) => code)).toContain(
+			'DEPLOYMENT_PROVIDER_NEEDS_HOST'
+		);
+		const hosted = await writeDeployment({ ...paths, host: 'hosted' });
+		expect(hosted.ok && hosted.warnings.map(({ code }) => code)).not.toContain(
+			'DEPLOYMENT_PROVIDER_NEEDS_HOST'
+		);
+	});
+
+	it('P6-E1: a provider deployment for the desktop is DEPLOYMENT_DESKTOP_PROVIDER, and a desktop one waits for step 11', async () => {
+		const provider = await layout(
+			'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps]\n'
+		);
+		const refused = await writeDeployment({ ...provider, host: 'desktop' });
+		expect(refused.ok === false && refused.refusals[0]?.code).toBe('DEPLOYMENT_DESKTOP_PROVIDER');
+		const desktop = await layout(withHost('desktop'));
+		const waits = await write_(desktop);
+		expect(waits.ok === false && waits.refusals[0]?.code).toBe('DEPLOYMENT_HOST_UNAVAILABLE');
+		expect(existsSync(desktop.out)).toBe(false);
+	});
+
+	it("P6-E1: the generation takes a version 4 projection's host, so a change of kind is applied; an earlier one's is unchanged", async () => {
+		const statics = await layout(withHost('static'));
+		const hosted = await layout(withHost('hosted'));
+		await write_(statics);
+		await write_(hosted);
+		expect(projectionOf(statics.out).generation).not.toBe(projectionOf(hosted.out).generation);
+		const analysis = await analyzeDeployment(statics.config);
+		expect(analysis.host).toBe('static');
 	});
 });

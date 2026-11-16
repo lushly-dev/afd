@@ -132,11 +132,14 @@ export const deploymentWriteCommand = defineCommand({
 		dist: z.string(),
 		out: z.string(),
 		mountsOut: z.string().optional(),
+		/** The host that serves it (phase 6 specification, 3.3): set when the file names none. */
+		host: z.enum(['static', 'hosted', 'desktop']).optional(),
 	}),
 	mutation: true,
 	expose: EXPOSE,
 	async handler(input) {
-		const written = await writeDeployment(input);
+		const { host, ...rest } = input;
+		const written = await writeDeployment({ ...rest, ...(host === undefined ? {} : { host }) });
 		if (!written.ok) return refused(written.refusals, { warnings: written.warnings });
 		// `mounts` holds locations and tokens: only the file `--mounts-out` names may hold them.
 		return success(
