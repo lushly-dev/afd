@@ -213,15 +213,25 @@ like `onBehalfOf`, never its identity or route.
 
 A token opens one route and names one actor. `botcore.host_tokens.TokenStore`
 keeps them in a file holding each token's SHA-256 and never the token, in a
-directory it creates private (`0700`). The operator issues, lists and revokes
+directory it creates private (`0700` on Unix). The operator issues, lists and revokes
 them with `botcore host-token issue|list|revoke --store <file>` on the serving
-machine, never over a route. Each change holds an `flock` on `<store>.lock`,
+machine, never over a route. Each change holds an OS lock on `<store>.lock`,
 writes a new temporary file, syncs it and renames it into place, so concurrent
 runs lose nothing and a reader never sees a partial file. The server re-reads the
 file when it changes, so a revocation applies from the next call. A call runs
 with an AFD `CommandContext` whose actor is the token's (`kind`, `id`, `label`);
 `onBehalfOf` is what the caller says, capped at 200 characters, and is passed on
 as such. Hosts served this way use the `remote-caller` profile.
+
+On Windows, creation gives the directory, temporary file and lock a protected ACL
+allowing only the operator account, SYSTEM and Administrators. Existing store
+files, locks and holding directories must have a trusted owner and no grants to
+other principals; `OWNER RIGHTS` is checked as the object's owner. Unreadable
+ACLs, unsupported ACL entries and reparse points are refused. Choose a private
+directory for `--store`; Botcore does not change permissions on existing paths.
+Windows readers take the same byte-range lock as writers, with a bounded lock
+wait, so a read cannot obstruct replacement. Unix keeps `flock` and its existing
+file-mode protections. Neither platform needs an optional package for locking.
 
 `serve_hosts(app, address, port)` runs it with Uvicorn and binds only to
 loopback or a tailnet address (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`):

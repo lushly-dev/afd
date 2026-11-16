@@ -5,10 +5,10 @@ the token, with the route it opens and the actor it names. Tokens are issued, li
 revoked from the operator's own shell (``botcore host-token``), never over a route. The file is
 re-read when it changes, so a revocation takes effect on the next call without a restart.
 
-Every change takes an exclusive lock on ``<store>.lock`` (``flock``, so separate CLI runs never
-interleave), writes a fresh temporary file, syncs it and renames it into place, so a reader sees
-the old file or the new one, never a partial one. On a platform without ``fcntl`` only the
-in-process lock applies.
+Every change takes an exclusive OS lock on ``<store>.lock``, writes a fresh temporary file,
+syncs it and renames it into place, so a reader sees the old file or the new one, never a partial
+one. Windows readers share that lock to keep open files apart from replacement; native ACLs
+allow only the operator account, SYSTEM and Administrators.
 """
 
 from __future__ import annotations
@@ -24,6 +24,9 @@ from contextlib import contextmanager
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
+
+if os.name == "nt":
+    from ._windows_security import ensure_directory, open_private
 
 PREFIX = "bct_"
 ACTOR_KINDS = ("human", "agent", "service")
@@ -75,6 +78,13 @@ class TokenStore:
     # ── file ──────────────────────────────────────────────────────────────
 
     def _read(self) -> dict[str, dict]:
+        if os.name == "nt":
+            try:
+                descriptor = open_private(self.path)
+            except FileNotFoundError:
+                return {}
+            with os.fdopen(descriptor, encoding="utf-8") as handle:
+                return json.load(handle).get("tokens", {})
         if not self.path.exists():
             return {}
         data = json.loads(self.path.read_text(encoding="utf-8"))
@@ -82,35 +92,51 @@ class TokenStore:
 
     def _directory(self) -> Path:
         directory = self.path.parent
-        if not directory.exists():
+        if os.name == "nt":
+            ensure_directory(directory)
+        elif not directory.exists():
             directory.mkdir(parents=True, mode=0o700)
         return directory
 
     @contextmanager
     def _exclusive(self) -> Iterator[None]:
-        """This process's lock, and an flock on ``<store>.lock`` across processes."""
+        """This process's lock, and an OS lock on ``<store>.lock`` across processes."""
         with self._lock:
-            descriptor = os.open(
-                self._directory() / f"{self.path.name}.lock",
-                os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0),
-                0o600,
+            lock = self._directory() / f"{self.path.name}.lock"
+            descriptor = (
+                open_private(lock, create=True, lock=True)
+                if os.name == "nt"
+                else os.open(lock, os.O_RDWR | os.O_CREAT | getattr(os, "O_NOFOLLOW", 0), 0o600)
             )
             try:
-                try:
+                if os.name == "nt":
+                    import msvcrt
+
+                    msvcrt.locking(descriptor, msvcrt.LK_LOCK, 1)
+                else:
                     import fcntl
-                except ImportError:  # pragma: no cover - Windows
-                    fcntl = None
-                if fcntl is not None:
+
                     fcntl.flock(descriptor, fcntl.LOCK_EX)
                 yield
             finally:
-                os.close(descriptor)  # Closing releases the flock.
+                os.close(descriptor)  # Closing releases the OS lock.
+
+    @contextmanager
+    def _reading(self) -> Iterator[None]:
+        # Windows' CRT readers can prevent replacement. The shared store lock also
+        # prevents a reader from observing another process between read and write.
+        with self._exclusive() if os.name == "nt" else self._lock:
+            yield
 
     def _write(self, tokens: dict[str, dict]) -> None:
         """Replace the store atomically; call inside ``_exclusive``."""
         directory = self._directory()
-        # mkstemp creates a new file (O_EXCL), readable by the owner only.
-        descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=directory)
+        if os.name == "nt":
+            temporary = directory / f".{self.path.name}.{secrets.token_hex(16)}"
+            descriptor = open_private(temporary, create=True)
+        else:
+            # mkstemp creates a new file (O_EXCL), readable by the owner only.
+            descriptor, temporary = tempfile.mkstemp(prefix=f".{self.path.name}.", dir=directory)
         try:
             with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
                 json.dump({"version": 1, "tokens": tokens}, handle, indent=2, sort_keys=True)
@@ -124,7 +150,14 @@ class TokenStore:
 
     def _stamp(self) -> tuple:
         try:
-            info = self.path.stat()
+            if os.name == "nt":
+                descriptor = open_private(self.path)
+                try:
+                    info = os.fstat(descriptor)
+                finally:
+                    os.close(descriptor)
+            else:
+                info = self.path.stat()
         except FileNotFoundError:
             return ()
         return (info.st_ino, info.st_mtime_ns, info.st_size)
@@ -176,12 +209,12 @@ class TokenStore:
         """The active record ``secret`` names, or None."""
         if not secret or not secret.startswith(PREFIX):
             return None
-        with self._lock:
+        with self._reading():
             record = self._by_digest().get(_digest(secret))
         return record if record is not None and record.active else None
 
     def list(self) -> list[TokenRecord]:
-        with self._lock:
+        with self._reading():
             return sorted(self._by_digest().values(), key=lambda r: (r.route, r.issued_at))
 
     def revoke(self, token_id: str) -> TokenRecord | None:

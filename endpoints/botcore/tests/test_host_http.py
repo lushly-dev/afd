@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import os
 import socket
 import stat
 import threading
@@ -16,6 +17,7 @@ from botcore.context import ExecutionContext, current_call
 from botcore.host import CommandHost, CommandPolicy
 from botcore.host_client import HostClient, create_remote_cli
 from botcore.host_tokens import TokenStore
+from tests.windows_acl import assert_private
 
 pytest.importorskip("starlette")
 pytest.importorskip("uvicorn")
@@ -76,7 +78,10 @@ def test_the_store_keeps_digests_only_and_is_private(tmp_path):
     record, secret = store.issue("lane", "service", "lane@random")
     text = (tmp_path / "tokens.json").read_text()
     assert secret not in text and record.id in text
-    assert stat.S_IMODE((tmp_path / "tokens.json").stat().st_mode) == 0o600
+    if os.name == "nt":
+        assert_private(tmp_path / "tokens.json")
+    else:
+        assert stat.S_IMODE((tmp_path / "tokens.json").stat().st_mode) == 0o600
     assert store.verify(secret) == record
     assert store.verify("bct_wrong") is None and store.verify(None) is None
 
@@ -362,8 +367,19 @@ def test_concurrent_operator_commands_lose_no_token(tmp_path):
         )
         for index in range(6)
     ]
-    issued = [json.loads(run.communicate(timeout=60)[0]) for run in runs]
-    assert all(run.returncode == 0 for run in runs)
+    try:
+        outputs = [run.communicate(timeout=60) for run in runs]
+    finally:
+        for run in runs:
+            if run.poll() is None:
+                run.kill()
+                run.communicate(timeout=5)
+    for run, (stdout, stderr) in zip(runs, outputs, strict=True):
+        assert run.returncode == 0, (
+            f"exit={run.returncode}\nstdout={stdout.decode(errors='replace')}"
+            f"\nstderr={stderr.decode(errors='replace')}"
+        )
+    issued = [json.loads(stdout) for stdout, _ in outputs]
     stored = {record.id for record in TokenStore(tmp_path / "tokens.json").list()}
     assert stored == {record["id"] for record in issued}
     leftovers = [
@@ -374,7 +390,10 @@ def test_concurrent_operator_commands_lose_no_token(tmp_path):
 
 def test_a_created_store_directory_is_private(tmp_path):
     TokenStore(tmp_path / "private" / "tokens.json").issue("lane", "service", "lane")
-    assert stat.S_IMODE((tmp_path / "private").stat().st_mode) == 0o700
+    if os.name == "nt":
+        assert_private(tmp_path / "private")
+    else:
+        assert stat.S_IMODE((tmp_path / "private").stat().st_mode) == 0o700
 
 
 def test_one_upload_at_a_time_beyond_the_limit_is_rate_limited(tmp_path):
