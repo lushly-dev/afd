@@ -7,6 +7,8 @@ plugin's tests.
 
 ## Lane-loop repair on the MacBook Air, 2026-11-15
 
+Proposed in draft [PR #1294](https://github.com/lushly-dev/afd/pull/1294); not merged.
+
 The recovery bundle was verified and imported at `94ad8bb7` into
 `lush/factory-lane-air-handoff`. This branch now includes `origin/main` at
 `7cdd534e`. The four regressions tracked by [AFD #1280](https://github.com/lushly-dev/afd/issues/1280)
