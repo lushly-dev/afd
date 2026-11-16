@@ -74,6 +74,48 @@ class HostRecord:
     probed_at: str | None = None
     extra: dict = field(default_factory=dict, compare=False)
 
+    def describe(self) -> dict:
+        """The record as published (``host.json``) and as lane-host-list shows it."""
+        return {
+            "id": self.id,
+            "name": self.name or self.id,
+            "cores": self.cores,
+            "memoryGb": self.memory_gb,
+            "freeDiskGb": self.free_disk_gb,
+            "missing": list(self.missing),
+            "measured": self.measured,
+            "suggestedSlots": self.suggested_slots,
+            "probedAt": self.probed_at,
+            **self.extra,
+        }
+
+    @classmethod
+    def read(cls, raw: dict, fallback_id: str = "") -> HostRecord:
+        known = {
+            "id",
+            "name",
+            "cores",
+            "memoryGb",
+            "freeDiskGb",
+            "missing",
+            "measured",
+            "suggestedSlots",
+            "probedAt",
+            "reachable",
+        }
+        return cls(
+            id=raw.get("id") or fallback_id,
+            name=raw.get("name", ""),
+            cores=raw.get("cores"),
+            memory_gb=raw.get("memoryGb"),
+            free_disk_gb=raw.get("freeDiskGb"),
+            missing=tuple(raw.get("missing", [])),
+            measured=bool(raw.get("measured", False)),
+            suggested_slots=int(raw.get("suggestedSlots", 1)),
+            probed_at=raw.get("probedAt"),
+            extra={key: value for key, value in raw.items() if key not in known},
+        )
+
 
 @dataclass(frozen=True)
 class Plan:
@@ -91,6 +133,15 @@ class Plan:
 
 
 @dataclass(frozen=True)
+class MergeOutcome:
+    """Merging the default branch into a slot: the merged head, or the conflicting paths."""
+
+    clean: bool
+    head: str = ""
+    conflicts: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True)
 class Completed:
     """A finished process run."""
 
@@ -98,6 +149,7 @@ class Completed:
     returncode: int
     stdout: str = ""
     stderr: str = ""
+    step: str | None = None  # The job step that failed (``install``, ``validate``), if any.
 
 
 @runtime_checkable
@@ -130,6 +182,32 @@ class GitHub(Protocol):
 
     def set_variable(self, name: str, value: str) -> None: ...
 
+    def signed_in(self) -> bool:
+        """Whether ``gh`` is signed in on this machine."""
+        ...
+
+    def required_checks(self, branch: str) -> list[str]:
+        """The status checks required on ``branch`` (branch protection and rulesets)."""
+        ...
+
+    def open_pr(self, branch: str, title: str, body: str, base: str = "main") -> int:
+        """Open a PR from ``branch`` to ``base``, or return an open one's number on that base."""
+        ...
+
+    def check_status(self, pr: int, name: str, head: str) -> str:
+        """Check ``name`` on commit ``head`` (never another head of the PR): ``success``,
+        ``failure``, ``cancelled``, ``pending`` or ``missing``."""
+        ...
+
+    def merge_pr(self, pr: int, head: str) -> None:
+        """Squash-merge the PR, only if its head is still ``head``. A failure may still have
+        merged it: read ``pr_state`` before deciding."""
+        ...
+
+    def pr_state(self, pr: int) -> str:
+        """``OPEN``, ``MERGED`` or ``CLOSED``."""
+        ...
+
 
 @runtime_checkable
 class Git(Protocol):
@@ -157,6 +235,50 @@ class Git(Protocol):
         rebuild the queue."""
         ...
 
+    def queue_refs(self) -> list[dict]:
+        """``{branch, head}`` for every ``refs/factory/queue/*`` on origin."""
+        ...
+
+    def delete_queue_ref(self, branch: str, head: str) -> None:
+        """Delete the queue ref only if it still names ``head``; absent is already done."""
+        ...
+
+    def publish_host_record(self, record: HostRecord) -> None:
+        """Publish this machine's readiness record to ``refs/factory/hosts/<id>`` on origin."""
+        ...
+
+    def origin_reachable(self) -> bool: ...
+
+    def read_file(self, worktree: str, path: str) -> str | None:
+        """A file in a worktree (a PR body), or None when it is not there."""
+        ...
+
+    def fetch_base(self, base: str) -> str:
+        """Fetch origin and return the head of its ``base`` branch. Failing is the lane's
+        trouble."""
+        ...
+
+    def prepare_slot(self, slot: str, branch: str, head: str) -> str:
+        """Check ``head`` out, detached and clean, in the lane's worktree for ``slot``; its path.
+
+        Raises WorldError when the head cannot be checked out (the entry is invalid).
+        """
+        ...
+
+    def merge_main(self, path: str, main: str) -> MergeOutcome:
+        """Merge ``main`` into the slot's head. A conflict is aborted and reported, never
+        resolved; a merge that failed otherwise raises WorldError (never reported clean)."""
+        ...
+
+    def tree(self, path: str) -> str: ...
+
+    def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
+        """Push commit ``head`` from its validated checkout ``path`` to ``branch`` on origin.
+        Refuse if the checkout no longer holds it. With ``lease`` (the head the lane last
+        pushed there), a forced push that refuses if origin moved from it; without, a fast
+        forward. A refusal's message says ``rejected``."""
+        ...
+
 
 @runtime_checkable
 class Clock(Protocol):
@@ -180,6 +302,16 @@ class Machine(Protocol):
     def free_memory_gb(self) -> float: ...
 
     def free_disk_gb(self, path: str) -> float: ...
+
+    def has_program(self, name: str) -> bool: ...
+
+    def symlinks(self) -> bool:
+        """Whether this user can create symlinks (Windows needs Developer Mode)."""
+        ...
+
+    def tool_version(self, tool: str) -> str | None:
+        """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing."""
+        ...
 
 
 @runtime_checkable
@@ -213,6 +345,32 @@ class Processes(Protocol):
         ``label`` says what the run is for (``prequeue:lint``, ``review-evidence``), so a fixture
         world can answer it; the real world ignores it.
         """
+        ...
+
+    def start_job(self, steps: Sequence[dict], cwd: str, log: str, *, label: str) -> str:
+        """Start a background job: ``steps`` (``{label, args, timeout?}``) run in order until
+        one fails, their output appended to ``log``. A handle to poll."""
+        ...
+
+    def poll(self, handle: str) -> Completed | None:
+        """The finished job (``stdout`` its log's tail, ``step`` the step that failed), or None
+        while it runs. Raises WorldError for a handle this process did not start."""
+        ...
+
+    def kill(self, handle: str) -> None:
+        """Kill a job and every process it started, if it is still the one started."""
+        ...
+
+    def start_detached(self, args: Sequence[str], cwd: str, log: str) -> int:
+        """Start a process that outlives this one (the lane); its pid.
+
+        Windows: DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP. POSIX: a new session.
+        """
+        ...
+
+    def terminate(self, pid: int, started_at: float | None) -> bool:
+        """Kill ``pid`` and its children, only when it is still the process that started at
+        ``started_at`` (never a reused pid); whether it did."""
         ...
 
 

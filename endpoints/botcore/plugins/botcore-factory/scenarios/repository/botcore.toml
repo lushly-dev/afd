@@ -20,3 +20,6 @@ gate_paths = [
     "package.json",
     "botcore.toml",
 ]
+validate = ["pnpm", "verify"]
+coverage = ["pnpm", "check:all"]
+required_check = "ci-ok"
