@@ -1,0 +1,53 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented. Every scenario but 11 starts from the `violet-tree` document type's
+# `example` template: a product node `example` with six tokens and three theme children,
+# `example/light` (no overrides), `example/dark` (four overrides) and `example/high-contrast`
+# (three overrides). The values are in the proposal, section 4.2.
+
+name: Browse a token tree
+description: >-
+  When I open a token tree, I want to see its nodes as a hierarchy with each node's kind and how
+  much it customizes, and the tokens one node resolves to, so that I know where a value is set
+  before I look closer.
+job: browse-a-tree
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+        type: violet-tree
+  - description: The hierarchy lists every node with its kind and its own customizations
+    command: violet-node-list
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        root: example
+        nodes:
+          - { id: example, parent: null, type: product, customizations: 6 }
+          - { id: example/light, parent: example, type: theme, customizations: 0 }
+          - { id: example/dark, parent: example, type: theme, customizations: 4 }
+          - { id: example/high-contrast, parent: example, type: theme, customizations: 3 }
+  - description: The dark theme's text colors resolve, each saying which node set it
+    command: violet-token-resolve
+    input: { document: "${{ steps[0].data.id }}", node: example/dark, filter: "color.text.*" }
+    expect:
+      success: true
+      data:
+        node: example/dark
+        tokens:
+          - { id: color.text.muted, value: "#9a9aa6", from: example/dark }
+          - { id: color.text.primary, value: "#ececf1", from: example/dark }
+  - description: A node the tree does not have is refused, naming the command that lists nodes
+    command: violet-token-resolve
+    input: { document: "${{ steps[0].data.id }}", node: example/sepia }
+    expect:
+      success: false
+      error:
+        code: NODE_NOT_FOUND
+        suggestion: { contains: violet-node-list }

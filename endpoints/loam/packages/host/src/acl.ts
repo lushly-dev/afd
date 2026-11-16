@@ -6,7 +6,7 @@
 
 import { execFileSync } from 'node:child_process';
 import { join } from 'node:path';
-import type { HostFinding } from './errors.js';
+import { HostError, type HostFinding } from './errors.js';
 
 /** NT AUTHORITY\SYSTEM. */
 export const SYSTEM_SID = 'S-1-5-18';
@@ -15,11 +15,11 @@ export const ADMINISTRATORS_SID = 'S-1-5-32-544';
 
 /**
  * The rights that read or change a file (or list or add to a directory), or let their holder grant
- * themselves those: read, write and append data, change permissions, take ownership, and generic read,
+ * themselves those: read, write and append data, delete entries or the object, change permissions, take ownership, and generic read,
  * write and all. POSIX's 0o077 likewise refuses any group or other access, write included.
  */
 export const ACCESS_RIGHTS =
-	0x1 | 0x2 | 0x4 | 0x40000 | 0x80000 | 0x10000000 | 0x40000000 | 0x80000000;
+	0x1 | 0x2 | 0x4 | 0x40 | 0x10000 | 0x40000 | 0x80000 | 0x10000000 | 0x40000000 | 0x80000000;
 
 /** One access control entry, its rights as the 32 bits of its mask. */
 export interface AclEntry {
@@ -190,4 +190,60 @@ export function aclFindings(requests: readonly AccessRequest[]): Array<HostFindi
 			report.user
 		)
 	);
+}
+
+/**
+ * Gives each path an ACL of its own that nothing is inherited into: full control for the account it runs
+ * as, SYSTEM and Administrators, and for no one else, as POSIX's 0700 and 0600 do. A directory's entries
+ * are inheritable, so a file created in it later is private too. Paths travel in `LOAM_ACL_PATHS`.
+ */
+const RESTRICT_SCRIPT = `
+$ErrorActionPreference = 'Stop'
+$paths = ConvertFrom-Json $env:LOAM_ACL_PATHS
+$sid = [System.Security.Principal.SecurityIdentifier]
+$owners = @(
+	[System.Security.Principal.WindowsIdentity]::GetCurrent().User,
+	(New-Object $sid '${SYSTEM_SID}'),
+	(New-Object $sid '${ADMINISTRATORS_SID}')
+)
+foreach ($p in $paths) {
+	$item = Get-Item -LiteralPath $p -Force
+	$acl = $item.GetAccessControl('Access, Owner')
+	$owner = $acl.GetOwner($sid).Value
+	if ($owners.Value -notcontains $owner) { throw "The owner of $p is not this account, SYSTEM or Administrators" }
+	$acl.SetAccessRuleProtection($true, $false)
+	foreach ($rule in @($acl.GetAccessRules($true, $false, $sid))) { [void]$acl.RemoveAccessRuleSpecific($rule) }
+	$inherit = if ($item.PSIsContainer) { 'ContainerInherit, ObjectInherit' } else { 'None' }
+	foreach ($owner in $owners) {
+		$acl.AddAccessRule((New-Object System.Security.AccessControl.FileSystemAccessRule($owner, 'FullControl', $inherit, 'None', 'Allow')))
+	}
+	$item.SetAccessControl($acl)
+}
+`;
+
+/**
+ * Makes every path private to this account, SYSTEM and Administrators, in one PowerShell call. Callers
+ * pass directories, whose entries inherit, rather than every file: one environment variable holds at most
+ * 32,767 characters.
+ */
+export function restrictAcls(paths: readonly string[]): void {
+	if (paths.length === 0) return;
+	try {
+		execFileSync(powershell(), ['-NoProfile', '-NonInteractive', '-Command', RESTRICT_SCRIPT], {
+			env: { ...process.env, LOAM_ACL_PATHS: JSON.stringify(paths) },
+			stdio: ['ignore', 'ignore', 'pipe'],
+			timeout: 60_000,
+			windowsHide: true,
+		});
+	} catch (cause) {
+		const first = String((cause as Error).message ?? cause).split(/\r?\n/)[0];
+		throw new HostError(
+			paths.map((path) => ({
+				code: 'HOST_SECRET_PERMISSIONS',
+				key: path,
+				message: `\`${path}\` could not be made private to this account on Windows (${first}).`,
+				suggestion: `Check that Windows PowerShell runs and that this account can change permissions on \`${path}\`. The owner must be this account, SYSTEM or Administrators. Then rerun the command.`,
+			}))
+		);
+	}
 }

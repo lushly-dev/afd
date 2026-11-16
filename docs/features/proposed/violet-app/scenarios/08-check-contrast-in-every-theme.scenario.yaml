@@ -1,0 +1,68 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2), whose root carries one
+# rule, text against the page at 4.5:1.
+#
+# Not shown: recording why a failure stays (a rule disabled with a reason). Violet's constraints
+# carry `enabled` but no reason (core `types/constraint.ts`); the proposal lists it as a gap.
+
+name: Check contrast in every theme
+description: >-
+  When I set contrast floors, text at 4.5:1 and 7:1 in high contrast, I want every theme checked
+  against them and each failure named with its pair and ratio, and I want to clear a failure,
+  so that no theme ships below its floor unseen.
+job: check-contrast-in-every-theme
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: High contrast raises the text floor to 7:1 on its own node
+    command: violet-constraint-set
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/high-contrast
+      merge: true
+      constraints:
+        - id: text-on-page-hc
+          name: Text on the page, high contrast
+          applyTo: "color.text.*"
+          config: { type: contrast, against: color.surface.page, min: 7 }
+    expect:
+      success: true
+      data:
+        node: example/high-contrast
+  - description: Muted text in high contrast fails 7:1, and nothing else fails
+    command: violet-violation-list
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        summary: { total: 1, errors: 1 }
+        violations:
+          - node: example/high-contrast
+            token: color.text.muted
+            rule: text-on-page-hc
+            ratio: { lte: 7 }
+  - description: The muted text is darkened in high contrast
+    command: violet-token-override
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/high-contrast
+      token: color.text.muted
+      value: "#3d3d45"
+    expect:
+      success: true
+      data:
+        oldValue: "#6b6b75"
+  - description: The check is clean again
+    command: violet-violation-list
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        summary: { total: 0 }

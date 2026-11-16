@@ -962,6 +962,7 @@ name = "search"               # optional; relative to the prefix: the command is
 effects = ["inspect"]         # default for every tool: ["external"]
 bind_space = false            # default false; true makes the tool's `space` argument the Umbel space
 confirm_prompt = "..."        # optional
+destructive = true            # optional, default false; sent to MCP clients as destructiveHint
 approval = "required"         # optional
 first_class = true            # optional suggestion
 ```

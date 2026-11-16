@@ -1,0 +1,41 @@
+{
+	"name": "@lushly-dev/specimen-server",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Local stdio MCP endpoint for the shared Specimen commands",
+	"type": "module",
+	"license": "MIT",
+	"engines": {
+		"node": ">=26"
+	},
+	"bin": {
+		"specimen-mcp": "./dist/bin.js"
+	},
+	"exports": {
+		".": {
+			"types": "./dist/server.d.ts",
+			"import": "./dist/server.js"
+		}
+	},
+	"scripts": {
+		"build": "tsc",
+		"typecheck": "tsc -p tsconfig.typecheck.json",
+		"test": "vitest run",
+		"test:coverage": "vitest run --coverage",
+		"clean": "rimraf dist *.tsbuildinfo"
+	},
+	"dependencies": {
+		"@lushly-dev/afd-core": "workspace:^2.2.0",
+		"@lushly-dev/specimen": "workspace:^",
+		"@lushly-dev/specimen-afd": "workspace:^",
+		"@modelcontextprotocol/sdk": "^1.31.0"
+	},
+	"devDependencies": {
+		"@lushly-dev/specimen-cli": "workspace:^",
+		"@types/node": "^26.6.6",
+		"@vitest/coverage-v8": "^5.1.0",
+		"rimraf": "^6.1.4",
+		"typescript": "^7.0.2",
+		"vitest": "^5.1.0"
+	}
+}

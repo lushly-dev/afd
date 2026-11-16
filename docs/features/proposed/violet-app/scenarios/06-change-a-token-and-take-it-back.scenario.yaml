@@ -1,0 +1,64 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2).
+#
+# Not expressible: AFD's undo travels as the result's `undoCommand` and `undoArgs`, which `expect`
+# cannot assert (jobs-first, "What a scenario cannot express"). The result says whether the value
+# it replaced was inherited, which decides the undo: a reset when inherited, so the node follows
+# its parent again; an override with the old value when the node had its own (proposal, 5.1). The
+# last step runs the reset the undo names here.
+
+name: Change a token and take it back
+description: >-
+  When I change a token in one theme, I want the change written as an override on that node with
+  the value it replaced and where that value came from, and a way back that leaves the node as it
+  was, so that I can try a value and return to where I was.
+job: change-a-token-and-take-it-back
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The dark theme's primary action color is overridden; the value it replaced was inherited
+    command: violet-token-override
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      token: color.action.primary.background
+      value: "#7a63e6"
+      reason: Lighter on the dark page
+    expect:
+      success: true
+      data:
+        node: example/dark
+        token: color.action.primary.background
+        oldValue: "#5b3fd1"
+        inherited: true
+        value: "#7a63e6"
+  - description: Overriding a token that no node defines is refused, pointing to adding it
+    command: violet-token-override
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      token: color.action.tertiary.background
+      value: "#222228"
+    expect:
+      success: false
+      error:
+        code: TOKEN_NOT_FOUND
+        suggestion: { contains: violet-token-add }
+  - description: The undo, a reset, returns the dark theme to following its parent
+    command: violet-token-reset
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example/dark
+      token: color.action.primary.background
+    expect:
+      success: true
+      data:
+        value: "#5b3fd1"
+        from: example

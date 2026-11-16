@@ -403,7 +403,12 @@ test('external cleartext endpoints are rejected before bearer tokens can be sent
 	assert.match(receipt.message, /must use HTTPS/);
 });
 
-test('SIGTERM waits for exact cleanup and child teardown', { timeout: 20_000 }, async () => {
+// Windows kill('SIGTERM') terminates the child without delivering a signal handler.
+// The deadline and cleanup-failure contracts remain exercised on every platform.
+test('SIGTERM waits for exact cleanup and child teardown', {
+	timeout: 20_000,
+	skip: process.platform === 'win32' ? 'POSIX SIGTERM is unavailable on Windows' : false,
+}, async () => {
 	let signalSent = false;
 	const result = await runProcess(
 		localScript,
