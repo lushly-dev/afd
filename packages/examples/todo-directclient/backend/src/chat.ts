@@ -7,7 +7,13 @@
  */
 
 import { PublicError } from './chat-http.js';
-import { type Copilot, CopilotError, type CopilotMode, type CopilotTurn } from './copilot.js';
+import {
+	type Copilot,
+	CopilotError,
+	type CopilotMode,
+	type CopilotTurn,
+	type RunOptions,
+} from './copilot.js';
 
 /** One turn's answer, with its request ID for the server log. */
 export interface ChatResponse extends CopilotTurn {
@@ -16,8 +22,8 @@ export interface ChatResponse extends CopilotTurn {
 
 /** The chat backend the HTTP server calls (see `ChatBackend` in `chat-http.ts`). */
 export interface Chat {
-	/** One turn; `signal` ends it early (the page went away). */
-	processChat(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<ChatResponse>;
+	/** One turn; `options.signal` ends it early (the page went away). */
+	processChat(message: string, mode: CopilotMode, options?: RunOptions): Promise<ChatResponse>;
 	isConfigured(): boolean;
 	getMetrics(): Record<string, unknown>;
 }
@@ -64,7 +70,8 @@ export function createChatBackend(
 			};
 		},
 
-		async processChat(message, mode, signal) {
+		async processChat(message, mode, options = {}) {
+			const { signal } = options;
 			const requestId = `req-${Date.now()}-${++counter}`;
 			metrics.requestCount++;
 			if (!copilot) {
@@ -73,7 +80,7 @@ export function createChatBackend(
 			}
 			const start = performance.now();
 			try {
-				const turn = await copilot.run(message, mode, signal ? { signal } : {});
+				const turn = await copilot.run(message, mode, options);
 				metrics.successCount++;
 				metrics.toolCallCount += turn.toolExecutions.length;
 				latencies.push(performance.now() - start);

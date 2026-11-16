@@ -2,7 +2,7 @@
 
 The Phase 5 publisher handoff for the six Violet npm packages, under the rule in [spec.md](./spec.md): freeze, drain and reconcile, disable the old route, enable the new one, verify, and never two publishers at once. The fields are the ones `scripts/release/handoff.mjs` requires of a handoff record, as in the [Botcore record](./botcore-handoff.md). Tracked in [lushly-dev/afd#1192](https://github.com/lushly-dev/afd/issues/1192), for Lushly's Violet token tree ([lushly-dev/lushly#2356](https://github.com/lushly-dev/lushly/issues/2356)).
 
-Recorded 2026-11-14; owner steps 1 to 4 done on 2026-11-15 ([below](#owner-steps-done)). State: **admitted in the inventory; the first previews wait on the version PR**. Only the six deprecated `0.0.0-bootstrap.0` placeholders are published.
+Recorded 2026-11-14; owner steps 1 to 4 done on 2026-11-15 ([below](#owner-steps-done)). State: **first previews published and verified on 2026-11-16**. The six packages publish from AFD under `preview`; `latest` remains on the deprecated `0.0.0-bootstrap.0` placeholders. See [first publication](#first-publication).
 
 ## Record
 
@@ -17,8 +17,8 @@ Recorded 2026-11-14; owner steps 1 to 4 done on 2026-11-15 ([below](#owner-steps
 | Frozen revision | `59b4bfa64a8cf423322b857c5c697e110201e0f2`, the import revision. Violet `main` is at `c4e86635` (#141, 2026-10-31), which changes only its README, `AGENTS.md`, `INIT.md` and plan index. Moved code has been frozen there since the owner's 2026-10-30 decision | `5e64a6a5e7d459643fa62d0fe8ea22146afc4db1`, the reconciled import revision |
 | Queued release work | Violet [#135](https://github.com/lushly-dev/violet/pull/135) `chore: release packages` is open and mergeable (read 2026-11-14): merging it would publish 0.3.0 from the old route. The owner decided on 2026-10-30 not to merge it, and its changesets are the carried-over fragments here. Dependabot PRs #142 to #147 change no publish step but #142, which bumps `changesets/action` in `release.yml` | None |
 | In-flight release work | None: no queued or in-progress run in `lushly-dev/violet` (read 2026-11-14). Its last `Release` run, on `c4e86635`, succeeded on 2026-10-31 and only refreshed #135 | None |
-| Registry outcome | 404 for all five names (read 2026-11-14); since 2026-11-15 each has the deprecated `0.0.0-bootstrap.0` placeholder on `bootstrap` and `latest` | The same |
-| Artifact hashes | None published on either route. The first AFD artifacts are the release plan's, recorded in its receipt when it publishes | The same |
+| Registry outcome | All five serve `0.3.0-preview.0` on `preview`; `bootstrap` and `latest` remain `0.0.0-bootstrap.0` (read 2026-11-16) | `0.2.0-preview.0` on `preview`; `bootstrap` and `latest` remain `0.0.0-bootstrap.0` |
+| Artifact hashes | npm SHA-512 integrity readback matched each downloaded tarball; the source-bound release receipt is in [run 43815034227](https://github.com/lushly-dev/afd/actions/runs/43815034227) | The same |
 | Approval | The owner approved publishing `fast-element`, `violet-elements` and the Violet packages as prereleases on 2026-11-14, so Lushly can depend on them instead of vendored tarballs | The same |
 
 `lushly-dev/violet` lists no repository secret, so its `NPM_TOKEN` is either an organization secret or unset; reading organization secrets needs an organization administrator.
@@ -61,6 +61,14 @@ Read back from npm and GitHub on 2026-11-15:
 2. **Names created.** All six have the deprecated `0.0.0-bootstrap.0` on `bootstrap` and `latest`. npm's staged publishing also created a `0.0.0-stage` version on each new name a few minutes before the placeholder; it is left alone, since installs resolve `latest` and the guard reads only `latest`.
 3. **Route protected.** The `npm` environment allows only `main`, and `release.yml`'s `release` and `recover` jobs declare it ([#1258](https://github.com/lushly-dev/afd/pull/1258)). Each of the six names has one trusted publisher, `lushly-dev/afd`, `release.yml`, environment `npm`, and publishing access "require two-factor authentication and disallow tokens". npm marks the six publishers pending validation until their first successful publish, due by 2026-11-17. The nine earlier names keep their publishers without an environment until they are moved to `npm`.
 4. **`latest` retagged.** All nine earlier names have `latest` on `0.0.0-bootstrap.0`, with `preview` unchanged.
+
+## First publication
+
+Owner steps 5 to 7 are complete. The version PR [#1053](https://github.com/lushly-dev/afd/pull/1053) merged, and [#1297](https://github.com/lushly-dev/afd/pull/1297) repaired its stale todo-fixture assertion and selected just the two Violet units for publication. The successful [Release run 43815034227](https://github.com/lushly-dev/afd/actions/runs/43815034227) published from `deccdb12c7f5c6f55f7316cc1d8dec82b3c275f2`, created all six tags and GitHub prereleases, and finalized the publication claim.
+
+Read back on 2026-11-16: `violet-elements@0.2.0-preview.0` and `violet-{core,runtime,afd,cli,server}@0.3.0-preview.0` are available under `preview`. Every downloaded tarball matched npm's SHA-512 integrity. All six `latest` tags remain on `0.0.0-bootstrap.0`. A fresh npm consumer installed exact previews of `fast-element@3.0.1-preview.2`, `violet-elements@0.2.0-preview.0` and `violet-core@0.3.0-preview.0`; its theme-interface/CSS and memory-tree/token-export smoke checks passed. The FAST Element preview was already published and did not need another release.
+
+The first successful trusted-publisher uploads have completed; the pending-first-publish deadline recorded above no longer blocks Lushly. Publishing authority stays with AFD, and restoring the old publisher is closed.
 
 ## Failure and restoration
 

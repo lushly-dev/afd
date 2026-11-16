@@ -1,0 +1,78 @@
+/* The copilot panel beside the to-do page, on the shared page tokens (styles.css). */
+body.with-copilot {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(320px, 400px);
+	align-items: start;
+	min-height: 100vh;
+}
+
+@media (max-width: 1100px) {
+	body.with-copilot {
+		grid-template-columns: minmax(0, 1fr);
+	}
+}
+
+todo-copilot {
+	display: block;
+	position: sticky;
+	top: 0;
+	max-height: 100vh;
+	overflow: auto;
+	border-left: 1px solid var(--border);
+	background: var(--card-bg);
+}
+
+@media (max-width: 1100px) {
+	todo-copilot {
+		position: static;
+		max-height: none;
+		border-left: 0;
+		border-top: 1px solid var(--border);
+	}
+}
+
+.copilot {
+	display: flex;
+	flex-direction: column;
+	gap: var(--gap);
+	padding: calc(var(--gap) * 1.5);
+}
+
+.copilot-about,
+.copilot-empty {
+	margin: 0;
+	color: var(--text-secondary);
+}
+
+.copilot-messages {
+	display: flex;
+	flex-direction: column;
+	gap: calc(var(--gap) / 2);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.copilot-messages:empty {
+	display: none;
+}
+
+.copilot-entry violet-message {
+	display: block;
+}
+
+.copilot-call,
+.copilot-approval {
+	display: block;
+	margin-bottom: calc(var(--gap) / 2);
+}
+
+.copilot-ask {
+	display: flex;
+	gap: calc(var(--gap) / 2);
+	align-items: end;
+}
+
+.copilot-input {
+	flex: 1;
+}

@@ -10,14 +10,17 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	allowedCommands,
 	Copilot,
+	type CopilotEvent,
 	type CopilotModel,
 	type ModelCall,
 	type ModelMessage,
 	type ModelTool,
 } from './copilot.js';
+import type { PageHost } from './page.js';
 import { createCopilotRegistry } from './registry.js';
 
 const READING = ['todo-get', 'todo-history', 'todo-list', 'todo-stats'];
+const VIEW = ['view-state-get', 'view-state-list', 'view-state-set'];
 
 /** A model that makes the given calls, one round each, then answers "done". */
 function scripted(...rounds: ModelCall[][]): CopilotModel & {
@@ -62,7 +65,7 @@ describe('the model tools', () => {
 		expect(tools.map((tool) => tool.name).sort()).toEqual(
 			[...allowedCommands(registry, 'change')].sort()
 		);
-		expect(tools).toHaveLength(13);
+		expect(tools).toHaveLength(16);
 		expect(tools.some((tool) => tool.name.startsWith('afd-'))).toBe(false);
 		const create = tools.find((tool) => tool.name === 'todo-create');
 		expect(create?.parameters).toMatchObject({
@@ -72,13 +75,13 @@ describe('the model tools', () => {
 		});
 	});
 
-	it('are only the reading commands in look mode', () => {
+	it("are only the reading commands and the page's view in look mode", () => {
 		expect(
 			copilot(scripted())
 				.tools('look')
 				.map((tool) => tool.name)
 				.sort()
-		).toEqual(READING);
+		).toEqual([...READING, ...VIEW].sort());
 	});
 });
 
@@ -165,6 +168,108 @@ describe('a turn', () => {
 			copilot(model).run('Add one', 'change', { signal: cancel.signal })
 		).rejects.toThrow();
 		expect(store.count()).toBe(0);
+	});
+});
+
+describe("the page's view", () => {
+	const filter = { status: 'pending', priority: 'high' };
+
+	it('is set in the page that asked, even in look mode, with the page result returned', async () => {
+		const ran: { command: string; input: Record<string, unknown> }[] = [];
+		const page: PageHost = {
+			async run(command, input) {
+				ran.push({ command, input });
+				return { success: true, data: { id: 'todo-filter', state: filter } };
+			},
+		};
+		const model = scripted([
+			{ name: 'view-state-set', args: { id: 'todo-filter', state: filter } },
+		]);
+		await copilot(model).run('Show my urgent open todos', 'look', { page });
+
+		expect(ran).toEqual([
+			{ command: 'view-state-set', input: { id: 'todo-filter', state: filter } },
+		]);
+		expect(lastResults(model)[0]).toMatchObject({ success: true, data: { state: filter } });
+	});
+
+	it('goes to the page of its own turn when two turns run at once', async () => {
+		const pageOf = (name: string, ran: string[]): PageHost => ({
+			async run(command) {
+				ran.push(command);
+				// Yield, so the other turn runs in between
+				await new Promise((resolve) => setTimeout(resolve, 5));
+				return { success: true, data: { page: name } };
+			},
+		});
+		const first: string[] = [];
+		const second: string[] = [];
+		const firstModel = scripted([{ name: 'view-state-list', args: {} }]);
+		const secondModel = scripted([
+			{ name: 'todo-clear', args: {} },
+			{ name: 'view-state-get', args: { id: 'todo-filter' } },
+		]);
+		await Promise.all([
+			copilot(firstModel).run('What views are there?', 'look', { page: pageOf('first', first) }),
+			// The second turn's view call comes after an approval retry, which must keep its page
+			copilot(secondModel).run('Clear, then show me', 'change', {
+				page: pageOf('second', second),
+				onApprovalNeeded: async () => {
+					await new Promise((resolve) => setTimeout(resolve, 5));
+					return true;
+				},
+			}),
+		]);
+
+		expect(first).toEqual(['view-state-list']);
+		expect(second).toEqual(['view-state-get']);
+		expect(lastResults(firstModel)[0]).toMatchObject({ data: { page: 'first' } });
+		expect(lastResults(secondModel)[1]).toMatchObject({ data: { page: 'second' } });
+	});
+
+	it('is validated before it reaches the page', async () => {
+		let reached = false;
+		const page: PageHost = {
+			async run() {
+				reached = true;
+				return { success: true };
+			},
+		};
+		const model = scripted([{ name: 'view-state-set', args: { state: filter } }]);
+		await copilot(model).run('Show urgent ones', 'change', { page });
+
+		expect(reached).toBe(false);
+		expect(lastResults(model)[0]).toMatchObject({ error: { code: 'VALIDATION_ERROR' } });
+	});
+
+	it('fails, saying why, when no page is open', async () => {
+		const model = scripted([{ name: 'view-state-get', args: { id: 'todo-filter' } }]);
+		await copilot(model).run('What am I looking at?', 'change');
+
+		expect(lastResults(model)[0]).toMatchObject({
+			error: { code: 'PAGE_NOT_CONNECTED', suggestion: expect.any(String) },
+		});
+	});
+
+	it('refuses an answer from the page that is not a command result', async () => {
+		const page: PageHost = { run: async () => 'ok' as never };
+		const model = scripted([{ name: 'view-state-get', args: { id: 'todo-filter' } }]);
+		await copilot(model).run('What am I looking at?', 'change', { page });
+
+		expect(lastResults(model)[0]).toMatchObject({ error: { code: 'PAGE_BAD_RESULT' } });
+	});
+});
+
+describe('the turn as it happens', () => {
+	it('reports each call as it starts and ends', async () => {
+		const events: CopilotEvent[] = [];
+		const model = scripted([{ name: 'todo-create', args: { title: 'Post the letter' } }]);
+		await copilot(model).run('Add one', 'change', { onEvent: (event) => events.push(event) });
+
+		expect(events).toMatchObject([
+			{ type: 'call', index: 0, name: 'todo-create', args: { title: 'Post the letter' } },
+			{ type: 'result', index: 0, name: 'todo-create', success: true },
+		]);
 	});
 });
 

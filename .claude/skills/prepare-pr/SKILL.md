@@ -93,7 +93,7 @@ For a cell of the software factory (`docs/features/active/software-factory/`). T
    ```
 
    On Windows, write the JSON to a file outside the tree and pass `--lanes-file <path>`, since PowerShell strips the quotes. One entry per review lane, with the reviewer's actual model and effort; `fixed` and `deferred` count its findings. A lane with an unresolved blocker is `"fail"`, and a failing review is recorded but not accepted. The record lives in the worktree's git directory and covers only that commit: any later commit, a base merge included, needs the review re-checked and recorded again. `node scripts/review-record.mjs verify --head "$(git rev-parse HEAD)"` is what the lane runs.
-3. **Enqueue:** `lane-enqueue` with this worktree, then end the turn. `REVIEW_MISSING` names why the record was refused; `PREQUEUE_FAILED` names the stage: fix, commit, record again and enqueue again.
+3. **Enqueue:** write the PR body (full mode's step 7 sections) to `.factory/pr-body.md`, which git ignores, then from the worktree root run `uv run --frozen --project endpoints/botcore/plugins/botcore-factory factory-cell call lane-enqueue '{"worktree": ".", "title": "<type>(scope): description", "body_file": ".factory/pr-body.md"}'` and end the turn. On Windows PowerShell put that JSON in `.factory/enqueue.json` and pass `--args-file .factory/enqueue.json`. `REVIEW_MISSING` names why the record was refused; `PREQUEUE_FAILED` names the stage: fix, commit, record again and enqueue again.
 
 ## Report
 

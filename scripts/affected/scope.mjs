@@ -43,14 +43,23 @@ const SCOPE_INERT = new Set(['scripts/affected/suites.mjs']);
  */
 const PROSE = /\.md$/;
 
-/** Repository inputs outside any package that package tests read directly. */
+/**
+ * Repository inputs, outside a package or in another one, that package tests read directly. With
+ * `ownTests`, only the listed package's own tests read them, so its dependents are not selected.
+ */
 export const EXTRA_INPUTS = [
-	// afd-testing runs the todo example's real commands, scenarios and relative fixtures.
+	// afd-testing's todo-example test runs the todo example's real commands, scenarios and relative
+	// fixtures, which it reads by path rather than as a dependency; no dependent reads them.
 	...[
 		'packages/examples/todo/backends/typescript/src/',
 		'packages/examples/todo/scenarios/',
 		'packages/examples/todo/fixtures/',
-	].map((prefix) => ({ prefix, except: PROSE, packages: ['@lushly-dev/afd-testing'] })),
+	].map((prefix) => ({
+		prefix,
+		except: PROSE,
+		packages: ['@lushly-dev/afd-testing'],
+		ownTests: true,
+	})),
 	// Wire fixtures, behaviour vectors, spec/VERSION and tool strategies.
 	{
 		prefix: 'spec/',
@@ -226,7 +235,7 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		for (const input of EXTRA_INPUTS.filter(
 			(extra) => file.startsWith(extra.prefix) && !extra.except?.test(file)
 		))
-			for (const name of input.packages) mark(name, file);
+			for (const name of input.packages) mark(name, file, input.ownTests === true);
 	}
 
 	const changed = [...reasons.keys()].filter((name) => everything.includes(name)).sort();
