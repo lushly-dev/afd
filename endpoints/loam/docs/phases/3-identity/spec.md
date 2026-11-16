@@ -149,6 +149,7 @@
     - **I5, `member-list` rows carried the digest:** removed as the member id is. Unit.
     - **I6, the members read stopped at a short page:** the provider skips a member row with no user, so a short page is not the last, and a sponsor on a later one read as gone and was suspended. Both loops (`agent-members.ts`'s roster and `member-commands.ts`'s `memberNamed`) page while the offset is short of the total. Unit: a dangling row on the first of two pages; Bea, on the second, stays a sponsor and `member-remove` finds her.
     - **I7:** deviation 12's follow-up, now a row (Follow-ups): the server holds the table from phase 6's step 5.
+    - **Figures after the fixes**, merged with `main` at `7c698924`: first paint 299,247 and 92,937 gzip; `late-identity` 61,756 of 63,000 (the undo table, the quoting and the paging); `late` 77,932 of 78,500 (line 4 at the workspace scope and `paletteOnly`); the kernel alone 115,379; `account` 25,727. No ceiling moved.
     - **N8:** line 4 runs before the membership re-read. Unit: a pending agent member's `project-create` reads no membership. **N9:** `stores.test.ts`'s docblock. **N10:** the revert count, above.
 - **Not done:** everything else it specifies.
 - **Follow-ups:** [Follow-ups](#follow-ups).
