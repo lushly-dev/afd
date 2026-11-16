@@ -4,6 +4,15 @@ Read this before the implementation plan. This ledger records verified progress,
 
 ## Where the epic stands
 
+**Local MCP endpoint (branch `lush/specimen-mcp-server`).** `endpoints/specimen-server`
+hosts the 19 existing `defineCommand` definitions from `integrations/specimen-afd`
+over stdio, using the CLI's validated execution path, input schemas, mutation and
+destructive metadata, and unchanged `CommandResult` envelopes. The endpoint is
+private, quarantined and has no release route. It provides the process Loam phase 6
+can mount under D106; Loam configuration and npm publication are separate work.
+The endpoint's SDK tests list the tools and compare a browser-free stdio call with
+the real CLI. See its [launch instructions](../../../../endpoints/specimen-server/README.md).
+
 **Closed as complete on 2026-11-14.** Every required task is done (T01 to T08, T12), and Lushly's move ([lushly#2116](https://github.com/lushly-dev/lushly/issues/2116)) closed as completed on 2026-11-11. The preview releases continued to `2.2.0-preview.4`. What remains is carried by issues: the post-cutover follow-ups in [#1169](https://github.com/lushly-dev/afd/issues/1169), the optional Violet tasks T09 and T10 in [#1211](https://github.com/lushly-dev/afd/issues/1211), and the optional application-command runner T11 in [#1212](https://github.com/lushly-dev/afd/issues/1212). The rest of this file is the record as it stood.
 
 Specimen works end to end on AFD's own FAST-AF stories, which run only on Specimen, and it is marked as a preview. On 2026-11-04 the owner approved the release as a preview, and since 2026-11-08 it is [on npm](t08-cutover.md#the-preview-release): Specimen's four units at `2.2.0-preview.1`, the FAST-AF plugin at `0.1.0-preview.1` and `fast-element` at `3.0.1-preview.1`, with the prebuilt native hosts. `preview` points at the newest build. `latest` was moved onto them by hand after `.1`; since 2026-11-14 a prerelease never becomes `latest` ([#1192](https://github.com/lushly-dev/afd/issues/1192)), and on 2026-11-15 the maintainer moved `latest` back to the `0.0.0-bootstrap.0` placeholder, so installs name `@preview`. AFD's stories pass the settled accessibility check. Lushly's move, [lushly#2116](https://github.com/lushly-dev/lushly/issues/2116), started on 2026-11-09 in Lushly's repository.

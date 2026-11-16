@@ -1,5 +1,11 @@
 # @lushly-dev/specimen
 
+## Unreleased
+
+- A private, quarantined `endpoints/specimen-server` now hosts the existing AFD
+  commands over MCP stdio with the CLI's schemas and result envelopes. It has no
+  release route and changes no foundation or command API.
+
 ## 2.2.0-preview.5
 
 ### Minor Changes

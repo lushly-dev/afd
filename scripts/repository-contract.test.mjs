@@ -413,6 +413,18 @@ test('the Health dashboard is a private, route-less endpoint over FAST-AF and th
 	assert.doesNotMatch(workflow, /publish|deploy|pages|id-token|secrets\./);
 });
 
+test('Specimen MCP is a private, quarantined endpoint with no release route', () => {
+	const inventory = JSON.parse(read('scripts/release/inventory.json'));
+	const unit = inventory.units.find((entry) => entry.id === 'specimen-server');
+	assert.equal(unit.state, 'quarantined');
+	assert.deepEqual(unit.routes, []);
+	assert.deepEqual(
+		unit.distributions.map(({ name, manifest, private: isPrivate }) => [name, manifest, isPrivate]),
+		[['@lushly-dev/specimen-server', 'endpoints/specimen-server/package.json', true]]
+	);
+	assert.equal(JSON.parse(read('endpoints/specimen-server/package.json')).private, true);
+});
+
 test('Loam is private, route-less endpoints under endpoints/loam/packages and apps', async () => {
 	const { assertAdmission, discoverDistributions, loadInventory } = await import(
 		'./release/control.mjs'
