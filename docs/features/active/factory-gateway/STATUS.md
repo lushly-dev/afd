@@ -27,7 +27,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   no GitHub App. The owner's ranking of the jobs, the six questions in
   [For the owner](factory-gateway.proposal.md#for-the-owner) and the App (G0) are still his.
 - **Last verified:** 2026-11-15 (dates in this file are Pacific time) against `main` at
-  `fa40fe82`: `gh pr view` reads #1230 and #1232 as `MERGED`, and
+  `a81e8d44`: `gh pr view` reads #1230, #1232, #1265, #1267 and #1271 as `MERGED`, and
   `uv run --frozen pytest tests/test_gateway_scenarios.py` in `botcore-factory` ran all fifteen
   jobs against the fake GitHub before #1232 merged. No gateway runs as a service yet, and no
   real GitHub write has been made through it.
@@ -37,7 +37,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   ([#1232](https://github.com/lushly-dev/afd/pull/1232), merged 2026-11-15); the commit-credit
   check in both repositories' `ci-ok` ([afd#1250](https://github.com/lushly-dev/afd/pull/1250),
   [lushly#2403](https://github.com/lushly-dev/lushly/pull/2403)).
-- **In review:** `COMMIT_AUTHOR_NOT_OWNER` (a push adding a commit the owner did not author,
+- **Reviewed and merged in #1265:** `COMMIT_AUTHOR_NOT_OWNER` (a push adding a commit the owner did not author,
   checked only for commits GitHub does not already have), each repository's merge method
   (`mergeMethods`, a merge commit by default; `MERGE_METHOD_NOT_ALLOWED` when GitHub refuses
   it) and the `/session` route's push to its queue ref; job 15 gained the author step
@@ -48,15 +48,26 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   was untested. Its upload route (botcore change 4) must read commits and authors from the bundle,
   never from the caller. Open: a session or cell can overwrite another branch's queue ref, since
   the fast-forward rule covers only `refs/heads/`.
-- **In review:** botcore's changes 4 and 7, the HTTP surface with per-caller tokens and its
-  client ([#1267](https://github.com/lushly-dev/afd/pull/1267)): two security passes (Opus 5.5)
-  found two blockers (concurrent token commands could lose a revocation; unbounded call
-  bodies) and five improvements, all fixed. Then the gateway as a server (`factory-gateway-admin
-  serve`, `token issue|list|revoke`; `factory-gateway` for callers) with bundle uploads read by
-  git into a bare mirror per repository; `serve` runs only against a fake GitHub until G0's App
-  adapter.
-- **Next, in order:** change 3 redesigned so the host is the only validator (held on
-  `lush/botcore-command-tools`); the App-backed adapter (needs G0's App); the lane on `random`
+- **Done since:** the credit and handoff rules (`COMMIT_AUTHOR_NOT_OWNER`, each repository's
+  merge method, the `/session` queue push;
+  [#1265](https://github.com/lushly-dev/afd/pull/1265)); botcore's changes 4 and 7, the HTTP
+  surface with per-caller tokens and its client
+  ([#1267](https://github.com/lushly-dev/afd/pull/1267), merged 2026-11-15 as `b5d175fe`); the
+  gateway as a server (`factory-gateway-admin serve`, `token issue|list|revoke`;
+  `factory-gateway` for callers) with bundle uploads read by git into a bare mirror per
+  repository ([#1271](https://github.com/lushly-dev/afd/pull/1271), merged 2026-11-15 as
+  `270f4450`). Security passes (Opus 5.5) found three blockers across #1267 and #1271, all fixed
+  with tests. `serve` still runs only against a fake GitHub.
+- **The App (G0):** created and installed by the owner on 2026-11-15: `lushly-factory-gateway`,
+  App ID `5777732`, installation `182417554` on `lushly-dev`, limited to `lushly-dev/afd` and
+  `lushly-dev/lushly`, with the proposal's permissions (actions and metadata read; actions
+  variables, checks, contents, issues, pull requests and workflows read and write). No private
+  key or client secret exists yet; the key is generated when the adapter is ready to run on
+  `random` and goes straight to the service user, never through chat.
+- **Next, in order:** the App-backed adapter; the fix for queue refs (a session or cell can
+  overwrite another branch's queue ref, since the fast-forward rule covers only `refs/heads/`);
+  change 3 redesigned so the host is the only validator (held on
+  `lush/botcore-command-tools`); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));
   the process files and the two process checks.
@@ -66,7 +77,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 
 | Milestone | State | Jobs | Process files changed |
 |---|---|---|---|
-| G0: stand it up | Open; needs the owner to create and install the App | — | — |
+| G0: stand it up | In progress: the App created and installed 2026-11-15; open: the adapter, the key on `random`, the service user, start on boot, the runbook, the test writes and squash-credit check | — | — |
 | G1: one writer (MVP) | In progress since 2026-11-14: botcore host changes ([#1230](https://github.com/lushly-dev/afd/pull/1230)) and the command skeleton against a fake GitHub ([#1232](https://github.com/lushly-dev/afd/pull/1232)), all fifteen jobs passing, both merged 2026-11-15; Lushly side tracked in [lushly#2392](https://github.com/lushly-dev/lushly/issues/2392) | `mvp` (01–11, 15) | — |
 | G2: review as a record | Open | `records` (12) | — |
 | G3: events, not polling | Open | `events` (13–14) | — |
