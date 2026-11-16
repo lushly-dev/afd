@@ -63,8 +63,11 @@ def prepare(argv: Sequence[str], cwd: Path | None = None) -> list[str]:
     if rest[:1] == ["--args-file"] and len(rest) == 2:
         try:
             text = Path(rest[1]).read_text(encoding="utf-8-sig")
-        except OSError as exc:
-            raise SystemExit(f"{argv[1]}: cannot read --args-file {rest[1]}: {exc}") from exc
+        except (OSError, UnicodeDecodeError) as exc:
+            raise SystemExit(
+                f"{argv[1]}: cannot read --args-file {rest[1]} as UTF-8: {exc}. "
+                "In PowerShell, write it with Set-Content -Encoding utf8"
+            ) from exc
     elif len(rest) <= 1:
         text = rest[0] if rest else "{}"
     else:

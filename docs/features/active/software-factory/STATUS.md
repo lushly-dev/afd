@@ -27,7 +27,8 @@ timeout), a fresh foreman ignored events its predecessor had read (`openEvents`)
 PowerShell. Recorded, not fixed here: a cell runs its own branch's copy of the plugin and
 adapter, and the lane does not re-verify the review, so a branch that edits them could skip the
 review check (Lushly's lane has the same shape); and the plugin's host lock cannot see Lushly's
-script lane on a shared host. Follow-ups:
+script lane on a shared host. A focused re-check closed all four and found one more, fixed: a
+handled `main-broken` was never resolved, so the next foreman would file it again. Follow-ups:
 [#1308](https://github.com/lushly-dev/afd/issues/1308) and
 [#1309](https://github.com/lushly-dev/afd/issues/1309).
 

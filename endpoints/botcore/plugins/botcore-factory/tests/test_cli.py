@@ -84,3 +84,12 @@ def test_the_checkout_of_a_linked_worktree_is_that_worktree(tmp_path, monkeypatc
     subprocess.run([*git, "-C", str(main), "commit", "-q", "--allow-empty", "-m", "a"], check=True)
     subprocess.run([*git, "-C", str(main), "worktree", "add", "-q", str(linked)], check=True)
     assert cli.checkout(linked) == linked.resolve()
+
+
+def test_a_utf16_args_file_is_refused_with_how_to_write_it(tmp_path):
+    import pytest
+
+    args = tmp_path / "enqueue.json"
+    args.write_text('{"worktree": "wt"}', encoding="utf-16")  # PowerShell 5.1's Out-File.
+    with pytest.raises(SystemExit, match="Set-Content -Encoding utf8"):
+        cli.prepare(["call", "lane-enqueue", "--args-file", str(args)], cwd=tmp_path)

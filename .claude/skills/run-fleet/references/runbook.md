@@ -34,7 +34,8 @@ fails, say so in the report; never create a cell's checkout in the shell.
 `lane-wait` returns events this consumer has not seen; reading one does not answer it. An event
 stays in `lane-status`'s `openEvents` until the action that answers it (a re-enqueue or drop
 answers `ejected`, `lane-resume` answers `lane-error`, a new `cell-register` answers
-`queue-room`) or `event-resolve` records your decision. An open `queue-empty` is not repeated
+`queue-room`) or `event-resolve` records your decision. At pickup, open `merged` and `queue-room`
+events need nothing beyond `canStartCell`. An open `queue-empty` is not repeated
 until it is resolved.
 
 | Event | Act |
@@ -46,11 +47,11 @@ until it is resolved.
 | Second ejection of one branch | A diagnosis on the stronger route first, then resume the cell with it |
 | `ejection-limit` | `lane-drop` it, put the diagnosis on the issue and label it `needs:decision` for the owner (`cell-park` is not built yet) |
 | `merged`, `queue-room` | Start a cell if `canStartCell` |
-| `main-broken` | The lane has paused. `lane-drop` or leave queued what a broken `main` would eject. File a `priority:1` issue naming the merge at fault, labelled `status:planned` and one `execution:*` so it is dispatchable, and start a cell on it; reverting is that cell's work (`lane-revert` is not built yet). Then `lane-resume` |
+| `main-broken` | The lane has paused. `lane-drop` or leave queued what a broken `main` would eject. File a `priority:1` issue naming the merge at fault, labelled `status:planned` and one `execution:*` so it is dispatchable, and start a cell on it; reverting is that cell's work (`lane-revert` is not built yet). Then `lane-resume` and `event-resolve` it, so the next foreman does not file it again |
 | `merged-without-check` | Check that PR's required check; if it failed, treat it as `main-broken`; otherwise `event-resolve` |
 | `lane-error` | Fix what the detail names (network, `gh` sign-in, the lane's checkout), then `lane-resume`. Only a sign-in goes to the owner |
-| `lane-stopped` | Read the end of `lane.log` in the lane's state directory, then `lane-start` |
-| `queue-empty` | Run `triage-issues`; start cells if work remains, then `event-resolve` it so the next one is said; otherwise finish |
+| `lane-stopped` | Read the end of `lane.log` in the lane's state directory, then `lane-start` and `event-resolve` it |
+| `queue-empty` | Run `triage-issues`; if a cell can start, start it and then `event-resolve` this; otherwise leave it open (resolving it with nothing to start makes the lane say it again) and finish or wait for a reset |
 
 ## Plans
 
