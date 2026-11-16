@@ -4,13 +4,14 @@
 # todo example's JTBD scenarios against it, with the bearer token the server prints.
 #
 # Usage: external-clients.sh <umbel-todo binary> <afd bin.js> <scenario directory>
+# With no arguments, run from the repository root and use the local build and source paths.
 # Needs node and a free loopback port. Uses a temporary workspace and a temporary `afd` config
 # directory; nothing in the repository is written.
 set -euo pipefail
 
-umbel_todo=$1
-afd=$2
-scenarios=$3
+umbel_todo=${1:-${CARGO_TARGET_DIR:-endpoints/umbel/target}/debug/umbel-todo}
+afd=${2:-packages/cli/dist/bin.js}
+scenarios=${3:-packages/examples/todo/scenarios}
 
 work=$(mktemp -d)
 pid=
