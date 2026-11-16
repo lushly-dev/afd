@@ -65,7 +65,11 @@ def build_gateway_app(
         )
         for route in ROUTES
     }
-    uploads = BundleUploads(Gateway(github, config, state, "owner", clock), data_dir)
+    uploads = BundleUploads(
+        Gateway(github, config, state, "owner", clock),
+        data_dir,
+        refresh_main=getattr(github, "fetch_main", None),
+    )
     return create_host_http_app(
         hosts, token_store(data_dir), uploads=uploads, max_upload_bytes=max_upload_bytes
     )
