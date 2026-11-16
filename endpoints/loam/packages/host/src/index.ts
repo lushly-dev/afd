@@ -4,8 +4,10 @@
  */
 
 export {
+	BETTER_AUTH_OVERRIDES,
 	type CheckHostOptions,
 	checkHost,
+	environmentFindings,
 	type HostCheck,
 	type HostKind,
 	hostKindOf,

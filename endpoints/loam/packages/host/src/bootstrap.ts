@@ -17,7 +17,7 @@ import type { AddressInfo } from 'node:net';
 import { dirname, join, resolve } from 'node:path';
 import { bootstrapOrganization } from '@lushly-dev/loam-identity';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
-import { checkHost } from './check.js';
+import { checkHost, environmentFindings } from './check.js';
 import { ensureDataDirectory } from './data.js';
 import { DEV_DATA_DIRECTORY, devServerConfig, needsSandbox } from './dev.js';
 import {
@@ -126,6 +126,9 @@ export async function withBootstrapProvider<T>(
 		options.form === 'dev'
 			? resolve(options.data ?? join(dirname(deployment), DEV_DATA_DIRECTORY))
 			: options.server.data;
+	// An environment that would override the provider's trust refuses the run before anything is written (B1).
+	const overrides = environmentFindings(process.env);
+	if (overrides.length > 0) throw new HostError(overrides);
 	if (options.form === 'dev') await claimDataDirectory(data);
 	else await ensureDataDirectory(data);
 	const lock = acquireDataLock(data);

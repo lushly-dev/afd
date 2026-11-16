@@ -6,7 +6,7 @@
  * provider's answers are `no-store`. Bootstrap and `start`'s refusals are here too (3.1, 3.7, D95).
  */
 
-import { readFileSync, statSync } from 'node:fs';
+import { existsSync, readFileSync, statSync } from 'node:fs';
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
@@ -298,6 +298,36 @@ describe("the provider's trust rules, by direct requests against the real host (
 		const addresses = database.prepare('SELECT ipAddress FROM session').all();
 		database.close();
 		expect(addresses).toEqual([{ ipAddress: '127.0.0.1' }]);
+	});
+
+	it("A7: the provider receives exactly one x-loam-client-ip, the socket's, and no x-forwarded-for, in every header list it can read (raw headers included)", async () => {
+		const { deployment, dist } = await setup();
+		const profile = await dev(deployment, dist);
+		const auth = providerOf(profile.host).auth as { handler(request: Request): Promise<Response> };
+		const seen: Array<[string, string]>[] = [];
+		const handler = auth.handler.bind(auth);
+		auth.handler = (request: Request) => {
+			// `entries()` makes `@hono/node-server` build the list from `rawHeaders`, which `get()` would not show.
+			seen.push([...request.headers.entries()]);
+			return handler(request);
+		};
+		const answer = await call(profile, '/api/auth/ok', {
+			headers: {
+				'x-forwarded-for': '198.51.100.7',
+				'X-Loam-Client-Ip': '203.0.113.9',
+				'x-LOAM-client-ip': '192.0.2.1',
+			},
+		});
+		expect(answer.status).toBe(200);
+		const [entries] = seen;
+		const named = (name: string) =>
+			(entries ?? []).filter(([key]) => key === name).map(([, value]) => value);
+		expect(named('x-forwarded-for')).toEqual([]);
+		expect(named('x-loam-client-ip')).toHaveLength(1);
+		expect(named('x-loam-client-ip')[0]).toMatch(/^(::ffff:)?127\.0\.0\.1$/);
+		expect((entries ?? []).map(([, value]) => value).join(' ')).not.toMatch(
+			/198\.51\.100\.7|203\.0\.113\.9|192\.0\.2\.1/
+		);
 	});
 
 	it('limits sign-ins per socket, on in every mode: a forged X-Forwarded-For or X-Loam-Client-Ip neither picks nor escapes the bucket', async () => {
@@ -650,5 +680,95 @@ describe('start (3.1, 3.3): its own refusals', () => {
 			[HOST_INTERNALS]: { start: true },
 		});
 		await expect(host).rejects.toMatchObject({ code: 'DEPLOYMENT_STDIO_TEAM' });
+	});
+});
+
+describe("B1: Better Auth's environment variables never override what Loam trusts (the coordinator's decision, 2026-11-16)", () => {
+	/** Runs `use` with `name` set in this process's environment, as a host or container might carry it. */
+	async function withVariable<T>(name: string, value: string, use: () => Promise<T>): Promise<T> {
+		const held = process.env[name];
+		process.env[name] = value;
+		try {
+			return await use();
+		} finally {
+			if (held === undefined) delete process.env[name];
+			else process.env[name] = held;
+		}
+	}
+	const VALUES: Record<string, string> = {
+		BETTER_AUTH_TRUSTED_ORIGINS: 'https://evil.example',
+		BETTER_AUTH_SECRETS: `1:${'e'.repeat(40)}`,
+		BETTER_AUTH_TELEMETRY: '1',
+	};
+
+	it('dev, start, check and bootstrap each refuse to run while one is set, HOST_ENV_OVERRIDE naming it, and write nothing', async () => {
+		for (const [name, value] of Object.entries(VALUES)) {
+			const { root, deployment, dist, data } = await setup();
+			await withVariable(name, value, async () => {
+				const refused = runDev({ deployment, dist });
+				await expect(refused, name).rejects.toMatchObject({ code: 'HOST_ENV_OVERRIDE' });
+				await expect(
+					runBootstrap({
+						form: 'dev',
+						deployment,
+						slug: 'acme',
+						name: 'Acme',
+						ownerEmail: 'a@acme.example',
+					})
+				).rejects.toMatchObject({ code: 'HOST_ENV_OVERRIDE' });
+				expect(existsSync(data), name).toBe(false);
+				const server = join(root, 'loam.server.toml');
+				await writeFile(
+					server,
+					`server_version = 1\norigin = "https://localhost:8443"\nlisten = "127.0.0.1:0"\ndata = "data"\n\n[mail]\ntransport = "sink"\n\n[auth]\nsecret_env = "LOAM_TEST_AUTH_SECRET"\n`
+				);
+				for (const command of ['check', 'start']) {
+					let text = '';
+					const code = await runHostCli(
+						[command, '--server', server, '--deployment', deployment, '--dist', dist],
+						{ stdout: (chunk) => (text += chunk), untilStopped: async () => {} }
+					);
+					expect(code, `${command} ${name}`).toBe(1);
+					const refusals = JSON.parse(text).error.details.refusals as Array<{
+						code: string;
+						key: string;
+						suggestion: string;
+					}>;
+					expect(
+						refusals.find(({ code }) => code === 'HOST_ENV_OVERRIDE'),
+						`${command} ${name}`
+					).toMatchObject({
+						key: name,
+						suggestion: expect.stringContaining(`Unset ${name}`),
+					});
+				}
+			});
+		}
+	});
+
+	it('an empty variable is no override, and the host starts', async () => {
+		const { deployment, dist } = await setup();
+		await withVariable('BETTER_AUTH_TRUSTED_ORIGINS', '', async () => {
+			const profile = await dev(deployment, dist);
+			expect(profile.origin).toMatch(/^https:\/\/localhost:/);
+		});
+	});
+});
+
+describe("I1: the provider's path never shadows the hosted server's own routes", () => {
+	it('refuses a version 4 identity.path of api/health at start, and the default path leaves /api/health answering', async () => {
+		const shadowing = await setup(
+			PROVIDER.replace('organization = "acme"\n', 'organization = "acme"\npath = "api/health"\n')
+		);
+		await expect(
+			runDev({ deployment: shadowing.deployment, dist: shadowing.dist })
+		).rejects.toMatchObject({
+			code: 'DEPLOYMENT_IDENTITY_INVALID',
+		});
+		const { deployment, dist } = await setup();
+		const profile = await dev(deployment, dist);
+		const health = await call(profile, '/api/health');
+		expect([health.status, JSON.parse(health.body)]).toEqual([200, { ok: true }]);
+		expect((await call(profile, '/api/auth/ok')).status).toBe(200);
 	});
 });

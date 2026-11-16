@@ -215,3 +215,39 @@ describe('P6-E1: the projection, version 4', () => {
 		expect(readBoot({ ...PROJECTION, identity: provider })?.identity?.mode).toBe('provider');
 	});
 });
+
+describe("P6-E1: a version 4 identity path never shadows the hosted server's own routes (I1 of step 3's review)", () => {
+	it('refuses mcp, .well-known, api, api/kernel and api/health, at the start or inside, as DEPLOYMENT_IDENTITY_INVALID', () => {
+		for (const path of [
+			'mcp',
+			'mcp/auth',
+			'.well-known',
+			'.well-known/auth',
+			'api',
+			'api/kernel',
+			'api/kernel/auth',
+			'api/health',
+			'api/health/x',
+			'auth/api/kernel',
+		]) {
+			expect(findings(file({ kind: 'hosted' }, { ...provider, path })).refusals, path).toEqual([
+				['DEPLOYMENT_IDENTITY_INVALID', 'identity.path'],
+			]);
+		}
+		const read = readDeployment(file({ kind: 'hosted' }, { ...provider, path: 'api/health' }));
+		expect(read.ok === false && read.refusals[0]?.suggestion).toContain('api/auth');
+	});
+
+	it('admits the default, other paths under api/, and the same paths in version 3, whose static host has no such routes', () => {
+		for (const path of ['api/auth', 'api/identity', 'api/kernelx', 'auth/v1'])
+			expect(readDeployment(file({ kind: 'hosted' }, { ...provider, path })).ok, path).toBe(true);
+		expect(
+			readDeployment({
+				deployment_version: 3,
+				workspace: { id: 'acme' },
+				apps: {},
+				identity: { ...provider, path: 'api/health' },
+			}).ok
+		).toBe(true);
+	});
+});

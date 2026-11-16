@@ -189,6 +189,17 @@ const SLUG = /^[a-z0-9][a-z0-9-]{0,62}$/;
 const SEGMENT = /^[A-Za-z0-9._~-]+$/;
 const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
+/** A version 4 `identity.path` that would shadow one of the hosted server's own routes (3.4). */
+function shadowsHostRoute(path: string): boolean {
+	const first = path.split('/')[0];
+	return (
+		first === 'mcp' ||
+		first === '.well-known' ||
+		path === 'api' ||
+		/(^|\/)api\/(kernel|health)(\/|$)/.test(path)
+	);
+}
+
 /**
  * Version 3's `[identity]` (phase 3 specification, 2.2): each refusal `DEPLOYMENT_IDENTITY_INVALID`, and a
  * `provider` deployment with a mounted `stdio` instance `DEPLOYMENT_STDIO_TEAM` (D95, the owner's decision of
@@ -230,6 +241,15 @@ function identityRefusals(
 			'/path',
 			"`path` is relative to `site.base_path`, with no leading `/`, no `.` or `..` segment, and no first segment a deployment's own files or its workspace use.",
 			`Use \`${DEFAULT_IDENTITY_PATH}\`.`
+		);
+	}
+	// I1 of step 3's review (phase 6 specification, 3.4): in version 4 the provider's prefix never shadows the hosted
+	// server's own routes, the MCP route, the origin's well-known paths, `api/kernel` and `api/health`.
+	if (path !== undefined && deployment.deployment_version === 4 && shadowsHostRoute(path)) {
+		refuse(
+			'/path',
+			'`path` would take routes the hosted server answers itself: `mcp`, `.well-known`, `api`, `api/kernel` and `api/health`.',
+			`Use \`${DEFAULT_IDENTITY_PATH}\`, or another path under \`api/\`.`
 		);
 	}
 	const methods = identity.methods;

@@ -72,6 +72,9 @@ export interface LoamAuthConfig {
 	rateLimit?: { window: number; max: number };
 }
 
+/** Better Auth 1.7.18's default rate limit: 100 requests in 10 s per address and path. */
+const DEFAULT_RATE_LIMIT = Object.freeze({ window: 10, max: 100 });
+
 /** Better Auth's own stricter rules (1.7.18's `getDefaultSpecialRules`), which a test's higher limit raises too. */
 const SPECIAL_RATE_LIMIT_PATHS = [
 	'/sign-in/*',
@@ -91,8 +94,18 @@ function rateLimitOf(
 	raised: LoamAuthConfig['rateLimit']
 ): NonNullable<BetterAuthOptions['rateLimit']> {
 	if (!raised) return { enabled: true };
-	if (!(raised.max >= 1 && raised.window >= 1))
-		throw new Error('A raised rate limit needs a window and a max of at least 1');
+	// Only a raise (N2): a finite `max` of at least Better Auth's default, over a window no longer than its default, so
+	// no value lowers a rule or reads as unlimited.
+	if (
+		!Number.isInteger(raised.max) ||
+		raised.max < DEFAULT_RATE_LIMIT.max ||
+		!Number.isInteger(raised.window) ||
+		raised.window < 1 ||
+		raised.window > DEFAULT_RATE_LIMIT.window
+	)
+		throw new Error(
+			`A raised rate limit is a finite max of at least ${DEFAULT_RATE_LIMIT.max} over a window of 1 to ${DEFAULT_RATE_LIMIT.window} s`
+		);
 	const rule = { window: raised.window, max: raised.max };
 	return {
 		enabled: true,
@@ -205,6 +218,12 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		baseURL: url.origin,
 		basePath: url.pathname.replace(/\/$/, ''),
 		secret: config.secret,
+		// The secret given, never one from the environment: Better Auth 1.7.18 takes `BETTER_AUTH_SECRETS` over `secret`
+		// when no `secrets` are passed (B1 of step 3's review; the coordinator's decision of 2026-11-16). `loam-host`
+		// also refuses to start while that variable is set.
+		secrets: [{ version: 1, value: config.secret }],
+		// Off, and `loam-host` refuses `BETTER_AUTH_TELEMETRY`, which Better Auth 1.7.18 ORs with this option.
+		telemetry: { enabled: false },
 		database: config.database,
 		trustedOrigins: [url.origin],
 		session: { cookieCache: { enabled: false }, freshAge: FRESH_AGE_SECONDS },

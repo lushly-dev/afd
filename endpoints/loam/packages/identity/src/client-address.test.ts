@@ -114,18 +114,58 @@ describe("The provider's rate limit is on in every mode, keyed by x-loam-client-
 		}).rateLimit;
 		expect(raised).toMatchObject({ enabled: true, window: 10, max: 500 });
 		expect(raised?.customRules?.['/sign-in/*']).toEqual({ window: 10, max: 500 });
-		expect(() =>
-			createLoamAuthOptions({
-				baseURL: `${ORIGIN}/api/auth`,
-				secret: 'c'.repeat(32),
-				database: limited,
-				workspace: 'acme',
-				organization: 'acme',
-				methods: ['passkey'],
-				mail: { send: async () => {} },
-				rateLimit: { window: 10, max: 0 },
-			})
-		).toThrow('at least 1');
+		// Only a raise (N2): below the default, unlimited, fractional or over a longer window, each is refused.
+		for (const rateLimit of [
+			{ window: 10, max: 0 },
+			{ window: 10, max: 99 },
+			{ window: 10, max: Number.POSITIVE_INFINITY },
+			{ window: 10, max: 150.5 },
+			{ window: 0, max: 500 },
+			{ window: 60, max: 500 },
+		]) {
+			expect(
+				() =>
+					createLoamAuthOptions({
+						baseURL: `${ORIGIN}/api/auth`,
+						secret: 'c'.repeat(32),
+						database: limited,
+						workspace: 'acme',
+						organization: 'acme',
+						methods: ['passkey'],
+						mail: { send: async () => {} },
+						rateLimit,
+					}),
+				JSON.stringify(rateLimit)
+			).toThrow('at least 100');
+		}
+	});
+});
+
+describe("B1: the secret and telemetry never come from the environment (the coordinator's decision, 2026-11-16)", () => {
+	const own = 's'.repeat(40);
+	const options = () =>
+		createLoamAuthOptions({
+			baseURL: `${ORIGIN}/api/auth`,
+			secret: own,
+			database: new DatabaseSync(':memory:'),
+			workspace: 'acme',
+			organization: 'acme',
+			methods: ['passkey'],
+			mail: { send: async () => {} },
+		});
+
+	it('passes the secret as `secrets` explicitly, so BETTER_AUTH_SECRETS cannot replace it, and telemetry off', async () => {
+		expect(options().secrets).toEqual([{ version: 1, value: own }]);
+		expect(options().telemetry).toEqual({ enabled: false });
+		const held = process.env.BETTER_AUTH_SECRETS;
+		process.env.BETTER_AUTH_SECRETS = `1:${'e'.repeat(40)}`;
+		try {
+			const context = (await betterAuth(options()).$context) as { secret: string };
+			expect(context.secret).toBe(own);
+		} finally {
+			if (held === undefined) delete process.env.BETTER_AUTH_SECRETS;
+			else process.env.BETTER_AUTH_SECRETS = held;
+		}
 	});
 });
 

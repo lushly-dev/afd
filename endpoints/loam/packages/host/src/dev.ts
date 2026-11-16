@@ -16,6 +16,7 @@ import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { analyzeDeployment } from '@lushly-dev/loam-cli/deployment';
 import type { ServerConfigV1 } from '@lushly-dev/loam-manifest/server';
+import { environmentFindings } from './check.js';
 import {
 	claimDataDirectory,
 	createMailSink,
@@ -147,6 +148,9 @@ export async function runDev(options: DevOptions): Promise<DevProfile> {
 	const deployment = resolve(options.deployment);
 	const data = resolve(options.data ?? join(dirname(deployment), DEV_DATA_DIRECTORY));
 	const dist = resolve(options.dist ?? WORKSPACE_DIST);
+	// An environment that would override the provider's trust refuses the run before anything is written (B1).
+	const overrides = environmentFindings(process.env);
+	if (overrides.length > 0) throw new HostError(overrides);
 	// 1. The lock first: nothing in the directory is written by a second process.
 	// Only a directory that is missing, empty or already the profile's is taken.
 	await claimDataDirectory(data);

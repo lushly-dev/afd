@@ -36,6 +36,29 @@ export function oidcMethodsOf(analysis: DeploymentAnalysis): string[] {
 		.map((method) => method.slice('oidc:'.length));
 }
 
+/**
+ * Better Auth 1.7.18's environment variables that would change what Loam trusts (B1 of step 3's review; the
+ * coordinator's decision of 2026-11-16): each widens or replaces a rule Loam sets from its own files, so the hosted
+ * server does not run while one is set. `BETTER_AUTH_TRUSTED_ORIGINS` is always added to the trusted origins,
+ * `BETTER_AUTH_SECRETS` replaces the `[auth]` secret, and `BETTER_AUTH_TELEMETRY` turns telemetry on whatever the
+ * options say. The other variables Better Auth reads are pinned by `createLoamAuthOptions` (phase 3's 5.8).
+ */
+export const BETTER_AUTH_OVERRIDES: readonly string[] = Object.freeze([
+	'BETTER_AUTH_TRUSTED_ORIGINS',
+	'BETTER_AUTH_SECRETS',
+	'BETTER_AUTH_TELEMETRY',
+]);
+
+/** One `HOST_ENV_OVERRIDE` per override variable set to anything but the empty string. */
+export function environmentFindings(environment: NodeJS.ProcessEnv): HostFinding[] {
+	return BETTER_AUTH_OVERRIDES.filter((name) => (environment[name] ?? '') !== '').map((name) => ({
+		code: 'HOST_ENV_OVERRIDE',
+		key: name,
+		message: `\`${name}\` is set: Better Auth would take it over what the deployment and server configuration say.`,
+		suggestion: `Unset ${name}: Loam takes its origins and secret only from the deployment and server configuration.`,
+	}));
+}
+
 export interface CheckHostOptions {
 	server: ServerConfigV1;
 	/** The path of `loam.deployment.toml`. */
@@ -220,7 +243,8 @@ export async function checkHost(options: CheckHostOptions): Promise<HostCheck> {
 	const read = readServerConfig(options.server);
 	if (!read.ok) return { refusals: read.refusals, warnings: read.warnings };
 	const { server } = read;
-	const refusals: HostFinding[] = [];
+	// Before anything else: an environment that would override the provider's trust (B1).
+	const refusals: HostFinding[] = [...environmentFindings(options.environment ?? process.env)];
 	const warnings: HostFinding[] = [...read.warnings];
 	const resolved = resolveSecrets(server, options.environment);
 	refusals.push(...resolved.refusals);
