@@ -24,6 +24,7 @@ What a plugin served through the managed host needs: its own command policies, a
 - **Wrong arguments are refused with the way forward.** On the CLI, MCP and DirectClient surfaces alike, an argument the handler does not take, or a missing required one, is refused before binding with `VALIDATION_ERROR` (was `INVALID_TARGET_OR_INPUT`). Its details list `expectedFields`, `unexpectedFields` and `missingFields`, and its `suggestedFields` and suggestion name the input a wrong key most likely meant: the same name in another case convention (`timeoutMs` for `timeout_ms`), else the closest name.
 - **Either spelling of a command name calls it, and a wrong one is answered with the closest.** A host still serves the names it registers; a call may use the other spelling (`issue_claim` for `issue-claim`). Registering both spellings of one name is refused as a duplicate (was an ambiguous raw-Python alias at MCP server construction). `COMMAND_NOT_FOUND` names the closest served command in its message, suggestion and `details.suggestedCommand`.
 - **Inputs are type-checked.** After the names, each input is validated against its type hint with Pydantic's lax mode: a model-typed input arrives as the model, and a value that fails is `VALIDATION_ERROR` with `details.invalidFields` (each field's path and problem). Values that used to pass through unchanged are now coerced or refused: `dev_lint` with `fix: "false"` now means no fix (the string was truthy, so it computed `source-write`), a number sent to a `str` input such as `path` or `package` is refused before confinement, and `true` sent to an `int` input arrives as `1`.
+- **The Factory plugin's `REVIEW_MISSING` says why.** `lane-enqueue` adds the first line the adapter's `review_evidence` command printed, such as which commit the recorded review covers, and a verifier that cannot run or exceeds 120 seconds is `REVIEW_MISSING` with its reason (was `READ_FAILED`, or no limit). AFD's adapter now names `scripts/review-record.mjs verify --head {head}`, which `prepare-pr`'s lane mode feeds, so AFD branches can be enqueued.
 - The MCP `call` tool calls as an agent (`Actor(kind="agent")`) unless the host names its actor.
 - Effects a call computes beyond its policy's declared set are `EFFECT_DENIED` (was `INVALID_TARGET_OR_INPUT`).
 - A host no longer warns about a `[plugins.<name>]` section for a plugin it did not select: that section configures another host's plugin, which may be installed in another environment. `load_config(..., selection=True)` says the plugins passed are a host's selection; legacy discovery of every installed plugin still warns about a section no installed plugin reads.
@@ -38,8 +39,8 @@ What a plugin served through the managed host needs: its own command policies, a
   diagnostics from both streams. On macOS, killed zombie processes no longer count as live
   lane holders. Cancellation also kills step descendants in separate POSIX sessions; PRs use
   the configured base, and terminal queue refs are retired with a lease so recovery cannot
-  resurrect them. This is the lane-loop implementation slice; Phase 1 still needs review-evidence
-  integration and a measured factory run.
+  resurrect them. This is the lane-loop implementation slice; Phase 1 still needs a measured
+  factory run.
 - `skill_lint_spec` lists skills in the order `skill_lint` does on every system. On Windows it sorted their directories case-insensitively, so a skill named `Wrong` came after `clean` there and before it elsewhere.
 
 ## [0.7.0] - 2026-11-13

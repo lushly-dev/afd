@@ -23,6 +23,7 @@ from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
 FIRST_LINES = 20
+REVIEW_TIMEOUT = 120  # Seconds; the verifier only reads a record.
 AREA_CI = "area:ci"
 
 
@@ -85,11 +86,18 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
             "recorded for {head}",
         )
     argv = [part.replace("{head}", head) for part in command]
-    done = factory.world.processes.run(argv, cwd=worktree, label="review-evidence")
-    if done.returncode != 0:
+    try:
+        done = factory.world.processes.run(
+            argv, cwd=worktree, timeout=REVIEW_TIMEOUT, label="review-evidence"
+        )
+        failed, output = done.returncode != 0, done.stderr + "\n" + done.stdout
+    except WorldError as exc:  # It could not run, or ran too long: no review is shown.
+        failed, output = True, str(exc)
+    if failed:
+        why = _first_lines(output)[:1]
         raise Refusal(
             "REVIEW_MISSING",
-            f"No review is recorded for {head}",
+            f"No passing review is recorded for {head}" + (f": {why[0][:300]}" if why else ""),
             "Run prepare-pr in lane mode on this head (it records the review), then "
             "lane-enqueue again",
         )

@@ -32,6 +32,14 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
     assert adapter.validate_command == ["pnpm", "verify"]
     assert (adapter.required_check, adapter.coverage) == ("ci-ok", ["pnpm", "check:all"])
     assert (REPO_ROOT / "scripts/verify-record.mjs").is_file()  # What pre-push accepts.
+    assert adapter.review_evidence == [
+        "node",
+        "scripts/review-record.mjs",
+        "verify",
+        "--head",
+        "{head}",
+    ]
+    assert (REPO_ROOT / "scripts/review-record.mjs").is_file()  # prepare-pr lane mode writes it.
 
 
 @pytest.mark.parametrize(
