@@ -1,0 +1,50 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2).
+
+name: See where a value comes from
+description: >-
+  When a theme shows a value I did not expect, I want to see the chain of nodes that set it and
+  what the node itself overrides, so that I change it in the right place and not in a child that
+  hides the cause.
+job: see-where-a-value-comes-from
+tags: [slice]
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The light theme's field border comes from the root, unchanged on the way
+    command: violet-token-lineage
+    input: { document: "${{ steps[0].data.id }}", node: example/light, token: color.field.border }
+    expect:
+      success: true
+      data:
+        token: color.field.border
+        value: "#8a8a94"
+        from: example
+        chain:
+          - { node: example, operation: add, value: "#8a8a94" }
+          - { node: example/light, operation: inherit }
+  - description: The high-contrast theme's own customizations are listed, each with its operation
+    command: violet-node-get
+    input: { document: "${{ steps[0].data.id }}", node: example/high-contrast }
+    expect:
+      success: true
+      data:
+        node: { id: example/high-contrast, parent: example, type: theme }
+        own:
+          - { token: color.field.border, operation: override, value: "#000000" }
+          - { token: color.text.primary, operation: override, value: "#000000" }
+          - { token: size.focus.width, operation: override, value: 3px }
+  - description: A token the tree does not define is refused, naming the search
+    command: violet-token-lineage
+    input: { document: "${{ steps[0].data.id }}", node: example/light, token: color.text.link }
+    expect:
+      success: false
+      error:
+        code: TOKEN_NOT_FOUND
+        suggestion: { contains: violet-token-find }

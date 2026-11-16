@@ -1,0 +1,64 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2), checked against a
+# seven-entry interface that the app's tests pin in place of `violet-elements`' real one (89
+# entries in contract version 1), so the counts stay small: the template's six tokens and
+# `color.action.danger.background`.
+
+name: Fill every entry of the component interface
+description: >-
+  When a tree is to theme the shared components, I want to know which entries of the components'
+  token interface each theme leaves unfilled, and to fill them, so that no component falls back to
+  another product's value.
+job: fill-the-component-interface
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: Each theme is missing the interface's danger color, which the tree never defines
+    command: violet-interface-check
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        complete: false
+        missing:
+          - { node: example/light, token: color.action.danger.background }
+          - { node: example/dark, token: color.action.danger.background }
+          - { node: example/high-contrast, token: color.action.danger.background }
+  - description: The danger color is added on the root, where every theme inherits it
+    command: violet-token-add
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example
+      token: color.action.danger.background
+      value: "#b3261e"
+    expect:
+      success: true
+      data:
+        node: example
+        value: "#b3261e"
+  - description: Adding it again is refused, pointing to an override instead
+    command: violet-token-add
+    input:
+      document: "${{ steps[0].data.id }}"
+      node: example
+      token: color.action.danger.background
+      value: "#b3261e"
+    expect:
+      success: false
+      error:
+        code: TOKEN_ALREADY_EXISTS
+        suggestion: { contains: violet-token-override }
+  - description: Every theme now fills the interface
+    command: violet-interface-check
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        complete: true
+        missing: { length: 0 }
