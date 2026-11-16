@@ -317,7 +317,13 @@ function TodoRow({
 	session: TodoSession;
 	afterRemoving: (change: Promise<unknown>) => Promise<void>;
 }) {
-	const checkboxRef = useElementEvents({ change: () => session.toggle(todo.id) });
+	const checkboxRef = useElementEvents({
+		change: async (event) => {
+			const result = await session.toggle(todo.id);
+			// A failed toggle leaves the list as it was: put the box back, since the prop did not change
+			if (!result.success) (event.target as HTMLInputElement).checked = todo.completed;
+		},
+	});
 	return (
 		<li className="todo" data-id={todo.id} data-completed={todo.completed ? '' : undefined}>
 			{showing === 'live' ? (
@@ -415,14 +421,18 @@ function Trust({ state }: { state: SessionState }) {
 					)}
 					{trust.reasoning !== undefined && <p className="trust-reasoning">{trust.reasoning}</p>}
 					{trust.warnings.map((warning) => (
-						<violet-alert key={warning.code} className="trust-warning" tone="warning">
+						<violet-alert
+							key={`${warning.code}:${warning.message}`}
+							className="trust-warning"
+							tone="warning"
+						>
 							<span slot="title">{warning.code}</span>
 							{warning.message}
 						</violet-alert>
 					))}
 					{trust.sources.map((source) => (
 						<violet-source-citation
-							key={source.title}
+							key={`${source.title}:${source.href ?? ''}`}
 							source-title={source.title}
 							href={source.href ?? ''}
 						/>

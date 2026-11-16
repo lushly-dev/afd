@@ -220,6 +220,8 @@ On branch `t3/todo-reference-phase3-react`, 2026-11-15, not yet merged:
   (`useElementEvents`).
 - **One browser suite for both** (`frontends/shared/test/page-suite.ts`): each frontend runs it on
   its own build, and `pnpm test:page` runs both in CI.
+- **Bundle sizes**, 2026-11-15: the FAST-AF page 602 kB (151 kB gzipped), the React page 810 kB
+  (215 kB gzipped), warning limits 700 and 900 kB; most of each is the MCP client SDK and Zod.
 - **Selection as view state: declined.** The old frontends' batch select is not rebuilt: agents
   and the CLI keep the batch commands, and the page acts on one todo at a time, with Undo. The
   proposal's sentence stands corrected here.

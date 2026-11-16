@@ -158,7 +158,7 @@ jobs:
       # and deny a clear in the page, an agent narrowing the view (job 6) and axe, one shared suite
       # (frontends/shared/test/page-suite.ts).
       - name: Install Chromium
-        run: pnpm -F @afd/example-todo-fast-af exec playwright install --with-deps chromium
+        run: pnpm -F @afd/example-todo-ui exec playwright install --with-deps chromium
 
       - name: The page (Chromium, TypeScript backend)
         run: pnpm --dir packages/examples/todo test:page

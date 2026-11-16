@@ -1,7 +1,8 @@
 /**
  * JSX types for the violet elements the page renders. React 19 sets a prop as a property when the
- * element has one (`value`, `checked`, `open`) and as an attribute otherwise; their events are
- * wired with `useElementEvent`, not `on*` props.
+ * element has one (`value`, `checked`, `open`) and as an attribute otherwise. Native events that
+ * bubble (`onClick`, `onKeyDown`) work as props; the elements' own events (`change`, `approve`,
+ * `dismiss`, `request-close`) are wired with `useElementEvents`.
  */
 import type { DetailedHTMLProps, HTMLAttributes } from 'react';
 

@@ -158,6 +158,9 @@ export function describePage(name: string, distUrl: URL): void {
 			const title = unique('Keep the beans');
 			await add(page, title);
 			await page.locator('li.todo', { hasText: title }).locator('violet-checkbox').click();
+			await expect
+				.poll(() => page.locator('li.todo', { hasText: title }).getAttribute('data-completed'))
+				.not.toBeNull();
 			await page.locator('violet-button.clear-completed').click();
 			const dialog = page.locator('violet-dialog.approval');
 			await expect.poll(() => dialog.getAttribute('open')).not.toBeNull();
@@ -167,6 +170,67 @@ export function describePage(name: string, distUrl: URL): void {
 				.poll(() => page.locator('violet-alert.page-error').innerText())
 				.toContain('APPROVAL_REQUIRED');
 			expect(await page.locator('li.todo', { hasText: title }).count()).toBe(1);
+			await page.context().close();
+		});
+
+		it('keeps the approval open on Escape until the person answers', async () => {
+			const page = await openPage();
+			const title = unique('Ask first');
+			await add(page, title);
+			await page.locator('li.todo', { hasText: title }).locator('violet-checkbox').click();
+			await expect
+				.poll(() => page.locator('li.todo', { hasText: title }).getAttribute('data-completed'))
+				.not.toBeNull();
+			await page.locator('violet-button.clear-completed').click();
+			const dialog = page.locator('violet-dialog.approval');
+			await expect.poll(() => dialog.getAttribute('open')).not.toBeNull();
+			await page.keyboard.press('Escape');
+			await page.waitForTimeout(300);
+			expect(await dialog.getAttribute('open')).not.toBeNull();
+			await dialog.getByRole('button', { name: /deny/i }).click();
+			await expect.poll(() => dialog.getAttribute('open')).toBeNull();
+			await page.context().close();
+		});
+
+		it("filters by the person's choice, and shows the deleted list with Restore", async () => {
+			const page = await openPage();
+			const open = unique('Still open');
+			const gone = unique('Deleted then restored');
+			await add(page, open);
+			await add(page, gone);
+			await page
+				.locator('violet-segmented-control.filter-status violet-segment[value="completed"]')
+				.click();
+			await expect.poll(() => page.locator('li.todo', { hasText: open }).count()).toBe(0);
+			await page
+				.locator('violet-segmented-control.filter-status violet-segment[value="all"]')
+				.click();
+			await page.locator('li.todo', { hasText: gone }).locator('violet-button.todo-delete').click();
+			await expect.poll(() => page.locator('li.todo', { hasText: gone }).count()).toBe(0);
+			// Focus goes to the title field, not the page body, once the row is gone
+			await expect
+				.poll(() =>
+					page.evaluate(() => {
+						let element: Element | null = document.activeElement;
+						while (element?.shadowRoot?.activeElement) element = element.shadowRoot.activeElement;
+						return (
+							element?.closest?.('violet-text-field') !== null ||
+							document.activeElement?.matches('violet-text-field.add-title')
+						);
+					})
+				)
+				.toBe(true);
+			await page
+				.locator('violet-segmented-control.filter-list violet-segment[value="deleted"]')
+				.click();
+			const deleted = page.locator('li.todo', { hasText: gone });
+			await deleted.waitFor();
+			await deleted.locator('violet-button.todo-restore').click();
+			await expect.poll(() => page.locator('li.todo', { hasText: gone }).count()).toBe(0);
+			await page
+				.locator('violet-segmented-control.filter-list violet-segment[value="live"]')
+				.click();
+			await page.locator('li.todo', { hasText: gone }).waitFor();
 			await page.context().close();
 		});
 

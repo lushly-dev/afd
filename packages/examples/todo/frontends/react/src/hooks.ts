@@ -1,13 +1,14 @@
 /** The two hooks the React page needs over the shared session and the violet elements. */
 import type { SessionState, TodoSession } from '@afd/example-todo-ui/session';
-import { useCallback, useRef, useSyncExternalStore } from 'react';
+import { useCallback, useLayoutEffect, useRef, useSyncExternalStore } from 'react';
 
 /** The session's state, re-rendering on every change. */
 export function useSessionState(session: TodoSession): SessionState {
-	return useSyncExternalStore(
-		(onChange) => session.subscribe(() => onChange()),
-		() => session.snapshot
+	const subscribe = useCallback(
+		(onChange: () => void) => session.subscribe(() => onChange()),
+		[session]
 	);
+	return useSyncExternalStore(subscribe, () => session.snapshot);
 }
 
 type Handlers = Record<string, (event: Event) => void>;
@@ -19,7 +20,9 @@ type Handlers = Record<string, (event: Event) => void>;
  */
 export function useElementEvents(handlers: Handlers): (element: HTMLElement | null) => () => void {
 	const latest = useRef(handlers);
-	latest.current = handlers;
+	useLayoutEffect(() => {
+		latest.current = handlers;
+	});
 	const names = Object.keys(handlers).sort().join(' ');
 	return useCallback(
 		(element: HTMLElement | null) => {
