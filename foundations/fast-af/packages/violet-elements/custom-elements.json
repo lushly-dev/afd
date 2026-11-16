@@ -19293,7 +19293,7 @@
                 "text": "string | null"
               },
               "privacy": "public",
-              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\", and the selection column header takes it as its name (\"Open\")\ninstead of \"Selected row\". Ignored outside `selection-mode=\"single\"`.",
+              "description": "Verb for what a single-selection radio does, such as \"Open\": radios are named\n\"<selection-label> <row label>\" and the selection column header \"<selection-label>\". Only\nwith `selection-mode=\"single\"`.",
               "attribute": "selection-label",
               "reflects": true
             },
@@ -19920,7 +19920,7 @@
             },
             {
               "name": "selection-label",
-              "description": "Optional verb phrase naming what a single-selection radio does, such as \"Open\". The radio's\naccessible name becomes \"<selection-label> <row label>\" (\"Open First bed\") instead of\n\"Select row <row label>\", and the selection column header takes it as its name (\"Open\")\ninstead of \"Selected row\". Ignored outside `selection-mode=\"single\"`.",
+              "description": "Verb for what a single-selection radio does, such as \"Open\": radios are named\n\"<selection-label> <row label>\" and the selection column header \"<selection-label>\". Only\nwith `selection-mode=\"single\"`.",
               "type": {
                 "text": "string | null"
               },

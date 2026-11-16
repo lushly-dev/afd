@@ -349,10 +349,21 @@ export async function runPack(host: PackHost, request: PackBuildRequest): Promis
 	const record = component && `data/${pack.library}/components/${component}.json`;
 	const files = Object.fromEntries([...built.files].filter(([path]) => !record || path === record));
 	const encoder = new TextEncoder();
-	const problems = checkPack(
+	const problems: PackBuildRun['problems'] = checkPack(
 		new Map([...built.files].map(([path, text]) => [path, encoder.encode(text)])),
 		{ form: 'committed' }
 	).problems.filter((problem) => !record || problem.path === record);
+	// A guide with an error is left out of every record, so the build is not sound: the records
+	// would lose that guide's statements with nothing said (#1243).
+	for (const problem of config.guides?.problems ?? []) {
+		if (problem.severity !== 'error') continue;
+		problems.push({
+			code: problem.code,
+			path: problem.file ?? 'guides',
+			...(problem.field ? { at: `#${problem.field}` } : {}),
+			message: problem.message,
+		});
+	}
 	const claimed = new Set(
 		[...cases, ...guideCases].flatMap(({ observation }) =>
 			observation.channels.evidence.claims

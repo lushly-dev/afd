@@ -63,7 +63,7 @@ fails when it is not the report the records give.
 | `violet-persona` | summary, usage, a11y-statement | - | - |
 | `violet-popover` | role | - | - |
 | `violet-progress` | role | - | - |
-| `violet-radio-group` | role | `error-text`, `required` | - |
+| `violet-radio-group` | role | `error-text` | - |
 | `violet-radio` | role | - | - |
 | `violet-range-slider` | role | `max`, `min`, `required` | - |
 | `violet-reasoning-block` | summary, usage, a11y-statement | - | - |
