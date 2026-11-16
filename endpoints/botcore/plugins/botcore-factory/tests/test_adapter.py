@@ -29,6 +29,9 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
     assert matches("scripts/check-file-size.mjs", adapter.gate_paths)
     assert matches(".github/workflows/ci.yml", adapter.gate_paths)
     assert not matches("packages/core/src/index.ts", adapter.gate_paths)
+    assert adapter.validate_command == ["pnpm", "verify"]
+    assert (adapter.required_check, adapter.coverage) == ("ci-ok", ["pnpm", "check:all"])
+    assert (REPO_ROOT / "scripts/verify-record.mjs").is_file()  # What pre-push accepts.
 
 
 @pytest.mark.parametrize(
@@ -68,9 +71,11 @@ def test_every_key_of_the_proposal_parses():
         ignore_branches=["changeset-release/*"],
         measure_paths=["endpoints/botcore/plugins/botcore-factory/**"],
         trend_issue=1098,
+        base_branch="develop",
     )
     assert config.validate_command == ["pnpm", "verify"]
     assert config.prequeue[1].name == "file-size"
+    assert config.base_branch == "develop" and FactoryConfig().base_branch == "main"
     assert config.prequeue[1].run == ["node", "scripts/check-file-size.mjs"]
 
 
@@ -88,6 +93,7 @@ def test_every_key_of_the_proposal_parses():
         ({"labels": "C:/labels.json"}, "inside the repository"),
         ({"gate_paths": [" "]}, "non-empty"),
         ({"trend_issue": 0}, "greater than 0"),
+        ({"base_branch": "main; rm -rf"}, "pattern"),
         ({"unknown": True}, "Extra inputs"),
     ],
 )

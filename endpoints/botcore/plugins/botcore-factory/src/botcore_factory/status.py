@@ -98,7 +98,9 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "draining": bool(lane.get("draining")),
         "slots": {
             "total": dials.value(state["dials"], "lane.slots"),
-            "busy": sum(1 for entry in state["queue"] if entry.get("state") == "validating"),
+            "busy": sum(
+                1 for entry in state["queue"] if entry.get("state") in ("validating", "validated")
+            ),
         },
         **paginate(lists, limit, cursor),
         "waitingOnOwner": waiting_on_owner(state, backlog),
