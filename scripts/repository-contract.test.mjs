@@ -809,7 +809,6 @@ test('every published package enforces coverage thresholds', () => {
 test('public TypeScript example commands explicitly opt in to MCP', () => {
 	const commandDirectories = [
 		'packages/examples/todo/backends/typescript/src/commands',
-		'packages/examples/todo-directclient/backend/src/commands',
 		'packages/examples/chat/src/commands',
 	];
 

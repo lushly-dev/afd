@@ -1,91 +1,103 @@
 /**
- * @fileoverview Standalone chat server for the AI copilot sidebar
+ * @fileoverview The server: the page, the copilot's `/chat`, and MCP at `/mcp`, in one process
+ * over one store.
  *
- * This runs alongside the MCP server on a different port to handle
- * chat requests with Gemini + DirectClient, and serves the frontend.
+ * - The copilot calls the main to-do example's commands through DirectClient, in this process
+ *   (`copilot.ts`, `registry.ts`).
+ * - `/mcp` serves the same commands over MCP (`createMcpHandler` with the main example's
+ *   options), so `afd connect http://localhost:3201/mcp` reaches the todos the copilot changes.
+ * - The store is the main example's: `TODO_STORE_TYPE` and `TODO_STORE_PATH` choose it, and by
+ *   default it is the JSON file the main example's server also uses.
  *
- * Security defaults (see `http-security.ts`, all configurable in `.env`):
- * - Binds 127.0.0.1 only (`CHAT_HOST`)
- * - Browser requests only from this server's own localhost origins
- *   (`ALLOWED_ORIGINS`); `null` and `*` are refused
- * - `Host` header check against DNS rebinding (`ALLOWED_HOSTS`)
- * - Per-client rate limits on the socket address; `X-Forwarded-For` only
- *   with `TRUST_PROXY=true`
- * - Body size limit, and every command validated by `createDirectRegistry`
+ * Security defaults (see `http-security.ts`, all configurable in `.env`): binds 127.0.0.1 only,
+ * browser requests only from this server's own localhost origins (`null` and `*` refused), a
+ * `Host` check against DNS rebinding, per-client rate limits, a body size limit, and every
+ * command validated by `createDirectRegistry`.
  *
- * Usage: npx tsx src/chat-server.ts, then open http://localhost:3201
+ * Usage: pnpm dev, then open http://localhost:3201
  */
 
 import 'dotenv/config';
+import { createTodoServerOptions } from '@afd/example-todo-ts/server-options';
+import { createStore, SqliteStore, setStore } from '@afd/example-todo-ts/store';
 import { DirectClient } from '@lushly-dev/afd-client';
-import { getMetrics, isConfigured, processChat } from './chat.js';
+import { createMcpHandler } from '@lushly-dev/afd-server';
+import { createChatBackend } from './chat.js';
 import { createChatServer } from './chat-http.js';
-import { type ChatServerConfig, loadChatServerConfig } from './http-security.js';
-import { registry } from './registry.js';
+import { Copilot } from './copilot.js';
+import { GeminiModel } from './gemini.js';
+import { loadChatServerConfig } from './http-security.js';
+import { createCopilotRegistry } from './registry.js';
 
-// ═══════════════════════════════════════════════════════════════════════════════
-// API KEY VALIDATION
-// ═══════════════════════════════════════════════════════════════════════════════
-
-function validateApiKey(): void {
-	const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
-
-	if (!apiKey) {
-		console.warn('⚠️  No GOOGLE_API_KEY or GEMINI_API_KEY found in environment');
-		console.warn('   AI chat will be unavailable. Set the key in .env file.');
-		return;
-	}
-
-	// Basic format validation (Gemini API keys are typically 39 chars)
-	if (apiKey.length < 20) {
-		console.error('❌ API key appears too short. Check your .env file.');
-		process.exit(1);
-	}
-
-	// Mask API key in logs (show only last 4 chars)
-	const masked = `***${apiKey.slice(-4)}`;
-	console.log(`✅ API Key configured: ${masked}`);
-}
-
-// ═══════════════════════════════════════════════════════════════════════════════
-// STARTUP
-// ═══════════════════════════════════════════════════════════════════════════════
-
-let config: ChatServerConfig;
-try {
-	config = loadChatServerConfig(process.env);
-} catch (error) {
-	console.error(`❌ ${error instanceof Error ? error.message : String(error)}`);
+function fail(message: string): never {
+	console.error(`❌ ${message}`);
 	process.exit(1);
 }
 
-validateApiKey();
+let config: ReturnType<typeof loadChatServerConfig>;
+try {
+	config = loadChatServerConfig(process.env);
+} catch (error) {
+	fail(error instanceof Error ? error.message : String(error));
+}
+
+const store = createStore(process.env);
+// A SQLite database that cannot be opened fails here, not on the first command
+if (store instanceof SqliteStore) await store.check();
+setStore(store);
+
+const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+if (apiKey && apiKey.length < 20) fail('The API key looks too short. Check your .env file.');
+const registry = createCopilotRegistry(process.env);
+const copilot = apiKey
+	? new Copilot({
+			registry,
+			model: new GeminiModel({
+				apiKey,
+				maxRetries: Number.parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
+				retryDelayMs: Number.parseInt(process.env.GEMINI_RETRY_DELAY_MS ?? '1000', 10),
+				onRetry: (attempt, delayMs, error) =>
+					console.error(`⚠️  Gemini retry ${attempt} in ${delayMs}ms (${error.category})`),
+			}),
+			maxRounds: Number.parseInt(process.env.GEMINI_MAX_TOOL_ROUNDS ?? '5', 10),
+		})
+	: undefined;
+
+// The main example's MCP options, on this server's port and with this server's browser origins
+const mcp = createMcpHandler({
+	...createTodoServerOptions(process.env),
+	host: config.host,
+	port: config.port,
+	allowedOrigins: config.allowedOrigins,
+});
 
 const { server } = createChatServer(config, {
-	// The same validating registry the AI uses: the UI gets no extra powers.
+	// The page's own calls go through the same registry as the copilot's, as a person
 	executor: new DirectClient(registry),
-	chat: { processChat, isConfigured, getMetrics },
+	chat: createChatBackend(copilot),
+	mcp,
 });
 
 server.listen(config.port, config.host, () => {
 	const url = `http://${config.host.includes(':') ? `[${config.host}]` : config.host}:${config.port}`;
-	console.log(`\n🤖 AI Chat Server running at ${url}`);
-	console.log(`   Open ${url}/ for the UI`);
-	console.log(`   Gemini configured: ${isConfigured() ? '✅ Yes' : '❌ No (set GOOGLE_API_KEY)'}`);
-	console.log(`\n   Security:`);
-	console.log(`   • Bound to: ${config.host}`);
-	console.log(`   • Allowed origins: ${config.allowedOrigins.join(', ')}`);
-	console.log(`   • Allowed hosts: ${config.allowedHosts.join(', ')}`);
-	console.log(`   • Trust X-Forwarded-For: ${config.trustProxy ? 'yes (TRUST_PROXY)' : 'no'}`);
-	console.log(`   • Rate limit (chat): ${config.rateLimitChat}/min`);
-	console.log(`   • Rate limit (execute): ${config.rateLimitExecute}/min`);
-	console.log(`   • Max body size: ${config.maxBodySize} bytes`);
-	console.log(`\n   Endpoints:`);
-	console.log(`   GET  /        - Frontend`);
-	console.log(`   POST /chat    - Send messages to Gemini + DirectClient`);
-	console.log(`   POST /execute - Execute commands directly`);
-	console.log(`   GET  /health  - Basic liveness check`);
-	console.log(`   GET  /ready   - Comprehensive readiness check`);
-	console.log(`   GET  /metrics - Request counts, latencies, error rates`);
-	console.log(`\n   Press Ctrl+C to stop.\n`);
+	console.log(`\nTodo copilot running at ${url}`);
+	console.log(
+		`   Gemini: ${copilot ? `configured (key ***${apiKey?.slice(-4)})` : 'not configured (set GOOGLE_API_KEY)'}`
+	);
+	console.log(`   MCP:    afd connect ${url}/mcp`);
+	console.log(`   Bound to ${config.host}; browser origins ${config.allowedOrigins.join(', ')}`);
+	console.log(
+		`   Hosts ${config.allowedHosts.join(', ')}; X-Forwarded-For ${config.trustProxy ? 'trusted' : 'ignored'}`
+	);
+	console.log(
+		`   Rate limits: chat ${config.rateLimitChat}/min, execute ${config.rateLimitExecute}/min; body ${config.maxBodySize} bytes`
+	);
+	console.log('\n   Press Ctrl+C to stop.\n');
 });
+
+for (const signal of ['SIGINT', 'SIGTERM'] as const) {
+	process.on(signal, () => {
+		mcp.dispose();
+		server.close(() => process.exit(0));
+	});
+}

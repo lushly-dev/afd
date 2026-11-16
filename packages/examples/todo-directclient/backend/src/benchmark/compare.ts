@@ -1,255 +1,93 @@
 /**
- * @fileoverview Transport Benchmark - Compare direct vs MCP performance
+ * @fileoverview Measure one command both ways on this machine: through DirectClient in this
+ * process, and over MCP (Streamable HTTP on loopback) to a server in this process with the same
+ * commands, middleware and store. Both run the full engine (validation, approvals middleware,
+ * history, logging), so the difference is the transport.
  *
- * This benchmark validates the hypothesis that direct in-process execution
- * is 10-100x faster than MCP transport for co-located agents.
+ * The numbers depend on the machine and its load; the README states none for that reason.
  *
- * Run with: pnpm benchmark
+ * Run: pnpm benchmark [iterations]
  */
 
-import { registry } from '../registry.js';
-import { store } from '../store/index.js';
+import http from 'node:http';
+import type { AddressInfo } from 'node:net';
+import { createTodoServerOptions } from '@afd/example-todo-ts/server-options';
+import { setStore, TodoStore } from '@afd/example-todo-ts/store';
+import { createDirectClient } from '@lushly-dev/afd-client';
+import { StreamableHttpTransport } from '@lushly-dev/afd-client/streamable-http';
+import { createMcpHandler } from '@lushly-dev/afd-server';
+import { createCopilotRegistry } from '../registry.js';
 
-// ANSI colors for output
-const colors = {
-	reset: '\x1b[0m',
-	bright: '\x1b[1m',
-	green: '\x1b[32m',
-	yellow: '\x1b[33m',
-	cyan: '\x1b[36m',
-	dim: '\x1b[2m',
-};
+const env = {};
+const iterations = Number.parseInt(process.argv[2] ?? '500', 10);
+const warmup = Math.min(100, iterations);
 
-interface BenchmarkResult {
-	name: string;
-	iterations: number;
-	totalMs: number;
-	avgMs: number;
-	minMs: number;
-	maxMs: number;
-	opsPerSec: number;
-}
-
-/**
- * Run a benchmark for a given function.
- */
-async function benchmark(
-	name: string,
-	fn: () => Promise<void>,
-	iterations = 1000,
-	warmupIterations = 100
-): Promise<BenchmarkResult> {
-	// Warmup
-	for (let i = 0; i < warmupIterations; i++) {
-		await fn();
-	}
-
-	// Benchmark
+/** Run `fn` `iterations` times after a warm-up; the median and 95th percentile, in ms. */
+async function measure(fn: () => Promise<unknown>): Promise<{ p50: number; p95: number }> {
+	for (let i = 0; i < warmup; i++) await fn();
 	const times: number[] = [];
-	const start = performance.now();
-
 	for (let i = 0; i < iterations; i++) {
-		const iterStart = performance.now();
+		const start = performance.now();
 		await fn();
-		times.push(performance.now() - iterStart);
+		times.push(performance.now() - start);
 	}
-
-	const totalMs = performance.now() - start;
-	const avgMs = totalMs / iterations;
-	const minMs = Math.min(...times);
-	const maxMs = Math.max(...times);
-	const opsPerSec = 1000 / avgMs;
-
+	times.sort((a, b) => a - b);
 	return {
-		name,
-		iterations,
-		totalMs,
-		avgMs,
-		minMs,
-		maxMs,
-		opsPerSec,
+		p50: times[Math.floor(times.length * 0.5)] ?? 0,
+		p95: times[Math.floor(times.length * 0.95)] ?? 0,
 	};
 }
 
-/**
- * Format benchmark result for display.
- */
-function formatResult(result: BenchmarkResult): string {
-	return [
-		`${colors.cyan}${result.name}${colors.reset}`,
-		`  ${colors.bright}${result.avgMs.toFixed(3)}ms${colors.reset} avg`,
-		`  ${colors.dim}(min: ${result.minMs.toFixed(3)}ms, max: ${result.maxMs.toFixed(3)}ms)${colors.reset}`,
-		`  ${colors.green}${result.opsPerSec.toFixed(0)} ops/sec${colors.reset}`,
-	].join('\n');
-}
+const store = new TodoStore();
+for (let i = 0; i < 20; i++) store.create({ title: `Benchmark todo ${i}` });
+setStore(store);
 
-/**
- * Main benchmark runner.
- */
-async function main() {
-	console.log(
-		`\n${colors.bright}═══════════════════════════════════════════════════════════════${colors.reset}`
-	);
-	console.log(`${colors.bright}  In-Process Binding Benchmark${colors.reset}`);
-	console.log(
-		`${colors.bright}═══════════════════════════════════════════════════════════════${colors.reset}\n`
-	);
+const direct = createDirectClient(createCopilotRegistry(env), { actor: { kind: 'agent' } });
 
-	// Clear store before benchmarks
-	store.clear();
+const handler = createMcpHandler({ ...createTodoServerOptions(env), host: '127.0.0.1' });
+const server = http.createServer((req, res) => void handler(req, res));
+await new Promise<void>((ready) => server.listen(0, '127.0.0.1', ready));
+const { port } = server.address() as AddressInfo;
+const transport = new StreamableHttpTransport(`http://127.0.0.1:${port}/mcp`, {
+	clientName: 'benchmark',
+	clientVersion: '1.0.0',
+});
+await transport.connect();
 
-	const iterations = 1000;
-	console.log(`Running ${iterations} iterations per test...\n`);
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 1: Simple read (todo-list on empty store)
-	// ─────────────────────────────────────────────────────────────────
-	console.log(`${colors.yellow}▸ Benchmark: Empty List (read, no data)${colors.reset}\n`);
-
-	const emptyListResult = await benchmark(
-		'Direct: todo-list (empty)',
-		async () => {
-			await registry.execute('todo-list', {});
-		},
-		iterations
-	);
-	console.log(formatResult(emptyListResult));
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 2: Create operation
-	// ─────────────────────────────────────────────────────────────────
-	console.log(`${colors.yellow}▸ Benchmark: Create (write)${colors.reset}\n`);
-
-	let createCounter = 0;
-	const createResult = await benchmark(
-		'Direct: todo-create',
-		async () => {
-			await registry.execute('todo-create', {
-				title: `Benchmark todo ${++createCounter}`,
-				priority: 'medium',
-			});
-		},
-		iterations
-	);
-	console.log(formatResult(createResult));
-	console.log(`  ${colors.dim}(Created ${createCounter} todos)${colors.reset}`);
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 3: List with data
-	// ─────────────────────────────────────────────────────────────────
-	console.log(`${colors.yellow}▸ Benchmark: List (read, ${store.count()} items)${colors.reset}\n`);
-
-	const listWithDataResult = await benchmark(
-		`Direct: todo-list (${store.count()} items)`,
-		async () => {
-			await registry.execute('todo-list', { limit: 100 });
-		},
-		iterations
-	);
-	console.log(formatResult(listWithDataResult));
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 4: Get by ID
-	// ─────────────────────────────────────────────────────────────────
-	// Create a specific todo to get
-	const testTodo = await registry.execute<{ id: string }>('todo-create', {
-		title: 'Get benchmark target',
+// Both must succeed, or the comparison times an error path
+const listOverMcp = (id: number) =>
+	transport.send({
+		jsonrpc: '2.0',
+		id,
+		method: 'tools/call',
+		params: { name: 'todo-list', arguments: { limit: 20 } },
 	});
-	const testId = testTodo.data?.id ?? 'unknown';
-
-	console.log(`${colors.yellow}▸ Benchmark: Get by ID (read, single)${colors.reset}\n`);
-
-	const getResult = await benchmark(
-		'Direct: todo-get',
-		async () => {
-			await registry.execute('todo-get', { id: testId });
-		},
-		iterations
-	);
-	console.log(formatResult(getResult));
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 5: Toggle (read + write)
-	// ─────────────────────────────────────────────────────────────────
-	console.log(`${colors.yellow}▸ Benchmark: Toggle (read + write)${colors.reset}\n`);
-
-	const toggleResult = await benchmark(
-		'Direct: todo-toggle',
-		async () => {
-			await registry.execute('todo-toggle', { id: testId });
-		},
-		iterations
-	);
-	console.log(formatResult(toggleResult));
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Benchmark 6: Stats (aggregation)
-	// ─────────────────────────────────────────────────────────────────
-	console.log(`${colors.yellow}▸ Benchmark: Stats (aggregation)${colors.reset}\n`);
-
-	const statsResult = await benchmark(
-		'Direct: todo-stats',
-		async () => {
-			await registry.execute('todo-stats', {});
-		},
-		iterations
-	);
-	console.log(formatResult(statsResult));
-	console.log('');
-
-	// ─────────────────────────────────────────────────────────────────
-	// Summary
-	// ─────────────────────────────────────────────────────────────────
-	console.log(
-		`${colors.bright}═══════════════════════════════════════════════════════════════${colors.reset}`
-	);
-	console.log(`${colors.bright}  Summary${colors.reset}`);
-	console.log(
-		`${colors.bright}═══════════════════════════════════════════════════════════════${colors.reset}\n`
-	);
-
-	const results = [
-		emptyListResult,
-		createResult,
-		listWithDataResult,
-		getResult,
-		toggleResult,
-		statsResult,
-	];
-
-	const avgOverall = results.reduce((sum, r) => sum + r.avgMs, 0) / results.length;
-
-	console.log(`${colors.cyan}Direct Transport Results:${colors.reset}`);
-	console.log(`  Average latency: ${colors.bright}${avgOverall.toFixed(3)}ms${colors.reset}`);
-	console.log('');
-	console.log(`${colors.dim}Expected MCP (HTTP/SSE) latency: ~20-100ms${colors.reset}`);
-	console.log(`${colors.dim}Expected MCP (stdio) latency: ~10-50ms${colors.reset}`);
-	console.log('');
-
-	if (avgOverall < 1) {
-		console.log(`${colors.green}✓ Direct transport is within target range (<1ms)${colors.reset}`);
-		console.log(
-			`${colors.green}✓ Expected speedup vs MCP: ${Math.round(30 / avgOverall)}x - ${Math.round(100 / avgOverall)}x${colors.reset}`
-		);
-	} else {
-		console.log(
-			`${colors.yellow}⚠ Direct transport is slower than expected (${avgOverall.toFixed(3)}ms)${colors.reset}`
-		);
-	}
-
-	console.log('');
-	console.log(`${colors.dim}Note: MCP comparison requires server running.${colors.reset}`);
-	console.log(`${colors.dim}Run server with: pnpm start${colors.reset}`);
-	console.log(`${colors.dim}Then compare with MCP client manually.${colors.reset}`);
-	console.log('');
-
-	// Cleanup
-	store.clear();
+const probe = await listOverMcp(0);
+const probeResult = probe.result as { isError?: boolean } | undefined;
+if (
+	!(await direct.call('todo-list', { limit: 20 })).success ||
+	probe.error ||
+	probeResult?.isError
+) {
+	throw new Error('todo-list failed; nothing to compare');
 }
 
-main().catch(console.error);
+// Both paths log each call to stderr, as the servers do; drop those lines while measuring, so
+// writing them to a terminal does not decide the result
+const log = console.error;
+console.error = () => {};
+let id = 0;
+const directResult = await measure(() => direct.call('todo-list', { limit: 20 }));
+const mcpResult = await measure(() => listOverMcp(++id));
+
+console.error = log;
+transport.disconnect();
+handler.dispose();
+server.close();
+
+const row = (name: string, { p50, p95 }: { p50: number; p95: number }) =>
+	`${name.padEnd(28)} median ${p50.toFixed(3).padStart(8)} ms   p95 ${p95.toFixed(3).padStart(8)} ms`;
+console.log(`todo-list over 20 todos, ${iterations} calls each after ${warmup} to warm up:\n`);
+console.log(row('DirectClient (in process)', directResult));
+console.log(row('MCP (Streamable HTTP)', mcpResult));
+console.log(`\nMCP took ${(mcpResult.p50 / directResult.p50).toFixed(0)}x as long at the median.`);

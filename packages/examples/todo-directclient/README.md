@@ -1,115 +1,117 @@
 # Todo DirectClient Example
 
-A Todo app demonstrating **DirectClient** - AFD's zero-overhead transport for AI agents co-located with your application.
+A copilot that manages the to-do reference's todos by calling its commands through
+**DirectClient**, in the server's own process, with no transport between the model's tool calls
+and the commands.
 
-## What This Demonstrates
+The commands are the main example's ([`../todo/backends/typescript`](../todo/backends/typescript)),
+imported with their middleware: approvals, the change history and logging. Nothing here defines a
+command.
 
-- **DirectClient**: ~0.03ms per command (vs ~2-10ms for MCP)
-- **AI Copilot**: Gemini integration with tool calling
-- **Security Hardening**: localhost-only defaults, Origin and Host allowlists, rate limiting, input validation, XSS-safe rendering
-- **Observability**: Health checks, metrics, request tracing
+## What it shows
 
-The same commands also opt in to external MCP access with `expose: { mcp: true }`.
-Command exposure defaults to private for MCP, even when a command is registered
-with a server; this explicit flag makes the remote surface intentional.
+- **The model's tools come from the MCP tool surface.** `createDirectToolSurface` and
+  `listTools()` give each command's own name, description and JSON Schema, exactly what an MCP
+  server with these commands lists. No schema is written by hand (`backend/src/copilot.ts`).
+- **`allow` decides what the model may run.** In look-only mode (`mode: "look"`) only the
+  commands that declare `mutation: false` are permitted: the rest are left out of the tool list,
+  and a call to one fails with `COMMAND_NOT_ALLOWED` before it runs, including through
+  `afd-call` or `afd-batch`. Job 10 ([`backend/scenarios/`](backend/scenarios/)) holds it to that.
+- **The copilot is an agent.** Its calls carry `{ kind: 'agent', id: 'todo-copilot' }`, so
+  `todo-history` says it made a change and `todo-clear` is held for the person's approval. Until
+  the page can ask the person (phase 4's next step), the model gets `APPROVAL_REQUIRED` back and
+  says so.
+- **One server, one store.** The same process serves MCP at `/mcp`, so the AFD CLI and other MCP
+  clients see the todos the copilot changes.
 
-## Quick Start
+## Quick start
 
 ```bash
-# Terminal 1: MCP Server (for CLI compatibility)
 cd backend
-npx tsx src/server.ts
-
-# Terminal 2: Chat Server (DirectClient + Gemini), which also serves the UI
-cd backend
-npx tsx src/chat-server.ts
-
-# Then open http://localhost:3201 in a browser
+cp .env.example .env   # then set GOOGLE_API_KEY
+pnpm dev               # http://localhost:3201
 ```
 
-The chat server serves `frontend/` itself, so the page and the API share one
-origin. Opening `frontend/index.html` from disk does not work: a `file://` page
-sends `Origin: null`, which the server refuses.
+Open http://localhost:3201 for the page, or connect an MCP client:
+
+```bash
+afd connect http://localhost:3201/mcp
+afd call todo-list '{}'
+```
+
+Without an API key the page and `/mcp` still work; `/chat` answers that Gemini is not
+configured. `pnpm demo` runs the copilot's clients with no model and no server: the tool list in
+each mode, a refused call, and an approval asked for and answered.
+
+The store is the main example's, chosen by `TODO_STORE_TYPE` (`file`, `sqlite` or `memory`) and
+`TODO_STORE_PATH`. The default is the JSON file the main example's server also uses, so both
+servers show the same todos.
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────┐
-│ Browser (frontend/index.html)                           │
-├─────────────────────────────────────────────────────────┤
-│ Chat UI ────────→ POST /chat ────────→ Gemini API       │
-│                         │                    │          │
-│                         ▼                    ▼          │
-│ Todo UI ────────→ POST /execute ◄─── DirectClient       │
-│                         │              ~0.03ms          │
-│                         ▼                               │
-│                   Command Registry                      │
-│                   (todo-create, todo-list, etc.)       │
-└─────────────────────────────────────────────────────────┘
-```
-
-The registry (`backend/src/registry.ts`) is built with `createDirectRegistry`
-from `@lushly-dev/afd-server`. Every call, from the AI or the UI, goes through
-the same engine as the MCP server: Zod input validation, middleware, error
-sanitization and the `expose.agent` check.
-
-```ts
-import { createDirectRegistry } from '@lushly-dev/afd-server';
-
-export const registry = createDirectRegistry(allCommands, { interface: 'agent' });
+Browser (frontend/)
+  todo list ──── POST /execute ──┐
+  chat ───────── POST /chat ─────┤
+                                 ▼
+Server (backend/src/chat-server.ts)
+  /chat ──→ Copilot ──→ Gemini (tools from listTools())
+              │
+              └──→ DirectClient (actor: agent, allow: the mode's commands)
+                        │
+  /execute ──→ DirectClient (actor: person)
+                        ▼
+              createDirectRegistry(main commands, main middleware)
+                        ▼
+  /mcp ────→ createMcpHandler(main server options) ──→ the same store
 ```
 
 ## Endpoints
 
 | Endpoint | Description |
 |----------|-------------|
-| `GET /` | The frontend (`index.html`, `app.js`, `render.js`) |
-| `POST /chat` | Send message to Gemini + execute tools |
-| `POST /execute` | Execute command directly via DirectClient |
-| `GET /health` | Basic liveness check |
-| `GET /ready` | Comprehensive readiness check |
-| `GET /metrics` | Request counts, latencies, error rates |
+| `GET /` | The page (`index.html`, `app.js`, `render.js`) |
+| `POST /chat` | `{ message, mode? }`: one turn of the copilot; `mode` is `change` (default) or `look` |
+| `POST /execute` | `{ name, args }`: one command, run as the person |
+| `/mcp` | MCP over Streamable HTTP: the main example's server |
+| `GET /health` | Liveness, and whether Gemini is configured |
+| `GET /ready` | 503 until Gemini is configured |
+| `GET /metrics` | Turn counts, latencies and errors |
 
-## Security Features
+## Security
 
-The defaults are safe for a developer machine; each one is configurable.
+The defaults are safe for a developer machine; each one is configurable in `.env`.
 
 - **Loopback only**: the server binds `127.0.0.1` (`CHAT_HOST`).
-- **Origin allowlist**: browser requests must come from an exact allowed origin
-  (this server's own `localhost`/`127.0.0.1` origins, plus any in `ALLOWED_ORIGINS`).
-  `Origin: null` and `*` are always refused, and the `Access-Control-Allow-Origin`
-  header only ever echoes an allowed origin.
-- **Host check**: the `Host` header must name this server (`ALLOWED_HOSTS`), which
-  blocks DNS rebinding.
-- **Rate limiting**: 30 chat/min and 120 execute/min per client, keyed on the socket
-  address. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`, and then only the
-  entry the proxy appended is used, so a client cannot rotate the header to reset its
-  limit. The limiter tracks at most `RATE_LIMIT_MAX_CLIENTS` clients and sweeps
-  expired windows every minute.
-- **Input validation**: JSON bodies only, capped at `MAX_BODY_SIZE`; command names must
-  be kebab-case; every command's Zod schema and `expose.agent` flag are enforced by
-  `createDirectRegistry`, for UI and AI calls alike.
-- **XSS-safe rendering**: todo titles, tool names and model replies are untrusted (a
-  prompt injection can make the model create a todo titled `<img src=x onerror=...>`).
-  `frontend/render.js` builds the DOM with `textContent`, never `innerHTML`, and the
-  page is served with a Content-Security-Policy that forbids inline script.
-- **Bounded agent loop**: at most `GEMINI_MAX_TOOL_ROUNDS` rounds of tool calls per message.
-- **API key masking**: keys shown as `***XXXX` in logs.
+- **Origin allowlist**: browser requests must come from an exact allowed origin (this server's
+  own `localhost` and `127.0.0.1` origins, plus any in `ALLOWED_ORIGINS`). `Origin: null` and `*`
+  are always refused, and `Access-Control-Allow-Origin` only ever echoes an allowed origin. This
+  covers `/mcp` too.
+- **Host check**: the `Host` header must name this server (`ALLOWED_HOSTS`), which blocks DNS
+  rebinding.
+- **Rate limiting** on `/chat` and `/execute`: 30 and 120 a minute per client, keyed on the socket
+  address. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`, and then only the entry the
+  proxy appended is used. The limiter tracks at most `RATE_LIMIT_MAX_CLIENTS` clients.
+- **Validation**: JSON bodies only, capped at `MAX_BODY_SIZE`; command names must be kebab-case;
+  every command's Zod schema and `expose.agent` flag are enforced by `createDirectRegistry`.
+- **XSS-safe rendering**: todo titles, tool names and model replies are untrusted (a prompt
+  injection can make the model create a todo titled `<img src=x onerror=...>`). `frontend/render.js`
+  builds the DOM with `textContent`, and the page is served with a Content-Security-Policy that
+  forbids inline script.
+- **A bounded agent loop**: at most `GEMINI_MAX_TOOL_ROUNDS` rounds of tool calls per message.
+- **Errors the person can read**: a Gemini failure reaches the page as a plain message, never the
+  provider's error text; the API key is logged as `***` and its last four characters.
 
 ## Configuration
 
-Copy `.env.example` to `.env` and set:
+`backend/.env.example` lists every setting with its default.
 
-```env
-GOOGLE_API_KEY=your-gemini-api-key
-CHAT_HOST=127.0.0.1                  # interface to bind
-ALLOWED_ORIGINS=http://localhost:5173  # extra exact origins; the bundled UI is always allowed
-ALLOWED_HOSTS=chat.example.com       # extra Host names; loopback names always allowed
-TRUST_PROXY=false                    # true only behind one reverse proxy
-RATE_LIMIT_CHAT=30                   # per minute
-RATE_LIMIT_EXECUTE=120               # per minute
-MAX_BODY_SIZE=10240                  # 10KB
-```
+## Speed
+
+`pnpm benchmark` measures `todo-list` both ways on your machine: through DirectClient, and over
+MCP (Streamable HTTP on loopback) to a server in the same process with the same commands,
+middleware and store. The difference is the transport. The numbers depend on the machine, so this
+README states none.
 
 ## Tests
 
@@ -118,13 +120,18 @@ cd backend
 pnpm test
 ```
 
-The tests cover the origin, host, bind, rate-limit and `X-Forwarded-For` policy
-(`src/http-security.test.ts`), the HTTP routes (`src/chat-http.test.ts`) and the
-XSS-safe render helpers (`src/render.test.ts`).
+- `src/copilot.test.ts`: the tool list from `listTools()` in each mode, `allow` refusing changes in
+  look mode however the model asks, the history naming the copilot, and a clear held, approved or
+  denied. A scripted model stands in for Gemini.
+- `src/scenarios.test.ts`: job 10 through the copilot's look-mode client.
+- `src/gemini.test.ts`: tool declarations from the JSON Schemas, Gemini's own parts sent back
+  unchanged, and error messages for the person.
+- `src/chat-http.test.ts` and `src/http-security.test.ts`: the routes, `/mcp`, and the origin,
+  host, bind, rate-limit and `X-Forwarded-For` policy.
+- `src/render.test.ts`: the XSS-safe render helpers.
 
-## When to Use DirectClient
+## When to use DirectClient
 
-✅ **Use when**: An AI agent runs in the same process as your app  
-❌ **Don't use when**: Tests (GitHub Actions), remote agents, cross-process
-
-See the `afd-directclient` skill for details.
+Use it when an agent runs in the same process as the commands, as this copilot does. An agent in
+another process, such as a coding assistant or a test runner, uses MCP. See the
+`afd-directclient` skill.

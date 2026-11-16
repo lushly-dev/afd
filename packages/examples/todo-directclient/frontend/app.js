@@ -1,5 +1,5 @@
 /**
- * Todo UI and AI sidebar. Served by the chat server (`npx tsx src/chat-server.ts`,
+ * Todo UI and AI sidebar. Served by the server (`pnpm dev` in backend/,
  * then open http://localhost:3201), so every call below is same-origin.
  *
  * Rendering goes through `render.js`, which never parses strings as HTML.
@@ -9,7 +9,8 @@ import { renderChatMessage, renderEmpty, renderLogEntry, renderTodoItem } from '
 
 const EXECUTE_URL = '/execute';
 const CHAT_URL = '/chat';
-const MCP_HEALTH_URL = 'http://localhost:3200/health';
+// MCP is served by this server too, at /mcp
+const MCP_HEALTH_URL = '/health';
 
 const byId = (id) => document.getElementById(id);
 
@@ -152,7 +153,7 @@ async function sendChat() {
 // ═══════════════════════════════════════════════════════════════
 
 async function checkServers() {
-	// The MCP server is optional (CLI access); its origin list includes this page.
+	// MCP at /mcp is part of this server
 	try {
 		const r = await fetch(MCP_HEALTH_URL);
 		byId('serverStatus').classList.toggle('connected', r.ok);
