@@ -315,6 +315,71 @@ def test_sqlite_seeds_only_the_database_it_creates(open_store, db_path):
     assert open_store(seed_path=DEFAULT_SEED_PATH).count() == 0
 
 
+class DiskFullError(Exception):
+    """Stands in for an error SQLite raises mid-transaction."""
+
+
+def test_sqlite_reports_the_original_error_when_sqlite_already_rolled_back(open_store):
+    """A full disk or an I/O error rolls the transaction back inside SQLite; the store must not
+    hide the error behind "no transaction is active" from its own ROLLBACK."""
+    store = open_store()
+    kept = store.create("Kept")
+
+    def fails(db):
+        store._put(db, "todos", store._row(store.get(kept.id).model_copy(update={"title": "X"})))
+        db.execute("ROLLBACK")  # what SQLite does itself on SQLITE_FULL
+        raise DiskFullError("database or disk is full")
+
+    with pytest.raises(DiskFullError, match="disk is full"):
+        store._write(fails)
+    assert store.get(kept.id).title == "Kept"
+    assert store.create("Still works").title == "Still works"
+
+
+def test_sqlite_rolls_back_a_failed_commit_and_keeps_working(open_store):
+    """A COMMIT that fails (here a deferred constraint) leaves the transaction open: the store
+    rolls it back, raises the commit's error, and nothing it wrote is kept."""
+    store = open_store()
+    db = store._connection()
+    db.execute("PRAGMA foreign_keys = ON")
+    db.execute("CREATE TEMP TABLE parent (id INTEGER PRIMARY KEY)")
+    db.execute(
+        "CREATE TEMP TABLE child (parent INTEGER REFERENCES parent(id) DEFERRABLE INITIALLY DEFERRED)"
+    )
+
+    def violates_at_commit(db):
+        store._put(db, "todos", store._row(_todo("Lost")))
+        db.execute("INSERT INTO child VALUES (1)")
+
+    with pytest.raises(sqlite3.IntegrityError, match="FOREIGN KEY"):
+        store._write(violates_at_commit)
+    assert not db.in_transaction
+    assert store.count() == 0
+    assert store.create("Still works").title == "Still works"
+
+
+def test_sqlite_reopens_a_connection_left_in_a_transaction(open_store, monkeypatch):
+    """When the rollback cannot end the transaction, the connection is closed and the next call
+    opens the file again, as the local-db adapter does."""
+    store = open_store()
+    first = store._connection()
+    monkeypatch.setattr("todo_backend.store.sqlite.rollback_quietly", lambda db: False)
+
+    with pytest.raises(DiskFullError):
+        store._write(lambda db: (_ for _ in ()).throw(DiskFullError("I/O error")))
+    monkeypatch.undo()
+
+    assert store._db is None
+    assert store.create("Reopened").title == "Reopened"
+    assert store._connection() is not first
+
+
+def _todo(title: str):
+    from todo_backend.models import Todo
+
+    return Todo(id=f"todo-{title}", title=title, createdAt="t", updatedAt="t")
+
+
 # ─── Choosing a store ──────────────────────────────────────────────────────────
 
 
@@ -338,15 +403,13 @@ def test_create_store_follows_the_environment(tmp_path):
         create_store({"TODO_STORE_TYPE": "postgres"})
 
 
-def test_the_default_is_the_seeded_database_typescript_also_opens(tmp_path, monkeypatch):
-    """data/todos.db beside data/todos.json, the path TypeScript's DEFAULT_SQLITE_PATH names."""
+def test_the_default_is_the_seeded_database_beside_the_json_file(tmp_path, monkeypatch):
+    """data/todos.db beside data/todos.json, where the TypeScript backend's default also is (its
+    own sqlite.test.ts checks its side; pnpm test:interop checks both open one file)."""
     import todo_backend.store as stores
 
     assert stores.DEFAULT_SQLITE_PATH == EXAMPLE_ROOT / "data" / "todos.db"
     assert stores.DEFAULT_SQLITE_PATH.with_suffix(".json") == stores.DEFAULT_STORE_PATH
-    ts_index = EXAMPLE_ROOT / "backends" / "typescript" / "src" / "store" / "index.ts"
-    assert "DEFAULT_STORE_PATH.replace(/\\.json$/, '.db')" in ts_index.read_text(encoding="utf-8")
-    assert "env.TODO_STORE_TYPE ?? 'sqlite'" in ts_index.read_text(encoding="utf-8")
 
     # Opening the real default would create it in the repository: point it elsewhere
     monkeypatch.setattr(stores, "DEFAULT_SQLITE_PATH", tmp_path / "todos.db")

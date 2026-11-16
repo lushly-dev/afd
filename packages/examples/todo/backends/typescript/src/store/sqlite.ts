@@ -286,8 +286,11 @@ export class SqliteStore {
 
 	/**
 	 * Add a change, keeping the latest {@link HISTORY_LIMIT}. The next `seq` is read from the
-	 * table before the write, so two processes writing at the same moment can take the same one;
-	 * the later write then replaces the earlier entry.
+	 * table before the write, outside its transaction, so two processes writing at the same moment
+	 * (two TypeScript servers, or this one and the Python backend) can take the same one; the
+	 * later write then replaces the earlier entry, and that change is missing from the history.
+	 * Known limit: https://github.com/lushly-dev/afd/issues/1317. The Python store reads `seq`
+	 * inside its write, so two Python writers never collide.
 	 */
 	async record(change: Omit<ChangeEntry, 'seq'>): Promise<ChangeEntry> {
 		const latest = await this.db.list<ChangeEntry>(CHANGES, {

@@ -67,8 +67,9 @@ case in [spec/test-cases.json](./spec/test-cases.json) that the backend's langua
 exits non-zero if any case fails. The TypeScript and Python backends also have an approval suite
 (`pnpm test:conformance:ts --suite approvals`, and `:py`), the TypeScript backend a run of AFD's
 own `validate --surface --strict` and `scenario run` against it (`pnpm test:scenarios:ts`), and
-`pnpm test:interop` runs both at once on one SQLite database, each reading what the other wrote;
-the [spec README](./spec/README.md) explains each.
+`pnpm test:interop` runs both side by side on one SQLite database, each reading what the other
+wrote, and has each create a new database the other then opens; the
+[spec README](./spec/README.md) explains each.
 
 ### 3. Start a Backend (Manual)
 
@@ -120,6 +121,13 @@ standard library's `sqlite3`. The live todos, the deleted todos and the change h
 each change is one transaction, and several processes in either language can use it at once.
 When the default database is new, the stores add the todos in the committed seed
 `data/todos.seed.json`; delete `data/todos.db` (and its `-wal` and `-shm` files) to reset.
+Both list titles in the same order, as JavaScript's `localeCompare` sorts them.
+
+One known limit: the TypeScript store numbers a history entry before the write that records it,
+so when it and another process record a change at the same moment, both can take the same
+number and one entry replaces the other
+([#1317](https://github.com/lushly-dev/afd/issues/1317)). The todos themselves are not affected,
+and two Python servers do not collide, since Python numbers the entry inside its write.
 
 With `TODO_STORE_TYPE=file`, the live todos are in `data/todos.json`, the deleted todos in
 `data/todos.deleted.json` and the change history in `data/todos.history.json` beside it, which
@@ -289,14 +297,19 @@ Python); the latest 1,000 are kept.
 `todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
 to approve it (`createApprovalMiddleware`, `create_approval_middleware` in Python). Against the
 TypeScript backend, an MCP client that declares form elicitation asks its person; any other
-caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. The Python backend cannot
-ask over MCP yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)), so it always answers
-`APPROVAL_REQUIRED`, and the application retries with the token once a person approves. Over MCP
-every caller counts as an agent, so the page's "clear completed" is held too: the page shows the
-approval and answers with the person's choice, in both frontends. Run the server with
-`APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
-contract every language meets. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets several servers,
-in either language, accept each other's approval tokens.
+caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP every caller
+counts as an agent, so the page's "clear completed" is held too: the page shows the approval and
+answers with the person's choice, in both frontends.
+
+The Python backend cannot ask over MCP yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)),
+and no MCP call can carry an approval, so over the Python server's MCP a held clear cannot be
+approved at all: it always answers `APPROVAL_REQUIRED`. Until #1312, clear through the TypeScript
+server, run the Python server with `APPROVALS=off`, or call the command in process, where trusted
+code retries with the token once a person approves.
+
+Run a server with `APPROVALS=off` to hold nothing; the conformance runner does, since the shared
+suites test the contract every language meets. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets
+several servers, in either language, accept each other's approval tokens. Each server keeps its own record of spent tokens, so with a shared secret one approval can run the clear once on each server that receives it.
 
 ### Contexts
 

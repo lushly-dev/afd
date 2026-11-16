@@ -4,6 +4,9 @@
 	"version": "1.0.0",
 	"description": "Todo example - TypeScript backend implementing AFD patterns",
 	"type": "module",
+	"engines": {
+		"node": ">=22.13.0"
+	},
 	"main": "dist/server.js",
 	"exports": {
 		"./commands": {

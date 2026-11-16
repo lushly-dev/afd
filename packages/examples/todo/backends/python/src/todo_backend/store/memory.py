@@ -13,6 +13,7 @@ from contextlib import contextmanager
 from dataclasses import dataclass, field
 from typing import Any
 
+from todo_backend.collation import title_key
 from todo_backend.models import Priority, SortBy, SortOrder, Todo
 from todo_backend.shared import Stamp, stamp_from
 
@@ -44,7 +45,8 @@ def _sort_key(sort_by: SortBy) -> Any:
     if sort_by == "priority":
         return lambda todo: _PRIORITY_ORDER[todo.priority]
     if sort_by == "title":
-        return lambda todo: todo.title.casefold()
+        # As TypeScript's localeCompare, so both backends list titles in one order
+        return lambda todo: title_key(todo.title)
     if sort_by == "updatedAt":
         return lambda todo: todo.updatedAt
     if sort_by == "deletedAt":

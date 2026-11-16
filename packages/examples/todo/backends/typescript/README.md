@@ -4,6 +4,9 @@ TypeScript implementation of the Todo API.
 
 ## Quick Start
 
+Requires Node.js 22.13 or later (`engines` in `package.json`): the default SQLite store uses
+`node:sqlite`, which earlier versions do not have without a flag.
+
 ```bash
 pnpm install
 pnpm start
@@ -45,7 +48,7 @@ naming the file instead of being treated as empty.
 | `ALLOWED_ORIGINS` | (none) | Extra exact browser origins, comma-separated (`*` and `null` are refused) |
 | `NODE_ENV` | | `development` accepts any browser origin and returns verbose errors |
 | `APPROVALS` | `agents` | `agents` holds `todo-clear` for any caller that is not a person; `off` holds nothing |
-| `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several processes accept each other's tokens |
+| `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several processes accept each other's tokens. Each process keeps its own record of spent tokens, so one approval can run the clear once on each |
 | `CONFIRMATIONS` | `off` | `enforce` or `require-human` to ask before `todo-clear` |
 | `TODO_JOURNAL` | (none) | Path of a JSON Lines file to record every call to, for `afd replay` |
 | `LOG_LEVEL` | `info` | `debug` logs each call's input and result |
@@ -103,14 +106,17 @@ in one SQLite database (`data/todos.db`, gitignored) through `@lushly-dev/local-
 `node:sqlite` (`src/store/sqlite.ts`). Each write is one transaction, so a delete or restore moves its todo
 between the live and deleted tables all or nothing, and a write to a todo another process removed
 since it was read rolls back and reports the todo missing. Several processes can share the file.
-The history entry for a change is a separate write after it. Filtering, sorting (ties included)
+The history entry for a change is a separate write after it, and its number is read before that
+write, so two processes recording at the same moment can take one number and one entry replaces
+the other ([#1317](https://github.com/lushly-dev/afd/issues/1317)). Filtering, sorting (ties included)
 and undo are the in-memory store's rules; the backend's tests run every job against both the
 in-memory and the SQLite store. A path that cannot hold a database fails at startup.
 
 The Python backend reads and writes the same file, in the adapter's layout, through the standard
 library's `sqlite3` (the to-do reference plan's D4). `pnpm test:interop`, from
-`packages/examples/todo`, runs both servers at once on one database and checks that each reads
-what the other wrote.
+`packages/examples/todo`, runs both servers side by side on one database and checks that each
+reads what the other wrote, and that a database either one creates and seeds opens in the
+other.
 
 ## Recording and replaying a session
 

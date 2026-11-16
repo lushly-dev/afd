@@ -88,11 +88,20 @@ leaves the language no case at all.
 
 ## Shared Database
 
-`pnpm test:interop` starts the TypeScript and Python backends at once over stdio, both with
-`TODO_STORE_TYPE=sqlite` on one new database file (`dx/run-interop.ts`), and changes the todos
-through each in turn: each must read what the other wrote, live and deleted todos and the change
-history, and answer every read the same way. It builds the TypeScript backend first and runs the
-Python one under `uv`.
+`pnpm test:interop` (`dx/run-interop.ts`) checks the TypeScript and Python backends share one
+SQLite database, in four parts:
+
+1. The TypeScript server creates a new database and the Python server opens it while the first
+   still runs; the todos are changed through each in turn. Each must read what the other wrote
+   (live and deleted todos, the change history) and answer every read alike, order, alternatives
+   and an accented, mixed-case title sort included, and describe every command alike in
+   `afd-detail`.
+2. Python's store creates and seeds a new database, and the TypeScript server lists the seed.
+3. TypeScript's `SqliteStore.check()` creates and seeds one, and the Python server lists it.
+4. Five times, a Python process and the TypeScript store open one new database at the same
+   moment; the seed must be there exactly once.
+
+It builds the TypeScript backend first and runs the Python one under `uv`.
 
 ## Scenarios and Surface Validation
 

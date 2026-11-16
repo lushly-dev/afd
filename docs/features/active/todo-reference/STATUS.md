@@ -19,9 +19,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   decided D1 to D3 the same day (the proposal's [decisions](todo-reference.proposal.md#decisions)):
   React stays beside the FAST-AF frontend, both on `violet-elements`.
 - **Last verified:** 2026-11-15 on branch `t3/todo-reference-phase2-localdb`, based on `main` at
-  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed. The phase 5 Python branch was
-  checked suite by suite on 2026-11-16 (see [phase 5](#python)); its full `pnpm verify` has not
-  run.
+  `fa40fe82`, with Node 26.13.0: the full `pnpm verify` passed. On the phase 5 Python
+  branch, `pnpm verify` passed on `d5c93a57` on 2026-11-16; the review fixes since were checked
+  suite by suite (see [phase 5](#python)).
 - **Done:** phase 1, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) on 2026-11-15 (`176c7471`). Phase 2, in the
   TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
   journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
@@ -31,7 +31,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. The Python pull request is on branch
   `t3/todo-reference-phase5-python`, not yet merged: Python at parity with TypeScript, and both
-  backends on one SQLite database by default (D4). Rust and C++ are not started.
+  backends on one SQLite database by default (D4). `pnpm verify` passed on `d5c93a57`; the review
+  fixes since are in progress. Rust and C++ are not started.
 
 ## Plan
 
@@ -55,7 +56,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
 | W8 todo-directclient's copied commands and hand-written tools | Fixed in [#1281](https://github.com/lushly-dev/afd/pull/1281): the main commands (D5), tools from `listTools()`, and `allow` in look mode |
-| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read in `pnpm test:interop` alike on one database, order and alternatives included; Python makes ids in TypeScript's format from the context's random, and its tests check its titles against the TypeScript sources. Rust and C++ ordering ties, ID formats and tool lists open, phase 5 |
+| W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). On the phase 5 Python branch: TypeScript and Python answer each read `pnpm test:interop` makes alike on one database, order (an accented, mixed-case title sort among them) and alternatives included, and describe every command alike in `afd-detail` (title, description, category, tags, mutation); Python makes ids in TypeScript's format from the context's random. Title order follows JavaScript's `localeCompare` for Latin text, digits and ASCII punctuation (`collation.py`), not every script. Rust and C++ ordering ties, ID formats and tool lists open, phase 5 |
 
 ## Phase 1: fix what is wrong
 
@@ -326,28 +327,46 @@ On branch `t3/todo-reference-phase5-python`, not yet merged:
   approval suite's two `acknowledge` cases now name Python; `accept` and `decline` stay
   TypeScript's until the library can ask over MCP
   ([#1312](https://github.com/lushly-dev/afd/issues/1312)). The runner now skips a client kind
-  with no case for the language, and still fails a suite that leaves it none.
+  with no case for the language, and still fails a suite that leaves it none. **Until #1312, a
+  held clear cannot be approved over the Python server's MCP:** no MCP call carries the token, so
+  the retry is held again. `APPROVALS` stays `agents` by default (parity, and safe); a clear runs
+  with `APPROVALS=off`, from trusted in-process code that retries with the token, from a person in
+  process, or through the TypeScript server on the same database. Each server keeps its own spent
+  tokens, so with a shared `TODO_APPROVAL_SECRET` one approval can run the clear once on each
+  server; both backends' READMEs say so.
 - **The shared SQLite store (D4).** `store/sqlite.py` reads and writes local-db's layout through
   `sqlite3`: the `records` table, `user_version` 1 decided inside `BEGIN IMMEDIATE`, a foreign
   file refused untouched, WAL, `synchronous = FULL`, a 5-second busy timeout; the `todos`,
   `deleted_todos` and `changes` tables, `_order`, 12-digit change ids and the 1,000-change limit.
   Each write reads its rows inside its transaction, which gives the TypeScript store's guard
-  against a row another process removed. The JSON file store gained the deleted and history files
+  against a row another process removed. A failed write or commit is rolled back quietly (SQLite
+  may already have rolled it back) and its own error raised, and a connection left inside a
+  transaction is closed and reopened on the next call, as the adapter's `rollbackQuietly` does;
+  tests force each case. The history `seq` is read inside the write, so two Python writers never
+  collide; TypeScript's is read before its write, so a TypeScript writer and another can
+  ([#1317](https://github.com/lushly-dev/afd/issues/1317)). Titles sort as `localeCompare` does
+  (`collation.py`, checked against orders from Node.js), where `casefold` did not. The JSON file store gained the deleted and history files
   TypeScript's has, so both stores are shared, and `store.py` became a package as in TypeScript.
 - **The default moved to SQLite in both languages.** `TODO_STORE_TYPE` defaults to `sqlite` in
   TypeScript and Python, at `data/todos.db`, which both resolve beside `data/todos.json`. A new
   default database is seeded from `data/todos.seed.json`, as the JSON file was: in Python inside
   the transaction that creates the table, in TypeScript in `SqliteStore.check()` when the store
   created the file. The READMEs, todo-directclient's README, `.env.example` and its server comment
-  say so.
-- **Interop.** `pnpm test:interop` (`dx/run-interop.ts`) runs both servers at once on one new
-  database and changes the todos through each in turn: 11 checks, and each read's data and
-  alternatives compared between the two. `conformance.yml` runs it and now also starts on `packages/local-db/**`, whose
-  layout both stores depend on.
+  say so. `@afd/example-todo-ts` declares `engines.node >= 22.13.0`, the first Node.js with
+  `node:sqlite` unflagged; the root `engines` still allows 22.12.
+- **Interop.** `pnpm test:interop` (`dx/run-interop.ts`), 16 checks in four parts: the
+  TypeScript server creates a database and the Python server opens it beside it, the todos
+  changed through each in turn with each read's data and alternatives compared, a title sort with
+  accents and case, and `afd-detail` for all 13 commands; Python creates and seeds a database the
+  TypeScript server opens; TypeScript's `check()` creates and seeds one the Python server opens;
+  and five rounds of both opening one new file at the same moment, the seed written once.
+  `conformance.yml` runs it and now also starts on `packages/local-db/**`, whose layout both
+  stores depend on.
 - **Tests.** `afd.testing`'s assertions throughout, and its scenario runner on the TypeScript
   backend's jobs in-process on all three stores (job 7 skipped, since Python records no journal;
   job 9 a strict `xfail`, see the follow-ups). The store tests read the adapter's schema text from
-  `packages/local-db/src/sqlite-adapter.ts` and compare the file Python writes with it.
+  `packages/local-db/src/sqlite-adapter.ts` and compare the file Python writes with it; no other
+  test reads TypeScript source, so what TypeScript does is checked by the interop run.
 - **Lint (D8).** The repository's ruff rules (`python/pyproject.toml`) in the backend's
   `pyproject.toml`, `N815` excepted in `models.py` for the wire's camelCase; `ruff check` and
   `ruff format --check` in `conformance.yml` and `scripts/affected/suites.mjs`, with Python's
@@ -361,7 +380,10 @@ Verified locally on 2026-11-16 with Node 26.13.0 and Python 3.14: `uv run --lock
 conformance 41/41, confirmations 5/5 and approvals 4/4 in both modes; `pnpm test:scenarios:ts`
 (surface validation and 10 scenarios); `pnpm test:interop`; `pnpm -F @afd/example-todo-ts test`
 (181 tests) and `pnpm -F @afd/example-todo-directclient test` (85 tests); `pnpm test:tooling`.
-The full `pnpm verify` has not run on this branch.
+`pnpm verify` passed on the branch's commit `d5c93a57` (2026-11-16). An independent review found
+no blockers; its fixes (the collation, SQLite error handling, the interop directions, `engines`,
+the approval and history docs, the tests that read TypeScript source) are checked suite by suite
+below and have not yet had a full `pnpm verify`.
 
 ## Open questions
 
@@ -381,7 +403,9 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed on branch `t3/todo-reference-phase5-python` (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
 | 2026-11-16 | Phase 5 Python | `afd.testing` cannot be imported with only the `testing` extra: `afd/testing/__init__.py` imports `fixtures.py`, which imports `afd.transports` and so `httpx` from the `client` extra (`python/pyproject.toml`). The example lists both extras | Open |
 | 2026-11-16 | Phase 5 Python | `afd.testing`'s scenario evaluator compares an expected array of objects whole (`_deep_equal` in `python/src/afd/testing/scenarios/evaluator.py`), where TypeScript's matches it item by item with matchers (`evaluateArrayAssertions` in `packages/testing/src/runner/evaluator.ts`), so job 9 fails against Python; its test is a strict `xfail` | Open |
-| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
+| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
+| 2026-11-16 | Phase 5 review | TypeScript's `SqliteStore.record()` reads the next `seq` outside its write, so two writers (TypeScript and Python, or two TypeScript servers) can take one `seq` and one history entry replaces the other; the reviewer saw 79 of 80 entries once in 5 mixed runs. Python's store reads it inside the write. Documented in both stores, the todo README and the TypeScript README | Open: [#1317](https://github.com/lushly-dev/afd/issues/1317) |
+| 2026-11-16 | Phase 5 review | A shared `TODO_APPROVAL_SECRET` lets one token run the clear once on each server, since each process keeps its own nonce store (the library's in-memory default). Documented in both backends' READMEs; a shared nonce store would close it | Open |
 | 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too. Left for the C++ pull request, so this one does not run the C++ suites for a comment | Open, phase 5's C++ pull request |
 
 ## Session log

@@ -31,7 +31,7 @@ import sqlite3
 import threading
 import time
 from collections.abc import Callable, Iterator
-from contextlib import contextmanager
+from contextlib import contextmanager, suppress
 from pathlib import Path
 from typing import Any, TypeVar
 
@@ -71,6 +71,17 @@ def _storable(todo_id: str) -> bool:
     return todo_id not in ("", ".", "..")
 
 
+def rollback_quietly(db: sqlite3.Connection) -> bool:
+    """Roll back without raising an error of its own, since SQLite may already have rolled the
+    transaction back (a full disk, an I/O error), as the local-db adapter's ``rollbackQuietly``.
+    Returns whether the connection is now outside a transaction."""
+    if not db.in_transaction:
+        return True
+    with suppress(sqlite3.Error):
+        db.execute("ROLLBACK")
+    return not db.in_transaction
+
+
 def _dumps(value: Any) -> str:
     """JSON as JavaScript's ``JSON.stringify`` writes it: compact, non-ASCII kept."""
     return json.dumps(value, separators=(",", ":"), ensure_ascii=False)
@@ -101,20 +112,21 @@ class SqliteStore:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self._lock = threading.RLock()
         self._last_order = 0
-        self._db = self._open(busy_timeout_ms, Path(seed_path) if seed_path else None)
+        self._busy_timeout_ms = busy_timeout_ms
+        self._db: sqlite3.Connection | None = self._open(Path(seed_path) if seed_path else None)
 
     # ─── The database ──────────────────────────────────────────────────────────
 
-    def _open(self, busy_timeout_ms: int, seed_path: Path | None) -> sqlite3.Connection:
+    def _open(self, seed_path: Path | None = None) -> sqlite3.Connection:
         # isolation_level=None: no implicit transactions; every write begins its own.
         db = sqlite3.connect(
             str(self.path),
-            timeout=busy_timeout_ms / 1000,
+            timeout=self._busy_timeout_ms / 1000,
             isolation_level=None,
             check_same_thread=False,
         )
         try:
-            db.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
+            db.execute(f"PRAGMA busy_timeout = {int(self._busy_timeout_ms)}")
             # Decide ownership before WAL: switching a file to WAL is persistent, and a refused
             # file must be left as it was found.
             self._prepare_schema(db, seed_path)
@@ -154,29 +166,45 @@ class SqliteStore:
                         self._put(db, TODOS, self._row(todo))
             db.execute("COMMIT")
         except BaseException:
-            db.execute("ROLLBACK")
+            # The error reported stays the one raised; _open closes the connection.
+            rollback_quietly(db)
             raise
 
     def close(self) -> None:
-        """Close the database."""
+        """Close the database. The next call opens it again."""
         with self._lock:
-            self._db.close()
+            self._close()
+
+    def _close(self) -> None:
+        db, self._db = self._db, None
+        if db is not None:
+            db.close()
+
+    def _connection(self) -> sqlite3.Connection:
+        if self._db is None:
+            self._db = self._open()
+        return self._db
 
     @contextmanager
     def _read(self) -> Iterator[sqlite3.Connection]:
         with self._lock:
-            yield self._db
+            yield self._connection()
 
     def _write(self, work: Callable[[sqlite3.Connection], T]) -> T:
-        """Run ``work`` in one ``BEGIN IMMEDIATE`` transaction, rolled back if it raises."""
+        """Run ``work`` in one ``BEGIN IMMEDIATE`` transaction and commit it. When ``work`` or
+        the commit fails, the transaction is rolled back quietly and the original error raised;
+        a connection left inside a transaction would refuse every later ``BEGIN``, so it is
+        closed, and the next call opens the file again (as the local-db adapter does)."""
         with self._lock:
-            self._db.execute("BEGIN IMMEDIATE")
+            db = self._connection()
+            db.execute("BEGIN IMMEDIATE")
             try:
-                result = work(self._db)
+                result = work(db)
+                db.execute("COMMIT")
             except BaseException:
-                self._db.execute("ROLLBACK")
+                if not rollback_quietly(db):
+                    self._close()
                 raise
-            self._db.execute("COMMIT")
             return result
 
     def _next_order(self) -> int:
@@ -369,7 +397,11 @@ class SqliteStore:
 
     def record(self, change: dict[str, Any]) -> dict[str, Any]:
         """Add a change, keeping the latest :data:`HISTORY_LIMIT`. The next ``seq`` is read in
-        the same transaction as the write, so two processes never take the same one."""
+        the same transaction as the write, so two Python writers never take the same one. The
+        TypeScript store reads it before its write
+        (https://github.com/lushly-dev/afd/issues/1317), so when a TypeScript and another writer
+        record at the same moment both can take one ``seq``, and the later entry replaces the
+        earlier one."""
 
         def work(db: sqlite3.Connection) -> dict[str, Any]:
             latest = db.execute(

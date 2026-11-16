@@ -1,21 +1,38 @@
 /**
  * The TypeScript and Python backends share one SQLite database (the to-do reference plan's D4).
  *
- * Starts both servers over stdio on the same new database file, at once, and changes the todos
- * through each in turn: each server must read exactly what the other wrote, the live and deleted
- * todos and the change history, in the same order. Run from `packages/examples/todo` with
- * `pnpm test:interop`, which builds the TypeScript backend first; the Python one runs under `uv`.
+ * 1. **Changes cross over.** The TypeScript server creates a new database; the Python server
+ *    opens it while the TypeScript one still runs, and the todos are changed through each in
+ *    turn: each must read exactly what the other wrote (live and deleted todos, the history) and
+ *    answer every read alike, order and alternatives included, titles with accents and case
+ *    among them. Both describe every command alike (`afd-detail`).
+ * 2. **Python creates the file.** Python's store creates and seeds a new database; the
+ *    TypeScript server opens it and lists the seed.
+ * 3. **TypeScript creates the file.** TypeScript's `SqliteStore.check()` creates and seeds a new
+ *    database; the Python server opens it and lists the seed.
+ * 4. **Both create it at once.** A Python process and the TypeScript store open one new database
+ *    at the same moment, several times: the seed is written once, never twice or not at all.
+ *
+ * Run from `packages/examples/todo` with `pnpm test:interop`, which builds the TypeScript backend
+ * first; the Python one runs under `uv`.
  */
 
 import { deepStrictEqual, strictEqual } from 'node:assert/strict';
+import { type ChildProcess, spawn } from 'node:child_process';
+import { readFileSync } from 'node:fs';
 import { mkdtemp, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import path from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { Client } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PYTHON = path.join(__dirname, '../backends/python');
+const TS_SERVER = path.join(__dirname, '../backends/typescript/dist/server.js');
+const TS_STORE = path.join(__dirname, '../backends/typescript/dist/store/index.js');
+const SEED_PATH = path.join(__dirname, '../data/todos.seed.json');
+const SPEC_PATH = path.join(__dirname, '../spec/commands.schema.json');
 
 type Result = {
 	success: boolean;
@@ -32,6 +49,15 @@ interface Backend {
 	close(): Promise<void>;
 	stderr(): string;
 }
+
+/** The TypeScript store, loaded from the build so this file typechecks without it. */
+interface TsSqliteStore {
+	check(): Promise<void>;
+	close(): void;
+}
+type TsStoreModule = {
+	SqliteStore: new (path: string, options?: { seedPath?: string }) => TsSqliteStore;
+};
 
 async function start(
 	name: string,
@@ -67,9 +93,71 @@ async function start(
 	};
 }
 
+/** The environment of a server on the database at `file`. */
+function envFor(file: string): Record<string, string> {
+	return {
+		...(process.env as Record<string, string>),
+		TODO_STORE_TYPE: 'sqlite',
+		TODO_STORE_PATH: file,
+		// The clears run here; the approval hold has its own suite.
+		APPROVALS: 'off',
+	};
+}
+
+const startTs = (file: string) =>
+	start('TypeScript', 'node', [TS_SERVER], { ...envFor(file), PORT: '3102' });
+const startPy = (file: string) =>
+	start('Python', 'uv', ['run', '--project', PYTHON, 'todo-server'], envFor(file));
+
+/**
+ * A Python process that opens `file` as a seeded store once this script says go, so the
+ * TypeScript store can open it at the same moment. It prints `ready` after its imports.
+ */
+const PYTHON_OPEN = `
+import sys
+from todo_backend import SqliteStore
+print("ready", flush=True)
+sys.stdin.readline()
+SqliteStore(sys.argv[1], seed_path=sys.argv[2]).close()
+print("done", flush=True)
+`;
+
+function spawnPythonOpen(file: string): {
+	child: ChildProcess;
+	ready: Promise<void>;
+	done: Promise<void>;
+} {
+	const child = spawn(
+		'uv',
+		['run', '--project', PYTHON, 'python', '-c', PYTHON_OPEN, file, SEED_PATH],
+		{
+			stdio: ['pipe', 'pipe', 'inherit'],
+		}
+	);
+	let output = '';
+	const seen = (word: string) =>
+		new Promise<void>((resolve, reject) => {
+			const look = () => {
+				if (output.includes(word)) resolve();
+			};
+			child.stdout?.on('data', (chunk) => {
+				output += String(chunk);
+				look();
+			});
+			child.once('exit', (code) =>
+				output.includes(word)
+					? resolve()
+					: reject(new Error(`Python exited with ${code}: ${output}`))
+			);
+		});
+	return { child, ready: seen('ready'), done: seen('done') };
+}
+
 type Todo = { id: string; title: string; completed: boolean; deletedAt?: string };
 type List = { todos: Todo[]; total: number };
 type History = { entries: Array<{ seq: number; command: string; actor: { kind: string } }> };
+
+const SEED = JSON.parse(readFileSync(SEED_PATH, 'utf-8')) as Todo[];
 
 let checks = 0;
 function check(what: string, assertion: () => void): void {
@@ -92,31 +180,40 @@ async function same(ts: Backend, py: Backend, tool: string, args: Record<string,
 	return fromTs.data;
 }
 
-async function run(): Promise<void> {
-	const dir = await mkdtemp(path.join(tmpdir(), 'todo-interop-'));
-	const env = {
-		...(process.env as Record<string, string>),
-		TODO_STORE_TYPE: 'sqlite',
-		TODO_STORE_PATH: path.join(dir, 'todos.db'),
-		// The clear runs here; the approval hold has its own suite.
-		APPROVALS: 'off',
-	};
+/** The commands both languages implement, from the spec. */
+function sharedCommands(): string[] {
+	const commands = JSON.parse(readFileSync(SPEC_PATH, 'utf-8')).commands as Record<
+		string,
+		{ implementedBy?: string[] }
+	>;
+	return Object.entries(commands)
+		.filter(([, entry]) => (entry.implementedBy ?? ['python']).includes('python'))
+		.map(([name]) => name);
+}
+
+/** Run `body` with servers that are closed afterwards, printing their stderr on a failure. */
+async function withServers(
+	open: Array<() => Promise<Backend>>,
+	body: (backends: Backend[]) => Promise<void>
+): Promise<void> {
 	const started: Backend[] = [];
 	try {
-		const ts = await start(
-			'TypeScript',
-			'node',
-			[path.join(__dirname, '../backends/typescript/dist/server.js')],
-			{ ...env, PORT: '3102' }
-		);
-		started.push(ts);
-		const py = await start(
-			'Python',
-			'uv',
-			['run', '--project', path.join(__dirname, '../backends/python'), 'todo-server'],
-			env
-		);
-		started.push(py);
+		for (const each of open) started.push(await each());
+		await body(started);
+	} catch (error) {
+		for (const backend of started) {
+			console.error(`--- ${backend.name} stderr ---\n${backend.stderr().slice(-4000)}`);
+		}
+		throw error;
+	} finally {
+		for (const backend of started) await backend.close();
+	}
+}
+
+/** 1. The TypeScript server creates the file; changes made through each are read by the other. */
+async function changesCrossOver(file: string): Promise<void> {
+	await withServers([() => startTs(file), () => startPy(file)], async ([ts, py]) => {
+		if (!ts || !py) throw new Error('Both servers must start');
 
 		// TypeScript writes; Python reads
 		const first = await ts.data<Todo>('todo-create', {
@@ -130,12 +227,9 @@ async function run(): Promise<void> {
 			deepStrictEqual(readByPy, first)
 		);
 		// `same` compares the whole answers, so the order (ties included) matches too
-		const listed = await same(ts, py, 'todo-list', {});
+		const listed = (await same(ts, py, 'todo-list', {})) as List;
 		check('Both list the same todos in the same order', () =>
-			deepStrictEqual(
-				(listed as List).todos.map((todo) => todo.id).sort(),
-				[first.id, second.id].sort()
-			)
+			deepStrictEqual(listed.todos.map((todo) => todo.id).sort(), [first.id, second.id].sort())
 		);
 
 		// Python writes; TypeScript reads
@@ -204,14 +298,101 @@ async function run(): Promise<void> {
 		});
 		await same(ts, py, 'todo-history', { limit: 100 });
 
-		console.log(`\nSummary: ${checks} checks passed; both backends share one database`);
-	} catch (error) {
-		for (const backend of started) {
-			console.error(`--- ${backend.name} stderr ---\n${backend.stderr().slice(-4000)}`);
+		// Titles in one collation: base letters, then accents, then case, lowercase first
+		for (const [index, title] of ['Apple', 'apple', 'Zebra', 'Äpfel', 'banana'].entries()) {
+			await (index % 2 === 0 ? ts : py).data('todo-create', { title });
 		}
-		throw error;
+		const ascending = (await same(ts, py, 'todo-list', {
+			sortBy: 'title',
+			sortOrder: 'asc',
+		})) as List;
+		await same(ts, py, 'todo-list', { sortBy: 'title', sortOrder: 'desc' });
+		check('Both sort titles alike: Äpfel, apple, Apple, banana, Zebra', () =>
+			deepStrictEqual(
+				ascending.todos.map((todo) => todo.title),
+				['Äpfel', 'apple', 'Apple', 'banana', 'Zebra']
+			)
+		);
+
+		// Every command described alike
+		const fields = ['name', 'title', 'description', 'category', 'tags', 'mutation'] as const;
+		const detail = async (backend: Backend, command: string) => {
+			const [found] = await backend.data<Array<Record<string, unknown>>>('afd-detail', { command });
+			return Object.fromEntries(fields.map((field) => [field, found?.[field]]));
+		};
+		const commands = sharedCommands();
+		for (const command of commands) {
+			deepStrictEqual(await detail(py, command), await detail(ts, command), `${command} differs`);
+		}
+		check(
+			`Both describe all ${commands.length} commands alike (title, description, tags)`,
+			() => {}
+		);
+	});
+}
+
+/** The todos a server lists, oldest first, which on a seeded database are the seed's. */
+async function listed(backend: Backend): Promise<Todo[]> {
+	return (await backend.data<List>('todo-list', { sortBy: 'createdAt', sortOrder: 'asc' })).todos;
+}
+
+/** 2. Python creates and seeds the file; the TypeScript server reads it. */
+async function pythonCreates(file: string): Promise<void> {
+	const opener = spawnPythonOpen(file);
+	await opener.ready;
+	opener.child.stdin?.end('go\n');
+	await opener.done;
+	await withServers([() => startTs(file)], async ([ts]) => {
+		if (!ts) throw new Error('The TypeScript server must start');
+		const todos = await listed(ts);
+		check('TypeScript opens a database Python created and lists its seed', () =>
+			deepStrictEqual(todos, SEED)
+		);
+	});
+}
+
+/** 3. TypeScript's `check()` creates and seeds the file; the Python server reads it. */
+async function typescriptCreates(file: string, store: TsStoreModule): Promise<void> {
+	const created = new store.SqliteStore(file, { seedPath: SEED_PATH });
+	await created.check();
+	created.close();
+	await withServers([() => startPy(file)], async ([py]) => {
+		if (!py) throw new Error('The Python server must start');
+		const todos = await listed(py);
+		check('Python opens a database TypeScript created and lists its seed', () =>
+			deepStrictEqual(todos, SEED)
+		);
+	});
+}
+
+/** 4. Both open one new file at the same moment; the seed is written exactly once. */
+async function bothCreate(dir: string, store: TsStoreModule, rounds: number): Promise<void> {
+	for (let round = 0; round < rounds; round++) {
+		const file = path.join(dir, `race-${round}.db`);
+		const opener = spawnPythonOpen(file);
+		await opener.ready;
+		const ts = new store.SqliteStore(file, { seedPath: SEED_PATH });
+		opener.child.stdin?.end('go\n');
+		await Promise.all([ts.check(), opener.done]);
+		ts.close();
+		await withServers([() => startPy(file)], async ([py]) => {
+			if (!py) throw new Error('The Python server must start');
+			deepStrictEqual(await listed(py), SEED, `round ${round}: the seed was not written once`);
+		});
+	}
+	check(`Opened at once ${rounds} times, the seed is written exactly once`, () => {});
+}
+
+async function run(): Promise<void> {
+	const dir = await mkdtemp(path.join(tmpdir(), 'todo-interop-'));
+	try {
+		const store = (await import(pathToFileURL(TS_STORE).href)) as TsStoreModule;
+		await changesCrossOver(path.join(dir, 'todos.db'));
+		await pythonCreates(path.join(dir, 'python-created.db'));
+		await typescriptCreates(path.join(dir, 'typescript-created.db'), store);
+		await bothCreate(dir, store, 5);
+		console.log(`\nSummary: ${checks} checks passed; both backends share one database`);
 	} finally {
-		for (const backend of started) await backend.close();
 		await rm(dir, { recursive: true, force: true });
 	}
 }

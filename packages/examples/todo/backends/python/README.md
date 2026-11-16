@@ -54,7 +54,15 @@ backends see the same todos, deleted todos and history (`src/todo_backend/store/
 - Each change is one transaction that reads the todo it changes inside it, so a delete or
   restore moves its todo all or nothing, and a change to a todo another process removed
   meanwhile reports it missing. Rows keep the order they were written in, so ties in a sort
-  come out as in the TypeScript backend.
+  come out as in the TypeScript backend, and titles sort as JavaScript's `localeCompare` does
+  (`src/todo_backend/collation.py`: base letters, then accents, then case).
+- A history entry is numbered inside its write, so two Python servers never take the same
+  number. The TypeScript store numbers it before its write, so when it records at the same
+  moment as another process, one entry can replace the other
+  ([#1317](https://github.com/lushly-dev/afd/issues/1317)).
+- If SQLite fails mid-write (a full disk, an I/O error), the write is rolled back, the original
+  error is reported, and a connection left inside a transaction is closed and reopened on the
+  next call, as local-db's adapter does.
 - `data/todos.db` is gitignored. When the default database is new, the store adds the todos
   in the committed seed `data/todos.seed.json`. To reset the data, delete `data/todos.db` and
   its `-wal` and `-shm` files.
@@ -72,7 +80,7 @@ server, and fails commands, with an error naming the file; it is never treated a
 | `TODO_STORE_TYPE` | `sqlite` | Storage type: `sqlite`, `file` or `memory` |
 | `TODO_STORE_PATH` | `data/todos.db`, or `data/todos.json` for `file` (both seeded) | Path to the database or the JSON file. A custom path starts empty. |
 | `APPROVALS` | `agents` | `agents` holds `todo-clear` for any caller that is not a person; `off` holds nothing |
-| `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several servers, in either language, accept each other's tokens |
+| `TODO_APPROVAL_SECRET` | (random per process) | Key that signs approval tokens, at least 32 bytes; set it so several servers, in either language, accept each other's tokens. Each server keeps its own record of spent tokens, so one approval can run the clear once on each |
 | `CONFIRMATIONS` | `off` | `enforce` or `require-human` to ask before `todo-clear` |
 | `LOG_LEVEL` | `info` | `debug` logs each call's input and result |
 
@@ -122,12 +130,22 @@ explains them.
 
 `todo-clear` is held for any caller that is not a person, through `afd`'s
 `create_approval_middleware`, with the TypeScript backend's summary of what would go ("Remove the
-completed todos for good (2 todos now)"). Over MCP every caller is an agent, so a clear returns
-`APPROVAL_REQUIRED` with an approval token, and the application retries the same call with
-that token as `CommandContext(approval=...)` once a person approves. The TypeScript backend can
-also ask the person itself through form elicitation; the Python library cannot yet
-([#1312](https://github.com/lushly-dev/afd/issues/1312)), so the approval suite's approve and
-decline cases run against TypeScript only.
+completed todos for good (2 todos now)"). `APPROVALS=agents` is the default, as in TypeScript.
+
+**Over this server's MCP, a held clear cannot be approved yet.** Every MCP caller is an agent, so
+a clear returns `APPROVAL_REQUIRED`. The TypeScript backend then asks the person through form
+elicitation; the Python library cannot
+([#1312](https://github.com/lushly-dev/afd/issues/1312)), and no MCP call can carry the approval
+token (tool arguments never reach `context.approval`), so retrying over MCP is held again. Until
+#1312, a clear runs when:
+
+- the server runs with `APPROVALS=off`, which holds nothing;
+- trusted code calls the command in process (`await server.execute("todo-clear", input,
+  CommandContext(approval=token))`) with the token from the held result, once a person approved;
+- a person calls it in process (`CommandContext(actor=Actor(kind="human"))`), which is never held;
+- or it goes through the TypeScript server on the same database.
+
+For the same reason the approval suite's approve and decline cases run against TypeScript only.
 
 ## Tests
 
@@ -144,7 +162,7 @@ pnpm --dir ../.. test:conformance:py
 pnpm --dir ../.. test:conformance:py --suite confirmations
 pnpm --dir ../.. test:conformance:py --suite approvals
 
-# Both backends at once on one SQLite database
+# Both backends on one SQLite database, and a database either creates opened by the other
 pnpm --dir ../.. test:interop
 ```
 

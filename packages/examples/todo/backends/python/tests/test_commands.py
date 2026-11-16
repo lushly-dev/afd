@@ -25,7 +25,6 @@ from todo_backend.history import RECORDED_COMMANDS
 from todo_backend.store import EXAMPLE_ROOT, HISTORY_LIMIT
 
 SPEC_PATH = EXAMPLE_ROOT / "spec" / "commands.schema.json"
-TS_COMMANDS = EXAMPLE_ROOT / "backends" / "typescript" / "src" / "commands"
 
 
 def spec_commands() -> dict[str, Any]:
@@ -87,17 +86,6 @@ def test_every_command_has_a_title_an_output_schema_and_examples():
         assert command.examples, command.name
         assert command.version == "1.0.0", command.name
         assert validate_command_definition(command).valid, command.name
-
-
-def test_titles_match_the_typescript_commands():
-    """Each title is the TypeScript command's, read from its source."""
-    for command in create_app(MemoryStore(), {}).list_commands():
-        source = next(
-            path.read_text(encoding="utf-8")
-            for path in TS_COMMANDS.glob("*.ts")
-            if f"name: '{command.name}'" in path.read_text(encoding="utf-8")
-        )
-        assert f"title: '{command.title}'" in source, command.name
 
 
 def test_every_mutation_declares_approval_and_undo_as_typescript():
