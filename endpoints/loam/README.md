@@ -54,10 +54,16 @@ release unit, the mail engine included, is quarantined with no route under the
 The name was decided on 2026-10-30 (decision D22 in the
 [decision log](docs/decisions.md)).
 
-The first consumer is a Lushly support application: internal tooling used to
-build Lushly, not Lushly's own product interfaces. That application is
-specified in Lushly's repository; Loam records only the shell needs it
-surfaces, and nothing Lushly-specific lives here.
+The first consumers are two deployments of the same build (D128, decided
+2026-11-16, widening D19). A local, individual Loam each person installs on
+the desktop, for per-person apps, with mail first: a person's work and
+personal accounts side by side in one client. And a hosted collaboration
+Loam for the Lushly organization, with Lushly and AFD as its projects, which
+holds the team's shared project work and internal communication tools as
+people join. The local one comes first; the hosted one waits until
+sometime in 2027 (D129). The hosted deployment is specified in Lushly's
+repository; Loam records only the shell needs either surfaces, and nothing
+Lushly-specific lives here.
 
 ## Documents
 

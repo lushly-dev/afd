@@ -100,9 +100,11 @@ another?
 15. **AFD first.** Where AFD has or proposes a mechanism, Loam uses or
     extends it and records any divergence as a decision.
     [Section 6](#6-built-on-afd) is the map.
-16. **Same shell for every consumer.** The Lushly support application is
-    the first consumer; nothing Lushly-specific lives in Loam, and a need it
-    surfaces is recorded as a generic shell need.
+16. **Same shell for every consumer.** The first consumers are two
+    deployments of the same build: a local, individual Loam on the desktop
+    and a hosted collaboration Loam for the Lushly organization (D128,
+    widening D19 on 2026-11-16). Nothing Lushly-specific lives in Loam, and
+    a need either surfaces is recorded as a generic shell need.
 17. **Documents are shell resources; types are contributions.** Any plugin
     may contribute document types; an instance is a shell resource in a
     scope with one model and any number of editors in the editor area; New,

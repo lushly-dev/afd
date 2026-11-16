@@ -12,7 +12,7 @@
 | Package boundary | New TypeScript units under `endpoints/loam/`, as the architecture's repository placement describes; Rust WebAssembly modules only where a measurement shows they pay |
 | Implementation | Not started by this proposal |
 | Name | Loam, decided 2026-10-30 (D22); "AFD Loam" in full |
-| First consumer | A Lushly support application: internal tooling for building Lushly, specified in Lushly's repository |
+| First consumer | Two deployments of the same build since 2026-11-16 (D128, widening D19): a local, individual Loam each person installs on the desktop, and a hosted collaboration Loam for the Lushly organization, specified in Lushly's repository; the local one first (D129). Until then: a Lushly support application, internal tooling for building Lushly, specified in Lushly's repository |
 
 ## Purpose
 
