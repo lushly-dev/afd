@@ -78,8 +78,8 @@ fn p6_d4_an_invoke_from_a_frame_is_refused_by_the_origin_check_itself() {
         );
     }
 
-    // The opaque view frame's `null`, no `Origin` at all (Tauri's message fallback, which carries the main
-    // frame's URL), and another site's header on the shell's URL: each refused by the check.
+    // The opaque view frame's `null`, a missing `Origin`, and another site's header on the shell's URL: each
+    // refused by the check.
     for origin in [Some("null"), None, Some("https://example.com")] {
         for (command, body) in &commands {
             assert_eq!(

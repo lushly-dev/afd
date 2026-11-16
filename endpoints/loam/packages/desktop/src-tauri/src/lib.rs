@@ -35,8 +35,13 @@ pub const ORIGIN_REFUSED: &str = "DESKTOP_ORIGIN_REFUSED";
 /// Who may call: the main webview, by its label, as the capability file says; and, as extra defence, only a
 /// request whose `Origin` is the shell's. Tauri counts every registered custom scheme as a local origin, the
 /// sandbox's included, and on WebView2 its IPC script is in every frame, so neither the capability nor the
-/// label tells the proxy frame from the shell. The browser sets `Origin` on the IPC fetch, which a page cannot
-/// forge; Tauri's message fallback carries none, and is refused, since the shell's fetch is never blocked.
+/// label tells the proxy frame from the shell. On the IPC fetch the browser sets `Origin`, which a page cannot
+/// forge, and Tauri's own ACL reads the same header. On Tauri's message fallback the headers are the caller's,
+/// so there this check proves nothing: that path is guarded by its reaching the host from the main frame alone
+/// (wry hears only the top-level document's messages, and on WebKitGTK no frame has the IPC script). A missing
+/// `Origin` is refused; the shell's fetch is allowed by its policy, so it does not fall back, but after a
+/// failed fetch Tauri keeps using the fallback for the page's life, and the shell's calls are refused until a
+/// reload.
 fn from_shell<R: Runtime>(
     webview: &tauri::Webview<R>,
     request: &tauri::ipc::Request<'_>,
@@ -126,6 +131,17 @@ fn palette_script() -> &'static str {
         "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',metaKey:true,bubbles:true,cancelable:true}))"
     } else {
         "window.dispatchEvent(new KeyboardEvent('keydown',{key:'k',code:'KeyK',ctrlKey:true,bubbles:true,cancelable:true}))"
+    }
+}
+
+/// "Reload". On WebView2 the address follows the shell's state, so a reload restores it. On a `loam:` document
+/// the address cannot follow (WebKit rewrites no path there) and may hold a route a link loaded long ago, so the
+/// shell reloads at its root and restores from what it stored. Fixed text.
+fn reload_script() -> &'static str {
+    if cfg!(windows) {
+        "location.reload()"
+    } else {
+        "location.replace('loam://localhost/')"
     }
 }
 
@@ -228,7 +244,7 @@ pub fn run() {
                         let _ = window.eval(palette_script());
                     }
                     "reload" => {
-                        let _ = window.eval("location.reload()");
+                        let _ = window.eval(reload_script());
                     }
                     "quit" => app.exit(0),
                     _ => {}

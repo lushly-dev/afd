@@ -472,6 +472,7 @@ starts.
 | 2026-11-16 | Phase 6 step 11's trust review | On Windows, put each `stdio` mount's child in a job object with kill-on-close, so what it starts dies with it, as the POSIX process group does | Open |
 | 2026-11-16 | Phase 6 step 11's trust review | Read `mounts.json`'s ACL through `windows-sys` instead of PowerShell, which costs a start and is refused where Constrained Language Mode or AppLocker blocks it | Open |
 | 2026-11-16 | Phase 6 step 11's trust review | Refuse a bearer sent over plain `http` to a host other than loopback, in `deployment write`, for every host kind | Open |
+| 2026-11-16 | Phase 6 step 11's narrow check | On a `loam:` document (the desktop on macOS and Linux), carry the shell's route in the fragment, which every scheme may rewrite, so the shell's own links (the start page, "All projects", the breadcrumb, an embed) stay in the page instead of reloading it, and the address names the state again. A change to the router in first paint, so it waits for first paint's room | Open |
 
 ## Session log
 
