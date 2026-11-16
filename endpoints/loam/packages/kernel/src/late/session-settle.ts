@@ -27,6 +27,7 @@ import type { IdentityCommands } from './identity-commands.js';
 import { OWNER_COMMANDS } from './member-commands.js';
 import type { Persona } from './persona.js';
 
+export { type AgentMembers, createAgentMembers } from './agent-members.js';
 export {
 	createIdentityCommands,
 	HUMAN_COMMANDS,
@@ -170,6 +171,11 @@ export interface SessionSettleDeps {
 	 * sign-in its project and landing apply (6.2).
 	 */
 	persona?: Pick<Persona, 'hear' | 'recordOf' | 'projectAt' | 'land' | 'reload'> | undefined;
+	/**
+	 * Step 6's agent members (8.3): a settle that finds a person no member of the workspace suspends the agent members
+	 * they sponsor, by a top-level `agent-member-settle` after it.
+	 */
+	agents?: { noteLeft(person: string): unknown; flush(): Promise<void> } | undefined;
 	/** Step 3's commands, whose `HUMAN_REQUIRED` this part's line −1 answers (3.4). */
 	identityCommands?: Pick<IdentityCommands, 'humanRequired'> | undefined;
 	/** The page's `beforeunload`, when a held draft makes it ask (4.5); `globalThis` by default. */
@@ -245,6 +251,12 @@ export interface SessionSettle {
 	 * person changed while it read. A replay replays the entry instead.
 	 */
 	reread(name: string, input: unknown): Promise<CommandResult<never> | undefined>;
+	/**
+	 * After a call, top-level on the settles' chain: `job`, which journals the kernel's own work (an
+	 * `agent-member-settle`, 8.3), while the next person's or agent's call waits for it, as after a sign-in. Never in a
+	 * replay, which replays its entries.
+	 */
+	follow(job: () => Promise<unknown>): void;
 	/** The person the shell is for, which the personal store keys records by; undefined before stage B. */
 	person(): string | null | undefined;
 	/** A reload, for a replay: each page starts settled to no one (10). */
@@ -722,6 +734,12 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 					members,
 					digest: input.membershipDigest ?? '',
 				};
+				// A person no member: the agent members they sponsor are suspended after this settle (8.3).
+				if (input.role === null && !replaying() && deps.agents) {
+					const agents = deps.agents;
+					agents.noteLeft(input.person);
+					parts.follow(() => agents.flush());
+				}
 			}
 			const left = settled;
 			settled = input.person;
@@ -746,7 +764,7 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 	let signedIn: string | undefined;
 	/** That read, while it runs: `settleFirst` waits on it. */
 	let reading: Promise<void> | undefined;
-	return {
+	const parts: SessionSettle = {
 		command,
 		copied,
 		async begin() {
@@ -915,6 +933,16 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 				return settledIt.success ? undefined : kit.membershipUnavailable(name);
 			});
 		},
+		follow(job) {
+			if (replaying() || stopped) return;
+			const ran = serial(job) as Promise<void>;
+			reading = ran;
+			void ran
+				.catch(() => undefined)
+				.finally(() => {
+					if (reading === ran) reading = undefined;
+				});
+		},
 		person: () => decided,
 		reload() {
 			deps.persona?.reload();
@@ -939,4 +967,5 @@ export function createSessionSettle(deps: SessionSettleDeps): SessionSettle {
 			subscription = undefined;
 		},
 	};
+	return parts;
 }

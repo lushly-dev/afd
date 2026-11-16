@@ -21,7 +21,9 @@ import {
 	optional,
 	strictObject,
 	string,
+	union,
 	unknown,
+	xor,
 } from 'zod/mini';
 import { kernelFailure } from '../errors.js';
 import { personOf } from '../scope/access.js';
@@ -71,7 +73,9 @@ export const DOCUMENT_KIT = Object.freeze({
 		optional,
 		strictObject,
 		string,
+		union,
 		unknown,
+		xor,
 	}),
 });
 

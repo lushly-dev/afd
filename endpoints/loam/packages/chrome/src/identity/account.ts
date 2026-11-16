@@ -14,6 +14,7 @@
 
 import type {
 	AccountV1,
+	AgentMemberRowV1,
 	LoamKernelV3,
 	MemberInvitationV1,
 	MemberV1,
@@ -31,6 +32,7 @@ import {
 	el,
 	ROLE_NAMES,
 } from './account-parts.js';
+import { agentMembersPart } from './agent-members.js';
 
 export {
 	type LinkPageOptions,
@@ -388,7 +390,7 @@ export class LoamAccountSection extends AccountElement {
 		])) as [
 			Answer<{
 				people: MemberV1[];
-				agents: { name: string; sponsor: string; status: string }[];
+				agents: AgentMemberRowV1[];
 				total: number;
 			}>,
 			Answer<AccountV1>,
@@ -397,7 +399,6 @@ export class LoamAccountSection extends AccountElement {
 		// Owner controls are absent, not disabled, for anyone else; in `local` mode too (5.1, 14).
 		const owner = this.provider && me.data?.workspace.owner === true;
 		const people = read.data.people;
-		const nameOf = (id: string) => people.find((person) => person.id === id)?.name ?? id;
 		const rows = people.map((person) => {
 			const cells: Node[] = [
 				el('th', { scope: 'row' }, person.name || person.email || person.id),
@@ -449,28 +450,20 @@ export class LoamAccountSection extends AccountElement {
 				el('tbody', {}, ...rows)
 			),
 		];
-		if (read.data.agents.length > 0) {
-			nodes.push(
-				el(
-					'table',
-					{},
-					el('caption', {}, 'Agents, not seats'),
-					el(
-						'tbody',
-						{},
-						...read.data.agents.map((agent) =>
-							el(
-								'tr',
-								{},
-								el('th', { scope: 'row' }, agent.name),
-								el('td', {}, `Agent · Sponsored by ${nameOf(agent.sponsor)}`),
-								el('td', {}, agent.status)
-							)
-						)
-					)
-				)
-			);
-		}
+		// Agent members, apart from the people and never seats (7.2, 8.3).
+		nodes.push(
+			...(await agentMembersPart({
+				kernel,
+				root: this.shadowRoot as ShadowRoot,
+				agents: read.data.agents,
+				people,
+				me: me.data?.id,
+				owner,
+				say: (text) => this.#say(text),
+				failed: (answer) => this.#failed(answer),
+				read: () => this.read(),
+			}))
+		);
 		if (owner)
 			nodes.push(...(await this.#invitations(kernel, me.data?.workspace.role === 'owner')));
 		return nodes;

@@ -212,7 +212,12 @@ export function createDocumentCommands(
 		const here = callOf(context).scope as ScopeV1;
 		// The call's own scope, which the middleware already decided; decided here too, as a named one is.
 		if (named === undefined) return scope.allows(context.actor, here) ? here : projectNotFound();
-		if (named === null) return { workspace };
+		// The workspace is a scope like any other: decided too, so an agent member with `workspace: false` reaches no
+		// workspace-level document by naming `null` (phase 3 specification, 3.3; step 6's final check, B1).
+		if (named === null) {
+			const at = { workspace };
+			return scope.allows(context.actor, at) ? at : projectNotFound();
+		}
 		const found = scope.project(named);
 		const at = { workspace, project: found?.id as string };
 		return found && scope.allows(context.actor, at) ? at : projectNotFound();

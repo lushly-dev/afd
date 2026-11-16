@@ -110,6 +110,18 @@ export const SHELL_INPUTS: Readonly<Record<string, unknown>> = {
 	'persona-update': { persona: 'per_none', title: 'Writer' },
 	'persona-remove': { persona: 'per_none' },
 	'persona-set': { persona: 'default' },
+	// Step 6 (8.2): the sponsor is the signed-out `local` person, an owner, who may not enter the twin's project.
+	'agent-member-add': {
+		name: 'Reviewer',
+		sponsor: 'local',
+		access: { workspace: false, projects: [PROJECT] },
+	},
+	'agent-member-list': {},
+	'agent-member-get': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	'agent-member-update': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa', name: 'Writer' },
+	'agent-member-remove': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	'agent-member-confirm': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
+	'agent-member-decline': { agent: 'agt_aaaaaaaaaaaaaaaaaaaa' },
 };
 
 /**

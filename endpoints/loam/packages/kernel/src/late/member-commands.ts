@@ -13,7 +13,7 @@ import type { JsonSchema, ZodCommandDefinition } from '@lushly-dev/afd-server/de
 import type { IdentityV1 } from '@lushly-dev/loam-manifest';
 import type { LoamKernelErrorCode } from '../errors.js';
 import type { AccessActorV1, MemberRoleV1, MembershipV1 } from '../scope/access.js';
-import type { AgentMemberV1 } from '../scope/records.js';
+import type { AgentMemberRowV1 } from './agent-members.js';
 import type { DocumentKit } from './document-kit.js';
 import type { PersonaPresentationV1 } from './persona.js';
 
@@ -47,14 +47,8 @@ export interface MemberV1 {
 	presentation?: PersonaPresentationV1;
 }
 
-/** An agent member as `member-list` shows it: never a seat (7.2, D40). */
-export interface AgentMemberRowV1 {
-	id: string;
-	name: string;
-	kind: AgentMemberV1['kind'];
-	sponsor: string;
-	status: AgentMemberV1['status'];
-}
+/** An agent member as `member-list` and `agent-member-list` show it, filtered for the caller: never a seat (7.2, 8.2). */
+export type { AgentMemberRowV1 } from './agent-members.js';
 
 /** An invitation as the invitee sees it (5.3). */
 export interface OwnInvitationV1 {
@@ -82,7 +76,8 @@ export interface LoamAccountAccessV1 {
 	>;
 	update(changes: { name?: string; image?: string | null }): Promise<void>;
 	members(page: { limit?: number; offset?: number }): Promise<{
-		people: (MemberV1 & { memberId: string })[];
+		/** `digest` is the provider's digest of each one's membership, which `membership-settle` journals (4.4). */
+		people: (MemberV1 & { memberId: string; digest?: string })[];
 		total: number;
 	}>;
 	invitations(): Promise<OwnInvitationV1[]>;
@@ -173,8 +168,14 @@ export interface MemberCommandsDeps {
 		isOwner(membership: MembershipV1, person: string | undefined): boolean;
 	};
 	membership(): MembershipV1;
-	/** The kernel's `agent-member` table (3.3): installed agent members. */
-	agents(): readonly AgentMemberV1[];
+	/**
+	 * Step 6's agent members (8): `member-list`'s agents, the rows `agent-member-list` answers, and the ones a removed
+	 * person sponsors, suspended by the `agent-member-settle` after `member-remove` (7.2, 8.3). Absent: none.
+	 */
+	agents?: {
+		rowsFor(context: CommandContext): Promise<AgentMemberRowV1[]>;
+		removed(person: string): string[];
+	};
 	/**
 	 * Step 5's personas (6.1): what other members see of a person, their active persona's presentation, and the active
 	 * persona's id, which `account-get` reports. Absent: every person shows `default`.
@@ -484,15 +485,6 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 			additionalProperties: false,
 		},
 		async handler(input, context) {
-			const agents = deps.agents().map(
-				(agent): AgentMemberRowV1 => ({
-					id: agent.id,
-					name: agent.name,
-					kind: agent.kind,
-					sponsor: agent.sponsor,
-					status: agent.status,
-				})
-			);
 			const held = account();
 			if (!held) {
 				const me = localAccount(context);
@@ -507,7 +499,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 							...(await presented(me.id)),
 						},
 					],
-					agents,
+					agents: (await deps.agents?.rowsFor(context)) ?? [],
 					total: 1,
 				});
 			}
@@ -517,13 +509,13 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 				const owner = kit.isOwner(deps.membership(), personOf(context));
 				return kit.success({
 					people: await Promise.all(
-						read.people.map(async ({ memberId: _memberId, email, ...person }) => ({
+						read.people.map(async ({ memberId: _memberId, digest: _digest, email, ...person }) => ({
 							...person,
 							...(owner && email !== undefined ? { email } : {}),
 							...(await presented(person.id)),
 						}))
 					),
-					agents,
+					agents: (await deps.agents?.rowsFor(context)) ?? [],
 					total: read.total,
 				});
 			} catch (cause) {
@@ -647,10 +639,12 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 	/** A person of the workspace by their id, with their member row's id, or `MEMBER_NOT_FOUND`. */
 	const memberNamed = async (held: LoamAccountAccessV1, person: string) => {
 		const people: (MemberV1 & { memberId: string })[] = [];
-		for (let offset = 0; ; offset += 200) {
+		// Every page while the offset is short of the total: the provider skips a member row with no user, so a short page
+		// is not the last (step 6's review, I6).
+		for (let offset = 0, total = 1; offset < total; offset += 200) {
 			const page = await held.members({ limit: 200, offset });
 			people.push(...page.people);
-			if (page.people.length < 200 || people.length >= page.total) break;
+			total = page.total;
 		}
 		return (
 			people.find((row) => row.id === person) ??
@@ -662,7 +656,7 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 		name: 'member-remove',
 		title: 'Remove a member',
 		description:
-			'Remove a person from the workspace: their sessions end at once. No undo: invite them again',
+			'Remove a person from the workspace: their sessions end at once, and the agent members they sponsor are suspended. No undo: invite them again',
 		category: 'member',
 		mutation: true,
 		destructive: true,
@@ -685,8 +679,11 @@ export function createMemberCommands(deps: MemberCommandsDeps) {
 					return fail('OWNER_REQUIRED', 'Only a member with the owner role can remove an owner');
 				}
 				await ready.organizations.removeMember(await boundId(), target.memberId);
-				// The agent members the person sponsors are suspended with step 6, which builds them.
-				return kit.success({ removed: true as const, suspended: [] });
+				// The agent members the person sponsors, suspended by the top-level `agent-member-settle` after this call (8.3).
+				return kit.success({
+					removed: true as const,
+					suspended: deps.agents?.removed(target.id) ?? [],
+				});
 			} catch (cause) {
 				const code = (cause as { code?: unknown } | null)?.code;
 				// Better Auth's "only owner" refusal: an admin removing an owner is OWNER_REQUIRED, else the last owner (7.1).
