@@ -459,7 +459,7 @@ phases depend on no other area beyond L8; the Loam app can start as soon as its 
 | C | Relationships, screening and stream stories | B | Stream stories on the real mailbox with no model |
 | D | Reversible mailbox commands with their inverses; drafts; send for a person at a terminal | B | An agent archives and labels under policy, and cannot send; a person sends at a terminal |
 | E | Records by proposal, situation stories, reply sets. Extractors were in this phase and are deferred (the owner, 2026-11-11) | C, D | A reply set sent from a reviewed batch, each reply traceable to its inputs |
-| F | The Loam plugin: the mount and the native app, with its own specification | B; Loam's phase 5, and phase 6's desktop lane (its milestone M3) or a hosted profile run locally; L1 to L7 as accepted; A1 and A2 | Decided by that specification. Sending from the app waits on L7 |
+| F | The Loam plugin: the mount and the native app, with its own specification | B; Loam's phase 5, and phase 6's desktop lane (its milestone M3), which Loam's D132 chose on 2026-11-16 over a hosted profile run locally ([Loam's decision log](../../../../endpoints/loam/docs/decisions.md)); L1 to L7 as accepted; A1 and A2 | Decided by that specification. Sending from the app waits on L7 |
 | G | Composition with a connected Umbel ([4.10](#410-with-an-umbel-connected)) | F; an Umbel instance | Decided with the app's specification |
 
 ## 10. Risks and open points
@@ -484,7 +484,8 @@ phases depend on no other area beyond L8; the Loam app can start as soon as its 
 - **A browser-only Loam cannot reach a local engine.** With nothing serving the mount route the
   instance is unreachable; mail runs on the desktop host or against a hosted engine. Loam's
   desktop lane is milestone M3 of its phase 6, which gates nothing before phase 7 (D100), so it
-  may come late.
+  may come late. Reduced 2026-11-16: Loam builds the local Loam first, with M3 before M2
+  (Loam's D129), mail is its first app (D135), and step F runs on the desktop lane (D132).
 - **"Installable" waits on Loam (L5).** The owner has directed that a plugin can bring its
   engine. Until Loam specifies it, a person or deployer writes the engine's mount entry by hand.
 - **Isolation in reply sets is partly procedural** ([4.8](#48-outbound-mail-and-reply-sets)).

@@ -900,6 +900,27 @@ fn mount_tool_overrides_are_checked() {
 }
 
 #[test]
+fn a_mount_tool_declares_destructive_only_as_a_boolean() {
+    let with = |tools: &str| format!("{MOUNTED}{tools}");
+    let destructive =
+        |tools: &str| parse(&with(tools)).unwrap().mount.unwrap().tools[0].destructive;
+    assert!(destructive(
+        "[[mount.tools]]\ntool = \"a\"\ndestructive = true\n"
+    ));
+    assert!(!destructive(
+        "[[mount.tools]]\ntool = \"a\"\ndestructive = false\n"
+    ));
+    assert!(
+        !destructive("[[mount.tools]]\ntool = \"a\"\n"),
+        "false when absent"
+    );
+    invalid(
+        &with("[[mount.tools]]\ntool = \"a\"\ndestructive = \"yes\"\n"),
+        "mount.tools[0].destructive",
+    );
+}
+
+#[test]
 fn a_pack_plugin_has_packs_and_skills_only() {
     let pack = r#"
 manifest_version = 1

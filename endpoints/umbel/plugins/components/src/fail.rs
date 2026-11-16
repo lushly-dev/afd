@@ -161,6 +161,29 @@ pub(crate) fn invalid(what: &str) -> Outcome {
     )
 }
 
+/// `COMPONENTS_INVALID` for `tags` that hold a name with no hyphen (amendment A26): the
+/// suggestion names the served tags such a name most likely meant, or the served prefixes when
+/// none matches. Only tags and prefixes from the catalogs appear, never the caller's names.
+pub(crate) fn bare_names(matches: &[String], prefixes: &[String]) -> Outcome {
+    let suggestion = if matches.is_empty() {
+        format!(
+            "A tag is a custom element name, with a hyphen. The libraries served start their tags with {}; `components-list` lists every tag.",
+            prefixes.join(", ")
+        )
+    } else {
+        format!(
+            "A tag is a custom element name, with a hyphen. Served tags that match the names given: {}. `components-list` lists every tag.",
+            matches.join(", ")
+        )
+    };
+    failure(
+        "COMPONENTS_INVALID",
+        "the input was refused: each of `tags` must be a custom element name the format accepts",
+        &suggestion,
+    )
+    .with_error_details(json!({ "matches": matches, "prefixes": prefixes }))
+}
+
 /// `TOO_MANY_TAGS`: more than 128 tags asked for in all (section 6.2).
 pub(crate) fn too_many_tags(count: usize) -> Outcome {
     failure(

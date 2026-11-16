@@ -32,8 +32,13 @@ impl Priority {
     }
 }
 
+/// A time as JavaScript's `new Date(ms).toISOString()` writes it.
+pub fn iso(value: &DateTime<Utc>) -> String {
+    value.to_rfc3339_opts(SecondsFormat::Millis, true)
+}
+
 fn iso_millis<S: Serializer>(value: &DateTime<Utc>, serializer: S) -> Result<S::Ok, S::Error> {
-    serializer.serialize_str(&value.to_rfc3339_opts(SecondsFormat::Millis, true))
+    serializer.serialize_str(&iso(value))
 }
 
 fn optional_iso_millis<S: Serializer>(
@@ -64,6 +69,12 @@ pub struct Todo {
         serialize_with = "optional_iso_millis"
     )]
     pub completed_at: Option<DateTime<Utc>>,
+    /// When it was deleted; set only on a deleted todo (`todo-list { deleted: true }`).
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        serialize_with = "optional_iso_millis"
+    )]
+    pub deleted_at: Option<DateTime<Utc>>,
 }
 
 #[derive(Debug, Clone, PartialEq, Serialize)]
@@ -92,6 +103,7 @@ pub enum SortBy {
     UpdatedAt,
     Priority,
     Title,
+    DeletedAt,
 }
 
 /// `sortOrder` values of `todo-list`.

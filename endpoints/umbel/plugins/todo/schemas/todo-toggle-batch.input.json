@@ -5,7 +5,7 @@
 			"type": "boolean"
 		},
 		"ids": {
-			"description": "Todo IDs (1 to 100)",
+			"description": "Todo IDs (1-100)",
 			"items": {
 				"minLength": 1,
 				"type": "string"

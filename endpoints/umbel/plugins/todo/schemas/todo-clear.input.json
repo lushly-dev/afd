@@ -1,7 +1,11 @@
 {
 	"properties": {
 		"all": {
-			"description": "If true, clear all todos regardless of status",
+			"description": "If true, remove every todo, live and deleted, regardless of status",
+			"type": "boolean"
+		},
+		"deleted": {
+			"description": "If true, empty the deleted todos instead of removing completed ones",
 			"type": "boolean"
 		}
 	},

@@ -116,8 +116,8 @@
 				"properties": {
 					"deleted": {
 						"type": "boolean",
-						"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones. TypeScript and Python also accept sortBy deletedAt",
-						"x-implementedBy": ["typescript", "python"]
+						"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones. TypeScript, Python and Rust also accept sortBy deletedAt",
+						"x-implementedBy": ["typescript", "python", "rust"]
 					},
 					"completed": { "type": "boolean" },
 					"priority": { "$ref": "#/definitions/Priority" },
@@ -275,7 +275,7 @@
 					"deleted": {
 						"type": "boolean",
 						"description": "If true, empty the deleted todos instead of removing completed ones",
-						"x-implementedBy": ["typescript", "python"]
+						"x-implementedBy": ["typescript", "python", "rust"]
 					}
 				}
 			},
@@ -476,7 +476,7 @@
 			}
 		},
 		"todo-restore": {
-			"implementedBy": ["typescript", "python"],
+			"implementedBy": ["typescript", "python", "rust"],
 			"metadata": {
 				"mutation": true,
 				"destructive": false,
@@ -516,7 +516,7 @@
 			}
 		},
 		"todo-history": {
-			"implementedBy": ["typescript", "python"],
+			"implementedBy": ["typescript", "python", "rust"],
 			"metadata": {
 				"mutation": false,
 				"destructive": false,
