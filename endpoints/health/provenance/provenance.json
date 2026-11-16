@@ -357,7 +357,8 @@
     },
     {
       "path": "scripts/package_smoke.py",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Use POSIX-relative names for portable artifact snapshot comparisons on Windows."
     },
     {
       "path": "scripts/privacy.py",
@@ -410,7 +411,8 @@
     },
     {
       "path": "tests/test_audit.py",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Create directory symlinks explicitly with native target path separators on Windows."
     },
     {
       "path": "tests/test_contract.py",
@@ -430,7 +432,8 @@
     },
     {
       "path": "tests/test_provenance.py",
-      "origin": "authored"
+      "origin": "authored",
+      "adaptation": "Compare recorded POSIX-relative paths independently of the host path separator."
     },
     {
       "path": "uv.lock",

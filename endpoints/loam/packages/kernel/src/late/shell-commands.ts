@@ -76,6 +76,11 @@ export interface ShellCommandDeps {
 	overlays: OverlayStore;
 	/** The palette registry's commands, and a number that changes when they do. */
 	paletteRows(): CommandSummaryV1[];
+	/**
+	 * The only commands the palette may list now, or undefined for all: a signed-out `provider` page's (phase 3
+	 * specification, 2.1). Applied before the search ranks, so every one of them can be found (step 6's review, I4).
+	 */
+	paletteOnly?(): ReadonlySet<string> | undefined;
 	commandSet(): number;
 	scope: ScopeRuntime;
 	apps(): AppsRuntime;
@@ -293,7 +298,14 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 	const { viewState, state, environment } = deps;
 	const [viewStateGet, viewStateSet, viewStateList] = createViewStateCommands(viewState);
 
-	let index: { active: string | null; commandSet: number; index: PaletteIndex } | undefined;
+	let index:
+		| {
+				active: string | null;
+				commandSet: number;
+				only: ReadonlySet<string> | undefined;
+				index: PaletteIndex;
+		  }
+		| undefined;
 	const search = async (
 		query: string,
 		limit: number,
@@ -304,18 +316,24 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 		const app = state.activeApp();
 		const active = app ?? (await deps.editorOwner?.()) ?? null;
 		const commandSet = deps.commandSet();
-		if (index?.active !== active || index.commandSet !== commandSet) {
+		const only = deps.paletteOnly?.();
+		if (index?.active !== active || index.commandSet !== commandSet || index.only !== only) {
 			const shown = deps
 				.paletteRows()
-				.filter((command) => command.instance === undefined || command.instance === active);
-			index = { active, commandSet, index: createPaletteIndex(shown) };
+				.filter(
+					(command) =>
+						(command.instance === undefined || command.instance === active) &&
+						(only === undefined || only.has(command.name))
+				);
+			index = { active, commandSet, only, index: createPaletteIndex(shown) };
 		}
 		// Commands and documents by score, a command first on a tie (8.2); the editor owner's document's
 		// instance commands first of all (5.4).
 		const first = app === null && active !== null ? deps.instanceCommands?.(active) : undefined;
 		const items = [
 			...index.index.search(query, limit),
-			...((await deps.documentRows?.search(query, context.actor, limit)) ?? []),
+			...((only === undefined && (await deps.documentRows?.search(query, context.actor, limit))) ||
+				[]),
 		]
 			.sort((a, b) => Number(first?.has(b.name)) - Number(first?.has(a.name)) || b.score - a.score)
 			.slice(0, limit);

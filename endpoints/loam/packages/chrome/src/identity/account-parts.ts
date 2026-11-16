@@ -155,6 +155,35 @@ export const STYLES = `
 		color: var(--color-text-primary);
 		font: inherit;
 	}
+	fieldset {
+		display: grid;
+		gap: var(--space-stack-xs);
+		margin: 0;
+		padding: var(--size-space-sm) var(--size-space-md);
+		border: 1px solid var(--color-border-strong);
+		border-radius: var(--radius-md);
+	}
+	legend {
+		font-size: var(--type-label-sm-size);
+		line-height: var(--type-label-sm-line);
+		font-weight: var(--type-label-sm-weight);
+	}
+	label.check {
+		display: flex;
+		align-items: center;
+		gap: var(--space-inline-sm);
+		font-size: var(--type-body-md-size);
+		line-height: var(--type-body-md-line);
+		font-weight: var(--type-body-md-weight);
+	}
+	input[type='checkbox'] {
+		inline-size: var(--size-target-compact);
+		block-size: var(--size-target-compact);
+		min-block-size: var(--size-target-compact);
+		margin: 0;
+		padding: 0;
+		accent-color: var(--color-action-primary-background);
+	}
 	.action {
 		min-block-size: var(--size-target-natural);
 		padding-inline: var(--size-space-md);

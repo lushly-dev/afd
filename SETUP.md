@@ -25,6 +25,19 @@ Add these for the area you touch:
 | Chromium | The build Playwright names; install it with `pnpm -F <package> exec playwright install chromium` | The browser suites of Specimen, FAST-AF, Violet, Loam and the Health dashboard | |
 | OpenSSL | Any recent | Loam's hosted suite and `pnpm test:hosted:local` | `openssl version` |
 
+### Windows
+
+On Windows 11, use the tools above and run repository commands from Git Bash. These setup steps address Windows tool and checkout behavior:
+
+- **Git links.** Git for Windows checks links out as files (`core.symlinks=false`), so `.agents/skills` becomes a 17-byte file and `pnpm check:skills` fails with a message naming the fix. Recreate it once per worktree: `rm .agents/skills && (cd .agents && MSYS=winsymlinks:nativestrict ln -s ../.claude/skills skills)`. That needs Developer Mode, or an elevated shell.
+- **Python.** `python3` and `python` may be the Microsoft Store stubs (App execution aliases), which exit 9009. Native release tooling needs Python 3.11 or newer: it uses `PYTHON` when set, otherwise the first compatible interpreter among `python3`, `python` and `py -3`. Tools that call `python3` directly still need a real Python first on `PATH` (`uv python install`, then `~/.local/bin` first), or the aliases turned off in Settings → Apps → Advanced app settings.
+- **C and C++.** Visual Studio 2022 Build Tools with the C++ workload (MSVC), CMake, and NASM, which `aws-lc-sys` needs to build `packages/rust` (`winget install NASM.NASM`, then put `%LOCALAPPDATA%\bin\NASM` on `PATH`). OpenSSL from `winget install ShiningLight.OpenSSL.Light` (`C:\Program Files\OpenSSL-Win64\bin`).
+- **Rust.** `rustup` with the `wasm32-wasip2` target, which Umbel's `rust-toolchain.toml` names.
+- **Ownership.** Git refuses a checkout another account owns ("detected dubious ownership"), as on a drive or folder created by an administrator, and so does every script that runs `git`. Prefer taking ownership of the folder; for one command, `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=safe.directory GIT_CONFIG_VALUE_0=<path>` trusts it without editing your configuration.
+- **A fresh worktree** needs `pnpm install --frozen-lockfile` and `pnpm build` before the first commit: the hooks neither install nor build, and packages import each other's `dist`.
+
+Windows runtime and test gaps are tracked in [Specimen #1262](https://github.com/lushly-dev/afd/issues/1262), [Loam's status](endpoints/loam/docs/STATUS.md), [Umbel's status](endpoints/umbel/docs/STATUS.md) and [Botcore's HTTP token-store follow-up](https://github.com/lushly-dev/afd/issues/1286). Installing the toolchain alone does not make `pnpm verify --all` green.
+
 ## Install
 
 ### TypeScript packages

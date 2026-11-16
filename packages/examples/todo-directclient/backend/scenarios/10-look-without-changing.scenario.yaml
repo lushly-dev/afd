@@ -1,0 +1,55 @@
+# Built in the to-do reference plan's phase 4 (docs/features/active/todo-reference).
+# Runs through the copilot's DirectClient in look mode: src/scenarios.test.ts gives each step to
+# Copilot.client('look'), whose allow permits only the commands that declare mutation: false.
+# Unlike job 5's context, which only narrows what an agent is offered, allow refuses the rest
+# before they run, however the call is made. `afd scenario run` has no allow, so it cannot run
+# this file.
+name: The copilot can look at the todos without being able to change them
+description: >-
+  When I let the copilot only look at my todos, I want every change it attempts refused before it
+  runs, however it asks, so that I can let it review the list without worrying about what it does.
+job: look-without-changing
+tags: [allow]
+steps:
+  - description: It can read the list
+    command: todo-list
+    input: {}
+    expect:
+      success: true
+      data:
+        total: 0
+  - description: It can read the history
+    command: todo-history
+    input: {}
+    expect:
+      success: true
+  - description: Adding a todo is refused before it runs
+    command: todo-create
+    input: { title: Buy a new water butt }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_ALLOWED
+  - description: So is clearing, which never reaches the approval prompt
+    command: todo-clear
+    input: {}
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_ALLOWED
+  - description: Asking through a meta-tool is refused too
+    command: afd-call
+    input:
+      command: todo-create
+      input: { title: Buy a new water butt }
+    expect:
+      success: false
+      error:
+        code: COMMAND_NOT_ALLOWED
+  - description: Nothing changed
+    command: todo-list
+    input: {}
+    expect:
+      success: true
+      data:
+        total: 0

@@ -11,6 +11,7 @@
 import { passkey } from '@better-auth/passkey';
 import type { IdentityMethodV1 } from '@lushly-dev/loam-manifest';
 import type { BetterAuthOptions } from 'better-auth';
+import { APIError, createAuthMiddleware } from 'better-auth/api';
 import { genericOAuth } from 'better-auth/plugins/generic-oauth';
 import { organization } from 'better-auth/plugins/organization';
 import { invitationMailer, JOIN_INVITATION_MS } from './enrolment.js';
@@ -72,8 +73,50 @@ export interface LoamAuthConfig {
 	rateLimit?: { window: number; max: number };
 }
 
+/**
+ * Better Auth 1.7.18 always adds `BETTER_AUTH_TRUSTED_ORIGINS` to the trusted origins, and reads it again on every
+ * request (`context/helpers.mjs:83`, `auth/base.mjs:47`). The coordinator's decision of 2026-11-16 (the final check of
+ * phase 6 step 3, IMPROVEMENT 1): building the options refuses while it is set, so a caller that skips `loam-host`'s
+ * check is covered too; and `originHook` checks every request's `Origin` against the deployment's alone, so a value
+ * set after start widens nothing.
+ */
+const TRUSTED_ORIGINS_VARIABLE = 'BETTER_AUTH_TRUSTED_ORIGINS';
+
+/** Throws `HOST_ENV_OVERRIDE`, with its suggestion, while `BETTER_AUTH_TRUSTED_ORIGINS` is non-empty. */
+function refuseTrustedOriginsEnvironment(): void {
+	if ((process.env[TRUSTED_ORIGINS_VARIABLE] ?? '') === '') return;
+	throw Object.assign(
+		new Error(
+			`\`${TRUSTED_ORIGINS_VARIABLE}\` is set: Better Auth would trust its origins over the deployment's.`
+		),
+		{
+			code: 'HOST_ENV_OVERRIDE',
+			suggestion: `Unset ${TRUSTED_ORIGINS_VARIABLE}: Loam takes its origins and secret only from the deployment and server configuration.`,
+		}
+	);
+}
+
+/**
+ * A request's `Origin`, when it sends one, is the deployment's origin or the request is refused `403 INVALID_ORIGIN`,
+ * whatever Better Auth's trusted origins hold at that moment. A request with no `Origin` (a navigation, a direct
+ * `auth.api` call) is left to Better Auth's own checks.
+ */
+function originHook(origin: string) {
+	return createAuthMiddleware(async (ctx) => {
+		const sent = ctx.request?.headers.get('origin');
+		if (sent !== null && sent !== undefined && sent !== origin) {
+			throw APIError.from('FORBIDDEN', {
+				code: 'INVALID_ORIGIN',
+				message: 'Invalid origin',
+			});
+		}
+	});
+}
+
 /** Better Auth 1.7.18's default rate limit: 100 requests in 10 s per address and path. */
 const DEFAULT_RATE_LIMIT = Object.freeze({ window: 10, max: 100 });
+/** The most a test may raise `max` to (the final check's NIT 3): a limit, never one that reads as none. */
+const MAX_RAISED_RATE_LIMIT = 1_000_000;
 
 /** Better Auth's own stricter rules (1.7.18's `getDefaultSpecialRules`), which a test's higher limit raises too. */
 const SPECIAL_RATE_LIMIT_PATHS = [
@@ -99,12 +142,13 @@ function rateLimitOf(
 	if (
 		!Number.isInteger(raised.max) ||
 		raised.max < DEFAULT_RATE_LIMIT.max ||
+		raised.max > MAX_RAISED_RATE_LIMIT ||
 		!Number.isInteger(raised.window) ||
 		raised.window < 1 ||
 		raised.window > DEFAULT_RATE_LIMIT.window
 	)
 		throw new Error(
-			`A raised rate limit is a finite max of at least ${DEFAULT_RATE_LIMIT.max} over a window of 1 to ${DEFAULT_RATE_LIMIT.window} s`
+			`A raised rate limit is a max of ${DEFAULT_RATE_LIMIT.max} to ${MAX_RAISED_RATE_LIMIT} over a window of 1 to ${DEFAULT_RATE_LIMIT.window} s`
 		);
 	const rule = { window: raised.window, max: raised.max };
 	return {
@@ -185,6 +229,7 @@ export { FRESH_AGE_SECONDS };
 export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions {
 	if (config.secret.length < 32)
 		throw new Error('The provider secret needs at least 32 characters');
+	refuseTrustedOriginsEnvironment();
 	const url = new URL(config.baseURL);
 	if (url.search || url.hash || url.username)
 		throw new Error('baseURL is an origin and a path, no more');
@@ -226,6 +271,7 @@ export function createLoamAuthOptions(config: LoamAuthConfig): BetterAuthOptions
 		telemetry: { enabled: false },
 		database: config.database,
 		trustedOrigins: [url.origin],
+		hooks: { before: originHook(url.origin) },
 		session: { cookieCache: { enabled: false }, freshAge: FRESH_AGE_SECONDS },
 		rateLimit: rateLimitOf(config.rateLimit),
 		advanced: {

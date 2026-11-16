@@ -1,12 +1,12 @@
 import type { AddressInfo } from 'node:net';
+import { setStore, TodoStore } from '@afd/example-todo-ts/store';
 import { DirectClient } from '@lushly-dev/afd-client';
 import { createDirectRegistry, defineCommand, success } from '@lushly-dev/afd-server';
-import { afterEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { type ChatBackend, type ChatServer, createChatServer, PublicError } from './chat-http.js';
 import { type Env, loadChatServerConfig } from './http-security.js';
-import { registry } from './registry.js';
-import { store } from './store/index.js';
+import { createCopilotRegistry } from './registry.js';
 
 interface Reply {
 	status: number;
@@ -16,7 +16,7 @@ interface Reply {
 }
 
 const fakeChat: ChatBackend = {
-	processChat: async (message) => ({ message: `echo: ${message}`, toolExecutions: [] }),
+	processChat: async (message, mode) => ({ message: `echo: ${message}`, mode, toolExecutions: [] }),
 	isConfigured: () => true,
 	getMetrics: () => ({ requestCount: 0 }),
 };
@@ -26,7 +26,7 @@ let running: ChatServer | undefined;
 async function start(env: Env = {}, deps: Partial<Parameters<typeof createChatServer>[1]> = {}) {
 	const config = loadChatServerConfig(env);
 	running = createChatServer(config, {
-		executor: new DirectClient(registry),
+		executor: new DirectClient(createCopilotRegistry({})),
 		chat: fakeChat,
 		onError: () => {},
 		...deps,
@@ -64,9 +64,15 @@ async function stop(): Promise<void> {
 	await new Promise<void>((resolve) => server.close(() => resolve()));
 }
 
+let store: TodoStore;
+
+beforeEach(() => {
+	store = new TodoStore();
+	setStore(store);
+});
+
 afterEach(async () => {
 	await stop();
-	store.clear();
 });
 
 describe('chat server binding', () => {
@@ -258,6 +264,45 @@ describe('POST /chat', () => {
 		const { base } = await start();
 		const res = await post(`${base}/chat`, { message: '  hello  ' });
 		expect(res.body.message).toBe('echo: hello');
+		expect(res.body.mode).toBe('change');
+	});
+
+	it('passes the mode, and refuses one it does not know', async () => {
+		const { base } = await start();
+		expect((await post(`${base}/chat`, { message: 'hi', mode: 'look' })).body.mode).toBe('look');
+		const unknown = await post(`${base}/chat`, { message: 'hi', mode: 'admin' });
+		expect(unknown.status).toBe(400);
+		expect(unknown.body.suggestion).toBe('Use one of: change, look');
+	});
+
+	it('cancels the turn when the page goes away', async () => {
+		let signal: AbortSignal | undefined;
+		const { base } = await start(
+			{},
+			{
+				chat: {
+					...fakeChat,
+					processChat: (_message, _mode, turnSignal) => {
+						signal = turnSignal;
+						// Never answers: only the page leaving ends it
+						return new Promise((_resolve, reject) =>
+							turnSignal?.addEventListener('abort', () => reject(turnSignal.reason))
+						);
+					},
+				},
+			}
+		);
+		const leave = new AbortController();
+		const sent = fetch(`${base}/chat`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ message: 'hi' }),
+			signal: leave.signal,
+		}).catch(() => undefined);
+		await expect.poll(() => signal).toBeDefined();
+		leave.abort();
+		await sent;
+		await expect.poll(() => signal?.aborted).toBe(true);
 	});
 
 	it('hides unexpected error details but shows public ones', async () => {
@@ -277,6 +322,39 @@ describe('POST /chat', () => {
 		const shown = await start({}, { chat: failing(new PublicError('Please try again.')) });
 		const publicError = await post(`${shown.base}/chat`, { message: 'hi' });
 		expect(publicError.body.error).toBe('Please try again.');
+	});
+});
+
+describe('/mcp', () => {
+	const initialize = {
+		jsonrpc: '2.0',
+		id: 1,
+		method: 'initialize',
+		params: {
+			protocolVersion: '2025-06-18',
+			capabilities: {},
+			clientInfo: { name: 'test', version: '1.0.0' },
+		},
+	};
+
+	it('is checked for Host and Origin before MCP sees the request', async () => {
+		let reached = false;
+		const { base } = await start(
+			{},
+			{
+				mcp: async (_req, res) => {
+					reached = true;
+					res.end();
+				},
+			}
+		);
+		const res = await request(`${base}/mcp`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json', Origin: 'https://evil.example' },
+			body: JSON.stringify(initialize),
+		});
+		expect(res.status).toBe(403);
+		expect(reached).toBe(false);
 	});
 });
 

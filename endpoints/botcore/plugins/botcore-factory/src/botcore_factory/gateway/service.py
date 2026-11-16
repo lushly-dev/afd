@@ -20,7 +20,9 @@ from botcore_factory.gateway import claims as claim_rules
 from botcore_factory.gateway.claims import IN_PROGRESS, PLANNED, Claim, Release, iso, parse_time
 from botcore_factory.gateway.config import GatewayConfig
 from botcore_factory.gateway.github import (
+    AlreadyMergeable,
     GitHub,
+    GitHubRefused,
     GitHubUnavailable,
     HeadMoved,
     MergeMethodNotAllowed,
@@ -57,6 +59,17 @@ def guard(body: Callable[[], CommandResult]) -> CommandResult:
         return refusal.result
     except GitHubUnavailable as exc:
         return unavailable(exc)
+    except GitHubRefused as exc:
+        return refused_by_github(exc)
+
+
+def refused_by_github(exc: GitHubRefused) -> CommandResult:
+    return error(
+        "GITHUB_REFUSED",
+        f"GitHub refused the call: {exc}",
+        suggestion="Read GitHub's message: fix what it names (permission, rule or state), "
+        "then call again; repeating the same call will not help",
+    )
 
 
 def unavailable(exc: Exception) -> CommandResult:
@@ -570,7 +583,15 @@ class Gateway:
         published = []
         if changed:
             self.spend("branch-push")
-            self.github.update_ref(repo, ref, head)
+            try:
+                self.github.update_ref(repo, ref, head, current)
+            except HeadMoved as moved:
+                raise refuse(
+                    "HEAD_MOVED",
+                    f"{ref} moved to {moved.head or 'nothing'} during the push; nothing was pushed",
+                    "Read the ref again (fetch it), rebuild the bundle on it and push again",
+                    head=moved.head,
+                ) from None
             published = self._publish_review(repo, head)
         return success(
             {
@@ -596,6 +617,13 @@ class Gateway:
     def pr_open(self, repo: str, branch: str, title: str, body: str, closes: list[int]):
         self.repo(repo)
         self.text(branch=branch, title=title, body=body)
+        if not ref_is_well_formed(f"{HEADS_PREFIX}{branch}"):
+            raise refuse(
+                "REF_NOT_ALLOWED",
+                f"{branch} is not a well-formed branch name",
+                "Pass the branch's name as git spells it, without '..', '//', '#', '%' or spaces",
+                branch=branch,
+            )
         if CLOSING_KEYWORD.search(body):
             raise refuse(
                 "CLOSING_KEYWORD_IN_BODY",
@@ -743,30 +771,44 @@ class Gateway:
         self.spend("pr-merge")
         clean = pull.get("mergeable") == "MERGEABLE"
         if clean and self.required_check(repo, pull)["state"] == "passed":
-            try:
-                self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
-            except MergeMethodNotAllowed as refused:
-                raise self._merge_method_refusal(repo, refused.method) from None
-            except HeadMoved as moved:
-                raise refuse(
-                    "HEAD_MOVED",
-                    f"Pull request {number}'s head moved to {moved.head} during the merge",
-                    "The branch moved: validate its current head, record it, and merge that head",
-                    head=moved.head,
-                ) from None
-            self._release_on_merge(repo, pull)
-            return success(
-                {"state": "merged", "autoMerge": False, "changed": True},
-                reasoning=f"Merged {number} at {head[:12]}",
-            )
+            return self._merge_now(repo, pull)
         method = self.config.merge_method(repo)
         try:
             self.github.enable_auto_merge(repo, number, head, method)
         except MergeMethodNotAllowed:
             raise self._merge_method_refusal(repo, method) from None
+        except HeadMoved as moved:
+            raise refuse(
+                "HEAD_MOVED",
+                f"Pull request {number}'s head moved to {moved.head} before auto-merge was set",
+                "The branch moved: validate its current head, record it, and merge that head",
+                head=moved.head,
+            ) from None
+        except AlreadyMergeable:
+            # GitHub settled mergeability after the read: nothing to wait for, so merge now.
+            return self._merge_now(repo, pull)
         return success(
             {"state": "queued", "autoMerge": True, "changed": True},
             reasoning=f"Queued {number} to {method}-merge at {head[:12]} once its checks pass",
+        )
+
+    def _merge_now(self, repo: str, pull: dict) -> CommandResult:
+        number, head = pull["number"], pull["head"]
+        try:
+            self.github.merge_pull(repo, number, head, self.config.merge_method(repo))
+        except MergeMethodNotAllowed as refused:
+            raise self._merge_method_refusal(repo, refused.method) from None
+        except HeadMoved as moved:
+            raise refuse(
+                "HEAD_MOVED",
+                f"Pull request {number}'s head moved to {moved.head} during the merge",
+                "The branch moved: validate its current head, record it, and merge that head",
+                head=moved.head,
+            ) from None
+        self._release_on_merge(repo, pull)
+        return success(
+            {"state": "merged", "autoMerge": False, "changed": True},
+            reasoning=f"Merged {number} at {head[:12]}",
         )
 
     def _fast_forward(self, repo: str, upload: dict, current: str, head: str) -> bool:

@@ -14,7 +14,10 @@ description: How to read a component library's facts through the components plug
    need, or for its examples. `omitted`'s `open` gives the sections to ask for.
 
 `components-list` shows the libraries in the space's pack and their tags. Pass `known` with the
-rule ids you already hold, and their text is not sent again.
+rule ids you already hold, and their text is not sent again. A deployment may name a
+`consumer` (Loam uses `"loam"` here); pass it to `components-brief` to leave out
+inapplicable rules. `omitted` with reason `consumer` names those exclusions and
+has no `open` action. Omit `consumer` for the general library documentation.
 
 ## Reading an answer
 

@@ -1,0 +1,6 @@
+pack_version = 1
+id = "consumers"
+plugin = "components"
+version = "1.0.0"
+title = "Component consumers"
+description = "Deployment-owned rule exclusions by consumer."

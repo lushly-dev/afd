@@ -18,7 +18,8 @@ export const SHELL_EXPOSE: Readonly<Required<ExposeOptions>> = Object.freeze({
  * names unless it is given the kernel's `BOOT_FIELDS`, so no person, app or agent reaches them, and
  * `mcpOptions()` leaves them out. `app-settle` follows the apply (F3); `document-trash-expire` is the
  * documents specification's (step 9). `session-settle` is the kernel's change of person (phase 3
- * specification, 4.4): never queued, so it runs before any call it must come before.
+ * specification, 4.4): never queued, so it runs before any call it must come before; `membership-settle` and
+ * `agent-member-settle` are the kernel's journaled reads of a sponsor and their agent members' suspension (4.4, 8.3).
  * Each is a mutation, which a kernel event of boot's own work reports.
  */
 export const BOOT_ONLY: readonly string[] = Object.freeze([
@@ -26,6 +27,8 @@ export const BOOT_ONLY: readonly string[] = Object.freeze([
 	'app-settle',
 	'document-trash-expire',
 	'session-settle',
+	'membership-settle',
+	'agent-member-settle',
 ]);
 
 /**

@@ -44,6 +44,14 @@ class Cutover(_Model):
     lushly_stale_hours: float = Field(4, alias="lushlyStaleHours")
 
 
+class GitHubAppConfig(_Model):
+    """The App the gateway writes as. Neither id is secret; the private key is a file on the
+    gateway's machine, passed to ``serve --app-key``."""
+
+    app_id: int = Field(alias="appId")
+    installation_id: int = Field(alias="installationId")
+
+
 class GatewayConfig(_Model):
     app: str = "factory-gateway"
     #: The App's bot login, the author of every factory write.
@@ -75,6 +83,8 @@ class GatewayConfig(_Model):
     merge_methods: dict[str, Literal["merge", "squash", "rebase"]] = Field(
         default_factory=dict, alias="mergeMethods"
     )
+    #: The App to write as; absent, ``serve`` runs only against a fake GitHub.
+    github_app: GitHubAppConfig | None = Field(None, alias="githubApp")
     #: Most milliseconds gateway-wait blocks on one call over MCP.
     wait_max_ms: int = Field(300_000, alias="waitMaxMs")
 

@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-fast-af",
-	"version": "0.1.0-preview.3",
+	"version": "0.1.0-preview.4",
 	"type": "module",
 	"description": "FAST-AF plugin for Specimen: Definition Schema, @command runner and theme presets",
 	"files": [

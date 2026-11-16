@@ -24,8 +24,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   TypeScript backend: jobs in #1248, undo, restore, history and the clear approval in #1251, the
   journal and full metadata in #1256, CI and conformance in #1260, SQLite storage in #1263, all
   2026-11-15. The parts they left open belong to later phases, as the findings table says.
-- **In progress:** nothing. Phase 3 is done (#1275, #1276); phase 4, DirectClient, is next.
-- **Not started:** phases 4 and 5.
+- **In progress:** phase 4, DirectClient. Its first pull request, [#1281](https://github.com/lushly-dev/afd/pull/1281), runs the main commands
+  through the tool surface with `allow`; the page with approvals and view state is next.
+- **Not started:** phase 5.
 
 ## Plan
 
@@ -34,7 +35,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 1. Fix what is wrong | Done: W1, W2 (TypeScript, Python), W3, W4 (declared), W6 and the backend half of W5 and W7, merged in [#1231](https://github.com/lushly-dev/afd/pull/1231) | See [phase 1](#phase-1-fix-what-is-wrong) | None |
 | 2. The TypeScript reference | Done, but job 6, which waits for phases 3 and 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
-| 4. DirectClient | Not started | None | Phases 2 and 3 |
+| 4. DirectClient | In progress: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page next | See [phase 4](#phase-4-directclient) | The page: approvals through `onApprovalNeeded`, the view-state commands, the Vite build |
 | 5. The other languages | Not started | None | Phase 2's conformance cases; C++ also [#341](https://github.com/lushly-dev/afd/issues/341) |
 
 ## Findings
@@ -47,8 +48,8 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforcement open, phase 5 with `afd::mcp_stdio` |
 | W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
-| W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR`, vanilla `innerHTML` (phase 3) and todo-directclient text (phase 4) are open |
-| W8 todo-directclient's copied commands and hand-written tools | Open, phase 4 |
+| W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
+| W8 todo-directclient's copied commands and hand-written tools | Fixed in [#1281](https://github.com/lushly-dev/afd/pull/1281): the main commands (D5), tools from `listTools()`, and `allow` in look mode |
 | W9 cross-backend drift outside the suite | Destructive flags and contexts now checked by every backend's tests against `spec/commands.schema.json` (Rust without contexts). Alternatives, ordering ties, ID formats and tool lists open, phase 5 |
 
 ## Phase 1: fix what is wrong
@@ -228,6 +229,40 @@ Merged in [#1276](https://github.com/lushly-dev/afd/pull/1276) on 2026-11-15:
 
 Phase 3 is then done.
 
+## Phase 4: DirectClient
+
+Merged in [#1281](https://github.com/lushly-dev/afd/pull/1281) on 2026-11-15:
+
+- **The main commands (D5).** todo-directclient imports `@afd/example-todo-ts/commands` and the
+  main middleware (`createTodoMiddleware`) into `createDirectRegistry`; its own copies of 8
+  commands, its store and its types are gone. The main backend's package now exports
+  `./commands`, `./contexts`, `./server-options` and `./store`.
+- **Tools from the surface.** `createDirectToolSurface` and `listTools()` give the model each
+  command's own JSON Schema, sent to Gemini as `parametersJsonSchema`; the hand-written schemas
+  with `required: []` are gone. Gemini's own parts go back unchanged, thought signatures included.
+- **`allow`.** `mode: "look"` permits only the commands that declare `mutation: false`; others are
+  hidden from the tool list and refused with `COMMAND_NOT_ALLOWED` before they run, including
+  through `afd-call`. Job 10 (`todo-directclient/backend/scenarios/`) runs through the look-mode
+  client; it fails if the mode is `change`.
+- **The copilot is an agent** (`id: todo-copilot`), so the history names it and `todo-clear` is
+  held. The tests approve and deny through `onApprovalNeeded`; the server has no hook yet, so the
+  model hears `APPROVAL_REQUIRED` until the page can ask.
+- **One server.** The chat server serves `/mcp` with the main server's options, behind its Host
+  and Origin checks and with its `ALLOWED_HOSTS`, and the separate MCP server on port 3200 is
+  gone. The copilot and `/mcp` share one journal (`src/services.ts`). The store is the main
+  example's, chosen by `TODO_STORE_TYPE`.
+- **Bounded turns.** At most `GEMINI_MAX_TOOL_ROUNDS` rounds and 20 calls per message; a turn that
+  reaches a limit returns what already ran. A blank limit keeps its default and anything but a positive integer is refused at startup. A page that
+  leaves mid-turn cancels the model request and the remaining calls.
+- **The model behind an interface**, with a scripted one in the tests, which need no API key.
+  Gemini's call ids go back with their results, and an empty answer is reported, not "Done."
+- **Review:** a fresh reviewer found `/mcp` refusing `ALLOWED_HOSTS` and two journal sinks on one
+  file (duplicate `seq`), both reproduced and fixed with tests that fail without the fix, plus the
+  limits, cancelling, call ids and docs above.
+- **Verified** with `pnpm -F @afd/example-todo-directclient test` (86 tests), `pnpm demo` and
+  `pnpm benchmark` (2026-11-15, this machine: DirectClient 0.017 ms and MCP 2.1 ms median for
+  `todo-list` over 20 todos).
+
 ## Open questions
 
 None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
@@ -241,6 +276,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Phase 1 review | An Umbel mounted tool cannot declare `destructive`: `MOUNT_TOOL_KEYS` (`endpoints/umbel/src/plugins/manifest.rs`) has no such key and `src/plugins/mounted/mod.rs` never sets it, so `umbel-mounted` advertises the todo deletes as not destructive. It predates this work | Open, phase 5 |
 | 2026-11-15 | Phase 2 slice | The current frontends call `todo-clear` over MCP, where every caller counts as an agent, so their "clear completed" is held with `APPROVAL_REQUIRED` (or needs `APPROVALS=off`) until the page has an approval flow | Fixed: both pages ask through form elicitation, FAST-AF in [#1275](https://github.com/lushly-dev/afd/pull/1275), React in [#1276](https://github.com/lushly-dev/afd/pull/1276) |
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
+| 2026-11-15 | Phase 4 review | DirectClient's `COMMAND_NOT_ALLOWED` suggestion tells a model to "Call one of the commands returned by listCommandNames()", a JavaScript method a model cannot call (`packages/client`) | Open |
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Open, phase 5's Python pull request (D8, owner 2026-11-15) |
 
 ## Session log
@@ -255,3 +291,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 2 SQLite | The SQLite store on local-db (D4), opt-in until phase 5; every job runs on both stores; phase 2 complete but job 6; in #1263 |
 | 2026-11-15 | Phase 3 page | The FAST-AF page on violet-elements with approvals in the page, the shared modules, job 6; the vanilla frontend removed; in #1275 |
 | 2026-11-15 | Phase 3 React | The React page on the same elements and shared session, one browser suite for both; phase 3 done; in #1276 |
+| 2026-11-15 | Phase 4 copilot | todo-directclient on the main commands, tools from `listTools()`, `allow` and job 10, `/mcp` on the same server; in #1281 |

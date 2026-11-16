@@ -19,6 +19,7 @@ import http from 'node:http';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { CommandResult } from '@lushly-dev/afd-core';
+import { COPILOT_MODES, type CopilotMode } from './copilot.js';
 import {
 	type ChatServerConfig,
 	getClientAddress,
@@ -32,9 +33,9 @@ export interface CommandExecutor {
 	call(name: string, args?: Record<string, unknown>): Promise<CommandResult<unknown>>;
 }
 
-/** The AI side of the server (Gemini in `chat.ts`). */
+/** The AI side of the server (the copilot in `chat.ts`). */
 export interface ChatBackend {
-	processChat(message: string): Promise<unknown>;
+	processChat(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<unknown>;
 	isConfigured(): boolean;
 	getMetrics(): Record<string, unknown>;
 }
@@ -45,6 +46,12 @@ export class PublicError extends Error {}
 export interface ChatServerDeps {
 	executor: CommandExecutor;
 	chat: ChatBackend;
+	/**
+	 * Serves MCP at `/mcp` (`createMcpHandler` over the same commands and store), so the AFD CLI
+	 * and other MCP clients reach the todos the copilot changes. Requests reach it after the Host
+	 * and Origin checks; it answers CORS itself.
+	 */
+	mcp?: (req: http.IncomingMessage, res: http.ServerResponse) => Promise<void>;
 	/** Directory holding `index.html`, `app.js` and `render.js` (default: `../../frontend`). */
 	frontendDir?: string;
 	/** Clock for the rate limiter, for tests. */
@@ -71,15 +78,12 @@ const FRONTEND_FILES: Record<string, { file: string; type: string }> = {
 	'/render.js': { file: 'render.js', type: 'text/javascript; charset=utf-8' },
 };
 
-/**
- * Scripts only from this origin (no inline script, so injected markup cannot
- * run code); `connect-src` also allows the MCP server's health check.
- */
+/** Scripts only from this origin (no inline script, so injected markup cannot run code). */
 const CONTENT_SECURITY_POLICY = [
 	"default-src 'self'",
 	"script-src 'self'",
 	"style-src 'self' 'unsafe-inline'",
-	"connect-src 'self' http://localhost:3200 http://127.0.0.1:3200",
+	"connect-src 'self'",
 	"img-src 'self'",
 	"object-src 'none'",
 	"base-uri 'none'",
@@ -246,7 +250,24 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		const body = await readJsonObject(req, config.maxBodySize);
 		const message = typeof body.message === 'string' ? body.message.trim() : '';
 		if (!message) throw new HttpError(400, 'Message required');
-		sendJson(res, 200, await deps.chat.processChat(message.slice(0, MAX_MESSAGE_LENGTH)));
+		const mode = body.mode ?? 'change';
+		if (!COPILOT_MODES.includes(mode as CopilotMode)) {
+			throw new HttpError(400, 'Invalid mode', `Use one of: ${COPILOT_MODES.join(', ')}`);
+		}
+		// A page that goes away mid-turn cancels the rest of it: the model request and the commands
+		const cancel = new AbortController();
+		res.once('close', () => {
+			if (!res.writableEnded) cancel.abort();
+		});
+		sendJson(
+			res,
+			200,
+			await deps.chat.processChat(
+				message.slice(0, MAX_MESSAGE_LENGTH),
+				mode as CopilotMode,
+				cancel.signal
+			)
+		);
 	}
 
 	async function route(req: http.IncomingMessage, res: http.ServerResponse): Promise<void> {
@@ -255,6 +276,12 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		}
 		if (!isOriginAllowed(req.headers, config.allowedOrigins)) {
 			throw new HttpError(403, 'Origin not allowed', 'Add the page origin to ALLOWED_ORIGINS');
+		}
+
+		const { pathname } = new URL(req.url ?? '/', 'http://localhost');
+		if (deps.mcp && (pathname === '/mcp' || pathname.startsWith('/mcp/'))) {
+			await deps.mcp(req, res);
+			return;
 		}
 
 		const origin = req.headers.origin;
@@ -271,7 +298,6 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 			return;
 		}
 
-		const { pathname } = new URL(req.url ?? '/', 'http://localhost');
 		const client = getClientAddress(req, config.trustProxy);
 
 		if (req.method === 'GET') {
@@ -316,7 +342,8 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 
 	const server = http.createServer((req, res) => {
 		route(req, res).catch((error: unknown) => {
-			if (res.headersSent) {
+			// Already answered, or the client has gone (a cancelled turn): nothing to send
+			if (res.headersSent || res.destroyed) {
 				res.destroy();
 				return;
 			}

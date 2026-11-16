@@ -57,6 +57,22 @@ const DEPLOYER_KEYS = [
 	'prefix',
 ];
 
+/**
+ * The one named exemption (phase 3 specification, Status, step 6, deviation 13, kept by the coordinator on
+ * 2026-11-15): an agent member's `access.projects` (8.1) names the projects it may act in, in the `agent-member` table,
+ * never a projection entry's `projects`. Only that path, only on the two commands that take it; every other key, and
+ * `projects` anywhere else in their input, is still scanned.
+ */
+function exempted(name: string, schema: unknown): unknown {
+	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;
+	type Branch = { properties?: { access?: { properties?: Record<string, unknown> } } };
+	const copy = structuredClone(schema) as Branch & { oneOf?: Branch[] };
+	// `-add`'s input is a `oneOf` of an undo and the new record's fields; `-update`'s a plain object.
+	for (const branch of [copy, ...(copy.oneOf ?? [])])
+		delete branch.properties?.access?.properties?.projects;
+	return copy;
+}
+
 /** Every property name a JSON Schema holds, at any depth. */
 function propertyNames(schema: unknown, into = new Set<string>()): Set<string> {
 	if (Array.isArray(schema)) for (const item of schema) propertyNames(item, into);
@@ -438,8 +454,8 @@ describe('P2-E10: what no command, app or agent may write (D55, D56, D73)', () =
 			for (const command of registry.listCommands()) {
 				// An internal refusal's `command` is the refused name, written nowhere (5.3).
 				if (INTERNAL_COMMANDS.includes(command.name)) continue;
-				const found = [...propertyNames(command.inputSchema)].filter((name) =>
-					DEPLOYER_KEYS.includes(name)
+				const found = [...propertyNames(exempted(command.name, command.inputSchema))].filter(
+					(name) => DEPLOYER_KEYS.includes(name)
 				);
 				expect(found, command.name).toEqual([]);
 			}

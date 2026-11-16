@@ -132,6 +132,13 @@ async fn plugin_show_reports_the_plugin_and_the_default_pack_in_every_space() {
                 { "space": "main", "source": "default", "version": "0.1.0", "files": 7 },
                 { "space": "beta", "source": "default", "version": "0.1.0", "files": 7 },
             ],
+        }, {
+            "id": "consumers",
+            "path": "packs/consumers",
+            "spaces": [
+                { "space": "main", "source": "default", "version": "1.0.0", "files": 2 },
+                { "space": "beta", "source": "default", "version": "1.0.0", "files": 2 },
+            ],
         }])
     );
     assert_eq!(

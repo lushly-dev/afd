@@ -240,6 +240,27 @@ impl Pack {
     }
 
     /// A host serving this pack in space `main`.
+    pub fn host_with_consumers(&self, map: Value) -> Fx {
+        let dir = TempDir::new().unwrap();
+        let library = dir.path().join("library");
+        self.write(&library);
+        let consumers = dir.path().join("consumers");
+        std::fs::create_dir_all(consumers.join("data")).unwrap();
+        std::fs::write(
+            consumers.join("pack.toml"),
+            include_str!("../../packs/consumers/pack.toml"),
+        )
+        .unwrap();
+        std::fs::write(consumers.join("data/consumers.json"), map.to_string()).unwrap();
+        let host = TestHost::compiled(sdk(umbel_plugin_components::plugin()))
+            .spaces(&["main", "beta"])
+            .pack_override("main", "library", &library)
+            .pack_override("main", "consumers", &consumers)
+            .boot()
+            .unwrap();
+        Fx { _dir: dir, host }
+    }
+
     pub fn host(&self) -> Fx {
         self.host_with(toml::Table::new())
     }

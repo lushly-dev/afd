@@ -1543,6 +1543,9 @@ importers:
 
   packages/examples/todo-directclient/backend:
     dependencies:
+      '@afd/example-todo-ts':
+        specifier: workspace:*
+        version: link:../../todo/backends/typescript
       '@google/genai':
         specifier: ^2.32.0
         version: 2.32.0(@modelcontextprotocol/sdk@1.32.2(zod@4.6.7))
@@ -1558,10 +1561,10 @@ importers:
       dotenv:
         specifier: ^18.0.9
         version: 18.0.9
-      zod:
-        specifier: ^4.6.6
-        version: 4.6.7
     devDependencies:
+      '@lushly-dev/afd-testing':
+        specifier: workspace:*
+        version: link:../../../testing
       tsx:
         specifier: ^4.23.15
         version: 4.23.15
@@ -1571,6 +1574,9 @@ importers:
       vitest:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+      zod:
+        specifier: ^4.6.6
+        version: 4.6.7
 
   packages/examples/todo/backends/typescript:
     dependencies:

@@ -214,6 +214,14 @@ impl Store {
             note_change(&transaction, now, "mailbox-closed", mailbox.0)?;
             super::classes::relist_mailbox(&transaction, mailbox.0, now)?;
         }
+        // A mailbox that went no longer holds its account's bursts back.
+        let account: i64 = transaction.one(
+            "SELECT account_id FROM mailbox WHERE id = ?1",
+            [mailbox.0],
+            |row| row.get(0),
+        )?;
+        let changed = super::bursts::listing_changed(&transaction, account)?;
+        super::stories::settle(&transaction, &changed, now)?;
         transaction.run("DELETE FROM unreturned WHERE mailbox_id = ?1", [mailbox.0])?;
         transaction.run(
             "DELETE FROM thread_place WHERE mailbox_id = ?1",

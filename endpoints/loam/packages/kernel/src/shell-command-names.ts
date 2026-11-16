@@ -98,4 +98,12 @@ export const SHELL_COMMAND_NAMES = [
 	'persona-update',
 	'persona-remove',
 	'persona-set',
+	// Step 6 (8.2): the workspace's agent members and their sponsors.
+	'agent-member-add',
+	'agent-member-list',
+	'agent-member-get',
+	'agent-member-update',
+	'agent-member-remove',
+	'agent-member-confirm',
+	'agent-member-decline',
 ] as const;

@@ -229,6 +229,12 @@ describe("P6-E1: a version 4 identity path never shadows the hosted server's own
 			'api/health',
 			'api/health/x',
 			'auth/api/kernel',
+			// NIT 4: any case, as a proxy that folds a path's case would read it.
+			'API/Health',
+			'Api',
+			'MCP',
+			'.Well-Known',
+			'api/Kernel',
 		]) {
 			expect(findings(file({ kind: 'hosted' }, { ...provider, path })).refusals, path).toEqual([
 				['DEPLOYMENT_IDENTITY_INVALID', 'identity.path'],

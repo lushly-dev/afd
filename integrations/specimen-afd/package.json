@@ -1,6 +1,6 @@
 {
 	"name": "@lushly-dev/specimen-afd",
-	"version": "2.2.0-preview.3",
+	"version": "2.2.0-preview.4",
 	"type": "module",
 	"files": [
 		"dist",

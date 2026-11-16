@@ -560,6 +560,22 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
     store_time += started.elapsed();
     let import_rate = messages as f64 / store_time.as_secs_f64();
 
+    // Every mailbox listed, as sync leaves them once it has gone through
+    // each: the account's bursts are found then, not during the import
+    // (step C3).
+    let started = Instant::now();
+    for mailbox in &mailboxes {
+        store.set_cursor(*mailbox, Some("listed"), 0).unwrap();
+    }
+    let listing_ms = started.elapsed().as_secs_f64() * 1000.0;
+    let (_, bursts) = store.bursts_since(i64::MIN, 0).unwrap();
+    // Then sync's next pass on the listed account: a batch of new mail's
+    // headers, which finds the account's bursts again whole.
+    let after: Vec<HeaderSeen> = (0..250).map(|_| maker.next().header).collect();
+    let started = Instant::now();
+    store.record_headers(mailboxes[0], "", &after, now).unwrap();
+    let batch_after_listing_ms = started.elapsed().as_secs_f64() * 1000.0;
+
     let (database_bytes, _) = directory_bytes_of_file(&home.database());
     let (index_bytes, index_on_disk) = directory_bytes(&home.index());
     let (log_bytes, log_on_disk) = directory_bytes(&home.blobs());
@@ -702,6 +718,8 @@ fn measure(messages: u64, shape: Shape, directory: &Path) -> serde_json::Value {
         "list_50_threads_ms": times(&list_ms),
         "search_ms": times(&search_ms),
         "open_message_ms": times(&open_ms),
+        "bursts": { "found": bursts, "found_on_listing_ms": round(listing_ms),
+                    "headers_batch_after_listing_ms": round(batch_after_listing_ms) },
         "stories": {
             "stories": stories.len(),
             "largest_messages": largest.as_ref().map(|story| story.messages),

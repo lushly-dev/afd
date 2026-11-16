@@ -191,12 +191,15 @@ const METHOD = /^(passkey|password|oidc:[a-z0-9][a-z0-9-]{0,31})$/;
 
 /** A version 4 `identity.path` that would shadow one of the hosted server's own routes (3.4). */
 function shadowsHostRoute(path: string): boolean {
-	const first = path.split('/')[0];
+	// Compared in lower case (the final check's NIT 4): a proxy that folds a path's case would read `API/Health` as
+	// `api/health`.
+	const folded = path.toLowerCase();
+	const first = folded.split('/')[0];
 	return (
 		first === 'mcp' ||
 		first === '.well-known' ||
-		path === 'api' ||
-		/(^|\/)api\/(kernel|health)(\/|$)/.test(path)
+		folded === 'api' ||
+		/(^|\/)api\/(kernel|health)(\/|$)/.test(folded)
 	);
 }
 

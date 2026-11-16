@@ -44,6 +44,10 @@ impl Mail {
         let inbox = mailbox("INBOX", Role::Inbox);
         let sent = mailbox("Sent Messages", Role::Sent);
         let archive = mailbox("Archive", Role::Archive);
+        // Listed, as sync leaves a mailbox it has gone through.
+        for listed in [inbox, sent, archive] {
+            store.set_cursor(listed, Some("listed"), NOW).unwrap();
+        }
         Self {
             _directory: directory,
             store,
@@ -52,6 +56,31 @@ impl Mail {
             sent,
             archive,
             next: 1,
+        }
+    }
+
+    /// The same mail with its store closed and opened again, as a program
+    /// that stops and starts does.
+    pub(super) fn reopen(self) -> Self {
+        let Self {
+            _directory,
+            store,
+            account,
+            inbox,
+            sent,
+            archive,
+            next,
+        } = self;
+        drop(store);
+        let store = Store::open(&Home::at(_directory.path().join("data"))).unwrap();
+        Self {
+            _directory,
+            store,
+            account,
+            inbox,
+            sent,
+            archive,
+            next,
         }
     }
 
@@ -140,8 +169,10 @@ impl Mail {
             .unwrap()
     }
 
+    /// A mailbox, listed as sync leaves one it has gone through.
     pub(super) fn mailbox(&mut self, key: &'static str, role: Role) -> MailboxId {
-        self.store
+        let mailbox = self
+            .store
             .upsert_mailbox(
                 self.account,
                 &MailboxSeen {
@@ -151,7 +182,9 @@ impl Mail {
                 },
                 NOW,
             )
-            .unwrap()
+            .unwrap();
+        self.store.set_cursor(mailbox, Some("listed"), NOW).unwrap();
+        mailbox
     }
 
     pub(super) fn decide(&mut self, address: &str, decision: Option<Decision>) -> Decided {
@@ -176,6 +209,19 @@ impl Mail {
                 "SELECT * FROM story_kind ORDER BY story_id, template_key",
             ),
             table(&self.store, "SELECT * FROM story ORDER BY id"),
+            table(
+                &self.store,
+                "SELECT * FROM first_contact ORDER BY account_id, message_id",
+            ),
+            table(
+                &self.store,
+                "SELECT * FROM contact_day ORDER BY account_id, day",
+            ),
+            table(&self.store, "SELECT * FROM burst ORDER BY id"),
+            table(
+                &self.store,
+                "SELECT * FROM burst_message ORDER BY burst_id, message_id",
+            ),
         ]
     }
 

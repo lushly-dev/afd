@@ -522,7 +522,15 @@ pub(super) fn settle(
     for (mailbox, thread) in &touched.places {
         compute_place(transaction, *mailbox, *thread)?;
     }
-    let turned = super::senders::settle_senders(transaction, &touched.senders, now)?;
+    let (turned, moved) =
+        super::senders::settle_senders_tracking(transaction, &touched.senders, now)?;
+    // First contacts change with a sender whose first message, or first
+    // message from the person, moved; and with a message within its
+    // sender's first day, or one that was a first contact, derived again or
+    // shown somewhere else. Mail past its sender's first day changes none.
+    let mut contacts = moved;
+    let near: BTreeSet<i64> = touched.messages.union(&touched.shown).copied().collect();
+    contacts.extend(super::bursts::first_day_senders(transaction, &near)?);
     super::classes::settle(
         transaction,
         &super::classes::Reclassify {
@@ -530,6 +538,7 @@ pub(super) fn settle(
             templates: Some(&touched.templates),
             senders: Some(&turned),
             shown: Some(&touched.shown),
+            contacts: Some(&contacts),
         },
         now,
     )?;
@@ -953,6 +962,7 @@ impl Store {
         )?;
         transaction.execute_batch(super::classes::CLEAR)?;
         transaction.execute_batch(super::stories::CLEAR)?;
+        transaction.execute_batch(super::bursts::CLEAR)?;
         set_state(&transaction, REBUILD, 0)?;
         set_state(&transaction, INDEX_COMMITTED, 0)?;
         transaction.commit()?;
@@ -1099,6 +1109,10 @@ impl Store {
             self.commit_index()?;
             let transaction = self.connection.transaction()?;
             transaction.execute("DELETE FROM engine_state WHERE key = ?1", [REBUILD])?;
+            // Every account's bursts, which batches leave while a rebuild
+            // runs, and the stories they change.
+            let changed = super::bursts::find_all(&transaction)?;
+            super::stories::settle(&transaction, &changed, now)?;
             transaction.execute_batch(&super::stories::prune_sql())?;
             note_change(&transaction, now, "rebuilt", 0)?;
             transaction.commit()?;

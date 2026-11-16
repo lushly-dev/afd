@@ -186,6 +186,8 @@ const HANDLED: &[(&str, &str)] = &[
     ("recipient", "message"),
     ("screening", "message"),
     ("story_member", "message"),
+    ("first_contact", "message"),
+    ("burst_message", "message"),
     ("thread_place", "mailbox"),
 ];
 

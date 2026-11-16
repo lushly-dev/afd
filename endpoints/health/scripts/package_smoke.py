@@ -189,7 +189,7 @@ def write_fixtures(work: Path) -> dict[str, Path]:
 
 def snapshot(root: Path) -> dict[str, str]:
     return {
-        str(path.relative_to(root)): hashlib.sha256(path.read_bytes()).hexdigest()
+        path.relative_to(root).as_posix(): hashlib.sha256(path.read_bytes()).hexdigest()
         for path in sorted(root.rglob("*"))
         if path.is_file() and not path.is_symlink()
     }

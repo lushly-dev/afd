@@ -60,6 +60,9 @@ export const PROVIDER_COMMANDS: readonly string[] = Object.freeze([
 	'account-passkey-remove',
 	// Step 4's account and member commands (3.4).
 	...MEMBER_PROVIDER_COMMANDS,
+	// Step 6's reads of agent members, which read the provider's members for each sponsor (3.4's first row).
+	'agent-member-list',
+	'agent-member-get',
 ]);
 
 /** `SessionRowV1` (4.6): a session by its handle, never its token, dates as ISO strings. */
@@ -465,6 +468,8 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 						items: { name: string; kind?: string }[];
 					}>;
 					if (!result.success || auth.getSession().status === 'authenticated') return result;
+					// The search itself ranks only the signed-out commands (`paletteOnly`, the review's I4); this filter is the
+					// backstop, so nothing else is ever answered.
 					return {
 						...result,
 						data: {
@@ -481,8 +486,10 @@ export function createIdentityCommands(deps: IdentityCommandsDeps) {
 		 * and the person's own calls use, journaled: the agent interface, and an MCP server should one ever serve it.
 		 */
 		humanRequired(call: CommandContext, name: string): CommandResult<never> | undefined {
+			// An agent's actor is refused on any interface, the palette's included: an agent member acting for its sponsor
+			// never confirms itself or runs an owner's command (8.3, D40).
 			if (
-				call.interface === 'palette' ||
+				(call.interface === 'palette' && call.actor?.kind !== 'agent') ||
 				!(HUMAN_COMMANDS.includes(name) || OWNER_COMMANDS.includes(name))
 			)
 				return undefined;
