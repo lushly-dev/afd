@@ -15,7 +15,7 @@ and passes the shared conformance suite (`pnpm test:conformance:rs`).
   session state.
 - **CLI and shell**: run one command, or an interactive shell.
 - **In-memory storage**: data lasts until the process exits and is not shared with
-  the TypeScript and Python backends' `data/todos.json`.
+  the TypeScript and Python backends' `data/todos.db`.
 
 ## As a library
 

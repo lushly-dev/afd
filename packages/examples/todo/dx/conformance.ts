@@ -43,6 +43,31 @@ interface TestResult {
 	expected?: unknown;
 }
 
+/** A suite's cases from `specPath`, or none, for a client kind and a language. */
+export interface CaseFilter {
+	client?: string;
+	language?: string;
+}
+
+/**
+ * The cases of `specPath` for `filter`: only those for `client` when it is given, and only those
+ * `language` implements (a case without `implementedBy` is every language's).
+ */
+export async function selectCases(specPath: string, filter: CaseFilter = {}): Promise<TestCase[]> {
+	const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
+	const all: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
+	if (all.length === 0) {
+		throw new Error(`No conformance tests found in ${specPath}`);
+	}
+	return all.filter(
+		(test) =>
+			(filter.client === undefined || test.client === filter.client) &&
+			(filter.language === undefined ||
+				test.implementedBy === undefined ||
+				test.implementedBy.includes(filter.language))
+	);
+}
+
 export class ConformanceRunner {
 	private captured: Record<string, unknown> = {};
 
@@ -55,22 +80,8 @@ export class ConformanceRunner {
 	 * Run the cases of `specPath`: only those for `client` when it is given, and only those
 	 * `language` implements (a case without `implementedBy` is every language's).
 	 */
-	async run(
-		specPath: string,
-		filter: { client?: string; language?: string } = {}
-	): Promise<TestResult[]> {
-		const spec = JSON.parse(await fs.readFile(specPath, 'utf-8'));
-		const all: TestCase[] = Array.isArray(spec.tests) ? spec.tests : [];
-		if (all.length === 0) {
-			throw new Error(`No conformance tests found in ${specPath}`);
-		}
-		const tests = all.filter(
-			(test) =>
-				(filter.client === undefined || test.client === filter.client) &&
-				(filter.language === undefined ||
-					test.implementedBy === undefined ||
-					test.implementedBy.includes(filter.language))
-		);
+	async run(specPath: string, filter: CaseFilter = {}): Promise<TestResult[]> {
+		const tests = await selectCases(specPath, filter);
 		if (tests.length === 0) {
 			throw new Error(
 				`No case in ${specPath} is for ${[filter.client, filter.language].filter(Boolean).join(' and ')}: this backend does not implement the suite yet`

@@ -15,14 +15,18 @@
  * Each row keeps a hidden `_order`, so a table reads back in the order its todos entered it, as
  * the in-memory store's Map does, and ties in a sort come out the same in every store.
  *
- * Environment: `TODO_STORE_TYPE=sqlite`, `TODO_STORE_PATH` (default `data/todos.db`).
+ * The Python backend reads and writes the same file through the standard library's `sqlite3`
+ * (`backends/python/src/todo_backend/store/sqlite.py`), with the same tables and rules.
+ *
+ * Environment: `TODO_STORE_TYPE=sqlite` (the default), `TODO_STORE_PATH` (default `data/todos.db`).
  */
 
-import { mkdirSync } from 'node:fs';
+import { existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
 import type { BatchOperation } from '@lushly-dev/local-db';
 import { createSqliteAdapter, type SqliteAdapter } from '@lushly-dev/local-db/sqlite';
 import type { ChangeEntry, Priority, Stamp, Todo, TodoFilter, TodoStats } from '../types.js';
+import { readTodoFile } from './json-file.js';
 import { HISTORY_LIMIT, systemStamp, TodoStore } from './memory.js';
 
 const TODOS = 'todos';
@@ -52,26 +56,55 @@ function todoOf(row: Row): Todo {
 /** A batch's outcome: whether it ran, or a guarded row was gone. */
 type Outcome = 'done' | 'missing';
 
+/** Options for {@link SqliteStore}. */
+export interface SqliteStoreOptions {
+	/**
+	 * A JSON file of todos that {@link SqliteStore.check} adds when this store created the
+	 * database file. The default database is seeded from `data/todos.seed.json`, as the JSON file
+	 * was; a custom path starts empty.
+	 */
+	seedPath?: string;
+}
+
 /**
  * SQLite todo store. Every method is asynchronous; callers `await` it as they do the others.
  */
 export class SqliteStore {
 	readonly db: SqliteAdapter;
 	private lastOrder = 0;
+	/** The seed still to add: set only when this store is about to create the file. */
+	private seedPath: string | undefined;
 
-	constructor(readonly path: string) {
+	constructor(
+		readonly path: string,
+		options: SqliteStoreOptions = {}
+	) {
 		mkdirSync(dirname(path), { recursive: true });
+		this.seedPath = options.seedPath && !existsSync(path) ? options.seedPath : undefined;
 		this.db = createSqliteAdapter({ path });
 	}
 
 	/**
 	 * Open the database now, so a path that cannot hold one fails at startup rather than on the
-	 * first command, as the file store does.
+	 * first command, as the file store does; and, when this store created the file, add the seed
+	 * todos.
 	 */
 	async check(): Promise<void> {
 		const health = await this.db.health();
 		if (health.status !== 'ok') {
 			throw new Error(`SQLite store ${this.path} is not usable: ${JSON.stringify(health)}`);
+		}
+		const seedPath = this.seedPath;
+		this.seedPath = undefined;
+		if (seedPath && existsSync(seedPath) && health.tables === 0) {
+			const seed = [...readTodoFile(seedPath).values()];
+			await this.run(
+				seed.map((todo) => ({
+					method: 'POST' as const,
+					path: `/${TODOS}`,
+					body: { ...todo, _order: this.nextOrder() },
+				}))
+			);
 		}
 	}
 
@@ -253,8 +286,11 @@ export class SqliteStore {
 
 	/**
 	 * Add a change, keeping the latest {@link HISTORY_LIMIT}. The next `seq` is read from the
-	 * table before the write, so two processes writing at the same moment can take the same one;
-	 * the later write then replaces the earlier entry.
+	 * table before the write, outside its transaction, so two processes writing at the same moment
+	 * (two TypeScript servers, or this one and the Python backend) can take the same one; the
+	 * later write then replaces the earlier entry, and that change is missing from the history.
+	 * Known limit: https://github.com/lushly-dev/afd/issues/1317. The Python store reads `seq`
+	 * inside its write, so two Python writers never collide.
 	 */
 	async record(change: Omit<ChangeEntry, 'seq'>): Promise<ChangeEntry> {
 		const latest = await this.db.list<ChangeEntry>(CHANGES, {

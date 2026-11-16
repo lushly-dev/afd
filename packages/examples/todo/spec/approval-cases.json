@@ -1,11 +1,11 @@
 {
-	"description": "Approval holds (spec/command-metadata.md, \"Approvals\") against a backend started with APPROVALS=agents, where todo-clear, the one change nothing undoes, is held for any caller that is not a person and an MCP caller is an agent. Each case names the client it needs: \"acknowledge\" declares no elicitation, so a held call fails with APPROVAL_REQUIRED; \"accept\" and \"decline\" declare form elicitation, so the server asks the person, and the client answers every question that way. The runner resets the live list with todo-delete-batch, since a clear would be held; \"then\" checks the state afterwards. TypeScript implements approvals so far; the others follow in the to-do reference plan's phase 5.",
+	"description": "Approval holds (spec/command-metadata.md, \"Approvals\") against a backend started with APPROVALS=agents, where todo-clear, the one change nothing undoes, is held for any caller that is not a person and an MCP caller is an agent. Each case names the client it needs: \"acknowledge\" declares no elicitation, so a held call fails with APPROVAL_REQUIRED; \"accept\" and \"decline\" declare form elicitation, so the server asks the person, and the client answers every question that way. The runner resets the live list with todo-delete-batch, since a clear would be held; \"then\" checks the state afterwards. TypeScript runs every case and Python the two acknowledge cases: the Python library cannot yet ask the person over MCP (no elicitation relay for approvals, https://github.com/lushly-dev/afd/issues/1312), so the accept and decline cases stay TypeScript-only. Rust and C++ follow in the to-do reference plan's phase 5.",
 	"tests": [
 		{
 			"name": "An agent's clear is held",
 			"description": "With no one to ask, the clear fails before anything is removed, with a suggestion to ask the person",
 			"client": "acknowledge",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [
 				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
 				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
@@ -27,7 +27,7 @@
 			"name": "A delete is not held",
 			"description": "A delete can be undone with todo-restore, so it runs without approval",
 			"client": "acknowledge",
-			"implementedBy": ["typescript"],
+			"implementedBy": ["typescript", "python"],
 			"setup": [{ "command": "todo-create", "input": { "title": "Delete me" }, "capture": "todo" }],
 			"command": "todo-delete",
 			"input": { "id": "$todo.id" },
