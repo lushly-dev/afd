@@ -1,11 +1,11 @@
 {
 	"properties": {
 		"completed": {
-			"description": "New completion status",
+			"description": "Mark completed or pending",
 			"type": "boolean"
 		},
 		"description": {
-			"description": "Optional details",
+			"description": "New description; an empty one removes it",
 			"maxLength": 1000,
 			"type": "string"
 		},
@@ -20,7 +20,7 @@
 			"type": "string"
 		},
 		"title": {
-			"description": "Todo title",
+			"description": "New title",
 			"maxLength": 200,
 			"minLength": 1,
 			"type": "string"

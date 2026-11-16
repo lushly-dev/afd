@@ -61,11 +61,11 @@ pnpm test:conformance:rs
 pnpm test:conformance:cpp
 ```
 
-The runner spawns the TypeScript, Python and C++ backends over stdio with `TODO_STORE_TYPE=memory`,
-and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
+The runner spawns every backend over stdio, the TypeScript and Python ones with
+`TODO_STORE_TYPE=memory` (the Rust backend through `cargo run -- stdio`). It runs every
 case in [spec/test-cases.json](./spec/test-cases.json) that the backend's language implements and
-exits non-zero if any case fails. The TypeScript and Python backends also have an approval suite
-(`pnpm test:conformance:ts --suite approvals`, and `:py`), the TypeScript backend a run of AFD's
+exits non-zero if any case fails. The TypeScript, Python and Rust backends also have an approval
+suite (`pnpm test:conformance:ts --suite approvals`, and `:py`, `:rs`), the TypeScript backend a run of AFD's
 own `validate --surface --strict` and `scenario run` against it (`pnpm test:scenarios:ts`), and
 `pnpm test:interop` runs both side by side on one SQLite database, each reading what the other
 wrote, and has each create a new database the other then opens; the
@@ -173,9 +173,8 @@ in the page, an agent narrowing the view, and axe.
 The page talks MCP on `/mcp`, so it works with a backend that serves Streamable HTTP. It is
 tested against the TypeScript backend. Approvals in the page need MCP 2026-07-28, which the
 page negotiates with it: a 2025-era HTTP request cannot carry the server's question, so against
-such a backend a held clear stays `APPROVAL_REQUIRED`. The Rust backend has no `todo-history` or `todo-restore`
-until the to-do reference plan's phase 5, so against it the page shows no history or deleted
-list; that pairing is not tested yet.
+such a backend a held clear stays `APPROVAL_REQUIRED`. The Rust backend serves the same commands
+on `/mcp`, so the page should work against it too; that pairing is not tested yet.
 
 | Backend    | Frontend | Command                          |
 | ---------- | -------- | -------------------------------- |
@@ -215,10 +214,10 @@ All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp
       "disabled": true
     },
 
-    // Rust backend (MCP over HTTP, JSON responses - requires manual server start)
+    // Rust backend (stdio transport - auto-starts; cargo builds it on first use)
     "afd-todo-rust": {
-      "type": "http",
-      "url": "http://127.0.0.1:3100/mcp",
+      "command": "cargo",
+      "args": ["run", "--quiet", "--manifest-path", "packages/examples/todo/backends/rust/Cargo.toml", "--", "stdio"],
       "disabled": true
     }
   }
@@ -232,7 +231,7 @@ All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp
 | TypeScript | stdio | ✅ Yes | VS Code spawns the process |
 | Python | stdio | ✅ Yes | VS Code spawns the process |
 | C++ | stdio | ✅ Yes | VS Code spawns the built binary |
-| Rust | HTTP (`POST /mcp`, no SSE) | ❌ No | Must start server manually first |
+| Rust | stdio, or HTTP (`POST /mcp`) | ✅ Yes (stdio) | `cargo run` spawns it; for HTTP, start `cargo run -- server` first |
 
 ### Switching Backends
 
@@ -240,9 +239,10 @@ All four backends can be configured as MCP servers in VS Code. Edit `.vscode/mcp
 2. **Disable others** - Set `"disabled": true` (they share the same tool names)
 3. **Reload VS Code** - Or use Command Palette → "MCP: Restart Servers"
 
-### Rust Backend Extra Step
+### Rust Backend over HTTP
 
-Since Rust uses HTTP transport, start the server before enabling MCP:
+The Rust backend also serves Streamable HTTP. To use that instead of stdio, start the server and
+point the entry at it (`"type": "http", "url": "http://127.0.0.1:3100/mcp"`):
 
 ```bash
 cd packages/examples/todo/backends/rust
@@ -250,11 +250,9 @@ cargo run --release -- server
 # Server runs on http://127.0.0.1:3100
 ```
 
-Then enable `afd-todo-rust` in mcp.json and reload VS Code.
-
 ## API Contract
 
-The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and gives each command's metadata. The test suites of all four backends check that it lists exactly the commands each backend defines, with the same metadata; the Rust backend's check leaves out `contexts`, which it does not declare yet.
+The source of truth for this example is the [test-cases.json](./spec/test-cases.json) file, which defines the expected inputs, outputs, and state transitions for all commands. [commands.schema.json](./spec/commands.schema.json) documents each command's input and result shape, and gives each command's metadata. The test suites of all four backends check that it lists exactly the commands each backend defines, with the same metadata.
 
 ## Commands
 
@@ -265,21 +263,21 @@ The source of truth for this example is the [test-cases.json](./spec/test-cases.
 | `todo-get` | Get a single todo by ID | reading, editing | |
 | `todo-update` | Update a todo's properties | editing | |
 | `todo-toggle` | Toggle completion status | editing | |
-| `todo-delete` | Delete a todo; TypeScript and Python keep it for `todo-restore` | editing | Yes |
-| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript and Python hold it for approval) | editing | Yes |
+| `todo-delete` | Delete a todo; TypeScript, Python and Rust keep it for `todo-restore` | editing | Yes |
+| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript, Python and Rust hold it for approval) | editing | Yes |
 | `todo-stats` | Get statistics | reading, editing | |
 | `todo-create-batch` | Create multiple todos | editing | |
 | `todo-toggle-batch` | Toggle multiple todos | editing | |
-| `todo-delete-batch` | Delete multiple todos; TypeScript and Python keep them for `todo-restore` | editing | Yes |
-| `todo-restore` | Bring deleted todos back as they were (TypeScript and Python so far) | editing | |
-| `todo-history` | Recent changes: who, when, and each change's undo (TypeScript and Python so far) | reading, editing | |
+| `todo-delete-batch` | Delete multiple todos; TypeScript, Python and Rust keep them for `todo-restore` | editing | Yes |
+| `todo-restore` | Bring deleted todos back as they were (not C++ yet) | editing | |
+| `todo-history` | Recent changes: who, when, and each change's undo (not C++ yet) | reading, editing | |
 
 `todo-restore` and `todo-history` came with the
 [to-do reference plan](../../../docs/features/active/todo-reference/todo-reference.proposal.md)'s
-phase 2. The spec marks them `implementedBy: ["typescript", "python"]`, so the Rust and C++
-backends' tests leave them out until phase 5 adds them there.
+phase 2. The spec marks them `implementedBy: ["typescript", "python", "rust"]`, so the C++
+backend's tests leave them out until its phase 5 pull request adds them.
 
-### Undo, history and approvals (TypeScript and Python)
+### Undo, history and approvals (TypeScript, Python and Rust)
 
 Every change says how to take it back. Its result carries `undoCommand` and `undoArgs`: run that
 command with those arguments, through `afd-call` or the `todo` group tool, since `undoCommand` names
@@ -292,11 +290,14 @@ so a todo deleted by mistake can be found and restored long after.
 `agent` and so on, from the command context), the time and its undo. An entry offers its undo only
 while it is the latest change to its todos, so undoing an old entry never overwrites a later edit.
 A middleware records each change from its result (`src/history.ts`, and `history.py` in
-Python); the latest 1,000 are kept.
+Python); in Rust the wrapper around every command does (`src/commands/mod.rs`), so the Umbel
+plugin, which registers the commands in a registry of its own, keeps the history too. The latest
+1,000 are kept.
 
 `todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
-to approve it (`createApprovalMiddleware`, `create_approval_middleware` in Python). Against the
-TypeScript backend, an MCP client that declares form elicitation asks its person; any other
+to approve it (`createApprovalMiddleware`, `create_approval_middleware` in Python and Rust).
+Against the TypeScript and Rust backends, an MCP client that declares form elicitation asks its
+person; any other
 caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP every caller
 counts as an agent, so the page's "clear completed" is held too: the page shows the approval and
 answers with the person's choice, in both frontends.
@@ -307,23 +308,28 @@ approved at all: it always answers `APPROVAL_REQUIRED`. Until #1312, clear throu
 server, run the Python server with `APPROVALS=off`, or call the command in process, where trusted
 code retries with the token once a person approves.
 
+The Rust backend's command line (`cargo run -- todo-clear '{}'` and the shell) runs as the person
+at the terminal, so a clear there is not held. Under Umbel the clear is not held either: a plugin
+manifest declares only a fixed approval, so the todo plugin drops the per-caller policy and the
+clear keeps its confirmation prompt.
+
 Run a server with `APPROVALS=off` to hold nothing; the conformance runner does, since the shared
-suites test the contract every language meets. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets
-several servers, in either language, accept each other's approval tokens. Each server keeps its own record of spent tokens, so with a shared secret one approval can run the clear once on each server that receives it.
+suites reset each case with a clear. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets
+several servers, in any of the three languages, accept each other's approval tokens. Each server keeps its own record of spent tokens, so with a shared secret one approval can run the clear once on each server that receives it.
 
 ### Contexts
 
-The TypeScript and Python servers configure two contexts, so an agent can scope itself before it
-works:
+The TypeScript, Python and Rust servers configure two contexts, so an agent can scope itself
+before it works:
 
-- `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats` (and `todo-history` in
-  TypeScript and Python). A command that changes todos
+- `todo-reading` shows only `todo-list`, `todo-get`, `todo-stats` and `todo-history`. A command
+  that changes todos
   is refused with `COMMAND_NOT_IN_CONTEXT` and a suggestion.
 - `todo-editing` shows every command.
 
 With no context entered every command is visible. `afd-context-list`, `afd-context-enter` and
 `afd-context-exit` manage them; on the stateless `/mcp` endpoint a request names its context in
-`_meta["dev.afd/context"]` instead. The Rust and C++ backends do not serve contexts yet.
+`_meta["dev.afd/context"]` instead. The C++ backend does not serve contexts yet.
 
 Clients that never enter a context are unaffected, with three visible differences: `tools/list`
 includes the three context tools (in the `bootstrap` group under the TypeScript server's default

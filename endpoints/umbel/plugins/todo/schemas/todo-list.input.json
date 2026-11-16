@@ -4,16 +4,20 @@
 			"description": "Filter by completion status",
 			"type": "boolean"
 		},
+		"deleted": {
+			"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones",
+			"type": "boolean"
+		},
 		"limit": {
 			"default": 20,
-			"description": "Page size (1 to 100)",
+			"description": "Maximum results (1-100)",
 			"maximum": 100,
 			"minimum": 1,
 			"type": "integer"
 		},
 		"offset": {
 			"default": 0,
-			"description": "Todos to skip",
+			"description": "Offset for pagination",
 			"minimum": 0,
 			"type": "integer"
 		},
@@ -29,7 +33,7 @@
 		"sortBy": {
 			"default": "createdAt",
 			"description": "Sort field",
-			"enum": ["createdAt", "updatedAt", "priority", "title"],
+			"enum": ["createdAt", "updatedAt", "priority", "title", "deletedAt"],
 			"type": "string"
 		},
 		"sortOrder": {

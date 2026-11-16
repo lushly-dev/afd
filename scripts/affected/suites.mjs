@@ -397,6 +397,11 @@ export const SUITES = [
 				run: 'pnpm --dir packages/examples/todo test:conformance:rs',
 			},
 			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite approvals',
+			},
+			{
 				gate: 'cpp',
 				tools: ['cmake'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:cpp',

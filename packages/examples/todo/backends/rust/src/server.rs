@@ -1,18 +1,17 @@
-//! MCP over HTTP.
+//! MCP over HTTP and stdio.
 //!
-//! `POST /mcp` (and `POST /message`, which the web frontends use) is the MCP
-//! Streamable HTTP endpoint of the `afd` crate's `server` feature: it serves
-//! MCP 2026-07-28 statelessly (per-request `_meta`, `server/discover`, the
-//! routing headers) and 2025 clients that send `initialize`. `GET` answers
-//! 405. `GET /health` is a liveness check.
+//! `POST /mcp` (and `POST /message`, kept for older clients) is the MCP Streamable HTTP
+//! endpoint of the `afd` crate's `server` feature: it serves MCP 2026-07-28 statelessly
+//! (per-request `_meta`, `server/discover`, the routing headers) and 2025 clients that send
+//! `initialize`. `GET` answers 405. `GET /health` is a liveness check. [`mcp_server`] is the
+//! same server for stdio (`McpServer::serve_stdio`).
 //!
-//! Every request passes [`guard`] first: the `Host` header must name this
-//! server (DNS rebinding) and a browser `Origin` must be on the allowlist
-//! (`null` never is). Only commands with `expose.mcp` are listed or callable,
-//! bodies are capped, and the server binds 127.0.0.1 unless `HOST` says
-//! otherwise.
+//! Every HTTP request passes [`guard`] first: the `Host` header must name this server (DNS
+//! rebinding) and a browser `Origin` must be on the allowlist (`null` never is). Only commands
+//! with `expose.mcp` are listed or callable, bodies are capped, and the server binds 127.0.0.1
+//! unless `HOST` says otherwise.
 
-use crate::commands::Tool;
+use crate::app::{contexts, Approvals};
 use afd::server::{ConfirmationMode, HttpOptions, McpServer, ToolStrategy};
 use afd::CommandRegistry;
 use axum::{
@@ -134,6 +133,10 @@ pub struct ServerConfig {
     /// How `tools/list` presents the commands (`TOOL_STRATEGY`: `grouped` or `individual`;
     /// default `grouped`). Every strategy routes every command by its own name.
     pub strategy: ToolStrategy,
+    /// Whether `todo-clear` is held for callers that are not a person (`APPROVALS`: `agents` or
+    /// `off`; default `agents`). The signing key is read apart (`TODO_APPROVAL_SECRET`, see
+    /// [`crate::app::approval_secret`]), so this configuration never holds it.
+    pub approvals: Approvals,
 }
 
 impl ServerConfig {
@@ -215,12 +218,15 @@ impl ServerConfig {
             }
         };
 
+        let approvals = Approvals::from_env(var("APPROVALS").as_deref())?;
+
         Ok(Self {
             host,
             port,
             max_body_bytes,
             confirmations,
             strategy,
+            approvals,
             policy: HttpPolicy {
                 allowed_origins,
                 allowed_hosts,
@@ -234,25 +240,29 @@ impl ServerConfig {
 // ═══════════════════════════════════════════════════════════════════════════════
 
 pub struct AppState {
-    /// The MCP server over the registry, listing the tools with their schemas.
+    /// The MCP server over the registry.
     pub mcp: McpServer,
     pub policy: HttpPolicy,
 }
 
-/// The MCP server for the todo registry, listing `tools` (which carry the
-/// commands' full input schemas).
-pub fn mcp_server(registry: CommandRegistry, tools: &[Tool]) -> Result<McpServer, String> {
-    let tools = tools
-        .iter()
-        .map(serde_json::to_value)
-        .collect::<Result<Vec<_>, _>>()
-        .map_err(|error| format!("Could not describe the tools: {error}"))?;
-    Ok(McpServer::new(
-        Arc::new(registry),
-        "todo-app-rust",
-        env!("CARGO_PKG_VERSION"),
+/// The MCP server for the todo registry, for HTTP or stdio: the library's own tool list (each
+/// command's whole input schema, title, annotations and approval mode), the `todo-reading` and
+/// `todo-editing` contexts with their `afd-context-*` commands, and the configuration's
+/// confirmation mode and tool strategy.
+///
+/// # Errors
+/// When the context commands cannot be registered, for example on a registry that already has
+/// them: build one server per registry.
+pub fn mcp_server(
+    registry: Arc<CommandRegistry>,
+    config: &ServerConfig,
+) -> Result<McpServer, String> {
+    Ok(
+        McpServer::new(registry, "todo-app-rust", env!("CARGO_PKG_VERSION"))
+            .with_contexts(contexts())?
+            .with_confirmations(config.confirmations)
+            .with_tool_strategy(config.strategy),
     )
-    .with_tools(tools))
 }
 
 /// Build the HTTP application.

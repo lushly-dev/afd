@@ -5,9 +5,21 @@ protocol = 1
 id = "todo"
 title = "Todo"
 version = "0.1.0"
-description = "The todo example as a compiled plugin: eleven commands over an in-memory store, the conformance fixture."
+description = "The todo example as a compiled plugin: thirteen commands over an in-memory store, the conformance fixture."
 kind = "compiled"
 domains = ["todo"]
+
+# The backend's contexts (`todo_backend_rust::app::contexts`): reading shows only the commands
+# that read.
+[[contexts]]
+name = "todo-reading"
+description = "Review todos without changing them: list, get and stats only"
+triggers = ["review", "summarize", "report", "what is left"]
+
+[[contexts]]
+name = "todo-editing"
+description = "Add, change, complete and remove todos"
+triggers = ["add", "create", "complete", "update", "delete", "clear"]
 
 [[commands]]
 name = "todo-create"
@@ -16,6 +28,7 @@ effects = ["plugin-state"]
 input_schema = "schemas/todo-create.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 
 [[commands]]
 name = "todo-list"
@@ -24,6 +37,7 @@ effects = ["inspect"]
 input_schema = "schemas/todo-list.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-reading", "todo-editing"]
 
 [[commands]]
 name = "todo-get"
@@ -32,49 +46,55 @@ effects = ["inspect"]
 input_schema = "schemas/todo-get.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-reading", "todo-editing"]
 
 [[commands]]
 name = "todo-update"
-description = "Update a todo's title, description, priority or status"
+description = "Update a todo's title, description, priority or completion; the result names the undo"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-update.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 
 [[commands]]
 name = "todo-toggle"
-description = "Toggle a todo's completion status"
+description = "Set an open todo to done, or a done todo back to open; the result names the undo"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-toggle.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 
 [[commands]]
 name = "todo-delete"
-description = "Delete a todo"
+description = "Delete one todo by its id. It is kept with the deleted todos, and todo-restore brings it back until todo-clear empties them"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-delete.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 destructive = true
 
 [[commands]]
 name = "todo-clear"
-description = "Clear completed todos (or all if specified)"
+description = "Remove todos for good: completed ones, or the deleted todos with deleted: true, or every todo with all: true. A caller that is not a person waits for a person to approve"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-clear.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 confirm_prompt = "Delete these todos? This cannot be undone."
 destructive = true
 
 [[commands]]
 name = "todo-stats"
-description = "Get todo statistics"
+description = "Compute counts of the live todos by status and priority, and the completion rate"
 effects = ["inspect"]
 input_schema = "schemas/todo-stats.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-reading", "todo-editing"]
 
 [[commands]]
 name = "todo-create-batch"
@@ -83,20 +103,41 @@ effects = ["plugin-state"]
 input_schema = "schemas/todo-create-batch.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 
 [[commands]]
 name = "todo-delete-batch"
-description = "Delete multiple todos at once"
+description = "Remove up to 100 todos in one call, reporting each id that fails. They stay restorable with todo-restore until todo-clear empties the deleted todos"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-delete-batch.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
 destructive = true
 
 [[commands]]
 name = "todo-toggle-batch"
-description = "Toggle completion status of multiple todos, or set all to a specific state"
+description = "Toggle the completion status of the listed todos, or set them all to completed: true or false"
 effects = ["plugin-state"]
 input_schema = "schemas/todo-toggle-batch.input.json"
 category = "todo"
 version = "1.0.0"
+contexts = ["todo-editing"]
+
+[[commands]]
+name = "todo-restore"
+description = "Bring deleted todos back exactly as they were. Find deleted todos with todo-list { deleted: true }; a delete result names this command and its ids as its undo"
+effects = ["plugin-state"]
+input_schema = "schemas/todo-restore.input.json"
+category = "todo"
+version = "1.0.0"
+contexts = ["todo-editing"]
+
+[[commands]]
+name = "todo-history"
+description = "List the recent changes to the todos, newest first: what changed, who changed it, when, and the undo command and arguments for each change that is still the latest to its todos. Keeps the latest 1000 changes"
+effects = ["inspect"]
+input_schema = "schemas/todo-history.input.json"
+category = "todo"
+version = "1.0.0"
+contexts = ["todo-reading", "todo-editing"]

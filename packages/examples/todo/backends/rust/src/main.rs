@@ -1,41 +1,56 @@
-use afd::{CommandContext, CommandRegistry};
+use afd::{ActorKind, CommandContext, CommandRegistry};
 use serde_json::Value;
 use std::env;
 use std::io::{self, BufRead, Write};
 use std::process::ExitCode;
 use std::sync::Arc;
-use todo_backend_rust::{register_commands, server, TodoStore, Tool};
+use todo_backend_rust::app::{self, Approvals};
+use todo_backend_rust::server::{self, ServerConfig};
+use todo_backend_rust::TodoStore;
 
 fn print_usage() {
     println!("Usage:");
-    println!("  todo-backend-rust server            Start the MCP-over-HTTP server (default)");
+    println!("  todo-backend-rust server            Serve MCP over HTTP (default)");
+    println!("  todo-backend-rust stdio             Serve MCP over stdin and stdout");
     println!("  todo-backend-rust <command> [json]  Run one command, e.g. todo-list '{{}}'");
     println!("  todo-backend-rust shell             Interactive shell (exit or Ctrl+D to quit)");
     println!("  todo-backend-rust list-commands     List the commands");
     println!();
     println!("Server settings: HOST (127.0.0.1), PORT (3100), ALLOWED_ORIGINS, ALLOWED_HOSTS,");
-    println!("MAX_BODY_BYTES. See README.md.");
+    println!("MAX_BODY_BYTES, CONFIRMATIONS, TOOL_STRATEGY, APPROVALS, TODO_APPROVAL_SECRET.");
+    println!("See README.md.");
 }
 
-fn build() -> Result<(CommandRegistry, Vec<Tool>), String> {
-    let mut registry = CommandRegistry::new();
-    let tools = register_commands(&mut registry, &Arc::new(TodoStore::new()))?;
-    Ok((registry, tools))
+/// The configuration from the environment, and the registry over a new store.
+fn build() -> Result<(ServerConfig, Arc<CommandRegistry>), (ExitCode, String)> {
+    let config = ServerConfig::from_env(|name| env::var(name).ok())
+        .map_err(|error| (ExitCode::from(2), error))?;
+    let secret = app::approval_secret(env::var("TODO_APPROVAL_SECRET").ok())
+        .map_err(|error| (ExitCode::from(2), error))?;
+    let registry =
+        app::registry(Arc::new(TodoStore::new()), config.approvals, &secret).map_err(|error| {
+            (
+                ExitCode::FAILURE,
+                format!("Could not register the commands: {error}"),
+            )
+        })?;
+    Ok((config, registry))
 }
 
 #[tokio::main]
 async fn main() -> ExitCode {
-    let (registry, tools) = match build() {
+    let (config, registry) = match build() {
         Ok(built) => built,
-        Err(error) => {
-            eprintln!("Could not register the commands: {error}");
-            return ExitCode::FAILURE;
+        Err((code, error)) => {
+            eprintln!("{error}");
+            return code;
         }
     };
 
     let args: Vec<String> = env::args().skip(1).collect();
     match args.first().map(String::as_str) {
-        None | Some("server") => run_server(registry, tools).await,
+        None | Some("server") => run_server(registry, config).await,
+        Some("stdio") => run_stdio(registry, config).await,
         Some("shell") => run_shell(&registry).await,
         Some("list-commands") => {
             for name in cli_commands(&registry) {
@@ -61,28 +76,38 @@ async fn main() -> ExitCode {
     }
 }
 
-async fn run_server(registry: CommandRegistry, tools: Vec<Tool>) -> ExitCode {
-    let config = match server::ServerConfig::from_env(|name| env::var(name).ok()) {
-        Ok(config) => config,
-        Err(error) => {
-            eprintln!("{error}");
-            return ExitCode::from(2);
-        }
-    };
-    let mcp = match server::mcp_server(registry, &tools) {
-        Ok(mcp) => mcp
-            .with_confirmations(config.confirmations)
-            .with_tool_strategy(config.strategy),
+async fn run_server(registry: Arc<CommandRegistry>, config: ServerConfig) -> ExitCode {
+    let mcp = match server::mcp_server(registry, &config) {
+        Ok(mcp) => mcp,
         Err(error) => {
             eprintln!("{error}");
             return ExitCode::FAILURE;
         }
     };
+    if config.approvals == Approvals::Off {
+        println!("  Approvals are off: todo-clear runs for any caller (APPROVALS=off)");
+    }
     let state = server::AppState {
         mcp,
         policy: config.policy.clone(),
     };
     match server::start_server(state, &config).await {
+        Ok(()) => ExitCode::SUCCESS,
+        Err(error) => {
+            eprintln!("{error}");
+            ExitCode::FAILURE
+        }
+    }
+}
+
+/// Serve MCP over stdin and stdout until the client disconnects. stdout carries JSON-RPC, so
+/// nothing else is printed there.
+async fn run_stdio(registry: Arc<CommandRegistry>, config: ServerConfig) -> ExitCode {
+    let served = match server::mcp_server(registry, &config) {
+        Ok(mcp) => mcp.serve_stdio().await,
+        Err(error) => Err(error),
+    };
+    match served {
         Ok(()) => ExitCode::SUCCESS,
         Err(error) => {
             eprintln!("{error}");
@@ -110,7 +135,10 @@ async fn run_command(registry: &CommandRegistry, name: &str, input: Value) -> Ex
         eprintln!("Available: {}", cli_commands(registry).join(", "));
         return ExitCode::from(2);
     }
-    let context = CommandContext::new().with_trace_id(format!("cli-{}", uuid::Uuid::new_v4()));
+    // The command line is the person at the terminal, so todo-clear is not held for them.
+    let context = CommandContext::new()
+        .with_trace_id(format!("cli-{}", uuid::Uuid::new_v4()))
+        .with_actor(ActorKind::Human);
     let result = registry.execute(name, input, Some(context)).await;
     match serde_json::to_string_pretty(&result) {
         Ok(text) => println!("{text}"),

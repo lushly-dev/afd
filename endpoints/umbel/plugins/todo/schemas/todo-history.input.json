@@ -1,0 +1,28 @@
+{
+	"properties": {
+		"actor": {
+			"description": "Only changes by this kind of actor: human, agent, service, script or test",
+			"minLength": 1,
+			"type": "string"
+		},
+		"limit": {
+			"default": 20,
+			"description": "Maximum entries (1-100)",
+			"maximum": 100,
+			"minimum": 1,
+			"type": "integer"
+		},
+		"offset": {
+			"default": 0,
+			"description": "Offset for pagination",
+			"minimum": 0,
+			"type": "integer"
+		},
+		"todoId": {
+			"description": "Only changes that touched this todo",
+			"minLength": 1,
+			"type": "string"
+		}
+	},
+	"type": "object"
+}
