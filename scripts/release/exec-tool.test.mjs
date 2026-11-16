@@ -1,7 +1,14 @@
 import assert from 'node:assert/strict';
 import { win32 } from 'node:path';
 import test from 'node:test';
-import { execTool, spawnTool, tarCommand, toolCommand, windowsCommandLine } from './exec-tool.mjs';
+import {
+	execTool,
+	pythonCommand,
+	spawnTool,
+	tarCommand,
+	toolCommand,
+	windowsCommandLine,
+} from './exec-tool.mjs';
 
 // portability-ok: these tests are about Windows paths, so a drive letter is their input.
 const DRIVE = 'X:';
@@ -59,4 +66,65 @@ test('tar is the Windows bsdtar on Windows and tar elsewhere', () => {
 		win32.join(systemRoot, 'System32', 'tar.exe')
 	);
 	assert.equal(tarCommand('win32', {}), 'tar.exe');
+});
+
+test('Python is python3 off Windows, and on Windows the first that runs past a Store stub', () => {
+	const only =
+		(...working) =>
+		(file, args) =>
+			working.includes([file, ...args].join(' ')) ? [3, 12] : undefined;
+	// Off Windows nothing is probed, and PYTHON changes nothing.
+	for (const environment of [{}, { PYTHON: '/opt/py' }])
+		assert.deepEqual(pythonCommand({ environment, platform: 'linux', version: only() }), {
+			file: 'python3',
+			args: [],
+		});
+	// The Store stubs named python3 and python exit 9009: the launcher is next on Windows.
+	assert.deepEqual(pythonCommand({ environment: {}, platform: 'win32', version: only('py -3') }), {
+		file: 'py',
+		args: ['-3'],
+	});
+	assert.deepEqual(
+		pythonCommand({ environment: {}, platform: 'win32', version: only('python', 'py -3') }),
+		{ file: 'python', args: [] }
+	);
+	assert.deepEqual(
+		pythonCommand({
+			environment: { PYTHON: 'C:/py/python.exe' },
+			platform: 'win32',
+			version: only('C:/py/python.exe'),
+		}),
+		{ file: 'C:/py/python.exe', args: [] }
+	);
+	assert.throws(
+		() => pythonCommand({ environment: {}, platform: 'win32', version: only() }),
+		/No Python 3.11 or newer runs as python3, python, py -3\. On Windows, python3 and python may be the Microsoft Store stubs/
+	);
+	assert.throws(
+		() =>
+			pythonCommand({
+				environment: { PYTHON: 'nope' },
+				platform: 'win32',
+				version: only('python3'),
+			}),
+		/PYTHON=nope does not run Python 3.11 or newer/
+	);
+});
+
+test('native release Python discovery rejects 3.10 and reaches a 3.11+ launcher', () => {
+	const tried = [];
+	const version = (file, args) => {
+		const command = [file, ...args].join(' ');
+		tried.push(command);
+		return { python: [3, 10], 'py -3': [3, 12] }[command];
+	};
+	assert.deepEqual(pythonCommand({ environment: {}, platform: 'win32', version }), {
+		file: 'py',
+		args: ['-3'],
+	});
+	assert.deepEqual(tried, ['python3', 'python', 'py -3']);
+	assert.throws(
+		() => pythonCommand({ environment: { PYTHON: 'python' }, platform: 'win32', version }),
+		/PYTHON=python does not run Python 3.11 or newer/
+	);
 });
