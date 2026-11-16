@@ -1,0 +1,11 @@
+{
+  "cores": 10,
+  "freeDiskGb": 125.2,
+  "id": "MacBook-Air",
+  "measured": false,
+  "memoryGb": 24.0,
+  "missing": [],
+  "name": "MacBook-Air",
+  "probedAt": "2026-11-16T07:52:03.059217Z",
+  "suggestedSlots": 1
+}
