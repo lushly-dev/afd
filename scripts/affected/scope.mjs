@@ -43,7 +43,10 @@ const SCOPE_INERT = new Set(['scripts/affected/suites.mjs']);
  */
 const PROSE = /\.md$/;
 
-/** Repository inputs outside any package that package tests read directly. */
+/**
+ * Repository inputs, outside a package or in another one, that package tests read directly. With
+ * `ownTests`, only the listed package's own tests read them, so its dependents are not selected.
+ */
 export const EXTRA_INPUTS = [
 	// Wire fixtures, behaviour vectors, spec/VERSION and tool strategies.
 	{
@@ -65,6 +68,18 @@ export const EXTRA_INPUTS = [
 	// of an app or a document type (phase 2 specification, section 1 and D2).
 	{ prefix: 'endpoints/loam/packages/kernel/', packages: ['@lushly-dev/loam-web'] },
 	{ prefix: 'endpoints/loam/packages/chrome/', packages: ['@lushly-dev/loam-web'] },
+	// afd-testing's todo-example test runs the todo example's TypeScript commands against its
+	// scenario files and fixtures, which it reads by path rather than as a dependency.
+	{
+		prefix: 'packages/examples/todo/backends/typescript/src/',
+		packages: ['@lushly-dev/afd-testing'],
+		ownTests: true,
+	},
+	{
+		prefix: 'packages/examples/todo/scenarios/',
+		packages: ['@lushly-dev/afd-testing'],
+		ownTests: true,
+	},
 	// The seed library's tests check the bench's results against its output schemas, and its
 	// confirmation prompts against the tasks that quote them.
 	{
@@ -220,7 +235,7 @@ export function resolveScope({ root, all = false, bases = DEFAULT_BASES, files, 
 		for (const input of EXTRA_INPUTS.filter(
 			(extra) => file.startsWith(extra.prefix) && !extra.except?.test(file)
 		))
-			for (const name of input.packages) mark(name, file);
+			for (const name of input.packages) mark(name, file, input.ownTests === true);
 	}
 
 	const changed = [...reasons.keys()].filter((name) => everything.includes(name)).sort();

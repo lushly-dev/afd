@@ -86,13 +86,10 @@ describe('todo example scenarios', () => {
 		expect(result.data?.report.scenarios[0]?.error).toBeUndefined();
 		expect(result.data?.report.scenarios[0]?.outcome).toBe('pass');
 		expect(result.data?.exitCode).toBe(0);
-		expect(calls.slice(0, 5)).toEqual([
-			'todo-clear',
-			'todo-create',
-			'todo-create',
-			'todo-create',
-			'todo-create',
-		]);
+		// The fixture keeps what the server holds (clearFirst: false: a server may hold a clear for
+		// approval) and seeds its four todos before the first step
+		expect(calls.slice(0, 4)).toEqual(['todo-create', 'todo-create', 'todo-create', 'todo-create']);
+		expect(calls).not.toContain('todo-clear');
 	});
 
 	it('passes every scenario in the example directory', async () => {

@@ -209,6 +209,23 @@ test('spec prose reaches no package; the files beside it reach their readers', (
 	assert.ok(scope(['spec/VERSION']).changed.includes('@lushly-dev/loam-manifest'));
 });
 
+test("the todo example's scenarios and commands reach afd-testing's own tests, not its dependents", () => {
+	const root = join(import.meta.dirname, '..');
+	const scope = (files) => resolveScope({ root, files, git: () => '' });
+	// src/runner/todo-example.test.ts imports the commands and runs the scenario files by path
+	for (const file of [
+		'packages/examples/todo/scenarios/filter-by-priority.scenario.yaml',
+		'packages/examples/todo/backends/typescript/src/commands/create.ts',
+	]) {
+		const { changed, affected } = scope([file]);
+		assert.ok(changed.includes('@lushly-dev/afd-testing'), file);
+		assert.ok(
+			!affected.includes('@lushly-dev/afd-cli'),
+			`${file} selects afd-testing's dependents`
+		);
+	}
+});
+
 test("the bench's results and tasks reach the seed library, and its other prose none", () => {
 	const root = join(import.meta.dirname, '..');
 	const scope = (files) => resolveScope({ root, files, git: () => '' });
