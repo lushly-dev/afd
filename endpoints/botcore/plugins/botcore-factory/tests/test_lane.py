@@ -80,7 +80,12 @@ def test_a_queued_branch_is_validated_pushed_merged_and_landed(lane):
         "number": 600,
         "branch": "feat/export-csv",
         "route": "opus/medium",
+        "plan": "plan-b",  # So lane-report's byPlan counts it.
     }
+    from botcore_factory.report import lane_report
+
+    report = lane_report(lane.factory(), None, None)
+    assert {"plan": "plan-b", "merged": 1} in report["byPlan"]
     assert kinds(lane) == [
         "validation-started",
         "validated",
