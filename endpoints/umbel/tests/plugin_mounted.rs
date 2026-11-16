@@ -310,7 +310,7 @@ async fn tools_are_renamed_into_domain_action_names_and_unnameable_ones_are_skip
 
 #[tokio::test]
 async fn overrides_rename_set_effects_and_an_instance_prefix_replaces_the_domain() {
-    let tools = "[[mount.tools]]\ntool = \"echo\"\nname = \"say\"\neffects = [\"plugin-state\"]\nconfirm_prompt = \"Say it?\"\n\n[[mount.tools]]\ntool = \"env_names\"\neffects = [\"inspect\"]\n";
+    let tools = "[[mount.tools]]\ntool = \"echo\"\nname = \"say\"\neffects = [\"plugin-state\"]\nconfirm_prompt = \"Say it?\"\ndestructive = true\n\n[[mount.tools]]\ntool = \"env_names\"\neffects = [\"inspect\"]\n";
     let dir = fx_stdio("", tools, "prefix = \"tk\"");
     let host = open(dir.path()).unwrap();
     let registry = host.registry();
@@ -325,12 +325,18 @@ async fn overrides_rename_set_effects_and_an_instance_prefix_replaces_the_domain
         .unwrap();
     assert!(say.mutation, "plugin-state is a mutation");
     assert_eq!(say.confirm_prompt.as_deref(), Some("Say it?"));
+    assert_eq!(say.destructive, Some(true));
+    assert_eq!(
+        registry.get_tool("tk-say").unwrap()["annotations"]["destructiveHint"],
+        true
+    );
     let inspect = registry
         .list()
         .into_iter()
         .find(|c| c.name == "tk-env-names")
         .unwrap();
     assert!(!inspect.mutation);
+    assert_eq!(inspect.destructive, None, "not destructive unless declared");
     // Every other tool defaults to `external`.
     let other = registry
         .list()
