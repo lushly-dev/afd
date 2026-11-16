@@ -17,10 +17,21 @@ adapter's command, accepts only a passing review of that exact, checked-out, cle
 independent lane; any later commit needs the review recorded again. As with the gateway, the
 verdicts are the cell's report of its reviewers, typed and bound to the head but not proven.
 `REVIEW_MISSING` now carries the verifier's first line (for example, which commit the recorded
-review covers).
+review covers), and a verifier that cannot run or runs past 120 seconds is `REVIEW_MISSING` with
+its reason rather than `READ_FAILED`. The verifier, `verify-record.mjs` and `pre-push.mjs` joined
+`gate_paths`, so a repair cannot change the rule it is judged by without `gate-allow`.
 
-Evidence: `scripts/review-record.test.mjs` (32 tests, including a real repository and a linked
-worktree) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
+Review: one independent pass (Opus 5.5; the reviewer reported low effort though high was asked)
+found one blocker, fixed: started through a symlink or Windows junction, the script's entry check
+failed and `verify` exited 0 without checking. It now compares real paths and refuses when it
+cannot confirm itself, with a symlinked-invocation test that fails on the earlier code. Also
+fixed from that pass: crashes print one `review-record:` line, lane names `Self`/`self-review`
+count as self-review, `--lanes-file` for Windows shells, and the proposal's lane-mode order.
+Deferred: the script repeats about 35 lines of `verify-record.mjs`'s identity and file helpers
+so it stands alone in the plugin's fixture (a test pins the shared base list).
+
+Evidence: `scripts/review-record.test.mjs` (37 tests, including a real repository, a linked
+worktree and a symlinked start) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
 plugin's real process runner against the real script. PR: this branch,
 `lush/factory-review-evidence` (number filled in when opened).
 

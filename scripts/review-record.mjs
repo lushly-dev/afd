@@ -20,7 +20,14 @@
  * the head, not proven.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, readFileSync, renameSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readFileSync,
+	realpathSync,
+	renameSync,
+	writeFileSync,
+} from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -29,7 +36,8 @@ export const SCHEMA = 1;
 export const DEFAULT_BASES = ['origin/main', 'main'];
 const SHA = /^[0-9a-f]{40}$/;
 const LANE_KEYS = ['lane', 'model', 'effort', 'verdict', 'fixed', 'deferred'];
-const SELF = 'self';
+/** A lane named self, Self or self-review is the session's own review, not an independent one. */
+const isSelf = (lane) => /^self(-?review)?$/i.test(lane.lane.trim());
 
 /** Where this worktree keeps its record: inside its git directory, never in the tree. */
 export function recordPath(git, root) {
@@ -93,7 +101,7 @@ export function buildRecord({ identity, lanes, now = Date.now() }) {
 	const checked = checkLanes(lanes);
 	if (checked.reason) return checked;
 	const passed = checked.lanes.every((lane) => lane.verdict === 'pass');
-	if (passed && checked.lanes.every((lane) => lane.lane === SELF))
+	if (passed && checked.lanes.every(isSelf))
 		return {
 			reason: 'a self-review alone is not a passing review: record an independent lane too',
 		};
@@ -126,8 +134,7 @@ export function acceptRecord({ record, identity, head }) {
 	if (checked.reason) return reject(`the review record is malformed: ${checked.reason}`);
 	if (!checked.lanes.every((lane) => lane.verdict === 'pass'))
 		return reject('a review lane recorded did not pass');
-	if (checked.lanes.every((lane) => lane.lane === SELF))
-		return reject('only a self-review is recorded');
+	if (checked.lanes.every(isSelf)) return reject('only a self-review is recorded');
 	const lanes = checked.lanes.map((lane) => `${lane.lane} (${lane.model}, ${lane.effort})`);
 	return {
 		accepted: true,
@@ -149,6 +156,7 @@ export function readRecord(path) {
 
 const USAGE = `Usage:
   node scripts/review-record.mjs write --lanes '<JSON array of {lane, model, effort, verdict, fixed?, deferred?}>'
+  node scripts/review-record.mjs write --lanes-file <path to that JSON>   (portable to Windows shells)
   node scripts/review-record.mjs verify --head <40-character commit id>
   node scripts/review-record.mjs show`;
 
@@ -162,14 +170,20 @@ export function run(argv, { git, root, now = Date.now() }) {
 			return { code: 2, out: `review-record: expected --name value pairs\n${USAGE}` };
 		options[key.slice(2)] = value;
 	}
-	const allowed = { write: ['lanes'], verify: ['head'], show: [] }[command];
-	if (!allowed) return { code: 2, out: USAGE };
+	const commands = { write: ['lanes', 'lanes-file'], verify: ['head'], show: [] };
+	if (!Object.hasOwn(commands, command)) return { code: 2, out: USAGE };
+	const allowed = commands[command];
 	const unknown = Object.keys(options).filter((key) => !allowed.includes(key));
 	if (unknown.length)
 		return { code: 2, out: `review-record: unknown option --${unknown[0]}\n${USAGE}` };
 	const path = recordPath(git, root);
 	if (command === 'show') {
-		const record = readRecord(path);
+		let record = null;
+		try {
+			record = readRecord(path);
+		} catch (error) {
+			return { code: 1, out: `review-record: the record could not be read: ${error.message}` };
+		}
 		return record
 			? { code: 0, out: JSON.stringify(record, null, '\t') }
 			: { code: 1, out: 'review-record: no review is recorded in this worktree' };
@@ -185,13 +199,16 @@ export function run(argv, { git, root, now = Date.now() }) {
 		const { accepted, reason } = acceptRecord({ record, identity, head: options.head });
 		return { code: accepted ? 0 : 1, out: `review-record: ${reason}` };
 	}
-	if (options.lanes === undefined)
-		return { code: 2, out: `review-record: write needs --lanes\n${USAGE}` };
+	if ((options.lanes === undefined) === (options['lanes-file'] === undefined))
+		return { code: 2, out: `review-record: write needs one of --lanes or --lanes-file\n${USAGE}` };
+	const source = options.lanes === undefined ? '--lanes-file' : '--lanes';
 	let lanes;
 	try {
-		lanes = JSON.parse(options.lanes);
+		lanes = JSON.parse(
+			options.lanes ?? readFileSync(resolve(process.cwd(), options['lanes-file']), 'utf8')
+		);
 	} catch (error) {
-		return { code: 2, out: `review-record: --lanes is not JSON: ${error.message}` };
+		return { code: 2, out: `review-record: ${source} is not readable JSON: ${error.message}` };
 	}
 	const built = buildRecord({ identity, lanes, now });
 	if (built.reason) return { code: 1, out: `review-record: not recorded: ${built.reason}` };
@@ -202,11 +219,32 @@ export function run(argv, { git, root, now = Date.now() }) {
 	};
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+/** Whether node was started on this file. Real paths, so a symlink or junction cannot skip the CLI. */
+function isEntry() {
+	try {
+		return realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url));
+	} catch {
+		return false;
+	}
+}
+
+if (process.argv[1] && isEntry()) {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 	const git = (args) =>
 		execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
-	const { code, out } = run(process.argv.slice(2), { git, root });
-	(code === 0 ? console.log : console.error)(out);
-	process.exitCode = code;
+	try {
+		const { code, out } = run(process.argv.slice(2), { git, root });
+		(code === 0 ? console.log : console.error)(out);
+		process.exitCode = code;
+	} catch (error) {
+		const first = String(error.stderr || error.message)
+			.trim()
+			.split('\n')[0];
+		console.error(`review-record: ${first}`);
+		process.exitCode = 1;
+	}
+} else if (process.argv[1]?.endsWith('review-record.mjs')) {
+	// Started as this script, yet not recognised as it: refuse rather than exit 0 silently.
+	console.error('review-record: could not confirm this file is the script node started');
+	process.exitCode = 1;
 }

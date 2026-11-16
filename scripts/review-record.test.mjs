@@ -1,9 +1,10 @@
 import assert from 'node:assert/strict';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
+import { fileURLToPath } from 'node:url';
 import { DEFAULT_BASES as SCOPE_BASES } from './affected/scope.mjs';
 import {
 	acceptRecord,
@@ -77,9 +78,11 @@ describe('buildRecord', () => {
 		assert.match(reason, /uncommitted/);
 	});
 
-	it('refuses a passing self-review alone', () => {
-		assert.match(buildRecord({ identity, lanes: [self] }).reason, /independent lane/);
-	});
+	for (const name of ['self', 'Self', ' self-review ', 'SelfReview'])
+		it(`refuses a passing self-review alone, named ${JSON.stringify(name)}`, () => {
+			const lanes = [{ ...self, lane: name }];
+			assert.match(buildRecord({ identity, lanes }).reason, /independent lane/);
+		});
 });
 
 describe('acceptRecord', () => {
@@ -213,13 +216,52 @@ describe('run, against a real repository', () => {
 		);
 	});
 
+	it('reads the lanes from a file, for shells that mangle quotes', (t) => {
+		const { root, git } = repo();
+		const file = join(`${root}-lanes.json`);
+		t.after(() => {
+			rmSync(root, { recursive: true, force: true });
+			rmSync(file, { force: true });
+		});
+		writeFileSync(file, lanes);
+		const written = run(['write', '--lanes-file', file], { git, root });
+		assert.equal(written.code, 0, written.out);
+		const head = git(['rev-parse', 'HEAD']).trim();
+		assert.equal(run(['verify', '--head', head], { git, root }).code, 0);
+	});
+
 	it('explains its usage', (t) => {
 		const { root, git } = repo();
 		t.after(() => rmSync(root, { recursive: true, force: true }));
 		assert.equal(run(['approve'], { git, root }).code, 2);
 		assert.match(run(['verify', '--sha', HEAD], { git, root }).out, /unknown option --sha/);
-		assert.match(run(['write'], { git, root }).out, /needs --lanes/);
-		assert.match(run(['write', '--lanes', '{'], { git, root }).out, /not JSON/);
+		assert.match(run(['write'], { git, root }).out, /one of --lanes or --lanes-file/);
+		const both = ['write', '--lanes', '[]', '--lanes-file', 'x.json'];
+		assert.match(run(both, { git, root }).out, /one of --lanes or --lanes-file/);
+		assert.match(run(['write', '--lanes', '{'], { git, root }).out, /not readable JSON/);
+		assert.equal(run(['toString'], { git, root }).code, 2);
 		assert.equal(run(['show'], { git, root }).code, 1);
+	});
+});
+
+describe('the command line', () => {
+	const script = join(dirname(fileURLToPath(import.meta.url)), 'review-record.mjs');
+
+	it('still refuses when started through a symlink, never exiting 0 unchecked', (t) => {
+		const dir = mkdtempSync(join(tmpdir(), 'afd-review-record-link-'));
+		t.after(() => rmSync(dir, { recursive: true, force: true }));
+		const link = join(dir, 'scripts');
+		symlinkSync(dirname(script), link, 'junction');
+		let failed = null;
+		try {
+			execFileSync(process.execPath, [join(link, 'review-record.mjs'), 'verify', '--head', '0'], {
+				encoding: 'utf8',
+				stdio: ['ignore', 'pipe', 'pipe'],
+			});
+		} catch (error) {
+			failed = error;
+		}
+		assert.ok(failed, 'verify must not exit 0');
+		assert.match(failed.stderr, /review-record: --head must be a full 40-character commit id/);
 	});
 });

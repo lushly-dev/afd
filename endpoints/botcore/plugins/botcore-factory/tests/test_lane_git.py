@@ -134,3 +134,9 @@ def test_afd_s_review_evidence_accepts_only_the_recorded_head(tmp_path, monkeypa
     moved = run(["git", "rev-parse", "HEAD"]).strip()
     with pytest.raises(Refusal, match=f"review recorded is of {head}, not {moved}"):
         _check_review(factory, str(repo), moved)
+
+    missing_program = adapter.model_copy(update={"review_evidence": ["no-such-verifier-xyz"]})
+    unrunnable = SimpleNamespace(config=missing_program, world=factory.world)
+    with pytest.raises(Refusal, match="no-such-verifier-xyz is not on PATH") as cannot:
+        _check_review(unrunnable, str(repo), moved)
+    assert cannot.value.code == "REVIEW_MISSING"
