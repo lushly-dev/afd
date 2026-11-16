@@ -280,7 +280,7 @@ impl Plugin for SpecimenLoad {
         let script = [".ts", ".tsx", ".mts", ".js", ".jsx", ".mjs"]
             .iter()
             .any(|extension| path.ends_with(extension));
-        if !script || path.contains("/node_modules/") {
+        if !script || in_node_modules(path) {
             return Ok(None);
         }
         let Ok(source) = std::fs::read_to_string(path) else {
@@ -380,13 +380,35 @@ struct Output {
     sources: Vec<PathBuf>,
 }
 
+/// Whether a module id lies in a dependency. Windows module ids separate with `\`.
+fn in_node_modules(id: &str) -> bool {
+    id.contains("/node_modules/") || (cfg!(windows) && id.contains("\\node_modules\\"))
+}
+
+/// A canonical path as module ids spell it. Windows canonicalizes to a verbatim `\\?\C:\` path,
+/// which no module id starts with, so a local drive's prefix is dropped.
+#[cfg(unix)]
+fn canonical(path: &Path) -> Option<PathBuf> {
+    path.canonicalize().ok()
+}
+
+#[cfg(windows)]
+fn canonical(path: &Path) -> Option<PathBuf> {
+    let canonical = path.canonicalize().ok()?;
+    let text = canonical.to_str()?;
+    match text.strip_prefix(r"\\?\") {
+        Some(local) if !local.starts_with(r"UNC\") => Some(PathBuf::from(local)),
+        _ => Some(canonical),
+    }
+}
+
 /// Every imported source module runs, as under Vite's development server, even inside a
 /// package that declares `"sideEffects": false`: a story's `import './element.js'` that only
 /// registers a custom element must not be shaken away. Dependencies keep their own rules.
 fn source_side_effects() -> TreeshakeOptions {
     TreeshakeOptions::Option(InnerOptions {
         module_side_effects: ModuleSideEffects::Function(Arc::new(|id: &str, external: bool| {
-            let source = !external && !id.contains("/node_modules/");
+            let source = !external && !in_node_modules(id);
             Box::pin(async move { Ok(source.then_some(true)) })
         })),
         ..Default::default()
@@ -476,10 +498,7 @@ async fn bundle(
     // Module ids are resolved paths, and a temporary directory can sit behind a symlink, as
     // macOS's `/var` does. Without this the bundle's own generated entry counts as a source
     // written during the build, and every render rebuilds.
-    let work = source
-        .work
-        .canonicalize()
-        .unwrap_or_else(|_| source.work.clone());
+    let work = canonical(&source.work).unwrap_or_else(|| source.work.clone());
     for asset in &output.assets {
         let name = asset.filename().to_string();
         if let rolldown_common::Output::Chunk(chunk) = asset {

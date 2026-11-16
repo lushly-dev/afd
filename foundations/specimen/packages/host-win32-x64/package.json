@@ -1,0 +1,30 @@
+{
+	"name": "@lushly-dev/specimen-host-win32-x64",
+	"version": "2.2.0-preview.5",
+	"description": "Specimen's prebuilt native host for win32-x64",
+	"os": [
+		"win32"
+	],
+	"cpu": [
+		"x64"
+	],
+	"files": [
+		"bin/specimen-host.exe",
+		"README.md"
+	],
+	"scripts": {
+		"prepack": "node ../../host/stage.mjs --check win32-x64"
+	},
+	"publishConfig": {
+		"access": "public",
+		"bin": {
+			"specimen-host": "bin/specimen-host.exe"
+		}
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "foundations/specimen/packages/host-win32-x64"
+	},
+	"license": "MIT"
+}

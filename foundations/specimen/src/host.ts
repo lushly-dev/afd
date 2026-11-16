@@ -7,7 +7,18 @@ import { createInterface } from 'node:readline';
 import { fileURLToPath } from 'node:url';
 
 /** The systems and architectures with a prebuilt host; Linux builds link glibc. */
-const HOST_PLATFORMS = new Set(['darwin-arm64', 'darwin-x64', 'linux-arm64', 'linux-x64']);
+const HOST_PLATFORMS = new Set([
+	'darwin-arm64',
+	'darwin-x64',
+	'linux-arm64',
+	'linux-x64',
+	'win32-x64',
+]);
+
+/** The host binary's file name on a system: Windows executables carry `.exe`. */
+export function hostBinaryName(platform: string = process.platform): string {
+	return platform === 'win32' ? 'specimen-host.exe' : 'specimen-host';
+}
 
 /**
  * The prebuilt host package for a system and architecture, or undefined where none is built.
@@ -35,7 +46,7 @@ export function hostBinaryPath(moduleUrl = import.meta.url): string {
 			throw new Error(`Specimen host is missing at ${path}, where SPECIMEN_HOST_BINARY points`);
 		return path;
 	}
-	const built = fileURLToPath(new URL('../host/target/release/specimen-host', moduleUrl));
+	const built = fileURLToPath(new URL(`../host/target/release/${hostBinaryName()}`, moduleUrl));
 	if (existsSync(built)) return built;
 	const name = hostPackageName();
 	if (!name)
@@ -55,7 +66,7 @@ export function hostBinaryPath(moduleUrl = import.meta.url): string {
 				: `Specimen's host package ${name} is not installed; reinstall without omitting optional dependencies, or set SPECIMEN_HOST_BINARY`
 		);
 	}
-	const path = join(dirname(manifest), 'bin', 'specimen-host');
+	const path = join(dirname(manifest), 'bin', hostBinaryName());
 	if (!existsSync(path))
 		throw new Error(
 			`${name} has no host binary at ${path}; in a source checkout, run \`pnpm -F @lushly-dev/specimen build:host\``
@@ -74,6 +85,7 @@ const SHELL_DIRECTORIES: Record<string, string> = {
 	'darwin-x64': 'chrome-headless-shell-mac-x64',
 	'linux-arm64': 'chrome-headless-shell-linux-arm64',
 	'linux-x64': 'chrome-headless-shell-linux64',
+	'win32-x64': 'chrome-headless-shell-win64',
 };
 
 /**
@@ -97,7 +109,9 @@ export function chromiumExecutable(): string {
 	const cache =
 		process.platform === 'darwin'
 			? join(homedir(), 'Library', 'Caches')
-			: (process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'));
+			: process.platform === 'win32'
+				? (process.env.LOCALAPPDATA ?? join(homedir(), 'AppData', 'Local'))
+				: (process.env.XDG_CACHE_HOME ?? join(homedir(), '.cache'));
 	let registry = join(cache, 'ms-playwright');
 	if (configured === '0') registry = join(core, '.local-browsers');
 	else if (configured) registry = isAbsolute(configured) ? configured : resolve(configured);
@@ -105,7 +119,7 @@ export function chromiumExecutable(): string {
 		registry,
 		`chromium_headless_shell-${shell.revision}`,
 		directory,
-		'chrome-headless-shell'
+		process.platform === 'win32' ? 'chrome-headless-shell.exe' : 'chrome-headless-shell'
 	);
 	if (!existsSync(executable)) {
 		// The project resolves Specimen's Playwright range itself, so name that exact version.
@@ -168,8 +182,9 @@ export class HostProcess {
 				);
 				// The host stops Chromium on every exit it controls; this covers one it did not.
 				// After a clean close the group is gone and its id may already belong to
-				// another process group, so it is left alone.
-				if (this.browserGroup && !this.closedCleanly) {
+				// another process group, so it is left alone. On Windows the browser is in a job
+				// the host holds, which closing the host's handles terminates, so no group exists.
+				if (this.browserGroup && !this.closedCleanly && process.platform !== 'win32') {
 					try {
 						process.kill(-this.browserGroup, 'SIGKILL');
 					} catch {

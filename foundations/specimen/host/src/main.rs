@@ -23,6 +23,7 @@ mod csf;
 mod glob;
 mod keyboard;
 mod page;
+mod process;
 mod serve;
 
 use anyhow::{Result, anyhow};
@@ -109,7 +110,7 @@ impl Bench {
 
     async fn close(&self) {
         self.browser.close().await;
-        let _ = std::fs::remove_dir_all(&self.work);
+        process::remove_tree(&self.work);
     }
 }
 
@@ -123,7 +124,7 @@ async fn open(request: OpenRequest) -> Result<Arc<Bench>> {
         Ok(origin) => origin,
         Err(error) => {
             browser.close().await;
-            let _ = std::fs::remove_dir_all(&work);
+            process::remove_tree(&work);
             return Err(error);
         }
     };

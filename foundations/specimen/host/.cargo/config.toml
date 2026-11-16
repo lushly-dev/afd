@@ -1,0 +1,5 @@
+# The prebuilt Windows host links the C runtime statically, so it starts on a machine without
+# the Visual C++ Redistributable: Node and Chromium carry their own runtime, but a host built
+# with Rust's default links VCRUNTIME140.dll. The repository's .cargo/config.toml still applies.
+[target.x86_64-pc-windows-msvc]
+rustflags = ["-C", "target-feature=+crt-static"]

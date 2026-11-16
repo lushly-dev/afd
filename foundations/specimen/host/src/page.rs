@@ -21,6 +21,19 @@ fn font_families() -> Value {
                 { "script": "hant", "fontFamilies": { "standard": ",PingFang TC,Heiti TC", "serif": "Songti TC", "sansSerif": ",PingFang TC,Heiti TC", "cursive": "Kaiti TC" } }
             ]
         })
+    } else if cfg!(windows) {
+        json!({
+            "fontFamilies": { "standard": "Times New Roman", "fixed": "Consolas", "serif": "Times New Roman", "sansSerif": "Arial", "cursive": "Comic Sans MS", "fantasy": "Impact" },
+            "forScripts": [
+                { "script": "cyrl", "fontFamilies": { "standard": "Times New Roman", "fixed": "Courier New", "serif": "Times New Roman", "sansSerif": "Arial" } },
+                { "script": "arab", "fontFamilies": { "fixed": "Courier New", "sansSerif": "Segoe UI" } },
+                { "script": "grek", "fontFamilies": { "standard": "Times New Roman", "fixed": "Courier New", "serif": "Times New Roman", "sansSerif": "Arial" } },
+                { "script": "jpan", "fontFamilies": { "standard": ",Meiryo,Yu Gothic", "fixed": "MS Gothic", "serif": ",Yu Mincho,MS PMincho", "sansSerif": ",Meiryo,Yu Gothic" } },
+                { "script": "hang", "fontFamilies": { "standard": "Malgun Gothic", "fixed": "Gulimche", "serif": "Batang", "sansSerif": "Malgun Gothic", "cursive": "Gungsuh" } },
+                { "script": "hans", "fontFamilies": { "standard": "Microsoft YaHei", "fixed": "NSimsun", "serif": "Simsun", "sansSerif": "Microsoft YaHei", "cursive": "KaiTi" } },
+                { "script": "hant", "fontFamilies": { "standard": "Microsoft JhengHei", "fixed": "MingLiU", "serif": "PMingLiU", "sansSerif": "Microsoft JhengHei", "cursive": "DFKai-SB" } }
+            ]
+        })
     } else {
         json!({
             "fontFamilies": { "standard": "Times New Roman", "fixed": "Monospace", "serif": "Times New Roman", "sansSerif": "Arial", "cursive": "Comic Sans MS", "fantasy": "Impact" }

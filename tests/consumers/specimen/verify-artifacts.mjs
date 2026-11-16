@@ -36,10 +36,11 @@ await mkdir(output, { recursive: true });
 const fixtures = join(repository, 'foundations/specimen/fixtures');
 // The prebuilt host for this platform: the source build (or SPECIMEN_HOST_BINARY) staged into its
 // package, which every consumer below installs. No consumer sees SPECIMEN_HOST_BINARY, so each
-// render proves the packaged host is found.
+// render proves the packaged host is found. Windows executables carry `.exe`.
+const hostExecutable = process.platform === 'win32' ? 'specimen-host.exe' : 'specimen-host';
 const hostBinary =
 	process.env.SPECIMEN_HOST_BINARY ??
-	join(repository, 'foundations/specimen/host/target/release/specimen-host');
+	join(repository, 'foundations/specimen/host/target/release', hostExecutable);
 assert(
 	existsSync(hostBinary),
 	'build the Specimen host first: pnpm -F @lushly-dev/specimen build:host'
@@ -49,9 +50,13 @@ delete process.env.SPECIMEN_HOST_BINARY;
 delete process.env.NODE_PATH;
 const hostSuffix = `${process.platform}-${process.arch}${process.platform === 'linux' ? '-gnu' : ''}`;
 const hostPackage = `@lushly-dev/specimen-host-${hostSuffix}`;
-const hostPackages = ['darwin-arm64', 'darwin-x64', 'linux-arm64-gnu', 'linux-x64-gnu'].map(
-	(suffix) => `@lushly-dev/specimen-host-${suffix}`
-);
+const hostPackages = [
+	'darwin-arm64',
+	'darwin-x64',
+	'linux-arm64-gnu',
+	'linux-x64-gnu',
+	'win32-x64',
+].map((suffix) => `@lushly-dev/specimen-host-${suffix}`);
 assert(hostPackages.includes(hostPackage), `no prebuilt host package for ${hostSuffix}`);
 execFileSync(
 	process.execPath,
@@ -79,7 +84,7 @@ const packs = {};
 for (const path of sources) {
 	const manifest = JSON.parse(await readFile(join(repository, path, 'package.json'), 'utf8'));
 	// The host package carries a binary, which its prepack checks, rather than a dist.
-	const built = manifest.name === hostPackage ? 'bin/specimen-host' : 'dist';
+	const built = manifest.name === hostPackage ? `bin/${hostExecutable}` : 'dist';
 	assert(existsSync(join(repository, path, built)), `${path} is not built`);
 	execTool('pnpm', ['pack', '--pack-destination', artifacts], {
 		cwd: join(repository, path),
@@ -232,11 +237,11 @@ const hostFiles = execFileSync(tarCommand(), ['-tvzf', packs[hostPackage]], { en
 assert.deepEqual(hostFiles.map((line) => line.split(/\s+/).at(-1)).sort(), [
 	'package/LICENSE',
 	'package/README.md',
-	'package/bin/specimen-host',
+	`package/bin/${hostExecutable}`,
 	'package/package.json',
 ]);
 assert.match(
-	hostFiles.find((line) => line.endsWith('bin/specimen-host')),
+	hostFiles.find((line) => line.endsWith(`bin/${hostExecutable}`)),
 	/^-rwx/,
 	'the packed host is executable'
 );
@@ -257,11 +262,14 @@ const { root: nativeRoot } = await install('native-only', {
 });
 const installed = await readdir(join(nativeRoot, 'node_modules/.pnpm'));
 assert(!installed.some((name) => forbiddenFamilies.test(name)), installed.join('\n'));
-assert.deepEqual(
-	installed.filter((name) => name.includes('specimen-host')).map((name) => name.split('@')[1]),
-	[`lushly-dev+specimen-host-${hostSuffix}`],
-	'only this platform’s host is installed'
-);
+// Windows shortens long store directory names to a prefix and a hash, so read the package each holds.
+const installedHosts = [];
+for (const name of installed.filter((entry) => entry.includes('specimen-host'))) {
+	const scope = join(nativeRoot, 'node_modules/.pnpm', name, 'node_modules/@lushly-dev');
+	for (const host of await readdir(scope))
+		if (host.startsWith('specimen-host-')) installedHosts.push(`@lushly-dev/${host}`);
+}
+assert.deepEqual(installedHosts, [hostPackage], 'only this platform’s host is installed');
 await cp(fixtures, join(nativeRoot, 'fixtures'), { recursive: true });
 passed(
 	'native-only install graph contains no AFD, FAST-AF, Violet or Specimen integration/endpoint'
@@ -270,6 +278,7 @@ passed(
 await writeFile(
 	join(nativeRoot, 'cold.mjs'),
 	`import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { registerHooks } from 'node:module';
 registerHooks({
 	resolve(specifier, context, next) {
@@ -278,7 +287,7 @@ registerHooks({
 	},
 });
 const { createSpecimenBench } = await import('@lushly-dev/specimen');
-const bench = await createSpecimenBench({ root: new URL('./fixtures/', import.meta.url).pathname });
+const bench = await createSpecimenBench({ root: fileURLToPath(new URL('./fixtures/', import.meta.url)) });
 assert(bench.list().length > 0);
 await bench.close();
 `
@@ -289,6 +298,7 @@ passed('cold native import/list loads no runtime tooling or other family');
 await writeFile(
 	join(nativeRoot, 'runtime.mjs'),
 	`import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { createSpecimenBench, diffObservations, normalizeDom, CAPTURE_VERSION, NORMALIZATION_VERSION } from '@lushly-dev/specimen';
 import * as root from '@lushly-dev/specimen';
 import * as types from '@lushly-dev/specimen/types';
@@ -301,7 +311,7 @@ assert.deepEqual(Object.keys(schema).sort(), ['a11yRequestSchema', 'a11yRunSchem
 assert.deepEqual(Object.keys(evidence), ['claim']);
 const pack = await import('@lushly-dev/specimen/pack');
 assert.equal(pack.PACK_FORMAT_VERSION, 1);
-const packRoot = new URL('./fixtures/pack/', import.meta.url).pathname;
+const packRoot = fileURLToPath(new URL('./fixtures/pack/', import.meta.url));
 for (const form of ['committed', 'exported'])
 	assert.deepEqual(pack.checkPack(await pack.readPackFiles(packRoot + form), { form }).problems, []);
 const { default: componentSchema } = await import('@lushly-dev/specimen/pack/component.schema.json', { with: { type: 'json' } });
@@ -324,7 +334,7 @@ try {
 	assert.match(error.message, /@lushly-dev\\/specimen-afd/);
 }
 for (const runtimeIsolation of ['in-process', 'process']) {
-	const bench = await createSpecimenBench({ root: new URL('./fixtures/', import.meta.url).pathname, runtimeIsolation });
+	const bench = await createSpecimenBench({ root: fileURLToPath(new URL('./fixtures/', import.meta.url)), runtimeIsolation });
 	try {
 		const entries = bench.list();
 		assert(entries.length > 0);
@@ -334,7 +344,7 @@ for (const runtimeIsolation of ['in-process', 'process']) {
 		const reused = await bench.render({ id: first.id });
 		assert(observationSchema.safeParse(reused).success);
 		assert.equal(diffObservations(capture, reused, { requireVisual: true }).status, 'insufficient-evidence');
-		const built = await bench.build(new URL('./site-' + runtimeIsolation, import.meta.url).pathname);
+		const built = await bench.build(fileURLToPath(new URL('./site-' + runtimeIsolation, import.meta.url)));
 		assert(buildOutputSchema.safeParse(built).success);
 	} finally {
 		await bench.close();
@@ -356,8 +366,9 @@ await cp(fixtures, join(hostlessRoot, 'fixtures'), { recursive: true });
 await writeFile(
 	join(hostlessRoot, 'hostless.mjs'),
 	`import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { createSpecimenBench } from '@lushly-dev/specimen';
-const bench = await createSpecimenBench({ root: new URL('./fixtures/', import.meta.url).pathname });
+const bench = await createSpecimenBench({ root: fileURLToPath(new URL('./fixtures/', import.meta.url)) });
 try {
 	await assert.rejects(bench.render({ id: bench.list()[0].id }), /${hostPackage.replace('/', '\\/')} is not installed; reinstall without omitting optional dependencies/);
 } finally {
@@ -409,16 +420,17 @@ export const Fails: StoryObj<Args> = {
 await writeFile(
 	join(nativeRoot, 'retained.mjs'),
 	`import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import { createSpecimenBench } from '@lushly-dev/specimen';
 import * as test from '@lushly-dev/specimen/test';
 assert.deepEqual(Object.keys(test).sort(), ['expect', 'fn', 'spyOn', 'userEvent', 'waitFor', 'within']);
-const bench = await createSpecimenBench({ root: new URL('./retained/', import.meta.url).pathname });
+const bench = await createSpecimenBench({ root: fileURLToPath(new URL('./retained/', import.meta.url)) });
 try {
 	const status = async (id) => (await bench.run({ id })).outcome.status;
 	assert.equal(await status('consumer-press--presses'), 'passed');
 	assert.equal(await status('consumer-press--fails'), 'failed');
-	const out = new URL('./retained-site', import.meta.url).pathname;
+	const out = fileURLToPath(new URL('./retained-site', import.meta.url));
 	await bench.build(out);
 	const report = JSON.parse(await readFile(out + '/specimen-build.json', 'utf8'));
 	assert.equal(report.reported.incumbent, 0);
@@ -478,13 +490,14 @@ await cp(fixtures, join(fullRoot, 'fixtures'), { recursive: true });
 await writeFile(
 	join(fullRoot, 'runtime.mjs'),
 	`import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
 import { createSpecimenBench } from '@lushly-dev/specimen';
 import * as integration from '@lushly-dev/specimen-afd';
 import * as endpoint from '@lushly-dev/specimen-cli';
 const { createSpecimenCommands, executeSpecimenCommand, executeSpecimenDiff } = integration;
 assert.deepEqual(Object.keys(integration).sort(), ['a11yRunSchema', 'buildOutputSchema', 'contextSchema', 'contractRunSchema', 'coverageRunSchema', 'createSpecimenCommands', 'executeSpecimenCommand', 'executeSpecimenDiff', 'inspectResultSchema', 'matrixRunSchema', 'observationSchema', 'profileRunSchema', 'storyRunSchema', 'suggestRunSchema', 'suiteRunSchema', 'themesRunSchema']);
 assert.deepEqual(Object.keys(endpoint), ['runCli']);
-const root = new URL('./fixtures/', import.meta.url).pathname;
+const root = fileURLToPath(new URL('./fixtures/', import.meta.url));
 const bench = await createSpecimenBench({ root });
 try {
 	const commands = createSpecimenCommands(bench);

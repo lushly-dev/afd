@@ -36,7 +36,9 @@ export function normalizeSpecifier(
 			files: entry.files ?? DEFAULT_STORY_FILES,
 			titlePrefix: entry.titlePrefix ?? '',
 		};
-	const segments = entry.split('/');
+	// A Windows path may separate with `\`, as `path.resolve` writes it; elsewhere `\` escapes.
+	const pattern = process.platform === 'win32' ? entry.replaceAll('\\', '/') : entry;
+	const segments = pattern.split('/');
 	const glob = segments.findIndex((segment) => GLOB_SEGMENT.test(segment));
 	if (glob >= 0)
 		return {
@@ -44,10 +46,10 @@ export function normalizeSpecifier(
 			files: segments.slice(glob).join('/'),
 			titlePrefix: '',
 		};
-	const path = resolve(base, entry);
+	const path = resolve(base, pattern);
 	if (existsSync(path) && statSync(path).isDirectory())
-		return { directory: entry, files: DEFAULT_STORY_FILES, titlePrefix: '' };
-	return { directory: dirname(entry), files: basename(entry), titlePrefix: '' };
+		return { directory: pattern, files: DEFAULT_STORY_FILES, titlePrefix: '' };
+	return { directory: dirname(pattern), files: basename(pattern), titlePrefix: '' };
 }
 
 /** The tags that declare a story's themes, each naming the one theme it supports. */

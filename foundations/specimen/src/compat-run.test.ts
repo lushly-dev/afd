@@ -1,4 +1,4 @@
-import { execFile } from 'node:child_process';
+import { type ExecFileOptions, execFile } from 'node:child_process';
 import { mkdtemp, readFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, relative, resolve } from 'node:path';
@@ -14,6 +14,16 @@ const run = promisify(execFile);
 const compat = resolve(import.meta.dirname, '../compat');
 const vitest = resolve(import.meta.dirname, '../node_modules/.bin/vitest');
 let scratch: string;
+
+/**
+ * Run a `node_modules/.bin` command. Windows installs it as a `.cmd` shim, which Node starts
+ * only through cmd.exe, so there its path and arguments become one quoted command line.
+ */
+function runBin(command: string, args: string[], options: ExecFileOptions) {
+	if (process.platform !== 'win32') return run(command, args, options);
+	const line = [`${command}.cmd`, ...args].map((part) => (/\s/.test(part) ? `"${part}"` : part));
+	return run(line.join(' '), [], { ...options, shell: true });
+}
 
 interface IncumbentTest {
 	file: string;
@@ -37,7 +47,11 @@ function incumbentEnvironment(): NodeJS.ProcessEnv {
 async function incumbentExit(project: string): Promise<{ code: number; output: string }> {
 	const options = { cwd: join(compat, project), env: incumbentEnvironment() };
 	try {
-		const { stdout, stderr } = await run(vitest, ['run', '--config', 'vitest.config.ts'], options);
+		const { stdout, stderr } = await runBin(
+			vitest,
+			['run', '--config', 'vitest.config.ts'],
+			options
+		);
 		return { code: 0, output: `${stdout}${stderr}` };
 	} catch (error) {
 		const { code, stdout, stderr } = error as { code: number; stdout: string; stderr: string };
@@ -50,7 +64,7 @@ async function incumbent(project: string): Promise<IncumbentTest[]> {
 	const output = join(scratch, `${project.replaceAll('/', '-') || 'compat'}.json`);
 	const cwd = join(compat, project);
 	try {
-		await run(
+		await runBin(
 			vitest,
 			['run', '--config', 'vitest.config.ts', '--reporter=json', `--outputFile=${output}`],
 			{ cwd, env: incumbentEnvironment() }

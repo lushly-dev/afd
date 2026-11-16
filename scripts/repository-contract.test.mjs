@@ -237,7 +237,7 @@ test('an approved Specimen release builds and stages every prebuilt host before 
 		.filter((name) => name.startsWith('host-'))
 		.map((name) => name.slice('host-'.length))
 		.sort();
-	assert.equal(platforms.length, 4);
+	assert.equal(platforms.length, 5);
 	const matrix = [...workflow.matchAll(/^ {10}- platform: (\S+)$/gm)].map((match) => match[1]);
 	assert.deepEqual([...matrix].sort(), platforms, 'build every platform package and no other');
 	const loop = workflow.match(/for platform in ([^;]+); do/);

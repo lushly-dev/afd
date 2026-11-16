@@ -20,7 +20,10 @@ const roots: string[] = [];
 const benches: Awaited<ReturnType<typeof createSpecimenBench>>[] = [];
 afterEach(async () => {
 	await Promise.all(benches.splice(0).map((bench) => bench.close().catch(() => {})));
-	await Promise.all(roots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+	// Windows refuses to remove a directory for a moment after a killed process held it.
+	await Promise.all(
+		roots.splice(0).map((root) => rm(root, { recursive: true, force: true, maxRetries: 10 }))
+	);
 	vi.mocked(fork).mockClear();
 });
 async function fixture(): Promise<string> {
@@ -188,7 +191,34 @@ it('closes its runtime after IPC is lost', async () => {
 	expectExited(child.pid);
 });
 
-function processTable() {
+interface ProcessEntry {
+	pid: number;
+	parent: number;
+	command: string;
+}
+function processTable(): ProcessEntry[] {
+	if (process.platform === 'win32') {
+		const listing = execFileSync(
+			'powershell.exe',
+			[
+				'-NoProfile',
+				'-NonInteractive',
+				'-Command',
+				'Get-CimInstance Win32_Process | Select-Object ProcessId, ParentProcessId, CommandLine | ConvertTo-Json -Compress',
+			],
+			{ encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 }
+		);
+		const entries = JSON.parse(listing) as {
+			ProcessId: number;
+			ParentProcessId: number;
+			CommandLine: string | null;
+		}[];
+		return entries.map((entry) => ({
+			pid: entry.ProcessId,
+			parent: entry.ParentProcessId,
+			command: entry.CommandLine ?? '',
+		}));
+	}
 	return execFileSync('ps', ['-axo', 'pid=,ppid=,command='], { encoding: 'utf8' })
 		.split('\n')
 		.flatMap((line) => {
@@ -206,6 +236,24 @@ function ownedHost(worker: number) {
 	);
 	if (!host) throw new Error('No native host owned by the test worker');
 	return { host, processes };
+}
+/** Chromium under a native host, and every process it started. */
+function ownedBrowser(host: ProcessEntry, processes: ProcessEntry[]) {
+	const browser = processes.find(
+		(entry) => entry.parent === host.pid && entry.command.includes('--remote-debugging-pipe')
+	);
+	if (!browser) throw new Error('No browser owned by the native host');
+	const tree = new Set([browser.pid]);
+	for (let changed = true; changed; ) {
+		changed = false;
+		for (const entry of processes) {
+			if (tree.has(entry.parent) && !tree.has(entry.pid)) {
+				tree.add(entry.pid);
+				changed = true;
+			}
+		}
+	}
+	return { browser, tree };
 }
 
 it.skipIf(process.platform === 'win32')(
@@ -392,4 +440,50 @@ it.skipIf(process.platform === 'win32')(
 		await vi.waitFor(() => expectExited(browser.pid), { timeout: 5000 });
 		await expect(bench.render({ id: 'probe' })).rejects.toThrow(/host exited/);
 	}
+);
+
+// Windows has no process groups: the host holds Chromium in a job that ends every process in it
+// once the host's handle to the job closes, however the host ends.
+it.runIf(process.platform === 'win32')(
+	'stops Chromium and every process it started when its native host is killed',
+	async () => {
+		const bench = await createSpecimenBench({ root: await fixture() });
+		benches.push(bench);
+		await bench.render({ id: 'probe' });
+		const { host, processes } = ownedHost(process.pid);
+		const { tree } = ownedBrowser(host, processes);
+		expect(tree.size).toBeGreaterThan(1);
+		process.kill(host.pid, 'SIGKILL');
+		await vi.waitFor(
+			() => {
+				for (const pid of tree) expectExited(pid);
+			},
+			{ timeout: 5000 }
+		);
+		await expect(bench.render({ id: 'probe' })).rejects.toThrow(/host exited/);
+	},
+	60_000
+);
+
+it.runIf(process.platform === 'win32')(
+	'stops Chromium and every process it started when its native host loses its owner',
+	async () => {
+		const bench = await create(await fixture());
+		await bench.render({ id: 'probe' });
+		const child = worker();
+		const { host, processes } = ownedHost(child.pid ?? 0);
+		const { tree } = ownedBrowser(host, processes);
+		expect(tree.size).toBeGreaterThan(1);
+		// The host's stdin closes with the worker that owned it, with no close request before.
+		child.kill('SIGKILL');
+		await vi.waitFor(
+			() => {
+				expectExited(host.pid);
+				for (const pid of tree) expectExited(pid);
+			},
+			{ timeout: 5000 }
+		);
+		await bench.close().catch(() => {});
+	},
+	60_000
 );
