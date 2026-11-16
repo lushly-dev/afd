@@ -42,6 +42,20 @@ export const AGENT_PROJECTS_MAX = 200;
 /** Most bytes of an agent member's `guidance` (8.1). */
 export const GUIDANCE_MAX_BYTES = 8 * 1024;
 
+/** The undo window with no workspace row: `trashDays`' default, 30 days. */
+export const UNDO_WINDOW_MS = 30 * 24 * 60 * 60 * 1000;
+
+/** Most kept records per agent member: an undo older than the newest twenty is gone. */
+export const UNDO_KEPT_MAX = 20;
+
+/** A kept record (`agent-member-undo`). */
+interface KeptRow {
+	id: string;
+	agent: string;
+	record: AgentMemberV1;
+	createdAt: number;
+}
+
 /** A warning `agent-member-list` shows an owner (8.3): the sponsor can no longer enter a project the record names. */
 export const SPONSOR_PROJECT_LOST = 'SPONSOR_PROJECT_LOST';
 
@@ -96,6 +110,11 @@ export interface AgentMembersDeps {
 	runBoot(name: string, input: unknown): Promise<{ success: boolean }>;
 	/** Whether a replay runs: it replays the settles' entries and reads nothing. */
 	replaying(): boolean;
+	/**
+	 * How long a kept record stays undoable, in ms: the workspace's `trashDays`, the shell's window for restoring what
+	 * was removed (documents specification, 4.1). Default 30 days.
+	 */
+	undoWindowMs?(): Promise<number>;
 	kit: Pick<DocumentKit, 'define' | 'success' | 'z' | 'kernelFailure' | 'personOf' | 'callNow'> & {
 		decideAccess(input: AccessInputV2): AccessDecisionV2;
 		isOwner(membership: MembershipV1, person: string | undefined): boolean;
@@ -343,7 +362,9 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	 */
 	function accessOf(
 		value: unknown,
-		labels: Map<string, string>
+		context: CommandContext,
+		labels: Map<string, string>,
+		blind: Set<string>
 	): AgentMemberV1['access'] | CommandResult<never> {
 		const asked = value as { workspace?: unknown; projects?: unknown };
 		const projects = asked.projects;
@@ -362,8 +383,15 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			);
 		}
 		if (projects === 'sponsor') return { workspace: asked.workspace, projects };
+		// A reference resolves only to a project the caller may enter; any other stays as written and is refused as a
+		// missing one, so an owner learns nothing of a restricted project they cannot see (decided by the coordinator on
+		// 2026-11-15; to name one, an owner first adds themselves, D96).
+		const caller = personOf(context);
 		const ids = (projects as string[]).map((ref) => {
-			const at = scope.project(ref)?.id ?? ref;
+			const found = scope.project(ref);
+			const visible = found !== undefined && mayEnter(scope.membership, caller, found.id);
+			const at = visible ? found.id : ref;
+			if (!visible) blind.add(at);
 			if (!labels.has(at)) labels.set(at, ref);
 			return at;
 		});
@@ -378,7 +406,8 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		context: CommandContext,
 		sponsor: string,
 		access: AgentMemberV1['access'],
-		labels: Map<string, string> = new Map()
+		labels: Map<string, string> = new Map(),
+		blind: ReadonlySet<string> = new Set()
 	): CommandResult<never> | undefined {
 		const member = provider ? scope.membership.members.has(sponsor) : sponsor === personOf(context);
 		if (sponsor.startsWith('agt_') || !member) {
@@ -389,7 +418,9 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			);
 		}
 		if (access.projects === 'sponsor') return undefined;
-		const lost = access.projects.filter((id) => !mayEnter(scope.membership, sponsor, id));
+		const lost = access.projects.filter(
+			(id) => blind.has(id) || !mayEnter(scope.membership, sponsor, id)
+		);
 		if (lost.length === 0) return undefined;
 		// Each as the caller wrote it; one the record already held is named only when the caller may enter it, and the
 		// rest counted, so a refusal names nothing hidden from the caller (I2, I3).
@@ -481,6 +512,24 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		const draw = () => (context.random?.next() ?? Math.random()).toString(36).slice(2);
 		return `agu_${`${draw()}${draw()}${draw()}00000000000000000000`.slice(0, 20)}`;
 	};
+	/**
+	 * Drop the kept records past the undo window, and past the newest {@link UNDO_KEPT_MAX} per agent member, on each
+	 * read and write, on the call's clock, so a replay drops the same ones (step 6's final check).
+	 */
+	const prune = async (context: CommandContext): Promise<void> => {
+		const window = (await deps.undoWindowMs?.()) ?? UNDO_WINDOW_MS;
+		const now = kit.callNow(context);
+		const rows = (await store.list<KeptRow>(AGENT_MEMBER_UNDO_TABLE)).data.sort(
+			(a, b) => b.createdAt - a.createdAt || (a.id < b.id ? 1 : -1)
+		);
+		const seen = new Map<string, number>();
+		for (const row of rows) {
+			const count = (seen.get(row.agent) ?? 0) + 1;
+			seen.set(row.agent, count);
+			if (row.createdAt < now - window || count > UNDO_KEPT_MAX)
+				await store.remove(AGENT_MEMBER_UNDO_TABLE, row.id);
+		}
+	};
 	/** Keep the record a write replaces, under an opaque id its undo names (8.2; the review's I3). */
 	const keep = async (record: AgentMemberV1, context: CommandContext): Promise<string> => {
 		const undo = undoId(context);
@@ -490,17 +539,17 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			record,
 			createdAt: kit.callNow(context),
 		});
+		await prune(context);
 		return undo;
 	};
-	/** The record an undo restores, for that agent member's id alone when given, or undefined. */
+	/** The record an undo restores, for that agent member's id alone when given, or undefined; pruned first. */
 	const kept = async (
 		undo: string,
-		agent: string | undefined
+		agent: string | undefined,
+		context: CommandContext
 	): Promise<AgentMemberV1 | undefined> => {
-		const row = await store.get<{ agent: string; record: AgentMemberV1 }>(
-			AGENT_MEMBER_UNDO_TABLE,
-			undo
-		);
+		await prune(context);
+		const row = await store.get<KeptRow>(AGENT_MEMBER_UNDO_TABLE, undo);
 		return row && (agent === undefined || row.agent === agent) ? row.record : undefined;
 	};
 	const noUndo = () =>
@@ -521,16 +570,14 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 	const answer = (record: AgentMemberV1, context: CommandContext) =>
 		rowFor(record, context, undefined, ownerOf(context));
 
-	const undoRef = z.optional(z.string().check(z.minLength(1), z.maxLength(64)));
+	const undoString = z.string().check(z.minLength(1), z.maxLength(64));
+	const undoRef = z.optional(undoString);
 	const UNDO_JSON: JsonSchema = { type: 'string', minLength: 1, maxLength: 64 };
-	const addInput = z.strictObject({
-		name: z.optional(name),
-		sponsor: z.optional(id),
-		access,
-		description,
-		guidance,
-		undo: undoRef,
-	});
+	// Either an undo of `-remove`, naming the kept record alone, or a new agent member's fields: exactly one.
+	const addInput = z.xor([
+		z.strictObject({ undo: undoString }),
+		z.strictObject({ name, sponsor: id, access, description, guidance }),
+	]);
 	const add = kit.define<typeof addInput, AgentMemberRowV1>({
 		name: 'agent-member-add',
 		title: 'Add an agent member',
@@ -543,38 +590,47 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 		input: addInput,
 		jsonSchema: {
 			type: 'object',
-			properties: {
-				name: NAME_JSON,
-				sponsor: ID_JSON,
-				access: ACCESS_JSON,
-				description: DESCRIPTION_JSON,
-				guidance: GUIDANCE_JSON,
-				undo: UNDO_JSON,
-			},
-			additionalProperties: false,
-		},
+			oneOf: [
+				{
+					type: 'object',
+					properties: { undo: UNDO_JSON },
+					required: ['undo'],
+					additionalProperties: false,
+				},
+				{
+					type: 'object',
+					properties: {
+						name: NAME_JSON,
+						sponsor: ID_JSON,
+						access: ACCESS_JSON,
+						description: DESCRIPTION_JSON,
+						guidance: GUIDANCE_JSON,
+					},
+					required: ['name', 'sponsor'],
+					additionalProperties: false,
+				},
+			],
+		} as unknown as JsonSchema,
 		async handler(input, context) {
 			const owned = ownerRefusal(context);
 			if (owned) return owned;
 			// An undo of `agent-member-remove` names the record it kept, alone (8.2; I3); a new one names its fields.
-			const restored = input.undo === undefined ? undefined : await kept(input.undo, undefined);
-			if (input.undo !== undefined) {
-				const others = Object.keys(input).filter((key) => key !== 'undo');
-				if (!restored || others.length > 0) return noUndo();
-			}
-			const given = restored ? fieldsOf(restored) : input;
-			if (given.name === undefined || given.sponsor === undefined) {
-				return invalid(
-					'An agent member needs a name and a sponsor',
-					'Give name and sponsor, the sponsor a member of the workspace'
-				);
-			}
+			const undo = 'undo' in input ? input.undo : undefined;
+			const restored = undo === undefined ? undefined : await kept(undo, undefined, context);
+			if (undo !== undefined && !restored) return noUndo();
+			const given = restored
+				? fieldsOf(restored)
+				: (input as Exclude<typeof input, { undo: string }>);
 			const refused = nameRefusal(given.name) ?? guidanceRefusal(given.guidance);
 			if (refused) return refused;
 			const labels = new Map<string, string>();
-			const access = accessOf(given.access ?? { workspace: false, projects: [] }, labels);
+			const blind = new Set<string>();
+			// A kept record's projects are its own ids, already the sponsor's to check; a new one's are references.
+			const access = restored
+				? restored.access
+				: accessOf(given.access ?? { workspace: false, projects: [] }, context, labels, blind);
 			if ('success' in access) return access;
-			const sponsored = sponsorRefusal(context, given.sponsor, access, labels);
+			const sponsored = sponsorRefusal(context, given.sponsor, access, labels, blind);
 			if (sponsored) return sponsored;
 			const agent = restored?.id ?? newId(context);
 			if (await store.get(AGENT_MEMBER_TABLE, agent)) {
@@ -601,7 +657,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 				updatedBy: person,
 			};
 			await write(record);
-			if (input.undo !== undefined) await store.remove(AGENT_MEMBER_UNDO_TABLE, input.undo);
+			if (undo !== undefined) await store.remove(AGENT_MEMBER_UNDO_TABLE, undo);
 			return kit.success(answer(record, context), {
 				undoCommand: 'agent-member-remove',
 				undoArgs: { agent },
@@ -648,21 +704,39 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			const before = await recordOf(asked.agent);
 			if (!before) return notFound();
 			// An undo names the record the change replaced, alone, and restores its every field (8.2; I3).
-			const restored = asked.undo === undefined ? undefined : await kept(asked.undo, asked.agent);
+			const restored =
+				asked.undo === undefined ? undefined : await kept(asked.undo, asked.agent, context);
 			if (asked.undo !== undefined) {
 				const others = Object.keys(asked).filter((key) => key !== 'undo' && key !== 'agent');
 				if (!restored || others.length > 0) return noUndo();
 			}
-			const input = restored ? { agent: asked.agent, ...fieldsOf(restored) } : asked;
+			// The kept sponsor counts as named only when it differs, so undoing a rename of a suspended record leaves it
+			// suspended (8.3; step 6's final check).
+			const { sponsor: keptSponsor, ...keptFields } = restored
+				? fieldsOf(restored)
+				: { sponsor: '' };
+			const input = restored
+				? {
+						agent: asked.agent,
+						...keptFields,
+						...(keptSponsor !== before.sponsor ? { sponsor: keptSponsor } : {}),
+					}
+				: asked;
 			const refused = nameRefusal(input.name) ?? guidanceRefusal(input.guidance);
 			if (refused) return refused;
 			const labels = new Map<string, string>();
-			const access = input.access === undefined ? before.access : accessOf(input.access, labels);
+			const blind = new Set<string>();
+			const access =
+				input.access === undefined
+					? before.access
+					: restored
+						? restored.access
+						: accessOf(input.access, context, labels, blind);
 			if ('success' in access) return access;
 			const sponsor = input.sponsor ?? before.sponsor;
 			// The sponsor rules run when the access or the sponsor is given (8.3).
 			if (input.access !== undefined || input.sponsor !== undefined) {
-				const sponsored = sponsorRefusal(context, sponsor, access, labels);
+				const sponsored = sponsorRefusal(context, sponsor, access, labels, blind);
 				if (sponsored) return sponsored;
 			}
 			// A suspended one is reactivated only by naming a sponsor, who then confirms (8.3); otherwise a new sponsor or
@@ -981,7 +1055,7 @@ export function createAgentMembers(deps: AgentMembersDeps) {
 			if (typeof asked.undo === 'string') {
 				// An undo restores a kept record, its sponsor included (I3).
 				sponsor = (
-					await kept(asked.undo, typeof asked.agent === 'string' ? asked.agent : undefined)
+					await kept(asked.undo, typeof asked.agent === 'string' ? asked.agent : undefined, call)
 				)?.sponsor;
 			} else if (name === 'agent-member-update') {
 				if (asked.sponsor === undefined && asked.access === undefined) return undefined;

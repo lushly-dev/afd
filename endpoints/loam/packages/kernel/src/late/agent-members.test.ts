@@ -21,6 +21,7 @@ import {
 } from '../scope/fixtures.js';
 import type { AgentMemberV1, ProjectV1 } from '../scope/records.js';
 import { replayKernel } from '../testing.js';
+import { documentsDeployment, documentsPorts } from '../testing-documents.js';
 import type { LoamKernelV3 } from '../types.js';
 import { type AgentMemberRowV1, widens } from './agent-members.js';
 import type { LoamAccountAccessV1 } from './member-commands.js';
@@ -911,5 +912,156 @@ describe('P3-E5: local mode (2.1)', () => {
 		expect((await journalOf(made)).some((entry) => entry.command === 'membership-settle')).toBe(
 			false
 		);
+	});
+});
+
+describe("P3-E5: step 6's final check", () => {
+	const at = (project = ATLAS) => ({ workspace: 'personal', project });
+
+	it('P3-E5: a `workspace: false` agent member at Atlas reaches no workspace-level document by naming `project: null` (B1)', async () => {
+		const made = await provider({
+			agents: [agentMember()],
+			deployment: documentsDeployment(),
+			ports: documentsPorts(),
+		});
+		await signIn(made.kernel, 'bea@example.com');
+		const mine = await made.kernel.call<{ id: string }>('document-create', {
+			type: 'probe',
+			project: 'atlas',
+			title: 'In Atlas',
+		});
+		expect(mine.success, JSON.stringify(mine.error)).toBe(true);
+		const document = mine.data?.id as string;
+		for (const [name, input] of [
+			['document-create', { type: 'probe', title: 'Out', project: null }],
+			['document-move', { document, project: null }],
+			['document-list', { project: null }],
+			[
+				'document-import',
+				{
+					type: 'probe',
+					project: null,
+					envelope: { loam_document: 1, type: 'probe', content_version: 1, content: { text: 'x' } },
+				},
+			],
+		] as const) {
+			expect((await asAgentMember(made, name, input, at())).error?.code, name).toBe(
+				'PROJECT_NOT_FOUND'
+			);
+		}
+		// Its own project's documents it still reaches; Bea's stays in Atlas.
+		expect((await asAgentMember(made, 'document-list', {}, at())).success).toBe(true);
+		const record = await made.store.get<{ scope: { project?: string }; title: string }>(
+			'document',
+			document
+		);
+		expect(record?.scope.project).toBe(ATLAS);
+		const titles = (await made.store.list<{ title: string }>('document')).data.map(
+			(row) => row.title
+		);
+		expect(titles).not.toContain('Out');
+	});
+
+	it('P3-E5: an agent member acting for no member gets nothing: signed-out and member-exempt commands included', async () => {
+		const made = await provider({ agents: [agentMember({ sponsor: DEE })] });
+		// Dee is signed in and is no member of the workspace.
+		await signIn(made.kernel, 'dee@example.com');
+		for (const name of [
+			'scope-get',
+			'palette-search',
+			'shell-info-get',
+			'account-get',
+			'auth-session-get',
+		]) {
+			const input = name === 'palette-search' ? { query: '' } : {};
+			expect((await asAgentMember(made, name, input)).error?.code, name).toBe('PROJECT_NOT_FOUND');
+		}
+		// A gated command is line 0's, in its own words.
+		expect((await asAgentMember(made, 'project-list', {})).error?.code).toBe(
+			'WORKSPACE_NOT_MEMBER'
+		);
+		// So is an unknown one's.
+		expect((await asAgentMember(made, 'scope-get', {}, undefined, OTHER)).error?.code).toBe(
+			'PROJECT_NOT_FOUND'
+		);
+	});
+
+	it("P3-E5: undoing a suspended agent member's rename leaves it suspended", async () => {
+		const made = await provider({
+			agents: [agentMember({ status: 'suspended', suspended: 'sponsor-declined' })],
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const renamed = await made.kernel.call<AgentMemberRowV1>('agent-member-update', {
+			agent: AGENT,
+			name: 'Critic',
+		});
+		expect(renamed.data).toMatchObject({ status: 'suspended', suspended: 'sponsor-declined' });
+		const undone = await made.kernel.call<AgentMemberRowV1>(
+			renamed.undoCommand as string,
+			renamed.undoArgs
+		);
+		expect(undone.success, JSON.stringify(undone.error)).toBe(true);
+		expect(await stored(made)).toMatchObject({
+			name: 'Reviewer',
+			status: 'suspended',
+			suspended: 'sponsor-declined',
+		});
+	});
+
+	it('P3-E5: an undo id restores only the agent member it was kept for', async () => {
+		const made = await provider({
+			agents: [agentMember(), agentMember({ id: OTHER, name: 'Writer' })],
+		});
+		await signIn(made.kernel, 'olu@example.com');
+		const renamed = await made.kernel.call('agent-member-update', { agent: AGENT, name: 'Critic' });
+		const undo = (renamed.undoArgs as { undo: string }).undo;
+		const crossed = await made.kernel.call('agent-member-update', { agent: OTHER, undo });
+		expect(crossed.error?.code).toBe('VALIDATION_ERROR');
+		expect((await stored(made, OTHER))?.name).toBe('Writer');
+		// The right one still works.
+		expect((await made.kernel.call('agent-member-update', { agent: AGENT, undo })).success).toBe(
+			true
+		);
+	});
+
+	it('P3-E5: kept records expire with the undo window, and only the newest 20 per agent member stay', async () => {
+		let now = Date.parse('2026-01-01T00:00:00Z');
+		const made = await provider({ agents: [agentMember()], clock: () => (now += 1) });
+		await signIn(made.kernel, 'olu@example.com');
+		const rename = async (name: string) =>
+			(
+				(await made.kernel.call('agent-member-update', { agent: AGENT, name })).undoArgs as {
+					undo: string;
+				}
+			).undo;
+		const first = await rename('A0');
+		for (let i = 1; i <= 20; i++) await rename(`A${i}`);
+		const kept = (await made.store.list<{ agent: string }>('agent-member-undo')).data;
+		expect(kept).toHaveLength(20);
+		// The oldest is gone.
+		expect(
+			(await made.kernel.call('agent-member-update', { agent: AGENT, undo: first })).error?.code
+		).toBe('VALIDATION_ERROR');
+		// Past the workspace's 30 days, the rest go too.
+		const late = await rename('Late');
+		now += 31 * 24 * 60 * 60 * 1000;
+		expect(
+			(await made.kernel.call('agent-member-update', { agent: AGENT, undo: late })).error?.code
+		).toBe('VALIDATION_ERROR');
+		expect((await made.store.list('agent-member-undo')).data).toHaveLength(0);
+	});
+
+	it('P3-E5: a reference resolves only to a project the caller may enter: Den, by slug or id, answers as `nowhere` (decided 2026-11-15)', async () => {
+		const made = await provider();
+		await signIn(made.kernel, 'olu@example.com');
+		// Bea may enter Den, but Olu, the owner calling, cannot see it.
+		const refusal = async (ref: string) =>
+			(await add(made.kernel, { sponsor: BEA, access: { workspace: false, projects: [ref] } }))
+				.error?.message;
+		const nowhere = await refusal('nowhere');
+		expect(nowhere).toBe("The sponsor cannot enter 'nowhere'");
+		expect((await refusal('den'))?.replace("'den'", "'nowhere'")).toBe(nowhere);
+		expect((await refusal(DEN))?.replace(`'${DEN}'`, "'nowhere'")).toBe(nowhere);
+		expect((await made.store.list(AGENT_MEMBER_TABLE)).data).toEqual([]);
 	});
 });

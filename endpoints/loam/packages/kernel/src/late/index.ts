@@ -279,6 +279,8 @@ export async function createLateParts(
 		scope: deps.scope,
 		runBoot: deps.runBoot,
 		replaying: () => deps.internals?.replaying === true,
+		// The shell's window for restoring what was removed, the workspace's `trashDays` (documents specification, 4.1).
+		undoWindowMs: async () => ((await stores.workspace())?.trashDays ?? 30) * 86_400_000,
 		kit: { ...DOCUMENT_KIT, decideAccess, isOwner, membershipUnavailable },
 	});
 	await agentMembers.cache.load(deps.store);

@@ -60,10 +60,11 @@ const DEPLOYER_KEYS = [
  */
 function exempted(name: string, schema: unknown): unknown {
 	if (name !== 'agent-member-add' && name !== 'agent-member-update') return schema;
-	const copy = structuredClone(schema) as {
-		properties?: { access?: { properties?: Record<string, unknown> } };
-	};
-	delete copy.properties?.access?.properties?.projects;
+	type Branch = { properties?: { access?: { properties?: Record<string, unknown> } } };
+	const copy = structuredClone(schema) as Branch & { oneOf?: Branch[] };
+	// `-add`'s input is a `oneOf` of an undo and the new record's fields; `-update`'s a plain object.
+	for (const branch of [copy, ...(copy.oneOf ?? [])])
+		delete branch.properties?.access?.properties?.projects;
 	return copy;
 }
 

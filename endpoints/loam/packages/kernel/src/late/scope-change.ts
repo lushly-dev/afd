@@ -27,7 +27,7 @@ import type { ProjectV1, ScopeChangeV2, ScopeV1 } from '../scope/records.js';
 import { CALL_MARK, type ScopeRuntime } from '../scope/runtime.js';
 import { rowProject, storeRecordId } from '../scope/store-id.js';
 import type { ShellState } from '../shell-state.js';
-import { lineZero } from './auth-gate.js';
+import { gatedByLineZero, lineZero } from './auth-gate.js';
 import type { DocumentCheck } from './document-types.js';
 import {
 	archivedRefusal,
@@ -231,14 +231,18 @@ export function createLateScope(deps: LateScopeDeps): LateScope {
 
 	/**
 	 * Line 4 for an `agt_` actor (3.3, 8.3; the review's B1): an app's command and a shell command acting at the call's
-	 * scope at that scope; every other shell command at the workspace's. Undefined when it is no agent member, the
-	 * command is the kernel's own, or its person is no member, which line 0 refuses.
+	 * scope at that scope; every other shell command at the workspace's. Undefined when it is no agent member or the
+	 * command is the kernel's own, or when its person is no member and line 0 refuses the command itself.
 	 */
 	const lineFour = (call: CommandContext & KernelFieldContext, name: string) => {
 		const actor = call.actor as AccessActorV1;
 		if (!actor?.id?.startsWith(AGENT_MEMBER_PREFIX) || INTERNAL_COMMANDS.includes(name))
 			return undefined;
-		if (!isMemberOf(scope.membership, actor)) return undefined;
+		// Acting for no member: line 0 refuses a gated command in its own words; a signed-out or member-exempt one, which
+		// line 0 lets through, an agent member is refused here (step 6's final check).
+		if (!isMemberOf(scope.membership, actor)) {
+			return gatedByLineZero(name) ? undefined : projectNotFound();
+		}
 		const requested = call.scope as ScopeV1;
 		const at =
 			deps.apps().owners.has(name) || AT_CALL_SCOPE.test(name)
