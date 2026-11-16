@@ -128,6 +128,10 @@ fn derived(store: &Store) -> Vec<(String, Vec<Vec<Value>>)> {
         ("story_shape", "story_id, shape"),
         ("story_kind", "story_id, template_key"),
         ("story", "id"),
+        ("first_contact", "account_id, message_id"),
+        ("contact_day", "account_id, day"),
+        ("burst", "id"),
+        ("burst_message", "burst_id, message_id"),
     ]
     .iter()
     .map(|(table, order)| {
@@ -421,12 +425,13 @@ fn a_rebuild_reproduces_every_derived_table_and_the_index() {
     let (mut store, inbox, _) = busy(&home);
     store.commit_index().unwrap();
     let before = derived(&store);
-    // A story needs five messages of one stream, which this store has not;
-    // the tests of stories rebuild those.
+    // A story needs five messages of one stream, and a burst thirty first
+    // contacts in a day, which this store has not; the tests of stories and
+    // of bursts rebuild those.
     assert!(
-        before
-            .iter()
-            .all(|(table, rows)| table == "story" || !rows.is_empty()),
+        before.iter().all(|(table, rows)| {
+            ["story", "burst", "burst_message"].contains(&table.as_str()) || !rows.is_empty()
+        }),
         "{before:?}"
     );
     let listed = store.list_threads(inbox, None, 50).unwrap();
@@ -952,29 +957,19 @@ fn rows_from_an_older_derivation_are_derived_again_newest_first() {
 fn a_store_from_before_the_evidence_is_derived_again_after_its_migration() {
     let (_directory, home) = home();
     {
-        let mut store = Store::open_with(&home, &schema::MIGRATIONS[..3]).unwrap();
-        // Written as that version wrote it: there is no sender table yet for
-        // `add_account` to settle.
+        let store = Store::open_with(&home, &schema::MIGRATIONS[..3]).unwrap();
+        // Written as that version wrote them: there are no sender or burst
+        // tables yet for `add_account` and `upsert_mailbox` to settle.
         store
             .connection
-            .execute(
+            .execute_batch(
                 "INSERT INTO account (id, provider, address, created_at)
-                 VALUES (1, 'icloud', 'a', 0)",
-                [],
+                     VALUES (1, 'icloud', 'a', 0);
+                 INSERT INTO mailbox (id, account_id, provider_key, name, role, header_only)
+                     VALUES (1, 1, 'INBOX', 'INBOX', 'inbox', 0);",
             )
             .unwrap();
-        let account = super::AccountId(1);
-        let inbox = store
-            .upsert_mailbox(
-                account,
-                &MailboxSeen {
-                    provider_key: "INBOX",
-                    name: "INBOX",
-                    role: Role::Inbox,
-                },
-                NOW,
-            )
-            .unwrap();
+        let inbox = super::MailboxId(1);
         // At version 3 the derivation that writes the evidence's columns
         // cannot run: the rows are written as the version-1 derivation left
         // them.

@@ -526,6 +526,90 @@ pub(super) const MIGRATIONS: &[&str] = &[
     -- The stories' epoch, which a cursor of what changed carries; each rebuild moves it on.
     INSERT INTO engine_state (key, value) VALUES ('story-epoch', abs(random() % 2147483647) + 1);
     ",
+    // 10: bursts (section 7.4). Derived from the senders and the envelopes, computed again for
+    // the senders each batch touches. A store that held mail before has its bursts found once
+    // when it is next opened.
+    "
+    -- When the person first wrote to a sender: a sender they wrote to after its mail came was
+    -- new to them when it came (section 7.4). Filled with the bursts when the store is opened.
+    ALTER TABLE sender ADD COLUMN first_written INTEGER;
+
+    -- When a mailbox was first listed whole: an account's bursts are read once every mailbox of
+    -- it has been. Not reset by a new generation of its ids, nor by its going.
+    ALTER TABLE mailbox ADD COLUMN first_listed_at INTEGER;
+    UPDATE mailbox SET first_listed_at = coalesce(last_pass_at, 0)
+        WHERE cursor IS NOT NULL OR last_pass_at IS NOT NULL;
+
+    -- When every mailbox of an account had first been listed: from then its bursts are read,
+    -- and a mailbox that appears later does not hold them back.
+    ALTER TABLE account ADD COLUMN listed_at INTEGER;
+    UPDATE account SET listed_at = coalesce(
+            (SELECT max(first_listed_at) FROM mailbox WHERE mailbox.account_id = account.id), 0)
+        WHERE NOT EXISTS (SELECT 1 FROM mailbox
+                          WHERE mailbox.account_id = account.id AND mailbox.gone_at IS NULL
+                            AND mailbox.first_listed_at IS NULL);
+
+    -- When the person first screened a sender in: kept when they block it and undo that, so
+    -- its mail before then stays a known sender's (section 7.4).
+    ALTER TABLE sender_decision ADD COLUMN first_in_at INTEGER;
+    UPDATE sender_decision SET first_in_at = decided_at WHERE decision = 'in';
+
+    -- A first contact: a message from a sender whose first message the provider received at
+    -- most 24 hours before it, in each account whose mailboxes have shown it, junk and trash and
+    -- what was deleted since included.
+    CREATE TABLE first_contact (
+        account_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        sender_address TEXT NOT NULL,
+        received INTEGER NOT NULL,
+        -- Whether a mailbox of the account other than junk and trash has shown it.
+        kept INTEGER NOT NULL CHECK (kept IN (0, 1)),
+        PRIMARY KEY (account_id, message_id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX first_contact_received ON first_contact (account_id, received);
+    CREATE INDEX first_contact_sender ON first_contact (sender_address);
+    CREATE INDEX first_contact_message ON first_contact (message_id);
+
+    -- How many first contacts each account had on each day (a day in UTC, numbered from 1970),
+    -- and how many of them were kept.
+    CREATE TABLE contact_day (
+        account_id INTEGER NOT NULL,
+        day INTEGER NOT NULL,
+        messages INTEGER NOT NULL CHECK (messages > 0),
+        kept INTEGER NOT NULL CHECK (kept >= 0 AND kept <= messages),
+        PRIMARY KEY (account_id, day)
+    ) STRICT, WITHOUT ROWID;
+
+    -- A burst: its id is its story's, from `stream`. `first` and `last` are when the provider
+    -- received its first and last first contact; `messages` counts them, whatever their class.
+    CREATE TABLE burst (
+        id INTEGER PRIMARY KEY,
+        account_id INTEGER NOT NULL,
+        first INTEGER NOT NULL,
+        last INTEGER NOT NULL,
+        messages INTEGER NOT NULL CHECK (messages > 0)
+    ) STRICT;
+    CREATE INDEX burst_account ON burst (account_id, last);
+    CREATE INDEX burst_latest ON burst (last DESC, id DESC);
+
+    -- Each first contact a burst holds. A message two accounts hold can be in a burst of each;
+    -- its story is the earliest of them.
+    CREATE TABLE burst_message (
+        burst_id INTEGER NOT NULL,
+        message_id INTEGER NOT NULL REFERENCES message (id),
+        PRIMARY KEY (burst_id, message_id)
+    ) STRICT, WITHOUT ROWID;
+    CREATE INDEX burst_message_message ON burst_message (message_id);
+
+    -- A burst is a story whatever its size; a stream from its fifth message.
+    DROP INDEX story_recent;
+    CREATE INDEX story_recent ON story (last_date DESC, id DESC)
+        WHERE (messages >= 5 OR kind = 'burst');
+
+    -- Bursts for the mail already held are found when the store is next opened.
+    INSERT INTO engine_state (key, value) SELECT 'burst-fill', 1
+        WHERE EXISTS (SELECT 1 FROM message);
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

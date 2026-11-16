@@ -167,7 +167,8 @@ pub(super) fn listed(row: &rusqlite::Row<'_>) -> rusqlite::Result<MessageListed>
 }
 
 /// A class's listed messages, newest first, from the partial index of the
-/// listed ones.
+/// listed ones. A burst's `unknown` and `bulk` mail is its story's, in place
+/// of a row each (7.4).
 pub(super) fn class_list_sql() -> String {
     format!(
         "SELECT {LISTED} FROM screening
@@ -175,6 +176,9 @@ pub(super) fn class_list_sql() -> String {
          JOIN message ON message.id = screening.message_id
          WHERE screening.class = ?1 AND screening.listed = 1
            AND (screening.date, screening.message_id) < (?2, ?3)
+           AND (screening.class NOT IN ('unknown', 'bulk')
+                OR NOT EXISTS (SELECT 1 FROM burst_message
+                               WHERE burst_message.message_id = screening.message_id))
          ORDER BY screening.date DESC, screening.message_id DESC LIMIT ?4"
     )
 }

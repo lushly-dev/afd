@@ -758,6 +758,10 @@ fn an_exception_that_moves_story_while_shapes_turn_in_both_is_counted_in_each() 
         &transaction,
         &classes::Reclassify {
             messages: Some(&std::collections::BTreeSet::from([moving.0, leaving.0])),
+            contacts: Some(&std::collections::BTreeSet::from([
+                "a@example.net".to_string(),
+                "b@example.net".to_string(),
+            ])),
             ..Default::default()
         },
         NOW,
@@ -957,7 +961,10 @@ fn a_store_that_held_mail_before_stories_has_them_when_opened() {
         store.connection.execute_batch(&rows).unwrap();
     }
     let store = Store::open(&home).unwrap();
-    assert_eq!(store.schema_version().unwrap(), 9);
+    assert_eq!(
+        store.schema_version().unwrap(),
+        u32::try_from(schema::MIGRATIONS.len()).unwrap()
+    );
     let story = store
         .story(store.list_story("news.example.net").unwrap().unwrap())
         .unwrap()
@@ -1018,6 +1025,8 @@ fn every_story_query_reads_an_index() {
             }
             "members" | "streams" => "SEARCH screening USING INTEGER PRIMARY KEY",
             "newest in target" => "story_member_date (story_id=?",
+            "bursts in target" => "SEARCH burst USING INTEGER PRIMARY KEY",
+            "burst senders" => "story_member_date (story_id=?",
             "stream" => "USING COVERING INDEX sqlite_autoindex_stream_1 (key=?)",
             "prune" => "SCAN envelope",
             "exceptions of a shape" | "exceptions of a story" => "story_member_date (story_id=?",

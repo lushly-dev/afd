@@ -47,6 +47,23 @@ pub const LEAST_MESSAGES: i64 = 5;
 /// A body shape is one of a story's usual ones from this many messages.
 pub const USUAL_SHAPE: i64 = 5;
 
+/// Which rows of `story` the commands show: a stream from its fifth
+/// message, a burst whatever its size. The index of stories by date holds
+/// these alone, so a query names them in these words.
+const SHOWN: &str = "(messages >= 5 OR kind = 'burst')";
+
+#[cfg(test)]
+#[test]
+fn the_shown_stories_are_those_of_the_index_and_the_least() {
+    assert_eq!(
+        LEAST_MESSAGES, 5,
+        "the words below and the index's are of five"
+    );
+    assert!(super::schema::MIGRATIONS[9].contains(&format!("WHERE {SHOWN};")));
+    assert!(SHOWN_JOINED.contains("story.messages >= 5"));
+}
+const SHOWN_JOINED: &str = "(story.messages >= 5 OR story.kind = 'burst')";
+
 /// How many of a story's kinds its card names, the most common first.
 pub const KINDS_SHOWN: u32 = 10;
 
@@ -75,7 +92,28 @@ const STREAM: &str = "CASE WHEN envelope.list_id <> '' THEN 'list ' || envelope.
 const TARGET_MEMBERS: &str = "FROM temp.story_target
      CROSS JOIN screening ON screening.message_id = story_target.message_id
      CROSS JOIN envelope ON envelope.message_id = story_target.message_id
-     WHERE screening.class = 'bulk' AND screening.listed = 1";
+     WHERE screening.listed = 1
+       AND (screening.class = 'bulk'
+            OR (screening.class = 'unknown'
+                AND EXISTS (SELECT 1 FROM burst_message
+                            WHERE burst_message.message_id = envelope.message_id)))";
+
+/// Whether a message of `envelope` is in a burst, whose story it is then in
+/// instead of its stream's (7.4).
+const IN_A_BURST: &str =
+    "EXISTS (SELECT 1 FROM burst_message WHERE burst_message.message_id = envelope.message_id)";
+
+/// The story a member of `envelope` is in: its earliest burst's, or else its
+/// stream's.
+fn story_of_member() -> String {
+    format!(
+        "coalesce((SELECT burst_message.burst_id FROM burst_message
+                   JOIN burst ON burst.id = burst_message.burst_id
+                   WHERE burst_message.message_id = envelope.message_id
+                   ORDER BY burst.first, burst.id LIMIT 1),
+                  (SELECT id FROM stream WHERE stream.key = {STREAM}))"
+    )
+}
 
 /// Gives each new stream of `members` (rows of `envelope`) its id. Only a
 /// key not there yet is inserted: an insert ignored would still use up an
@@ -88,24 +126,30 @@ fn new_streams_sql(members: &str) -> String {
     )
 }
 
-/// Gives each new stream of the target's members its id.
+/// Gives each new stream of the target's members its id: those in no
+/// burst.
 fn streams_sql() -> String {
-    new_streams_sql(TARGET_MEMBERS)
+    new_streams_sql(&format!("{TARGET_MEMBERS} AND NOT {IN_A_BURST}"))
 }
 
 /// The bulk messages a mailbox other than junk and trash shows, all of
 /// them, as [`compose_all`] reads them.
 const EVERY_MEMBER: &str =
     "FROM screening JOIN envelope ON envelope.message_id = screening.message_id
-     WHERE screening.class = 'bulk' AND screening.listed = 1";
+     WHERE screening.listed = 1
+       AND (screening.class = 'bulk'
+            OR (screening.class = 'unknown'
+                AND EXISTS (SELECT 1 FROM burst_message
+                            WHERE burst_message.message_id = envelope.message_id)))";
 
 /// The membership of each message of `temp.story_target`, as it should be;
 /// returns each member made or changed.
 fn member_sql() -> String {
+    let story = story_of_member();
     format!(
         "INSERT INTO story_member (message_id, story_id, date, template_key, body_shape, exception)
-         SELECT envelope.message_id, (SELECT id FROM stream WHERE stream.key = {STREAM}),
-                envelope.date, envelope.template_key, envelope.body_shape, 0
+         SELECT envelope.message_id, {story}, envelope.date, envelope.template_key,
+                envelope.body_shape, 0
          {TARGET_MEMBERS}
          ON CONFLICT (message_id) DO UPDATE SET
              story_id = excluded.story_id, date = excluded.date,
@@ -127,7 +171,12 @@ const REMOVE: &str = "DELETE FROM story_member
      WHERE message_id IN (SELECT message_id FROM temp.story_target)
        AND NOT EXISTS (SELECT 1 FROM screening
                        WHERE screening.message_id = story_member.message_id
-                         AND screening.class = 'bulk' AND screening.listed = 1)
+                         AND screening.listed = 1
+                         AND (screening.class = 'bulk'
+                              OR (screening.class = 'unknown'
+                                  AND EXISTS (SELECT 1 FROM burst_message
+                                              WHERE burst_message.message_id
+                                                  = story_member.message_id))))
      RETURNING message_id, story_id, body_shape, template_key, exception";
 
 /// The stories whose newest member is in `temp.story_target`, whose title
@@ -138,6 +187,12 @@ const NEWEST_IN_TARGET: &str = "SELECT DISTINCT story_member.story_id FROM temp.
          (SELECT newest.message_id FROM story_member AS newest
           WHERE newest.story_id = story_member.story_id
           ORDER BY newest.date DESC, newest.message_id DESC LIMIT 1)";
+
+/// The bursts a member of `temp.story_target` is in, whose titles count
+/// their senders: a message derived again may bring another.
+const BURSTS_IN_TARGET: &str = "SELECT DISTINCT story_member.story_id FROM temp.story_target
+     CROSS JOIN story_member ON story_member.message_id = story_target.message_id
+     JOIN burst ON burst.id = story_member.story_id";
 
 /// Whether a member of `story_member` is an exception: it has a body
 /// shape, its story has a usual one (its row counts them), and its own is
@@ -194,6 +249,11 @@ const NEWEST: &str = "SELECT envelope.list_id, envelope.sender_address, envelope
      FROM story_member JOIN envelope ON envelope.message_id = story_member.message_id
      WHERE story_member.story_id = ?1
      ORDER BY story_member.date DESC, story_member.message_id DESC LIMIT 1";
+
+/// How many senders a burst's story holds mail from.
+const BURST_SENDERS: &str = "SELECT count(DISTINCT envelope.sender_address)
+     FROM story_member JOIN envelope ON envelope.message_id = story_member.message_id
+     WHERE story_member.story_id = ?1";
 
 /// A member's story and whether it is an exception.
 const MEMBER: &str = "SELECT story_id, exception FROM story_member WHERE message_id = ?1";
@@ -315,6 +375,8 @@ fn add_count(
 /// A stream's row: its list, sender, title, counts and dates.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct Row {
+    /// `stream`, or `burst`.
+    kind: &'static str,
     list_id: String,
     sender_address: String,
     title: String,
@@ -339,7 +401,7 @@ struct Counts {
 
 impl Row {
     fn is_story(&self) -> bool {
-        self.messages >= LEAST_MESSAGES
+        self.kind == "burst" || self.messages >= LEAST_MESSAGES
     }
 }
 
@@ -348,11 +410,16 @@ fn stored_row(transaction: &Transaction<'_>, story: i64) -> Result<Option<Row>, 
     Ok(transaction
         .one(
             "SELECT list_id, sender_address, title, messages, exceptions, kinds, usual,
-                    first_date, last_date
+                    first_date, last_date, kind = 'burst'
              FROM story WHERE id = ?1",
             [story],
             |row| {
                 Ok(Row {
+                    kind: if row.get::<_, bool>(9)? {
+                        "burst"
+                    } else {
+                        "stream"
+                    },
                     list_id: row.get(0)?,
                     sender_address: row.get(1)?,
                     title: row.get(2)?,
@@ -389,6 +456,36 @@ fn row_with(
     else {
         return Ok(None);
     };
+    let burst: bool = transaction.one(
+        "SELECT EXISTS (SELECT 1 FROM burst WHERE id = ?1)",
+        [story],
+        |row| row.get(0),
+    )?;
+    if burst {
+        // A burst has no list or sender of its own; its title counts them.
+        let senders: i64 = transaction.one(BURST_SENDERS, [story], |row| row.get(0))?;
+        return Ok(Some(Row {
+            kind: "burst",
+            list_id: String::new(),
+            sender_address: String::new(),
+            title: format!(
+                "{} {} from {senders} new {}",
+                counts.messages,
+                if counts.messages == 1 {
+                    "message"
+                } else {
+                    "messages"
+                },
+                if senders == 1 { "sender" } else { "senders" }
+            ),
+            messages: counts.messages,
+            exceptions: counts.exceptions,
+            kinds: counts.kinds,
+            usual: counts.usual,
+            first_date: first.unwrap_or(0),
+            last_date: last.unwrap_or(0),
+        }));
+    }
     let title = if !list_id.is_empty() {
         list_id.clone()
     } else if !name.trim().is_empty() {
@@ -397,6 +494,7 @@ fn row_with(
         address.clone()
     };
     Ok(Some(Row {
+        kind: "stream",
         list_id,
         sender_address: address,
         title,
@@ -431,9 +529,9 @@ fn write_row(
             transaction.run(
                 "INSERT INTO story (id, kind, list_id, sender_address, title, messages, exceptions,
                                     kinds, usual, first_date, last_date)
-                 VALUES (?1, 'stream', ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
+                 VALUES (?1, ?11, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10)
                  ON CONFLICT (id) DO UPDATE SET
-                     list_id = excluded.list_id, sender_address = excluded.sender_address,
+                     kind = excluded.kind, list_id = excluded.list_id, sender_address = excluded.sender_address,
                      title = excluded.title, messages = excluded.messages,
                      exceptions = excluded.exceptions, kinds = excluded.kinds,
                      usual = excluded.usual, first_date = excluded.first_date,
@@ -448,7 +546,8 @@ fn write_row(
                     row.kinds,
                     row.usual,
                     row.first_date,
-                    row.last_date
+                    row.last_date,
+                    row.kind
                 ],
             )?;
         }
@@ -555,10 +654,10 @@ pub(super) fn settle(
         }
         deltas.count(&(now_in.0, now_in.1.clone(), now_in.2.clone(), false), 1);
     }
-    {
-        let mut statement = transaction.prepare_cached(NEWEST_IN_TARGET)?;
-        let newest = statement.query_map([], |row| row.get::<_, i64>(0))?;
-        for story in newest {
+    for sql in [NEWEST_IN_TARGET, BURSTS_IN_TARGET] {
+        let mut statement = transaction.prepare_cached(sql)?;
+        let stories = statement.query_map([], |row| row.get::<_, i64>(0))?;
+        for story in stories {
             deltas.stories.insert(story?);
         }
     }
@@ -746,7 +845,8 @@ pub(super) fn compose_all(transaction: &Transaction<'_>, now: i64) -> Result<(),
         }
         rows
     };
-    let streams = new_streams_sql(EVERY_MEMBER);
+    let streams = new_streams_sql(&format!("{EVERY_MEMBER} AND NOT {IN_A_BURST}"));
+    let story = story_of_member();
     transaction.execute_batch(&format!(
         "DELETE FROM story;
          DELETE FROM story_member;
@@ -754,10 +854,9 @@ pub(super) fn compose_all(transaction: &Transaction<'_>, now: i64) -> Result<(),
          DELETE FROM story_kind;
          {streams};
          INSERT INTO story_member (message_id, story_id, date, template_key, body_shape, exception)
-             SELECT envelope.message_id, (SELECT id FROM stream WHERE stream.key = {STREAM}),
-                    envelope.date, envelope.template_key, envelope.body_shape, 0
-             FROM screening JOIN envelope ON envelope.message_id = screening.message_id
-             WHERE screening.class = 'bulk' AND screening.listed = 1;
+             SELECT envelope.message_id, {story}, envelope.date, envelope.template_key,
+                    envelope.body_shape, 0
+             {EVERY_MEMBER};
          INSERT INTO story_shape (story_id, shape, messages)
              SELECT story_id, body_shape, count(*) FROM story_member
              WHERE body_shape IS NOT NULL GROUP BY story_id, body_shape;
@@ -865,7 +964,11 @@ pub(super) const CLEAR: &str = "DELETE FROM story;
 /// story now (screened in, or only in junk) keeps its id, so its story has
 /// the same one if it comes back.
 pub(super) fn prune_sql() -> String {
-    format!("DELETE FROM stream WHERE key NOT IN (SELECT {STREAM} FROM envelope)")
+    format!(
+        "DELETE FROM stream
+         WHERE (key LIKE 'burst %' AND id NOT IN (SELECT id FROM burst))
+            OR (key NOT LIKE 'burst %' AND key NOT IN (SELECT {STREAM} FROM envelope))"
+    )
 }
 
 /// The queries stories run, by name, for the test of their plans.
@@ -877,6 +980,8 @@ pub(super) fn every_query() -> Vec<(&'static str, String)> {
         ("streams", streams_sql()),
         ("members", member_sql()),
         ("newest in target", NEWEST_IN_TARGET.to_string()),
+        ("bursts in target", BURSTS_IN_TARGET.to_string()),
+        ("burst senders", BURST_SENDERS.to_string()),
         ("prune", prune_sql()),
         ("stream", STREAM_ID.to_string()),
         ("exceptions of the target", except_sql(EXCEPT_TARGET)),
@@ -957,7 +1062,7 @@ fn story_row(row: &rusqlite::Row<'_>) -> rusqlite::Result<StoryRow> {
 fn story_list_sql() -> String {
     format!(
         "SELECT {STORY_COLUMNS} FROM story
-         WHERE messages >= {LEAST_MESSAGES} AND (last_date, id) < (?1, ?2)
+         WHERE {SHOWN} AND (last_date, id) < (?1, ?2)
          ORDER BY last_date DESC, id DESC LIMIT ?3"
     )
 }
@@ -1041,7 +1146,7 @@ const CHANGES: &str = "SELECT subject, max(seq) AS last FROM change
 fn story_of_sql() -> String {
     format!(
         "SELECT story_member.story_id FROM story_member
-         JOIN story ON story.id = story_member.story_id AND story.messages >= {LEAST_MESSAGES}
+         JOIN story ON story.id = story_member.story_id AND {SHOWN_JOINED}
          WHERE story_member.message_id = ?1"
     )
 }
@@ -1136,7 +1241,7 @@ impl Store {
         Ok(self
             .connection
             .prepare_cached(&format!(
-                "SELECT {STORY_COLUMNS} FROM story WHERE id = ?1 AND messages >= {LEAST_MESSAGES}"
+                "SELECT {STORY_COLUMNS} FROM story WHERE id = ?1 AND {SHOWN}"
             ))?
             .query_row([id], story_row)
             .optional()?)
@@ -1148,7 +1253,7 @@ impl Store {
     /// When the database refuses.
     pub fn story_count(&self) -> Result<u64, StoreError> {
         let stories: i64 = self.connection.query_row(
-            &format!("SELECT count(*) FROM story WHERE messages >= {LEAST_MESSAGES}"),
+            &format!("SELECT count(*) FROM story WHERE {SHOWN}"),
             [],
             |row| row.get(0),
         )?;

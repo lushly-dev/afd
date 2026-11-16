@@ -33,8 +33,8 @@ use crate::read::{
 };
 use crate::screening::not_ready;
 use crate::store::{
-    KINDS_SHOWN, KindRow, MessageId, Store, StoreError, StoryCursor, StoryMessage, StoryMessages,
-    StoryRow, sender_id,
+    BurstRow, Class, KINDS_SHOWN, KindRow, MessageId, Store, StoreError, StoryCursor, StoryMessage,
+    StoryMessages, StoryRow, sender_id,
 };
 
 /// The size of a value written as JSON.
@@ -88,9 +88,57 @@ fn when_ready<T>(
         .map_err(|readiness| Box::new(not_ready(readiness)))
 }
 
+/// A story with, when it is a burst, the burst and the addresses of the
+/// `known` senders that wrote during it.
+struct Shown {
+    row: StoryRow,
+    burst: Option<(BurstRow, Vec<String>)>,
+}
+
+/// What a story's result needs from the store.
+fn shown(store: &Store, row: StoryRow) -> Result<Shown, StoreError> {
+    let burst = match store.burst(row.id)? {
+        Some(burst) => {
+            let known = store.known_during(&burst)?;
+            Some((burst, known))
+        }
+        None => None,
+    };
+    Ok(Shown { row, burst })
+}
+
+/// A burst as a result gives it: when, how many first contacts, and its
+/// flag, which names the `known` senders that wrote during it, since a
+/// flood can be sent to hide one (the specification's 7.4).
+pub(crate) fn burst_json(burst: &BurstRow, known: &[String]) -> Value {
+    json!({
+        "account": burst.account,
+        "first": burst.first,
+        "last": burst.last,
+        "firstContacts": burst.messages,
+        "knownDuring": known.iter().map(|address| sender_id(address)).collect::<Vec<_>>(),
+        "content": content(json!({ "knownDuring": known })),
+    })
+}
+
 /// A story as the commands give it: what the engine counted, and what came
 /// from its mail in a content part.
-fn story_json(row: &StoryRow) -> Value {
+fn story_json(shown: &Shown) -> Value {
+    let row = &shown.row;
+    if let Some((burst, known)) = &shown.burst {
+        return json!({
+            "story": row.id,
+            "kind": row.kind,
+            "by": "burst",
+            "messages": row.messages,
+            "exceptions": row.exceptions,
+            "kinds": row.kinds,
+            "firstDate": row.first_date,
+            "lastDate": row.last_date,
+            "burst": burst_json(burst, known),
+            "content": content(json!({ "title": row.title })),
+        });
+    }
     let by_list = !row.list_id.is_empty();
     json!({
         "story": row.id,
@@ -131,7 +179,13 @@ impl CommandHandler for StoryList {
         let read = || -> Result<Value, Box<CommandError>> {
             let limit = limit(&input, 50, 200)?;
             let before = cursor(&input)?;
-            let rows = when_ready(&self.engine, |store| store.stories(before, limit + 1))?;
+            let rows = when_ready(&self.engine, |store| {
+                store
+                    .stories(before, limit + 1)?
+                    .into_iter()
+                    .map(|row| shown(store, row))
+                    .collect::<Result<Vec<_>, _>>()
+            })?;
             let more = rows.len() > limit as usize;
             let items: Vec<Value> = rows.iter().take(limit as usize).map(story_json).collect();
             let (kept, cut) = fit(items, budget(&context, LIST_BUDGET));
@@ -215,9 +269,11 @@ fn which(input: &Value) -> Result<StoryMessages, Box<CommandError>> {
 
 /// What `mail-story-open` reads in one go.
 struct Opened {
-    story: StoryRow,
+    story: Shown,
     kinds: Vec<KindRow>,
     messages: Vec<StoryMessage>,
+    /// The members' classes: `bulk`, and `unknown` in a burst.
+    classes: std::collections::HashMap<MessageId, Class>,
 }
 
 struct StoryOpen {
@@ -237,10 +293,13 @@ impl CommandHandler for StoryOpen {
                 let Some(story) = store.story(id)? else {
                     return Ok(None);
                 };
+                let messages = store.story_messages(id, &which, before, limit + 1)?;
+                let ids: Vec<MessageId> = messages.iter().map(|item| item.listed.message).collect();
                 Ok(Some(Opened {
-                    story,
+                    story: shown(store, story)?,
                     kinds: store.story_kinds(id, KINDS_SHOWN)?,
-                    messages: store.story_messages(id, &which, before, limit + 1)?,
+                    classes: store.classes_of(&ids)?,
+                    messages,
                 }))
             })?
             .ok_or_else(|| Box::new(story_not_found()))?;
@@ -258,7 +317,12 @@ impl CommandHandler for StoryOpen {
             for member in opened.messages.iter().take(limit as usize) {
                 let mut item = message_item(engine, &member.listed)
                     .map_err(|error| Box::new(store_failure(&error)))?;
-                item["class"] = json!("bulk");
+                item["class"] = json!(
+                    opened
+                        .classes
+                        .get(&member.listed.message)
+                        .map_or("bulk", |class| class.as_str())
+                );
                 item["sender"] = json!(sender_id(&member.listed.sender_address));
                 item["exception"] = json!(member.exception);
                 item["kind"] = json!(member.kind.as_deref().map(hex));
@@ -348,7 +412,10 @@ impl CommandHandler for StoryChangesCommand {
                 let changes = store.story_changes(after, limit + 1)?;
                 let mut rows = Vec::with_capacity(changes.changed.len());
                 for (story, _) in changes.changed.iter().take(limit as usize) {
-                    rows.push(store.story(*story)?);
+                    rows.push(match store.story(*story)? {
+                        Some(row) => Some(shown(store, row)?),
+                        None => None,
+                    });
                 }
                 Ok((changes, rows))
             })?;

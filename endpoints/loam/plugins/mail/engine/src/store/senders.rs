@@ -81,7 +81,8 @@ mod query {
     /// The person's messages to a sender, and when the last arrived.
     pub(super) fn written() -> String {
         format!(
-            "SELECT count(DISTINCT mine.message_id), max(envelope.received) FROM {PERSONS}
+            "SELECT count(DISTINCT mine.message_id), max(envelope.received), min(envelope.received)
+             FROM {PERSONS}
                  CROSS JOIN recipient
                      ON recipient.message_id = mine.message_id AND recipient.address = ?1
                  CROSS JOIN envelope ON envelope.message_id = mine.message_id"
@@ -328,21 +329,51 @@ pub(super) fn settle_senders(
     addresses: &BTreeSet<String>,
     now: i64,
 ) -> Result<BTreeSet<String>, StoreError> {
+    Ok(settle_senders_tracking(transaction, addresses, now)?.0)
+}
+
+/// [`settle_senders`], which also returns the addresses whose first message
+/// or first message from the person moved, or whose row came or went: their
+/// first contacts may have changed ([`super::bursts`]).
+pub(super) fn settle_senders_tracking(
+    transaction: &Transaction<'_>,
+    addresses: &BTreeSet<String>,
+    now: i64,
+) -> Result<(BTreeSet<String>, BTreeSet<String>), StoreError> {
     let mut turned = BTreeSet::new();
+    let mut moved = BTreeSet::new();
     if addresses.is_empty() {
-        return Ok(turned);
+        return Ok((turned, moved));
     }
     let own = own_addresses(transaction)?;
     for address in addresses {
         let before = screened_as(transaction, address)?;
+        let firsts = firsts_of(transaction, address)?;
         if compute_sender(transaction, address, &own)? {
             note_change(transaction, now, "sender", sender_id(address))?;
         }
         if screened_as(transaction, address)? != before {
             turned.insert(address.clone());
         }
+        if firsts_of(transaction, address)? != firsts {
+            moved.insert(address.clone());
+        }
     }
-    Ok(turned)
+    Ok((turned, moved))
+}
+
+/// A sender's first message and first message from the person.
+type Firsts = (Option<i64>, Option<i64>);
+
+/// A sender's [`Firsts`], or `None` when it has no row.
+fn firsts_of(transaction: &Transaction<'_>, address: &str) -> Result<Option<Firsts>, StoreError> {
+    Ok(transaction
+        .one(
+            "SELECT first_received, first_written FROM sender WHERE address = ?1",
+            [address],
+            |row| Ok((row.get(0)?, row.get(1)?)),
+        )
+        .optional()?)
 }
 
 /// What a sender's row says to screening: `None` when it has none (the
@@ -395,9 +426,9 @@ fn compute_sender(
         .one(query::NAME, [address], |row| row.get(0))
         .optional()?
         .unwrap_or_default();
-    let (written, last_written): (i64, Option<i64>) =
+    let (written, last_written, first_written): (i64, Option<i64>, Option<i64>) =
         transaction.one(&query::written(), [address], |row| {
-            Ok((row.get(0)?, row.get(1)?))
+            Ok((row.get(0)?, row.get(1)?, row.get(2)?))
         })?;
     let answered: i64 = transaction.one(&query::answered(), [address], |row| row.get(0))?;
     if messages == 0 && written == 0 {
@@ -410,14 +441,14 @@ fn compute_sender(
     transaction.run(
         "INSERT INTO sender
              (address, id, domain, name, messages, bulk, first_received, last_received,
-              written, last_written, answered, recent)
-         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12)
+              written, last_written, answered, recent, first_written)
+         VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13)
          ON CONFLICT (address) DO UPDATE SET
              domain = excluded.domain, name = excluded.name, messages = excluded.messages,
              bulk = excluded.bulk, first_received = excluded.first_received,
              last_received = excluded.last_received, written = excluded.written,
              last_written = excluded.last_written, answered = excluded.answered,
-             recent = excluded.recent
+             recent = excluded.recent, first_written = excluded.first_written
          ON CONFLICT DO NOTHING",
         params![
             address,
@@ -431,7 +462,8 @@ fn compute_sender(
             written,
             last_written,
             answered,
-            recent
+            recent,
+            first_written
         ],
     )?;
     Ok(true)
@@ -499,7 +531,10 @@ pub(super) fn senders_sql() -> String {
          WHERE (?1 IS NULL OR domain = ?1) AND (?2 = 0 OR written > 0)
            AND (?6 = 0 OR EXISTS (SELECT 1 FROM screening
                                   WHERE screening.sender_address = sender.address
-                                    AND screening.class = 'unknown' AND screening.listed = 1))
+                                    AND screening.class = 'unknown' AND screening.listed = 1
+                                    AND NOT EXISTS (SELECT 1 FROM burst_message
+                                                    WHERE burst_message.message_id
+                                                        = screening.message_id)))
            AND (?7 = 0 OR EXISTS (SELECT 1 FROM sender_suggestion
                                   WHERE sender_suggestion.address = sender.address
                                     AND sender_suggestion.state = 'open'))
@@ -519,11 +554,13 @@ impl Store {
     /// When the database refuses.
     pub fn recompute_sender(&mut self, address: &str, now: i64) -> Result<(), StoreError> {
         let transaction = self.connection.transaction()?;
-        let turned = settle_senders(&transaction, &BTreeSet::from([address.to_string()]), now)?;
+        let touched = BTreeSet::from([address.to_string()]);
+        let turned = settle_senders(&transaction, &touched, now)?;
         super::classes::settle(
             &transaction,
             &super::classes::Reclassify {
                 senders: Some(&turned),
+                contacts: Some(&touched),
                 ..Default::default()
             },
             now,
