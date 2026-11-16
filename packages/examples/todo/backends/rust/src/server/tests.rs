@@ -1,5 +1,5 @@
 use super::*;
-use crate::commands::register_commands;
+use crate::app::{self, Approvals};
 use crate::store::TodoStore;
 use afd::{success, CommandContext, CommandDefinition, CommandHandler, CommandResult};
 use async_trait::async_trait;
@@ -31,10 +31,12 @@ fn config(vars: &[(&str, &str)]) -> ServerConfig {
     .expect("valid configuration")
 }
 
-fn app_with(max_body_bytes: usize) -> Router {
-    let mut registry = CommandRegistry::new();
-    let tools = register_commands(&mut registry, &Arc::new(TodoStore::default()))
-        .expect("commands register");
+const SECRET: &[u8] = b"a test approval secret of 32 bytes or more";
+
+/// The registry as the binary builds it, plus a command without MCP exposure.
+fn todo_registry(approvals: Approvals) -> Arc<CommandRegistry> {
+    let registry =
+        app::registry(Arc::new(TodoStore::new()), approvals, SECRET).expect("commands register");
     registry
         .register(CommandDefinition::new(
             "admin-reset",
@@ -43,11 +45,19 @@ fn app_with(max_body_bytes: usize) -> Router {
             Internal,
         ))
         .expect("internal command registers");
+    registry
+}
+
+fn app_from(config: &ServerConfig, max_body_bytes: usize) -> Router {
     let state = AppState {
-        mcp: mcp_server(registry, &tools).expect("tools serialize"),
-        policy: config(&[]).policy,
+        mcp: mcp_server(todo_registry(config.approvals), config).expect("the server builds"),
+        policy: config.policy.clone(),
     };
     router(Arc::new(state), max_body_bytes).expect("router builds")
+}
+
+fn app_with(max_body_bytes: usize) -> Router {
+    app_from(&config(&[]), max_body_bytes)
 }
 
 fn app() -> Router {
@@ -212,18 +222,45 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
         .expect("tools array");
     let names: Vec<&str> = tools.iter().filter_map(|t| t["name"].as_str()).collect();
 
-    // The default grouped strategy, as the TypeScript backend lists: the meta-tools, then one
-    // `todo` tool whose actions are the exposed commands.
+    // The default grouped strategy, as the TypeScript backend lists: the meta-tools, one `todo`
+    // tool whose actions are the exposed commands, and one `bootstrap` tool for the bootstrap
+    // and context commands.
     assert_eq!(
         names,
-        ["afd-batch", "afd-pipe", "afd-call", "afd-detail", "todo"]
+        [
+            "afd-batch",
+            "afd-pipe",
+            "afd-call",
+            "afd-detail",
+            "todo",
+            "bootstrap"
+        ]
     );
+    let commands_of = |tool: &Value| -> Vec<String> {
+        tool["_meta"]["actions"]
+            .as_array()
+            .expect("actions")
+            .iter()
+            .filter_map(|action| action["command"].as_str().map(str::to_string))
+            .collect()
+    };
+    let bootstrap = commands_of(&tools[5]);
+    for name in [
+        "afd-help",
+        "afd-docs",
+        "afd-schema",
+        "afd-context-list",
+        "afd-context-enter",
+        "afd-context-exit",
+    ] {
+        assert!(bootstrap.iter().any(|c| c == name), "{name}: {bootstrap:?}");
+    }
     let actions = tools[4]["_meta"]["actions"].as_array().expect("actions");
     let commands: Vec<&str> = actions
         .iter()
         .filter_map(|action| action["command"].as_str())
         .collect();
-    assert_eq!(commands.len(), 11);
+    assert_eq!(commands.len(), 13);
     assert!(!commands.contains(&"admin-reset"));
     for batch in [
         "todo-create-batch",
@@ -474,31 +511,119 @@ fn the_tool_strategy_is_grouped_unless_individual_is_asked_for() {
 }
 
 #[tokio::test]
-async fn the_individual_strategy_lists_one_tool_per_command() {
-    let mut registry = CommandRegistry::new();
-    let tools = register_commands(&mut registry, &Arc::new(TodoStore::default()))
-        .expect("commands register");
-    let state = AppState {
-        mcp: mcp_server(registry, &tools)
-            .expect("tools serialize")
-            .with_tool_strategy(ToolStrategy::Individual),
-        policy: config(&[]).policy,
-    };
+async fn the_individual_strategy_lists_one_tool_per_command_with_its_metadata() {
+    let app = app_from(&config(&[("TOOL_STRATEGY", "individual")]), 1024 * 1024);
     let reply = rpc(
-        router(Arc::new(state), 1024 * 1024).expect("router builds"),
+        app,
         json!({ "jsonrpc": "2.0", "id": 2, "method": "tools/list" }),
     )
     .await;
+    let tools = reply.body["result"]["tools"]
+        .as_array()
+        .expect("tools array");
+    let names: Vec<&str> = tools
+        .iter()
+        .filter_map(|tool| tool["name"].as_str())
+        .collect();
+    for name in [
+        "todo-create",
+        "todo-get",
+        "todo-clear",
+        "todo-toggle-batch",
+        "todo-restore",
+        "todo-history",
+        "afd-help",
+        "afd-context-enter",
+    ] {
+        assert!(names.contains(&name), "{name} is listed: {names:?}");
+    }
+    assert!(!names.contains(&"todo"), "no grouped tool: {names:?}");
+    assert!(!names.contains(&"admin-reset"), "{names:?}");
+
+    let tool = |name: &str| {
+        tools
+            .iter()
+            .find(|tool| tool["name"] == name)
+            .unwrap_or_else(|| panic!("{name} is listed"))
+    };
+    let delete = tool("todo-delete");
+    assert_eq!(delete["title"], "Delete a todo");
+    assert_eq!(delete["annotations"]["destructiveHint"], true);
+    assert_eq!(delete["_meta"]["approval"], "not-required");
+    assert_eq!(tool("todo-clear")["_meta"]["approval"], "conditional");
+    assert_eq!(tool("todo-create")["annotations"]["destructiveHint"], false);
+    // The whole input schema, and the result envelope with `data` typed by the command.
+    assert_eq!(
+        tool("todo-create")["inputSchema"]["properties"]["title"]["maxLength"],
+        200
+    );
+    assert!(tool("todo-history")["outputSchema"].is_object());
+}
+
+#[tokio::test]
+async fn a_modern_request_in_the_reading_context_lists_only_the_reads() {
+    let request = HttpRequest::builder()
+        .method("POST")
+        .uri("/mcp")
+        .header("host", "127.0.0.1:3100")
+        .header("content-type", "application/json")
+        .header("accept", "application/json, text/event-stream")
+        .header("mcp-protocol-version", "2026-07-28")
+        .header("mcp-method", "tools/list")
+        .body(Body::from(
+            json!({
+                "jsonrpc": "2.0", "id": 3, "method": "tools/list",
+                "params": { "_meta": {
+                    "io.modelcontextprotocol/protocolVersion": "2026-07-28",
+                    "io.modelcontextprotocol/clientCapabilities": {},
+                    "dev.afd/context": "todo-reading"
+                } }
+            })
+            .to_string(),
+        ))
+        .expect("request builds");
+    let app = app_from(&config(&[("TOOL_STRATEGY", "individual")]), 1024 * 1024);
+    let reply = send(app, request).await;
     let names: Vec<&str> = reply.body["result"]["tools"]
         .as_array()
         .expect("tools array")
         .iter()
         .filter_map(|tool| tool["name"].as_str())
         .collect();
-    for name in ["todo-create", "todo-get", "todo-clear", "todo-toggle-batch"] {
-        assert!(names.contains(&name), "{name} is listed: {names:?}");
+    for read in ["todo-list", "todo-get", "todo-stats", "todo-history"] {
+        assert!(names.contains(&read), "{read}: {names:?}");
     }
-    assert!(!names.contains(&"todo"), "no grouped tool: {names:?}");
+    for write in ["todo-create", "todo-clear", "todo-restore"] {
+        assert!(!names.contains(&write), "{write}: {names:?}");
+    }
+}
+
+#[tokio::test]
+async fn an_agents_clear_is_held_unless_approvals_are_off() {
+    let (_, held) = call(app(), "todo-clear", json!({})).await;
+    assert_eq!(held["error"]["code"], "APPROVAL_REQUIRED");
+    assert!(held["error"]["suggestion"].is_string());
+    // MCP never hands the agent a token.
+    assert!(held["error"]["details"].get("approvalToken").is_none());
+
+    let off = app_from(&config(&[("APPROVALS", "off")]), 1024 * 1024);
+    let (_, cleared) = call(off, "todo-clear", json!({})).await;
+    assert_eq!(cleared["success"], true);
+}
+
+#[test]
+fn approvals_are_on_unless_turned_off() {
+    assert_eq!(config(&[]).approvals, Approvals::Agents);
+    assert_eq!(config(&[("APPROVALS", "off")]).approvals, Approvals::Off);
+    // Read exactly, as TypeScript and Python read it.
+    assert!(
+        ServerConfig::from_env(|name| (name == "APPROVALS").then(|| " off".to_string())).is_err()
+    );
+    assert!(
+        ServerConfig::from_env(|name| (name == "APPROVALS").then(|| "humans".to_string())).is_err()
+    );
+    assert!(app::approval_secret(Some("short".to_string())).is_err());
+    assert_eq!(app::approval_secret(None).expect("a random key").len(), 32);
 }
 
 #[test]

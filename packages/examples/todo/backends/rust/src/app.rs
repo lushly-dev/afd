@@ -1,0 +1,88 @@
+//! The todo registry the binary serves: the commands, the bootstrap commands (`afd-help`,
+//! `afd-docs`, `afd-schema`) and, unless `APPROVALS=off`, the approval hold on `todo-clear`, as
+//! the TypeScript backend's `src/server-options.ts` assembles its server.
+
+use std::sync::Arc;
+
+use afd::{
+    create_approval_middleware, register_bootstrap_commands, ApprovalMiddlewareOptions,
+    ApprovalRelay, CommandRegistry, ContextConfig,
+};
+
+use crate::commands::{register_commands, summarize_clear};
+use crate::store::TodoStore;
+
+/// Whether calls are held for approval (`APPROVALS`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Approvals {
+    /// Hold `todo-clear` for any caller that is not a person (the default).
+    Agents,
+    /// Hold nothing. The shared conformance suites run so, as they set `CONFIRMATIONS`.
+    Off,
+}
+
+impl Approvals {
+    /// `APPROVALS`: `agents` (the default) or `off`, exactly, as TypeScript and Python read it.
+    pub fn from_env(value: Option<&str>) -> Result<Self, String> {
+        match value {
+            None | Some("agents") => Ok(Self::Agents),
+            Some("off") => Ok(Self::Off),
+            Some(other) => Err(format!("APPROVALS must be agents or off, not \"{other}\"")),
+        }
+    }
+}
+
+/// The key that signs approval tokens: `TODO_APPROVAL_SECRET` (at least 32 bytes) when set, so
+/// several processes accept each other's tokens; else a random key for this process.
+pub fn approval_secret(value: Option<String>) -> Result<Vec<u8>, String> {
+    match value {
+        Some(secret) if secret.len() >= 32 => Ok(secret.into_bytes()),
+        Some(_) => Err("TODO_APPROVAL_SECRET must be at least 32 bytes".to_string()),
+        // Two version 4 UUIDs from the OS random source: 244 random bits.
+        None => Ok([uuid::Uuid::new_v4(), uuid::Uuid::new_v4()]
+            .iter()
+            .flat_map(|id| id.into_bytes())
+            .collect()),
+    }
+}
+
+/// The server's contexts, the same as the TypeScript backend's `src/contexts.ts`. With no
+/// context entered every command is visible; `todo-reading` limits an agent to the commands
+/// that read, and `todo-editing` shows every command.
+pub fn contexts() -> Vec<ContextConfig> {
+    vec![
+        ContextConfig::new("todo-reading")
+            .with_description("Review todos without changing them: list, get and stats only")
+            .with_triggers(["review", "summarize", "report", "what is left"]),
+        ContextConfig::new("todo-editing")
+            .with_description("Add, change, complete and remove todos")
+            .with_triggers(["add", "create", "complete", "update", "delete", "clear"]),
+    ]
+}
+
+/// The todo commands over `store`, the bootstrap commands and, with [`Approvals::Agents`], the
+/// approval middleware signing with `secret` (unused with [`Approvals::Off`]).
+///
+/// A held `todo-clear` asks the person behind an MCP client that declares form elicitation
+/// (`ApprovalRelay::McpElicitation`), with a summary of what would go; a client that cannot be
+/// asked gets `APPROVAL_REQUIRED`. The middleware runs before each handler, so a held call never
+/// reaches the change history.
+pub fn registry(
+    store: Arc<TodoStore>,
+    approvals: Approvals,
+    secret: &[u8],
+) -> Result<Arc<CommandRegistry>, String> {
+    let registry = Arc::new(CommandRegistry::new());
+    register_commands(&registry, &store)?;
+    register_bootstrap_commands(&registry)?;
+    if approvals == Approvals::Agents {
+        // Built after the commands are registered: `registry.list()` is a snapshot.
+        let options = ApprovalMiddlewareOptions::new(secret, registry.list())
+            .with_relay(ApprovalRelay::McpElicitation)
+            .with_summarize(move |command, input, _context| {
+                (command == "todo-clear").then(|| summarize_clear(&store, input))
+            });
+        registry.add_middleware(create_approval_middleware(options)?);
+    }
+    Ok(registry)
+}

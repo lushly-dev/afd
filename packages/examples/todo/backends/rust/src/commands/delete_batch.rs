@@ -1,6 +1,9 @@
-use super::{batch_confidence, not_found, ok, schema, warning, Command, FailedItem, Summary};
+use super::{
+    batch_confidence, ids_in, not_found, ok, schema, stamp, warning, Command, FailedItem, Reply,
+    Summary, EXAMPLE_ID, OTHER_ID,
+};
 use crate::store::TodoStore;
-use afd::{CommandResult, WarningSeverity};
+use afd::{CommandContext, CommandExample, CommandResult, WarningSeverity};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -23,41 +26,57 @@ struct Output {
 impl Command for DeleteBatch {
     type Input = Input;
     const NAME: &'static str = "todo-delete-batch";
-    const DESCRIPTION: &'static str = "Delete multiple todos at once";
+    const TITLE: &'static str = "Delete several todos";
+    const DESCRIPTION: &'static str = "Remove up to 100 todos in one call, reporting each id \
+         that fails. They stay restorable with todo-restore until todo-clear empties the deleted \
+         todos";
+    const TAGS: &'static [&'static str] = &["todo", "delete", "write", "batch", "destructive"];
     const MUTATION: bool = true;
     const DESTRUCTIVE: bool = true;
+    // It can be undone, so it is not held for approval.
+    const UNDOABLE: bool = true;
 
     fn schema() -> Value {
+        schema::ids_input()
+    }
+
+    fn output() -> Value {
         json!({
             "type": "object",
-            "properties": { "ids": schema::ids() },
-            "required": ["ids"]
+            "properties": {
+                "deletedIds": schema::strings(),
+                "failed": schema::failed(),
+                "summary": schema::summary()
+            },
+            "required": ["deletedIds", "failed", "summary"]
         })
     }
 
-    fn run(&self, input: Input) -> CommandResult<Value> {
+    fn examples() -> Vec<CommandExample> {
+        vec![CommandExample::new(
+            "Delete two todos",
+            json!({ "ids": [EXAMPLE_ID, OTHER_ID] }),
+        )]
+    }
+
+    fn changed(data: &Value) -> Vec<String> {
+        ids_in(&data["deletedIds"])
+    }
+
+    fn run(&self, input: Input, context: &CommandContext) -> CommandResult<Value> {
+        let now = stamp(context).now;
         let total = input.ids.len();
         let mut deleted_ids = Vec::new();
         let mut failed = Vec::new();
 
         for (index, id) in input.ids.into_iter().enumerate() {
-            if self.0.delete(&id).is_some() {
+            if self.0.delete(&id, now).is_some() {
                 deleted_ids.push(id);
             } else {
-                failed.push(FailedItem {
-                    index,
-                    error: not_found(&id),
-                    id: Some(id),
-                    input: None,
-                });
+                failed.push(FailedItem::by_id(index, id.clone(), not_found(&id)));
             }
         }
 
-        let summary = Summary {
-            total,
-            success_count: deleted_ids.len(),
-            failure_count: failed.len(),
-        };
         let reasoning = if failed.is_empty() {
             format!("Successfully deleted all {} todos", deleted_ids.len())
         } else if deleted_ids.is_empty() {
@@ -72,33 +91,35 @@ impl Command for DeleteBatch {
                 failed.len()
             )
         };
-
-        // Always flag the destructive batch; add a partial-success warning if needed.
-        let mut warnings = vec![warning(
-            "DESTRUCTIVE_BATCH",
-            format!(
-                "This operation permanently deleted {} todos",
-                deleted_ids.len()
-            ),
-            WarningSeverity::Caution,
-        )];
+        let mut reply = Reply::new(reasoning, batch_confidence(deleted_ids.len(), total));
+        if !deleted_ids.is_empty() {
+            reply = reply
+                .warn(warning(
+                    "DESTRUCTIVE_BATCH",
+                    format!(
+                        "Deleted {} todos; todo-restore brings them back until todo-clear \
+                         empties the deleted todos",
+                        deleted_ids.len()
+                    ),
+                    WarningSeverity::Caution,
+                ))
+                .undo("todo-restore", json!({ "ids": deleted_ids }));
+        }
         if !failed.is_empty() && !deleted_ids.is_empty() {
-            warnings.push(warning(
+            reply = reply.warn(warning(
                 "PARTIAL_SUCCESS",
                 format!("{} of {total} items could not be deleted", failed.len()),
                 WarningSeverity::Warning,
             ));
         }
-        let confidence = batch_confidence(summary.success_count, total);
+        let summary = Summary::new(total, deleted_ids.len(), failed.len());
         ok(
             &Output {
                 deleted_ids,
                 failed,
                 summary,
             },
-            reasoning,
-            confidence,
-            warnings,
+            reply,
         )
     }
 }

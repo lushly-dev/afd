@@ -90,7 +90,7 @@ export const clearCompleted = defineCommand<typeof inputSchema, ClearResult>({
 	name: 'todo-clear',
 	title: 'Clear todos for good',
 	description:
-		'Remove todos for good: completed ones, or the deleted todos with deleted: true, or every todo with all: true. A caller that is not a person waits for a person to approve',
+		'Remove todos for good: completed ones, or the deleted todos with deleted: true, or every todo with all: true. Nothing undoes it. Where the server holds clears for approval, a caller that is not a person waits for a person to approve; elsewhere it is gated only by its confirmation prompt, where the server enforces confirmations',
 	category: 'todo',
 	contexts: TODO_EDIT_CONTEXTS,
 	expose: { mcp: true },

@@ -1,14 +1,21 @@
-//! The todo plugin: the todo example's eleven commands as a compiled plugin.
+//! The todo plugin: the todo example's thirteen commands as a compiled plugin.
 //!
 //! [`plugin`] links into a host as `compiled:todo` (`HostBuilder::with_compiled`); the
 //! `umbel-todo` binary is the `umbel` command line with it compiled in, which the todo example's
-//! conformance suite runs against. The commands, their schemas and the in-memory store are the
-//! example's own library (`todo-backend-rust`); the manifest declares each command with the
-//! backend's schema, and the host refuses a plugin whose definitions disagree with it.
+//! conformance suite runs against. The commands, their schemas, the in-memory store and its
+//! change history are the example's own library (`todo-backend-rust`); the manifest declares
+//! each command with the backend's schema and contexts, and the host refuses a plugin whose
+//! definitions disagree with it.
+//!
+//! One difference: the backend holds `todo-clear` for any caller that is not a person, a policy
+//! decided per call, and a manifest declares only a fixed approval (`approval = "required"`). The
+//! plugin drops that policy, so under Umbel a clear is gated by its confirmation prompt alone
+//! (<https://github.com/lushly-dev/afd/issues/1329>). The command's description says so.
 #![forbid(unsafe_code)]
 
 use std::sync::Arc;
 
+use afd::ApprovalPolicy;
 use todo_backend_rust::TodoStore;
 use umbel::plugins::{Asset, CompiledPlugin, PluginCommand, PluginError, Services};
 
@@ -42,7 +49,13 @@ impl CompiledPlugin for Todo {
     fn commands(&self, _services: Services) -> Result<Vec<PluginCommand>, PluginError> {
         Ok(todo_backend_rust::commands(Arc::clone(&self.store))
             .into_iter()
-            .map(|(definition, schema)| PluginCommand::definition(definition, schema))
+            .map(|(mut definition, schema)| {
+                // A per-call policy has no manifest form (see the module documentation).
+                if matches!(definition.approval, Some(ApprovalPolicy::Conditional(_))) {
+                    definition.approval = None;
+                }
+                PluginCommand::definition(definition, schema)
+            })
             .collect())
     }
 }

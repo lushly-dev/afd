@@ -1,7 +1,9 @@
-use super::{batch_confidence, ok, schema, warning, Command, FailedItem, Summary};
+use super::{
+    batch_confidence, ok, schema, stamp, todo_ids_in, warning, Command, FailedItem, Reply, Summary,
+};
 use crate::store::{NewTodo, TodoStore};
 use crate::types::{Priority, Todo};
-use afd::{CommandError, CommandResult, WarningSeverity};
+use afd::{CommandContext, CommandError, CommandExample, CommandResult, WarningSeverity};
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use std::sync::Arc;
@@ -31,8 +33,11 @@ struct Output {
 impl Command for CreateBatch {
     type Input = Input;
     const NAME: &'static str = "todo-create-batch";
+    const TITLE: &'static str = "Create several todos";
     const DESCRIPTION: &'static str = "Create multiple todos at once with partial failure support";
+    const TAGS: &'static [&'static str] = &["todo", "create", "write", "batch"];
     const MUTATION: bool = true;
+    const UNDOABLE: bool = true;
 
     fn schema() -> Value {
         json!({
@@ -42,13 +47,13 @@ impl Command for CreateBatch {
                     "type": "array",
                     "minItems": 1,
                     "maxItems": 100,
-                    "description": "Todos to create (1 to 100)",
+                    "description": "Todos to create (1-100)",
                     "items": {
                         "type": "object",
                         "properties": {
-                            "title": schema::title(),
-                            "description": schema::description(),
-                            "priority": schema::priority_with_default("Priority (default: medium)")
+                            "title": schema::title("Todo title (1-200 characters)"),
+                            "description": schema::description("Optional description"),
+                            "priority": schema::priority_with_default()
                         },
                         "required": ["title"]
                     }
@@ -58,7 +63,36 @@ impl Command for CreateBatch {
         })
     }
 
-    fn run(&self, input: Input) -> CommandResult<Value> {
+    fn output() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "succeeded": schema::todos(),
+                "failed": schema::failed(),
+                "summary": schema::summary()
+            },
+            "required": ["succeeded", "failed", "summary"]
+        })
+    }
+
+    fn examples() -> Vec<CommandExample> {
+        vec![CommandExample::new(
+            "Two todos at once",
+            json!({
+                "todos": [
+                    { "title": "Net the brassicas" },
+                    { "title": "Sow the broad beans", "priority": "low" }
+                ]
+            }),
+        )]
+    }
+
+    fn changed(data: &Value) -> Vec<String> {
+        todo_ids_in(&data["succeeded"])
+    }
+
+    fn run(&self, input: Input, context: &CommandContext) -> CommandResult<Value> {
+        let stamp = stamp(context);
         let total = input.todos.len();
         let mut succeeded = Vec::new();
         let mut failed = Vec::new();
@@ -78,17 +112,14 @@ impl Command for CreateBatch {
                 continue;
             }
             succeeded.push(self.0.create(NewTodo {
+                id: stamp.new_id(),
                 title,
                 description: item.description.map(|d| d.trim().to_string()),
                 priority: item.priority,
+                now: stamp.now,
             }));
         }
 
-        let summary = Summary {
-            total,
-            success_count: succeeded.len(),
-            failure_count: failed.len(),
-        };
         let reasoning = if failed.is_empty() {
             format!("Successfully created all {} todos", succeeded.len())
         } else if succeeded.is_empty() {
@@ -103,25 +134,26 @@ impl Command for CreateBatch {
                 failed.len()
             )
         };
-        let warnings = if !failed.is_empty() && !succeeded.is_empty() {
-            vec![warning(
+        let mut reply = Reply::new(reasoning, batch_confidence(succeeded.len(), total));
+        if !failed.is_empty() && !succeeded.is_empty() {
+            reply = reply.warn(warning(
                 "PARTIAL_SUCCESS",
                 format!("{} of {total} items failed", failed.len()),
                 WarningSeverity::Warning,
-            )]
-        } else {
-            Vec::new()
-        };
-        let confidence = batch_confidence(summary.success_count, total);
+            ));
+        }
+        if !succeeded.is_empty() {
+            let ids: Vec<&str> = succeeded.iter().map(|todo| todo.id.as_str()).collect();
+            reply = reply.undo("todo-delete-batch", json!({ "ids": ids }));
+        }
+        let summary = Summary::new(total, succeeded.len(), failed.len());
         ok(
             &Output {
                 succeeded,
                 failed,
                 summary,
             },
-            reasoning,
-            confidence,
-            warnings,
+            reply,
         )
     }
 }

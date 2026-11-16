@@ -36,7 +36,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | Contract | 1.0-rc (`AFD_CONTRACT_VERSION`) | 1.0-rc (`afd.CONTRACT_VERSION`) | 1.0-rc (`afd::CONTRACT_VERSION`) | 1.0-rc (`afd::contract_version`) |
 | Distribution | npm | PyPI | [crates.io](https://crates.io/crates/afd); published 0.2.1 | CMake `FetchContent`, `find_package`, `add_subdirectory`; published [cpp-v0.2.0](https://github.com/lushly-dev/afd/releases/tag/cpp-v0.2.0) |
 | Scope | Full stack: core, MCP server, MCP client, DirectClient, CLI, auth, testing, UI packages | Full stack in one package: core, MCP server (the `mcp` SDK's `MCPServer`), client, DirectClient, CLI, testing, platform and connectors | Core library, validating registry, batch and pipeline executors, bootstrap commands, optional MCP server (`server` feature), approval-aware in-process `DirectClient`. No remote client | Core library, validating registry, middleware, `DirectClient`, batch, pipeline and stream executors. No server or client |
-| Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | Streamable HTTP (`server` feature on axum), both eras | stdio (hand-rolled), both eras |
+| Todo backend | stdio (SDK v2), both MCP eras | stdio (`mcp` 2.x), both eras | stdio and Streamable HTTP (`server` feature, on axum), both eras | stdio (hand-rolled), both eras |
 | CI | `ci.yml` (`pnpm check`) | `python.yml` | `rust.yml` | `cpp.yml` |
 | Skill | `afd-typescript` | `afd-python` | `afd-rust` | `afd-cpp` |
 
@@ -52,7 +52,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/journal-context-cap.json`, 19 cases | The journal's 4096-byte cap on a declared context field's value, measured with JavaScript's number spelling (#578) | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
-| Todo conformance, 35 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes, plus 6 shared with Python and the approval suite | Yes, plus the same 6 and the approval suite's 2 cases without elicitation (#1312) | Yes | Yes |
+| Todo conformance, 35 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes, plus 6 shared with Python and Rust and the approval suite | Yes, plus the same 6 and the approval suite's 2 cases without elicitation (#1312) | Yes, plus the same 6 and the approval suite | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 75 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 

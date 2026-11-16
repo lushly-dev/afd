@@ -277,10 +277,18 @@ jobs:
       - name: Conformance (Rust backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:rs --mode modern
 
-      # Modern only: a 2025 request over the backend's stateless HTTP has no back channel for
-      # elicitation, so the accept and decline cases need MCP 2026-07-28.
+      # The runner speaks stdio to the backend, which carries elicitation in both protocol eras.
+      - name: Confirmations (Rust backend)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations
+
       - name: Confirmations (Rust backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations --mode modern
+
+      - name: Approvals (Rust backend)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite approvals
+
+      - name: Approvals (Rust backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:rs --suite approvals --mode modern
 
       - name: Check the working tree is unchanged
         run: |

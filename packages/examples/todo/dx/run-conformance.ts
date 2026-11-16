@@ -104,24 +104,21 @@ async function kill(child: ChildProcess): Promise<void> {
 	clearTimeout(forced);
 }
 
-/** Start the Rust backend on a free port and wait until it is healthy. */
+/**
+ * Start the Rust backend's HTTP server on a free port and wait until it is healthy. Umbel's
+ * mounted mode reaches the backend this way; the Rust conformance runs use stdio.
+ */
 async function spawnRustServer(
 	extraEnv: Record<string, string>
 ): Promise<{ base: string; child: ChildProcess }> {
 	const port = await freePort();
-	const manifest = path.join(__dirname, '../backends/rust/Cargo.toml');
-	const child = spawn(
-		'cargo',
-		['run', '--locked', '--quiet', '--manifest-path', manifest, '--', 'server'],
-		{
-			env: { ...process.env, ...extraEnv, HOST: '127.0.0.1', PORT: String(port) },
-			stdio: ['ignore', 'ignore', 'inherit'],
-		}
-	);
+	const child = spawn(rustBinary(), ['server'], {
+		env: { ...process.env, ...extraEnv, HOST: '127.0.0.1', PORT: String(port) },
+		stdio: ['ignore', 'ignore', 'inherit'],
+	});
 	const base = `http://127.0.0.1:${port}`;
 	try {
-		// Generous: the first run may still compile the crate.
-		await waitForHealth(`${base}/health`, child, 300_000);
+		await waitForHealth(`${base}/health`, child, 60_000);
 	} catch (error) {
 		await kill(child);
 		throw error;
@@ -130,15 +127,14 @@ async function spawnRustServer(
 }
 
 /**
- * The Rust backend speaks MCP over HTTP rather than stdio: start it on a free
- * port and connect with the Streamable HTTP client transport.
+ * The Rust backend's binary, which the package scripts build first (`cargo build`), in the
+ * target directory cargo uses: `CARGO_TARGET_DIR`, else the backend's own `target`. Spawning it
+ * directly, as for C++, keeps each session from waiting on cargo's build lock.
  */
-async function startRustBackend(extraEnv: Record<string, string>): Promise<Started> {
-	const { base, child } = await spawnRustServer(extraEnv);
-	return {
-		transport: new StreamableHTTPClientTransport(new URL(`${base}/mcp`)),
-		stop: () => kill(child),
-	};
+function rustBinary(): string {
+	const target = process.env.CARGO_TARGET_DIR ?? path.join(__dirname, '../backends/rust/target');
+	const name = process.platform === 'win32' ? 'todo-backend-rust.exe' : 'todo-backend-rust';
+	return path.join(path.resolve(target), 'debug', name);
 }
 
 /** Where cargo puts Umbel's binaries (`endpoints/umbel` is its own workspace). */
@@ -183,8 +179,9 @@ async function startUmbel(
 		const port = await freePort();
 		let plugin = '';
 		if (target === 'umbel-mounted') {
-			// The mount renames tools one by one, so the backend lists one tool per command.
-			const backend = await spawnRustServer({ TOOL_STRATEGY: 'individual' });
+			// The mount renames tools one by one, so the backend lists one tool per command. Umbel
+			// calls it as an agent, so its own approval hold is off, as for the other backends.
+			const backend = await spawnRustServer({ TOOL_STRATEGY: 'individual', APPROVALS: 'off' });
 			cleanups.push(() => kill(backend.child));
 			await mkdir(path.join(workspace, 'plugins'));
 			await cp(MOUNT_FIXTURE, path.join(workspace, 'plugins/todo'), { recursive: true });
@@ -241,13 +238,14 @@ function readToken(child: ChildProcess): Promise<string> {
 	});
 }
 
-/** Start `target` (stdio, or HTTP for Rust) with `extraEnv` added to its environment. */
+/** Start `target` (stdio, or HTTP for Umbel) with `extraEnv` added to its environment. */
 async function startBackend(target: Backend, extraEnv: Record<string, string>): Promise<Started> {
 	if (target === 'umbel' || target === 'umbel-mounted') {
 		return startUmbel(target, extraEnv);
 	}
-	// The shared suites test the contract every language meets, without approvals until the
-	// to-do reference plan's phase 5, so they run with APPROVALS=off, as they set CONFIRMATIONS.
+	// The todo and confirmation suites reset with a clear, which an agent's approval hold would
+	// stop, so they run with APPROVALS=off, as they set CONFIRMATIONS; the approvals suite turns
+	// it on. C++ has no approval hold yet and ignores the variable.
 	const env = {
 		...process.env,
 		APPROVALS: 'off',
@@ -274,6 +272,13 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 			stop: async () => {},
 		};
 	}
+	if (target === 'rs') {
+		// Built by `pnpm test:conformance:rs`.
+		return {
+			transport: new StdioClientTransport({ command: rustBinary(), args: ['stdio'], env }),
+			stop: async () => {},
+		};
+	}
 	if (target === 'cpp') {
 		// Built by `pnpm test:conformance:cpp` (CMake); speaks MCP over stdio like ts and py.
 		const executable = process.platform === 'win32' ? 'todo-server-cpp.exe' : 'todo-server-cpp';
@@ -288,7 +293,7 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 			stop: async () => {},
 		};
 	}
-	return startRustBackend(extraEnv);
+	throw new Error(`Unknown backend: ${target}`);
 }
 
 /** How a confirmation-suite client answers elicitations; `acknowledge` declares none. */
@@ -396,6 +401,15 @@ async function run() {
 	if (!isBackend(target) || !isMode(mode) || !SUITES.includes(suite)) {
 		console.error(
 			`Usage: tsx dx/run-conformance.ts --backend <${BACKENDS.join('|')}> [--mode <${MODES.join('|')}>] [--suite <${SUITES.join('|')}>]`
+		);
+		process.exit(1);
+	}
+
+	if (suite === 'approvals' && (target === 'umbel' || target === 'umbel-mounted')) {
+		// The cases are the Rust backend's, but Umbel serves todo-clear without its approval hold:
+		// a manifest cannot declare a per-caller approval yet.
+		console.error(
+			`The approvals suite does not run against ${target}: Umbel cannot hold todo-clear for agents yet (https://github.com/lushly-dev/afd/issues/1329)`
 		);
 		process.exit(1);
 	}
