@@ -160,6 +160,7 @@
     - **I2's remainder, decided by the coordinator on 2026-11-15:** a reference resolves only to a project the caller may enter; any other stays as written and is refused as a missing one, whatever the sponsor may enter, so an owner learns nothing of a restricted project they cannot see. To name one, an owner first adds themselves (D96). Unit: Den, by slug or by id, with Bea (who may enter it) as sponsor, answers as `nowhere` does, and nothing is written.
     - **`agent-member-add`'s input** is a `oneOf` of `{ undo }` and the new record's fields (`z.xor`), so the schema says which it takes; P2-E10's exemption follows `access.projects` into the branch.
     - **Follow-up:** a row for a `workspace: false` agent member reading its own project's record.
+    - **Figures after merging phase 6's step 3** (`main` at `6d7c505a`), measured by `budget` in `pnpm verify` at `62a9cd12`: first paint 299,415 of 300,000 and 92,996 of 93,000 gzip (4 bytes of gzip left); the kernel alone 115,401 of 115,500; `late` 78,250 of 78,500; `late-identity` 62,175 of 63,000; `account` 25,727 of 28,000. No ceiling moved; the next step to add first-paint code raises `jsGzip` under D115.
 - **Not done:** everything else it specifies.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 
