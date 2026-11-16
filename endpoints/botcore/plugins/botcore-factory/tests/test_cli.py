@@ -52,3 +52,35 @@ def test_a_refused_call_exits_1_with_the_result(make_run):
     result = CliRunner().invoke(create_host_cli(host), ["call", "dial-get", '{"key": "no.such"}'])
     assert result.exit_code == 1
     assert json.loads(result.output)["error"]["code"] == "NOT_FOUND"
+
+
+def test_a_relative_worktree_is_made_absolute(tmp_path):
+    out = cli.prepare(["call", "lane-enqueue", '{"worktree": ".", "title": "t"}'], cwd=tmp_path)
+    assert out[:2] == ["call", "lane-enqueue"]
+    assert json.loads(out[2]) == {"worktree": str(tmp_path.resolve()), "title": "t"}
+
+
+def test_arguments_can_come_from_a_file(tmp_path):
+    args = tmp_path / "enqueue.json"
+    args.write_text('﻿{"worktree": "wt"}', encoding="utf-8")  # PowerShell writes a BOM.
+    out = cli.prepare(["call", "lane-enqueue", "--args-file", str(args)], cwd=tmp_path)
+    assert json.loads(out[2]) == {"worktree": str((tmp_path / "wt").resolve())}
+
+
+def test_what_it_cannot_read_reaches_the_host_cli_unchanged(tmp_path):
+    assert cli.prepare(["catalog"]) == ["catalog"]
+    assert cli.prepare(["call", "lane-status"]) == ["call", "lane-status", "{}"]
+    assert cli.prepare(["call", "x", "{bad"]) == ["call", "x", "{bad"]
+    absolute = json.dumps({"worktree": str(tmp_path)})
+    assert cli.prepare(["call", "x", absolute]) == ["call", "x", absolute]
+
+
+def test_the_checkout_of_a_linked_worktree_is_that_worktree(tmp_path, monkeypatch):
+    _clean_git_env(monkeypatch)
+    monkeypatch.delenv(cli.TARGET_ENV, raising=False)
+    main, linked = tmp_path / "main", tmp_path / "linked"
+    git = ["git", "-c", "user.name=T", "-c", "user.email=t@example.invalid"]
+    subprocess.run(["git", "init", "-q", str(main)], check=True)  # noqa: S607
+    subprocess.run([*git, "-C", str(main), "commit", "-q", "--allow-empty", "-m", "a"], check=True)
+    subprocess.run([*git, "-C", str(main), "worktree", "add", "-q", str(linked)], check=True)
+    assert cli.checkout(linked) == linked.resolve()

@@ -6,7 +6,10 @@ Each is botcore's host CLI over the real world, for the repository checkout it i
     factory-cell call lane-enqueue '{"worktree": "."}'
 
 ``catalog`` lists the host's commands with their inputs; ``call`` prints one CommandResult as JSON
-and exits 1 on a refusal. The checkout is ``BOTCORE_FACTORY_TARGET`` or the git checkout around the
+and exits 1 on a refusal. ``call <command> --args-file <path>`` reads the JSON from a file instead,
+for shells that strip quotes (Windows PowerShell 5.1). A relative ``worktree`` argument is made
+absolute against the working directory before the call, so the lane, which runs elsewhere, can
+find it later. The checkout is ``BOTCORE_FACTORY_TARGET`` or the git checkout around the
 working directory. The lane's state is keyed by repository in the user's data directory, so a
 cell's worktree and the primary checkout on one machine see the same lane. There is no client
 time limit: ``lane-enqueue`` runs the cheap checks and ``lane-wait`` may wait as long as it is told.
@@ -14,8 +17,11 @@ time limit: ``lane-enqueue`` runs the cheap checks and ``lane-wait`` may wait as
 
 from __future__ import annotations
 
+import json
 import os
 import subprocess
+import sys
+from collections.abc import Sequence
 from pathlib import Path
 
 from botcore.context import ExecutionContext
@@ -45,9 +51,38 @@ def checkout(cwd: Path | None = None) -> Path:
     return Path(top).resolve() if top else here
 
 
-def _main(name: str) -> None:
+def prepare(argv: Sequence[str], cwd: Path | None = None) -> list[str]:
+    """``call``'s arguments as the host CLI takes them: ``--args-file`` read, ``worktree`` absolute.
+
+    Anything this cannot read is passed on unchanged, so the host CLI reports it.
+    """
+    argv = list(argv)
+    if len(argv) < 2 or argv[0] != "call":
+        return argv
+    rest = argv[2:]
+    if rest[:1] == ["--args-file"] and len(rest) == 2:
+        try:
+            text = Path(rest[1]).read_text(encoding="utf-8-sig")
+        except OSError as exc:
+            raise SystemExit(f"{argv[1]}: cannot read --args-file {rest[1]}: {exc}") from exc
+    elif len(rest) <= 1:
+        text = rest[0] if rest else "{}"
+    else:
+        return argv
+    try:
+        arguments = json.loads(text)
+    except ValueError:
+        return [*argv[:2], text]
+    worktree = arguments.get("worktree") if isinstance(arguments, dict) else None
+    if isinstance(worktree, str) and worktree and not Path(worktree).is_absolute():
+        arguments["worktree"] = str(((cwd or Path.cwd()) / worktree).resolve())
+    return [*argv[:2], json.dumps(arguments)]
+
+
+def _main(name: str, argv: Sequence[str] | None = None) -> None:
     host = build_factory_host(name, ExecutionContext(checkout(), profile="trusted-local"))
-    create_host_cli(host)(prog_name=name)
+    args = prepare(list(sys.argv[1:] if argv is None else argv))
+    create_host_cli(host)(args=args, prog_name=name)
 
 
 def factory_cli() -> None:

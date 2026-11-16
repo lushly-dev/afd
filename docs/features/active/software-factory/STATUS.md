@@ -5,7 +5,7 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
-## The fleet's command lines and `run-fleet`, 2026-11-16
+## The fleet's command lines and `run-fleet`, 2026-11-15
 
 `factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two
 hosts over the real world for the checkout they run in, so a cell can call `lane-enqueue` and the
@@ -15,11 +15,25 @@ in Botcore's format that replaces Lushly's `do-run-fleet` when Lushly moves onto
 (Phase 4); its rules are `do-run-fleet`'s, over the plugin's commands. It says what to do where a
 command is still missing (`cell-park`, `lane-revert`, `lane-handoff`), and that cells run on the
 lane host until `lane-handoff` exists. The skill listing budget rose to 6,600 under the owner's
-standing rule. PR: this branch, `lush/factory-run-fleet`.
+standing rule. The command line reads JSON from `--args-file` for Windows PowerShell and makes a
+relative `worktree` absolute, so the lane later reads the cell's PR body (`.factory/pr-body.md`,
+git-ignored) from the cell's worktree; `prepare-pr lane` now passes a title and body. PR: this
+branch, `lush/factory-run-fleet`.
+
+Review (Opus 5.5; it reported low effort though high was asked) found four blockers, fixed: the
+foreman could hang at the finish (an open `queue-empty` is not repeated and the wait had no
+timeout), a fresh foreman ignored events its predecessor had read (`openEvents`), enqueue stored
+`.` as the worktree and passed no title or body, and JSON arguments break under Windows
+PowerShell. Recorded, not fixed here: a cell runs its own branch's copy of the plugin and
+adapter, and the lane does not re-verify the review, so a branch that edits them could skip the
+review check (Lushly's lane has the same shape); and the plugin's host lock cannot see Lushly's
+script lane on a shared host. Follow-ups:
+[#1308](https://github.com/lushly-dev/afd/issues/1308) and
+[#1309](https://github.com/lushly-dev/afd/issues/1309).
 
 Known before the first run: on `random`, Lushly's script lane and this lane share the cores and
-the plugin's host lock cannot see Lushly's, so AFD's lane runs only while Lushly's is idle (a
-follow-up to file). A read-only probe of the real host on the MacBook Air (2026-11-15) found no
+the plugin's host lock cannot see Lushly's, so AFD's lane runs only while Lushly's is idle
+([#1309](https://github.com/lushly-dev/afd/issues/1309)). A read-only probe of the real host on the MacBook Air (2026-11-15) found no
 lane host set, no machine probed, and `canStartCell` false there (7.1 GB free against
 `host.minFreeGb` 8).
 
