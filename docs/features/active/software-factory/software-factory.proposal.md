@@ -218,7 +218,7 @@ so each repository states its own contract:
 | `coverage` | `pnpm check:all` | `pnpm validate:coverage` |
 | `install` | `pnpm install --frozen-lockfile` | Same |
 | `required_check` | A new aggregate check (see [AFD prerequisites](#afd-prerequisites)) | `ci-ok` |
-| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/issue-labels.mjs`, `scripts/affected*`, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
+| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
 | `review_evidence` | The record `prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
 | `receipt` | Optional. Confirms an existing validation of this head, so it is reused | `validate:final --verify` |
 | `ui_paths` | `endpoints/loam/**`, `foundations/specimen/**`, `foundations/fast-af/**`, `site/**` | Lushly's app paths |
@@ -281,9 +281,9 @@ host the lane validates several branches at once while still merging one at a ti
 
 ### Cells, foreman and skills
 
-- `prepare-pr` gains a **lane mode**: base sync, review (recording `review_evidence`),
-  docs and changeset, commit, then `lane-enqueue`. It never runs the full `pnpm verify`,
-  pushes or opens the PR.
+- `prepare-pr` gains a **lane mode**: base sync, review, docs and changeset, commit, then
+  record the review of the committed head (what `review_evidence` verifies) and
+  `lane-enqueue`. It never runs the full `pnpm verify`, pushes or opens the PR.
 - A new **`run-fleet`** skill is the foreman's procedure: start or pick up a run from
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.

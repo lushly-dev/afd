@@ -5,7 +5,47 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Review evidence and `prepare-pr`'s lane mode, 2026-11-15
+
+AFD's adapter now names `review_evidence`, so `lane-enqueue` no longer refuses AFD branches with
+`NOT_CONFIGURED`. `prepare-pr lane` runs full mode's base sync, review, docs and commit, then
+records the review with `scripts/review-record.mjs write` and calls `lane-enqueue`; it never runs
+the full `pnpm verify`, pushes or opens the PR. The record keeps one entry per review lane in the
+factory gateway's `review-record` shape (lane, model, effort, verdict, fixed, deferred) and lives
+in the worktree's git directory, bound to the commit and tree reviewed. `verify --head <sha>`, the
+adapter's command, accepts only a passing review of that exact, checked-out, clean commit with an
+independent lane; any later commit needs the review recorded again. As with the gateway, the
+verdicts are the cell's report of its reviewers, typed and bound to the head but not proven.
+`REVIEW_MISSING` now carries the verifier's first line (for example, which commit the recorded
+review covers), and a verifier that cannot run or runs past 120 seconds is `REVIEW_MISSING` with
+its reason rather than `READ_FAILED`. The verifier, `verify-record.mjs` and `pre-push.mjs` joined
+`gate_paths`, so a repair cannot change the rule it is judged by without `gate-allow`.
+
+Review: one independent pass (Opus 5.5; the reviewer reported low effort though high was asked)
+found one blocker, fixed: started through a symlink or Windows junction, the script's entry check
+failed and `verify` exited 0 without checking. It now compares real paths and refuses when it
+cannot confirm itself, with a symlinked-invocation test that fails on the earlier code. Also
+fixed from that pass: crashes print one `review-record:` line, lane names `Self`/`self-review`
+count as self-review, `--lanes-file` for Windows shells, and the proposal's lane-mode order.
+Deferred: the script repeats about 35 lines of `verify-record.mjs`'s identity and file helpers
+so it stands alone in the plugin's fixture (a test pins the shared base list).
+A focused re-check by the same reviewer approved the fixes with no blocker open; its two nits
+(the command-line test now strips `GIT_*`, and a doubled blank line) are fixed.
+
+Evidence: `scripts/review-record.test.mjs` (37 tests, including a real repository, a linked
+worktree and a symlinked start) and the plugin's `test_lane_git.py`, which runs AFD's adapter command through the
+plugin's real process runner against the real script. PR: [#1305](https://github.com/lushly-dev/afd/pull/1305).
+
+Phase 1 still needs, as the proposal lists it: the webhook wake, experience review (`pr-preview`
+and the before-and-after screens), `run-fleet`, and one measured AFD fleet run on the
+workstation.
+
 ## Lane-loop repair on the MacBook Air, 2026-11-15
+
+**Merged:** [PR #1295](https://github.com/lushly-dev/afd/pull/1295) merged on 2026-11-15
+(Pacific) as `a8a1f0f9`, with all ten checks green including `ci-ok`. The account below was written
+before the merge; its "no lane-loop PR has merged" and "the final receipt belongs to the PR" are
+superseded by it.
 
 The initial draft [PR #1294](https://github.com/lushly-dev/afd/pull/1294) exposed a historical
 agent co-author trailer in checkpoint commit `1ba67bb3`, which the current commit-credit gate
@@ -85,7 +125,7 @@ for the real output and re-check the fixes before shipping the branch.
 | Phase | State | Evidence / next gate |
 | --- | --- | --- |
 | 0. Prerequisites | Done 2026-11-13 | The proposal's [Phases](software-factory.proposal.md#phases): intake (#1100), `ci-ok` (#1123, #1136), the pre-push `pnpm verify` record (#1127), the Windows workstation (#1115, #1121, #1130, #1134) |
-| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185). Remaining as the proposal lists it: host probing and selection, the webhook wake, Windows and macOS process control, experience review, `prepare-pr`'s lane mode and `run-fleet`, then one AFD fleet run on the workstation with its numbers reported |
+| 1. The plugin, one slot | In progress | Botcore's host changes, plugin policies, input schemas in the catalog and named refusals (#1181); `botcore-factory`'s foundation and intake: the world, the state store, the intake rules, `issue-check`, `cell-register`, `lane-status`, `dial-get`/`dial-set` and job 14 (#1183); the queue, events and records: `lane-enqueue`, `lane-wait`, `event-resolve`, `lane-pause`/`lane-resume`, the record log, `cell-attach`, `lane-drop`, `plan-list`, `gate-allow`, and jobs 03 to 09 (#1185); the lane loop: validation, exact-head push, serial merge, Windows and macOS process control, host probing and selection (`lane-host-probe`, `lane-host-list`, `lane-host-set`) and `lane-report` (#1295); review evidence and `prepare-pr`'s lane mode (#1305). Remaining as the proposal lists it: the webhook wake, experience review and `run-fleet`, then one AFD fleet run on the workstation with its numbers reported |
 | 2. Concurrency | Not started | After Phase 1's measured run |
 | 3. Cells on other machines | Not started | After Phase 2 |
 | 4. Lushly moves on | Not started | A Lushly adapter at parity with Lushly's `scripts/merge-lane.mjs` |

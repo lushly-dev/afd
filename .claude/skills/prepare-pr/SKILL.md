@@ -3,9 +3,9 @@ name: prepare-pr
 description: >
   Ships an AFD branch: base sync, independent review, docs, commit, `pnpm verify`,
   PR and readiness, merging only when separately authorized. `inspect` changes
-  nothing; `quick` reruns gates and the PR. Use when the user says ship it, open a
-  PR or prepare the PR.
-argument-hint: inspect | quick
+  nothing; `quick` reruns gates and the PR; `lane` hands a factory cell to the
+  merge lane. Use when the user says ship it or open a PR.
+argument-hint: inspect | quick | lane
 ---
 
 # Prepare PR
@@ -17,6 +17,7 @@ Keep the order where it protects correctness: base sync before review, so the re
 - `inspect`: readiness facts only. No fetch, edit, commit, push or PR change.
 - No argument: steps 1 to 9.
 - `quick`: steps 5 to 9, only when review and docs evidence covers the exact final diff and base. Otherwise run full mode.
+- `lane`: a software factory cell's hand-off ([Lane mode](#lane-mode)). The lane validates, pushes, opens the PR and merges.
 
 ## Readiness facts (every mode)
 
@@ -79,6 +80,20 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    ```
 
    A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
+
+## Lane mode
+
+For a cell of the software factory (`docs/features/active/software-factory/`). The lane owns everything after the commit, so this mode never runs the full `pnpm verify`, pushes, opens the PR or merges.
+
+1. **Base sync, review, docs and commit:** full mode's steps 1 to 4. The review needs an independent lane; a self-review alone is refused below. A status entry names the branch instead of a PR number, since the lane opens the PR.
+2. **Record the review** of the committed head, after every fix is committed and the tree is clean:
+
+   ```bash
+   node scripts/review-record.mjs write --lanes '[{"lane":"self","model":"<model>","effort":"<effort>","verdict":"pass","fixed":0,"deferred":0},{"lane":"general","model":"<reviewer model>","effort":"<effort>","verdict":"pass","fixed":2,"deferred":1}]'
+   ```
+
+   On Windows, write the JSON to a file outside the tree and pass `--lanes-file <path>`, since PowerShell strips the quotes. One entry per review lane, with the reviewer's actual model and effort; `fixed` and `deferred` count its findings. A lane with an unresolved blocker is `"fail"`, and a failing review is recorded but not accepted. The record lives in the worktree's git directory and covers only that commit: any later commit, a base merge included, needs the review re-checked and recorded again. `node scripts/review-record.mjs verify --head "$(git rev-parse HEAD)"` is what the lane runs.
+3. **Enqueue:** `lane-enqueue` with this worktree, then end the turn. `REVIEW_MISSING` names why the record was refused; `PREQUEUE_FAILED` names the stage: fix, commit, record again and enqueue again.
 
 ## Report
 

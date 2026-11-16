@@ -46,6 +46,7 @@ export const testFiles = [
 	'scripts/umbel-components.test.mjs',
 	'scripts/ci-verdict.test.mjs',
 	'scripts/verify-record.test.mjs',
+	'scripts/review-record.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
 	'scripts/release/exec-tool.test.mjs',
