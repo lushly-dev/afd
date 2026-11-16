@@ -2,9 +2,9 @@ import { existsSync } from 'node:fs';
 import { mkdir, mkdtemp, realpath, rm, writeFile } from 'node:fs/promises';
 import { SourceMap } from 'node:module';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, sep } from 'node:path';
 import { chromium } from 'playwright';
-import { build, type Plugin } from 'vite';
+import { build, normalizePath, type Plugin } from 'vite';
 import { expect, it, vi } from 'vitest';
 import { createSpecimenBench } from './bench.js';
 import { loadConfig, resolveContext } from './config.js';
@@ -178,6 +178,8 @@ function responseMap(body: string): MapPayload {
 	if (!encoded) throw new Error('Response has no inline source map');
 	return JSON.parse(Buffer.from(encoded, 'base64').toString('utf8')) as MapPayload;
 }
+/** Vite's `/@fs/` URL for an absolute file: `/@fs/tmp/a.js`, or `/@fs/C:/Temp/a.js` on Windows. */
+const fsUrl = (file: string) => `/@fs/${file.split(sep).join('/').replace(/^\//, '')}`;
 async function mapFixture(module: string, source: string): Promise<string> {
 	const root = await realpath(await mkdtemp(join(tmpdir(), 'specimen-maps-')));
 	await writeFile(join(root, module), source);
@@ -213,7 +215,7 @@ export const Probe = { render() {
 // terminal line comment`;
 		const root = await mapFixture('probe.js', source);
 		const file = join(root, 'probe.js');
-		const path = `/@fs${file}`;
+		const path = fsUrl(file);
 		const server = await startBenchServer(await loadConfig({ root }), { automation });
 		const transforms = vi.spyOn(server.server.environments.client.pluginContainer, 'transform');
 		try {
@@ -243,7 +245,9 @@ export const Probe = { render() {
 			});
 			expect(conditional.status).toBe(304);
 			expect(await conditional.text()).toBe('');
-			expect(transforms.mock.calls.filter((call) => call[1] === file)).toHaveLength(1);
+			expect(transforms.mock.calls.filter((call) => call[1] === normalizePath(file))).toHaveLength(
+				1
+			);
 			let beforeDigest: string | undefined;
 			if (automation) {
 				const bench = await createSpecimenBench({ root });
@@ -280,7 +284,9 @@ export const Probe = { render() {
 			const updated = await server.server.transformRequest(path);
 			expect(updated).not.toBe(cached);
 			expect(updated?.map).toMatchObject({ sourcesContent: [edited] });
-			expect(transforms.mock.calls.filter((call) => call[1] === file)).toHaveLength(2);
+			expect(transforms.mock.calls.filter((call) => call[1] === normalizePath(file))).toHaveLength(
+				2
+			);
 			if (automation) {
 				const bench = await createSpecimenBench({ root });
 				try {
@@ -322,7 +328,7 @@ it.each(['typescript', 'external', 'inline'] as const)(
 		if (kind === 'external') await writeFile(join(root, 'probe.js.map'), JSON.stringify(provided));
 		const server = await startBenchServer(await loadConfig({ root }), { automation: true });
 		try {
-			const path = `/@fs${join(root, module)}`;
+			const path = fsUrl(join(root, module));
 			const body = await readModule(`${server.url}${path}`);
 			const map = responseMap(body);
 			expect(map.sourcesContent).toEqual([original]);

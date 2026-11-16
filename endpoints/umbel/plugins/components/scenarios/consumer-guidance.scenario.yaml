@@ -1,0 +1,61 @@
+{
+  "name": "Use consumer guidance and refuse an unknown consumer",
+  "job": "consumer-guidance",
+  "description": "When writing an application with its own import and theme setup, I want a brief to leave out inapplicable library rules, so that I can use its remaining facts without contradictory advice. A misspelled consumer must be refused.",
+  "steps": [
+    {
+      "command": "components-brief",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "consumer": "loam",
+        "detail": "full"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "content": {
+            "rules": {
+              "length": 0
+            }
+          }
+        }
+      }
+    },
+    {
+      "command": "components-brief",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "detail": "full"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "content": {
+            "rules": {
+              "length": 2
+            }
+          }
+        }
+      }
+    },
+    {
+      "command": "components-brief",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "consumer": "unknown"
+      },
+      "expect": {
+        "success": false,
+        "error": {
+          "code": "CONSUMER_NOT_FOUND"
+        }
+      }
+    }
+  ]
+}

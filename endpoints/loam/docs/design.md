@@ -385,7 +385,7 @@ value, and a number passes the lint.
 ## Briefs on the shared components
 
 Before writing or changing Loam markup that uses `violet-*` components, brief
-on them: call `components-brief` once for the whole page, with the file's
+on them: call `components-brief` once for the whole page with `consumer: "loam"`, with the file's
 `source` when it exists or the `tags` you will use when it does not, and
 work from its answer. Call `components-open` for a component only when the
 brief's `omitted` names what you need, or for its examples. The tool is the
@@ -393,6 +393,13 @@ brief's `omitted` names what you need, or for its examples. The tool is the
 `scripts/umbel-components.mjs` starts with FAST-AF's pack exported from the
 checkout; the [`components` plugin's README](../../umbel/plugins/components/README.md#use-in-this-repository)
 says how to build and approve it.
+
+The repository's deployment maps `loam` to exclusions of `violet-elements/import.root`
+and `violet-elements/theme.install`. These library rules do not apply to Loam's deep
+imports and its own tokens. The map is in the separate `components/consumers` pack;
+Specimen's pack and Umbel's shared `pack.toml` format are unchanged. The library's
+`import` field remains library documentation; follow this document's deep imports.
+`components-open` still shows the unfiltered library record.
 
 - **The brief states the library's facts, not Loam's rules.** Where they
   differ, this document wins: the token contract and `lint:tokens`, deep

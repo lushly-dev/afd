@@ -16,6 +16,7 @@
 #![forbid(unsafe_code)]
 
 mod brief;
+mod consumer;
 mod entry;
 mod fail;
 mod fit;
@@ -68,6 +69,9 @@ impl Plugin for Components {
     /// library in the pack, so a refused override fails `plugins.pack_checks` with the code and
     /// problems a call would get (section 9.1).
     fn check_pack(&self, pack: &str, cx: &mut Cx) -> Option<Outcome> {
+        if pack == "consumers" {
+            return Some(consumer::check(cx));
+        }
         if pack != pack::PACK {
             return None;
         }

@@ -1065,6 +1065,9 @@ importers:
       '@lushly-dev/specimen-host-linux-x64-gnu':
         specifier: workspace:*
         version: link:packages/host-linux-x64-gnu
+      '@lushly-dev/specimen-host-win32-x64':
+        specifier: workspace:*
+        version: link:packages/host-win32-x64
 
   foundations/specimen/packages/host-darwin-arm64: {}
 
@@ -1073,6 +1076,8 @@ importers:
   foundations/specimen/packages/host-linux-arm64-gnu: {}
 
   foundations/specimen/packages/host-linux-x64-gnu: {}
+
+  foundations/specimen/packages/host-win32-x64: {}
 
   foundations/violet/packages/core:
     dependencies:

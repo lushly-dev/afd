@@ -57,12 +57,17 @@
 		"known": {
 			"type": "array",
 			"maxItems": 256,
-			"items": { "type": "string", "maxLength": 193 },
+			"items": {
+				"type": "string",
+				"maxLength": 193
+			},
 			"description": "Rule ids the caller already holds, each bare or <library>/<id>: their ids stay in entries and their text is not sent"
 		},
 		"versions": {
 			"type": "object",
-			"additionalProperties": { "type": "string" },
+			"additionalProperties": {
+				"type": "string"
+			},
 			"description": "The versions the caller has installed, npm package name to version, at most 32 entries"
 		},
 		"render": {
@@ -76,6 +81,12 @@
 			"minimum": 1024,
 			"maximum": 96000,
 			"description": "The most bytes of the whole result, as the output budget measures it; the smaller of this and the call's budget applies"
+		},
+		"consumer": {
+			"type": "string",
+			"minLength": 1,
+			"maxLength": 64,
+			"description": "Deployment consumer name, such as loam. Removes that consumer's excluded rules and references; omit for general library guidance."
 		}
 	}
 }

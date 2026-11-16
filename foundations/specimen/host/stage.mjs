@@ -1,7 +1,8 @@
 #!/usr/bin/env node
 /**
  * Stages a release build of `specimen-host` into its prebuilt platform package
- * (`packages/host-<platform>/bin/specimen-host`), or checks one already staged.
+ * (`packages/host-<platform>/bin/specimen-host`, `specimen-host.exe` for Windows), or checks
+ * one already staged.
  *
  * Usage: node host/stage.mjs [<platform>] [--binary <path>]
  *        node host/stage.mjs --check <platform>
@@ -35,13 +36,18 @@ const packages = new Map(
 		})
 );
 
-// Mach-O 64-bit (little-endian) and ELF CPU identifiers for the architectures Node names.
+// Mach-O 64-bit (little-endian), ELF and PE/COFF machine identifiers for the architectures Node names.
 const MACHO = { x64: 0x01000007, arm64: 0x0100000c };
 const ELF = { x64: 0x3e, arm64: 0xb7 };
+const COFF = { x64: 0x8664, arm64: 0xaa64 };
+
+/** The host binary's file name on a system: Windows executables carry `.exe`. */
+const binaryName = (os) => (os === 'win32' ? 'specimen-host.exe' : 'specimen-host');
 
 /** The system and architecture a binary was built for, from its header. */
 function binaryTarget(path) {
-	const header = readFileSync(path).subarray(0, 20);
+	const file = readFileSync(path);
+	const header = file.subarray(0, 20);
 	if (header.length >= 8 && header.readUInt32LE(0) === 0xfeedfacf) {
 		const cpu = header.readUInt32LE(4);
 		return { os: 'darwin', cpu: Object.keys(MACHO).find((key) => MACHO[key] === cpu) };
@@ -49,6 +55,14 @@ function binaryTarget(path) {
 	if (header.length >= 20 && header.readUInt32BE(0) === 0x7f454c46) {
 		const machine = header.readUInt16LE(18);
 		return { os: 'linux', cpu: Object.keys(ELF).find((key) => ELF[key] === machine) };
+	}
+	// A DOS header (`MZ`) whose offset at 0x3c names the PE signature, then the COFF machine.
+	if (file.length >= 0x40 && file.readUInt16BE(0) === 0x4d5a) {
+		const pe = file.readUInt32LE(0x3c);
+		if (file.length >= pe + 6 && file.readUInt32BE(pe) === 0x50450000) {
+			const machine = file.readUInt16LE(pe + 4);
+			return { os: 'win32', cpu: Object.keys(COFF).find((key) => COFF[key] === machine) };
+		}
 	}
 	return { os: undefined, cpu: undefined };
 }
@@ -81,17 +95,20 @@ const option = (name) => {
 };
 const check = option('--check');
 if (check) {
-	const path = join(specimen, 'packages', `host-${check}`, 'bin', 'specimen-host');
+	const os = packages.get(check)?.manifest.os[0];
+	const path = join(specimen, 'packages', `host-${check}`, 'bin', binaryName(os));
 	const entry = verify(check, path);
 	if (!(readFileSync(path).length > 0)) fail(`${path} is empty`);
 	console.log(`ok - ${entry.manifest.name} carries a ${check} host`);
 } else {
-	const binary = resolve(option('--binary') ?? join(specimen, 'host/target/release/specimen-host'));
+	const binary = resolve(
+		option('--binary') ?? join(specimen, 'host/target/release', binaryName(process.platform))
+	);
 	const libc = process.platform === 'linux' ? '-gnu' : '';
 	const platform = args[0] ?? `${process.platform}-${process.arch}${libc}`;
 	if (args.length > 1) fail(`unexpected arguments: ${args.slice(1).join(' ')}`);
 	const entry = verify(platform, binary);
-	const target = join(entry.directory, 'bin', 'specimen-host');
+	const target = join(entry.directory, 'bin', binaryName(entry.manifest.os[0]));
 	mkdirSync(dirname(target), { recursive: true });
 	copyFileSync(binary, target);
 	chmodSync(target, 0o755);

@@ -1,17 +1,24 @@
 //! Chrome DevTools Protocol over Chromium's `--remote-debugging-pipe`: commands are written to
 //! the child's fd 3 and replies and events read from its fd 4, each a NUL-terminated JSON value.
 //! The child inherits only those two descriptors, so if the host dies Chromium sees its
-//! command pipe close and exits.
+//! command pipe close and exits. On Windows the descriptors reach Chromium's C runtime through
+//! `STARTUPINFO`, as Node's `stdio` array passes them for Playwright, with the null device as its
+//! standard streams, and a Job Object stops it with the host (see `process.rs`).
 
+use crate::process::Child;
 use anyhow::{Context, Result, anyhow};
 use serde_json::{Value, json};
 use std::collections::HashMap;
+#[cfg(unix)]
 use std::os::fd::{AsRawFd, FromRawFd, OwnedFd, RawFd};
+#[cfg(unix)]
 use std::os::unix::process::CommandExt;
-use std::process::{Child, Command, Stdio};
+#[cfg(unix)]
+use std::process::{Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
-use tokio::io::{AsyncReadExt, AsyncWriteExt};
+use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
+#[cfg(unix)]
 use tokio::net::unix::pipe;
 use tokio::sync::{mpsc, oneshot};
 
@@ -35,6 +42,7 @@ pub struct Cdp {
     next: AtomicU64,
 }
 
+#[cfg(unix)]
 fn set_flag(fd: RawFd, get: libc::c_int, set: libc::c_int, flag: libc::c_int) -> Result<()> {
     let flags = unsafe { libc::fcntl(fd, get) };
     if flags < 0 || unsafe { libc::fcntl(fd, set, flags | flag) } < 0 {
@@ -44,6 +52,7 @@ fn set_flag(fd: RawFd, get: libc::c_int, set: libc::c_int, flag: libc::c_int) ->
 }
 
 /// A pipe whose ends close on exec: only descriptors placed deliberately reach the child.
+#[cfg(unix)]
 fn pipe_pair() -> Result<(OwnedFd, OwnedFd)> {
     let mut fds = [0; 2];
     if unsafe { libc::pipe(fds.as_mut_ptr()) } != 0 {
@@ -108,6 +117,7 @@ pub fn parse_lossy(bytes: &[u8]) -> Option<Value> {
 }
 
 /// Launch `executable` with `args` and a CDP pipe on fds 3 and 4.
+#[cfg(unix)]
 pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
     let (child_read, host_write) = pipe_pair()?;
     let (host_read, child_write) = pipe_pair()?;
@@ -151,8 +161,122 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
         libc::F_SETFL,
         libc::O_NONBLOCK,
     )?;
-    let mut sender = pipe::Sender::from_owned_fd(host_write)?;
-    let mut receiver = pipe::Receiver::from_owned_fd(host_read)?;
+    let sender = pipe::Sender::from_owned_fd(host_write)?;
+    let receiver = pipe::Receiver::from_owned_fd(host_read)?;
+    Ok((child.into(), connect(receiver, sender)))
+}
+
+/// Launch `executable` with `args` and a CDP pipe on fds 3 and 4.
+#[cfg(windows)]
+pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
+    let (child, host_write, host_read) = crate::process::spawn_with_pipes(executable, args)?;
+    let (receiver, sender) = threaded::pipe(host_read, host_write)?;
+    Ok((child, connect(receiver, sender)))
+}
+
+/// Anonymous pipes have no overlapped I/O on Windows, so each end is read or written by a
+/// thread of its own. Not Tokio's blocking pool: a read blocked there would hold the runtime's
+/// shutdown until the browser wrote again, and these threads end with the process instead.
+#[cfg(windows)]
+mod threaded {
+    use anyhow::Result;
+    use std::io::{Read, Write};
+    use std::pin::Pin;
+    use std::task::{Context, Poll, ready};
+    use tokio::io::{AsyncRead, AsyncWrite, ReadBuf};
+    use tokio::sync::mpsc;
+
+    /// The bytes the reading thread received.
+    pub struct Receiver {
+        chunks: mpsc::UnboundedReceiver<Vec<u8>>,
+        chunk: Vec<u8>,
+        at: usize,
+    }
+
+    impl AsyncRead for Receiver {
+        fn poll_read(
+            self: Pin<&mut Self>,
+            context: &mut Context<'_>,
+            buffer: &mut ReadBuf<'_>,
+        ) -> Poll<std::io::Result<()>> {
+            let this = self.get_mut();
+            if this.at == this.chunk.len() {
+                // A closed channel is the end of the pipe: nothing is put in the buffer.
+                let Some(chunk) = ready!(this.chunks.poll_recv(context)) else {
+                    return Poll::Ready(Ok(()));
+                };
+                this.chunk = chunk;
+                this.at = 0;
+            }
+            let count = buffer.remaining().min(this.chunk.len() - this.at);
+            buffer.put_slice(&this.chunk[this.at..this.at + count]);
+            this.at += count;
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    /// Hands each write to the writing thread, in order.
+    pub struct Sender(mpsc::UnboundedSender<Vec<u8>>);
+
+    impl AsyncWrite for Sender {
+        fn poll_write(
+            self: Pin<&mut Self>,
+            _: &mut Context<'_>,
+            bytes: &[u8],
+        ) -> Poll<std::io::Result<usize>> {
+            Poll::Ready(match self.0.send(bytes.to_vec()) {
+                Ok(()) => Ok(bytes.len()),
+                Err(_) => Err(std::io::ErrorKind::BrokenPipe.into()),
+            })
+        }
+
+        fn poll_flush(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+
+        fn poll_shutdown(self: Pin<&mut Self>, _: &mut Context<'_>) -> Poll<std::io::Result<()>> {
+            Poll::Ready(Ok(()))
+        }
+    }
+
+    /// Start both threads. The reader ends when the browser's end closes, which terminating
+    /// its job guarantees; the writer ends when the `Sender` is dropped or the pipe breaks.
+    pub fn pipe(mut read: std::fs::File, mut write: std::fs::File) -> Result<(Receiver, Sender)> {
+        let (received, chunks) = mpsc::unbounded_channel::<Vec<u8>>();
+        std::thread::Builder::new()
+            .name("cdp-read".into())
+            .spawn(move || {
+                let mut chunk = vec![0u8; 1 << 16];
+                while let Ok(count @ 1..) = read.read(&mut chunk) {
+                    if received.send(chunk[..count].to_vec()).is_err() {
+                        break;
+                    }
+                }
+            })?;
+        let (sender, mut outgoing) = mpsc::unbounded_channel::<Vec<u8>>();
+        std::thread::Builder::new()
+            .name("cdp-write".into())
+            .spawn(move || {
+                while let Some(bytes) = outgoing.blocking_recv() {
+                    if write.write_all(&bytes).is_err() {
+                        break;
+                    }
+                }
+            })?;
+        let receiver = Receiver {
+            chunks,
+            chunk: Vec::new(),
+            at: 0,
+        };
+        Ok((receiver, Sender(sender)))
+    }
+}
+
+/// Exchange CDP messages over the browser's pipe ends.
+fn connect(
+    mut receiver: impl AsyncRead + Unpin + Send + 'static,
+    mut sender: impl AsyncWrite + Unpin + Send + 'static,
+) -> Cdp {
     let pending: Pending = Arc::default();
     let subscribers: Subscribers = Arc::default();
     let bindings: Subscribers = Arc::default();
@@ -229,17 +353,14 @@ pub fn launch(executable: &str, args: &[String]) -> Result<(Child, Cdp)> {
             let _ = reply.send(Err(anyhow!("Browser connection closed")));
         }
     });
-    Ok((
-        child,
-        Cdp {
-            writer,
-            pending,
-            subscribers,
-            bindings,
-            closed,
-            next: AtomicU64::new(1),
-        },
-    ))
+    Cdp {
+        writer,
+        pending,
+        subscribers,
+        bindings,
+        closed,
+        next: AtomicU64::new(1),
+    }
 }
 
 impl Cdp {

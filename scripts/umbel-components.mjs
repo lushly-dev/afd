@@ -31,6 +31,19 @@ export const LIBRARY = 'foundations/fast-af/packages/violet-elements';
 export const SPECIMEN_CLI = 'endpoints/specimen-cli/dist/bin.js';
 export const BINARY = 'umbel-first-party';
 export const SPACE = 'main';
+export const CONSUMERS = {
+	version: 1,
+	consumers: {
+		loam: { exclude_rules: ['violet-elements/import.root', 'violet-elements/theme.install'] },
+	},
+};
+export const CONSUMERS_TOML = `pack_version = 1
+id = "consumers"
+plugin = "components"
+version = "1.0.0"
+title = "Component consumers"
+description = "Repository consumer policy."
+`;
 
 /** The workspace's configuration: one space, the `components` plugin alone. */
 export const UMBEL_TOML = `# Written by scripts/umbel-components.mjs on every start; edits are overwritten.
@@ -92,6 +105,10 @@ export function findBinary(
 export function prepareWorkspace(workspace) {
 	mkdirSync(workspace, { recursive: true });
 	writeFileSync(join(workspace, 'umbel.toml'), UMBEL_TOML);
+	const consumers = join(workspace, 'spaces', SPACE, 'packs', 'components', 'consumers');
+	mkdirSync(join(consumers, 'data'), { recursive: true });
+	writeFileSync(join(consumers, 'pack.toml'), CONSUMERS_TOML);
+	writeFileSync(join(consumers, 'data', 'consumers.json'), `${JSON.stringify(CONSUMERS)}\n`);
 	const override = overrideDirectory(workspace);
 	mkdirSync(override, { recursive: true });
 	const packToml = join(override, 'pack.toml');

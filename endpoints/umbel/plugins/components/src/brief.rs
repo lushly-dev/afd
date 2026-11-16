@@ -83,7 +83,11 @@ impl Effect {
 
 /// One requested tag's answer.
 enum Asked {
-    Entry { library: usize, entry: Box<Entry> },
+    Entry {
+        library: usize,
+        entry: Box<Entry>,
+        excluded: Vec<String>,
+    },
     Unknown(Value),
 }
 
@@ -288,12 +292,13 @@ struct Brief<'a> {
     known: HashSet<String>,
     versions: Map<String, Value>,
     text: bool,
+    consumer: Option<String>,
 }
 
 impl Brief<'_> {
     fn entries(&self, count: usize) -> impl Iterator<Item = (usize, &Entry)> {
         self.asked[..count].iter().filter_map(|asked| match asked {
-            Asked::Entry { library, entry } => Some((*library, entry.as_ref())),
+            Asked::Entry { library, entry, .. } => Some((*library, entry.as_ref())),
             Asked::Unknown(_) => None,
         })
     }
@@ -321,7 +326,7 @@ impl Brief<'_> {
                     unknown.push(value.clone());
                     continue;
                 }
-                Asked::Entry { library, entry } => (*library, entry),
+                Asked::Entry { library, entry, .. } => (*library, entry),
             };
             let library = &self.libraries[index];
             let content = entry.serve(&shed(entry, &self.names, steps, self.attribute_rules));
@@ -520,12 +525,26 @@ impl Brief<'_> {
         if let Some(rules) = assembled.rules {
             content["rules"] = Value::Array(rules);
         }
-        let omitted = Self::omitted(
+        let mut omitted = Self::omitted(
             effects,
             steps,
             assembled.left_out,
             self.left_out_by_default(count),
         );
+        let excluded: std::collections::BTreeSet<&str> = self.asked[..count]
+            .iter()
+            .filter_map(|asked| match asked {
+                Asked::Entry { excluded, .. } => Some(excluded),
+                Asked::Unknown(_) => None,
+            })
+            .flatten()
+            .map(String::as_str)
+            .collect();
+        if !excluded.is_empty() {
+            omitted.push(
+                json!({ "reason": "consumer", "consumer": self.consumer, "rules": excluded }),
+            );
+        }
         let shed_count = omitted
             .iter()
             .filter(|o| o["reason"] == "budget")
@@ -654,6 +673,10 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     if let Err(outcome) = input::check_brief(input) {
         return outcome;
     }
+    let excluded = match crate::consumer::load(input, cx) {
+        Ok(excluded) => excluded,
+        Err(outcome) => return outcome,
+    };
     let settings = Settings::load(cx);
     let library = input.get("library").and_then(Value::as_str);
     let libraries = match pack::read(cx, library) {
@@ -696,9 +719,14 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             Some(index) => {
                 let library = &libraries[index];
                 let record = library.records.iter().find(|record| &record.tag == tag);
-                record.map(|record| Asked::Entry {
-                    library: index,
-                    entry: Box::new(entry::build(library, record, &settings)),
+                record.map(|record| {
+                    let mut entry = entry::build(library, record, &settings);
+                    let excluded = entry.exclude_rules(&library.id, &excluded);
+                    Asked::Entry {
+                        library: index,
+                        entry: Box::new(entry),
+                        excluded,
+                    }
                 })
             }
             None => None,
@@ -726,6 +754,10 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         attribute_rules,
     } = chosen_sections(input);
     let brief = Brief {
+        consumer: input
+            .get("consumer")
+            .and_then(Value::as_str)
+            .map(str::to_owned),
         libraries: &libraries,
         asked,
         names,

@@ -69,10 +69,16 @@ jobs:
             os: macos-15
           - platform: darwin-x64
             os: macos-15-intel
+          - platform: win32-x64
+            os: windows-2022
     runs-on: ${{ matrix.os }}
     timeout-minutes: 45
     permissions:
       contents: read
+    # Windows runners default to PowerShell; every step here is written for bash.
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -92,7 +98,7 @@ jobs:
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: specimen-host-binary-${{ matrix.platform }}
-          path: foundations/specimen/packages/host-${{ matrix.platform }}/bin/specimen-host
+          path: foundations/specimen/packages/host-${{ matrix.platform }}/bin/
           if-no-files-found: error
           retention-days: 30
 
@@ -159,11 +165,14 @@ jobs:
           path: ${{ runner.temp }}/specimen-hosts
 
       # Each platform package's prepack checks its host again, so none can be packed without one.
+      # The Windows host is `specimen-host.exe`.
       - name: Stage the prebuilt Specimen hosts
         if: steps.intent.outputs.specimen == 'true'
         run: |
-          for platform in linux-x64-gnu linux-arm64-gnu darwin-arm64 darwin-x64; do
-            node foundations/specimen/host/stage.mjs "$platform" --binary "$RUNNER_TEMP/specimen-hosts/specimen-host-binary-$platform/specimen-host"
+          for platform in linux-x64-gnu linux-arm64-gnu darwin-arm64 darwin-x64 win32-x64; do
+            binary=specimen-host
+            if [ "$platform" = win32-x64 ]; then binary=specimen-host.exe; fi
+            node foundations/specimen/host/stage.mjs "$platform" --binary "$RUNNER_TEMP/specimen-hosts/specimen-host-binary-$platform/$binary"
           done
 
       - name: Plan approved npm artifacts

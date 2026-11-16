@@ -356,6 +356,13 @@
 					"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
 					"format": "npm",
 					"initialVersion": "2.2.0-preview"
+				},
+				{
+					"name": "@lushly-dev/specimen-host-win32-x64",
+					"registry": "npm",
+					"manifest": "foundations/specimen/packages/host-win32-x64/package.json",
+					"format": "npm",
+					"initialVersion": "2.2.0-preview"
 				}
 			]
 		},
