@@ -20,7 +20,7 @@
   check on each space override, so an override a call would refuse fails the doctor first.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-15 for #1152, consumer profiles (A25, section 6.7), in this PR: the six consumer tests, including prefix-budget recovery, the existing 125 plugin tests, scenario validation and dry run. The PR records the final local gate. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
@@ -170,8 +170,8 @@ blocker: budget recovery counted later tags' exclusions when measuring a leading
 Exclusions now stay with each entry and are unioned only for that prefix, with a
 multi-tag regression in JSON and text. No further supported findings. The scenario
 parser and dry-run checks passed: one scenario, three steps, 100% coverage of this
-revision's command and its unknown-consumer refusal. Scenario files cannot assert the
-`omitted` metadata or host space boundary; the native regression tests cover both.
+revision's command and its unknown-consumer refusal. The scenario covers tailoring and refusal; native regressions additionally assert
+`omitted` metadata and the host space boundary.
 
 ## What this plugin serves
 
@@ -910,6 +910,8 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 
 | Code | When | Retryable | Details | Suggestion |
 | --- | --- | --- | --- | --- |
+| `CONSUMER_NOT_FOUND` | The requested consumer is absent from the deployment map | No | none | Configure it in the space's consumers pack, or omit consumer for general guidance |
+| `CONSUMERS_INVALID` | The deployment map cannot be read or fails 6.7 | No | none | Repair data/consumers.json in the space's consumers pack |
 | `PACK_EMPTY` | The pack holds no library | No | none | Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components` |
 | `PACK_INVALID` | A touched library, or the pack itself (3.1), has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count`, `refused`, `servable` (9.1) | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack`. When `details.servable` is present, pass one of those as `library` to keep working |
 | `PACK_INCONSISTENT` | Every refused library's only problems are `DIGEST_MISMATCH` or `CATALOG_MISMATCH` (3.3) | Yes | As `PACK_INVALID` | Retry: an export may be replacing the pack. If it persists, re-export it; a hand edit or a partial copy leaves it like this. When `details.servable` is present, pass one of those as `library` to keep working |
