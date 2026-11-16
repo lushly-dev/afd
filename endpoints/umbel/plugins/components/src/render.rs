@@ -344,7 +344,13 @@ pub(crate) fn text(data: &Value) -> String {
         header(&words, &mut out);
     }
     for item in omitted {
-        if item["reason"] == "minimum-basis" {
+        if item["reason"] == "consumer" {
+            let rules = ids(item.get("rules")).join(", ");
+            header(
+                &["omitted consumer", str_of(item, "consumer"), &rules],
+                &mut out,
+            );
+        } else if item["reason"] == "minimum-basis" {
             let facts = item["facts"].as_u64().unwrap_or_default();
             header(
                 &[&format!("left out below the minimum basis: {facts} facts")],

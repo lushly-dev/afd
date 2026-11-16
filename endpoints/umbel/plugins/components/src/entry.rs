@@ -428,6 +428,51 @@ pub(crate) struct Served {
 }
 
 impl Entry {
+    /// Remove deployment-excluded rules and every reference before selection and fitting.
+    pub(crate) fn exclude_rules(
+        &mut self,
+        library: &str,
+        excluded: &BTreeSet<String>,
+    ) -> Vec<String> {
+        if excluded.is_empty() {
+            return Vec::new();
+        }
+        let mut removed = BTreeSet::new();
+        let keep = |id: &str| !excluded.contains(&format!("{library}/{id}"));
+        for (name, section) in &mut self.sections {
+            match (*name, section) {
+                ("rules", Section::Ids(ids)) => ids.retain(|id| {
+                    if keep(id) {
+                        true
+                    } else {
+                        removed.insert(format!("{library}/{id}"));
+                        false
+                    }
+                }),
+                ("attributes", Section::Items(items)) => {
+                    for item in items {
+                        if let Some(map) = item.as_object_mut() {
+                            if let Some(ids) = map.get_mut("rules").and_then(Value::as_array_mut) {
+                                ids.retain(|id| id.as_str().is_some_and(keep));
+                                if ids.is_empty() {
+                                    map.remove("rules");
+                                }
+                            }
+                            map.remove("flags");
+                            scan::flag_item(map);
+                        }
+                    }
+                }
+                _ => {}
+            }
+        }
+        self.sections
+            .retain(|(_, section)| section.list_len() != Some(0));
+        self.rules.retain(|id, _| keep(id));
+        self.attribute_rules.retain(|id| keep(id));
+        removed.into_iter().collect()
+    }
+
     /// The entry with exactly `sections`.
     pub(crate) fn serve(&self, sections: &[(&'static str, Section)]) -> Served {
         let mut component = self.floor.clone();
