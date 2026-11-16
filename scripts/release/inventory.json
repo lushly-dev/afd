@@ -421,6 +421,27 @@
 			]
 		},
 		{
+			"id": "specimen-server",
+			"family": "specimen",
+			"protocol": "npm-changesets",
+			"sourceRevision": "6eeb545d1bf6c9a4aaf937dc25f22477f7ac2c47",
+			"authority": "none: new private local MCP endpoint authored in lushly-dev/afd; no publisher or release route",
+			"state": "quarantined",
+			"routes": [],
+			"gates": ["pnpm check", "release-approval"],
+			"fixed": false,
+			"distributions": [
+				{
+					"name": "@lushly-dev/specimen-server",
+					"registry": "npm",
+					"manifest": "endpoints/specimen-server/package.json",
+					"format": "npm",
+					"initialVersion": "0.1.0",
+					"private": true
+				}
+			]
+		},
+		{
 			"id": "specimen-fast-af",
 			"family": "specimen",
 			"protocol": "npm-changesets",

@@ -811,6 +811,40 @@ importers:
         specifier: ^5.1.0
         version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
 
+  endpoints/specimen-server:
+    dependencies:
+      '@lushly-dev/afd-core':
+        specifier: workspace:^2.2.0
+        version: link:../../packages/core
+      '@lushly-dev/specimen':
+        specifier: workspace:^
+        version: link:../../foundations/specimen
+      '@lushly-dev/specimen-afd':
+        specifier: workspace:^
+        version: link:../../integrations/specimen-afd
+      '@modelcontextprotocol/sdk':
+        specifier: ^1.31.0
+        version: 1.32.2(zod@4.6.7)
+    devDependencies:
+      '@lushly-dev/specimen-cli':
+        specifier: workspace:^
+        version: link:../specimen-cli
+      '@types/node':
+        specifier: ^26.6.6
+        version: 26.6.6
+      '@vitest/coverage-v8':
+        specifier: ^5.1.0
+        version: 5.1.0(@vitest/browser@5.1.0)(vitest@5.1.0)
+      rimraf:
+        specifier: ^6.1.4
+        version: 6.1.4
+      typescript:
+        specifier: ^7.0.2
+        version: 7.0.2
+      vitest:
+        specifier: ^5.1.0
+        version: 5.1.0(@types/node@26.6.6)(@vitest/browser-playwright@5.1.0)(@vitest/coverage-v8@5.1.0)(@vitest/ui@5.1.0)(happy-dom@21.0.4)(jsdom@31.0.0(@noble/hashes@2.4.0))(vite@8.3.5(@types/node@26.6.6)(esbuild@0.28.2)(jiti@2.7.0)(terser@5.51.2)(tsx@4.23.15)(yaml@2.9.1))
+
   endpoints/violet-cli:
     dependencies:
       '@lushly-dev/violet-afd':
