@@ -9,8 +9,6 @@ import { renderChatMessage, renderEmpty, renderLogEntry, renderTodoItem } from '
 
 const EXECUTE_URL = '/execute';
 const CHAT_URL = '/chat';
-// MCP is served by this server too, at /mcp
-const MCP_HEALTH_URL = '/health';
 
 const byId = (id) => document.getElementById(id);
 
@@ -153,21 +151,16 @@ async function sendChat() {
 // ═══════════════════════════════════════════════════════════════
 
 async function checkServers() {
-	// MCP at /mcp is part of this server
-	try {
-		const r = await fetch(MCP_HEALTH_URL);
-		byId('serverStatus').classList.toggle('connected', r.ok);
-	} catch {
-		byId('serverStatus').classList.remove('connected');
-	}
-
+	// One server: the page, /execute, /chat and MCP at /mcp. The second dot is Gemini.
 	try {
 		const r = await fetch('/health');
 		const data = await r.json();
-		const connected = r.ok && data.geminiConfigured;
-		byId('chatStatus').classList.toggle('connected', connected);
-		byId('aiStatus').textContent = connected ? 'Ready' : 'No API Key';
+		byId('serverStatus').classList.toggle('connected', r.ok);
+		const configured = r.ok && data.geminiConfigured;
+		byId('chatStatus').classList.toggle('connected', configured);
+		byId('aiStatus').textContent = configured ? 'Ready' : 'No API Key';
 	} catch {
+		byId('serverStatus').classList.remove('connected');
 		byId('chatStatus').classList.remove('connected');
 		byId('aiStatus').textContent = 'Offline';
 	}

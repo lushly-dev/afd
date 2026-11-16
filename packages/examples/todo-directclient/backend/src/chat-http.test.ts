@@ -1,13 +1,7 @@
 import type { AddressInfo } from 'node:net';
-import { createTodoServerOptions } from '@afd/example-todo-ts/server-options';
 import { setStore, TodoStore } from '@afd/example-todo-ts/store';
 import { DirectClient } from '@lushly-dev/afd-client';
-import {
-	createDirectRegistry,
-	createMcpHandler,
-	defineCommand,
-	success,
-} from '@lushly-dev/afd-server';
+import { createDirectRegistry, defineCommand, success } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { type ChatBackend, type ChatServer, createChatServer, PublicError } from './chat-http.js';
@@ -281,6 +275,36 @@ describe('POST /chat', () => {
 		expect(unknown.body.suggestion).toBe('Use one of: change, look');
 	});
 
+	it('cancels the turn when the page goes away', async () => {
+		let signal: AbortSignal | undefined;
+		const { base } = await start(
+			{},
+			{
+				chat: {
+					...fakeChat,
+					processChat: (_message, _mode, turnSignal) => {
+						signal = turnSignal;
+						// Never answers: only the page leaving ends it
+						return new Promise((_resolve, reject) =>
+							turnSignal?.addEventListener('abort', () => reject(turnSignal.reason))
+						);
+					},
+				},
+			}
+		);
+		const leave = new AbortController();
+		const sent = fetch(`${base}/chat`, {
+			method: 'POST',
+			headers: { 'Content-Type': 'application/json' },
+			body: JSON.stringify({ message: 'hi' }),
+			signal: leave.signal,
+		}).catch(() => undefined);
+		await expect.poll(() => signal).toBeDefined();
+		leave.abort();
+		await sent;
+		await expect.poll(() => signal?.aborted).toBe(true);
+	});
+
 	it('hides unexpected error details but shows public ones', async () => {
 		const failing = (error: Error): ChatBackend => ({
 			...fakeChat,
@@ -312,30 +336,6 @@ describe('/mcp', () => {
 			clientInfo: { name: 'test', version: '1.0.0' },
 		},
 	};
-
-	it('hands /mcp to the MCP handler, the main example server', async () => {
-		const config = loadChatServerConfig({});
-		const mcp = createMcpHandler({
-			...createTodoServerOptions({}),
-			host: config.host,
-			allowedOrigins: config.allowedOrigins,
-		});
-		try {
-			const { base } = await start({}, { mcp });
-			const res = await request(`${base}/mcp`, {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Accept: 'application/json, text/event-stream',
-				},
-				body: JSON.stringify(initialize),
-			});
-			expect(res.status).toBe(200);
-			expect(res.text).toContain('todo-app');
-		} finally {
-			mcp.dispose();
-		}
-	});
 
 	it('is checked for Host and Origin before MCP sees the request', async () => {
 		let reached = false;

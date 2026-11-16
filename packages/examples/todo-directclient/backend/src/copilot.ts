@@ -7,17 +7,16 @@
  * - **The model's tools come from the MCP tool surface** (`createDirectToolSurface` and
  *   `listTools()`): each command's own name, description and JSON Schema, exactly as an MCP
  *   server with these commands lists them. No schema is written by hand.
- * - **`allow` decides what the model may run.** In `look` mode only the commands that declare
- *   `mutation: false` are permitted: the rest are left out of the tool list, and a call to one fails with
- *   `COMMAND_NOT_ALLOWED` before it runs, whatever the model sends. Contexts only narrow what an
- *   agent is offered; `allow` is the boundary.
+ * - **`allow` decides what the model may run.** In `look` mode only the registry's commands that
+ *   declare `mutation: false` are permitted: the rest are left out of the tool list, and a call to
+ *   one fails with `COMMAND_NOT_ALLOWED` before it runs, whatever the model sends. Contexts only
+ *   narrow what an agent is offered; `allow` is the boundary.
  * - **The model calls as an agent** (`context.actor`), so the change history says the copilot
  *   made a change, and `todo-clear` is held for the person's approval.
  *
  * The model itself is behind {@link CopilotModel}: Gemini in `gemini.ts`, a scripted one in tests.
  */
 
-import { allCommands } from '@afd/example-todo-ts/commands';
 import {
 	createDirectClient,
 	type DirectApprovalHook,
@@ -40,22 +39,21 @@ export const COPILOT_ACTOR: Actor = {
 };
 
 /**
- * The commands a mode permits, read from the commands' own metadata: in `look` mode those that
- * declare `mutation: false`, in `change` mode all of them. Meta-tools (`afd-call`, `afd-batch`
- * and the rest) are not permitted in either: the model gets each command as its own tool.
+ * The commands a mode permits, read from the registry's own commands: in `look` mode those that
+ * declare `mutation: false` (a command that says nothing is left out), in `change` mode all of
+ * them. Meta-tools (`afd-call`, `afd-batch` and the rest) are not commands, so neither mode
+ * permits them: the model gets each command as its own tool.
  */
-export function allowedCommands(mode: CopilotMode): ReadonlySet<string> {
+export function allowedCommands(
+	registry: DirectCommandRegistry,
+	mode: CopilotMode
+): ReadonlySet<string> {
 	return new Set(
-		allCommands
+		registry
+			.listCommands()
 			.filter((command) => mode === 'change' || command.mutation === false)
 			.map((command) => command.name)
 	);
-}
-
-/** The `allow` predicate for a mode. */
-export function allowFor(mode: CopilotMode): (name: string) => boolean {
-	const allowed = allowedCommands(mode);
-	return (name) => allowed.has(name);
 }
 
 /** A tool as a model sees it: the MCP tool's name, description and input JSON Schema. */
@@ -65,8 +63,9 @@ export interface ModelTool {
 	parameters: Record<string, unknown>;
 }
 
-/** One tool call the model asked for. */
+/** One tool call the model asked for; `id` when the model numbers its calls. */
 export interface ModelCall {
+	id?: string;
 	name: string;
 	args: Record<string, unknown>;
 }
@@ -82,11 +81,18 @@ export interface ModelReply {
 	raw?: unknown;
 }
 
+/** The result of one tool call, as the model reads it. */
+export interface ModelToolResult {
+	id?: string;
+	name: string;
+	result: Record<string, unknown>;
+}
+
 /** The conversation so far, in a form any model adapter can translate. */
 export type ModelMessage =
 	| { role: 'user'; text: string }
 	| { role: 'model'; reply: ModelReply }
-	| { role: 'tool'; results: { name: string; result: Record<string, unknown> }[] };
+	| { role: 'tool'; results: ModelToolResult[] };
 
 /** A chat model that can call tools. */
 export interface CopilotModel {
@@ -94,6 +100,7 @@ export interface CopilotModel {
 		system: string;
 		messages: readonly ModelMessage[];
 		tools: readonly ModelTool[];
+		signal?: AbortSignal;
 	}): Promise<ModelReply>;
 }
 
@@ -114,6 +121,8 @@ export interface CopilotTurn {
 	toolExecutions: ToolExecution[];
 	totalToolLatencyMs: number;
 	modelLatencyMs: number;
+	/** Set when the turn was cut short at a limit: what the model ran up to then still stands. */
+	stopped?: 'rounds' | 'calls';
 }
 
 /** A failure whose message is safe to show the person. */
@@ -125,6 +134,14 @@ export interface CopilotOptions {
 	model: CopilotModel;
 	/** Most rounds of tool calls for one message; the model's output is untrusted. Default 5. */
 	maxRounds?: number;
+	/** Most tool calls for one message, across its rounds. Default 20. */
+	maxCalls?: number;
+}
+
+/** What one turn may use besides the message and mode. */
+export interface RunOptions {
+	/** Ends the turn: the model request and any command still running are cancelled. */
+	signal?: AbortSignal;
 	/** Asks the person to approve a held call. Without it, the model gets `APPROVAL_REQUIRED`. */
 	onApprovalNeeded?: DirectApprovalHook;
 }
@@ -143,20 +160,30 @@ function forModel(result: CommandResult<unknown>): Record<string, unknown> {
 	return JSON.parse(JSON.stringify(result)) as Record<string, unknown>;
 }
 
+function positiveInteger(name: string, value: number): number {
+	if (!Number.isInteger(value) || value < 1) {
+		throw new RangeError(`${name} must be a positive integer, not ${value}`);
+	}
+	return value;
+}
+
 /** The copilot: build it once, then {@link Copilot.run} one message at a time. */
 export class Copilot {
 	private readonly maxRounds: number;
+	private readonly maxCalls: number;
 
 	constructor(private readonly options: CopilotOptions) {
-		this.maxRounds = options.maxRounds ?? 5;
+		this.maxRounds = positiveInteger('maxRounds', options.maxRounds ?? 5);
+		this.maxCalls = positiveInteger('maxCalls', options.maxCalls ?? 20);
 	}
 
 	/** A client for one mode: the copilot's actor, the mode's `allow` and the approval hook. */
-	client(mode: CopilotMode): DirectClient {
+	client(mode: CopilotMode, onApprovalNeeded?: DirectApprovalHook): DirectClient {
+		const allowed = allowedCommands(this.options.registry, mode);
 		return createDirectClient(this.options.registry, {
 			actor: COPILOT_ACTOR,
-			allow: allowFor(mode),
-			...(this.options.onApprovalNeeded && { onApprovalNeeded: this.options.onApprovalNeeded }),
+			allow: (name) => allowed.has(name),
+			...(onApprovalNeeded && { onApprovalNeeded }),
 		});
 	}
 
@@ -171,52 +198,74 @@ export class Copilot {
 			}));
 	}
 
-	/** Answer one message, running the tools the model calls until it replies with text. */
-	async run(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<CopilotTurn> {
-		const client = this.client(mode);
+	/**
+	 * Answer one message, running the tools the model calls until it replies with text. At a
+	 * limit the turn ends with what already ran, marked `stopped`, so a caller can still show the
+	 * changes made before it.
+	 */
+	async run(message: string, mode: CopilotMode, options: RunOptions = {}): Promise<CopilotTurn> {
+		const { signal } = options;
+		const client = this.client(mode, options.onApprovalNeeded);
 		const tools = this.tools(mode);
 		const messages: ModelMessage[] = [{ role: 'user', text: message }];
-		const toolExecutions: ToolExecution[] = [];
-		let totalToolLatencyMs = 0;
-		let modelLatencyMs = 0;
+		const turn: CopilotTurn = {
+			message: '',
+			mode,
+			toolExecutions: [],
+			totalToolLatencyMs: 0,
+			modelLatencyMs: 0,
+		};
 
 		for (let round = 0; ; round++) {
 			signal?.throwIfAborted();
 			const start = performance.now();
-			const reply = await this.options.model.respond({ system: SYSTEM[mode], messages, tools });
-			modelLatencyMs += performance.now() - start;
+			const reply = await this.options.model.respond({
+				system: SYSTEM[mode],
+				messages,
+				tools,
+				...(signal && { signal }),
+			});
+			turn.modelLatencyMs += performance.now() - start;
 			if (reply.calls.length === 0) {
-				return {
-					message: reply.text?.trim() || 'Done.',
-					mode,
-					toolExecutions,
-					totalToolLatencyMs,
-					modelLatencyMs,
-				};
+				return { ...turn, message: reply.text?.trim() || 'Done.' };
 			}
 			if (round >= this.maxRounds) {
-				throw new CopilotError(
-					`Stopped after ${this.maxRounds} rounds of tool calls. Try a simpler request.`
-				);
+				return {
+					...turn,
+					message: `I stopped after ${this.maxRounds} rounds of tool calls. Try a simpler request.`,
+					stopped: 'rounds',
+				};
+			}
+			if (turn.toolExecutions.length + reply.calls.length > this.maxCalls) {
+				return {
+					...turn,
+					message: `I stopped before going past ${this.maxCalls} tool calls. Try a simpler request.`,
+					stopped: 'calls',
+				};
 			}
 			messages.push({ role: 'model', reply });
 
-			const results: { name: string; result: Record<string, unknown> }[] = [];
+			const results: ModelToolResult[] = [];
 			for (const call of reply.calls) {
+				signal?.throwIfAborted();
 				const callStart = performance.now();
 				// allow, validation, approvals and the history all apply here, as for any caller
 				const result = await client.call(call.name, call.args, signal ? { signal } : undefined);
 				const latencyMs = performance.now() - callStart;
-				totalToolLatencyMs += latencyMs;
+				turn.totalToolLatencyMs += latencyMs;
 				const success = result.success && !isUnknownToolError(result);
-				toolExecutions.push({
+				turn.toolExecutions.push({
 					name: call.name,
 					args: call.args,
 					success,
 					result: success ? result.data : result.error,
 					latencyMs,
 				});
-				results.push({ name: call.name, result: forModel(result) });
+				results.push({
+					...(call.id !== undefined && { id: call.id }),
+					name: call.name,
+					result: forModel(result),
+				});
 			}
 			messages.push({ role: 'tool', results });
 		}

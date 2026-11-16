@@ -16,7 +16,8 @@ export interface ChatResponse extends CopilotTurn {
 
 /** The chat backend the HTTP server calls (see `ChatBackend` in `chat-http.ts`). */
 export interface Chat {
-	processChat(message: string, mode: CopilotMode): Promise<ChatResponse>;
+	/** One turn; `signal` ends it early (the page went away). */
+	processChat(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<ChatResponse>;
 	isConfigured(): boolean;
 	getMetrics(): Record<string, unknown>;
 }
@@ -63,7 +64,7 @@ export function createChatBackend(
 			};
 		},
 
-		async processChat(message, mode) {
+		async processChat(message, mode, signal) {
 			const requestId = `req-${Date.now()}-${++counter}`;
 			metrics.requestCount++;
 			if (!copilot) {
@@ -72,13 +73,17 @@ export function createChatBackend(
 			}
 			const start = performance.now();
 			try {
-				const turn = await copilot.run(message, mode);
+				const turn = await copilot.run(message, mode, signal ? { signal } : {});
 				metrics.successCount++;
 				metrics.toolCallCount += turn.toolExecutions.length;
 				latencies.push(performance.now() - start);
 				if (latencies.length > 100) latencies.shift();
 				return { ...turn, requestId };
 			} catch (error) {
+				if (signal?.aborted) {
+					fail('cancelled');
+					throw error;
+				}
 				if (error instanceof CopilotError) {
 					fail('category' in error ? String(error.category) : 'copilot');
 					log(`[${requestId}] ${error.message}`);

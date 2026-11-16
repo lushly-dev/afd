@@ -26,8 +26,17 @@ command.
 
 ## Quick start
 
+The commands come from the main example's build, so build it and the packages it uses first,
+from the repository root, and again after changing them:
+
 ```bash
-cd backend
+pnpm --filter "@afd/example-todo-directclient^..." build
+```
+
+Then:
+
+```bash
+cd packages/examples/todo-directclient/backend
 cp .env.example .env   # then set GOOGLE_API_KEY
 pnpm dev               # http://localhost:3201
 ```
@@ -86,25 +95,37 @@ The defaults are safe for a developer machine; each one is configurable in `.env
 - **Origin allowlist**: browser requests must come from an exact allowed origin (this server's
   own `localhost` and `127.0.0.1` origins, plus any in `ALLOWED_ORIGINS`). `Origin: null` and `*`
   are always refused, and `Access-Control-Allow-Origin` only ever echoes an allowed origin. This
-  covers `/mcp` too.
+  covers `/mcp` too, except with `NODE_ENV=development`, where the main server's dev mode lets
+  any origin call `/mcp`.
 - **Host check**: the `Host` header must name this server (`ALLOWED_HOSTS`), which blocks DNS
   rebinding.
 - **Rate limiting** on `/chat` and `/execute`: 30 and 120 a minute per client, keyed on the socket
   address. `X-Forwarded-For` is ignored unless `TRUST_PROXY=true`, and then only the entry the
-  proxy appended is used. The limiter tracks at most `RATE_LIMIT_MAX_CLIENTS` clients.
+  proxy appended is used. The limiter tracks at most `RATE_LIMIT_MAX_CLIENTS` clients. `/mcp` is
+  not rate limited and reads its own bodies, as the main example's server does.
 - **Validation**: JSON bodies only, capped at `MAX_BODY_SIZE`; command names must be kebab-case;
   every command's Zod schema and `expose.agent` flag are enforced by `createDirectRegistry`.
+- **`/execute` runs as the person**, so `todo-clear` there is not held. A browser on another
+  origin cannot reach it, but any program on this machine can, as it can reach the store's file.
+  It is the page's channel for now; the next step replaces it with `/mcp`, where every caller
+  counts as an agent.
 - **XSS-safe rendering**: todo titles, tool names and model replies are untrusted (a prompt
   injection can make the model create a todo titled `<img src=x onerror=...>`). `frontend/render.js`
   builds the DOM with `textContent`, and the page is served with a Content-Security-Policy that
   forbids inline script.
-- **A bounded agent loop**: at most `GEMINI_MAX_TOOL_ROUNDS` rounds of tool calls per message.
+- **A bounded agent loop**: at most `GEMINI_MAX_TOOL_ROUNDS` rounds and 20 tool calls per message.
+  A turn that reaches either limit ends with what already ran and says it stopped. A blank
+  setting keeps the default, and anything but a positive integer is refused at startup, so no
+  setting can lift a limit. A page that leaves
+  mid-turn cancels the rest of it.
 - **Errors the person can read**: a Gemini failure reaches the page as a plain message, never the
   provider's error text; the API key is logged as `***` and its last four characters.
 
 ## Configuration
 
-`backend/.env.example` lists every setting with its default.
+`backend/.env.example` lists every setting with its default, including the main example's
+(`APPROVALS`, `TODO_JOURNAL` and the rest), which apply to the copilot's calls and to `/mcp`
+alike. With `TODO_JOURNAL` set, both write one journal.
 
 ## Speed
 
@@ -121,11 +142,14 @@ pnpm test
 ```
 
 - `src/copilot.test.ts`: the tool list from `listTools()` in each mode, `allow` refusing changes in
-  look mode however the model asks, the history naming the copilot, and a clear held, approved or
-  denied. A scripted model stands in for Gemini.
+  look mode however the model asks, the history naming the copilot, a clear held, approved or
+  denied, the limits, call ids and cancelling. A scripted model stands in for Gemini.
 - `src/scenarios.test.ts`: job 10 through the copilot's look-mode client.
 - `src/gemini.test.ts`: tool declarations from the JSON Schemas, Gemini's own parts sent back
-  unchanged, and error messages for the person.
+  unchanged, thoughts left out, an empty answer reported, and error messages for the person.
+- `src/chat.test.ts`: the `/chat` backend's errors and metrics.
+- `src/services.test.ts`: the server's wiring: `/mcp` accepts the hosts in `ALLOWED_HOSTS`, and the
+  copilot and `/mcp` write one journal.
 - `src/chat-http.test.ts` and `src/http-security.test.ts`: the routes, `/mcp`, and the origin,
   host, bind, rate-limit and `X-Forwarded-For` policy.
 - `src/render.test.ts`: the XSS-safe render helpers.

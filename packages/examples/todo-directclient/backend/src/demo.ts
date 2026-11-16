@@ -19,14 +19,7 @@ setStore(store);
 const noModel: CopilotModel = {
 	respond: async () => ({ text: '', calls: [] }),
 };
-const copilot = new Copilot({
-	registry: createCopilotRegistry({}),
-	model: noModel,
-	onApprovalNeeded: async ({ command, summary }) => {
-		console.log(`  Approval asked for ${command}: "${summary}"; approving`);
-		return true;
-	},
-});
+const copilot = new Copilot({ registry: createCopilotRegistry({}), model: noModel });
 
 console.log(
 	'Tools in change mode:',
@@ -43,7 +36,10 @@ console.log(
 		.join(', ')
 );
 
-const change = copilot.client('change');
+const change = copilot.client('change', async ({ command, summary }) => {
+	console.log(`  Approval asked for ${command}: "${summary}"; approving`);
+	return true;
+});
 const look = copilot.client('look');
 
 const created = await change.call<{ id: string }>('todo-create', {

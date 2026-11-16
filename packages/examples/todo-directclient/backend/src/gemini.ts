@@ -8,7 +8,14 @@
  * as a {@link CopilotError} with a plain message, never the provider's raw error.
  */
 
-import { type Content, type FunctionDeclaration, GoogleGenAI, type Part } from '@google/genai';
+import {
+	type Content,
+	type FunctionDeclaration,
+	type GenerateContentParameters,
+	type GenerateContentResponse,
+	GoogleGenAI,
+	type Part,
+} from '@google/genai';
 import {
 	CopilotError,
 	type CopilotModel,
@@ -19,7 +26,7 @@ import {
 
 export const GEMINI_MODEL = 'gemini-3-flash-preview';
 
-type ErrorCategory = 'rate_limit' | 'auth' | 'network' | 'timeout' | 'server' | 'unknown';
+type ErrorCategory = 'rate_limit' | 'auth' | 'network' | 'timeout' | 'server' | 'empty' | 'unknown';
 
 /** A model failure, sorted into a category with a message for the person. */
 export class GeminiError extends CopilotError {
@@ -89,21 +96,31 @@ export function toContents(messages: readonly ModelMessage[]): Content[] {
 				? (message.reply.raw as Part[])
 				: [
 						...(message.reply.text ? [{ text: message.reply.text }] : []),
-						...message.reply.calls.map((call) => ({ functionCall: call })),
+						...message.reply.calls.map(({ id, name, args }) => ({
+							functionCall: { ...(id !== undefined && { id }), name, args },
+						})),
 					];
 			return { role: 'model', parts };
 		}
 		return {
 			role: 'user',
-			parts: message.results.map(({ name, result }) => ({
-				functionResponse: { name, response: result },
+			// The call's id, when Gemini gave one, tells it which call each response answers
+			parts: message.results.map(({ id, name, result }) => ({
+				functionResponse: { ...(id !== undefined && { id }), name, response: result },
 			})),
 		};
 	});
 }
 
+/** The one Gemini call the adapter makes; tests pass their own. */
+export type GenerateContent = (
+	request: GenerateContentParameters
+) => Promise<GenerateContentResponse>;
+
 export interface GeminiModelOptions {
 	apiKey: string;
+	/** Default: `models.generateContent` of a `GoogleGenAI` client with `apiKey`. */
+	generateContent?: GenerateContent;
 	model?: string;
 	maxRetries?: number;
 	retryDelayMs?: number;
@@ -113,54 +130,80 @@ export interface GeminiModelOptions {
 
 /** Gemini as a {@link CopilotModel}. */
 export class GeminiModel implements CopilotModel {
-	private readonly client: GoogleGenAI;
+	private readonly generateContent: GenerateContent;
 
 	constructor(private readonly options: GeminiModelOptions) {
-		this.client = new GoogleGenAI({ apiKey: options.apiKey });
+		if (options.generateContent) {
+			this.generateContent = options.generateContent;
+		} else {
+			const client = new GoogleGenAI({ apiKey: options.apiKey });
+			this.generateContent = (request) => client.models.generateContent(request);
+		}
 	}
 
 	async respond(request: {
 		system: string;
 		messages: readonly ModelMessage[];
 		tools: readonly ModelTool[];
+		signal?: AbortSignal;
 	}): Promise<ModelReply> {
-		const response = await this.withRetry(() =>
-			this.client.models.generateContent({
-				model: this.options.model ?? GEMINI_MODEL,
-				contents: toContents(request.messages),
-				config: {
-					systemInstruction: request.system,
-					tools: [{ functionDeclarations: request.tools.map(toFunctionDeclaration) }],
-				},
-			})
+		const response = await this.withRetry(
+			() =>
+				this.generateContent({
+					model: this.options.model ?? GEMINI_MODEL,
+					contents: toContents(request.messages),
+					config: {
+						systemInstruction: request.system,
+						tools: [{ functionDeclarations: request.tools.map(toFunctionDeclaration) }],
+						...(request.signal && { abortSignal: request.signal }),
+					},
+				}),
+			request.signal
 		);
-		const parts = response.candidates?.[0]?.content?.parts ?? [];
-		return {
-			text: parts
-				.filter((part) => typeof part.text === 'string' && !part.thought)
-				.map((part) => part.text)
-				.join(''),
-			calls: parts.flatMap((part) =>
-				part.functionCall?.name
-					? [{ name: part.functionCall.name, args: part.functionCall.args ?? {} }]
-					: []
-			),
-			raw: parts,
-		};
+		const candidate = response.candidates?.[0];
+		const parts = candidate?.content?.parts ?? [];
+		const text = parts
+			.filter((part) => typeof part.text === 'string' && !part.thought)
+			.map((part) => part.text)
+			.join('');
+		const calls = parts.flatMap((part) =>
+			part.functionCall?.name
+				? [
+						{
+							...(part.functionCall.id !== undefined && { id: part.functionCall.id }),
+							name: part.functionCall.name,
+							args: part.functionCall.args ?? {},
+						},
+					]
+				: []
+		);
+		if (text.trim() === '' && calls.length === 0) {
+			// A blocked reply, or a function call Gemini could not form, comes back empty
+			const reason = candidate?.finishReason ?? response.promptFeedback?.blockReason;
+			throw new GeminiError(
+				'empty',
+				`Gemini gave no answer${reason ? ` (${reason})` : ''}. Try rephrasing the request.`,
+				false
+			);
+		}
+		return { text, calls, raw: parts };
 	}
 
-	private async withRetry<T>(fn: () => Promise<T>): Promise<T> {
+	private async withRetry<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T> {
 		const maxRetries = this.options.maxRetries ?? 3;
 		const baseDelayMs = this.options.retryDelayMs ?? 1000;
 		for (let attempt = 0; ; attempt++) {
 			try {
 				return await fn();
 			} catch (error) {
+				// A cancelled turn is not a Gemini failure: let the cancellation through
+				if (signal?.aborted) throw error;
 				const categorized = categorizeError(error);
 				if (!categorized.retryable || attempt >= maxRetries) throw categorized;
 				const delayMs = baseDelayMs * 2 ** attempt;
 				this.options.onRetry?.(attempt + 1, delayMs, categorized);
 				await new Promise((resolve) => setTimeout(resolve, delayMs));
+				signal?.throwIfAborted();
 			}
 		}
 	}

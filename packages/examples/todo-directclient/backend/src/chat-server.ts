@@ -18,58 +18,56 @@
  */
 
 import 'dotenv/config';
-import { createTodoServerOptions } from '@afd/example-todo-ts/server-options';
 import { createStore, SqliteStore, setStore } from '@afd/example-todo-ts/store';
 import { DirectClient } from '@lushly-dev/afd-client';
-import { createMcpHandler } from '@lushly-dev/afd-server';
 import { createChatBackend } from './chat.js';
 import { createChatServer } from './chat-http.js';
 import { Copilot } from './copilot.js';
 import { GeminiModel } from './gemini.js';
-import { loadChatServerConfig } from './http-security.js';
-import { createCopilotRegistry } from './registry.js';
+import { loadChatServerConfig, parsePositiveInt } from './http-security.js';
+import { createTodoServices } from './services.js';
 
 function fail(message: string): never {
 	console.error(`❌ ${message}`);
 	process.exit(1);
 }
 
+const env = process.env;
 let config: ReturnType<typeof loadChatServerConfig>;
+let limits: { maxRetries: number; retryDelayMs: number; maxRounds: number };
 try {
-	config = loadChatServerConfig(process.env);
+	config = loadChatServerConfig(env);
+	limits = {
+		maxRetries: parsePositiveInt('GEMINI_MAX_RETRIES', env.GEMINI_MAX_RETRIES, 3),
+		retryDelayMs: parsePositiveInt('GEMINI_RETRY_DELAY_MS', env.GEMINI_RETRY_DELAY_MS, 1000),
+		maxRounds: parsePositiveInt('GEMINI_MAX_TOOL_ROUNDS', env.GEMINI_MAX_TOOL_ROUNDS, 5),
+	};
 } catch (error) {
 	fail(error instanceof Error ? error.message : String(error));
 }
 
-const store = createStore(process.env);
+const store = createStore(env);
 // A SQLite database that cannot be opened fails here, not on the first command
 if (store instanceof SqliteStore) await store.check();
 setStore(store);
 
-const apiKey = process.env.GOOGLE_API_KEY || process.env.GEMINI_API_KEY;
+const apiKey = env.GOOGLE_API_KEY || env.GEMINI_API_KEY;
 if (apiKey && apiKey.length < 20) fail('The API key looks too short. Check your .env file.');
-const registry = createCopilotRegistry(process.env);
+// The copilot's registry and /mcp, over one journal and with this server's hosts and origins
+const { registry, mcp } = createTodoServices(env, config);
 const copilot = apiKey
 	? new Copilot({
 			registry,
 			model: new GeminiModel({
 				apiKey,
-				maxRetries: Number.parseInt(process.env.GEMINI_MAX_RETRIES ?? '3', 10),
-				retryDelayMs: Number.parseInt(process.env.GEMINI_RETRY_DELAY_MS ?? '1000', 10),
+				maxRetries: limits.maxRetries,
+				retryDelayMs: limits.retryDelayMs,
 				onRetry: (attempt, delayMs, error) =>
 					console.error(`⚠️  Gemini retry ${attempt} in ${delayMs}ms (${error.category})`),
 			}),
-			maxRounds: Number.parseInt(process.env.GEMINI_MAX_TOOL_ROUNDS ?? '5', 10),
+			maxRounds: limits.maxRounds,
 		})
 	: undefined;
-
-// The main example's MCP options, on this server's port and with this server's browser origins
-const mcp = createMcpHandler({
-	...createTodoServerOptions(process.env),
-	host: config.host,
-	port: config.port,
-	allowedOrigins: config.allowedOrigins,
-});
 
 const { server } = createChatServer(config, {
 	// The page's own calls go through the same registry as the copilot's, as a person

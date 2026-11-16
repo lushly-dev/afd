@@ -10,7 +10,6 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import {
 	allowedCommands,
 	Copilot,
-	CopilotError,
 	type CopilotModel,
 	type ModelCall,
 	type ModelMessage,
@@ -58,8 +57,12 @@ function copilot(
 
 describe('the model tools', () => {
 	it('are the commands from listTools(), with their own JSON Schemas and no meta-tools', () => {
-		const tools = copilot(scripted()).tools('change');
-		expect(tools.map((tool) => tool.name).sort()).toEqual([...allowedCommands('change')].sort());
+		const registry = createCopilotRegistry({});
+		const tools = new Copilot({ registry, model: scripted() }).tools('change');
+		expect(tools.map((tool) => tool.name).sort()).toEqual(
+			[...allowedCommands(registry, 'change')].sort()
+		);
+		expect(tools).toHaveLength(13);
 		expect(tools.some((tool) => tool.name.startsWith('afd-'))).toBe(false);
 		const create = tools.find((tool) => tool.name === 'todo-create');
 		expect(create?.parameters).toMatchObject({
@@ -118,12 +121,50 @@ describe('a turn', () => {
 		});
 	});
 
-	it('stops a model that keeps calling tools', async () => {
-		const loop = { name: 'todo-stats', args: {} };
-		const model = scripted([loop], [loop], [loop]);
-		await expect(copilot(model, { maxRounds: 2 }).run('Stats?', 'change')).rejects.toThrow(
-			CopilotError
-		);
+	it('stops a model that keeps calling tools, keeping what already ran', async () => {
+		const create = (title: string) => ({ name: 'todo-create', args: { title } });
+		const model = scripted([create('one')], [create('two')], [create('three')]);
+		const turn = await copilot(model, { maxRounds: 2 }).run('Add some', 'change');
+
+		expect(turn.stopped).toBe('rounds');
+		expect(turn.message).toContain('2 rounds');
+		expect(turn.toolExecutions.map((call) => call.args.title)).toEqual(['one', 'two']);
+		expect(store.count()).toBe(2);
+	});
+
+	it('stops before a round would go past the most calls for one message', async () => {
+		const stats = { name: 'todo-stats', args: {} };
+		const model = scripted([stats, stats], [stats, stats]);
+		const turn = await copilot(model, { maxCalls: 3 }).run('Stats?', 'change');
+
+		expect(turn.stopped).toBe('calls');
+		expect(turn.toolExecutions).toHaveLength(2);
+	});
+
+	it('refuses limits that are not positive integers, so a blank setting cannot lift them', () => {
+		expect(() => copilot(scripted(), { maxRounds: Number.NaN })).toThrow(RangeError);
+		expect(() => copilot(scripted(), { maxCalls: 0 })).toThrow(RangeError);
+	});
+
+	it("returns each result with its call's id", async () => {
+		const model = scripted([{ id: 'call-7', name: 'todo-stats', args: {} }]);
+		await copilot(model).run('Stats?', 'change');
+		const last = model.seen.at(-1)?.messages.at(-1);
+		expect(last).toMatchObject({ role: 'tool', results: [{ id: 'call-7', name: 'todo-stats' }] });
+	});
+
+	it('ends when the signal aborts, before the next call runs', async () => {
+		const cancel = new AbortController();
+		const model: CopilotModel = {
+			async respond() {
+				cancel.abort();
+				return { calls: [{ name: 'todo-create', args: { title: 'Too late' } }] };
+			},
+		};
+		await expect(
+			copilot(model).run('Add one', 'change', { signal: cancel.signal })
+		).rejects.toThrow();
+		expect(store.count()).toBe(0);
 	});
 });
 
@@ -145,12 +186,12 @@ describe('clearing completed todos', () => {
 	it('runs once the person approves, after they see what it will do', async () => {
 		const asked: DirectApprovalRequest[] = [];
 		const model = scripted([{ name: 'todo-clear', args: {} }]);
-		const turn = await copilot(model, {
+		const turn = await copilot(model).run('Clear the done ones', 'change', {
 			onApprovalNeeded: (request) => {
 				asked.push(request);
 				return true;
 			},
-		}).run('Clear the done ones', 'change');
+		});
 
 		expect(asked).toHaveLength(1);
 		expect(asked[0]).toMatchObject({ command: 'todo-clear', actor: { kind: 'agent' } });
@@ -161,7 +202,7 @@ describe('clearing completed todos', () => {
 
 	it('does not run when the person denies it', async () => {
 		const model = scripted([{ name: 'todo-clear', args: {} }]);
-		await copilot(model, { onApprovalNeeded: () => false }).run('Clear the done ones', 'change');
+		await copilot(model).run('Clear the done ones', 'change', { onApprovalNeeded: () => false });
 
 		expect(lastResults(model)[0]).toMatchObject({ error: { code: 'APPROVAL_REQUIRED' } });
 		expect(store.count()).toBe(2);

@@ -35,7 +35,7 @@ export interface CommandExecutor {
 
 /** The AI side of the server (the copilot in `chat.ts`). */
 export interface ChatBackend {
-	processChat(message: string, mode: CopilotMode): Promise<unknown>;
+	processChat(message: string, mode: CopilotMode, signal?: AbortSignal): Promise<unknown>;
 	isConfigured(): boolean;
 	getMetrics(): Record<string, unknown>;
 }
@@ -254,10 +254,19 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 		if (!COPILOT_MODES.includes(mode as CopilotMode)) {
 			throw new HttpError(400, 'Invalid mode', `Use one of: ${COPILOT_MODES.join(', ')}`);
 		}
+		// A page that goes away mid-turn cancels the rest of it: the model request and the commands
+		const cancel = new AbortController();
+		res.once('close', () => {
+			if (!res.writableEnded) cancel.abort();
+		});
 		sendJson(
 			res,
 			200,
-			await deps.chat.processChat(message.slice(0, MAX_MESSAGE_LENGTH), mode as CopilotMode)
+			await deps.chat.processChat(
+				message.slice(0, MAX_MESSAGE_LENGTH),
+				mode as CopilotMode,
+				cancel.signal
+			)
 		);
 	}
 
@@ -333,7 +342,8 @@ export function createChatServer(config: ChatServerConfig, deps: ChatServerDeps)
 
 	const server = http.createServer((req, res) => {
 		route(req, res).catch((error: unknown) => {
-			if (res.headersSent) {
+			// Already answered, or the client has gone (a cancelled turn): nothing to send
+			if (res.headersSent || res.destroyed) {
 				res.destroy();
 				return;
 			}

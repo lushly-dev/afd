@@ -35,6 +35,16 @@ describe('createChatBackend', () => {
 		);
 	});
 
+	it('counts a turn the page cancelled as cancelled, not as a failure of the copilot', async () => {
+		const cancel = new AbortController();
+		const chat = backend(async () => {
+			cancel.abort();
+			return { calls: [{ name: 'todo-stats', args: {} }] };
+		});
+		await expect(chat.processChat('hi', 'change', cancel.signal)).rejects.toThrow();
+		expect(chat.getMetrics()).toMatchObject({ errorCount: 1, errorsByType: { cancelled: 1 } });
+	});
+
 	it("passes on a copilot failure's message, and hides any other", async () => {
 		const shown = backend(async () => {
 			throw new CopilotError('Try a simpler request.');
