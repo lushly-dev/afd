@@ -1,0 +1,24 @@
+{
+	"extends": "../../../../tsconfig.json",
+	"compilerOptions": {
+		"target": "ES2022",
+		"lib": ["ES2024", "DOM", "DOM.Iterable"],
+		"module": "ESNext",
+		"moduleResolution": "Bundler",
+		"useDefineForClassFields": false,
+		"noEmit": true,
+		"allowImportingTsExtensions": true,
+		"declaration": false,
+		"declarationMap": false,
+		"sourceMap": false,
+		"types": ["node", "vite/client"]
+	},
+	"include": [
+		"src/**/*",
+		"test/**/*",
+		"vite.config.ts",
+		"vitest.config.ts",
+		"vitest.browser.config.ts"
+	],
+	"exclude": ["node_modules", "dist"]
+}

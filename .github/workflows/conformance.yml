@@ -12,6 +12,7 @@ on:
     branches: [main]
     paths:
       - 'packages/examples/todo/**'
+      - 'packages/examples/todo-directclient/**'
       - 'packages/server/**'
       - 'packages/core/**'
       - 'packages/cli/**'
@@ -31,6 +32,7 @@ on:
     branches: [main]
     paths:
       - 'packages/examples/todo/**'
+      - 'packages/examples/todo-directclient/**'
       - 'packages/server/**'
       - 'packages/core/**'
       - 'packages/cli/**'
@@ -75,7 +77,7 @@ jobs:
           fetch-depth: 0
           filter: blob:none
       - id: todo
-        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
+        run: node scripts/affected.mjs gate --package @afd/example-todo-ts --package @afd/example-todo --package @afd/example-todo-ui --package @afd/example-todo-fast-af --package @afd/example-todo-react --package @afd/example-todo-directclient --package @afd/example-todo-directclient-page --path python/ --path packages/cli/ --path .github/workflows/conformance.yml
       - id: rust
         run: node scripts/affected.mjs gate --path packages/rust/ --path packages/examples/todo/backends/rust/ --path packages/examples/todo/spec/ --path packages/examples/todo/dx/ --path packages/examples/todo/package.json --path .cargo/config.toml --path .github/workflows/conformance.yml
       - id: cpp
@@ -162,6 +164,13 @@ jobs:
 
       - name: The page (Chromium, TypeScript backend)
         run: pnpm --dir packages/examples/todo test:page
+
+      # todo-directclient's copilot page in Chromium against its own server, run in the test's
+      # process with a scripted model: the copilot adds a todo, narrows the view (job 6), waits for
+      # the person to approve or deny a clear, and is refused a change in look-only mode (job 10);
+      # then the shared page suite on the same build.
+      - name: The copilot page (Chromium, todo-directclient)
+        run: pnpm -F @afd/example-todo-directclient-page test:browser
 
       - name: Conformance (Python backend)
         run: pnpm --dir packages/examples/todo test:conformance:py

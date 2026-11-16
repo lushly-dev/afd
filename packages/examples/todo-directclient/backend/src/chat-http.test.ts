@@ -1,12 +1,33 @@
+import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
 import type { AddressInfo } from 'node:net';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { setStore, TodoStore } from '@afd/example-todo-ts/store';
-import { DirectClient } from '@lushly-dev/afd-client';
-import { createDirectRegistry, defineCommand, success } from '@lushly-dev/afd-server';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { z } from 'zod';
-import { type ChatBackend, type ChatServer, createChatServer, PublicError } from './chat-http.js';
+import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it } from 'vitest';
+import {
+	APPROVAL_WAIT_MS,
+	approvalWaitMs,
+	type ChatBackend,
+	type ChatServer,
+	createChatServer,
+	PublicError,
+} from './chat-http.js';
 import { type Env, loadChatServerConfig } from './http-security.js';
-import { createCopilotRegistry } from './registry.js';
+
+/** A built page stand-in: what `vite build` writes, and a file beside it that must stay private. */
+let site: string;
+beforeAll(() => {
+	site = mkdtempSync(join(tmpdir(), 'todo-page-'));
+	mkdirSync(join(site, 'dist', 'assets'), { recursive: true });
+	writeFileSync(
+		join(site, 'dist', 'index.html'),
+		'<!doctype html><script type="module" src="/assets/index-abc.js"></script>'
+	);
+	writeFileSync(join(site, 'dist', 'assets', 'index-abc.js'), 'export {};');
+	writeFileSync(join(site, 'dist', 'assets', 'notes.txt'), 'not a page file');
+	writeFileSync(join(site, 'secret.js'), 'outside dist');
+});
+afterAll(() => rmSync(site, { recursive: true, force: true }));
 
 interface Reply {
 	status: number;
@@ -26,8 +47,8 @@ let running: ChatServer | undefined;
 async function start(env: Env = {}, deps: Partial<Parameters<typeof createChatServer>[1]> = {}) {
 	const config = loadChatServerConfig(env);
 	running = createChatServer(config, {
-		executor: new DirectClient(createCopilotRegistry({})),
 		chat: fakeChat,
+		frontendDir: join(site, 'dist'),
 		onError: () => {},
 		...deps,
 	});
@@ -36,6 +57,14 @@ async function start(env: Env = {}, deps: Partial<Parameters<typeof createChatSe
 	await new Promise<void>((resolve) => server.listen(0, config.host, resolve));
 	const address = server.address() as AddressInfo;
 	return { address, base: `http://127.0.0.1:${address.port}`, config };
+}
+
+/** The events of a streamed turn. */
+function lines(text: string): Record<string, unknown>[] {
+	return text
+		.trim()
+		.split('\n')
+		.map((line) => JSON.parse(line) as Record<string, unknown>);
 }
 
 async function request(url: string, init: RequestInit = {}): Promise<Reply> {
@@ -107,8 +136,8 @@ describe('chat server origin policy', () => {
 	it('rejects a foreign origin without reflecting it', async () => {
 		const { base } = await start();
 		const res = await post(
-			`${base}/execute`,
-			{ name: 'todo-create', args: { title: 'csrf' } },
+			`${base}/chat`,
+			{ message: 'Clear everything' },
 			{ Origin: 'https://evil.example' }
 		);
 
@@ -119,7 +148,7 @@ describe('chat server origin policy', () => {
 
 	it('rejects the null origin', async () => {
 		const { base } = await start();
-		const res = await post(`${base}/execute`, { name: 'todo-list' }, { Origin: 'null' });
+		const res = await post(`${base}/chat`, { message: 'hi' }, { Origin: 'null' });
 		expect(res.status).toBe(403);
 	});
 
@@ -144,10 +173,10 @@ describe('chat server origin policy', () => {
 
 describe('chat server rate limiting', () => {
 	it('keys on the socket address, so rotating X-Forwarded-For does not help', async () => {
-		const { base } = await start({ RATE_LIMIT_EXECUTE: '2' });
+		const { base } = await start({ RATE_LIMIT_CHAT: '2' });
 		const statuses: number[] = [];
 		for (const ip of ['1.1.1.1', '2.2.2.2', '3.3.3.3']) {
-			const res = await post(`${base}/execute`, { name: 'todo-list' }, { 'X-Forwarded-For': ip });
+			const res = await post(`${base}/chat`, { message: 'hi' }, { 'X-Forwarded-For': ip });
 			statuses.push(res.status);
 		}
 
@@ -164,21 +193,21 @@ describe('chat server rate limiting', () => {
 	});
 
 	it('honors the proxy-appended X-Forwarded-For entry with TRUST_PROXY', async () => {
-		const { base } = await start({ RATE_LIMIT_EXECUTE: '1', TRUST_PROXY: 'true' });
+		const { base } = await start({ RATE_LIMIT_CHAT: '1', TRUST_PROXY: 'true' });
 		const first = await post(
-			`${base}/execute`,
-			{ name: 'todo-list' },
+			`${base}/chat`,
+			{ message: 'hi' },
 			{ 'X-Forwarded-For': 'a, 1.1.1.1' }
 		);
 		const second = await post(
-			`${base}/execute`,
-			{ name: 'todo-list' },
+			`${base}/chat`,
+			{ message: 'hi' },
 			{ 'X-Forwarded-For': 'b, 2.2.2.2' }
 		);
 		// Same client behind the proxy, spoofed first entry: still limited.
 		const spoofed = await post(
-			`${base}/execute`,
-			{ name: 'todo-list' },
+			`${base}/chat`,
+			{ message: 'hi' },
 			{ 'X-Forwarded-For': 'c, 2.2.2.2' }
 		);
 
@@ -186,90 +215,72 @@ describe('chat server rate limiting', () => {
 	});
 });
 
-describe('POST /execute', () => {
-	it('runs commands through the validating registry', async () => {
-		const { base } = await start();
-		const res = await post(`${base}/execute`, {
-			name: 'todo-create',
-			args: { title: 'From the UI', priority: 'high' },
-		});
-
-		expect(res.status).toBe(200);
-		expect(res.body.success).toBe(true);
-		expect(store.count()).toBe(1);
-	});
-
-	it('rejects input that fails the Zod schema before the handler runs', async () => {
-		const { base } = await start();
-		const res = await post(`${base}/execute`, {
-			name: 'todo-create',
-			args: { title: { nested: true } },
-		});
-
-		expect(res.body.success).toBe(false);
-		expect((res.body.error as { code: string }).code).toBe('VALIDATION_ERROR');
-		expect(store.count()).toBe(0);
-	});
-
-	it('cannot run a command that is not exposed to the agent', async () => {
-		let ran = false;
-		const internal = defineCommand({
-			name: 'admin-reset',
-			description: 'Internal only',
-			expose: { agent: false },
-			input: z.object({}),
-			async handler() {
-				ran = true;
-				return success({ reset: true });
-			},
-		});
-		const { base } = await start(
-			{},
-			{ executor: new DirectClient(createDirectRegistry([internal], { interface: 'agent' })) }
-		);
-		const res = await post(`${base}/execute`, { name: 'admin-reset' });
-
-		expect(res.body.success).toBe(false);
-		expect(ran).toBe(false);
-	});
-
-	it('rejects malformed requests', async () => {
+describe('requests', () => {
+	it('rejects malformed ones', async () => {
 		const { base } = await start();
 
-		expect((await post(`${base}/execute`, { name: '../etc' })).status).toBe(400);
-		expect((await post(`${base}/execute`, { name: 'todo-list', args: [1] })).status).toBe(400);
-		expect((await post(`${base}/execute`, ['todo-list'])).status).toBe(400);
-		const notJson = await request(`${base}/execute`, {
+		expect((await post(`${base}/chat`, { message: 42 })).status).toBe(400);
+		expect((await post(`${base}/chat`, ['hi'])).status).toBe(400);
+		const notJson = await request(`${base}/chat`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'text/plain' },
-			body: '{"name":"todo-list"}',
+			body: '{"message":"hi"}',
 		});
 		expect(notJson.status).toBe(415);
 	});
 
 	it('refuses a body over MAX_BODY_SIZE with 413', async () => {
 		const { base } = await start({ MAX_BODY_SIZE: '100' });
-		const res = await post(`${base}/execute`, {
-			name: 'todo-create',
-			args: { title: 'x'.repeat(500) },
-		});
-
+		const res = await post(`${base}/chat`, { message: 'x'.repeat(500) });
 		expect(res.status).toBe(413);
-		expect(store.count()).toBe(0);
+	});
+});
+
+describe('approvalWaitMs', () => {
+	it('waits until the approval token expires, since a later yes could not run the call', () => {
+		const now = Date.parse('2026-11-15T12:00:00Z');
+		expect(approvalWaitMs('2026-11-15T12:05:00Z', now)).toBe(5 * 60_000);
+		expect(approvalWaitMs('2026-11-15T11:59:00Z', now)).toBe(0);
+		expect(approvalWaitMs('', now)).toBe(APPROVAL_WAIT_MS);
+	});
+});
+
+describe('POST /chat/answer', () => {
+	it('refuses an answer that is neither an approval nor a command result', async () => {
+		const { base } = await start();
+		expect((await post(`${base}/chat/answer`, { turn: 't', ask: 1 })).status).toBe(400);
+		expect(
+			(await post(`${base}/chat/answer`, { turn: 't', ask: 'one', approved: true })).status
+		).toBe(400);
+		expect(
+			(await post(`${base}/chat/answer`, { turn: 't', ask: 1, result: { data: 1 } })).status
+		).toBe(400);
+	});
+
+	it('answers 404 for a question no turn is waiting on', async () => {
+		const { base } = await start();
+		const res = await post(`${base}/chat/answer`, { turn: 'no-such-turn', ask: 1, approved: true });
+		expect(res.status).toBe(404);
+		expect(res.body.suggestion).toBeDefined();
 	});
 });
 
 describe('POST /chat', () => {
-	it('passes the message to the chat backend', async () => {
+	it('streams the turn as JSON lines: its id, then the answer', async () => {
 		const { base } = await start();
 		const res = await post(`${base}/chat`, { message: '  hello  ' });
-		expect(res.body.message).toBe('echo: hello');
-		expect(res.body.mode).toBe('change');
+		expect(res.headers.get('content-type')).toContain('application/x-ndjson');
+		const events = lines(res.text);
+		expect(events).toMatchObject([
+			{ type: 'turn', turn: expect.any(String) },
+			{ type: 'done', message: 'echo: hello', mode: 'change' },
+		]);
 	});
 
 	it('passes the mode, and refuses one it does not know', async () => {
 		const { base } = await start();
-		expect((await post(`${base}/chat`, { message: 'hi', mode: 'look' })).body.mode).toBe('look');
+		const look = lines((await post(`${base}/chat`, { message: 'hi', mode: 'look' })).text);
+		expect(look.at(-1)).toMatchObject({ type: 'done', mode: 'look' });
 		const unknown = await post(`${base}/chat`, { message: 'hi', mode: 'admin' });
 		expect(unknown.status).toBe(400);
 		expect(unknown.body.suggestion).toBe('Use one of: change, look');
@@ -282,7 +293,8 @@ describe('POST /chat', () => {
 			{
 				chat: {
 					...fakeChat,
-					processChat: (_message, _mode, turnSignal) => {
+					processChat: (_message, _mode, options) => {
+						const turnSignal = options?.signal;
 						signal = turnSignal;
 						// Never answers: only the page leaving ends it
 						return new Promise((_resolve, reject) =>
@@ -315,13 +327,13 @@ describe('POST /chat', () => {
 
 		const hidden = await start({}, { chat: failing(new Error('ECONNREFUSED 10.1.2.3:443')) });
 		const internal = await post(`${hidden.base}/chat`, { message: 'hi' });
-		expect(internal.status).toBe(500);
-		expect(internal.body.error).toBe('Internal server error');
+		expect(lines(internal.text).at(-1)).toEqual({ type: 'error', error: 'Internal server error' });
+		expect(internal.text).not.toContain('10.1.2.3');
 
 		await stop();
 		const shown = await start({}, { chat: failing(new PublicError('Please try again.')) });
 		const publicError = await post(`${shown.base}/chat`, { message: 'hi' });
-		expect(publicError.body.error).toBe('Please try again.');
+		expect(lines(publicError.text).at(-1)).toEqual({ type: 'error', error: 'Please try again.' });
 	});
 });
 
@@ -366,14 +378,17 @@ describe('frontend', () => {
 		expect(res.status).toBe(200);
 		expect(res.headers.get('content-type')).toContain('text/html');
 		expect(res.headers.get('content-security-policy')).toContain("script-src 'self'");
-		expect(res.text).not.toMatch(/\son[a-z]+=/i);
-		expect(res.text).toContain('src="app.js"');
+		expect(res.text).toContain('/assets/index-abc.js');
 	});
 
-	it('serves only the listed files', async () => {
+	it("serves the build's own files and nothing else", async () => {
 		const { base } = await start();
-		expect((await request(`${base}/render.js`)).status).toBe(200);
-		expect((await request(`${base}/package.json`)).status).toBe(404);
-		expect((await request(`${base}/..%2Fbackend%2Fpackage.json`)).status).toBe(404);
+		const script = await request(`${base}/assets/index-abc.js`);
+		expect(script.status).toBe(200);
+		expect(script.headers.get('content-type')).toContain('text/javascript');
+		expect((await request(`${base}/assets/notes.txt`)).status).toBe(404);
+		expect((await request(`${base}/assets/missing.js`)).status).toBe(404);
+		expect((await request(`${base}/..%2Fsecret.js`)).status).toBe(404);
+		expect((await request(`${base}/%E0%A4%A`)).status).toBe(404);
 	});
 });

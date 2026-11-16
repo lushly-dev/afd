@@ -19,7 +19,6 @@
 
 import 'dotenv/config';
 import { createStore, SqliteStore, setStore } from '@afd/example-todo-ts/store';
-import { DirectClient } from '@lushly-dev/afd-client';
 import { createChatBackend } from './chat.js';
 import { createChatServer } from './chat-http.js';
 import { Copilot } from './copilot.js';
@@ -70,8 +69,6 @@ const copilot = apiKey
 	: undefined;
 
 const { server } = createChatServer(config, {
-	// The page's own calls go through the same registry as the copilot's, as a person
-	executor: new DirectClient(registry),
 	chat: createChatBackend(copilot),
 	mcp,
 });
@@ -88,7 +85,7 @@ server.listen(config.port, config.host, () => {
 		`   Hosts ${config.allowedHosts.join(', ')}; X-Forwarded-For ${config.trustProxy ? 'trusted' : 'ignored'}`
 	);
 	console.log(
-		`   Rate limits: chat ${config.rateLimitChat}/min, execute ${config.rateLimitExecute}/min; body ${config.maxBodySize} bytes`
+		`   Rate limits: chat ${config.rateLimitChat}/min, answers ${config.rateLimitAnswer}/min; body ${config.maxBodySize} bytes`
 	);
 	console.log('\n   Press Ctrl+C to stop.\n');
 });

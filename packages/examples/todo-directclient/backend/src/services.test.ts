@@ -44,7 +44,6 @@ async function start(env: Record<string, string>) {
 	const config = loadChatServerConfig(env);
 	const services = createTodoServices(env, config);
 	const server = createChatServer(config, {
-		executor: createDirectClient(services.registry),
 		chat: quietChat,
 		mcp: services.mcp,
 		onError: () => {},
