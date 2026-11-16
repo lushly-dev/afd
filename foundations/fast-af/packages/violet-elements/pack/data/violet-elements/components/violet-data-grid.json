@@ -69,6 +69,7 @@
 			},
 			{
 				"basis": "declared",
+				"description": "Verb for what a single-selection radio does, such as \"Open\": radios are named \"<selection-label> <row label>\" and the selection column header \"<selection-label>\". Only with `selection-mode=\"single\"`.",
 				"name": "selection-label",
 				"property": "selectionLabel",
 				"rules": [

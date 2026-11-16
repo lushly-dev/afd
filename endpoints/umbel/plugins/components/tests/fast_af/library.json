@@ -102,7 +102,7 @@
 			"tag": "violet-conversation-thread"
 		},
 		{
-			"digest": "sha256:29b345b6d4f5d18352ebe37f7cdf4552aade57cd69db036b684b1bf9cab8f2b6",
+			"digest": "sha256:f7d6f2930f29f6af7e34a03c9cfa3ed1207b456e1b8b2fc273ed198372d33a57",
 			"status": "stable",
 			"tag": "violet-data-grid"
 		},
@@ -277,7 +277,7 @@
 			"tag": "violet-radio"
 		},
 		{
-			"digest": "sha256:8e1a69866edf35cab32879421e7b76aef801ce98f8d6c24e5cfe3af4b05a8b3b",
+			"digest": "sha256:70d12683210c3d048ca3b5afddac5db464b504557c9b11d795c36cc68eaab9f4",
 			"status": "stable",
 			"summary": "Form field that holds violet-radio children and submits the one selected value; use for a single choice among a few visible options.",
 			"tag": "violet-radio-group"
@@ -432,12 +432,12 @@
 			"tag": "violet-tree-item"
 		}
 	],
-	"digest": "sha256:1a33e09d4916f1db81a7519f29eb27b9a9064db4b1a0d88f91489ca54548e333",
+	"digest": "sha256:d64d8223a9c3d0a991ef3040522f04b76192e83b097cb37c47f65148c772abe9",
 	"format": 1,
 	"library": "violet-elements",
 	"package": {
 		"name": "@lushly-dev/violet-elements",
-		"version": "0.1.0"
+		"version": "0.2.0-preview.0"
 	},
 	"prefix": "violet-",
 	"rules": "sha256:751ff181ecef0cdf926f86b6294f7d2a69bbb4312b4a1cc29e88a7b77061070a",

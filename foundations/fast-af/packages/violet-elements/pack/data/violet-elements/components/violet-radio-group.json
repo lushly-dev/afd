@@ -98,7 +98,7 @@
 				]
 			},
 			{
-				"basis": "declared",
+				"basis": "observed",
 				"default": false,
 				"description": "Marks the group required.",
 				"name": "required",
@@ -170,11 +170,6 @@
 		{
 			"kind": "unobserved",
 			"name": "error-text",
-			"section": "attributes"
-		},
-		{
-			"kind": "unobserved",
-			"name": "required",
 			"section": "attributes"
 		}
 	],
