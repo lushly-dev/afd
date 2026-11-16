@@ -98,7 +98,10 @@ jobs:
       - name: Install WebKitGTK, its WebDriver and a display
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev webkit2gtk-driver xvfb dbus-x11
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev xvfb dbus-x11
+          # WebKitWebDriver: `webkitgtk-webdriver` from Ubuntu 24.04 on, `webkit2gtk-driver` before it.
+          sudo apt-get install -y --no-install-recommends webkitgtk-webdriver || sudo apt-get install -y --no-install-recommends webkit2gtk-driver
+          command -v WebKitWebDriver
       - name: Record WebKitGTK's version
         run: echo "WebKitGTK $(pkg-config --modversion webkit2gtk-4.1)" | tee -a "$GITHUB_STEP_SUMMARY"
       # rustup is preinstalled on GitHub-hosted runners; with no arguments it installs the toolchain pinned in
