@@ -3,7 +3,7 @@
 The native token engine behind Violet Design, a hierarchical design token platform. Nodes inherit tokens from their parents and add, override, subtract, reset or copy them; this package stores them, resolves inheritance and exports the result. It has no AFD dependency: the command layer that returns `CommandResult` envelopes for the CLI, REST API and MCP server is [`@lushly-dev/violet-afd`](../../../../integrations/violet-afd/README.md).
 
 ```bash
-npm install @lushly-dev/violet-core
+npm install @lushly-dev/violet-core@preview
 ```
 
 ```ts

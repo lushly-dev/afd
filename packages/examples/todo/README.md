@@ -86,15 +86,20 @@ uv run --project backends/python todo-server
 
 ### 4. Start a Frontend
 
-**Vanilla JS:**
+**The page, on FAST-AF and violet-elements** (`frontends/fast-af`, http://localhost:5173):
 
 ```bash
-pnpm dev:web
+pnpm dev:ts      # the TypeScript backend on http://localhost:3100
+pnpm dev:web     # the page
 ```
 
-**React:**
+`?backend=http://host:port` points the page at another backend.
+
+**The same page in React 19** (`frontends/react`, http://localhost:5174), on the same elements and
+shared modules:
 
 ```bash
+pnpm dev:ts
 pnpm dev:react
 ```
 
@@ -123,45 +128,54 @@ File-based storage enables:
 
 ## Frontend Features
 
-Both Vanilla JS and React frontends demonstrate AFD UX principles:
+The page, in FAST-AF (`frontends/fast-af`) and in React (`frontends/react`), is a thin surface:
+every action is a backend command over MCP on `/mcp` (Streamable HTTP), and everything it shows
+comes from those commands' results. Its state and actions, the elements it registers, its theme
+and its styles live in plain modules (`frontends/shared`), so the two frontends differ only in how
+they render, and one browser suite (`frontends/shared/test/page-suite.ts`) runs against both.
 
-### Trust & Transparency
-- **Toast Notifications**: Show command results with confidence bars, execution time, and warnings
-- **TrustPanel**: Displays confidence scores, reasoning, sources, and execution plans
-- **CommandLog**: Real-time log of all MCP command calls
+- **Trust:** the last result's confidence (`violet-progress`), reasoning, warnings, sources and
+  alternatives, and the undo it names.
+- **Undo:** after each change, a `violet-snackbar` offers Undo, which runs the `undoCommand` and
+  `undoArgs` the result named. Deleted todos have their own list, with Restore.
+- **Approvals in the page:** the page's MCP client declares form elicitation, so when the server
+  holds `todo-clear` for a person, it asks the page, which shows a `violet-approval-card` and
+  answers with the person's choice. Denying keeps everything and shows the error's suggestion.
+- **Errors:** a `violet-alert` with the code, the message, the suggestion and Retry when the
+  error is retryable.
+- **Recent changes:** `todo-history`, with Undo on each change still the latest to its todos.
+- **Command log:** every command the page ran, with its input and result
+  (`violet-tool-call-card`).
+- **Other clients:** the page polls `todo-history` every 3 seconds and says when another client
+  changed the todos. Without sign-in, the server counts every page and MCP client as an agent.
+- **View state an agent can drive:** the filter (status, priority, search) is view state
+  (`@lushly-dev/afd-view-state`), served in the page as `view-state-get` and `view-state-set` on
+  `todo-filter`. A person's filter controls and an agent's commands change the same state, and
+  the list follows (job 6). Phase 4's in-page copilot calls them.
 
-### User Control
-- **ConfirmModal**: Confirmation dialogs for destructive operations (delete, clear)
-- **ErrorRecovery**: Error panels with retry functionality and actionable suggestions
-- **Batch Operations**: Select all, toggle selected, delete selected
-
-### Multi-Surface Awareness
-- **Remote Change Detection**: Polls every 3 seconds for external changes
-- **Batched Notifications**: Groups multiple changes into single toast (e.g., "4 items added")
-- **Source Indicators**: Shows "🌐 Remote change" for changes from CLI/MCP
-
-### Filtering & Navigation
-- **Filter Buttons**: All / Pending / Completed views
-- **URL Parameters**: `?view=pending` for direct linking (Vanilla)
+`pnpm test:page` builds the backend and both frontends and runs the suite on each in Chromium
+against the backend: add (with the button and with Enter), undo, a clear approved and one denied
+in the page, an agent narrowing the view, and axe.
 
 ## Mix and Match
 
-The frontends work with any backend that serves their HTTP endpoint, because the backends share the same command schemas:
+The page talks MCP on `/mcp`, so it works with a backend that serves Streamable HTTP. It is
+tested against the TypeScript backend. Approvals in the page need MCP 2026-07-28, which the
+page negotiates with it: a 2025-era HTTP request cannot carry the server's question, so against
+such a backend a held clear stays `APPROVAL_REQUIRED`. The Rust backend has no `todo-history` or `todo-restore`
+until the to-do reference plan's phase 5, so against it the page shows no history or deleted
+list; that pairing is not tested yet.
 
 | Backend    | Frontend | Command                          |
 | ---------- | -------- | -------------------------------- |
-| TypeScript | Vanilla  | `pnpm dev:ts` + `pnpm dev:web`   |
+| TypeScript | FAST-AF  | `pnpm dev:ts` + `pnpm dev:web`   |
 | TypeScript | React    | `pnpm dev:ts` + `pnpm dev:react` |
-| Rust       | Vanilla  | `cargo run -- server` + `pnpm dev:web` |
-| Rust       | React    | `cargo run -- server` + `pnpm dev:react` |
 
-The frontends POST JSON-RPC to `http://localhost:3100/message`, the deprecated lane that AFD 3.0
-removes; the frontend that replaces them will use `/mcp`. The TypeScript and Rust
-backends accept browser requests from the dev frontends' origins (`http://localhost:3000` for
-`pnpm dev:web`, `http://localhost:5173` and `5174` for Vite, also on `127.0.0.1`) and refuse
-other origins with 403; add yours with `ALLOWED_ORIGINS`. The Python backend is a stdio
-MCP server without that HTTP endpoint, so use it from an MCP client (see below) and the
-conformance suite rather than the web frontends.
+Both frontends talk MCP on `/mcp`; neither uses the deprecated `/message` lane. The TypeScript
+and Rust backends accept browser requests from the dev frontends' origins (`http://localhost:3000`, `http://localhost:5173` and
+`5174`, also on `127.0.0.1`) and refuse other origins with 403; add yours with
+`ALLOWED_ORIGINS`. The Python backend is a stdio MCP server without that HTTP endpoint, so use it
+from an MCP client (see below) and the conformance suite rather than the web frontends.
 
 ## VS Code MCP Configuration
 
@@ -271,8 +285,8 @@ A middleware records each change from its result (`src/history.ts`); the latest 
 `todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
 to approve it (`createApprovalMiddleware`). An MCP client that declares form elicitation asks its
 person; any other caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
-every caller counts as an agent, so the current frontends' "clear completed" is held too until the
-to-do reference plan's phase 3 gives the page an approval flow. Run the server with
+every caller counts as an agent, so the page's "clear completed" is held too: the page shows the
+approval and answers with the person's choice, in both frontends. Run the server with
 `APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
 contract every language meets.
 

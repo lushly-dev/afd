@@ -1,586 +1,500 @@
-import type React from 'react';
-import { useCallback, useEffect, useRef, useState } from 'react';
-import { callTool } from './api';
-import { CommandLog, useCommandLog } from './components/CommandLog';
-import { ConfirmModal } from './components/ConfirmModal';
-import { ErrorRecovery } from './components/ErrorRecovery';
-import type { RemoteChanges } from './components/Toast';
-import { ToastContainer, useToast } from './components/Toast';
-import { TodoForm } from './components/TodoForm';
-import { TodoItem } from './components/TodoItem';
-import { TodoStats } from './components/TodoStats';
-import { TrustPanel } from './components/TrustPanel';
-import { useConfirm } from './hooks/useConfirm';
-import type { CommandResult, TodoStats as ITodoStats, Todo } from './types';
-import './App.css';
+/**
+ * The to-do page in React 19 on violet-elements. It renders the shared session
+ * (`@afd/example-todo-ui/session`) with the same structure and class names as the FAST-AF page,
+ * so both share the styles and the browser suite; only the rendering differs. Every action calls
+ * the session, which calls a backend command.
+ */
+import type { CallRecord } from '@afd/example-todo-ui/client';
+import type {
+	HistoryEntry,
+	Priority,
+	SessionState,
+	Todo,
+	TodoSession,
+} from '@afd/example-todo-ui/session';
+import type { PriorityFilter, StatusFilter } from '@afd/example-todo-ui/view-state';
+import { type KeyboardEvent, useRef } from 'react';
+import { useElementEvents, useSessionState } from './hooks';
 
-const POLL_INTERVAL = 3000; // 3 seconds
+const PRIORITY_COLOR: Record<Priority, string> = {
+	high: 'danger',
+	medium: 'warning',
+	low: 'neutral',
+};
 
-type FilterType = 'all' | 'pending' | 'completed';
+const time = (iso: string) =>
+	new Date(iso).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
 
-interface LastOperation {
-	command: string;
-	args: Record<string, unknown>;
+const json = (value: unknown) => JSON.stringify(value, null, 2);
+
+/** What a result showed, as the command log's card state. */
+const callState = (record: CallRecord) =>
+	record.result === undefined
+		? 'executing'
+		: record.result.success
+			? 'output-available'
+			: 'output-error';
+
+/** The element's `value` property, as the violet field and choice elements report it. */
+const chosenValue = (event: Event) => (event.target as HTMLInputElement).value;
+
+interface Props {
+	session: TodoSession;
 }
 
-const App: React.FC = () => {
-	const [todos, setTodos] = useState<Todo[]>([]);
-	const [stats, setStats] = useState<ITodoStats | null>(null);
-	const [loading, setLoading] = useState(true);
-	const [error, setError] = useState<string | null>(null);
-	const [connected, setConnected] = useState(false);
-	const [filter, setFilter] = useState<FilterType>('all');
+export function App({ session }: Props) {
+	const state = useSessionState(session);
+	const titleRef = useRef<HTMLInputElement>(null);
 
-	// Selection state for batch operations
-	const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+	/** After Delete or Restore removes the focused button with its row, focus the title field. */
+	const afterRemoving = async (change: Promise<unknown>) => {
+		await change;
+		titleRef.current?.focus();
+	};
 
-	// Trust panel state
-	const [lastResult, setLastResult] = useState<CommandResult<unknown> | null>(null);
-	const [lastCommandName, setLastCommandName] = useState('');
-	const [showTrustPanel, setShowTrustPanel] = useState(false);
+	return (
+		<>
+			<header className="banner">
+				<h1>Todos</h1>
+				<p className="banner-status">
+					<span role="status">
+						<violet-badge
+							className="connection"
+							color={state.connected ? 'success' : 'danger'}
+							size="sm"
+						>
+							{state.connected ? 'Connected' : 'Offline'}
+						</violet-badge>
+					</span>{' '}
+					{state.stats
+						? `${state.stats.pending} open, ${state.stats.completed} done, ${Math.round(state.stats.completionRate * 100)}% complete`
+						: ''}
+				</p>
+			</header>
 
-	// Error recovery state
-	const [lastOperation, setLastOperation] = useState<LastOperation | null>(null);
-	const [errorState, setErrorState] = useState<{
-		isVisible: boolean;
-		commandName: string;
-		message: string;
-		suggestion?: string;
-	}>({ isVisible: false, commandName: '', message: '' });
+			<main id="main" className="page">
+				<section className="work" aria-labelledby="work-heading">
+					<h2 id="work-heading" className="visually-hidden">
+						Your todos
+					</h2>
+					<PageError session={session} state={state} />
+					<RemoteChange session={session} state={state} />
+					<AddForm session={session} titleRef={titleRef} />
+					<Filters session={session} state={state} />
+					{state.todos.length > 0 ? (
+						<ul
+							className="todo-list"
+							aria-label={state.showing === 'live' ? 'Todos' : 'Deleted todos'}
+						>
+							{state.todos.map((todo) => (
+								<TodoRow
+									key={todo.id}
+									todo={todo}
+									showing={state.showing}
+									session={session}
+									afterRemoving={afterRemoving}
+								/>
+							))}
+						</ul>
+					) : (
+						<violet-empty-state
+							className="empty"
+							heading={state.showing === 'live' ? 'Nothing here' : 'No deleted todos'}
+							message={
+								state.showing === 'live'
+									? 'Add a todo, or change the filter.'
+									: 'A todo you delete stays here until you empty the deleted todos.'
+							}
+						/>
+					)}
+					<div className="list-actions">
+						{state.showing === 'live' ? (
+							<violet-button
+								className="clear-completed"
+								appearance="danger"
+								onClick={() => session.clearCompleted()}
+							>
+								Clear completed
+							</violet-button>
+						) : (
+							<violet-button
+								className="empty-deleted"
+								appearance="danger"
+								onClick={() => session.emptyDeleted()}
+							>
+								Empty deleted todos
+							</violet-button>
+						)}
+					</div>
+				</section>
 
-	const { toasts, removeToast, showResultToast, showRemoteChanges } = useToast();
-	const { entries: logEntries, log } = useCommandLog();
-	const { state: confirmState, confirm, handleConfirm, handleCancel } = useConfirm();
+				<aside className="insight" aria-label="What the commands did">
+					<Trust state={state} />
+					<section className="history" aria-labelledby="history-heading">
+						<h2 id="history-heading">Recent changes</h2>
+						<p className="history-note">
+							From <code>todo-history</code>. Without sign-in, the server counts every page and MCP
+							client as an agent.
+						</p>
+						<ul className="history-list">
+							{state.history.map((entry) => (
+								<HistoryRow key={entry.seq} entry={entry} session={session} />
+							))}
+						</ul>
+					</section>
+					<section className="command-log" aria-labelledby="log-heading">
+						<h2 id="log-heading">Command log</h2>
+						{state.log.map((record) => (
+							<LogCard key={record.id} record={record} />
+						))}
+					</section>
+				</aside>
+			</main>
 
-	// Track previous todos for remote change detection
-	const previousTodosRef = useRef<Map<string, Todo>>(new Map());
-	// Track whether we've established a baseline (to avoid false positives on first load)
-	const hasBaselineRef = useRef(false);
-
-	// Detect changes between previous and current todos
-	const detectRemoteChanges = useCallback((currentTodos: Todo[]): RemoteChanges => {
-		const changes: RemoteChanges = {
-			added: [],
-			deleted: [],
-			completed: [],
-			uncompleted: [],
-			updated: [],
-		};
-
-		const currentMap = new Map(currentTodos.map((t) => [t.id, t]));
-		const previousMap = previousTodosRef.current;
-
-		// Find deleted and modified todos
-		for (const [id, prevTodo] of previousMap) {
-			const currentTodo = currentMap.get(id);
-			if (!currentTodo) {
-				changes.deleted.push({ id: prevTodo.id, title: prevTodo.title });
-			} else {
-				if (!prevTodo.completed && currentTodo.completed) {
-					changes.completed.push({ id: currentTodo.id, title: currentTodo.title });
-				} else if (prevTodo.completed && !currentTodo.completed) {
-					changes.uncompleted.push({ id: currentTodo.id, title: currentTodo.title });
-				} else if (
-					prevTodo.title !== currentTodo.title ||
-					prevTodo.priority !== currentTodo.priority
-				) {
-					changes.updated.push({ id: currentTodo.id, title: currentTodo.title });
-				}
-			}
-		}
-
-		// Find added todos
-		for (const todo of currentTodos) {
-			if (!previousMap.has(todo.id)) {
-				changes.added.push({ id: todo.id, title: todo.title });
-			}
-		}
-
-		return changes;
-	}, []);
-
-	// Update the previous todos map
-	const updatePreviousTodos = useCallback((todos: Todo[]) => {
-		previousTodosRef.current = new Map(todos.map((t) => [t.id, { ...t }]));
-		hasBaselineRef.current = true;
-	}, []);
-
-	// Check connection health
-	const checkConnection = useCallback(async () => {
-		try {
-			const response = await fetch('http://localhost:3100/health');
-			const data = await response.json();
-			setConnected(data.status === 'ok');
-			return data.status === 'ok';
-		} catch {
-			setConnected(false);
-			return false;
-		}
-	}, []);
-
-	// Fetch data (silent mode for polling)
-	const fetchData = useCallback(
-		async (options: { silent?: boolean; detectChanges?: boolean } = {}) => {
-			const { silent = false, detectChanges = false } = options;
-
-			try {
-				if (!silent) setLoading(true);
-
-				const [todosRes, statsRes] = await Promise.all([
-					callTool<{ todos: Todo[] }>('todo-list', { limit: 100 }),
-					callTool<ITodoStats>('todo-stats', {}),
-				]);
-
-				if (todosRes.success && todosRes.data) {
-					const newTodos = todosRes.data.todos;
-
-					// Detect and notify remote changes
-					// Only detect if we have established a baseline (prevents false positives on first load)
-					if (detectChanges && hasBaselineRef.current) {
-						const changes = detectRemoteChanges(newTodos);
-						const hasChanges =
-							changes.added.length > 0 ||
-							changes.deleted.length > 0 ||
-							changes.completed.length > 0 ||
-							changes.uncompleted.length > 0 ||
-							changes.updated.length > 0;
-
-						if (hasChanges) {
-							showRemoteChanges(changes);
-						}
-					}
-
-					updatePreviousTodos(newTodos);
-					setTodos(newTodos);
-				}
-
-				if (statsRes.success && statsRes.data) {
-					setStats(statsRes.data);
-				}
-
-				setError(null);
-			} catch (err) {
-				if (!silent) {
-					setError('Failed to fetch data from MCP server');
-				}
-				console.error(err);
-			} finally {
-				if (!silent) setLoading(false);
-			}
-		},
-		[detectRemoteChanges, updatePreviousTodos, showRemoteChanges]
+			<UndoSnackbar session={session} state={state} />
+			<ApprovalDialog session={session} state={state} />
+		</>
 	);
+}
 
-	// Initial load
-	useEffect(() => {
-		const init = async () => {
-			const isConnected = await checkConnection();
-			if (isConnected) {
-				await fetchData();
-			}
-		};
-		init();
-	}, [checkConnection, fetchData]);
+interface PartProps {
+	session: TodoSession;
+	state: SessionState;
+}
 
-	// Polling for external changes
-	useEffect(() => {
-		const interval = setInterval(async () => {
-			const isConnected = await checkConnection();
-			if (isConnected) {
-				await fetchData({ silent: true, detectChanges: true });
-			}
-		}, POLL_INTERVAL);
+function PageError({ session, state }: PartProps) {
+	const error = state.error;
+	if (!error) return null;
+	return (
+		<violet-alert className="page-error" tone="danger" announcement="assertive">
+			<span slot="title">{`${error.command}: ${error.code}`}</span>
+			<p>{error.message}</p>
+			{error.suggestion !== undefined && <p className="suggestion">{error.suggestion}</p>}
+			<span slot="actions">
+				{error.retry !== undefined && (
+					<violet-button appearance="secondary" onClick={() => session.retry()}>
+						Retry
+					</violet-button>
+				)}
+				<violet-button appearance="quiet" onClick={() => session.dismissError()}>
+					Dismiss
+				</violet-button>
+			</span>
+		</violet-alert>
+	);
+}
 
-		return () => clearInterval(interval);
-	}, [checkConnection, fetchData]);
+function RemoteChange({ session, state }: PartProps) {
+	const ref = useElementEvents({ dismiss: () => session.dismissRemote() });
+	if (state.remote === undefined) return null;
+	return (
+		<violet-alert ref={ref} className="remote-change" tone="info" announcement="polite" dismissible>
+			{state.remote}
+		</violet-alert>
+	);
+}
 
-	// Helper to track operation and show trust panel
-	const trackOperation = (
-		commandName: string,
-		args: Record<string, unknown>,
-		result: CommandResult<unknown>
-	) => {
-		setLastOperation({ command: commandName, args });
-		setLastResult(result);
-		setLastCommandName(commandName);
+function AddForm({
+	session,
+	titleRef,
+}: {
+	session: TodoSession;
+	titleRef: React.RefObject<HTMLInputElement | null>;
+}) {
+	const priorityRef = useRef<HTMLInputElement>(null);
 
-		// Show trust panel if result has confidence/reasoning/sources
-		if (
-			result.confidence !== undefined ||
-			result.reasoning ||
-			result.sources?.length ||
-			result.plan?.length
-		) {
-			setShowTrustPanel(true);
+	const add = async () => {
+		const field = titleRef.current;
+		const title = field?.value.trim() ?? '';
+		if (!title) {
+			field?.focus();
+			return;
 		}
-
-		// Handle errors with recovery
-		if (!result.success && result.error) {
-			setErrorState({
-				isVisible: true,
-				commandName,
-				message: result.error.message,
-				suggestion: result.error.suggestion,
-			});
-		}
+		const result = await session.add(title, (priorityRef.current?.value as Priority) || 'medium');
+		if (result.success && field) field.value = '';
 	};
 
-	const handleAddTodo = async (
-		title: string,
-		priority: string = 'medium',
-		description?: string
-	) => {
-		log(`Calling todo-create...`);
-		const args = { title, priority, description };
-		const res = await callTool<Todo>('todo-create', args);
-		trackOperation('todo-create', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ todo-create - ${res.reasoning || 'Todo created'}${time}`, 'success');
-			fetchData();
-		} else {
-			log(`✗ todo-create: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-create');
+	/** Enter in the title field adds the todo: violet buttons do not submit a form. */
+	const onKeyDown = (event: KeyboardEvent<HTMLElement>) => {
+		if (event.key !== 'Enter' || event.nativeEvent.isComposing) return;
+		event.preventDefault();
+		void add();
 	};
 
-	const handleToggleTodo = async (id: string) => {
-		log(`Calling todo-toggle...`);
-		const args = { id };
-		const res = await callTool<Todo>('todo-toggle', args);
-		trackOperation('todo-toggle', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ todo-toggle - ${res.reasoning || 'Todo toggled'}${time}`, 'success');
-			fetchData();
-		} else {
-			log(`✗ todo-toggle: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-toggle');
-	};
+	return (
+		<form
+			className="add"
+			onSubmit={(event) => {
+				event.preventDefault();
+				void add();
+			}}
+		>
+			<violet-text-field
+				ref={titleRef}
+				className="add-title"
+				label="New todo"
+				required
+				maxlength="200"
+				onKeyDown={onKeyDown}
+			/>
+			<violet-select ref={priorityRef} className="add-priority" label="Priority" value="medium">
+				<violet-option value="low">Low</violet-option>
+				<violet-option value="medium">Medium</violet-option>
+				<violet-option value="high">High</violet-option>
+			</violet-select>
+			<violet-button className="add-submit" onClick={() => void add()}>
+				Add
+			</violet-button>
+		</form>
+	);
+}
 
-	const handleDeleteTodo = async (id: string) => {
-		const todo = todos.find((t) => t.id === id);
-		const confirmed = await confirm({
-			title: 'Delete Todo',
-			message: `Are you sure you want to delete "${todo?.title || 'this todo'}"?`,
-			warning: 'This action cannot be undone.',
-			confirmText: 'Delete',
-			cancelText: 'Cancel',
-		});
-
-		if (!confirmed) return;
-
-		log(`Calling todo-delete...`);
-		const args = { id };
-		const res = await callTool<{ id: string }>('todo-delete', args);
-		trackOperation('todo-delete', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ todo-delete - ${res.reasoning || 'Todo deleted'}${time}`, 'success');
-			setSelectedIds((prev) => {
-				const next = new Set(prev);
-				next.delete(id);
-				return next;
-			});
-			fetchData();
-		} else {
-			log(`✗ todo-delete: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-delete');
-	};
-
-	const handleEditTodo = async (id: string) => {
-		const todo = todos.find((t) => t.id === id);
-		if (!todo) return;
-
-		const newTitle = window.prompt('Edit todo title:', todo.title);
-		if (!newTitle || newTitle === todo.title) return;
-
-		log(`Calling todo-update...`);
-		const args = { id, title: newTitle };
-		const res = await callTool<Todo>('todo-update', args);
-		trackOperation('todo-update', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ todo-update - ${res.reasoning || 'Todo updated'}${time}`, 'success');
-			fetchData();
-		} else {
-			log(`✗ todo-update: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-update');
-	};
-
-	const handleClearCompleted = async () => {
-		const confirmed = await confirm({
-			title: 'Clear Completed',
-			message: `Are you sure you want to clear all ${stats?.completed || 0} completed todos?`,
-			warning: 'This action cannot be undone.',
-			confirmText: 'Clear All',
-			cancelText: 'Cancel',
-		});
-
-		if (!confirmed) return;
-
-		log(`Calling todo-clear...`);
-		const args = {};
-		const res = await callTool<{ count: number }>('todo-clear', args);
-		trackOperation('todo-clear', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ todo-clear - ${res.reasoning || 'Cleared completed'}${time}`, 'success');
-			fetchData();
-		} else {
-			log(`✗ todo-clear: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-clear');
-	};
-
-	// Batch operations
-	const toggleSelection = (id: string) => {
-		setSelectedIds((prev) => {
-			const next = new Set(prev);
-			if (next.has(id)) {
-				next.delete(id);
-			} else {
-				next.add(id);
-			}
-			return next;
-		});
-	};
-
-	const toggleSelectAll = () => {
-		if (selectedIds.size === filteredTodos.length) {
-			setSelectedIds(new Set());
-		} else {
-			setSelectedIds(new Set(filteredTodos.map((t) => t.id)));
-		}
-	};
-
-	const handleToggleSelected = async () => {
-		if (selectedIds.size === 0) return;
-
-		log(`Calling todo-toggle-batch (${selectedIds.size} todos)...`);
-		const ids = Array.from(selectedIds);
-		const args = { ids };
-		const res = await callTool<{ results: unknown[] }>('todo-toggle-batch', args);
-		trackOperation('todo-toggle-batch', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(
-				`✓ todo-toggle-batch - ${res.reasoning || `Toggled ${ids.length} todos`}${time}`,
-				'success'
-			);
-			fetchData();
-		} else {
-			log(`✗ todo-toggle-batch: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-toggle-batch');
-	};
-
-	const handleDeleteSelected = async () => {
-		if (selectedIds.size === 0) return;
-
-		const confirmed = await confirm({
-			title: 'Delete Selected',
-			message: `Are you sure you want to delete ${selectedIds.size} selected todo(s)?`,
-			warning: 'This action cannot be undone.',
-			confirmText: 'Delete All',
-			cancelText: 'Cancel',
-		});
-
-		if (!confirmed) return;
-
-		log(`Calling todo-delete-batch (${selectedIds.size} todos)...`);
-		const ids = Array.from(selectedIds);
-		const args = { ids };
-		const res = await callTool<{ results: unknown[] }>('todo-delete-batch', args);
-		trackOperation('todo-delete-batch', args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(
-				`✓ todo-delete-batch - ${res.reasoning || `Deleted ${ids.length} todos`}${time}`,
-				'success'
-			);
-			setSelectedIds(new Set());
-			fetchData();
-		} else {
-			log(`✗ todo-delete-batch: ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, 'todo-delete-batch');
-	};
-
-	// Error recovery retry
-	const handleRetry = async () => {
-		if (!lastOperation) return;
-
-		setErrorState({ ...errorState, isVisible: false });
-		log(`Retrying ${lastOperation.command}...`);
-		const res = await callTool<unknown>(lastOperation.command, lastOperation.args);
-		trackOperation(lastOperation.command, lastOperation.args, res as CommandResult<unknown>);
-		if (res.success) {
-			const time = res.metadata?.executionTimeMs ? ` (${res.metadata.executionTimeMs}ms)` : '';
-			log(`✓ ${lastOperation.command} - Retry successful${time}`, 'success');
-			fetchData();
-		} else {
-			log(`✗ ${lastOperation.command}: Retry failed - ${res.error?.message}`, 'error');
-		}
-		showResultToast(res, lastOperation.command);
-	};
-
-	const handleDismissError = () => {
-		setErrorState({ ...errorState, isVisible: false });
-	};
-
-	// Filter todos based on current filter
-	const filteredTodos = todos.filter((todo) => {
-		if (filter === 'pending') return !todo.completed;
-		if (filter === 'completed') return todo.completed;
-		return true;
+function Filters({ session, state }: PartProps) {
+	const statusRef = useElementEvents({
+		change: (event) => session.setFilter({ status: chosenValue(event) as StatusFilter }),
+	});
+	const priorityRef = useElementEvents({
+		change: (event) => session.setFilter({ priority: chosenValue(event) as PriorityFilter }),
+	});
+	const searchRef = useElementEvents({
+		change: (event) => session.setFilter({ search: chosenValue(event) }),
+	});
+	const listRef = useElementEvents({
+		change: (event) => session.show(chosenValue(event) as 'live' | 'deleted'),
 	});
 
 	return (
-		<div className="app-container">
-			<ToastContainer toasts={toasts} onRemove={removeToast} />
-			<ConfirmModal
-				isOpen={confirmState.isOpen}
-				title={confirmState.title}
-				message={confirmState.message}
-				warning={confirmState.warning}
-				confirmText={confirmState.confirmText}
-				cancelText={confirmState.cancelText}
-				onConfirm={handleConfirm}
-				onCancel={handleCancel}
+		<div className="filters">
+			<violet-segmented-control
+				ref={statusRef}
+				className="filter-status"
+				label="Show"
+				value={state.filter.status}
+			>
+				<violet-segment value="all">All</violet-segment>
+				<violet-segment value="pending">Open</violet-segment>
+				<violet-segment value="completed">Done</violet-segment>
+			</violet-segmented-control>
+			<violet-select
+				ref={priorityRef}
+				className="filter-priority"
+				label="Priority"
+				value={state.filter.priority}
+			>
+				<violet-option value="all">Any</violet-option>
+				<violet-option value="high">High</violet-option>
+				<violet-option value="medium">Medium</violet-option>
+				<violet-option value="low">Low</violet-option>
+			</violet-select>
+			<violet-text-field
+				ref={searchRef}
+				className="filter-search"
+				label="Search"
+				type="search"
+				value={state.filter.search}
 			/>
-
-			<header>
-				<h1>
-					AFD Todo <span className="badge">React</span>
-				</h1>
-				<p className="subtitle">Agent-First Development Example</p>
-				<div className="connection-status">
-					<span className={`status-dot ${connected ? 'connected' : ''}`}></span>
-					<span>{connected ? 'Connected to todo-app' : 'Disconnected'}</span>
-				</div>
-			</header>
-
-			<main>
-				<TodoStats stats={stats} />
-
-				{showTrustPanel && lastResult && (
-					<TrustPanel
-						result={lastResult}
-						commandName={lastCommandName}
-						onClose={() => setShowTrustPanel(false)}
-					/>
-				)}
-
-				{errorState.isVisible && (
-					<ErrorRecovery
-						isVisible={errorState.isVisible}
-						commandName={errorState.commandName}
-						errorMessage={errorState.message}
-						suggestion={errorState.suggestion}
-						onRetry={handleRetry}
-						onDismiss={handleDismissError}
-					/>
-				)}
-
-				<TodoForm onAdd={handleAddTodo} />
-
-				<div className="todo-list-card">
-					<div className="filters">
-						<button
-							type="button"
-							className={`filter-btn ${filter === 'all' ? 'active' : ''}`}
-							onClick={() => setFilter('all')}
-						>
-							All
-						</button>
-						<button
-							type="button"
-							className={`filter-btn ${filter === 'pending' ? 'active' : ''}`}
-							onClick={() => setFilter('pending')}
-						>
-							Pending
-						</button>
-						<button
-							type="button"
-							className={`filter-btn ${filter === 'completed' ? 'active' : ''}`}
-							onClick={() => setFilter('completed')}
-						>
-							Completed
-						</button>
-						{stats && stats.completed > 0 && (
-							<button type="button" className="clear-btn" onClick={handleClearCompleted}>
-								Clear Completed
-							</button>
-						)}
-					</div>
-
-					{/* Batch controls */}
-					{filteredTodos.length > 0 && (
-						<div className="batch-controls">
-							<label className="select-all-label">
-								<input
-									type="checkbox"
-									checked={selectedIds.size === filteredTodos.length && filteredTodos.length > 0}
-									onChange={toggleSelectAll}
-								/>
-								<span>
-									Select All ({selectedIds.size}/{filteredTodos.length})
-								</span>
-							</label>
-							{selectedIds.size > 0 && (
-								<div className="batch-actions">
-									<button type="button" className="batch-btn toggle" onClick={handleToggleSelected}>
-										Toggle Selected
-									</button>
-									<button type="button" className="batch-btn delete" onClick={handleDeleteSelected}>
-										Delete Selected
-									</button>
-								</div>
-							)}
-						</div>
-					)}
-
-					{loading && <div className="loading">Loading todos...</div>}
-					{error && <div className="error">{error}</div>}
-
-					<div className="todo-list">
-						{filteredTodos.length === 0 && !loading ? (
-							<p className="empty-state">No todos yet. Add one above!</p>
-						) : (
-							filteredTodos.map((todo) => (
-								<TodoItem
-									key={todo.id}
-									todo={todo}
-									onToggle={handleToggleTodo}
-									onDelete={handleDeleteTodo}
-									onEdit={handleEditTodo}
-									selected={selectedIds.has(todo.id)}
-									onSelect={toggleSelection}
-									showSelect={true}
-								/>
-							))
-						)}
-					</div>
-				</div>
-
-				<CommandLog entries={logEntries} />
-			</main>
-
-			<footer>
-				<p>
-					Built with{' '}
-					<a href="https://github.com/lushly-dev/afd" target="_blank" rel="noopener noreferrer">
-						Agent-First Development
-					</a>
-					. Same commands work via CLI, MCP, and this UI.
-				</p>
-			</footer>
+			<violet-segmented-control
+				ref={listRef}
+				className="filter-list"
+				label="List"
+				value={state.showing}
+			>
+				<violet-segment value="live">Todos</violet-segment>
+				<violet-segment value="deleted">Deleted</violet-segment>
+			</violet-segmented-control>
 		</div>
 	);
-};
+}
 
-export default App;
+function TodoRow({
+	todo,
+	showing,
+	session,
+	afterRemoving,
+}: {
+	todo: Todo;
+	showing: SessionState['showing'];
+	session: TodoSession;
+	afterRemoving: (change: Promise<unknown>) => Promise<void>;
+}) {
+	const checkboxRef = useElementEvents({
+		change: async (event) => {
+			const result = await session.toggle(todo.id);
+			// A failed toggle leaves the list as it was: put the box back, since the prop did not change
+			if (!result.success) (event.target as HTMLInputElement).checked = todo.completed;
+		},
+	});
+	return (
+		<li className="todo" data-id={todo.id} data-completed={todo.completed ? '' : undefined}>
+			{showing === 'live' ? (
+				<violet-checkbox ref={checkboxRef} className="todo-done" checked={todo.completed}>
+					{todo.title}
+				</violet-checkbox>
+			) : (
+				<span className="todo-title">{todo.title}</span>
+			)}
+			<violet-badge className="todo-priority" color={PRIORITY_COLOR[todo.priority]} size="sm">
+				{todo.priority}
+			</violet-badge>
+			{showing === 'live' ? (
+				<violet-button
+					className="todo-delete"
+					appearance="quiet"
+					onClick={() => afterRemoving(session.remove(todo.id))}
+				>
+					Delete<span className="visually-hidden"> {todo.title}</span>
+				</violet-button>
+			) : (
+				<>
+					<span className="todo-deleted-at">
+						Deleted {todo.deletedAt ? time(todo.deletedAt) : ''}
+					</span>
+					<violet-button
+						className="todo-restore"
+						appearance="secondary"
+						onClick={() => afterRemoving(session.restore([todo.id]))}
+					>
+						Restore<span className="visually-hidden"> {todo.title}</span>
+					</violet-button>
+				</>
+			)}
+		</li>
+	);
+}
+
+function HistoryRow({ entry, session }: { entry: HistoryEntry; session: TodoSession }) {
+	return (
+		<li className="history-entry" data-seq={entry.seq}>
+			<span className="history-what">
+				<code>{entry.command}</code> by {entry.actor.kind}
+			</span>
+			<span className="history-when">{time(entry.at)}</span>
+			{entry.undoCommand !== undefined && (
+				<violet-button
+					className="history-undo"
+					appearance="quiet"
+					onClick={() => session.undoEntry(entry)}
+				>
+					Undo<span className="visually-hidden"> {entry.command}</span>
+				</violet-button>
+			)}
+			{entry.superseded === true && <span className="history-superseded">changed since</span>}
+		</li>
+	);
+}
+
+function LogCard({ record }: { record: CallRecord }) {
+	return (
+		<violet-tool-call-card
+			className="log-entry"
+			tool-name={record.command}
+			state={callState(record)}
+		>
+			<span slot="summary">
+				{record.result === undefined
+					? 'Running…'
+					: `${record.result.success ? 'Succeeded' : `Failed: ${record.result.error?.code ?? ''}`} in ${record.durationMs ?? 0} ms`}
+			</span>
+			<pre slot="input">{json(record.input)}</pre>
+			<pre slot="output">{record.result ? json(record.result) : ''}</pre>
+		</violet-tool-call-card>
+	);
+}
+
+function Trust({ state }: { state: SessionState }) {
+	const trust = state.trust;
+	return (
+		<section className="trust" aria-labelledby="trust-heading">
+			<h2 id="trust-heading">Last result</h2>
+			{trust ? (
+				<>
+					<p className="trust-command">
+						<code>{trust.command}</code> {trust.success ? 'succeeded' : 'failed'}{' '}
+						{trust.durationMs !== undefined ? `in ${trust.durationMs} ms` : ''}
+					</p>
+					{trust.confidencePercent !== undefined && (
+						<violet-progress
+							className="trust-confidence"
+							label="Confidence"
+							value={String(trust.confidencePercent)}
+						/>
+					)}
+					{trust.reasoning !== undefined && <p className="trust-reasoning">{trust.reasoning}</p>}
+					{trust.warnings.map((warning) => (
+						<violet-alert
+							key={`${warning.code}:${warning.message}`}
+							className="trust-warning"
+							tone="warning"
+						>
+							<span slot="title">{warning.code}</span>
+							{warning.message}
+						</violet-alert>
+					))}
+					{trust.sources.map((source) => (
+						<violet-source-citation
+							key={`${source.title}:${source.href ?? ''}`}
+							source-title={source.title}
+							href={source.href ?? ''}
+						/>
+					))}
+					{trust.alternatives.length > 0 && (
+						<p className="trust-alternatives">
+							{`${trust.alternatives.length} other ways to see this: `}
+							{trust.alternatives.map((each) => each.reason).join('; ')}
+						</p>
+					)}
+					{trust.undo !== undefined && (
+						<p className="trust-undo">
+							Undo with <code>{trust.undo.command}</code>{' '}
+							<code>{JSON.stringify(trust.undo.args)}</code>
+						</p>
+					)}
+				</>
+			) : (
+				<p>Run a command to see its confidence, reasoning and undo.</p>
+			)}
+		</section>
+	);
+}
+
+function UndoSnackbar({ session, state }: PartProps) {
+	const ref = useElementEvents({ dismiss: () => session.dismissUndo() });
+	return (
+		<violet-snackbar ref={ref} className="undo-offer" dismissible open={state.undo !== undefined}>
+			{state.undo?.message}
+			<violet-button slot="action" appearance="quiet" onClick={() => session.undo()}>
+				Undo
+			</violet-button>
+		</violet-snackbar>
+	);
+}
+
+function ApprovalDialog({ session, state }: PartProps) {
+	// Escape cannot dismiss a question the server is waiting on: only Approve or Deny answer it
+	const dialogRef = useElementEvents({ 'request-close': (event) => event.preventDefault() });
+	const cardRef = useElementEvents({
+		approve: () => session.approve(),
+		deny: () => session.deny(),
+	});
+	return (
+		<violet-dialog
+			ref={dialogRef}
+			className="approval"
+			type="alert"
+			no-close-button
+			open={state.approval !== undefined}
+		>
+			<span slot="title">
+				{state.approval?.kind === 'approval' ? 'Approve this change?' : 'Confirm this change?'}
+			</span>
+			<violet-approval-card ref={cardRef} className="approval-card">
+				<p slot="summary" className="approval-message">
+					{state.approval?.message}
+				</p>
+				<span slot="detail">
+					The server holds this until a person answers. Nothing is removed if you deny it.
+				</span>
+			</violet-approval-card>
+		</violet-dialog>
+	);
+}

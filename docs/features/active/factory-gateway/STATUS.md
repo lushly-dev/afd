@@ -48,8 +48,14 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   was untested. Its upload route (botcore change 4) must read commits and authors from the bundle,
   never from the caller. Open: a session or cell can overwrite another branch's queue ref, since
   the fast-forward rule covers only `refs/heads/`.
-- **Next, in order:** botcore's changes 4 and 7 (the HTTP surface with tokens and
-  uploads, the client CLI); change 3 redesigned so the host is the only validator (held on
+- **In review:** botcore's changes 4 and 7, the HTTP surface with per-caller tokens and its
+  client ([#1267](https://github.com/lushly-dev/afd/pull/1267)): two security passes (Opus 5.5)
+  found two blockers (concurrent token commands could lose a revocation; unbounded call
+  bodies) and five improvements, all fixed. Then the gateway as a server (`factory-gateway-admin
+  serve`, `token issue|list|revoke`; `factory-gateway` for callers) with bundle uploads read by
+  git into a bare mirror per repository; `serve` runs only against a fake GitHub until G0's App
+  adapter.
+- **Next, in order:** change 3 redesigned so the host is the only validator (held on
   `lush/botcore-command-tools`); the App-backed adapter (needs G0's App); the lane on `random`
   with its health in `gateway-status`; the factory plugin on the gateway (after
   `feat/factory-lane-loop` lands); Lushly's side ([lushly#2392](https://github.com/lushly-dev/lushly/issues/2392));

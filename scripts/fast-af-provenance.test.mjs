@@ -116,7 +116,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// repairs (#1191, merged in #1194) reached the data grid, its cell templates and its spec, and
 	// the token interface (#1190) adapted the files that hard-coded a typeface or read the
 	// generated theme, the Specimen preview and the grid's sizing spec, and the bounded bug fixes
-	// (#1158, #1160-#1167) adapted 13 component and spec files, and the cross-root ARIA references
-	// (#1159) six more: 615 together.
-	assert(checked > 614, `only ${checked} unchanged upstream files`);
+	// (#1158, #1160-#1167) adapted 13 component and spec files, the cross-root ARIA references
+	// (#1159) six more, and the preview prerelease (#1192) changed fast-element's README install
+	// line: 614 together.
+	assert(checked > 613, `only ${checked} unchanged upstream files`);
 });
