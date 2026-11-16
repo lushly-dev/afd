@@ -16,14 +16,18 @@
  *   UMBEL_FIRST_PARTY            the binary; otherwise the newest of release then debug under
  *                                $CARGO_TARGET_DIR and endpoints/umbel/target
  *   UMBEL_COMPONENTS_WORKSPACE   the Umbel workspace; default `.umbel/components` in this checkout
+ *   UMBEL_COMPONENTS_LIBRARIES   more libraries to serve beside violet-elements, as directories
+ *                                separated by the platform's path delimiter. Each holds a
+ *                                `specimen.config.json` with a `pack` section and its committed pack,
+ *                                and is exported after violet-elements (Component Briefs step D3)
  *
- * Stdout carries only the server's JSON-RPC; everything this script says goes to stderr. When the
+ * Stdout carries only the server's JSON-RPC; everything this script says goes to stderr. When an
  * export fails (a record no longer matches the manifest or guides, or the CLI is not built), it
  * does not start: a brief from a stale export would be wrong exactly where the code changed.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
-import { dirname, join, resolve } from 'node:path';
+import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const REPO_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -67,8 +71,35 @@ id = "library"
 plugin = "components"
 version = "1.0.0"
 title = "Component libraries"
-description = "FAST-AF's violet-elements, exported from this checkout by scripts/umbel-components.mjs."
+description = "FAST-AF's violet-elements and any UMBEL_COMPONENTS_LIBRARIES, exported by scripts/umbel-components.mjs."
 `;
+
+/** The library directories to export, violet-elements first, then UMBEL_COMPONENTS_LIBRARIES'. */
+export function libraryDirectories(environment = process.env, root = REPO_ROOT) {
+	const more = (environment.UMBEL_COMPONENTS_LIBRARIES ?? '')
+		.split(delimiter)
+		.map((entry) => entry.trim())
+		.filter(Boolean)
+		.map((entry) => resolve(entry));
+	return [...new Set([join(root, LIBRARY), ...more])];
+}
+
+/**
+ * Removes the libraries in the override that this start did not export. Each export copies the
+ * libraries already there into its result, so a library dropped from UMBEL_COMPONENTS_LIBRARIES
+ * would otherwise be served from its last export for good.
+ */
+export function pruneLibraries(override, keep) {
+	const removed = [];
+	const data = join(override, 'data');
+	for (const name of existsSync(data) ? readdirSync(data) : []) {
+		if (keep.includes(name)) continue;
+		rmSync(join(data, name), { recursive: true, force: true });
+		rmSync(join(override, 'rules', `${name}.json`), { force: true });
+		removed.push(name);
+	}
+	return removed;
+}
 
 /** Where the override lives in a workspace. */
 export const overrideDirectory = (workspace) =>
@@ -153,8 +184,8 @@ export function withLock(lock, work, { waitMs = 30_000, staleMs = 60_000 } = {})
 	}
 }
 
-/** Runs `specimen pack-export` into the override; returns its parsed CommandResult. */
-export function exportPack(override, root = REPO_ROOT) {
+/** Runs `specimen pack-export` from `library` into the override; returns its parsed CommandResult. */
+export function exportPack(override, root = REPO_ROOT, library = join(root, LIBRARY)) {
 	const cli = join(root, SPECIMEN_CLI);
 	if (!existsSync(cli))
 		return {
@@ -166,8 +197,18 @@ export function exportPack(override, root = REPO_ROOT) {
 			},
 		};
 	const started = Date.now();
+	if (!existsSync(join(library, 'specimen.config.json')))
+		return {
+			success: false,
+			error: {
+				code: 'LIBRARY_NOT_FOUND',
+				message: `${library} has no specimen.config.json`,
+				suggestion:
+					'Check UMBEL_COMPONENTS_LIBRARIES: each entry is a library directory whose specimen.config.json has a pack section.',
+			},
+		};
 	const run = spawnSync(process.execPath, [cli, 'pack-export', override], {
-		cwd: join(root, LIBRARY),
+		cwd: library,
 		encoding: 'utf8',
 	});
 	try {
@@ -178,7 +219,7 @@ export function exportPack(override, root = REPO_ROOT) {
 			error: {
 				code: 'PACK_EXPORT_FAILED',
 				message: (run.stderr || run.stdout || `exit ${run.status}`).trim().slice(0, 2000),
-				suggestion: 'Run the export by hand from the library to see the whole answer.',
+				suggestion: `Run \`node ${cli} pack-export <dir>\` by hand from ${library} to see the whole answer.`,
 			},
 		};
 	}
@@ -193,7 +234,19 @@ function prepare() {
 		process.env.UMBEL_COMPONENTS_WORKSPACE ?? join(REPO_ROOT, '.umbel', 'components')
 	);
 	const override = prepareWorkspace(workspace);
-	const exported = withLock(join(workspace, 'export.lock'), () => exportPack(override));
+	const exported = withLock(join(workspace, 'export.lock'), () => {
+		const results = [];
+		for (const library of libraryDirectories()) {
+			const result = exportPack(override, REPO_ROOT, library);
+			if (!result.success) return { ...result, library };
+			results.push(result);
+		}
+		const removed = pruneLibraries(
+			override,
+			results.map((result) => result.data.library)
+		);
+		return { success: true, results, removed };
+	});
 	return { workspace, override, exported };
 }
 
@@ -212,7 +265,9 @@ async function main() {
 	}
 	const { workspace, override, exported } = prepare();
 	if (!exported.success) {
-		say(`the export failed, so nothing is served: ${JSON.stringify(exported.error)}`);
+		say(
+			`the export${exported.library ? ` of ${exported.library}` : ''} failed, so nothing is served: ${JSON.stringify(exported.error)}`
+		);
 		process.exit(1);
 	}
 	if (mode === 'prepare') {
@@ -222,10 +277,13 @@ async function main() {
 					workspace,
 					override,
 					binary,
-					library: exported.data?.library,
-					digest: exported.data?.digest,
-					files: exported.data?.files?.length,
-					exportMs: exported.elapsedMs,
+					libraries: exported.results.map(({ data, elapsedMs }) => ({
+						library: data.library,
+						digest: data.digest,
+						files: data.files.length,
+						exportMs: elapsedMs,
+					})),
+					removed: exported.removed,
 				},
 				null,
 				'\t'
@@ -233,9 +291,10 @@ async function main() {
 		);
 		return;
 	}
-	say(
-		`exported ${exported.data.library} (${exported.data.digest}) in ${exported.elapsedMs} ms; serving ${binary}`
-	);
+	const libraries = exported.results
+		.map(({ data, elapsedMs }) => `${data.library} (${data.digest}) in ${elapsedMs} ms`)
+		.join(', ');
+	say(`exported ${libraries}; serving ${binary}`);
 	const child = spawn(binary, ['serve', '--stdio', '--workspace', workspace], {
 		stdio: 'inherit',
 	});

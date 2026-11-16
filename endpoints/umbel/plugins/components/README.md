@@ -86,6 +86,13 @@ only after a person approves it in Claude Code; for Codex, add the same command 
 `node scripts/umbel-components.mjs prepare` exports and prints what would be served, without
 serving.
 
+`UMBEL_COMPONENTS_LIBRARIES` serves more libraries beside `violet-elements`: directories separated
+by the platform's path delimiter (`:`, or `;` on Windows), each holding a `specimen.config.json`
+with a `pack` section and its committed pack, such as a Lushly checkout. Each is exported after
+`violet-elements` with this checkout's Specimen, so its pack must be in the format this checkout
+reads. A library dropped from the list is removed from the override on the next start, and if any
+export fails nothing is served.
+
 Claude Code also runs a hook from `.claude/settings.json` (`scripts/components-brief-hook.mjs`):
 the first Write or Edit in a session whose new text uses a `violet-*` tag, outside `violet-elements`
 itself, is refused once, with a reason naming `components-brief` and the tags, so the agent briefs
