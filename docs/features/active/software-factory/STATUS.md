@@ -12,7 +12,8 @@ agent co-author trailer in checkpoint commit `1ba67bb3`, which the current commi
 refuses. The checkpoint and original delivery history remain preserved. The same reviewed
 changes are carried by the owner-authored `lush/factory-lane-delivery-1280` branch over
 `origin/main` at `c3884d85` (the intervening main change concerns Specimen's Windows host).
-The replacement draft is linked from #1294; no lane-loop PR has merged.
+The replacement is draft [PR #1295](https://github.com/lushly-dev/afd/pull/1295); #1294 is
+closed as superseded. No lane-loop PR has merged.
 
 The recovery bundle was verified and imported at `94ad8bb7` into
 `lush/factory-lane-air-handoff`. This branch now includes `origin/main` at
