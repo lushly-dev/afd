@@ -31,10 +31,14 @@ dev = [
     "pytest-asyncio>=0.23.0",
     "ruff>=0.4.0",
     "lushly-botcore[mcp]",
+    "httpx>=0.27.0",
+    "pyjwt[crypto]>=2.8.0",
 ]
 # Serving the factory gateway over HTTP (Starlette and Uvicorn, through botcore's mcp extra).
 gateway = [
     "lushly-botcore[mcp]",
+    "httpx>=0.27.0",
+    "pyjwt[crypto]>=2.8.0",
 ]
 
 [project.scripts]

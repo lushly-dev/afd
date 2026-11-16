@@ -360,7 +360,10 @@ directory; `repo` selects the GitHub repository and its mirror.
 Names follow `domain-action`; inputs are snake_case, as in the factory. Every call takes `repo`
 (refused with `REPO_NOT_ALLOWED` outside the configured repositories), and every refusal carries a
 `suggestion`. Every GitHub command can fail with `GITHUB_UNAVAILABLE` (`retryable: true`); retrying
-the same call is safe. Effects use botcore's names: reads are `inspect`, GitHub writes `service`,
+the same call is safe. A refusal GitHub itself gives (a permission, a rule, a state the gateway did
+not foresee) is `GITHUB_REFUSED` with GitHub's message, and repeating the call will not help. A
+`branch-push` whose ref moved between the gateway's read and its push is `HEAD_MOVED`: the push is
+made with git's `--force-with-lease`, so it never overwrites what another writer put there. Effects use botcore's names: reads are `inspect`, GitHub writes `service`,
 writes to the gateway's own state `history-write`. Routes: C cell, S session, F foreman, L lane,
 O owner.
 

@@ -5,7 +5,8 @@ DOCS = """# Factory gateway
 The factory's one door to GitHub. Every write is made by the GitHub App's bot and journaled
 with the caller your route's token names. Never fall back to `gh` for a write: an unreachable
 gateway is GATEWAY_UNAVAILABLE, GitHub's own outage GITHUB_UNAVAILABLE, and every write is
-safe to retry with the same input.
+safe to retry with the same input. GITHUB_REFUSED carries GitHub's own refusal: fix what it
+names rather than retrying.
 
 ## Calling it
 

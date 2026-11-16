@@ -334,6 +334,12 @@ export async function syncProfiles(root, { write = false, onListing } = {}) {
 		if (profile.mirror) {
 			const mirror = path.join(root, relativePath(profile.mirror));
 			await inside(root, path.posix.dirname(profile.mirror));
+			// Git checks a link out as a file holding its target when core.symlinks is false, as
+			// Git for Windows sets it by default.
+			if ((await lstat(mirror)).isFile())
+				throw new Error(
+					`Invalid skill mirror: ${profile.mirror} is a file, not a symbolic link, because Git checked it out with core.symlinks=false. Recreate the link (Git Bash: rm ${profile.mirror} && (cd ${path.posix.dirname(profile.mirror)} && MSYS=winsymlinks:nativestrict ln -s ${await readFile(mirror, 'utf8')} ${path.posix.basename(profile.mirror)})), or set git config core.symlinks true with Windows Developer Mode on and check it out again`
+				);
 			if (
 				!(await lstat(mirror)).isSymbolicLink() ||
 				path.resolve(path.dirname(mirror), await readlink(mirror)) !== destinationRoot

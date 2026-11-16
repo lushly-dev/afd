@@ -383,7 +383,7 @@ def test_serve_refuses_without_a_github_and_beyond_the_tailnet(tmp_path):
     runner = CliRunner()
     base = ["serve", "--data", str(tmp_path / "d"), "--config", str(config)]
     no_github = runner.invoke(admin_cli, [*base, "--address", "127.0.0.1"])
-    assert no_github.exit_code == 2 and "G0" in no_github.output
+    assert no_github.exit_code == 2 and "githubApp" in no_github.output
     github = tmp_path / "github.json"
     github.write_text(json.dumps({"repo": REPO}))
     lan = runner.invoke(
@@ -408,3 +408,25 @@ def test_an_expired_large_upload_leaves_no_pack_behind(gateway, tmp_path):
     small, _ = make_bundle(other, [OWNER])  # An unrelated upload; any upload runs expiry first.
     assert upload(client, tokens["session"], small, route="session")["success"]
     assert stored() < held
+
+
+def test_a_ref_that_moves_between_the_read_and_the_push_is_not_overwritten(
+    gateway, tmp_path, monkeypatch
+):
+    client, tokens, _, _, github_file = gateway
+    data, head = make_bundle(tmp_path, [OWNER])
+    queue = "refs/factory/queue/fix-x"
+    real_ref = FakeGitHub.ref
+
+    def ref_then_someone_pushes(self, repo, ref):
+        current = real_ref(self, repo, ref)
+        if ref == queue:
+            self._data["refs"][ref] = "f" * 40  # Another writer, after the gateway's read.
+        return current
+
+    monkeypatch.setattr(FakeGitHub, "ref", ref_then_someone_pushes)
+    result = lane_push(client, tokens, data, head, ref=queue)
+    assert result["error"]["code"] == "HEAD_MOVED", result
+    assert result["error"]["details"]["head"] == "f" * 40
+    world = json.loads(github_file.read_text(encoding="utf-8"))
+    assert world["refs"].get(queue) != head
