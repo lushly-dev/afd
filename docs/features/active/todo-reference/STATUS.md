@@ -29,10 +29,9 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 - **Done:** phase 4, DirectClient: the main commands through the tool surface with `allow` in
   [#1281](https://github.com/lushly-dev/afd/pull/1281), and the page with approvals and view state in
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
-- **In progress:** phase 5. The Python pull request is on branch
-  `t3/todo-reference-phase5-python`, not yet merged: Python at parity with TypeScript, and both
-  backends on one SQLite database by default (D4). `pnpm verify` passed on `d5c93a57`; the review
-  fixes since are in progress. Rust and C++ are not started.
+- **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
+  TypeScript, and both backends on one SQLite database by default (D4). Rust and C++ are not
+  started.
 
 ## Plan
 
@@ -42,7 +41,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python on branch `t3/todo-reference-phase5-python`, not yet merged; Rust and C++ not started | See [phase 5](#phase-5-the-other-languages) | The Python pull request's `pnpm verify` and review; then Rust, and C++ after [#341](https://github.com/lushly-dev/afd/issues/341) |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust and C++ not started | See [phase 5](#phase-5-the-other-languages) | Rust, and C++ after [#341](https://github.com/lushly-dev/afd/issues/341) |
 
 ## Findings
 
@@ -306,7 +305,7 @@ Merged in [#1303](https://github.com/lushly-dev/afd/pull/1303) on 2026-11-15:
 
 ### Python
 
-On branch `t3/todo-reference-phase5-python`, not yet merged:
+Merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16:
 
 - **Commands at parity (D2, D3).** Every command declares TypeScript's `title`, `version`,
   `examples`, an `output_schema` (Pydantic models in `models.py`), `undoable` and, on every
@@ -400,7 +399,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 2 CI review | `umbel.yml` runs AFD's CLI against Umbel but starts on neither `packages/client/**` nor, in its `Affected units` gate, the CLI or the example, so a client change does not run it. The gate applies only to the host jobs; the conformance job runs on every trigger, so the fix is the triggers: the CLI's own packages (`client`, `core`, `server`, `testing`) now start it | Fixed, 2026-11-15, in the Umbel trigger pull request |
 | 2026-11-15 | Phase 4 page | `afd-testing`'s `src/runner/todo-example.test.ts` still expected the fixture to clear first, which #1260 turned off (`clearFirst: false`); CI never ran it, because it reads the todo example's commands and scenarios by path and the affected-units scope did not know | Fixed in [#1297](https://github.com/lushly-dev/afd/pull/1297): the expectation, and `EXTRA_INPUTS` entries in `scripts/affected/scope.mjs`; #1303 marks them `ownTests`, a new option, so only `afd-testing`'s own tests run |
 | 2026-11-15 | Phase 4 review | DirectClient's `COMMAND_NOT_ALLOWED` suggestion tells a model to "Call one of the commands returned by listCommandNames()", a JavaScript method a model cannot call (`packages/client`) | Open |
-| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed on branch `t3/todo-reference-phase5-python` (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
+| 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed in #1319 (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
 | 2026-11-16 | Phase 5 Python | `afd.testing` cannot be imported with only the `testing` extra: `afd/testing/__init__.py` imports `fixtures.py`, which imports `afd.transports` and so `httpx` from the `client` extra (`python/pyproject.toml`). The example lists both extras | Open |
 | 2026-11-16 | Phase 5 Python | `afd.testing`'s scenario evaluator compares an expected array of objects whole (`_deep_equal` in `python/src/afd/testing/scenarios/evaluator.py`), where TypeScript's matches it item by item with matchers (`evaluateArrayAssertions` in `packages/testing/src/runner/evaluator.ts`), so job 9 fails against Python; its test is a strict `xfail` | Open |
 | 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
@@ -422,4 +421,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 3 React | The React page on the same elements and shared session, one browser suite for both; phase 3 done; in #1276 |
 | 2026-11-15 | Phase 4 copilot | todo-directclient on the main commands, tools from `listTools()`, `allow` and job 10, `/mcp` on the same server; in #1281 |
 | 2026-11-15 | Phase 4 page | The copilot page on the FAST-AF element and violet conversation elements, streamed turns, approvals through `onApprovalNeeded`, the page-hosted view (job 6); the vanilla page and `/execute` removed; in #1303 |
-| 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; on branch `t3/todo-reference-phase5-python`, not yet merged |
+| 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; in #1319 |
