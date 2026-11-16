@@ -636,6 +636,75 @@ fn chosen_sections(input: &Value) -> Chosen {
     }
 }
 
+/// The most bare names whose matches a refusal looks for.
+const MAX_BARE_NAMES: usize = 8;
+
+/// A name that would be a tag but for its missing hyphen, such as `breadcrumb`.
+fn is_bare_name(name: &str) -> bool {
+    let bytes = name.as_bytes();
+    !bytes.is_empty()
+        && bytes.len() < 100
+        && bytes[0].is_ascii_lowercase()
+        && bytes
+            .iter()
+            .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || *b == b'.' || *b == b'_')
+}
+
+/// When `tags` were refused only for names without a hyphen, the refusal that names the served tags
+/// they most likely meant (amendment A26); `None` for any other refusal, or with no pack to read.
+fn bare_names(input: &Value, cx: &mut Cx) -> Option<Outcome> {
+    let tags: Vec<&str> = input
+        .get("tags")?
+        .as_array()?
+        .iter()
+        .map(Value::as_str)
+        .collect::<Option<_>>()?;
+    let bare: Vec<&str> = tags
+        .iter()
+        .copied()
+        .filter(|tag| !crate::pack::patterns::TAG.accepts(tag))
+        .collect();
+    if bare.is_empty() || !bare.iter().all(|name| is_bare_name(name)) {
+        return None;
+    }
+    if input
+        .get("library")
+        .and_then(Value::as_str)
+        .is_some_and(|id| !crate::pack::patterns::LIBRARY.accepts(id))
+    {
+        return None;
+    }
+    let libraries = pack::read(cx, input.get("library").and_then(Value::as_str)).ok()?;
+    let mut matches: Vec<String> = Vec::new();
+    for name in bare.iter().take(MAX_BARE_NAMES) {
+        let mut found: Vec<String> = libraries
+            .iter()
+            .flat_map(|library| library.catalog.components.iter())
+            .map(|component| component.tag.as_str())
+            .filter(|tag| tag.ends_with(&format!("-{name}")))
+            .map(str::to_owned)
+            .collect();
+        if found.is_empty() {
+            for library in &libraries {
+                found.extend(select::nearest(
+                    &format!("{}{name}", library.catalog.prefix),
+                    library.catalog.components.iter().map(|c| c.tag.as_str()),
+                ));
+            }
+        }
+        for tag in found {
+            if !matches.contains(&tag) {
+                matches.push(tag);
+            }
+        }
+    }
+    let prefixes: Vec<String> = libraries
+        .iter()
+        .map(|library| library.catalog.prefix.clone())
+        .collect();
+    Some(fail::bare_names(&matches, &prefixes))
+}
+
 /// The requested tags: `tags`, then each name `source` asks for not already listed (section 6.2).
 fn requested(
     input: &Value,
@@ -671,7 +740,7 @@ fn requested(
 
 pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     if let Err(outcome) = input::check_brief(input) {
-        return outcome;
+        return bare_names(input, cx).unwrap_or(outcome);
     }
     let excluded = match crate::consumer::load(input, cx) {
         Ok(excluded) => excluded,
