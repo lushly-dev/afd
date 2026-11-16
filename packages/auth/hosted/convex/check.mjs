@@ -1,9 +1,14 @@
-import { spawn, spawnSync } from 'node:child_process';
+import { spawn } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, symlink, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
+import {
+	spawnTool,
+	toolCommand,
+	windowsCommandLine,
+} from '../../../../scripts/release/exec-tool.mjs';
 import { buildFixture } from './build.mjs';
 import { assertPinnedConvexFixtureDependency } from './cli-preflight.mjs';
 import { withDeadline } from './lib.mjs';
@@ -15,7 +20,11 @@ const authDir = join(fixtureDir, '..', '..');
 
 function run(command, args, cwd = authDir, stdio = 'inherit') {
 	return new Promise((resolve, reject) => {
-		const child = spawn(command, args, { cwd, stdio, shell: false });
+		// Windows installs node_modules/.bin commands as .cmd shims, which only cmd.exe starts.
+		const { file, shell } = toolCommand(command);
+		const child = shell
+			? spawn(windowsCommandLine(file, args), { cwd, stdio, shell: true })
+			: spawn(file, args, { cwd, stdio, shell: false });
 		let killTimer;
 		const timer = setTimeout(() => {
 			child.kill('SIGTERM');
@@ -57,7 +66,7 @@ async function verifyConvexDependencyPreflight(preflightDir) {
 	environment.HOME = preflightDir;
 	environment.USERPROFILE = preflightDir;
 	environment.XDG_CONFIG_HOME = preflightDir;
-	const result = spawnSync(
+	const result = spawnTool(
 		join(authDir, 'node_modules', '.bin', 'convex'),
 		['codegen', '--dry-run', '--typecheck', 'disable'],
 		{

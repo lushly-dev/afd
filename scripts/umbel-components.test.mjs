@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { join, resolve } from 'node:path';
+import { delimiter, join, resolve } from 'node:path';
 import test from 'node:test';
 import {
 	BINARY,
@@ -10,9 +10,12 @@ import {
 	CONSUMERS_TOML,
 	exportPack,
 	findBinary,
+	LIBRARY,
+	libraryDirectories,
 	overrideDirectory,
 	PACK_TOML,
 	prepareWorkspace,
+	pruneLibraries,
 	UMBEL_TOML,
 	withLock,
 } from './umbel-components.mjs';
@@ -114,4 +117,41 @@ test('the repository deploys Loam exclusions outside the library pack', (t) => {
 		'violet-elements/theme.install',
 	]);
 	assert.equal(existsSync(join(override, 'data', 'consumers.json')), false);
+});
+
+test('violet-elements is exported first, then each listed library once', () => {
+	const root = resolve('/checkout');
+	assert.deepEqual(libraryDirectories({}, root), [join(root, LIBRARY)]);
+	assert.deepEqual(
+		libraryDirectories(
+			{ UMBEL_COMPONENTS_LIBRARIES: ['/lushly', '', ' /other ', '/lushly'].join(delimiter) },
+			root
+		),
+		[join(root, LIBRARY), resolve('/lushly'), resolve('/other')]
+	);
+});
+
+test('a listed directory that is not a library fails with a suggestion', (t) => {
+	const root = scratch(t);
+	const cli = join(root, 'endpoints/specimen-cli/dist/bin.js');
+	mkdirSync(join(cli, '..'), { recursive: true });
+	writeFileSync(cli, '');
+	const result = exportPack(join(root, 'override'), root, join(root, 'not-a-library'));
+	assert.equal(result.error.code, 'LIBRARY_NOT_FOUND');
+	assert.match(result.error.suggestion, /UMBEL_COMPONENTS_LIBRARIES/);
+});
+
+test('a library this start did not export is removed from the override', (t) => {
+	const override = scratch(t);
+	for (const name of ['violet-elements', 'lushly-web']) {
+		mkdirSync(join(override, 'data', name, 'components'), { recursive: true });
+		mkdirSync(join(override, 'rules'), { recursive: true });
+		writeFileSync(join(override, 'rules', `${name}.json`), '{}');
+	}
+	assert.deepEqual(pruneLibraries(override, ['violet-elements']), ['lushly-web']);
+	assert.equal(existsSync(join(override, 'data', 'lushly-web')), false);
+	assert.equal(existsSync(join(override, 'rules', 'lushly-web.json')), false);
+	assert.equal(existsSync(join(override, 'data', 'violet-elements')), true);
+	assert.equal(existsSync(join(override, 'rules', 'violet-elements.json')), true);
+	assert.deepEqual(pruneLibraries(override, ['violet-elements']), []);
 });

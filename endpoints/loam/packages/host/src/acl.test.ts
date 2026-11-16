@@ -12,8 +12,10 @@ import {
 	failedReport,
 	parseAclReport,
 	readAcls,
+	restrictAcls,
 	SYSTEM_SID,
 } from './acl.js';
+import { HostError } from './errors.js';
 import { loosen, temporaryDirectory, USERS_SID } from './test-support.js';
 
 const OWNER = 'S-1-5-21-1000-2000-3000-1001';
@@ -70,6 +72,15 @@ describe('the Windows ACL check (3.2, HOST_SECRET_PERMISSIONS)', () => {
 				aces: [allow(USERS_SID, WRITE_ONLY), allow(EVERYONE, GENERIC_WRITE)],
 			})
 		).toEqual([USERS_SID, EVERYONE]);
+	});
+
+	it.each([
+		['file deletion', 0x10000, FILE],
+		['deleting directory entries', 0x40, DIRECTORY],
+	] as const)('refuses %s granted to another account', (_label, rights, request) => {
+		expect(aclFinding(read(...PRIVATE, allow(OTHER_USER, rights)), request, OWNER)).toMatchObject({
+			code: 'HOST_SECRET_PERMISSIONS',
+		});
 	});
 
 	it('takes the owner by SID, whoever it is', () => {
@@ -179,5 +190,36 @@ describe('the Windows ACL check (3.2, HOST_SECRET_PERMISSIONS)', () => {
 			expect(second?.state === 'read' && exposedTo(second)).toEqual([USERS_SID]);
 			expect(third).toEqual({ state: 'missing' });
 			expect(fourth?.state === 'read' && exposedTo(fourth)).toEqual([USERS_SID]);
+		});
+
+	// As above: Windows' own ACL, so the test exists only there.
+	if (process.platform === 'win32')
+		it('makes a loosened directory and file private, and what is written in the directory later', async () => {
+			const root = await temporaryDirectory();
+			const directory = join(root, 'data');
+			await mkdir(directory);
+			execFileSync('icacls', [directory, '/grant', `*${USERS_SID}:(OI)(CI)(R)`], {
+				stdio: 'ignore',
+			});
+			const file = join(directory, 'secret');
+			await writeFile(file, 'x');
+			loosen(file);
+			restrictAcls([directory, file]);
+			const later = join(directory, 'later');
+			await writeFile(later, 'x');
+			const report = readAcls([directory, file, later]);
+			for (const read of report.reads) {
+				expect(read.state === 'read' && exposedTo(read)).toEqual([]);
+				// Its own ACL: no entry inherited from the directory above, which may be open.
+				expect(read.state === 'read' && read.aces.map(({ sid }) => sid).sort()).toEqual(
+					[report.user, SYSTEM_SID, ADMINISTRATORS_SID].sort()
+				);
+			}
+		});
+
+	if (process.platform === 'win32')
+		it('refuses provisioning when a requested ACL cannot be opened', async () => {
+			const root = await temporaryDirectory();
+			expect(() => restrictAcls([join(root, 'missing')])).toThrow(HostError);
 		});
 });

@@ -1,0 +1,35 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The data is invented: the `example` template (proposal, section 4.2).
+
+name: Find a token by what it is for
+description: >-
+  When I know what a value is for but not its id, I want to search the tree by words and see
+  which nodes customize each match, so that I reach the right token without reading the whole
+  tree.
+job: find-a-token
+
+steps:
+  - description: A tree document is created from the example template
+    command: document-create
+    input: { type: violet-tree, template: example, title: Example tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: Searching for "border" finds the field border and the nodes that customize it
+    command: violet-token-find
+    input: { document: "${{ steps[0].data.id }}", query: border }
+    expect:
+      success: true
+      data:
+        tokens:
+          - id: color.field.border
+            category: color
+            customizedAt: [example, example/dark, example/high-contrast]
+  - description: A search that matches nothing succeeds with no tokens, not an error
+    command: violet-token-find
+    input: { document: "${{ steps[0].data.id }}", query: elevation }
+    expect:
+      success: true
+      data:
+        tokens: { length: 0 }

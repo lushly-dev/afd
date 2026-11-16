@@ -3,13 +3,14 @@
  * deleted tables, the history's order and limit, and the clears.
  */
 
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createMcpServer } from '@lushly-dev/afd-server';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import { createTodoServerOptions } from '../server-options.js';
-import { setStore } from './index.js';
+import { DEFAULT_SEED_PATH } from './file.js';
+import { createStore, DEFAULT_SQLITE_PATH, setStore } from './index.js';
 import { TodoStore } from './memory.js';
 import { SqliteStore } from './sqlite.js';
 
@@ -221,5 +222,45 @@ describe('SqliteStore', () => {
 		const result = await mine.clearCompleted();
 		expect(result.clearedIds).toEqual([first.id]);
 		expect(await mine.getDeleted(second.id)).toBeDefined();
+	});
+
+	it('seeds a database it creates, and only that one', async () => {
+		const path = join(dir, 'seeded.db');
+		const seed = JSON.parse(readFileSync(DEFAULT_SEED_PATH, 'utf-8'));
+		const seeded = new SqliteStore(path, { seedPath: DEFAULT_SEED_PATH });
+		open.push(seeded);
+		await seeded.check();
+		expect(await seeded.list({ sortOrder: 'asc' })).toEqual(seed);
+
+		await seeded.clearAll();
+		const reopened = new SqliteStore(path, { seedPath: DEFAULT_SEED_PATH });
+		open.push(reopened);
+		await reopened.check();
+		expect(await reopened.count()).toBe(0);
+	});
+});
+
+describe('createStore', () => {
+	it('defaults to the SQLite database the Python backend also opens', () => {
+		const existed = existsSync(DEFAULT_SQLITE_PATH);
+		const chosen = createStore({});
+		try {
+			expect(chosen).toBeInstanceOf(SqliteStore);
+			expect((chosen as SqliteStore).path).toBe(DEFAULT_SQLITE_PATH);
+			expect(DEFAULT_SQLITE_PATH.endsWith(join('todo', 'data', 'todos.db'))).toBe(true);
+			// Choosing the store opens nothing: no file appears until it is used
+			expect(existsSync(DEFAULT_SQLITE_PATH)).toBe(existed);
+		} finally {
+			(chosen as SqliteStore).close();
+		}
+	});
+
+	it('still offers the file and memory stores', () => {
+		expect(createStore({ TODO_STORE_TYPE: 'memory' })).toBeInstanceOf(TodoStore);
+		const file = createStore({ TODO_STORE_TYPE: 'file', TODO_STORE_PATH: join(dir, 'todos.json') });
+		expect(file.constructor.name).toBe('FileStore');
+		expect(() => createStore({ TODO_STORE_TYPE: 'postgres' })).toThrow(
+			'TODO_STORE_TYPE must be memory, file or sqlite'
+		);
 	});
 });

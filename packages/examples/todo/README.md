@@ -8,7 +8,7 @@ Multi-stack implementation of a Todo application demonstrating **Agent-First Dev
 - **Multi-Stack**: Identical functionality implemented in TypeScript, Python, Rust and C++.
 - **MCP-Native**: Backends are Model Context Protocol (MCP) servers, ready for AI agents.
 - **Thin UI**: Frontends are thin surfaces that invoke commands via MCP.
-- **Shared Storage**: The TypeScript and Python backends use the same JSON file for data persistence (the Rust and C++ backends keep their data in memory).
+- **Shared Storage**: The TypeScript and Python backends use the same SQLite database, `data/todos.db`, by default (the Rust and C++ backends keep their data in memory).
 - **Conformance in CI**: `.github/workflows/conformance.yml` runs the suite against all four backends.
 - **Shared metadata**: [commands.schema.json](./spec/commands.schema.json) gives each command's
   `mutation`, `destructive`, `contexts` and `confirmPrompt`, and every backend's tests check that
@@ -64,9 +64,11 @@ pnpm test:conformance:cpp
 The runner spawns the TypeScript, Python and C++ backends over stdio with `TODO_STORE_TYPE=memory`,
 and the Rust backend as an HTTP server on a free local port (MCP over HTTP). It runs every
 case in [spec/test-cases.json](./spec/test-cases.json) that the backend's language implements and
-exits non-zero if any case fails. The TypeScript backend also has an approval suite
-(`pnpm test:conformance:ts --suite approvals`) and a run of AFD's own `validate --surface
---strict` and `scenario run` against it (`pnpm test:scenarios:ts`); the
+exits non-zero if any case fails. The TypeScript and Python backends also have an approval suite
+(`pnpm test:conformance:ts --suite approvals`, and `:py`), the TypeScript backend a run of AFD's
+own `validate --surface --strict` and `scenario run` against it (`pnpm test:scenarios:ts`), and
+`pnpm test:interop` runs both side by side on one SQLite database, each reading what the other
+wrote, and has each create a new database the other then opens; the
 [spec README](./spec/README.md) explains each.
 
 ### 3. Start a Backend (Manual)
@@ -105,26 +107,35 @@ pnpm dev:react
 
 ## Storage Configuration
 
-The TypeScript and Python backends support file-based storage (default) or in-memory storage
-(the Rust backend is in-memory only):
+The TypeScript and Python backends keep their todos in a SQLite database by default, and also
+offer the JSON files or memory (the Rust and C++ backends are in-memory only):
 
 | Variable | Default | Description |
 |----------|---------|-------------|
-| `TODO_STORE_TYPE` | `file` | `file` for shared JSON storage, `memory` for isolated in-memory, `sqlite` (TypeScript) for a SQLite database through `@lushly-dev/local-db` |
-| `TODO_STORE_PATH` | `data/todos.json` | Path to the shared JSON file, or to the database (`data/todos.db`). A custom path starts empty. |
+| `TODO_STORE_TYPE` | `sqlite` | `sqlite` for the shared database, `file` for the shared JSON files, `memory` for isolated in-memory |
+| `TODO_STORE_PATH` | `data/todos.db` | Path to the database, or to the JSON file (default `data/todos.json`). A custom path starts empty. |
 
-`data/todos.json` is gitignored, so running the example does not change the working tree. The
-TypeScript backend also keeps deleted todos in `data/todos.deleted.json` and the change history in
-`data/todos.history.json` beside it, so the Python backend, which reads only `todos.json`, never
-shows a deleted todo as live.
-When it is missing, the stores create it from the committed seed `data/todos.seed.json`; delete
-it to reset. Writes are atomic (temporary file + rename), and a file that is not valid JSON is
-reported as an error instead of being treated as empty.
+Both backends resolve the same default, `data/todos.db`, and read and write it in the layout of
+`@lushly-dev/local-db`'s SQLite adapter: TypeScript through that adapter, Python through the
+standard library's `sqlite3`. The live todos, the deleted todos and the change history are in it,
+each change is one transaction, and several processes in either language can use it at once.
+When the default database is new, the stores add the todos in the committed seed
+`data/todos.seed.json`; delete `data/todos.db` (and its `-wal` and `-shm` files) to reset.
+Both list titles in the same order, as JavaScript's `localeCompare` sorts them.
 
-File-based storage enables:
-- **MCP/HTTP Sharing**: MCP clients (stdio) and HTTP server see the same todos
-- **Cross-Backend Sharing**: TypeScript and Python backends share the same data
-- **Remote Change Detection**: UI polls for changes made via CLI or MCP
+One known limit: the TypeScript store numbers a history entry before the write that records it,
+so when it and another process record a change at the same moment, both can take the same
+number and one entry replaces the other
+([#1317](https://github.com/lushly-dev/afd/issues/1317)). The todos themselves are not affected,
+and two Python servers do not collide, since Python numbers the entry inside its write.
+
+With `TODO_STORE_TYPE=file`, the live todos are in `data/todos.json`, the deleted todos in
+`data/todos.deleted.json` and the change history in `data/todos.history.json` beside it, which
+both backends also share. Each file's write is atomic (temporary file + rename), and a file that is
+not valid JSON is reported as an error instead of being treated as empty.
+
+Every data file is gitignored, so running the example does not change the working tree. Shared
+storage means MCP clients over stdio and the HTTP server, in either language, see the same todos.
 
 ## Frontend Features
 
@@ -254,21 +265,21 @@ The source of truth for this example is the [test-cases.json](./spec/test-cases.
 | `todo-get` | Get a single todo by ID | reading, editing | |
 | `todo-update` | Update a todo's properties | editing | |
 | `todo-toggle` | Toggle completion status | editing | |
-| `todo-delete` | Delete a todo; TypeScript keeps it for `todo-restore` | editing | Yes |
-| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript holds it for approval) | editing | Yes |
+| `todo-delete` | Delete a todo; TypeScript and Python keep it for `todo-restore` | editing | Yes |
+| `todo-clear` | Clear completed todos for good (asks for confirmation when the server enforces it; TypeScript and Python hold it for approval) | editing | Yes |
 | `todo-stats` | Get statistics | reading, editing | |
 | `todo-create-batch` | Create multiple todos | editing | |
 | `todo-toggle-batch` | Toggle multiple todos | editing | |
-| `todo-delete-batch` | Delete multiple todos; TypeScript keeps them for `todo-restore` | editing | Yes |
-| `todo-restore` | Bring deleted todos back as they were (TypeScript only so far) | editing | |
-| `todo-history` | Recent changes: who, when, and each change's undo (TypeScript only so far) | reading, editing | |
+| `todo-delete-batch` | Delete multiple todos; TypeScript and Python keep them for `todo-restore` | editing | Yes |
+| `todo-restore` | Bring deleted todos back as they were (TypeScript and Python so far) | editing | |
+| `todo-history` | Recent changes: who, when, and each change's undo (TypeScript and Python so far) | reading, editing | |
 
-`todo-restore` and `todo-history` are the first of the
+`todo-restore` and `todo-history` came with the
 [to-do reference plan](../../../docs/features/active/todo-reference/todo-reference.proposal.md)'s
-phase 2. The spec marks them `implementedBy: ["typescript"]`, so the other backends' tests leave
-them out until phase 5 adds them there.
+phase 2. The spec marks them `implementedBy: ["typescript", "python"]`, so the Rust and C++
+backends' tests leave them out until phase 5 adds them there.
 
-### Undo, history and approvals (TypeScript)
+### Undo, history and approvals (TypeScript and Python)
 
 Every change says how to take it back. Its result carries `undoCommand` and `undoArgs`: run that
 command with those arguments, through `afd-call` or the `todo` group tool, since `undoCommand` names
@@ -280,15 +291,25 @@ so a todo deleted by mistake can be found and restored long after.
 `todo-history` lists recent changes, newest first, with the actor that made each one (`human`,
 `agent` and so on, from the command context), the time and its undo. An entry offers its undo only
 while it is the latest change to its todos, so undoing an old entry never overwrites a later edit.
-A middleware records each change from its result (`src/history.ts`); the latest 1,000 are kept.
+A middleware records each change from its result (`src/history.ts`, and `history.py` in
+Python); the latest 1,000 are kept.
 
 `todo-clear` is the one change nothing undoes, so a caller that is not a person waits for a person
-to approve it (`createApprovalMiddleware`). An MCP client that declares form elicitation asks its
-person; any other caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP
-every caller counts as an agent, so the page's "clear completed" is held too: the page shows the
-approval and answers with the person's choice, in both frontends. Run the server with
-`APPROVALS=off` to hold nothing; the conformance runner does, since the shared suites test the
-contract every language meets.
+to approve it (`createApprovalMiddleware`, `create_approval_middleware` in Python). Against the
+TypeScript backend, an MCP client that declares form elicitation asks its person; any other
+caller gets `APPROVAL_REQUIRED` with a suggestion naming what would go. Over MCP every caller
+counts as an agent, so the page's "clear completed" is held too: the page shows the approval and
+answers with the person's choice, in both frontends.
+
+The Python backend cannot ask over MCP yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)),
+and no MCP call can carry an approval, so over the Python server's MCP a held clear cannot be
+approved at all: it always answers `APPROVAL_REQUIRED`. Until #1312, clear through the TypeScript
+server, run the Python server with `APPROVALS=off`, or call the command in process, where trusted
+code retries with the token once a person approves.
+
+Run a server with `APPROVALS=off` to hold nothing; the conformance runner does, since the shared
+suites test the contract every language meets. `TODO_APPROVAL_SECRET` (at least 32 bytes) lets
+several servers, in either language, accept each other's approval tokens. Each server keeps its own record of spent tokens, so with a shared secret one approval can run the clear once on each server that receives it.
 
 ### Contexts
 
@@ -296,7 +317,7 @@ The TypeScript and Python servers configure two contexts, so an agent can scope 
 works:
 
 - `todo-reading` shows only `todo-list`, `todo-get` and `todo-stats` (and `todo-history` in
-  TypeScript). A command that changes todos
+  TypeScript and Python). A command that changes todos
   is refused with `COMMAND_NOT_IN_CONTEXT` and a suggestion.
 - `todo-editing` shows every command.
 

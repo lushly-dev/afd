@@ -319,6 +319,7 @@ mod durable {
         Ok(())
     }
 
+    #[cfg(unix)]
     use std::fs::File;
     use std::io;
     use std::path::{Path, PathBuf};
@@ -364,7 +365,15 @@ mod durable {
     #[cfg(not(any(target_vendor = "apple", target_os = "linux", target_os = "android")))]
     pub(super) fn flush(_root: &Path, paths: &[PathBuf]) -> io::Result<()> {
         for path in paths {
-            File::open(path)?.sync_all()?;
+            // Windows' `FlushFileBuffers` needs a handle that may write; a
+            // read-only one is refused with "access denied". Nothing is written.
+            #[cfg(windows)]
+            std::fs::OpenOptions::new()
+                .write(true)
+                .open(path)?
+                .sync_all()?;
+            #[cfg(not(windows))]
+            std::fs::File::open(path)?.sync_all()?;
         }
         Ok(())
     }

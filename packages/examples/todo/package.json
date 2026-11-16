@@ -8,6 +8,7 @@
 		"test:conformance:ts": "pnpm --dir backends/typescript build && tsx dx/run-conformance.ts --backend ts",
 		"test:scenarios:ts": "pnpm --dir backends/typescript build && tsx dx/run-scenarios.ts",
 		"test:conformance:py": "tsx dx/run-conformance.ts --backend py",
+		"test:interop": "pnpm --dir backends/typescript build && tsx dx/run-interop.ts",
 		"test:conformance:rs": "cargo build --locked --manifest-path backends/rust/Cargo.toml && tsx dx/run-conformance.ts --backend rs",
 		"test:conformance:umbel": "cd ../../../endpoints/umbel && cargo build --locked -p umbel-plugin-todo --bin umbel-todo && cd ../../packages/examples/todo && tsx dx/run-conformance.ts --backend umbel",
 		"test:conformance:umbel-mounted": "cd ../../../endpoints/umbel && cargo build --locked -p umbel --bin umbel && cd ../../packages/examples/todo && cargo build --locked --manifest-path backends/rust/Cargo.toml && tsx dx/run-conformance.ts --backend umbel-mounted",

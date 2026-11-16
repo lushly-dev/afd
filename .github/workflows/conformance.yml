@@ -5,7 +5,9 @@ name: Conformance
 # checks. The Python backend installs the repository's python/ package, the
 # Rust backend depends on packages/rust and the C++ backend on packages/cpp, so
 # changes there are checked too. The TypeScript job also runs the AFD CLI's validate and scenario
-# run against its backend (dx/run-scenarios.ts), so CLI and testing package changes run it.
+# run against its backend (dx/run-scenarios.ts), so CLI and testing package changes run it. Both
+# backends share one SQLite database in the local-db adapter's layout (dx/run-interop.ts), so
+# local-db changes run it too.
 
 on:
   push:
@@ -18,6 +20,7 @@ on:
       - 'packages/cli/**'
       - 'packages/client/**'
       - 'packages/testing/**'
+      - 'packages/local-db/**'
       # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
       - 'packages/view-state/**'
       - 'foundations/fast-af/**'
@@ -38,6 +41,7 @@ on:
       - 'packages/cli/**'
       - 'packages/client/**'
       - 'packages/testing/**'
+      - 'packages/local-db/**'
       # The page (frontends/fast-af) is built from these and runs in Chromium in this workflow.
       - 'packages/view-state/**'
       - 'foundations/fast-af/**'
@@ -124,6 +128,13 @@ jobs:
         working-directory: packages/examples/todo/backends/python
         run: uv sync --locked
 
+      # The repository's ruff rules (the backend's pyproject.toml).
+      - name: Lint (Python backend)
+        working-directory: packages/examples/todo/backends/python
+        run: |
+          uv run --locked ruff check src tests
+          uv run --locked ruff format --check src tests
+
       - name: Python backend tests
         working-directory: packages/examples/todo/backends/python
         run: uv run --locked pytest -q
@@ -144,7 +155,7 @@ jobs:
         run: pnpm --dir packages/examples/todo test:conformance:ts --suite confirmations --mode modern
 
       # spec/approval-cases.json with APPROVALS=agents: todo-clear held for an agent, approved or
-      # declined by a person asked through form elicitation. TypeScript only until phase 5.
+      # declined by a person asked through form elicitation.
       - name: Approvals (TypeScript backend)
         run: pnpm --dir packages/examples/todo test:conformance:ts --suite approvals
 
@@ -184,7 +195,19 @@ jobs:
       - name: Confirmations (Python backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:py --suite confirmations --mode modern
 
-      # The stores must never write tracked files (data/todos.json is gitignored).
+      # The held clear and the delete that is not held. The approve and decline cases need the
+      # Python library to ask the person over MCP (#1312), so they stay TypeScript's.
+      - name: Approvals (Python backend)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite approvals
+
+      - name: Approvals (Python backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:py --suite approvals --mode modern
+
+      # Both backends at once on one SQLite database: each reads what the other wrote.
+      - name: Shared database (TypeScript and Python backends)
+        run: pnpm --dir packages/examples/todo test:interop
+
+      # The stores must never write tracked files (data/todos.db and data/todos.json are gitignored).
       - name: Check the working tree is unchanged
         run: |
           changes=$(git status --porcelain)

@@ -52,7 +52,7 @@ Versions below describe repository manifests. Registry checks independently conf
 | `spec/vectors/journal-context-cap.json`, 19 cases | The journal's 4096-byte cap on a declared context field's value, measured with JavaScript's number spelling (#578) | Yes (generator) | Yes | Yes | Yes |
 | `spec/vectors/validation.json`, 34 cases / 130 tests | Required schema subset; unsupported optional keywords must reject registration | Yes | Yes: 130 execute | Yes: 102 execute, 28 optional rejections | Yes: 98 execute, 32 optional rejections |
 | [AFD protocol conformance tier](../spec/protocol-conformance.md) | Both MCP eras over real transports: discovery, `_meta`, headers, exposure, contexts, cache hints, tool fields | `/mcp` and stdio, both eras | Streamable HTTP and stdio, both eras | `server` feature over Streamable HTTP | Todo backend stdio |
-| Todo conformance, 35 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes, plus 6 of its own and the approval suite | Yes | Yes | Yes |
+| Todo conformance, 35 shared cases (`conformance.yml`) | Domain results through MCP `tools/call` | Yes, plus 6 shared with Python and the approval suite | Yes, plus the same 6 and the approval suite's 2 cases without elicitation (#1312) | Yes | Yes |
 | `alfred parity` name budget (`alfred/tests/test_parity.py`) | Historical name measurement; current configured upper budgets | Reference | Budget 97 | Budget 9 | Budget 75 |
 | `alfred parity` contract version, `scripts/check-versions.mjs` | The contract constant equals `spec/VERSION` | Yes | Yes | Yes | Yes |
 

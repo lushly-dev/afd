@@ -12,7 +12,7 @@
 | Package boundary | New TypeScript units under `endpoints/loam/`, as the architecture's repository placement describes; Rust WebAssembly modules only where a measurement shows they pay |
 | Implementation | Not started by this proposal |
 | Name | Loam, decided 2026-10-30 (D22); "AFD Loam" in full |
-| First consumer | A Lushly support application: internal tooling for building Lushly, specified in Lushly's repository |
+| First consumer | Two deployments of the same build since 2026-11-16 (D128, widening D19): a local, individual Loam each person installs on the desktop, and a hosted collaboration Loam for the Lushly organization, specified in Lushly's repository; the local one first (D129). Until then: a Lushly support application, internal tooling for building Lushly, specified in Lushly's repository |
 
 ## Purpose
 
@@ -671,7 +671,7 @@ Each is small enough to read as a tutorial and real enough to use.
 | hello | One surface each: rail, sidebar, main, a setting, an experiment, a toast; the reference for the contract and the test kit | Native | Phase 1 |
 | notes | The reference document type: text with links, backlinks and embeds; one model, many editors | Native document type | Phase 2 |
 | console | Any mounted AFD server and every new app: commands, schemas, forms, results, then the journal and usage | Native, over mounted servers | Minimal in phase 1, complete in phase 5 |
-| violet | Token sets, themes and exports over `@lushly-dev/violet-afd` | Mounted, then native views | Phase 5 |
+| violet | Token trees as a `violet-tree` document type, with themes, contrast and exports, over `@lushly-dev/violet-afd` ([proposal](../../../docs/features/proposed/violet-app/violet-app.proposal.md)) | Native, with Violet's engine in the page; the mounted `violet-server` behind the same port after phase 5 | First slice now, on phases 1 and 2 |
 | health | Health reports in the shell: the existing dashboard's reading of report 1.1 files, under a project | Native, from `endpoints/health-dashboard` | Phase 5 |
 | specimen | The component bench: list, render, diff | Mounted | After phase 5 |
 | umbel | Knowledge, memory and context for the copilot and a browser over them | Mounted Umbel | After Umbel's phase 2 |
@@ -819,8 +819,9 @@ open on 2026-10-31. What the phase specifications settle is listed in the
 5. Violet appears through the console with no Loam code of its own, Health
    appears as a native app built from the existing dashboard, and the same
    build runs on the desktop through Tauri.
-6. The Lushly support application runs on the shell with its own apps and no
-   change to Loam.
+6. The local, individual Loam, the first consumer, runs with its own apps,
+   mail first, and no change to Loam (D133, D135; until 2026-11-16 this item
+   named the Lushly support application).
 7. Two `notes` documents open side by side and link to each other; the
    copilot edits one through its commands while the other is unchanged;
    both restore after a reload with their backlinks intact.

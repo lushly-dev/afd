@@ -1,0 +1,28 @@
+# Draft JTBD scenario for the Violet app proposal. The commands and their shapes are proposals.
+# The `afd-default` template is AFD's default tree, generated from `loam-theme` when the app is
+# built (proposal, section 4.2); the document is an independent copy that inherits nothing from
+# it. Checked against the interface the app's tests pin (scenario 09).
+
+name: Start a product's tree from the default
+description: >-
+  When I begin a product's tree, I want to start from a copy of the default tree that already
+  fills the components' interface in every theme, so that I change what my product needs instead
+  of writing every entry by hand.
+job: start-from-the-default
+
+steps:
+  - description: A tree document is created as a copy of the default tree
+    command: document-create
+    input: { type: violet-tree, template: afd-default, title: Product tree }
+    expect:
+      success: true
+      data:
+        id: { exists: true }
+  - description: The copy already fills the interface in every theme
+    command: violet-interface-check
+    input: { document: "${{ steps[0].data.id }}" }
+    expect:
+      success: true
+      data:
+        complete: true
+        missing: { length: 0 }

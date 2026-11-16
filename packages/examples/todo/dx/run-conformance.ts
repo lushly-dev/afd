@@ -11,7 +11,7 @@ import {
 	type Transport,
 } from '@modelcontextprotocol/client';
 import { StdioClientTransport } from '@modelcontextprotocol/client/stdio';
-import { ConformanceRunner, wireProblems } from './conformance.js';
+import { ConformanceRunner, selectCases, wireProblems } from './conformance.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const BACKENDS = ['ts', 'py', 'rs', 'cpp', 'umbel', 'umbel-mounted'] as const;
@@ -419,7 +419,20 @@ async function run() {
 		// One backend per client kind: a client declares its capabilities once, so the
 		// elicitation and acknowledgement paths need separate connections.
 		const approvals = suite === 'approvals';
+		const specPath = path.join(
+			__dirname,
+			approvals ? '../spec/approval-cases.json' : '../spec/confirmation-cases.json'
+		);
 		for (const kind of CONFIRMATION_CLIENTS) {
+			// A client kind whose cases this language does not implement yet is skipped, and said
+			// so; the suite still fails when it leaves the language no case at all.
+			const filter = { client: kind, language: LANGUAGE[target] };
+			if ((await selectCases(specPath, filter)).length === 0) {
+				console.log(
+					`Skipping the ${kind} client: no case in ${suite} is for ${filter.language} yet`
+				);
+				continue;
+			}
 			const session = await connect(
 				target,
 				mode,
@@ -434,18 +447,15 @@ async function run() {
 						: // The reset itself is confirm-gated: acknowledge it.
 							(call) => call('todo-clear', { all: true, confirm: true }),
 				});
-				results.push(
-					...(await runner.run(
-						path.join(
-							__dirname,
-							approvals ? '../spec/approval-cases.json' : '../spec/confirmation-cases.json'
-						),
-						{ client: kind, language: LANGUAGE[target] }
-					))
-				);
+				results.push(...(await runner.run(specPath, filter)));
 			} finally {
 				await session.close();
 			}
+		}
+		if (results.length === 0) {
+			throw new Error(
+				`No case in ${specPath} is for ${LANGUAGE[target]}: this backend does not implement the suite yet`
+			);
 		}
 	}
 

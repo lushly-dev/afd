@@ -2,18 +2,19 @@
  * @fileoverview Store factory - selects the appropriate store based on configuration
  *
  * Environment variables:
- *   TODO_STORE_TYPE - "memory", "file" or "sqlite" (default: "file")
- *   TODO_STORE_PATH - Path to the JSON file (default: data/todos.json, which is
- *                     gitignored and created from data/todos.seed.json), or to the
- *                     SQLite database (default: data/todos.db)
+ *   TODO_STORE_TYPE - "sqlite", "file" or "memory" (default: "sqlite")
+ *   TODO_STORE_PATH - Path to the SQLite database (default: data/todos.db) or to the JSON file
+ *                     (default: data/todos.json). Both defaults are gitignored and start from
+ *                     data/todos.seed.json; a custom path starts empty.
  *
  * The server (`server.ts`) chooses its store at startup with `setStore(createStore())`; the default
- * there is "file", so MCP (stdio) and HTTP servers share data. Importing this module touches no
- * file: until a store is set, commands use an empty in-memory one, which is what tests and the
- * replay module (`registry.ts`) want.
+ * there is the SQLite database, which the Python backend opens too (the to-do reference plan's
+ * D4), so MCP (stdio) and HTTP servers, in either language, share data. Importing this module
+ * touches no file: until a store is set, commands use an empty in-memory one, which is what tests
+ * and the replay module (`registry.ts`) want.
  */
 
-import { DEFAULT_STORE_PATH, FileStore } from './file.js';
+import { DEFAULT_SEED_PATH, DEFAULT_STORE_PATH, FileStore } from './file.js';
 import { TodoStore } from './memory.js';
 import { SqliteStore } from './sqlite.js';
 
@@ -22,22 +23,28 @@ import { SqliteStore } from './sqlite.js';
  */
 export type Store = TodoStore | FileStore | SqliteStore;
 
-/** The SQLite database beside the JSON file: `data/todos.db`, gitignored. */
+/**
+ * The SQLite database beside the JSON file: `data/todos.db`, gitignored. The Python backend
+ * resolves the same file (`todo_backend/store/__init__.py`).
+ */
 export const DEFAULT_SQLITE_PATH = DEFAULT_STORE_PATH.replace(/\.json$/, '.db');
 
 /**
- * Create the store `TODO_STORE_TYPE` and `TODO_STORE_PATH` select (default: the shared file).
+ * Create the store `TODO_STORE_TYPE` and `TODO_STORE_PATH` select (default: the shared SQLite
+ * database).
  *
- * @returns A TodoStore (memory) or FileStore (file) instance
+ * @returns A SqliteStore (sqlite), FileStore (file) or TodoStore (memory)
  */
 export function createStore(env: NodeJS.ProcessEnv = process.env): Store {
-	const type = env.TODO_STORE_TYPE ?? 'file';
+	const type = env.TODO_STORE_TYPE ?? 'sqlite';
 	if (type === 'memory') {
 		console.error('[Store] Using in-memory storage (isolated per process)');
 		return new TodoStore();
 	}
 	if (type === 'sqlite') {
-		const sqlite = new SqliteStore(env.TODO_STORE_PATH || DEFAULT_SQLITE_PATH);
+		const sqlite = env.TODO_STORE_PATH
+			? new SqliteStore(env.TODO_STORE_PATH)
+			: new SqliteStore(DEFAULT_SQLITE_PATH, { seedPath: DEFAULT_SEED_PATH });
 		console.error(`[Store] Using SQLite storage at ${sqlite.path} (shared across processes)`);
 		return sqlite;
 	}

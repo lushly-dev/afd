@@ -96,9 +96,12 @@ fn the_built_program_answers_help() {
     assert!(!data.exists(), "nothing was made");
 }
 
-/// Stops a child process when the test ends, however it ends.
+/// Stops a child process when the test ends, however it ends. Only the
+/// Unix test below, which stops the server with a signal, starts one.
+#[cfg(unix)]
 struct Child(std::process::Child);
 
+#[cfg(unix)]
 impl Drop for Child {
     fn drop(&mut self) {
         let _ = self.0.kill();

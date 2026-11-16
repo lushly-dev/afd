@@ -371,6 +371,18 @@ export const SUITES = [
 				gate: 'todo',
 				tools: ['uv'],
 				cwd: 'packages/examples/todo/backends/python',
+				run: 'uv run --locked ruff check src tests',
+			},
+			{
+				gate: 'todo',
+				tools: ['uv'],
+				cwd: 'packages/examples/todo/backends/python',
+				run: 'uv run --locked ruff format --check src tests',
+			},
+			{
+				gate: 'todo',
+				tools: ['uv'],
+				cwd: 'packages/examples/todo/backends/python',
 				run: 'uv run --locked pytest -q',
 			},
 			{
@@ -394,6 +406,13 @@ export const SUITES = [
 			},
 			// The Python backend runs under `uv run`.
 			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:conformance:py' },
+			{
+				gate: 'todo',
+				tools: ['uv'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:py --suite approvals',
+			},
+			// Both backends on one SQLite database (dx/run-interop.ts).
+			{ gate: 'todo', tools: ['uv'], run: 'pnpm --dir packages/examples/todo test:interop' },
 			{
 				gate: 'rust',
 				tools: ['cargo'],
