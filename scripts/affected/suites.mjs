@@ -266,6 +266,28 @@ export const SUITES = [
 		],
 	},
 	{
+		// Loam's phase 6 specification, 10.7: the desktop crate's tests and a debug build. The WebDriver suite
+		// needs `tauri-driver` and the platform's driver, which a developer's macOS machine has none of.
+		workflow: 'loam-desktop.yml',
+		tools: ['cargo'],
+		remote:
+			"the WebDriver suite (P6-D1 to P6-D4) under tauri-driver with WebKitGTK's driver on Linux; Windows and macOS are step 12's",
+		steps: [
+			{ gate: 'run', cwd: 'endpoints/loam/packages/desktop/src-tauri', run: 'cargo fmt --check' },
+			{
+				gate: 'run',
+				cwd: 'endpoints/loam/packages/desktop/src-tauri',
+				run: 'cargo clippy --locked --all-targets -- -D warnings',
+			},
+			{ gate: 'run', cwd: 'endpoints/loam/packages/desktop/src-tauri', run: 'cargo test --locked' },
+			{
+				gate: 'run',
+				cwd: 'endpoints/loam/packages/desktop/src-tauri',
+				run: 'cargo build --locked',
+			},
+		],
+	},
+	{
 		workflow: 'umbel.yml',
 		tools: ['cargo'],
 		remote:

@@ -1,0 +1,7 @@
+{
+	"identifier": "main",
+	"description": "Loam's three mount commands, for the main webview only. No core or plugin permission (phase 6 specification, 10.2).",
+	"local": true,
+	"webviews": ["main"],
+	"permissions": ["allow-mount-open", "allow-mount-send", "allow-mount-close"]
+}

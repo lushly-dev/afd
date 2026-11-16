@@ -1,0 +1,21 @@
+{
+	"$schema": "https://schema.tauri.app/config/2",
+	"productName": "Loam",
+	"version": "0.1.0",
+	"identifier": "dev.lushly.loam",
+	"build": {
+		"frontendDist": "../dist"
+	},
+	"app": {
+		"withGlobalTauri": false,
+		"windows": [],
+		"security": {
+			"capabilities": ["main"],
+			"csp": null
+		}
+	},
+	"bundle": {
+		"active": false,
+		"icon": ["icons/icon.ico"]
+	}
+}

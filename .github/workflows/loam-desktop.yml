@@ -1,0 +1,145 @@
+name: Loam desktop
+
+# Loam's desktop lane (phase 6 specification, 10.7): the web shell in Tauri 2's webview, its Rust host and the
+# WebDriver suite, P6-D1 to P6-D4, under `tauri-driver` with WebKitGTK's driver. Step 11 runs the Linux job;
+# step 12 adds Windows, macOS and the installers.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/**'
+      - '!endpoints/loam/docs/**'
+      - '!endpoints/loam/plugins/**'
+      # The foundations and AFD packages the shell builds on, as loam.yml lists them.
+      - 'foundations/fast-af/**'
+      - 'foundations/violet/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/view-state/**'
+      - 'packages/auth/**'
+      - 'packages/local-db/**'
+      - 'packages/client/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.cargo/config.toml'
+      - '.github/workflows/loam-desktop.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'endpoints/loam/**'
+      - '!endpoints/loam/docs/**'
+      - '!endpoints/loam/plugins/**'
+      - 'foundations/fast-af/**'
+      - 'foundations/violet/**'
+      - 'packages/core/**'
+      - 'packages/server/**'
+      - 'packages/view-state/**'
+      - 'packages/auth/**'
+      - 'packages/local-db/**'
+      - 'packages/client/**'
+      - 'pnpm-lock.yaml'
+      - 'pnpm-workspace.yaml'
+      - '.cargo/config.toml'
+      - '.github/workflows/loam-desktop.yml'
+  schedule:
+    - cron: '41 6 * * *'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+# A newer push to a pull request supersedes the checks still running on it; pushes to main all run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  scope:
+    # Triggered by a shared input, the suite runs only when the change reaches the desktop or what it builds
+    # on (scripts/affected.mjs). Scheduled and manual runs check everything.
+    name: Affected units
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      run: ${{ steps.run.outputs.run }}
+    env:
+      AFD_BASE: ${{ github.event_name == 'pull_request' && 'HEAD^1' || github.event.before }}
+      AFD_SCOPE: ${{ (github.event_name == 'pull_request' || github.event_name == 'push') && 'affected' || 'all' }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          filter: blob:none
+          persist-credentials: false
+      - id: run
+        run: node scripts/affected.mjs gate --package @lushly-dev/loam-desktop --path endpoints/loam/packages/desktop/ --path .cargo/config.toml --path .github/workflows/loam-desktop.yml
+
+  linux:
+    name: Desktop on Linux
+    needs: scope
+    if: needs.scope.outputs.run == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      CARGO_PROFILE_DEV_DEBUG: line-tables-only
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+      - uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version-file: '.nvmrc'
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Install WebKitGTK, its WebDriver and a display
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libxdo-dev librsvg2-dev webkit2gtk-driver xvfb dbus-x11
+      - name: Record WebKitGTK's version
+        run: echo "WebKitGTK $(pkg-config --modversion webkit2gtk-4.1)" | tee -a "$GITHUB_STEP_SUMMARY"
+      # rustup is preinstalled on GitHub-hosted runners; with no arguments it installs the toolchain pinned in
+      # the crate's rust-toolchain.toml.
+      - name: Install Rust toolchain
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: rustup toolchain install
+      - name: Cache cargo
+        uses: Swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
+        with:
+          workspaces: endpoints/loam/packages/desktop/src-tauri
+      - name: Install tauri-driver
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo install tauri-driver --version 2.1.0 --locked
+      - name: Build the web host and its dependencies
+        run: pnpm -F "@lushly-dev/loam-desktop..." build
+      - name: Build the bundled empty shell
+        run: pnpm -F @lushly-dev/loam-desktop build:site
+      - name: Format
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo fmt --check
+      - name: Clippy
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo clippy --locked --all-targets -- -D warnings
+      - name: Rust tests, with P6-D4's pin on Tauri's ACL exemptions
+        working-directory: endpoints/loam/packages/desktop/src-tauri
+        run: cargo test --locked
+      - name: Build the app
+        run: pnpm -F @lushly-dev/loam-desktop build:app
+      # A session bus for single instance, and a display for the webview.
+      - name: Desktop suite under tauri-driver
+        run: dbus-run-session -- xvfb-run -a pnpm -F @lushly-dev/loam-desktop test:desktop
+      - name: The run leaves tracked files unchanged
+        run: test -z "$(git status --porcelain)"
+      - name: Upload test results
+        if: ${{ always() }}
+        # A diagnostic: an outage of the artifact service must not fail a job whose suites passed.
+        continue-on-error: true
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: loam-desktop-test-results
+          path: endpoints/loam/packages/desktop/test-results/
+          if-no-files-found: ignore
+          retention-days: 30

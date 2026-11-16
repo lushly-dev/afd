@@ -18,7 +18,14 @@ export function readOrNotice(
 ): AppsLoadV2 {
 	const read = readProjection(raw);
 	if (read.ok) {
-		const ports = webPorts(document, base, read.projection.sandbox_origin, loadView, loadMount);
+		const ports = webPorts(
+			document,
+			base,
+			read.projection.sandbox_origin,
+			loadView,
+			loadMount,
+			read.projection.host?.kind === 'desktop'
+		);
 		return { deployment: read.projection, ports };
 	}
 	const first = read.refusals[0];

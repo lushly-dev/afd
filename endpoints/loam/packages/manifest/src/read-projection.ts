@@ -75,6 +75,13 @@ export function readProjection(json: unknown): ProjectionRead {
 		// Version 4's `host` is checked by hand too, so the page's `apps` row carries no validator for it (14).
 		if (version === 3 ? host !== undefined : !hostAdmitted(host)) return refusedAt('host');
 		checked = { ...rest, deployment_version: 2 };
+		// The desktop's sandbox scheme on macOS and Linux (phase 6 specification, 10.2), which version 2's pattern
+		// has no place for: admitted by hand for a desktop projection alone, and checked as an origin otherwise.
+		if (
+			rest.sandbox_origin === 'loam-sandbox://localhost' &&
+			(host as { kind?: unknown } | undefined)?.kind === 'desktop'
+		)
+			checked = { ...rest, deployment_version: 2, sandbox_origin: null };
 	}
 	if (!validateProjection(checked)) {
 		return {

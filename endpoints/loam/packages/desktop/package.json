@@ -1,0 +1,39 @@
+{
+	"name": "@lushly-dev/loam-desktop",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Loam's desktop host: the web shell in Tauri 2's webview over the loam and loam-sandbox protocols, with mounted instances through a Rust transport, and its WebDriver suite",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=22.13.0"
+	},
+	"scripts": {
+		"build:site": "node scripts/build-site.mjs",
+		"build:app": "node scripts/build-app.mjs",
+		"clean": "rimraf dist coverage",
+		"typecheck": "tsc -p tsconfig.json",
+		"test:desktop": "vitest run --config vitest.desktop.config.ts"
+	},
+	"devDependencies": {
+		"@lushly-dev/afd-core": "workspace:*",
+		"@lushly-dev/afd-server": "workspace:*",
+		"@lushly-dev/loam-cli": "workspace:*",
+		"@lushly-dev/loam-kernel": "workspace:*",
+		"@lushly-dev/loam-web": "workspace:*",
+		"@lushly-dev/local-db": "workspace:*",
+		"@types/node": "^26.6.6",
+		"axe-core": "4.14.0",
+		"rimraf": "^6.1.4",
+		"typescript": "^7.0.2",
+		"vite": "^8.3.0",
+		"vitest": "^5.1.0",
+		"webdriverio": "10.2.0",
+		"zod": "^4.6.6"
+	},
+	"repository": {
+		"type": "git",
+		"url": "https://github.com/lushly-dev/afd.git",
+		"directory": "endpoints/loam/packages/desktop"
+	}
+}

@@ -21,6 +21,8 @@ export interface ViewChunk {
 /** What the `mount` chunk gives this port. */
 export interface MountChunk {
 	createMountTransport(url: string): MountTransportV2;
+	/** The desktop's, over the Rust host by instance (phase 6 specification, 10.4). */
+	createDesktopMountTransport(instance: string): MountTransportV2;
 }
 
 async function ok(url: string): Promise<Response> {
@@ -35,7 +37,8 @@ export function webPorts(
 	base: string,
 	sandboxOrigin: string | null,
 	loadView: () => Promise<ViewChunk>,
-	loadMount: () => Promise<MountChunk>
+	loadMount: () => Promise<MountChunk>,
+	desktop = false
 ): KernelPortsV1 {
 	return {
 		baseUrl: base,
@@ -52,8 +55,11 @@ export function webPorts(
 			const { openHandlerFrame } = await loadView();
 			return openHandlerFrame({ document, sandboxOrigin, title: `${instance} handlers`, html });
 		},
-		async mountTransport(_entry, url) {
-			return (await loadMount()).createMountTransport(url);
+		async mountTransport(entry, url) {
+			const chunk = await loadMount();
+			return desktop
+				? chunk.createDesktopMountTransport(entry.instance)
+				: chunk.createMountTransport(url);
 		},
 	};
 }
