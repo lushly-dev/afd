@@ -235,7 +235,9 @@ class HealthFixture(unittest.TestCase):
     def link(self, relative, target):
         path = self.repo / relative
         path.parent.mkdir(parents=True, exist_ok=True)
-        path.symlink_to(target)
+        # A Path target gets the system's separators, which Windows needs to resolve a link,
+        # and Windows makes a file link unless told the relative target is a directory.
+        path.symlink_to(Path(target), target_is_directory=True)
 
     def test_live_skill_mirror(self):
         self.write(".claude/skills/shared/SKILL.md", "# Shared\n")

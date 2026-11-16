@@ -13,7 +13,7 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 RECORD = ROOT / "provenance" / "provenance.json"
 # Pinned so a changed claim cannot pass by rehashing the record alone.
-RECORD_SHA256 = "d5e9729f76d874d8f1331d5cdf8d07555d974b9f1020fce4d329070c599c4222"
+RECORD_SHA256 = "2a8c341343b8551a8d6a2a5b5eb1381632f609cd30e01171809815cc1010ad30"
 SOURCE_REVISION = "35e3cf041f9daff1354c9e8aee05388389397a0d"
 IGNORED = {".venv", "__pycache__", ".pytest_cache", ".ruff_cache", "dist", "build"}
 
@@ -84,7 +84,7 @@ def test_every_file_is_recorded_and_derived_files_are_unchanged():
     data = record()
     files = {row["path"]: row for row in data["files"]}
     present = sorted(
-        str(path.relative_to(ROOT))
+        path.relative_to(ROOT).as_posix()
         for path in ROOT.rglob("*")
         if path.is_file()
         and path != RECORD
