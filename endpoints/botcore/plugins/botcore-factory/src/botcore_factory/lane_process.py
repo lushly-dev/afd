@@ -1,7 +1,8 @@
 """The lane process: starting it, stopping it, running it, and noticing when it died.
 
 ``lane-start`` runs on the lane host only, with a free host-wide lock, ``required_check`` a
-required check on main and the toolchains the repository pins. It takes the lock, starts
+required check on main, the Node ``.nvmrc`` names installed and the toolchains the repository
+pins. It takes the lock, starts
 ``python -m botcore_factory.lane_main`` detached (Windows: DETACHED_PROCESS |
 CREATE_NEW_PROCESS_GROUP; POSIX: a new session) and hands the lock to it. That process runs the
 loop (``run_loop``): it resumes where the last one stopped (a branch that was validating goes
@@ -31,7 +32,7 @@ from botcore_factory.records import make
 from botcore_factory.report import summarize
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.state import StateLocked
-from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
+from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
 POLL_SECONDS = 5.0
 LANE_MODULE = "botcore_factory.lane_main"
@@ -118,6 +119,29 @@ def toolchain_mismatches(factory: Factory) -> list[str]:
     return problems
 
 
+def require_node(factory: Factory, then: str) -> None:
+    """Refuse when the Node the checkout's ``.nvmrc`` names is not installed: the lane validates
+    on it, never on whatever ``node`` comes first on PATH."""
+    try:
+        spec = (factory.target / ".nvmrc").read_text(encoding="utf-8").strip()
+    except OSError:
+        return
+    if spec and nvmrc_version(spec) is None:
+        raise Refusal(
+            "NODE_UNPINNED",
+            f"The repository's .nvmrc names {spec!r}, an alias the lane does not resolve",
+            f"Pin a version number in .nvmrc (such as 26), then {then}",
+            nvmrc=spec,
+        )
+    if spec and factory.world.machine.node_bin(spec) is None:
+        raise Refusal(
+            "NODE_MISSING",
+            f"Node {spec}, which the repository's .nvmrc names, is not installed on this machine",
+            f"Install it with `fnm install {spec}` (or `nvm install {spec}`), then {then}",
+            nvmrc=spec,
+        )
+
+
 def new_run(state: dict, at: str) -> str:
     numbers = [int(m[1]) for r in state["runs"] if (m := re.fullmatch(r"run-(\d+)", r["id"]))]
     run_id = f"run-{max(numbers, default=0) + 1}"
@@ -141,6 +165,7 @@ def lane_start(factory: Factory) -> dict:
             "lane-status says what it is doing; stop it with lane-stop first",
         )
     require_check(factory)
+    require_node(factory, "lane-start again")
     mismatches = toolchain_mismatches(factory)
     if mismatches:
         raise Refusal(
@@ -290,6 +315,7 @@ def run_loop(
     same grounds as lane-start."""
     me = require_host(factory)
     require_check(factory)
+    require_node(factory, "start the lane again")
     mismatches = toolchain_mismatches(factory)
     if mismatches:
         raise Refusal(

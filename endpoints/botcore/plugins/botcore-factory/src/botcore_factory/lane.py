@@ -9,7 +9,8 @@ a fixture world and a fake clock. Each step, in order:
    to the validated head, after reading the base again;
 4. starts validations in free slots (``lane.slots``): each slot checks the queued head out,
    merges the base's head in (a conflict ejects; it is never resolved), then runs one background
-   job: the adapter's ``install`` (with a timeout) and ``validate``;
+   job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
+   ``.nvmrc`` names (missing, it is the lane's trouble);
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -153,7 +154,7 @@ class Step(Merging, Coverage):
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return
         handle = self.world.processes.start_job(
-            self.job_steps("validate", self.config.validate_command),
+            self.job_steps("validate", self.config.validate_command, path),
             cwd=path,
             log=self.absolute(log),
             label="validate",

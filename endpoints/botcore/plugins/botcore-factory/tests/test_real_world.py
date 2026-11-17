@@ -15,6 +15,7 @@ from pathlib import Path
 
 import pytest
 
+from botcore_factory.real_system import find_node_bin, node_roots
 from botcore_factory.real_world import (
     CliGit,
     GhGitHub,
@@ -754,3 +755,64 @@ def test_this_machine_s_programs_symlinks_and_versions():
     assert isinstance(machine.symlinks(), bool)
     assert machine.tool_version(sys.executable).count(".") == 2
     assert machine.tool_version("botcore-factory-no-such-program") is None
+
+
+# #1341: the Node .nvmrc names, found where fnm and nvm install it, goes first on a job's PATH.
+
+
+def _install_node(root: Path, name: str, layout: str) -> Path:
+    bin_dir = root / name / layout
+    bin_dir.mkdir(parents=True)
+    (bin_dir / ("node.exe" if sys.platform == "win32" else "node")).write_text("")
+    return bin_dir
+
+
+def test_the_newest_installed_node_matching_the_nvmrc_is_found(tmp_path):
+    fnm, nvm = tmp_path / "fnm", tmp_path / "nvm"
+    _install_node(fnm, "v24.21.0", "installation/bin")
+    old = _install_node(fnm, "v26.1.0", "installation/bin")
+    new = _install_node(nvm, "v26.13.0", "bin")
+    _install_node(fnm, "v260.0.0", "installation/bin")
+    roots = [fnm, nvm, tmp_path / "absent"]
+    assert find_node_bin("26", roots) == str(new)
+    assert find_node_bin("v26.1", roots) == str(old)
+    assert find_node_bin(" v26.1.0\n", roots) == str(old)
+    assert find_node_bin("22", roots) is None
+    assert find_node_bin("lts/*", roots) is None
+    twin = _install_node(tmp_path / "later", "v26.13.0", "bin")
+    assert find_node_bin("26", [nvm, tmp_path / "later"]) == str(new)  # A tie: the earlier root.
+    assert find_node_bin("26", [tmp_path / "later", nvm]) == str(twin)
+
+
+def test_node_roots_cover_fnm_and_nvm(tmp_path):
+    roots = node_roots({"FNM_DIR": "/f", "NVM_DIR": "/n"}, tmp_path)
+    assert roots[0] == Path("/f/node-versions")
+    assert Path("/n/versions/node") in roots
+    assert tmp_path / ".local/share/fnm/node-versions" in roots
+    assert tmp_path / ".nvm/versions/node" in roots
+
+
+def test_a_job_step_runs_with_its_path_first(tmp_path):
+    bin_dir = tmp_path / "node-bin"
+    bin_dir.mkdir()
+    processes = OsProcesses()
+    probe = "import os; print('FIRST=' + os.environ['PATH'].split(os.pathsep)[0])"
+    steps = [{"label": "validate", "args": python(probe), "path": [str(bin_dir)]}]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "n.log"), label="validate")
+    done = wait_for(lambda: processes.poll(handle))
+    assert done.returncode == 0
+    assert f"FIRST={bin_dir}" in done.stdout
+
+
+@pytest.mark.skipif(sys.platform == "win32", reason="a POSIX shell script stands in for node")
+def test_a_job_step_s_program_is_found_on_its_own_path(tmp_path):
+    bin_dir = tmp_path / "node-bin"
+    bin_dir.mkdir()
+    program = bin_dir / "botcore-factory-probe-node"
+    program.write_text("#!/bin/sh\necho v26.13.0\n")
+    program.chmod(0o755)
+    processes = OsProcesses()
+    steps = [{"label": "validate", "args": [program.name], "path": [str(bin_dir)]}]
+    handle = processes.start_job(steps, str(tmp_path), str(tmp_path / "p.log"), label="validate")
+    done = wait_for(lambda: processes.poll(handle))
+    assert (done.returncode, "v26.13.0" in done.stdout) == (0, True)
