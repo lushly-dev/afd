@@ -225,7 +225,11 @@ Engine and framework adapters (Unreal, Unity, Godot, Qt, …) are **not** part o
 - **`Clock` and `RandomSource`:** host time and randomness, including deterministic simulation.
 - **`CommandMiddleware`:** host logging, authorization and telemetry.
 - **`CommandContext::extra`:** host data a handler needs.
-- **A transport around `CommandRegistry::execute`.** `packages/examples/todo/backends/cpp/src/mcp_stdio.cpp` is a small stdio MCP loop to copy.
+- **MCP over stdio:** link the opt-in `afd::mcp_stdio` target (`AFD_BUILD_MCP_STDIO`) rather than writing a loop. Check these when you use it:
+  - Commands need `expose = {.mcp = true}`.
+  - Set the caller's identity in `StdioServerOptions::context_hook`, never `approval`.
+  - Approval elicitation needs the middleware's `relay = ApprovalRelay::mcp_elicitation`.
+  - For another transport, wrap `CommandRegistry::execute` and use `command_to_mcp_tool` (`afd/mcp.hpp`) for the tool list.
 
 ## Testing
 

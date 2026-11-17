@@ -1,0 +1,51 @@
+// Commands as MCP tools (packages/core/src/commands.ts `commandToMcpTool`, and
+// packages/core/src/command-metadata.ts; spec/command-metadata.md, "Reporting rules").
+//
+// These turn a `CommandDefinition` into what an MCP client reads: the tool's `name`, `title`,
+// `description`, `inputSchema`, `annotations` and per-command `_meta`. They carry no transport;
+// the opt-in `afd::mcp_stdio` target (afd/mcp_stdio.hpp) serves them over stdio.
+#pragma once
+
+#include "afd/command.hpp"
+#include "afd/json.hpp"
+
+#include <optional>
+#include <string_view>
+#include <vector>
+
+namespace afd {
+
+/// Whether `command` is exposed to MCP (`expose.mcp`).
+bool is_mcp_exposed(const CommandDefinition& command) noexcept;
+
+/// The wire name of `time`: `instant`, `fast`, `slow` or `long-running`.
+std::string_view execution_time_name(ExecutionTime time) noexcept;
+
+/// The per-command `_meta` of a tool (spec/command-metadata.md, "Surfaces"): `category`,
+/// `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema` and
+/// `contexts`, each only when the command sets it. C++ booleans have no unset state, so
+/// `mutation`, `destructive` and `undoable` are reported when true. Never `confirmPrompt` or
+/// `title`, which are display text. `std::nullopt` when nothing is set.
+std::optional<Json> command_tool_meta(const CommandDefinition& command);
+
+/// MCP tool annotations (spec/command-metadata.md, "Annotations"): a mutation reports
+/// `readOnlyHint: false` and `destructiveHint`. C++ cannot tell an unset `mutation` from `false`,
+/// so a command that is not a mutation claims nothing (`std::nullopt`) rather than
+/// `readOnlyHint: true`.
+std::optional<Json> command_tool_annotations(const CommandDefinition& command);
+
+/// The MCP tool for `command`: `name`, `title` (only when set), `description`, `inputSchema`,
+/// `annotations` and `_meta` (each only when there is one).
+Json command_to_mcp_tool(const CommandDefinition& command);
+
+/// The MCP tools of the commands exposed to MCP, in the given order.
+std::vector<Json> commands_to_mcp_tools(const std::vector<CommandDefinition>& commands);
+
+/// `command` as afd-detail describes it (spec/command-metadata.md, "Surfaces"): `name`, `title`,
+/// `description`, `category`, `tags`, `mutation` (always), `executionTime`, `errors`,
+/// `inputSchema`, `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`,
+/// `handoff`, `handoffProtocol`, `version`, `requires`, `contexts` and `examples`. Unset fields
+/// and empty arrays are omitted; `destructive`, `undoable` and `handoff` are reported when true.
+Json to_json(const CommandDefinition& command);
+
+} // namespace afd

@@ -120,7 +120,7 @@ A command whose own input schema declares a `confirm` property keeps it: the ser
 input intact and reads `confirm: true` in it as the acknowledgement.
 
 `requestState` is opaque to clients and is never trusted unverified. A stale, altered or mismatched
-`requestState` is never accepted as a confirmation: TypeScript and Rust ask again, and Python, whose
+`requestState` is never accepted as a confirmation: TypeScript, Rust and C++ ask again, and Python, whose
 MCP SDK seals and checks the state before the handler runs, rejects the request with JSON-RPC
 `-32602`.
 
@@ -379,12 +379,12 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `approval` field and `_meta.approval` | Yes | Yes | Yes | Yes (`_meta.approval` in the todo backend) |
+| `approval` field and `_meta.approval` | Yes | Yes | Yes | Yes (`_meta.approval` from `command_to_mcp_tool`) |
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
-| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Planned |
-| Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no MCP server |
+| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
+| Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence
 

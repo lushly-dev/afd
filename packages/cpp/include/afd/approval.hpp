@@ -99,6 +99,17 @@ enum class ApprovalReplay {
     within_ttl
 };
 
+/// How a held MCP call reaches the human (spec/command-metadata.md, "Asking the human over MCP").
+enum class ApprovalRelay {
+    /// No relay: a held call returns `APPROVAL_REQUIRED`.
+    none,
+    /// On an `afd::mcp_stdio` server, ask the human behind the MCP client with a form elicitation
+    /// when the request can carry one, instead of returning the hold to the agent. Opt in only
+    /// when the client application shows the question to a person: a server cannot tell a
+    /// person's answer from client code that answers on its own.
+    mcp_elicitation
+};
+
 /// Options for `create_approval_middleware`.
 struct ApprovalMiddlewareOptions {
     /// The HMAC keys, as bytes: the first signs, any of them verifies (for key rotation).
@@ -137,6 +148,11 @@ struct ApprovalMiddlewareOptions {
     /// MSVC and Emscripten. MinGW's libstdc++ before GCC 9.2 makes it deterministic: supply a
     /// generator there. Never pass a `RandomSource`-based generator.
     std::function<void(std::uint8_t* out, std::size_t size)> random_bytes;
+    /// Whether to ask the human over MCP. Default: no relay. With `mcp_elicitation`, a call the
+    /// `afd::mcp_stdio` server routes to one command is asked as a form elicitation; no token is
+    /// issued and `on_approval_required` is not called for it. A declined form fails the call
+    /// with `APPROVAL_REQUIRED`, `details.reason: "declined"`.
+    ApprovalRelay relay = ApprovalRelay::none;
 };
 
 /// A middleware that runs a command whose `approval` policy requires approval only when

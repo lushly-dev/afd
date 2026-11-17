@@ -13,7 +13,8 @@
 			"cacheVariables": {
 				"AFD_BUILD_TESTS": "ON",
 				"AFD_WARNINGS_AS_ERRORS": "ON",
-				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+				"CMAKE_EXPORT_COMPILE_COMMANDS": "ON",
+				"AFD_BUILD_MCP_STDIO": "ON"
 			}
 		},
 		{
@@ -70,7 +71,8 @@
 			"inherits": "base",
 			"cacheVariables": {
 				"CMAKE_BUILD_TYPE": "Release",
-				"CMAKE_CXX_FLAGS": "-fno-exceptions -DJSON_NOEXCEPTION"
+				"CMAKE_CXX_FLAGS": "-fno-exceptions -DJSON_NOEXCEPTION",
+				"AFD_BUILD_MCP_STDIO": "OFF"
 			}
 		}
 	],

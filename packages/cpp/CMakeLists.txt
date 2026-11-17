@@ -25,6 +25,8 @@ else()
     set(afd_threads_default ON)
 endif()
 option(AFD_ENABLE_THREADS "Build ThreadTaskRunner (std::thread)" ${afd_threads_default})
+# The MCP stdio server (afd/mcp_stdio.hpp), a separate target: afd::afd stays transport-free.
+option(AFD_BUILD_MCP_STDIO "Build the afd::mcp_stdio target, an MCP server over stdio" OFF)
 option(AFD_JOURNAL_FILE "Build FileJournalSink (afd/journal_file.hpp), which uses std::filesystem" ON)
 option(AFD_MACRO_HYGIENE_CHECK
        "Force-include common macro collisions (windows.h min/max, AssertMacros.h check/verify/require)"
@@ -63,6 +65,7 @@ add_library(
     src/journal.cpp
     src/journal_replay.cpp
     src/json.cpp
+    src/mcp.cpp
     src/metadata.cpp
     src/middleware.cpp
     src/pipeline.cpp
@@ -104,6 +107,22 @@ if(AFD_MACRO_HYGIENE_CHECK)
     afd_apply_macro_hygiene(afd)
 endif()
 
+if(AFD_BUILD_MCP_STDIO)
+    if(NOT AFD_ENABLE_THREADS)
+        message(FATAL_ERROR "AFD_BUILD_MCP_STDIO needs AFD_ENABLE_THREADS: the server reads "
+                            "cancellations on a thread of its own")
+    endif()
+    add_library(afd_mcp_stdio src/mcp_stdio/server.cpp)
+    add_library(afd::mcp_stdio ALIAS afd_mcp_stdio)
+    set_target_properties(afd_mcp_stdio PROPERTIES EXPORT_NAME mcp_stdio)
+    target_include_directories(afd_mcp_stdio PRIVATE ${CMAKE_CURRENT_SOURCE_DIR}/src)
+    target_link_libraries(afd_mcp_stdio PUBLIC afd::afd)
+    afd_configure_target(afd_mcp_stdio)
+    if(AFD_MACRO_HYGIENE_CHECK)
+        afd_apply_macro_hygiene(afd_mcp_stdio)
+    endif()
+endif()
+
 if(AFD_BUILD_TESTS)
     enable_testing()
     add_subdirectory(tests)
@@ -122,12 +141,18 @@ endif()
 if(AFD_INSTALL)
     include(CMakePackageConfigHelpers)
     set(AFD_INSTALL_CMAKEDIR ${CMAKE_INSTALL_LIBDIR}/cmake/afd)
-    install(TARGETS afd EXPORT afdTargets
+    set(afd_install_targets afd)
+    if(AFD_BUILD_MCP_STDIO)
+        list(APPEND afd_install_targets afd_mcp_stdio)
+    else()
+        list(APPEND afd_header_exclude PATTERN mcp_stdio.hpp EXCLUDE)
+    endif()
+    install(TARGETS ${afd_install_targets} EXPORT afdTargets
             ARCHIVE DESTINATION ${CMAKE_INSTALL_LIBDIR}
             LIBRARY DESTINATION ${CMAKE_INSTALL_LIBDIR}
             RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR})
     if(NOT AFD_JOURNAL_FILE)
-        set(afd_header_exclude PATTERN journal_file.hpp EXCLUDE)
+        list(APPEND afd_header_exclude PATTERN journal_file.hpp EXCLUDE)
     endif()
     install(DIRECTORY include/afd ${CMAKE_CURRENT_BINARY_DIR}/include/afd
             DESTINATION ${CMAKE_INSTALL_INCLUDEDIR} ${afd_header_exclude})

@@ -10,10 +10,8 @@ conformance suite, like the TypeScript, Python and Rust backends.
   - The 11 commands reproduce the TypeScript backend's data, error codes, messages, suggestions, reasoning and warnings.
   - The store is in memory only.
 - **Transport:**
-  - `src/mcp_stdio.cpp` implements newline-delimited JSON-RPC 2.0 in both MCP eras: MCP 2026-07-28 requests (per-request `_meta`, `server/discover`, `resultType`, `-32022` for unsupported versions) and 2025 clients (`initialize`, `notifications/initialized`, `ping`), plus `tools/list` and `tools/call`.
-  - Unknown tools and invalid arguments come back as `CommandResult`s with `isError: true`, never as JSON-RPC errors.
-  - Lines are capped at 1 MiB.
-  - The transport lives here, not in the library (proposal D10).
+  - The library's opt-in [`afd::mcp_stdio`](../../../../cpp/README.md#mcp-over-stdio) target serves the commands over stdio in both MCP eras. The backend's CMake turns it on.
+  - `CONFIRMATIONS` (`off` by default, `enforce` or `require-human`) sets confirmation enforcement for `todo-clear`, as on the other backends. With `require-human`, or a client that can elicit, the person is asked: in band on a 2025 connection, as `input_required` on MCP 2026-07-28.
 
 ## Build and run
 
@@ -39,6 +37,7 @@ From `packages/examples/todo`:
 
 ```bash
 pnpm test:conformance:cpp
+pnpm test:conformance:cpp --suite confirmations   # CONFIRMATIONS=enforce, every client kind
 ```
 
 ## Known differences from the TypeScript backend

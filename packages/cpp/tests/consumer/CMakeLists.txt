@@ -8,6 +8,7 @@ set(AFD_CONSUME "find_package" CACHE STRING "How to get afd: find_package or fet
 
 if(AFD_CONSUME STREQUAL "fetchcontent")
     include(FetchContent)
+    set(AFD_BUILD_MCP_STDIO ON CACHE BOOL "" FORCE)
     FetchContent_Declare(afd SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/../..)
     FetchContent_MakeAvailable(afd)
 else()
@@ -19,3 +20,10 @@ target_link_libraries(consumer PRIVATE afd::afd)
 
 enable_testing()
 add_test(NAME consumer COMMAND consumer)
+
+# The MCP stdio server, from an afd built with AFD_BUILD_MCP_STDIO.
+if(TARGET afd::mcp_stdio)
+    add_executable(consumer_mcp_stdio ../../examples/mcp_stdio_server.cpp)
+    target_link_libraries(consumer_mcp_stdio PRIVATE afd::mcp_stdio)
+    add_test(NAME consumer_mcp_stdio COMMAND consumer_mcp_stdio --self-test)
+endif()

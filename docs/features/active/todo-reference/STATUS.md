@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
   TypeScript, and both backends on one SQLite database by default (D4). Rust is merged in
-  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++ is not started.
+  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) is in review, and the backend runs on it with confirmations enforced; the C++ parity pull request is next.
 
 ## Plan
 
@@ -42,7 +42,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++ not started | See [phase 5](#phase-5-the-other-languages) | C++, after [#341](https://github.com/lushly-dev/afd/issues/341) |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target ([#341](https://github.com/lushly-dev/afd/issues/341)) in review | See [phase 5](#phase-5-the-other-languages) | The C++ parity pull request |
 
 ## Findings
 
@@ -51,7 +51,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | W1 `total` capped at 100 in TypeScript | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W2 contexts declared but not served | TypeScript and Python fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); Python's `todo-history` and `todo-restore` take their contexts in [#1319](https://github.com/lushly-dev/afd/pull/1319). Rust declares and serves them in #1335 (and the Umbel plugin's manifest declares them). C++ declares them but serves no context tools (its own stdio loop, phase 5) |
 | W3 deletes not marked destructive | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) in TypeScript, Python and Rust (C++ already was), and in the Umbel `todo` plugin's compiled manifest. Under `umbel-mounted` the deletes advertised `destructiveHint: false`, since a mounted tool could not declare `destructive`; in #1335 it can, and the `todo-http` fixture does (see follow-ups) |
-| W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforcement open, phase 5 with `afd::mcp_stdio` |
+| W4 no confirmation gate in C++ | Prompt declared in [#1231](https://github.com/lushly-dev/afd/pull/1231); enforced on the #341 branch: the backend runs on `afd::mcp_stdio`, reads `CONFIRMATIONS` and passes the confirmation suite in both eras, in CI ([#467](https://github.com/lushly-dev/afd/issues/467)) |
 | W5 deprecated `/message` and `/sse` | Backend text fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231); the frontends still use `/message` until phase 3 replaces them |
 | W6 README errors | Fixed in [#1231](https://github.com/lushly-dev/afd/pull/1231) |
 | W7 small defects | `todo-clear`'s debug logging removed in [#1231](https://github.com/lushly-dev/afd/pull/1231). The React `FETCH_ERROR` and vanilla `innerHTML` went with the old frontends in phase 3. todo-directclient's two latencies and "experiment" are gone in [#1281](https://github.com/lushly-dev/afd/pull/1281): `pnpm benchmark` measures both paths and the README states no numbers |
