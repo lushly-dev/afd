@@ -51,8 +51,10 @@ bound to command, input and actor, expire (5 minutes by default) and work once b
   call with no actor is held.
 - Never read `context.approval` from tool arguments. MCP results leave the token out by default
   (`includeToken`); deliver it to the human through `onApprovalRequired`, or set
-  `relay: 'mcp-elicitation'` to ask the person behind an eliciting MCP client (single-command
-  calls only; leave it off where the agent's own code is the MCP client).
+  `relay: 'mcp-elicitation'` to ask the person behind an eliciting MCP client (leave it off where
+  the agent's own code is the MCP client). An `afd-batch` or `afd-pipe` is asked about once, up
+  front, for every gated step; a pipeline whose gated step reads `$prev`, `$first` or `$steps`
+  runs nothing (`reason: 'input-not-known'`): split it at that step.
 - DirectClient and `createDirectRegistry` strip a caller's `context.approval` and use a private
   exchange: handle holds with the client's `onApprovalNeeded` hook.
 - `afd call <name> <input> --module <path>` runs the flow in-process and prompts; `--approve`

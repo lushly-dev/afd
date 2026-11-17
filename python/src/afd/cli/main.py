@@ -32,7 +32,9 @@ from afd.cli.output import (
 )
 from afd.cli.surface_commands import approval_policy_warnings, collect_surface_commands
 from afd.core.builtin_names import is_afd_builtin_name
+from afd.cli.elicitation import interactive_elicitation
 from afd.transports import (
+    ElicitationHandler,
     HttpTransport,
     MockTransport,
     SseTransport,
@@ -71,7 +73,9 @@ def _save_state(state: dict[str, Any]) -> None:
     STATE_FILE.write_text(json.dumps(state, indent=2))
 
 
-def _get_transport(server: str | None = None) -> Transport:
+def _get_transport(
+    server: str | None = None, *, on_elicitation: ElicitationHandler | None = None
+) -> Transport:
     """
     Get a transport instance.
 
@@ -81,6 +85,7 @@ def _get_transport(server: str | None = None) -> Transport:
             - an http(s) URL ending in /sse for SseTransport (deprecated)
             - an http(s) URL ending in /message or /messages for HttpTransport (deprecated)
             - any other http(s) URL (such as /mcp) for StreamableHttpTransport
+        on_elicitation: Answers server elicitations on a Streamable HTTP transport.
 
     Returns:
         Configured transport instance
@@ -110,7 +115,7 @@ def _get_transport(server: str | None = None) -> Transport:
             return HttpTransport(server)
         if normalized_path.endswith("/sse"):
             return SseTransport(server)
-        return StreamableHttpTransport(server)
+        return StreamableHttpTransport(server, on_elicitation=on_elicitation)
 
     raise click.ClickException(
         f"'{server}' is not a server URL. Connect to a running server by URL, for example "
@@ -287,11 +292,18 @@ def tools(ctx: click.Context, server: str | None, pattern: str | None, tool_name
 
 
 async def _terminal_approval() -> bool:
-    """An unanswered terminal must not keep asyncio.run's executor shutdown alive."""
+    return await _terminal_yes("Approve? [y/N] ")
+
+
+async def _terminal_yes(prompt: str) -> bool:
+    """Ask a yes/no question on stderr; only ``y`` or ``yes`` is a yes.
+
+    An unanswered terminal must not keep asyncio.run's executor shutdown alive.
+    """
     loop = asyncio.get_running_loop()
     decision = loop.create_future()
 
-    click.echo("Approve? [y/N] ", err=True, nl=False)
+    click.echo(prompt, err=True, nl=False)
     descriptor = sys.stdin.fileno()
 
     def ask() -> None:
@@ -396,7 +408,9 @@ def call(ctx: click.Context, tool: str, args: str, server: str | None,
                 del sys.modules[spec.name]
 
     async def _call_tool() -> None:
-        transport = _get_transport(server)
+        transport = _get_transport(
+            server, on_elicitation=interactive_elicitation(_terminal_yes)
+        )
         try:
             await transport.connect()
             result = await transport.call_tool(tool, parsed_args)

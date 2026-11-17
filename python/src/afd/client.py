@@ -43,6 +43,12 @@ from afd.transports.base import (
     TransportState,
 )
 
+from afd.transports.streamable_http import (  # noqa: F401 - re-exported
+    ElicitationHandler,
+    ElicitationRequest,
+    ElicitationResponse,
+)
+
 # Lazy imports for optional transports
 _Transport = Any  # Actual Transport protocol from base
 
@@ -76,6 +82,14 @@ class McpClientConfig:
         client_name: Client name sent in the MCP initialize handshake.
         client_version: Client version sent in the MCP initialize handshake.
         debug: Enable debug logging.
+        on_elicitation: Answers servers' form elicitations, such as an AFD server's
+            confirmation of a command with ``confirm_prompt``. With it the client
+            declares elicitation and the MCP SDK retries the call with the answer.
+            Without one, a server's ``input_required`` result becomes an
+            ``INPUT_REQUIRED`` failure whose ``data.inputRequests`` holds what the server
+            asked. ``streamable-http`` only. On MCP 2026-07-28, time spent in the
+            handler does not count against ``timeout``; on a 2025 connection it
+            does, so give a person enough ``timeout`` to answer.
     """
 
     url: str = ""
@@ -90,6 +104,7 @@ class McpClientConfig:
     client_name: str = "afd-python-client"
     client_version: str = "0.2.0"
     debug: bool = False
+    on_elicitation: Optional[ElicitationHandler] = None
 
     @property
     def resolved_url(self) -> str:
@@ -681,6 +696,7 @@ def _create_transport(config: McpClientConfig) -> Any:
             client_name=config.client_name,
             client_version=config.client_version,
             mode=config.protocol_mode,
+            on_elicitation=config.on_elicitation,
         )
     if transport == "http":
         from afd.transports.http import HttpTransport

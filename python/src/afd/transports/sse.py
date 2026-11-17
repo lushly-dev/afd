@@ -238,15 +238,17 @@ class SseTransport(_HttpBasedTransport):
 
         session = self._session
         try:
-            result = await self._bounded(
-                session.call_tool(
-                    name, arguments or {}, read_timeout_seconds=float(self._timeout)
-                )
-            )
-            payload = result.model_dump(by_alias=True, mode="json", exclude_none=True)
+            payload = await self._bounded(self._call_tool_payload(session, name, arguments or {}))
             return self._extract_content(payload)
         except Exception as exc:
             self._raise_operation_error(exc, session)
+
+    async def _call_tool_payload(
+        self, session: Any, name: str, arguments: Dict[str, Any]
+    ) -> Dict[str, Any]:
+        """Call the tool and return its result as wire-format JSON."""
+        result = await session.call_tool(name, arguments, read_timeout_seconds=float(self._timeout))
+        return result.model_dump(by_alias=True, mode="json", exclude_none=True)
 
     async def list_tools(self) -> List[ToolInfo]:
         """List tools through the live MCP session."""

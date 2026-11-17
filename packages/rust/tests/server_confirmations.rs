@@ -816,7 +816,7 @@ mod approval_relay {
             "afd-batch",
             2,
             json!({ "commands": [{ "command": "todo-delete", "input": { "id": 7 } }] }),
-            true,
+            false,
             json!({}),
         );
         let batch = post(&server, batch, "afd-batch").await;
@@ -830,7 +830,7 @@ mod approval_relay {
         assert!(step["result"]["error"]["suggestion"]
             .as_str()
             .unwrap()
-            .contains("inside afd-batch"));
+            .contains("supports form elicitation"));
         assert_eq!(runs.load(Ordering::SeqCst), 0);
     }
 
@@ -871,7 +871,7 @@ mod approval_relay {
             "afd-batch",
             2,
             json!({ "commands": [{ "command": "todo-delete", "input": { "id": 7 } }] }),
-            true,
+            false,
             json!({}),
         );
         let batch = body(&post(&server, batch, "afd-batch").await);
@@ -881,7 +881,7 @@ mod approval_relay {
         assert!(error["suggestion"]
             .as_str()
             .unwrap()
-            .contains("inside afd-batch"));
+            .contains("supports form elicitation"));
         assert_eq!(runs.load(Ordering::SeqCst), 0);
     }
 

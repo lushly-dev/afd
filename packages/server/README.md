@@ -944,7 +944,7 @@ To resume, retry the same command with the same input and `context.approval` set
 - **Fails closed.** A policy function that returns anything but `'not-required'` holds the call; one that throws fails it before the handler. Write policies so that a missing actor is held (`kind === 'human' ? 'not-required' : 'required'`).
 - **Gates only the listed commands.** Pass the same `commands` as the server or registry: a command missing from the list is never held.
 - **Actor binding is as strong as the actor.** The MCP default actor is `{ kind: 'agent' }` with no `id`, so tokens are bound to a specific agent or user only when `createContext` or auth middleware sets one. Install the middleware after any middleware that sets or refines `context.actor`.
-- **Batches and pipelines** pass one `context.approval` to every step. Retrying a pipeline reruns its ungated steps, and a gated step whose input comes from an earlier step may never match its token, so approve such steps as separate calls.
+- **Batches and pipelines** pass one `context.approval` to every step. Retrying a pipeline reruns its ungated steps, and a gated step whose input comes from an earlier step may never match its token, so approve such steps as separate calls. Over MCP with `relay: 'mcp-elicitation'`, a batch or pipeline is approved up front instead (below).
 - `afd validate` warns (`MISSING_APPROVAL_POLICY`) about `mutation` or `destructive` commands that declare no policy. Declare `approval: 'not-required'` to say a command was considered and needs none.
 
 #### Asking the human over MCP
@@ -968,8 +968,9 @@ No approval token is issued on this path, so the model never sees one. A stale, 
 Calls that cannot elicit fail with `APPROVAL_REQUIRED` and no token, as without the relay:
 
 - the client declares no form elicitation;
-- a 2025-era HTTP request, or the legacy `/message` lane, which have no back channel;
-- an `afd-batch` or `afd-pipe` step. Asking mid-run would rerun the earlier steps on the retry, so call the gated command on its own.
+- a 2025-era HTTP request, or the legacy `/message` lane, which have no back channel.
+
+An `afd-batch` or `afd-pipe` from a client that can elicit is approved up front, as a whole, before any step runs (#459): asking mid-run would rerun the earlier steps on the retry. One form lists every gated step's summary, command and validated input (a pipeline's `$input` references resolved), at most 20 of them, and on acceptance each gated step runs once on its own approval, bound to the whole request as sent and to its command, input and actor: an approval covers that exact batch or pipeline, never another call. Every nonce is spent before the first step runs, so a replayed retry runs nothing. A decline runs nothing (`reason: 'declined'`). A pipeline whose gated step takes its input from an earlier step (`$prev`, `$first`, `$steps`) cannot be shown to the human first, so it runs nothing and fails with `APPROVAL_REQUIRED`, `details.reason: 'input-not-known'` and the step's index and command: split it there and call that command on its own.
 
 Only the command the tool call routes to can use the relay, once: a command that a handler runs cannot elicit. An accepted approval that has expired or was already used is asked again, and the question says so. `onApprovalRequired` is not called on the relay path, since no token exists.
 

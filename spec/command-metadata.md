@@ -367,10 +367,57 @@ Some calls fall back to `APPROVAL_REQUIRED` without a token:
 
 - a request that cannot elicit: no form elicitation capability, or a 2025-era request over
   stateless HTTP;
-- a step of `afd-batch` or `afd-pipe`. A policy is evaluated on the validated input when the step
-  runs, and asking mid-run would run the earlier steps again on the retry;
 - a command run by another command in the same tool call. Only the command the tool call routes to
   may ask, and only once.
+
+#### One approval up front for `afd-batch` and `afd-pipe`
+
+Asking mid-run would run the earlier steps again on the retry, so a batch or pipeline that can
+elicit is approved up front, as a whole, or not at all (#459). Before any step's handler runs, the
+server works out every step's validated input (a pipeline step's `$input` references resolved) and
+evaluates each step's policy on it:
+
+1. **A gated step whose input is not known.** A pipeline step whose input references an earlier
+   step (`$prev`, `$first` or `$steps`, by the grammar of
+   [pipeline variables](./pipeline-variables.md)) and whose command has an approval policy other
+   than `not-required` (a policy function cannot be evaluated on an input that does not exist yet)
+   cannot be shown to the human. Nothing runs, and the call fails with `APPROVAL_REQUIRED`,
+   `details.reason: "input-not-known"`, `details.step` (its 0-based index) and `details.command`,
+   and a suggestion to split the pipeline before that step. A step that references an earlier step
+   but whose command has no such policy does not stop the pipeline, and a step naming a command
+   the caller cannot run is never named here: it fails as a missing name.
+2. **No gated step.** The call runs as usual.
+3. **Ask once.** Otherwise the server answers with one form elicitation under the key `approval`.
+   Its message says each listed step runs once, exactly as shown, and nothing runs without
+   approval (and, for a pipeline with `when` conditions, that a condition may skip a step), then
+   lists each gated step's position (1-based), summary, command and canonical validated input
+   (truncated, as for one command). The `requestState` carries one question per gated step, each
+   as for a single command but with its own binding: a keyed digest of the whole request as sent
+   (the tool, its steps or commands, their inputs, conditions and options), the command, the input
+   and the actor. So an approval covers this exact request: never another batch or pipeline, the
+   same steps reordered or with other options, or a call to the command on its own. One answer
+   covers them all. More than 20 gated steps are not asked about: nothing runs, and the call fails
+   with `APPROVAL_REQUIRED`, `details.reason: "too-many-approvals"` and `details.limit`.
+4. **The retry runs** only when, for every gated step, the request carries a distinct accepted
+   question whose binding is that step's, whose MAC verifies and which has not expired. Two
+   identical steps need two questions. Every nonce is spent before any step runs, so a replay of
+   the retry runs nothing and is asked again. Each gated step then runs on one unused approval of
+   its own binding, once; a gated step without one (a policy that changed its mind, or a schema
+   whose defaults differ between validations, such as a random or time-based default) fails with
+   `APPROVAL_REQUIRED` and runs nothing, though earlier steps may have run. A step whose batch or
+   pipeline already timed out or was cancelled never starts.
+5. **Anything else is asked again**, saying why when the request carried approvals that did not
+   hold: an expired, spent or mismatched approval, or one for a changed batch.
+
+A declined, cancelled or unchecked answer to any gated step fails the whole call with
+`APPROVAL_REQUIRED`, `details.reason: "declined"`, `retryable: false`, and nothing runs. A refusal
+or decline is the call's whole result: a batch result with no item results and the error, or a
+pipeline with one synthetic step at index -1, as for a refused confirmation. A request that cannot
+elicit keeps the fallback above, step by step. A step's handler never sees the up-front approval,
+so a command it runs falls back as a nested command does. The approval middleware removes it from
+the step's context before the step runs, so a server has one approval middleware with the relay,
+and a retry middleware placed before it retries a step as a single command, which is held again. Confirmations are checked first, so a
+batch that needs both asks for each in turn.
 
 An accepted approval that has expired or was already used is asked again, and the question says
 so.
@@ -384,6 +431,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
+| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Planned (with the relay) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | N/A: `afd::mcp_stdio` serves no meta-tools |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence
