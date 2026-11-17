@@ -79,6 +79,9 @@ class LocalMachine:
         match = _VERSION.search(out)
         return match[0] if match else out or None
 
+    def node_bin(self, spec: str) -> str | None:
+        return find_node_bin(spec, node_roots(os.environ, Path.home()))
+
     def _memory(self) -> tuple[int, int]:
         """Total and available bytes."""
         if sys.platform == "win32":
@@ -93,6 +96,56 @@ class LocalMachine:
         )
         kib = lambda key: int(info[key].split()[0]) * 1024  # noqa: E731
         return kib("MemTotal"), kib("MemAvailable")
+
+
+def node_roots(environ, home: Path) -> list[Path]:
+    """Where fnm and nvm keep the Node versions they installed, most specific first."""
+    roots = []
+    if environ.get("FNM_DIR"):
+        roots.append(Path(environ["FNM_DIR"]) / "node-versions")
+    if environ.get("XDG_DATA_HOME"):
+        roots.append(Path(environ["XDG_DATA_HOME"]) / "fnm" / "node-versions")
+    roots += [
+        home / ".local" / "share" / "fnm" / "node-versions",
+        home / "Library" / "Application Support" / "fnm" / "node-versions",
+        home / ".fnm" / "node-versions",
+    ]
+    if environ.get("APPDATA"):
+        roots.append(Path(environ["APPDATA"]) / "fnm" / "node-versions")
+    if environ.get("NVM_DIR"):
+        roots.append(Path(environ["NVM_DIR"]) / "versions" / "node")
+    roots.append(home / ".nvm" / "versions" / "node")
+    return roots
+
+
+def find_node_bin(spec: str, roots: Sequence[Path]) -> str | None:
+    """The bin directory of the newest installed Node whose version starts with ``spec``'s
+    numbers (``26`` matches ``v26.13.0``, not ``v260.0.0``). An alias (``lts/*``) matches none."""
+    wanted = spec.strip().removeprefix("v")
+    if not re.fullmatch(r"\d+(\.\d+){0,2}", wanted):
+        return None
+    prefix = tuple(int(part) for part in wanted.split("."))
+    executable = "node.exe" if sys.platform == "win32" else "node"
+    found: list[tuple[tuple[int, ...], str]] = []
+    for root in roots:
+        with contextlib.suppress(OSError):
+            for entry in root.iterdir():
+                match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", entry.name)
+                if not match:
+                    continue
+                version = tuple(int(part) for part in match.groups())
+                if version[: len(prefix)] != prefix:
+                    continue
+                # fnm: <version>/installation/bin (Windows: installation/); nvm: <version>/bin.
+                for candidate in (
+                    entry / "installation" / "bin",
+                    entry / "installation",
+                    entry / "bin",
+                ):
+                    if (candidate / executable).is_file():
+                        found.append((version, str(candidate)))
+                        break
+    return max(found)[1] if found else None
 
 
 def _windows_memory() -> tuple[int, int]:

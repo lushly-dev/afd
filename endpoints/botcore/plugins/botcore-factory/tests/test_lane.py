@@ -497,6 +497,32 @@ def test_install_runs_after_the_merge_in_the_background_job(lane):
     assert job["head"] == "b2c3d4e+main-0"  # Merged before anything ran.
 
 
+# #1341: a slot validates on the Node its own .nvmrc names, never the host's default node.
+
+
+def test_validation_runs_on_the_node_the_slot_s_nvmrc_names(lane):
+    lane.change_world(slotFiles={".nvmrc": "26\n"}, nodes={"26": "/fnm/v26.13.0/bin"})
+    run_steps(lane, **INSTALL)
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert [s["path"] for s in job["steps"]] == [["/fnm/v26.13.0/bin"]] * 2
+
+
+def test_without_an_nvmrc_the_job_keeps_the_host_s_path(lane):
+    run_steps(lane)
+    [job] = lane.world_data()["processes"]["running"].values()
+    assert all("path" not in s for s in job["steps"])
+
+
+def test_a_node_the_host_lacks_pauses_the_lane_and_validates_nothing(lane):
+    lane.change_world(slotFiles={".nvmrc": "26"})
+    run_steps(lane)
+    assert "validation-started" not in kinds(lane)
+    assert not lane.world_data().get("processes", {}).get("running")
+    assert queue(lane)[0] == ("feat/export-csv", "queued")
+    detail = lane.state()["lane"]["pauseReason"]
+    assert "Node 26" in detail and "fnm install 26" in detail
+
+
 # S6, S7, S8: never validated against a base it lacks, never merged unguarded or as a non-host.
 
 

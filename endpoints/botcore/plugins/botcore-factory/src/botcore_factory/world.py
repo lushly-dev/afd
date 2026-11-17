@@ -313,6 +313,12 @@ class Machine(Protocol):
         """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing."""
         ...
 
+    def node_bin(self, spec: str) -> str | None:
+        """The directory holding the ``node`` a version manager (fnm, nvm) installed for
+        ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest match), or None
+        when no installed Node matches it."""
+        ...
+
 
 @runtime_checkable
 class Plans(Protocol):

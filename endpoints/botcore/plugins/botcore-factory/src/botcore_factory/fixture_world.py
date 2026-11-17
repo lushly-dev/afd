@@ -49,6 +49,8 @@ WORLD_KEYS = frozenset(
         "variables",
         "plansUnreadable",
         "toolchains",
+        "nodes",
+        "slotFiles",
         "requiredChecks",
         "outcomes",
         "main",
