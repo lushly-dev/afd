@@ -16,12 +16,15 @@ shape of the [Patterns status](../patterns/STATUS.md).
 ## Status block
 
 - **State:** scaffold with a design direction. Written 2026-11-14 against `545316f2`.
-  One independent reader reviewed it. The owner has answered eight of its twelve questions and
-  not approved the whole.
-- **Epic:** none. Opening one is the owner's call.
+  One independent reader reviewed it. The owner has answered nine of its thirteen questions and
+  not approved the whole. Amended 2026-11-16 with section 5.10, where the result-state work and
+  interface state live, which the owner decided as question 13.
+- **Epic:** none for this proposal; opening one is the owner's call.
+  [#1385](https://github.com/lushly-dev/afd/issues/1385) carries the code of the proposal's
+  section 5.10.
 - **Done:** the problem, what exists today, the model, thirteen draft jobs as sentences with the
   rank the owner confirmed, a design direction, the amendments it implies for other documents,
-  phases, twelve questions for the owner with eight answered, and an independent review in two
+  phases, thirteen questions for the owner with nine answered, and an independent review in two
   passes.
 - **In progress:** the [bench specification](bench.md), step 0.0 of phase 0, drafted
   2026-11-14 and merged in #1234. On 2026-11-15 the owner decided its domain, its model and
@@ -71,7 +74,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
   drafted, as the [Scales scaffold](../scales/STATUS.md) does. The
   [jobs-first guide](../../../../.claude/skills/afd/references/jobs-first.md) puts the owner's
   ranking after the scenarios and the reader walks, and they still follow.
-- **Last verified:** 2026-11-15, the runner's tests and dry runs on the second machine, the
+- **Last verified:** 2026-11-16 for section 5.10 and the two facts it added to section 2: the
+  link check and an independent review, below. Otherwise 2026-11-15, the runner's tests and dry runs on the second machine, the
   reference build's 308 checks, its runs end to end and its reviews, the link check, the scenario checks on the seed library's jobs, the check of the bench's tasks
   and results, the reviews below, and the seed library's tests, `pnpm check` and `pnpm verify`
   on the built application, and the held-back jobs run against it.
@@ -83,7 +87,8 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | --- | --- | --- |
 | Scaffold: problem, what exists, model, draft jobs, design direction | Done 2026-11-14, merged in #1223 | [`agent-first-design.proposal.md`](agent-first-design.proposal.md) |
 | Open the epic | Not started; the owner's call | |
-| The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Open: 4, 8, 9 and 10 | Proposal, section 9 |
+| The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Answered 2026-11-16: question 13. Open: 4, 8, 9 and 10 | Proposal, section 9 |
+| Amend with where the parts live (5.10) | Done 2026-11-16, merged in #1386: the owner's test for the component layer, the layer map, two facts in section 2 and question 13. Its code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s | Proposal, sections 2 and 5.10 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
 | Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
@@ -148,7 +153,11 @@ shape of the [Patterns status](../patterns/STATUS.md).
   - on 2026-11-15, after the runner was recorded in #1253: a second smoke session; the open
     question on how the runner reads one kind of control, settled as recommended; removing the
     six neighbouring proposals from every arm's tree; and the allowance week's reset, read from
-    the owner's screenshot.
+    the owner's screenshot;
+  - on 2026-11-16, question 13: the test for the component layer ("just because something can
+    go into FAST-AF, should it?"), the amendment that adds the proposal's section 5.10, and the
+    plan as epic #1385, started the same day. Three of its calls stay open to change until their
+    step starts.
 
 ## How it was checked
 
@@ -358,6 +367,25 @@ Run 2026-11-14 in this worktree at `545316f2`, and the links again after merging
   and "1 of 50 packages ... @afd/example-seed-library" after. Rerun: the package's tests (3
   files, 119 tests, 113 of 113 steps), `node --test scripts/affected.test.mjs` (18 passed),
   `pnpm check` and the link check.
+- **The amendment of 2026-11-16** (section 5.10, two facts in section 2, question 13), on a
+  branch from `main` at `a67433d7`:
+  - *Claims:* section 2's new facts were read first-hand from the files they cite. The Lushly
+    lines come from reading that private repository the same day and name none of its paths.
+  - *Links:* the same throwaway script, over the proposal and this file, found no broken link or
+    anchor.
+  - *The verify plan:* `pnpm verify --list` printed "no packages affected" and "no
+    path-filtered workflow is triggered".
+  - *Independent review:* a fresh read-only reviewer on Claude Opus 5.5 at `high`, briefed as
+    `review-code` describes. *Blockers, both fixed:* section 2 said the runtime's confirmation
+    never reads `confirmPrompt` (it reads its own entry's, not AFD's) and that neither
+    application reads `undoCommand` (Loam's editor does, once); and section 5.10 stated the
+    owner's three open calls as settled. *Improvements, all taken:* a first question, whether an
+    application should use a part at all, so "lives nowhere" follows from the rule; the boundary
+    rule stated as AFD's family, since AFD's own packages are foundations too; the
+    command-declared-by-components point tied to the honesty check's own words; Specimen's
+    FAST-AF plugin named as the one user of `@command`; the view-state row marked as proposed,
+    with the two applications' current wiring as its evidence; the epic lines; the order of the
+    decisions; and this entry.
 
 ## The runner
 
@@ -575,3 +603,4 @@ specification. No text, identifier or data from the brainstorm is in the proposa
 | 2026-11-15 | The bench's runner | The owner approved the runner's design, building Umbel's components server on the second machine, and one smoke session. The runner was written there outside the repository, as the held material is: a session's tree is a plain export with a fresh one-commit history and none of the repository's, pruned to what its arm reads, in a folder with an opaque name; the leak check, the budget's ledger and gate, and the scoring of the checks through Specimen with a second render for what its capture lacks. The smoke session cost $0.055 and showed a headless session's default tools reach other sessions and built-in skills, so the runner now names six tools and turns skills off. An independent review found two blockers, in how the probe read some page text and in what the leak check missed, both fixed, the second with a sandbox under every session, and eight improvements, seven taken and one put to the owner. Walks, readers and statistics are not written |
 | 2026-11-15 | The bench's runner, the owner's decisions | The owner agreed with the four recommendations put after #1253: a second smoke session, which ran and cost $0.119 once the sandbox let Claude Code start; the open question on reading one kind of control, settled; the neighbouring proposals removed from every arm's tree; and the week's reset taken from the owner's screenshot |
 | 2026-11-15 | The bench's reference build | The owner approved the reference build's design and a reviewer of another model family, and asked whether that reviewer adds new insight and how Opus 5.5 compares with Fable 5.2. The build was written outside the repository: four screens, their stories and the running app with its journal, passing all 308 checks and running each walked job end to end. Three reviewers (Codex, Opus 5.5, Fable 5.2) reviewed it on one brief; a verifier checked their findings, the 30 that needed a change were fixed, and a second pass checked the fixes. The runner now renders stories with animation settled. The comparison is in the reference build's section. It waits for the owner's look |
+| 2026-11-16 | Where the parts live | A review of what FAST-AF added for AFD found its command layer and trust fields unused, and that Loam and Lushly render results in the application and build the same pieces themselves. The owner set the test for the component layer, asked for the plan as epic #1385 and for this amendment: section 5.10 places each part (presentation in `violet-elements` with plain properties, normalisation in AFD's browser client, wording in the application, interface state in `afd-view-state`), section 2 gains the two facts, and question 13 records the decision. Nothing was built |

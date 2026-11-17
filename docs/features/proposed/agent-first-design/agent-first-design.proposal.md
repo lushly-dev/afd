@@ -12,6 +12,9 @@ defaults. Agents review early and often, and a person decides at the points that
   the jobs first, the order the [Scales scaffold](../scales/STATUS.md) set; commands and
   scenarios are phase A's, after phase 0's decision. Unlike Scales, it carries a design
   direction, marked unverified. [STATUS.md](STATUS.md) tracks progress.
+- **Amended:** 2026-11-16, with [5.10](#510-where-the-parts-live), where the result-state work
+  and interface state live, and two facts in [section 2](#specimen-violet-and-umbel) about the
+  component runtime and how applications render results.
 - **Verified:** every claim in [What exists today](#2-what-exists-today) was read first-hand on
   2026-11-14 at `545316f2`, except where a line says otherwise.
 - **Not verified:**
@@ -21,7 +24,7 @@ defaults. Agents review early and often, and a person decides at the points that
     ([5.3](#53-default-opinions-move-out-of-the-contract)). Only TypeScript's was read.
   - How much result handling Loam repeats. A text search for `undoCommand` or `.suggestion`
     matched 43 source files outside tests across its packages, 18 of them in the chrome; none
-    was read.
+    was read. On 2026-11-16 the chrome's shared pieces were read (section 2), not every caller.
   - The claims about agents as test users in [5.5](#55-review) that have no citation here. They
     come from the owner's earlier brainstorm and were not rechecked.
 - **Read for ideas, from outside this repository:**
@@ -36,9 +39,9 @@ defaults. Agents review early and often, and a person decides at the points that
 
 | Field | Value |
 | --- | --- |
-| Epic | None yet. Opening one is the owner's call |
-| Units likely touched | The `afd` skill and `packages/core` documentation; `foundations/specimen` and `integrations/specimen-afd` (a persona runner, statuses, a decision card); `endpoints/umbel` (its `components` plugin, later a copy plugin); `packages/examples` (the bench); a new local skill |
-| Related | [Patterns](../patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md) |
+| Epic | None for this proposal yet; opening one is the owner's call. [#1385](https://github.com/lushly-dev/afd/issues/1385) carries the code of [5.10](#510-where-the-parts-live) |
+| Units likely touched | The `afd` skill and `packages/core` documentation; `foundations/specimen` and `integrations/specimen-afd` (a persona runner, statuses, a decision card); `endpoints/umbel` (its `components` plugin, later a copy plugin); `packages/examples` (the bench); a new local skill; for [5.10](#510-where-the-parts-live), `foundations/fast-af`, `packages/client` and `packages/view-state` |
+| Related | [Patterns](../patterns/patterns.proposal.md), [Design Decisions](../design-decisions/design-decisions.proposal.md), [Screens from Jobs](../screens-from-jobs/screens-from-jobs.proposal.md), [Pointing](../pointing/pointing.proposal.md), [Scales](../scales/scales.proposal.md), [Component Briefs](../../complete/component-briefs/STATUS.md), [Agent Engine research](../agent-engine/research.md), [epic #1385](https://github.com/lushly-dev/afd/issues/1385) (where FAST-AF's parts live) |
 | Rank | Not ranked. It frames the five design proposals and adds what none of them covers |
 
 ## 1. Problem
@@ -138,6 +141,30 @@ Read first-hand on 2026-11-14 at `545316f2`.
 - **`violet-elements` has no component bound to a result.** It has alert, toast, snackbar,
   empty-state, progress, skeleton and dialog, among others
   (`foundations/fast-af/packages/violet-elements/src`).
+- **The component runtime carries an older command layer** (read 2026-11-16 at `a67433d7`).
+  `fast-element` has a `@command` decorator, an in-page command registry, confirm and undo
+  behaviours, a confirm dialog, component-list and lint commands, and trust fields on emitted
+  events (`foundations/fast-af/packages/element/packages/fast-element/src/command`, `src/trust`),
+  written in lushly-dev/fast-af in January 2026. FAST-AF may not import a package of AFD's
+  family (`scripts/check-boundaries.mjs:259`), so the runtime keeps its own copy of AFD's types
+  (`src/command/types.ts:14`). Its `CommandResult` (`types.ts:52`) has no `confidence`,
+  `warnings`, `sources`, `plan`, `alternatives` or `undoCommand`. Its confirmation reads a
+  `confirmPrompt` of its own command entry, not AFD's `confirmPrompt` or `approval`, and its undo
+  calls a `${method}Undo()` method on the element, not `undoCommand`. No application uses any of
+  it; the one user is Specimen's FAST-AF plugin, which runs a component's `@command` methods in
+  a story (`integrations/specimen-fast-af/src/index.ts`). The browser-safe `createDirectRegistry`
+  does the registry's job now with the real contract.
+- **Applications render results in the application.** Loam's chrome calls its kernel and
+  renders each result by hand: its own answer type, confirm and name dialogs, a notice element
+  with the suggestion, and pending state set per component
+  (`endpoints/loam/packages/chrome/src/identity/account-parts.ts`,
+  `src/elements/notice.ts`). Lushly, a component-heavy AFD application outside this repository,
+  read on 2026-11-16, does the same: no component calls a command; components emit intent
+  events and the application turns them into commands, and it built its own confirm dialog,
+  list states and result normalisation. Neither renders `confidence`, `sources`,
+  `alternatives`, `plan` or an undo offer, and neither takes a confirmation's wording from a
+  command's `confirmPrompt`. Loam's editor reads `undoCommand` once, to decide whether an opened
+  tab should close again (`endpoints/loam/packages/chrome/src/editor/editor.ts:883`).
 
 ### Loam and the skills
 
@@ -375,6 +402,10 @@ library. The owner decided this on 2026-11-14 ([question 3](#9-for-the-owner)).
   and "focus moves to the notice" need only roles, names and focus.
 - **Loam is the first implementation.** A product with another design system builds its own and
   is held to the same gates, which is Patterns' job 3.
+- **Each pattern is built in three places** ([5.10](#510-where-the-parts-live)): presentational
+  pieces in the component library; turning a result into what they show in AFD's browser
+  client; the wording and the wiring in the application. That the library's pieces take plain
+  properties is the plan's position, open until its step starts.
 - **Statements are not written from the public skills.** Patterns' decision 8 holds that save
   writes no guidance, because an invented `keep` reads as a requirement. A statement here comes
   from the owner or from a fault seen in phase 0, and stays `authored` until a gate verifies it.
@@ -584,6 +615,54 @@ recommended domain and a budget, is [bench.md](bench.md).
   No single score ranks the arms. The owner's blind choice between arms is the judgement measure.
 - **Runs per arm follow Component Briefs:** fifteen.
 
+### 5.10 Where the parts live
+
+Added 2026-11-16 ([question 13](#9-for-the-owner)). The owner's test for the component layer:
+just because something can go into FAST-AF, should it? Each part goes where it belongs and is
+worth its complexity, which is often not the component layer. That nothing uses a part today is
+not by itself a reason to remove it; the question is whether an application should use it
+there. Lushly and Loam are the checks ([section 2](#specimen-violet-and-umbel)).
+
+Four questions place a part:
+
+1. Should an application use it at all? If not, it lives nowhere, however little it costs to
+   keep.
+2. Can only the component runtime do it? Then it is the runtime's.
+3. Does it need the command contract? Then it cannot be in FAST-AF, Specimen or Violet, which
+   may not import a package of AFD's family (`scripts/check-boundaries.mjs:259`), and it belongs
+   in an AFD package or the application.
+4. Did more than one application need it? Then it is shared, in the library or an AFD package;
+   otherwise it is the application's.
+
+| Part | Where it lives |
+| --- | --- |
+| A result-state pattern's presentation: an error with its suggestion and a retry, a confirmation with busy and error states, list states, and the rest of [5.2](#52-the-default-pattern-set) | The component library (`violet-elements`). That its pieces take plain properties (a message, a suggestion, a busy flag, a label) and know nothing about commands is the plan's position, open until its step starts |
+| Turning a result into what a piece shows: loading, ready, empty or error, with the message, suggestion, `retryable`, code, warnings and the rest of the result kept | AFD's browser client, beside the browser-safe DirectClient ([#655](https://github.com/lushly-dev/afd/issues/655)). The direct registry's command summary should also carry `confirmPrompt`, `examples`, `requires` and `tags`, which it drops today (`packages/server/src/direct-registry.ts:214`) |
+| Wording, which command a control calls, and what happens after | The application |
+| An agent seeing and setting interface state (an open panel, a selection, a tab) | `@lushly-dev/afd-view-state`, which Loam already uses with handlers it writes by hand; Lushly describes where the person is in a string it sets by hand. Proposed: a helper in that package that binds an element's properties and change events to a view-state id, and a rule Specimen can check, that a stateful component exposes its state as a settable property with a change event |
+| What an agent knows about a component | Specimen's pack and Umbel's `components-brief`, as now |
+| Scoped registries in the render path, the loader for their polyfill, and the opt-in definition schema Specimen reads | The component runtime (`fast-element`). Its scoped mixin and registry builders go, which is the plan's position, open until its step starts: Loam, the application that needs scoped registries, uses the browser's own API |
+
+What this rules out:
+
+- **Commands declared by components.** AFD's honesty check keeps business logic in commands a
+  person and an agent can run from the CLI, and says ephemeral interface state is not a command
+  (`.claude/skills/afd/SKILL.md`, "The honesty check"). A capability that exists only while a
+  component is on the screen fails it. What a component can offer an agent is interface state,
+  which its properties and events already carry and `afd-view-state` exposes.
+- **A command system in the runtime.** The runtime's command layer (`@command`, its in-page
+  registry, confirm and undo, the confirm dialog, the component-list and lint commands) and its
+  trust fields on emitted events leave it, with Specimen's FAST-AF plugin losing the path that
+  runs `@command` methods. AFD's direct registry, Specimen's pack and the library cover what
+  they meant to do. Removing `@command` entirely, rather than keeping it for interface
+  operations, is the plan's position, open until its step starts.
+- **A binding package between the runtime and AFD.** Components do not call commands in either
+  application, so it would have little to do.
+
+[Epic #1385](https://github.com/lushly-dev/afd/issues/1385) holds the steps, the runtime
+cleanup first. They are its work, not this proposal's; an agent inside a product acting for its
+user stays out of scope ([section 10](#10-out-of-scope)).
+
 ## 6. What this changes elsewhere
 
 Each is an amendment for the owner to accept, not an edit made here.
@@ -596,6 +675,7 @@ Each is an amendment for the owner to accept, not an edit made here.
 | Pointing | No change. Its question about pointing in the running application stands |
 | `afd` skill, `command-schema.md`, `result.ts` comments, the whitepaper | The edits in [5.3](#53-default-opinions-move-out-of-the-contract) |
 | Design to Code | Retire or rewrite it; the owner's call, already raised in the Patterns status file |
+| `fast-element`, `violet-elements`, AFD's browser client, `afd-view-state` | Where the result-state work and interface state live ([5.10](#510-where-the-parts-live)). Decided 2026-11-16 (question 13); the code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s, not this document's |
 
 ## 7. Phases
 
@@ -630,7 +710,8 @@ its exit from the proposal that owns it.
 
 ### Phase B. Defaults
 
-The result-state pattern set, with Loam as its first implementation. The edits in
+The result-state pattern set, with Loam as its first implementation, built where
+[5.10](#510-where-the-parts-live) places each part. The edits in
 [5.3](#53-default-opinions-move-out-of-the-contract). The skill, if step 0.5 says so.
 
 **Exit:** every pattern in [5.2](#52-the-default-pattern-set) has gates that hold on Loam's
@@ -715,6 +796,13 @@ Each recommendation is for the owner to decide.
     run on Opus 5.5 at `medium` on a second machine of the owner's, draw on its subscription
     allowance, and take no more than a fifth of a week's allowance in any one week. The rules
     for "go" are not confirmed.
+13. **Where the parts live.** Raised 2026-11-16 by a review of what FAST-AF added for AFD.
+    **Decided 2026-11-16:** the owner set the test in [5.10](#510-where-the-parts-live), asked
+    for this amendment, and asked for the plan as an epic and to start it
+    ([#1385](https://github.com/lushly-dev/afd/issues/1385)). Three of its calls are the plan's
+    position and stay open to change until their step starts: the runtime's `@command` goes
+    entirely rather than staying for interface operations; its scoped mixin and registry
+    builders go; and the library's result-state pieces take plain properties.
 
 ## 10. Out of scope
 
