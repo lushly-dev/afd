@@ -1,0 +1,150 @@
+---
+name: maintain-gates
+description: >
+  Rules for adding, changing or exempting a quality gate: watch it fail, assert
+  properties, make exemptions expire, register skipped tests. Use when editing a
+  check, hook or CI, skipping a test or reviewing a gate diff.
+metadata:
+  source: botcore
+  version: 1.0.0
+  portable: true
+---
+
+<!-- Generated from skills/exports.json; edit the canonical gate-discipline skill. -->
+
+# Gate discipline
+
+A convention holds exactly where something exits non-zero. Agents optimize for "make
+the checks pass", so an unenforced convention does not exist, and a gate that can be
+passed by checking less will be. These rules cover every gate surface: git hooks, CI
+workflows, check scripts, linter and dead-code configuration, coverage floors and the
+test suites themselves.
+
+## Watch it fail
+
+A check never seen failing is not yet known to be a check. Before finishing any work
+whose deliverable is a gate (a new or edited check, a rewired hook, a moved script):
+
+1. **Plant** the exact violation the gate exists to catch, in a real file it scans.
+2. **Prove red:** run the gate and confirm its output names the violation. A non-zero
+   exit alone proves nothing, since a crashed harness exits non-zero too.
+3. **Remove** the plant. If it sat in uncommitted work, restore from a copy:
+   `git restore` resolves against HEAD and can delete the feature under test.
+4. **Prove green** with a clean re-run.
+
+Self-review can't substitute: re-reading a check exercises the mental model that
+produced its blind spot. Only running it against an input the author didn't imagine
+separates "looks right" from "works". Say in the pull request what you planted and
+what the gate printed.
+
+## Assert properties, not shapes
+
+The recurring defect asserts a *shape* (a test file exists, a command is wrapped, a
+directory is listed) instead of the *property* it should guarantee (the test asserts
+something, the tree is covered). Ask two questions of every check:
+
+- **Shape or property?** "A test file exists for X" is shape. "Deleting X's null check
+  makes a test fail" is property.
+- **Redder or greener?** If the check's input silently degraded (a scan finding no
+  files, a parser matching nothing), would it get redder or greener? Derived sets
+  shrink invisibly, so assert the population is not empty and reconcile it against a
+  second, independent declaration in both directions.
+
+Platform defaults are exemptions you never wrote: a directory read without recursion,
+a glob without dotfiles, a regular expression without its global flag, a one-level
+flatten. Verify any check that claims "every X" by planting an X one level deeper.
+
+## Exemptions must invalidate themselves
+
+Every escape hatch (lint suppressions, dead-code ignores, test skips, baselines,
+allowlists) gets pattern-matched and copied by later agents. Before adding one:
+
+- It names a target that really is enforced elsewhere, and **fails once the exempted
+  surface no longer needs it**, so a stale exemption breaks loudly.
+- Its written reason says why compliance isn't possible and ties to evidence that
+  expires (a file hash, a linked issue), not to a moment.
+- Ask whether it is exempt because of something true about it or because of where it
+  sits. Position-based exemptions are where coverage silently dies.
+- When you fix a defect copied from an existing instance, fix the exemplar too:
+  agents imitate the nearest code far more reliably than they read guidance.
+
+## Prove a tolerance reaches what it exempts
+
+A tolerance declared in two places is enforced in neither: the narrower one wins
+silently. A suite-wide timeout raised from 120 to 300 seconds changes nothing while
+three test files still pass their own 60-second timeouts, and every gate stays green
+while the suites keep timing out at the old number. For any timeout, size cap,
+threshold or retry count, ask whether something closer to the code can override it
+and whether anything looks. When you check, parse rather than grep, and probe a
+suspected shadow with a test only the wider tolerance can pass.
+
+## Honest labels beat aspirational ones
+
+When a configuration or comment claims enforcement nothing performs, correct the
+claim before expanding the check: the defect is the false belief it plants in every
+agent that reads it. Label an advisory check as advisory where it is defined and name
+the command that runs it. Never leave a threshold of 0, a permanently red job or a
+"CI runs this" comment CI doesn't honor: a gate that can't fail and one that always
+fails carry equally little information.
+
+## Runnable from a clean clone
+
+A check that needs a second runtime, a global tool or a manual sign-in never gets wired
+into a gate, and unwired checks go unmaintained. A gate runs straight after the
+package manager's install, with nothing built: a check that imports a workspace
+package's built output reads a stale or absent build, which fails toward greener.
+Read source, or parse it.
+
+## Every gate ships with its test
+
+A gate's false negative is invisible: it prints success while enforcing nothing. A new
+check gets a test that feeds it a violating fixture and asserts the failure, plus the
+passing case and one no-op control: a harness that crashes before asserting makes
+every probe "fail" for the wrong reason.
+
+## The scripts
+
+Both need only Node and git, read what `git ls-files` lists (so ignored directories stay
+out), and print each finding with its file and line. Wire them into the gate CI runs.
+
+**`scripts/check-test-quarantine.mjs`: no silent test suppression.** `.only` always
+fails. An unconditional `.skip`, `.todo` or Playwright `.fixme` on `describe`, `it`,
+`test`, `suite` or `bench` in a JavaScript or TypeScript test file needs an entry in the
+register, `scripts/policy/test-quarantine.json` by default (`--register <path>` for
+another). A missing register fails, so start one as `{"quarantined": []}`:
+
+```json
+{
+  "quarantined": [
+    {
+      "file": "packages/core/src/parser.test.ts",
+      "owner": "maintainer",
+      "reason": "Waits on the upstream tokenizer fix; fails on every run until it ships",
+      "issue": "#123"
+    }
+  ]
+}
+```
+
+Reconciliation runs both ways: an entry whose file has no unconditional skip left fails
+as recovered, so the spent entry is deleted. A skip that depends on the environment is
+written as a condition instead and needs no entry, because it runs again whenever the
+condition stops holding: `it.skipIf(...)`, `it.runIf(...)` and Playwright's
+`test.skip(condition, reason)`; a condition that always holds (`true`, `!0`) counts as
+none. An entry covers its whole file, so a second skip added to a quarantined file needs
+no new entry: review it as you would the first. Not seen, by design: aliases, element
+access (`it['skip']`), option objects (`{ skip: true }`), a test's own context
+(`t.skip()`), a variable title with its body passed by name (`test.skip(title, run)`)
+and other languages' skips. The scan masks comments, strings and regular expressions
+rather than parsing, so a backtick in JSX text can hide what follows it in that file.
+Paths after the options limit the scan to those directories.
+
+**`scripts/check-test-configs.mjs`: no runner may pass having run no tests.** It refuses
+`passWithNoTests` in any Vitest or Vite configuration, and the `--passWithNoTests` flag in
+any `package.json`, GitHub workflow or Lefthook configuration. Paths after the options add
+a repository's own scripts that start runners; a path with no file in it fails. A package
+with no tests yet adds its first test with its configuration instead.
+
+If a software factory or another agent loop may repair a failing branch, list both
+scripts and the register among the paths a repair may not edit, or the repair can pass
+by registering a skip.

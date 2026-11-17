@@ -21,14 +21,16 @@ check_agents = true
 # Must equal listingBudget in skills/exports.json; pnpm check:skills compares them.
 # Standing rule (owner, 2026-11-12): a PR that still needs more raises both to the
 # listing total rounded up to the next 100, up to 8,000; above that, ask the owner.
-listing_budget = 6600
+listing_budget = 6800
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
+    "bloat-sweeper",
     "botcore-config",
     "browser-automation",
     "code-reviewer",
     "docs-manager",
+    "gate-discipline",
     "mcp-builder",
     "plugin-builder",
     "security-auditor",
@@ -138,6 +140,10 @@ gate_paths = [
     ".github/workflows/**",
     ".github/labels.json",
     "scripts/check-*.mjs",
+    "scripts/policy/**",
+    "scripts/gate-discipline.test.mjs",
+    ".claude/skills/maintain-gates/scripts/**",
+    "endpoints/botcore/src/botcore/skills/gate-discipline/scripts/**",
     "scripts/issue-labels.mjs",
     "scripts/affected*",
     "scripts/pre-push.mjs",

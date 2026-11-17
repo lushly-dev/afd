@@ -10,6 +10,7 @@
 			"browser-automation",
 			"code-reviewer",
 			"docs-manager",
+			"gate-discipline",
 			"mcp-builder",
 			"plugin-builder",
 			"security-auditor",
@@ -22,7 +23,7 @@
 		"afd": {
 			"root": ".claude/skills",
 			"mirror": ".agents/skills",
-			"listingBudget": 6600,
+			"listingBudget": 6800,
 			"projections": [
 				{
 					"name": "audit-security",
@@ -43,6 +44,10 @@
 				{
 					"name": "configure-botcore",
 					"canonical": "botcore-config"
+				},
+				{
+					"name": "maintain-gates",
+					"canonical": "gate-discipline"
 				},
 				{
 					"name": "manage-documentation",

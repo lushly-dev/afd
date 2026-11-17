@@ -167,7 +167,7 @@ Language detection is automatic. botcore inspects workspace markers (`Cargo.toml
 | **Research** | `research_query`, `research_stream` | GPT web research with streamed output |
 | **Undo** | `undo_status`, `undo_clear` | Command history and rollback |
 
-### Bundled Skills (9)
+### Bundled Skills (11)
 
 Skills are markdown knowledge packs for agents. botcore bundles only skills whose content is
 specific to botcore or its ecosystem; general engineering guidance that current models already
@@ -178,6 +178,7 @@ locally owned ones.
 |----------|--------|
 | **botcore** | `agent-config`, `botcore-config`, `browser-automation`, `mcp-builder`, `plugin-builder` |
 | **Review and security** | `code-reviewer`, `security-auditor` |
+| **Quality gates** | `bloat-sweeper`, `gate-discipline` (each with Node scripts, shipped in the wheel) |
 | **Documentation** | `docs-manager`, `skill-manager` |
 
 ## Plugin System

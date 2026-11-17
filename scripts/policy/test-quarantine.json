@@ -1,0 +1,4 @@
+{
+	"$comment": "Quarantined tests. Each unconditional .skip or .todo in a JavaScript or TypeScript test file needs an entry here with owner, reason and tracking issue; the maintain-gates skill's scripts/check-test-quarantine.mjs reconciles both ways, so a recovered test fails until its entry is deleted.",
+	"quarantined": []
+}
