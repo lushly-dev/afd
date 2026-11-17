@@ -51,7 +51,8 @@ base branch's origin head in, then runs the adapter's `install`, bounded by a ti
 the push and just before the merge; when it moved, the branch advances to it without a new
 validation, a `base-advanced` record, only if main's changes touch no `shared_paths` or
 `gate_paths`, merge cleanly with the validated head, and share no unit with the branch's, as the
-adapter's `units` command names them; otherwise it is validated again, `rerun` `main-moved`;
+adapter's `units` command names them, run in a clean `units` slot checked out at the new
+base; otherwise it is validated again, `rerun` `main-moved`;
 after `lane.maxBaseReruns` of those, a move that merges cleanly and touches no `gate_paths`
 advances it anyway, a `base-advanced` record with `reason` `rerun-limit`, and the PR's
 `required_check`, run on the pull request's merge ref, stands in; a move after the push merges
@@ -92,9 +93,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   relative path inside the worktree), `NOT_FOUND` (no cell for its branch), `NOT_LANE_HOST`,
   `DIRTY_WORKTREE` (names the files), `NOT_CONFIGURED` (no `review_evidence`), `REVIEW_MISSING`
   (no review recorded for the exact head), `GATE_EDIT_IN_REPAIR` (a repair after a failing
-  check edits `gate_paths`; names them), `PREQUEUE_FAILED` (names the stage, with its first
-  lines), `HEAD_MOVED` (the worktree changed while the checks ran; they run outside the state
-  lock), `WRITE_FAILED`. A refusal writes nothing.
+  check edits `gate_paths`; names them; only the branch's own changes count, against a base the
+  lane fetches, so main's gate changes a rebase or merge brings in do not),
+  `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
+  (names the stage, with its first lines), `HEAD_MOVED` (the worktree changed while the checks
+  ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
 - `lane_wait(consumer, timeout_ms?)` -> `events[] {id, type, branch?, reason?, detail?,
   logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`; over MCP
   pass at most 300000.

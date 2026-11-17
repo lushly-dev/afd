@@ -67,6 +67,18 @@ def test_a_move_that_touches_none_of_its_units_advances_and_merges(lane):
     assert (report["baseAdvances"], report["reruns"]) == (1, 0)
 
 
+def test_units_are_read_in_a_clean_slot_at_the_new_base(lane):
+    """lushly-dev/afd#1354: not in the lane host's own checkout, which may be dirty or behind."""
+    move_main(lane, ["packages/b/y.ts"])
+    slots = lane.world_data()["checkouts"]
+    assert slots["units"] == {"branch": "", "head": "main-human"}
+
+
+def test_a_units_slot_that_cannot_be_prepared_validates_again(lane):
+    move_main(lane, ["packages/b/y.ts"], prepare="fail: disk full")
+    assert "units could not be read: disk full" in rerun_detail(lane)
+
+
 def test_a_move_before_the_push_advances_too(make_run):
     run = make_run("running")
     run.change_world(units=UNITS, main={"changes": {HEAD: ["packages/a/x.ts"]}})

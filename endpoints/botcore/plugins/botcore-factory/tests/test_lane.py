@@ -637,6 +637,56 @@ def test_the_lane_never_validates_without_a_validate_command(lane, tmp_path):
     assert "validate" in events(lane, "lane-error")[0]["detail"]
 
 
+def test_first_lines_put_the_failed_test_and_suite_first_never_a_passing_test():
+    """lushly-dev/afd#1373: a passing test whose name says "failed" is not the failure."""
+    log = "\n".join(
+        [
+            "✔ starts a local run",
+            "✖ SIGTERM during a real local run unwinds cleanup",
+            "  AssertionError: Target page, context or browser has been closed",
+            *[f"✔ passing test {n}" for n in range(30)],
+            "✔ a failed restart remains a failure without leaking response bodies",
+            "\x1b[32m✓ coloured pass that failed nothing\x1b[0m",
+            "[verify] summary",
+            "  pass  12s  check (ci.yml)",
+            "  FAIL  612s  hosted-fixtures",
+        ]
+    )
+    lines = first_lines(log)
+    assert lines[:3] == [
+        "✖ SIGTERM during a real local run unwinds cleanup",
+        "  FAIL  612s  hosted-fixtures",
+        "  AssertionError: Target page, context or browser has been closed",
+    ]
+    assert not any("✔" in line or "✓" in line for line in lines)
+    # An exception line a test logged, or a prefixed passing line, never leads.
+    noisy = "\n".join(
+        [
+            "  Error: listen EADDRINUSE (expected, retried)",
+            "packages/x test: ✔ a failed restart remains a failure",
+            "packages/x test: ✖ SIGTERM unwinds cleanup",
+            "  FAIL  612s  hosted-fixtures",
+        ]
+    )
+    assert first_lines(noisy) == [
+        "packages/x test: ✖ SIGTERM unwinds cleanup",
+        "  FAIL  612s  hosted-fixtures",
+        "  Error: listen EADDRINUSE (expected, retried)",
+    ]
+    # Words before a colon are not a package prefix; an error that says "pass" is still one.
+    loose = "\n".join(
+        [
+            "check result: FAILED as expected",
+            "AssertionError [ERR_ASSERTION]: ok flag missing",
+            "Error [ERR_X]: pass-through failed",
+        ]
+    )
+    assert first_lines(loose)[:2] == [
+        "AssertionError [ERR_ASSERTION]: ok flag missing",
+        "Error [ERR_X]: pass-through failed",
+    ]
+
+
 def test_first_lines_prefer_failures_and_logs_are_named_per_attempt():
     assert first_lines("ok\nok\nFAIL a\nError: b\n") == ["FAIL a", "Error: b"]
     assert first_lines("one\ntwo") == ["one", "two"]

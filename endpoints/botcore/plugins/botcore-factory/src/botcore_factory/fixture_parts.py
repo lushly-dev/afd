@@ -5,7 +5,7 @@ from __future__ import annotations
 
 import json
 import os
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from datetime import datetime
 from typing import TYPE_CHECKING
 
@@ -215,6 +215,13 @@ class FixtureGit:
             return list(self.store.data.get("outcomes", {}).get("changed", {}).get(branch, []))
         found = self._worktree(worktree)
         return [*found.get("gatePathsChanged", []), *found.get("changed", [])]
+
+    def repair_edits(
+        self, worktree: str, base: str, since: str | None, keep: Callable[[str], bool]
+    ) -> list[str]:
+        """The branch's own changes the fixture names that ``keep`` selects; ``base`` and
+        ``since`` are not modelled (``test_lane_git`` runs the real comparison)."""
+        return [path for path in self.changed_files(worktree) if keep(path)]
 
     def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
         self._worktree(worktree)
