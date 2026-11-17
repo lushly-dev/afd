@@ -99,6 +99,7 @@ CommandResult DirectClient::call(std::string_view name, const Json& args,
 
     // Public callers cannot supply approval authority, including a copied private marker.
     context.approval.reset();
+    context.mcp_approval_relay.reset();
     context.direct_approval = std::make_shared<detail::DirectApprovalState>();
     const detail::DisposeDirectApproval cleanup{context.direct_approval};
 

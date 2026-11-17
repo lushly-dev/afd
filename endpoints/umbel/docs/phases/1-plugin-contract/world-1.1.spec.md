@@ -271,12 +271,20 @@ world, but its manifest and source do:
   `RandomState` makes the component import `wasi:random/insecure-seed`, which needs the `random` grant (phase 1,
   section 4; `analyze.rs`'s `wasi_grant`). D2 either declares `random` in the component manifest (amending D151's
   grant list) or uses `BTreeMap` and `BTreeSet`.
-- **`journal`.** Until the owner answers (section 8, question 4), a component manifest beside the compiled one, as
+- **`journal`.** The owner answered (D195): the deployer sets it in `umbel.toml`, built in
+  [#1382](https://github.com/lushly-dev/afd/issues/1382). Until then, a component manifest beside the compiled one, as
   hello keeps `manifests/component.toml`, declares no `journal`, so the journal records its calls as it records any
   plain command, input and result included.
 - **Pack checks.** The doctor's `plugins.pack_checks` reaches compiled plugins only (components specification, A23).
 
 ## 8. What stays with the owner
+
+> **Answered 2026-11-16 by the owner** (D192 to D195), each as recommended on #1364: (1) the first store reads a
+> component gets are read-only `documents` and `index`, in world 1.2.0, when a component first needs them
+> ([#1381](https://github.com/lushly-dev/afd/issues/1381)); (2) no write grant for components in protocol 1; (3) if
+> components ever write memory, the host masks, never the component; (4) the deployer, not the component's author,
+> chooses a component instance's journal mode in `umbel.toml` ([#1382](https://github.com/lushly-dev/afd/issues/1382)).
+> Nothing below changes until those are built.
 
 Store grants for components, the masking of their writes and a component's `journal` stay refused, as today, until
 the owner decides them (#1364's thread carries the questions). Each would let a sandboxed, untrusted component read or write

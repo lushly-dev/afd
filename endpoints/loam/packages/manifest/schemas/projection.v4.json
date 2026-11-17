@@ -43,7 +43,7 @@
 		},
 		"sandbox_origin": {
 			"type": ["string", "null"],
-			"pattern": "^https?://[^/?#\\s]+$"
+			"pattern": "^(https?://[^/?#\\s]+|loam-sandbox://localhost)$"
 		},
 		"identity": {
 			"$ref": "#/$defs/identity"

@@ -339,8 +339,8 @@ std::optional<std::string> register_todo_commands(afd::CommandRegistry& registry
                                 std::move(options));
         });
     clear.destructive = true;
-    // Declared like the other backends. This stdio loop does not enforce confirmations yet:
-    // that comes with the library's afd::mcp_stdio (#341).
+    // Declared like the other backends; afd::mcp_stdio enforces it when the server runs with
+    // CONFIRMATIONS=enforce or require-human.
     clear.confirm_prompt = "Delete these todos? This cannot be undone.";
     commands.push_back(std::move(clear));
 

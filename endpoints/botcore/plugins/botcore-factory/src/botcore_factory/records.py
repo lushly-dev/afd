@@ -27,14 +27,23 @@ kind                    required fields                                     writ
                         needs a new validation)
 ``base-advanced``       branch, attempt, previous, base: main moved under   the lane loop
                         a validated branch and nothing it changed can touch
-                        what was validated; optional head
+                        what was validated; optional head; with reason
+                        ``rerun-limit`` it may touch it, but the attempt
+                        reached ``lane.maxBaseReruns`` and the PR's
+                        required check stands in (detail: why it would
+                        have been validated again; checkBase when the PR
+                        was already pushed: its check ran onto a base no
+                        older than that)
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed); optional head,
                         logPath
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
                         withoutCheck, advanced (merged after a
-                        base-advanced, without a new validation)
+                        base-advanced, without a new validation),
+                        checkStoodIn (after a rerun-limit advance, with
+                        checkBase, the base at the push, which its check
+                        ran onto or past, and base)
 ``dropped``             branch, reason                                      lane-drop
 ``coverage``            main, outcome (passed | failed), minutes;           the lane loop
                         optional logPath, after (the PRs since the last)
@@ -205,6 +214,7 @@ def _fold(row: dict, kind: str, record: dict) -> None:
             row["pr"] = record["pr"]
             row["withoutCheck"] = bool(record.get("withoutCheck"))
             row["advanced"] = bool(record.get("advanced"))
+            row["checkStoodIn"] = bool(record.get("checkStoodIn"))
     row.setdefault("state", None)
 
 

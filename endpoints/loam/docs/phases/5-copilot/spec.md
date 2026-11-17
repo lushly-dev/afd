@@ -10,7 +10,7 @@
 ## Status
 
 - **State:** written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`. Proposed, not approved. Nothing is built.
-- **Last verified:** 2026-11-16. Read: the documents in the table above; Loam's STATUS rows that name this specification; the open pull request [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), which merged on 2026-11-16 as D137 while this specification was in review and was merged into its branch; this specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
+- **Last verified:** 2026-11-17. Read: the documents in the table above; Loam's STATUS rows that name this specification; [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), both merged while this specification was in review and merged into its branch. 10.8 was approved on 2026-11-17, with the owner's answers recorded as D137 to D140 in [#1378](https://github.com/lushly-dev/afd/pull/1378). This specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
 - **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106.
 - **Not done:** every step in [section 19](#19-implementation-plan).
 - **Follow-ups:** [at the end](#follow-ups).
@@ -38,7 +38,7 @@
 | Phase 4's 13: seven obligations on phase 5's "shell commands over MCP" | [Section 10](#10-milestone-c-the-hosted-criterion), milestone C, all seven |
 | Phase 6's 12: the `HostModule` seam and row P6-X1, "phase 5's to write" | [Section 10](#10-milestone-c-the-hosted-criterion); P6-X1 in [section 18](#18-exit-criterion-and-tests) |
 | Phase 1's 7.4: "`approval` reported as `required` is displayed. Enforcement is the server's own until phase 5"; "the copilot's use of the label is phase 5" | Sections [5](#5-labels-and-taint-l1-l2-d144) and [7.2](#72-a-mounted-command-only-a-person-may-run-l7-a1-d146) |
-| Phase 6's 10.8 seam (D137): "page state and mounted instances' commands through" the desktop's inbound endpoint are phase 5's | [Section 17](#17-out-of-scope-and-the-seams-reserved): reserved, not served by milestone A; the copilot's own commands are never served inbound; [6.1](#61-before-every-call) amends 10.8 so `loam-inbound` gets 6.1's confirmations |
+| Phase 6's 10.8 seam (D138): "page state and mounted instances' commands through" the desktop's inbound endpoint are phase 5's | [Section 17](#17-out-of-scope-and-the-seams-reserved): reserved, not served by milestone A; the copilot's own commands are never served inbound; [6.1](#61-before-every-call) amends 10.8 so `loam-inbound` gets 6.1's confirmations |
 | STATUS, 2026-11-13: prepare the groundwork before M1 (#883, #885, the spike) | Section 0. #883's inventory and #885's check were done on 2026-11-13; the spike is step 0a |
 | STATUS, 2026-11-10: a shell surface for long-running commands (Mail's L3) and a kit component for reviewing a batch (L4) | Not decided here: [section 17](#17-out-of-scope-and-the-seams-reserved) names the seam each would use and leaves its phase open, as STATUS does |
 
@@ -69,7 +69,7 @@ D27 chose TanStack AI 1.0 behind the runtime adapter of D24. What a panel in a w
 
 ### 0.3 The spike (step 0a)
 
-A throwaway branch, never merged, whose report becomes an amendment to sections 3 and 4 before step 1. It answers, in Chromium, WebView2 and WebKitGTK (the last two through phase 6's desktop suite once [#1337](https://github.com/lushly-dev/afd/pull/1337) merges, or its branch until then):
+A throwaway branch, never merged, whose report becomes an amendment to sections 3 and 4 before step 1. It answers, in Chromium, WebView2 and WebKitGTK (the last two through phase 6's desktop suite, merged in [#1337](https://github.com/lushly-dev/afd/pull/1337)):
 
 | # | Question | Passes when |
 | --- | --- | --- |
@@ -191,7 +191,7 @@ Today phase 5 is gated on phase 3's exit and phase 6's M1. D129 asks that its lo
 | `@lushly-dev/loam-kernel/copilot` | A subpath of the kernel | The records and commands (3.4, 3.5), the agent port's kernel half, taint (5.3), enforcement (6.1), mounted approvals (7.2), approval health (6.3) | 1 |
 | `@lushly-dev/loam-chrome` | Existing | The panel part, a FAST element over `ChatClient` with Violet's conversation components | 1 |
 | `@lushly-dev/loam-web` | Existing | The runtime frame's document and chunk on the sandbox origin, the ports' main-frame halves, the desktop's model transport (4.2) | 1, 2 |
-| `@lushly-dev/loam-desktop` | Existing once [#1337](https://github.com/lushly-dev/afd/pull/1337) merges | `models.json`, `model_send` and `model_cancel` in the Rust host | 2 |
+| `@lushly-dev/loam-desktop` | Existing ([#1337](https://github.com/lushly-dev/afd/pull/1337)) | `models.json`, `model_send` and `model_cancel` in the Rust host | 2 |
 | `@lushly-dev/loam-cli` | Existing | `deployment write`'s `[copilot]` table and `models.json`; `plugin install` (7.4) | 2, 9 |
 
 Every new package starts quarantined in the release inventory and joins `loam.yml`'s `Affected units` and unit steps (D14). The copilot is never in first paint: the panel's chunk loads when the panel first opens, and the runtime's frame when the first session starts.
@@ -240,7 +240,7 @@ Before the collaboration service, a person's documents and app data live in thei
 
 ### 3.3 Inbound callers
 
-The copilot's commands (3.5) are human commands, so no agent drives the copilot: not the agent interface, not a connected agent over MCP, and not the desktop's inbound endpoint ([phase 6's 10.8](../6-hosts/spec.md#108-inbound-mcp-and-the-cli-d130-d136-proposed-2026-11-16), D137), whose `DESKTOP_MCP_COMMANDS` names none of them. How 6.1 reaches the inbound agent, `loam-inbound`, is in [6.1](#61-before-every-call).
+The copilot's commands (3.5) are human commands, so no agent drives the copilot: not the agent interface, not a connected agent over MCP, and not the desktop's inbound endpoint ([phase 6's 10.8](../6-hosts/spec.md#108-inbound-mcp-and-the-cli-d130-d136-proposed-2026-11-16), D138), whose `DESKTOP_MCP_COMMANDS` names none of them. How 6.1 reaches the inbound agent, `loam-inbound`, is in [6.1](#61-before-every-call).
 
 ### 3.4 Records
 
@@ -343,7 +343,7 @@ endpoint = "http://127.0.0.1:11434/v1"  # https, or http to 127.0.0.1 or ::1 onl
   - it is created owner-only (0600 on POSIX; on Windows a protected DACL for the user's SID), read only by the Rust host when it starts, and refused otherwise with `DESKTOP_MODELS_PERMISSIONS`;
   - it holds each provider's kind, model, endpoint and key reference, never a key;
   - nothing in the webview can write it, and a change takes effect when Loam restarts.
-- **Two IPC commands** join phase 6's four (10.4's three and 10.8's `inbound_reply`, D137). They are granted in the same capability file and checked by the same `from_shell` origin rule [#1337](https://github.com/lushly-dev/afd/pull/1337) adds:
+- **Two IPC commands** join phase 6's four (10.4's three and 10.8's `inbound_reply`, D137). They are granted in the same capability file and checked by the same `from_shell` origin rule [#1337](https://github.com/lushly-dev/afd/pull/1337) added:
 
   | Command | Input | Does |
   | --- | --- | --- |
@@ -494,7 +494,7 @@ Phase 4's `resolveAutonomy` runs before every call the copilot or the agent inte
 - **Grouping.** A turn's confirmations carry `group: <session>/<turn>`, a field phase 4's R16 left to phase 5. Answering a whole group is milestone B's.
 - **The inbound agent** (10.8's `loam-inbound`, D137) is an agent-interface caller, so 6.1 governs it. Step 3 amends 10.8 so that:
   - its dispatcher no longer refuses a `confirmPrompt` command with `CONFIRMATION_REQUIRED` before the kernel; the call returns 6.1's `CONFIRMATION_PENDING` like any `ask`;
-  - `DESKTOP_MCP_COMMANDS` gains `confirmation-get` and `confirmation-withdraw`, for confirmations that agent raised. This widens D137's served list, the owner's answer to 10.8's Q4, by two reads; [Q7](#q7-delegation-may-this-specification-decide-913-and-883) asks the owner to confirm it.
+  - `DESKTOP_MCP_COMMANDS` gains `confirmation-get` and `confirmation-withdraw`, for confirmations that agent raised. This widens D138's served list, the owner's answer to 10.8's Q4, by two reads; [Q7](#q7-delegation-may-this-specification-decide-913-and-883) asks the owner to confirm it.
 
   Every inbound client shares the one actor (D137), so they share its five pending confirmations and its decline windows. A per-client actor is a follow-up.
 - **Until phase 4's steps 6 and 8 merge,** step 1's copilot runs reads in `act` and refuses every mutation with `AUTONOMY_UNAVAILABLE`, failing closed.
@@ -1004,7 +1004,7 @@ The slice ranks nine jobs ([Jobs and scenarios](#jobs-and-scenarios)), and miles
 
 ### Q7. Delegation: may this specification decide #913 and #883?
 
-The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](https://github.com/lushly-dev/afd/issues/883) left their choices to you. This specification decides them, as D142 and D150, under your standing grant to the coordinator. It also adds two reads, `confirmation-get` and `confirmation-withdraw`, to the desktop's inbound list you approved in D137 (6.1).
+The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](https://github.com/lushly-dev/afd/issues/883) left their choices to you. This specification decides them, as D142 and D150, under your standing grant to the coordinator. It also adds two reads, `confirmation-get` and `confirmation-withdraw`, to the desktop's inbound list you approved in D138 (6.1).
 
 - **(a) Confirm all three as written (recommended).**
   - #913: the copilot runs beside your own kernel on every host, and never reads your documents on a server before the collaboration service.
@@ -1025,7 +1025,7 @@ Proposed by this specification on 2026-11-16, and decided only with its approval
 | D142 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913, subject to Q7 | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
 | D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
 | D144 | A mounted result is content as a whole unless its instance entry says `labels = "per-part"`, and a whole server's own words never reach the model. Content taints a session, through stored outcomes and nested calls too. A tainted session's mutations outside a vouched source, and its calls to other servers or `http` apps, are at most `ask`, through `calls` grants as well. Answers L1 and L2 | Annotates D41 and D65 |
-| D145 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D137's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
+| D145 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D138's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
 | D146 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1, subject to Q1 | Annotates D65; needs AFD's step 0c |
 | D147 | A vouched server's result marked as a unit is composed in a fresh context with no history and no tools, and neither its payload nor its submit's result reaches the parent. Isolation is guaranteed on that path only. Answers L6 | None |
 | D148 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5, subject to Q2 | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
@@ -1066,7 +1066,7 @@ Its improvements were taken too:
 - `per-part` vouches for the server's mutation reports, amending phase 1's 7.4;
 - the unit submit resolves with `act` as its default, not as an exception;
 - the port's `call` refuses `confirmation-*`;
-- D137's widened list goes to the owner in Q7.
+- D138's widened list goes to the owner in Q7 (written as D137's before #1378 split the answers).
 
 **The same reviewer then verified those fixes at `5c9baa3b`.** WebRTC and the confirm path were closed. The schema rule was partly closed: it was still a list of banned keywords. One new blocker appeared: read literally, the hold made the confirmed send wait on itself. Both were fixed: the schema rule became an allow-list, and the hold now exempts the confirmation's own run and preview. Its verdict was "approvable once those two one-line fixes are in".
 

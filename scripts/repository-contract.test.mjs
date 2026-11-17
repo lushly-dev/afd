@@ -447,6 +447,7 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		'web',
 		'identity',
 		'host',
+		'desktop',
 		'app-hello',
 		'app-tally',
 		'app-tasks',
@@ -458,7 +459,13 @@ test('Loam is private, route-less endpoints under endpoints/loam/packages and ap
 		assert.equal(unit.family, 'loam');
 		assert.equal(unit.state, 'quarantined');
 		assert.deepEqual(unit.routes, []);
-		assert.deepEqual(unit.gates, ['pnpm check', 'loam.yml', 'release-approval']);
+		// The desktop has its own workflow too (Loam's phase 6 specification, section 2).
+		assert.deepEqual(
+			unit.gates,
+			name === 'desktop'
+				? ['pnpm check', 'loam.yml', 'loam-desktop.yml', 'release-approval']
+				: ['pnpm check', 'loam.yml', 'release-approval']
+		);
 		const manifestPath = name.startsWith('app-')
 			? `endpoints/loam/apps/${name.slice('app-'.length)}/package.json`
 			: `endpoints/loam/packages/${name}/package.json`;

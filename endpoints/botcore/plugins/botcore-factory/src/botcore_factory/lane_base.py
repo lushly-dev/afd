@@ -48,6 +48,8 @@ VALIDATION_FIELDS = (
     "units",
     "advanced",
     "validatedBase",
+    "checkStandsIn",
+    "checkBase",
 )
 
 

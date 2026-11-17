@@ -12,6 +12,8 @@ set(CMAKE_CXX_EXTENSIONS OFF)
 
 # The library, from this repository. Its own tests are not built here.
 set(AFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
+# The MCP stdio server comes from the library's afd::mcp_stdio target.
+set(AFD_BUILD_MCP_STDIO ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../cpp ${CMAKE_CURRENT_BINARY_DIR}/afd)
 
 # The shared contract, embedded as bytes: the backend validates inputs against
@@ -25,12 +27,11 @@ configure_file(cmake/spec_schema.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/spec_schema.
 add_library(
     todo_backend STATIC
     src/commands.cpp
-    src/mcp_stdio.cpp
     src/spec.cpp
     src/store.cpp
     ${CMAKE_CURRENT_BINARY_DIR}/spec_schema.cpp)
 target_include_directories(todo_backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
-target_link_libraries(todo_backend PUBLIC afd::afd)
+target_link_libraries(todo_backend PUBLIC afd::afd afd::mcp_stdio)
 target_compile_definitions(todo_backend PUBLIC TODO_BACKEND_VERSION="${PROJECT_VERSION}")
 afd_configure_target(todo_backend)
 
