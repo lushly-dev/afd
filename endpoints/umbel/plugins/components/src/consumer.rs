@@ -33,6 +33,7 @@ struct Profile {
     statements: Option<Option<Vec<Statement>>>,
 }
 
+/// A key's value with `null` kept apart from a missing key, which `#[serde(default)]` gives.
 fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
     deserializer: D,
 ) -> Result<Option<Option<T>>, D::Error> {
@@ -145,14 +146,21 @@ fn read(cx: &Cx) -> Result<Consumers, Outcome> {
 /// `CONSUMER_NOT_FOUND`; for a name the deployment's default chose, the suggestion names the
 /// config key, since the caller named nothing. With a default set, omitting `consumer` gives the
 /// default's profile, not the general brief, so the suggestion says so.
-fn not_found(by_default: bool, default_set: bool) -> Outcome {
+/// `default` is `None` with no `default_consumer`, otherwise whether the map holds it.
+fn not_found(by_default: bool, default: Option<bool>) -> Outcome {
     if by_default {
         failure(
             "CONSUMER_NOT_FOUND",
             "the deployment's default consumer is not configured in this space",
             "Add the consumer that `default_consumer` in [plugins.components.config] names to the space's components/consumers pack, or set `default_consumer` to a configured consumer; a call can also pass `consumer` to use another configured one.",
         )
-    } else if default_set {
+    } else if default == Some(false) {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the requested consumer is not configured in this space",
+            "Configure the consumer in the space's components/consumers pack. The deployment's `default_consumer` is not configured here either, so omitting consumer fails too: add it to the pack, or change it in [plugins.components.config].",
+        )
+    } else if default == Some(true) {
         failure(
             "CONSUMER_NOT_FOUND",
             "the requested consumer is not configured in this space",
@@ -175,7 +183,7 @@ pub(crate) fn check(cx: &Cx) -> Outcome {
         Err(outcome) => return outcome,
     };
     match Settings::load(cx).default_consumer {
-        Some(name) if !map.consumers.contains_key(&name) => not_found(true, true),
+        Some(name) if !map.consumers.contains_key(&name) => not_found(true, Some(false)),
         _ => umbel_sdk::success(serde_json::json!({})),
     }
 }
@@ -205,10 +213,12 @@ pub(crate) fn load(
     // A default is not checked like a call's name: one the map's rules would refuse cannot be in a
     // valid map, so it is not found.
     let map = read(cx)?;
-    let profile = map
-        .consumers
-        .get(name)
-        .ok_or_else(|| not_found(by_default, default.is_some()))?;
+    let profile = map.consumers.get(name).ok_or_else(|| {
+        not_found(
+            by_default,
+            default.map(|default| map.consumers.contains_key(default)),
+        )
+    })?;
     Ok(Some(Selected {
         name: name.to_owned(),
         excluded: profile.exclusions().iter().cloned().collect(),

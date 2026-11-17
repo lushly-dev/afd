@@ -300,7 +300,7 @@ test('a default consumer that no map configures, or that is not a name, refuses 
 	const unknown = deployment({ UMBEL_COMPONENTS_CONSUMER: 'storefront' });
 	assert.equal(unknown.error.code, 'CONSUMER_NOT_FOUND');
 	assert.match(unknown.error.suggestion, /loam/);
-	// The suggestion names only names the plugin would accept, never a file's other keys.
+	// The suggestion lists only the repository's own names, never a deployment file's keys.
 	const file = resolve('/deploy/consumers.json');
 	const odd = deployment(
 		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'kiosk' },

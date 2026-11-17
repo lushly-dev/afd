@@ -147,9 +147,7 @@ export function deployment(
 			return refused(
 				'CONSUMER_NOT_FOUND',
 				`UMBEL_COMPONENTS_CONSUMER names ${name}, which no consumers map configures`,
-				`Set UMBEL_COMPONENTS_CONSUMER to one of ${Object.keys(consumers.consumers)
-					.filter((key) => CONSUMER_NAME.test(key))
-					.join(', ')}, or add the profile to the file UMBEL_COMPONENTS_CONSUMERS names.`
+				`Set UMBEL_COMPONENTS_CONSUMER to one the repository configures (${Object.keys(CONSUMERS.consumers).join(', ')}) or one the file UMBEL_COMPONENTS_CONSUMERS names configures, or add the profile to that file.`
 			);
 		umbelToml = `${UMBEL_TOML}\n[plugins.components.config]\ndefault_consumer = "${name}"\n`;
 	}

@@ -960,7 +960,8 @@ Version 2 (A28) adds a profile's `statements`, the deployment's own guidance, an
 {"version":2,"consumers":{"storefront":{"statements":[{"id":"forms.keep.labels-visible","text":"Every field keeps a visible label; a placeholder is not a label."}]}}}
 ```
 
-Only these keys are accepted at each level, and version 1 accepts no `statements`. The file is at most 65,536 UTF-8 bytes,
+Only these keys are accepted at each level, a present key may not be `null`, and version 1 accepts no
+`statements`. The file is at most 65,536 UTF-8 bytes,
 with at most 32 consumers and 256 exclusions per consumer. Consumer names match the
 library-id pattern; exclusions are always `<library>/<rule-id>` with the format's
 patterns and identifier scan, even when the call serves only one library. Repeated
@@ -971,7 +972,9 @@ with no control or bidirectional character, and at most 4 096 UTF-8 bytes of sta
 
 The call's `consumer`, else the deployment's `default_consumer` (2.2), selects the profile. A call with neither
 never reads the map. With one, the whole map is validated;
-unknown consumer is `CONSUMER_NOT_FOUND` (its suggestion names `default_consumer` when the default chose it),
+unknown consumer is `CONSUMER_NOT_FOUND`, whose suggestion says what omitting `consumer` would do: give the general
+brief with no `default_consumer`, give the default's profile when the map holds it, or fail too when it does not
+(and when the default chose the name, the suggestion names the config key),
 malformed or unreadable map is
 `CONSUMERS_INVALID`, and invalid caller name is `COMPONENTS_INVALID`. Refusals give
 recovery guidance and copy no file content or parser message. The doctor uses the
@@ -1068,7 +1071,7 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 
 | Code | When | Retryable | Details | Suggestion |
 | --- | --- | --- | --- | --- |
-| `CONSUMER_NOT_FOUND` | The requested consumer, or with none the deployment's `default_consumer`, is absent from the deployment map | No | none | Configure it in the space's consumers pack, or omit consumer for general guidance (for the deployment's default when one is set); for the default, add it to the pack or change `default_consumer` in `[plugins.components.config]` (A28) |
+| `CONSUMER_NOT_FOUND` | The requested consumer, or with none the deployment's `default_consumer`, is absent from the deployment map | No | none | Configure it in the space's consumers pack; or omit consumer, which gives general guidance with no `default_consumer` and the default's profile with one (A28); for a default the map lacks, add it to the pack or change `default_consumer` in `[plugins.components.config]` |
 | `CONSUMERS_INVALID` | The deployment map cannot be read or fails 6.7, a statement's limits included (A28) | No | none | Repair data/consumers.json in the space's consumers pack |
 | `PACK_EMPTY` | The pack holds no library | No | none | Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components` |
 | `PACK_INVALID` | A touched library, or the pack itself (3.1), has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count`, `refused`, `servable` (9.1) | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack`. When `details.servable` is present, pass one of those as `library` to keep working |
@@ -1080,7 +1083,7 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | `TAG_AMBIGUOUS` | `components-open` on a tag in several libraries, undecided | No | `tag`, `libraries` | Pass `library` |
 | `COMPONENTS_INVALID` | An input the schema subset cannot check: an identifier outside the format's patterns, or `skip` without one list section | No | none, or `matches` and `prefixes` for names with no hyphen (A26) | Fix the field the message names and run the command again; for a name with no hyphen, the served tags it matches (A26) |
 | `TOO_MANY_TAGS` | More than 128 tags requested (6.2) | No | `count` | Brief part of the page at a time |
-| `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief), and `guidance` when the brief carries a deployment's guidance (A28) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it |
+| `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief), and `guidance` when the brief carries a deployment's guidance (A28) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it. With `fits` 0 and `details.guidance`, only a larger budget helps, and the suggestion says so (A28) |
 
 | Warning | When | Details |
 | --- | --- | --- |

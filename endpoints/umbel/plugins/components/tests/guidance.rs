@@ -273,6 +273,30 @@ async fn the_default_consumer_applies_when_a_call_names_none_and_a_named_one_ove
 }
 
 #[tokio::test]
+async fn each_not_found_suggestion_matches_what_omitting_consumer_would_do() {
+    let suggestion = |result: &Value| result["error"]["suggestion"].as_str().unwrap().to_owned();
+    // No default: omitting gives the general brief.
+    let fx = Pack::example().host_with_consumers(storefront());
+    let result = fx
+        .brief(json!({"tags":["example-select"],"consumer":"kiosk"}))
+        .await;
+    assert!(suggestion(&result).contains("general guidance"), "{result}");
+    // A default that is missing too: omitting fails as well, and the suggestion says so.
+    let fx = Pack::example()
+        .host_with_consumer_maps(&[("main", storefront())], with("default_consumer", "kiosk"));
+    for name in ["kisok", "kiosk"] {
+        let result = fx
+            .brief(json!({"tags":["example-select"],"consumer":name}))
+            .await;
+        assert_eq!(code(&result), "CONSUMER_NOT_FOUND", "{result}");
+        assert!(
+            suggestion(&result).contains("omitting consumer fails too"),
+            "{result}"
+        );
+    }
+}
+
+#[tokio::test]
 async fn a_default_missing_from_the_map_is_not_found_and_fails_the_doctor() {
     let fx = Pack::example()
         .host_with_consumer_maps(&[("main", storefront())], with("default_consumer", "kiosk"));
@@ -399,7 +423,17 @@ async fn the_floors_and_the_guidance_over_the_target_fail_with_fits_counting_the
             let without = general["error"]["details"]["fits"].as_u64().unwrap() as usize;
             // The refusal counts the guidance; with none it is as it was.
             assert_eq!(guided["error"]["details"]["guidance"], 8, "{guided}");
-            assert!(general["error"]["details"].get("guidance").is_none());
+            // Without guidance the refusal is exactly what it was before A28.
+            assert_eq!(
+                general["error"],
+                json!({
+                    "code": "OUTPUT_BUDGET_EXCEEDED",
+                    "message": format!("the brief does not fit in the call's output budget even with every section left out; the first {without} requested tag(s) would"),
+                    "suggestion": "Brief fewer tags at a time (details.fits says how many fit), or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000; `maxBytes` only lowers it.",
+                    "details": { "fits": without },
+                }),
+                "{general}"
+            );
             let suggestion = guided["error"]["suggestion"].as_str().unwrap();
             if fits == 0 {
                 // Fewer tags cannot help when the guidance alone leaves no room.
@@ -535,6 +569,10 @@ async fn each_limit_refuses_on_the_call_and_in_the_doctor_without_echoing_the_te
         (
             "null statements",
             profile("storefront", json!({"statements":null})),
+        ),
+        (
+            "null statements in version 1",
+            json!({"version":1,"consumers":{"storefront":{"exclude_rules":[],"statements":null}}}),
         ),
         (
             "null exclusions",

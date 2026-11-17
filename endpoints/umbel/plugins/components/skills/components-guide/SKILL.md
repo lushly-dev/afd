@@ -55,5 +55,5 @@ to stay inside its own cap. `maxBytes` only lowers the budget.
 
 A refusal holds no partial answer. `PACK_INVALID` and `PACK_INCONSISTENT` (retry it) mean a library
 in the pack has a problem; `details.servable` names the libraries that can still be served, so pass
-one as `library`. On `OUTPUT_BUDGET_EXCEEDED`, a brief's `details.fits` is how many tags fit:
-brief that many at a time, or ask for a larger budget with `_meta["dev.afd/outputBudget"]`.
+one as `library`. On `OUTPUT_BUDGET_EXCEEDED`, brief `details.fits` tags at a time (at 0 with
+`details.guidance`, fewer cannot help), or ask for a larger budget with `_meta["dev.afd/outputBudget"]`.
