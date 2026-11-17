@@ -11,7 +11,7 @@ domains = ["components"]
 
 [[grants]]
 name = "config"
-reason = "Reads minimum_basis and default_library."
+reason = "Reads minimum_basis, default_library and default_consumer."
 
 [[grants]]
 name = "packs"

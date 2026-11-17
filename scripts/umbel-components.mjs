@@ -20,13 +20,28 @@
  *                                separated by the platform's path delimiter. Each holds a
  *                                `specimen.config.json` with a `pack` section and its committed pack,
  *                                and is exported after violet-elements (Component Briefs step D3)
+ *   UMBEL_COMPONENTS_CONSUMERS   a consumers file (version 1 or 2, the components plugin's
+ *                                `data/consumers.json` form) whose profiles are added to the
+ *                                repository's own; a name the repository already configures
+ *                                refuses to start. With it, the map written is version 2
+ *   UMBEL_COMPONENTS_CONSUMER    the consumer a brief uses when a call names none: written as
+ *                                `default_consumer` in `[plugins.components.config]`. It must be a
+ *                                consumer the repository or UMBEL_COMPONENTS_CONSUMERS configures
  *
  * Stdout carries only the server's JSON-RPC; everything this script says goes to stderr. When an
  * export fails (a record no longer matches the manifest or guides, or the CLI is not built), it
  * does not start: a brief from a stale export would be wrong exactly where the code changed.
  */
 import { spawn, spawnSync } from 'node:child_process';
-import { existsSync, mkdirSync, readdirSync, rmSync, statSync, writeFileSync } from 'node:fs';
+import {
+	existsSync,
+	mkdirSync,
+	readdirSync,
+	readFileSync,
+	rmSync,
+	statSync,
+	writeFileSync,
+} from 'node:fs';
 import { delimiter, dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -64,6 +79,76 @@ enabled = ["components"]
 [plugins.components]
 source = "compiled:components"
 `;
+
+/** A consumer name, as the plugin checks it: the library-id pattern. */
+const CONSUMER_NAME = /^[a-z][a-z0-9-]{0,63}$/;
+
+const refused = (code, message, suggestion) => ({
+	success: false,
+	error: { code, message, suggestion },
+});
+
+/**
+ * What the workspace deploys, from UMBEL_COMPONENTS_CONSUMERS and UMBEL_COMPONENTS_CONSUMER: the
+ * consumers map and `umbel.toml`. Without either, both are exactly CONSUMERS and UMBEL_TOML. The
+ * plugin checks each profile's contents itself, on every call and in the doctor; this checks only
+ * what decides the files: the file's shape, a name clash and the default's name.
+ */
+export function deployment(
+	environment = process.env,
+	readFile = (path) => readFileSync(path, 'utf8')
+) {
+	let consumers = CONSUMERS;
+	const file = environment.UMBEL_COMPONENTS_CONSUMERS?.trim();
+	if (file) {
+		const shape =
+			'Point UMBEL_COMPONENTS_CONSUMERS at a consumers file: {"version":2,"consumers":{"<name>":{"statements":[{"id":"<pattern>.<kind>.<name>","text":"..."}]}}}; see the components plugin\'s README.';
+		let added;
+		try {
+			added = JSON.parse(readFile(resolve(file)));
+		} catch {
+			return refused('CONSUMERS_UNREADABLE', `${file} is not a readable JSON file`, shape);
+		}
+		const profiles = added?.consumers;
+		const isMap = profiles !== null && typeof profiles === 'object' && !Array.isArray(profiles);
+		if (
+			![1, 2].includes(added?.version) ||
+			!isMap ||
+			(added.version === 1 && Object.values(profiles).some((profile) => profile?.statements))
+		)
+			return refused(
+				'CONSUMERS_INVALID',
+				`${file} is not a consumers map of version 1 or 2 (version 1 has no statements)`,
+				shape
+			);
+		const clash = Object.keys(profiles).filter((name) => Object.hasOwn(CONSUMERS.consumers, name));
+		if (clash.length > 0)
+			return refused(
+				'CONSUMER_CLASH',
+				`${file} configures ${clash.join(', ')}, which the repository already configures`,
+				"Rename the consumer in UMBEL_COMPONENTS_CONSUMERS; the repository's own profiles are kept as they are."
+			);
+		consumers = { version: 2, consumers: { ...CONSUMERS.consumers, ...profiles } };
+	}
+	let umbelToml = UMBEL_TOML;
+	const name = environment.UMBEL_COMPONENTS_CONSUMER?.trim();
+	if (name) {
+		if (!CONSUMER_NAME.test(name))
+			return refused(
+				'CONSUMER_INVALID',
+				'UMBEL_COMPONENTS_CONSUMER is not a consumer name',
+				'Use a name of lowercase letters, digits and hyphens, starting with a letter, at most 64 characters.'
+			);
+		if (!Object.hasOwn(consumers.consumers, name))
+			return refused(
+				'CONSUMER_NOT_FOUND',
+				`UMBEL_COMPONENTS_CONSUMER names ${name}, which no consumers map configures`,
+				`Set UMBEL_COMPONENTS_CONSUMER to one of ${Object.keys(consumers.consumers).join(', ')}, or add the profile to the file UMBEL_COMPONENTS_CONSUMERS names.`
+			);
+		umbelToml = `${UMBEL_TOML}\n[plugins.components.config]\ndefault_consumer = "${name}"\n`;
+	}
+	return { success: true, data: { consumers, umbelToml } };
+}
 
 /** The override's pack.toml (the plugin's README); export carries it across. */
 export const PACK_TOML = `pack_version = 1
@@ -132,14 +217,21 @@ export function findBinary(
 		.sort((a, b) => b.stats.mtimeMs - a.stats.mtimeMs)[0].path;
 }
 
-/** Writes the configuration and the override's pack.toml; returns the override's directory. */
-export function prepareWorkspace(workspace) {
+/**
+ * Writes the configuration, the consumers pack and the override's pack.toml; returns the
+ * override's directory. The second argument is `deployment(...).data`; by default, the
+ * repository's own.
+ */
+export function prepareWorkspace(
+	workspace,
+	{ consumers: map = CONSUMERS, umbelToml = UMBEL_TOML } = {}
+) {
 	mkdirSync(workspace, { recursive: true });
-	writeFileSync(join(workspace, 'umbel.toml'), UMBEL_TOML);
+	writeFileSync(join(workspace, 'umbel.toml'), umbelToml);
 	const consumers = join(workspace, 'spaces', SPACE, 'packs', 'components', 'consumers');
 	mkdirSync(join(consumers, 'data'), { recursive: true });
 	writeFileSync(join(consumers, 'pack.toml'), CONSUMERS_TOML);
-	writeFileSync(join(consumers, 'data', 'consumers.json'), `${JSON.stringify(CONSUMERS)}\n`);
+	writeFileSync(join(consumers, 'data', 'consumers.json'), `${JSON.stringify(map)}\n`);
 	const override = overrideDirectory(workspace);
 	mkdirSync(override, { recursive: true });
 	const packToml = join(override, 'pack.toml');
@@ -229,11 +321,11 @@ function say(text) {
 	process.stderr.write(`umbel-components: ${text}\n`);
 }
 
-function prepare() {
+function prepare(deployed) {
 	const workspace = resolve(
 		process.env.UMBEL_COMPONENTS_WORKSPACE ?? join(REPO_ROOT, '.umbel', 'components')
 	);
-	const override = prepareWorkspace(workspace);
+	const override = prepareWorkspace(workspace, deployed);
 	const exported = withLock(join(workspace, 'export.lock'), () => {
 		const results = [];
 		for (const library of libraryDirectories()) {
@@ -263,7 +355,14 @@ async function main() {
 		);
 		process.exit(1);
 	}
-	const { workspace, override, exported } = prepare();
+	const deployed = deployment();
+	if (!deployed.success) {
+		say(
+			`the consumers could not be deployed, so nothing is served: ${JSON.stringify(deployed.error)}`
+		);
+		process.exit(1);
+	}
+	const { workspace, override, exported } = prepare(deployed.data);
 	if (!exported.success) {
 		say(
 			`the export${exported.library ? ` of ${exported.library}` : ''} failed, so nothing is served: ${JSON.stringify(exported.error)}`

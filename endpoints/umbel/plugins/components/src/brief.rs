@@ -292,7 +292,63 @@ struct Brief<'a> {
     known: HashSet<String>,
     versions: Map<String, Value>,
     text: bool,
+    /// The consumer profile the call uses, by name.
     consumer: Option<String>,
+    /// The profile's statements, sent once in every answer and never shed (amendment A28).
+    guidance: Guidance,
+}
+
+/// The deployment's guidance as an answer carries it: `content.guidance`, when any statement is
+/// served, with how many were flagged and how many `minimum_basis` left out.
+#[derive(Default)]
+struct Guidance {
+    block: Option<Value>,
+    flagged: usize,
+    left_out: usize,
+}
+
+impl Guidance {
+    /// A deployment's statements are `authored`; a stronger `minimum_basis` leaves them out.
+    fn new(selected: Option<&crate::consumer::Selected>, settings: &Settings) -> Self {
+        let Some(selected) = selected.filter(|selected| !selected.statements.is_empty()) else {
+            return Self::default();
+        };
+        if !settings.serves("authored") {
+            return Self {
+                block: None,
+                flagged: 0,
+                left_out: selected.statements.len(),
+            };
+        }
+        let mut flagged = 0;
+        let items: Vec<Value> = selected
+            .statements
+            .iter()
+            .map(|statement| {
+                let mut item = Map::new();
+                item.insert("id".to_owned(), Value::from(statement.id.as_str()));
+                item.insert("text".to_owned(), Value::from(statement.text.as_str()));
+                flagged += usize::from(scan::flag_item(&mut item));
+                Value::Object(item)
+            })
+            .collect();
+        Self {
+            block: Some(json!({
+                "consumer": selected.name,
+                "basis": "authored",
+                "items": items,
+            })),
+            flagged,
+            left_out: 0,
+        }
+    }
+
+    fn statements(&self) -> usize {
+        self.block
+            .as_ref()
+            .and_then(|block| block["items"].as_array())
+            .map_or(0, Vec::len)
+    }
 }
 
 impl Brief<'_> {
@@ -516,7 +572,9 @@ impl Brief<'_> {
             .map(|index| &self.libraries[*index])
             .collect();
         let titles: Vec<(Value, bool)> = libraries.iter().map(|l| content_library(l)).collect();
-        let flagged = assembled.flagged + titles.iter().filter(|(_, flagged)| *flagged).count();
+        let flagged = assembled.flagged
+            + titles.iter().filter(|(_, flagged)| *flagged).count()
+            + self.guidance.flagged;
         let mut content = json!({
             "trust": "content",
             "libraries": titles.iter().map(|(title, _)| title).collect::<Vec<_>>(),
@@ -525,10 +583,13 @@ impl Brief<'_> {
         if let Some(rules) = assembled.rules {
             content["rules"] = Value::Array(rules);
         }
+        if let Some(guidance) = &self.guidance.block {
+            content["guidance"] = guidance.clone();
+        }
         let mut omitted = Self::omitted(
             effects,
             steps,
-            assembled.left_out,
+            assembled.left_out + self.guidance.left_out,
             self.left_out_by_default(count),
         );
         let excluded: std::collections::BTreeSet<&str> = self.asked[..count]
@@ -567,11 +628,18 @@ impl Brief<'_> {
             }
         }
         let answered = data["libraries"].as_array().map_or(0, Vec::len);
-        let mut outcome = success(data).with_reasoning(&format!(
+        let mut reasoning = format!(
             "Briefed {} component(s) from {answered} library(ies), with {} tag(s) unknown and {shed_count} section(s) or piece(s) left out to fit.",
             assembled.components.len(),
             assembled.unknown.len(),
-        ));
+        );
+        let statements = self.guidance.statements();
+        if statements > 0 {
+            reasoning.push_str(&format!(
+                " Carried {statements} statement(s) of the deployment's own guidance."
+            ));
+        }
+        let mut outcome = success(data).with_reasoning(&reasoning);
         for library in &libraries {
             let package = &library.catalog.package;
             if let Some(installed) = self.versions.get(&package.name).and_then(Value::as_str)
@@ -742,11 +810,15 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
     if let Err(outcome) = input::check_brief(input) {
         return bare_names(input, cx).unwrap_or(outcome);
     }
-    let excluded = match crate::consumer::load(input, cx) {
-        Ok(excluded) => excluded,
+    let settings = Settings::load(cx);
+    let selected = match crate::consumer::load(input, settings.default_consumer.as_deref(), cx) {
+        Ok(selected) => selected,
         Err(outcome) => return outcome,
     };
-    let settings = Settings::load(cx);
+    let excluded = selected
+        .as_ref()
+        .map(|selected| selected.excluded.clone())
+        .unwrap_or_default();
     let library = input.get("library").and_then(Value::as_str);
     let libraries = match pack::read(cx, library) {
         Ok(libraries) => libraries,
@@ -823,10 +895,8 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
         attribute_rules,
     } = chosen_sections(input);
     let brief = Brief {
-        consumer: input
-            .get("consumer")
-            .and_then(Value::as_str)
-            .map(str::to_owned),
+        consumer: selected.as_ref().map(|selected| selected.name.clone()),
+        guidance: Guidance::new(selected.as_ref(), &settings),
         libraries: &libraries,
         asked,
         names,

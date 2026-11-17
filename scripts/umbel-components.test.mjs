@@ -8,6 +8,7 @@ import {
 	binaryCandidates,
 	CONSUMERS,
 	CONSUMERS_TOML,
+	deployment,
 	exportPack,
 	findBinary,
 	LIBRARY,
@@ -154,4 +155,149 @@ test('a library this start did not export is removed from the override', (t) => 
 	assert.equal(existsSync(join(override, 'data', 'violet-elements')), true);
 	assert.equal(existsSync(join(override, 'rules', 'violet-elements.json')), true);
 	assert.deepEqual(pruneLibraries(override, ['violet-elements']), []);
+});
+
+// ── The deployment's consumers and default (UMBEL_COMPONENTS_CONSUMERS, UMBEL_COMPONENTS_CONSUMER) ──
+
+const STOREFRONT = {
+	version: 2,
+	consumers: {
+		storefront: {
+			statements: [{ id: 'forms.keep.labels-visible', text: 'Every field keeps a visible label.' }],
+		},
+	},
+};
+
+const reading = (files) => (path) => {
+	if (!Object.hasOwn(files, path)) throw new Error(`ENOENT: ${path}`);
+	return files[path];
+};
+
+test('without either variable, the files written are byte for byte the repository defaults', (t) => {
+	const deployed = deployment({});
+	assert.equal(deployed.success, true);
+	assert.equal(deployed.data.consumers, CONSUMERS);
+	assert.equal(deployed.data.umbelToml, UMBEL_TOML);
+	const plain = scratch(t);
+	const configured = scratch(t);
+	prepareWorkspace(plain);
+	prepareWorkspace(configured, deployed.data);
+	const consumers = join(
+		'spaces',
+		'main',
+		'packs',
+		'components',
+		'consumers',
+		'data',
+		'consumers.json'
+	);
+	for (const file of ['umbel.toml', consumers])
+		assert.equal(
+			readFileSync(join(configured, file), 'utf8'),
+			readFileSync(join(plain, file), 'utf8')
+		);
+	assert.equal(
+		readFileSync(join(plain, consumers), 'utf8'),
+		'{"version":1,"consumers":{"loam":{"exclude_rules":["violet-elements/import.root","violet-elements/theme.install"]}}}\n'
+	);
+	assert.doesNotMatch(
+		readFileSync(join(plain, 'umbel.toml'), 'utf8'),
+		/plugins\.components\.config/
+	);
+});
+
+test('a consumers file is added to the repository profiles, keeping Loam, as version 2', (t) => {
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: '/deploy/consumers.json' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(deployed.success, true, JSON.stringify(deployed));
+	assert.deepEqual(deployed.data.consumers, {
+		version: 2,
+		consumers: { ...CONSUMERS.consumers, ...STOREFRONT.consumers },
+	});
+	assert.equal(deployed.data.umbelToml, UMBEL_TOML);
+	const workspace = scratch(t);
+	prepareWorkspace(workspace, deployed.data);
+	const written = JSON.parse(
+		readFileSync(
+			join(
+				workspace,
+				'spaces',
+				'main',
+				'packs',
+				'components',
+				'consumers',
+				'data',
+				'consumers.json'
+			),
+			'utf8'
+		)
+	);
+	assert.deepEqual(written, deployed.data.consumers);
+	// A version 1 file merges too.
+	const v1 = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: '/deploy/consumers.json' },
+		reading({ [file]: '{"version":1,"consumers":{"kiosk":{"exclude_rules":[]}}}' })
+	);
+	assert.deepEqual(Object.keys(v1.data.consumers.consumers), ['loam', 'kiosk']);
+});
+
+test('a consumers file that configures a repository name refuses to start', () => {
+	const file = resolve('/deploy/consumers.json');
+	const clash = { version: 2, consumers: { loam: { statements: [] }, storefront: {} } };
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file },
+		reading({ [file]: JSON.stringify(clash) })
+	);
+	assert.equal(deployed.success, false);
+	assert.equal(deployed.error.code, 'CONSUMER_CLASH');
+	assert.match(deployed.error.message, /loam/);
+	assert.match(deployed.error.suggestion, /Rename/);
+});
+
+test('an unreadable or misshapen consumers file refuses to start with a suggestion', () => {
+	const file = resolve('/deploy/consumers.json');
+	const missing = deployment({ UMBEL_COMPONENTS_CONSUMERS: file }, reading({}));
+	assert.equal(missing.error.code, 'CONSUMERS_UNREADABLE');
+	for (const text of [
+		'{"version":3,"consumers":{}}',
+		'{"version":2,"consumers":[]}',
+		'{"version":1,"consumers":{"kiosk":{"exclude_rules":[],"statements":[]}}}',
+		'[]',
+	]) {
+		const result = deployment({ UMBEL_COMPONENTS_CONSUMERS: file }, reading({ [file]: text }));
+		assert.equal(result.error.code, 'CONSUMERS_INVALID', text);
+		assert.match(result.error.suggestion, /UMBEL_COMPONENTS_CONSUMERS/);
+	}
+});
+
+test('the default consumer is written as the plugin config line', (t) => {
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'storefront' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(deployed.success, true, JSON.stringify(deployed));
+	assert.equal(
+		deployed.data.umbelToml,
+		`${UMBEL_TOML}\n[plugins.components.config]\ndefault_consumer = "storefront"\n`
+	);
+	const workspace = scratch(t);
+	prepareWorkspace(workspace, deployed.data);
+	assert.match(
+		readFileSync(join(workspace, 'umbel.toml'), 'utf8'),
+		/\[plugins\.components\.config\]\ndefault_consumer = "storefront"\n$/
+	);
+	// The repository's own profile can be the default with no file.
+	assert.equal(deployment({ UMBEL_COMPONENTS_CONSUMER: 'loam' }).success, true);
+});
+
+test('a default consumer that no map configures, or that is not a name, refuses to start', () => {
+	const unknown = deployment({ UMBEL_COMPONENTS_CONSUMER: 'storefront' });
+	assert.equal(unknown.error.code, 'CONSUMER_NOT_FOUND');
+	assert.match(unknown.error.suggestion, /loam/);
+	const invalid = deployment({ UMBEL_COMPONENTS_CONSUMER: 'Store"front' });
+	assert.equal(invalid.error.code, 'CONSUMER_INVALID');
 });
