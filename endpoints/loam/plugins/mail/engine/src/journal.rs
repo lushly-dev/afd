@@ -86,6 +86,13 @@ pub fn redact(mut record: JournalRecord) -> Option<JournalRecord> {
     {
         details.remove("approvalToken");
     }
+    // A selection's sample is mail that was read (13.1): its id and counts
+    // stay, which are what an audit of a change needs.
+    if record.command == crate::selections::CREATE
+        && let Some(serde_json::Value::Object(data)) = record.result.data.as_mut()
+    {
+        data.remove("sample");
+    }
     if record.command == tokens::CREATE {
         // The token is drawn from the operating system, not the tape; the
         // tape goes too, as the crate advises for any secret.
