@@ -39,11 +39,25 @@ afd::Expected<std::string> approval_secret(const char* value) {
     return secret;
 }
 
+std::vector<afd::ContextConfig> todo_contexts() {
+    return {
+        {.name = "todo-reading",
+         .description = "Review todos without changing them: list, get and stats only",
+         .triggers = {"review", "summarize", "report", "what is left"}},
+        {.name = "todo-editing",
+         .description = "Add, change, complete and remove todos",
+         .triggers = {"add", "create", "complete", "update", "delete", "clear"}},
+    };
+}
+
 afd::Expected<std::unique_ptr<afd::CommandRegistry>>
 make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) {
     auto registry = std::make_unique<afd::CommandRegistry>(
         afd::CommandRegistryOptions{.clock = options.clock, .random = options.random});
     if (auto error = register_todo_commands(*registry, store)) {
+        return afd::unexpected(*error);
+    }
+    if (auto error = afd::register_context_commands(*registry, todo_contexts())) {
         return afd::unexpected(*error);
     }
     if (options.approvals == Approvals::agents) {
