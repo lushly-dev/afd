@@ -39,7 +39,6 @@ test.describe("scoped custom element registries after hydration", () => {
                 enableHydration,
                 FASTElement,
                 Observable,
-                ScopedRegistryMixin,
                 ensureScopedRegistrySupport,
                 html,
                 repeat,
@@ -56,9 +55,10 @@ test.describe("scoped custom element registries after hydration", () => {
                 readonly version = 1;
             }
 
-            const ScopedBase = ScopedRegistryMixin(FASTElement);
-            class Host extends ScopedBase {
-                static elementDefinitions = { [childTag]: Child };
+            const registry = new CustomElementRegistry();
+            registry.define(childTag, Child);
+
+            class Host extends FASTElement {
                 items = ["a", "b", "c"];
                 show = true;
             }
@@ -75,7 +75,7 @@ test.describe("scoped custom element registries after hydration", () => {
                     child("when"),
                     child("else"),
                 )}`,
-                shadowOptions: (Host as any).getShadowOptions(),
+                shadowOptions: { mode: "open", customElementRegistry: registry },
             });
 
             // Server-rendered with one repeat item; the client has three.
@@ -153,7 +153,6 @@ test.describe("scoped custom element registries after hydration", () => {
                 enableHydration,
                 FASTElement,
                 Observable,
-                ScopedRegistryMixin,
                 ensureScopedRegistrySupport,
                 html,
                 render,
@@ -176,9 +175,10 @@ test.describe("scoped custom element registries after hydration", () => {
             }
             Observable.defineProperty(Model.prototype, "on");
 
-            const ScopedBase = ScopedRegistryMixin(FASTElement);
-            class Host extends ScopedBase {
-                static elementDefinitions = { [childTag]: Child };
+            const registry = new CustomElementRegistry();
+            registry.define(childTag, Child);
+
+            class Host extends FASTElement {
                 show = true;
                 items = ["a", "b"];
                 groups = ["g"];
@@ -215,7 +215,7 @@ test.describe("scoped custom element registries after hydration", () => {
                         child("rendered-else"),
                     )}`,
                 )}`,
-                shadowOptions: (Host as any).getShadowOptions(),
+                shadowOptions: { mode: "open", customElementRegistry: registry },
             });
 
             // Server-rendered with one item in the inner repeat.

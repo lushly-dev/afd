@@ -48,10 +48,7 @@ export {
 export { DOM, DOMAspect } from "../src/dom.js";
 export { DOMPolicy } from "../src/dom-policy.js";
 export {
-    createRegistry,
-    createRegistryAsync,
     ensureScopedRegistrySupport,
-    ScopedRegistryMixin,
     supportsScopedRegistries,
 } from "../src/scoped/index.js";
 export {
@@ -62,8 +59,6 @@ export {
     getComponentSchema,
     getSchema,
     getSchemaOrThrow,
-    toCustomElementsManifest,
-    toPascalCase,
 } from "../src/definition-schema/index.js";
 export { definitionSchemaExtension } from "../src/definition-schema/extension.js";
 export { hydrationDebugger } from "../src/hydration/hydration-debugger.js";

@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("Agent Definition Schema", () => {
-    test("extracts properties, slots, CSS properties, and CEM data", async ({ page }) => {
+    test("extracts properties, slots and CSS properties", async ({ page }) => {
         await page.goto("/");
 
         const result = await page.evaluate(async () => {
@@ -16,8 +16,6 @@ test.describe("Agent Definition Schema", () => {
                 getComponentSchema,
                 getSchema,
                 html,
-                toCustomElementsManifest,
-                toPascalCase,
                 uniqueElementName,
             } = api;
 
@@ -43,18 +41,12 @@ test.describe("Agent Definition Schema", () => {
 
             const schema = getSchema(name);
             const directSchema = getComponentSchema(SchemaElement);
-            const manifest = toCustomElementsManifest();
-            const declaration = manifest.modules.find(
-                (module: any) => module.path === `${name}.js`,
-            )?.declarations[0];
 
             disable();
 
             return {
                 schema,
                 sameStoredSchema: directSchema.name === schema?.name,
-                declaration,
-                expectedClassName: toPascalCase(name),
             };
         });
 
@@ -70,11 +62,9 @@ test.describe("Agent Definition Schema", () => {
             { default: "blue", name: "--schema-color" },
             { default: "16px", name: "--schema-size" },
         ]);
+        expect(result.schema?.events).toEqual([]);
+        expect(result.schema).not.toHaveProperty("commands");
         expect(result.sameStoredSchema).toBe(true);
-        expect(result.declaration.name).toBe(result.expectedClassName);
-        expect(result.declaration.members).toHaveLength(2);
-        expect(result.declaration.slots).toHaveLength(2);
-        expect(result.declaration.cssProperties).toHaveLength(2);
     });
 
     test("refreshes schema after an async template resolver completes", async ({

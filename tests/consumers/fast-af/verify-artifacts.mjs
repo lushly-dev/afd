@@ -197,8 +197,8 @@ for (const condition of ['production', 'development']) {
 		[`--conditions=${condition}`, 'runtime-consumer.mjs'],
 		{ cwd: runtimeOnly.root, encoding: 'utf8' }
 	);
-	assert.match(result, /Imported 38 package exports successfully/);
-	passed(`runtime-only: 38 exports runtime-import under the ${condition} condition (Node shims)`);
+	assert.match(result, /Imported 36 package exports successfully/);
+	passed(`runtime-only: 36 exports runtime-import under the ${condition} condition (Node shims)`);
 }
 
 // Components without the required runtime peer fail at installation.

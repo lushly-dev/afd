@@ -12,15 +12,9 @@ export type {
     EventSchema,
     SlotSchema,
     CSSPropertySchema,
-    CommandSchema,
     SchemaDiff,
     JSONSchema,
 } from "./types.js";
-export type {
-    CustomElementsManifest,
-    ManifestDeclaration,
-    ManifestModule,
-} from "./cem.js";
 
 // Re-export all API functions
 export {
@@ -30,7 +24,5 @@ export {
     getAllSchemas,
     diffSchemas,
 } from "./api.js";
-
-export { toCustomElementsManifest, toPascalCase } from "./cem.js";
 
 export { disableDefinitionSchema, enableDefinitionSchema } from "./extension.js";

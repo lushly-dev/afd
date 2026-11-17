@@ -11,9 +11,7 @@ test.describe("extension subpaths", () => {
         const result = await page.evaluate(async () => {
             const {
                 AttributeMap,
-                CommandRegistry,
                 Schema,
-                TRUST_KEY,
                 attributeMap,
                 enableDefinitionSchema,
                 observerMap,
@@ -26,23 +24,19 @@ test.describe("extension subpaths", () => {
             return {
                 hasAttributeMapClass: typeof AttributeMap === "function",
                 hasAttributeMap: typeof attributeMap === "function",
-                hasCommandRegistry: typeof CommandRegistry.execute === "function",
                 hasDefinitionSchema: typeof enableDefinitionSchema === "function",
                 hasObserverMap: typeof observerMap === "function",
                 hasSchema: typeof Schema === "function",
                 hasScopedRegistry: typeof supportsScopedRegistries === "function",
-                trustKey: TRUST_KEY,
             };
         });
 
         expect(result.hasAttributeMapClass).toBe(true);
         expect(result.hasAttributeMap).toBe(true);
-        expect(result.hasCommandRegistry).toBe(true);
         expect(result.hasDefinitionSchema).toBe(true);
         expect(result.hasObserverMap).toBe(true);
         expect(result.hasSchema).toBe(true);
         expect(result.hasScopedRegistry).toBe(true);
-        expect(result.trustKey).toBe("__trust");
     });
 
     test("exports the FAST element registry from the registry subpath", async ({

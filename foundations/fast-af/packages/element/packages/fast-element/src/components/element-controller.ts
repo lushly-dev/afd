@@ -14,8 +14,6 @@ import type { StyleStrategy, StyleTarget } from "../styles/style-strategy.js";
 import type { ViewController } from "../templating/html-directive.js";
 import type { ElementViewTemplate } from "../templating/template.js";
 import type { ElementView } from "../templating/view.js";
-import type { TrustEmitOptions } from "../trust/types.js";
-import { wrapDetailWithTrust } from "../trust/utils.js";
 import {
     FASTElementDefinition,
     getLateAttributeLookup,
@@ -37,28 +35,6 @@ const isConnectedPropertyName = "isConnected";
 
 const shadowRoots = new WeakMap<Element, ShadowRoot>();
 const lateAttributeObserver = Symbol("fast-late-attribute-observer");
-const behaviorFactories = new Set<ElementControllerBehaviorFactory>();
-
-/**
- * Creates an optional behavior for a newly constructed element controller.
- * @internal
- */
-export type ElementControllerBehaviorFactory = (
-    element: HTMLElement,
-) => HostBehavior<HTMLElement> | undefined;
-
-/**
- * Registers a focused integration hook for optional element behaviors.
- * @param factory - Factory invoked for each new element controller.
- * @returns A callback that removes the factory.
- * @internal
- */
-export function registerElementControllerBehaviorFactory(
-    factory: ElementControllerBehaviorFactory,
-): () => void {
-    behaviorFactories.add(factory);
-    return () => behaviorFactories.delete(factory);
-}
 
 function getShadowRoot(element: Element): ShadowRoot | null {
     return element.shadowRoot ?? shadowRoots.get(element) ?? null;
@@ -379,13 +355,6 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
         // Capture any observable values that were set after construction but before
         // the first connect (for example, late-defined declarative accessors).
         this.captureBoundObservables();
-
-        for (const factory of behaviorFactories) {
-            const behavior = factory(element);
-            if (behavior !== void 0) {
-                this.addBehavior(behavior as HostBehavior<TElement>);
-            }
-        }
     }
 
     /**
@@ -776,21 +745,14 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
      * @remarks
      * Only emits events if connected.
      */
-    public emit(type: string, detail?: any, options?: TrustEmitOptions): void | boolean {
+    public emit(
+        type: string,
+        detail?: any,
+        options?: Omit<CustomEventInit, "detail">,
+    ): void | boolean {
         if (this.stage === Stages.connected) {
-            const { confidence, reasoning, warnings, ...eventOptions } = options ?? {};
-            const wrappedDetail = wrapDetailWithTrust(detail, {
-                confidence,
-                reasoning,
-                warnings,
-            });
-
             return this.source.dispatchEvent(
-                new CustomEvent(type, {
-                    ...defaultEventOptions,
-                    ...eventOptions,
-                    detail: wrappedDetail,
-                }),
+                new CustomEvent(type, { detail, ...defaultEventOptions, ...options }),
             );
         }
 
@@ -919,9 +881,9 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
                         const trackedElement = tracked as FASTElement;
 
                         // The replaced controller may already be connected, with its
-                        // host behaviors (such as registered commands) live. Tear it
-                        // down first so that nothing it connected outlives it: no
-                        // one can reach it to disconnect it once it is replaced.
+                        // host behaviors live. Tear it down first so that nothing it
+                        // connected outlives it: no one can reach it to disconnect it
+                        // once it is replaced.
                         trackedElement.$fastController?.disconnect();
                         ElementController.forCustomElement(trackedElement, true);
 

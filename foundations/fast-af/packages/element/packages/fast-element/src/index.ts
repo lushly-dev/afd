@@ -200,10 +200,4 @@ export {
     type View,
 } from "./templating/view.js";
 export { when } from "./templating/when.js";
-export type {
-    TrustEmitOptions,
-    TrustSignals,
-    Warning,
-    WarningSeverity,
-} from "./trust/types.js";
 export * from "./utilities.js";

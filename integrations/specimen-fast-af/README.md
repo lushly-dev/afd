@@ -2,10 +2,9 @@
 
 **Preview,** like [Specimen](../../foundations/specimen/README.md). Install it with Specimen and the FAST-AF runtime: `npm install @lushly-dev/specimen@preview @lushly-dev/specimen-fast-af@preview @lushly-dev/fast-element@preview`.
 
-`@lushly-dev/specimen-fast-af` adds FAST-AF's knowledge to a Specimen bench through three of Specimen's plugin points:
+`@lushly-dev/specimen-fast-af` adds FAST-AF's knowledge to a Specimen bench through two of Specimen's plugin points:
 
-- **Schema source.** It enables FAST's Definition Schema and merges each FAST element's definition into the schema core reads from the custom elements manifest: properties and their finite values, slots, events, CSS properties and `@command` commands. Where the manifest already states something, the manifest's statement stays.
-- **Command runner `fast-af`.** It calls an element's `@command` method by command id, for explicit command steps: `{ command: { runner: 'fast-af', name: 'editor.save', target: 'control' } }`. A command the element does not declare fails with the commands it does.
+- **Schema source.** It enables FAST's Definition Schema and merges each FAST element's definition into the schema core reads from the custom elements manifest: properties and their finite values, slots, events and CSS properties. Where the manifest already states something, the manifest's statement stays. FAST-AF's runtime has no command system, so the merged schema states that the element has no commands. It no longer supplies a command runner: its `fast-af` runner, which called an element's `@command` method, went with the runtime's command module ([#1385](https://github.com/lushly-dev/afd/issues/1385)).
 - **Context provider.** It turns a FAST-AF theme module into named themes for native specimens. A module shaped as `@lushly-dev/violet-elements`' theme exports qualifies: its `presets`, its `apply`, and optionally its `install`.
 
 It also passes a token map through: FAST-AF's private alias registry, composed and validated with the public maps (`composeTokenMaps`).
@@ -37,6 +36,6 @@ export default fastAf({
 
 The bench installs plugins before any specimen or story module loads. Elements defined later therefore record their Definition Schema.
 
-`pnpm -F @lushly-dev/specimen-fast-af test` runs the browser-free schema and guide source tests. `test:browser` runs the plugin through Specimen's bench on a FAST element with an `@command`; it needs the native host and Chromium, as Specimen's own Chromium suite does.
+`pnpm -F @lushly-dev/specimen-fast-af test` runs the browser-free schema and guide source tests. `test:browser` runs the plugin through Specimen's bench on a FAST element; it needs the native host and Chromium, as Specimen's own Chromium suite does.
 
 It is admitted for the npm `preview` prerelease with Specimen, at `0.1.0-preview.0` first, and needs `@lushly-dev/fast-element` `^3.0.1-preview`, which releases in the same prerelease. See the [T05 record](../../docs/features/complete/specimens/t05-compatibility.md).

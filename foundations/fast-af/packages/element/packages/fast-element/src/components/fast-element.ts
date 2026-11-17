@@ -1,5 +1,4 @@
 import { type Constructable, isFunction } from "../interfaces.js";
-import type { TrustEmitOptions } from "../trust/types.js";
 import { ElementController } from "./element-controller.js";
 import {
     applyFASTElementExtensions,
@@ -28,7 +27,11 @@ export interface FASTElement extends HTMLElement {
      * @remarks
      * Only emits events if the element is connected.
      */
-    $emit(type: string, detail?: any, options?: TrustEmitOptions): boolean | void;
+    $emit(
+        type: string,
+        detail?: any,
+        options?: Omit<CustomEventInit, "detail">,
+    ): boolean | void;
 
     /**
      * The connected callback for this FASTElement.
@@ -78,7 +81,7 @@ function createFASTElement<T extends typeof HTMLElement>(
         public $emit(
             type: string,
             detail?: any,
-            options?: TrustEmitOptions,
+            options?: Omit<CustomEventInit, "detail">,
         ): boolean | void {
             return this.$fastController.emit(type, detail, options);
         }

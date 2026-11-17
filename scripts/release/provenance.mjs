@@ -3,6 +3,12 @@
  * Records changes to imported files in a family's provenance: each changed or new file's digest in
  * `adaptations.json`, with the reason, and that file's digest in `provenance.json`.
  *
+ * A recorded file that is gone is recorded as removed, never dropped: its record keeps its history
+ * and digest, takes the `removed-after-import` classification and gains `removed`, the date, the
+ * reason and the classification it had. The provenance tests skip a removed record when they look
+ * for the file, and it still accounts for its upstream file. A removed file that comes back takes
+ * its earlier classification again, and `removed` moves to `earlier_removals`.
+ *
  * `pnpm version-packages` runs it after Changesets, before it writes the release intent, so the
  * release pull request passes the provenance tests and its intent already covers the records.
  *
@@ -79,6 +85,12 @@ export function hasStaleShape(file, bytes) {
 
 const isManifest = (path) => path === 'package.json' || path.endsWith('/package.json');
 
+/** The classification of a record whose file was removed after import. */
+export const REMOVED = 'removed-after-import';
+
+/** Whether a record is of a file removed after import, which the tests do not look for. */
+export const isRemoved = (file) => file.import_classification === REMOVED;
+
 /** The family's files Git sees, tracked or untracked but not ignored, outside its records. */
 export function provenancePaths(root, family) {
 	const { directory, paths } = PROVENANCE_FAMILIES[family];
@@ -98,8 +110,11 @@ export function recordReleaseProvenance(root, reason) {
 		.flatMap(([family]) => recordProvenance(root, family, reason));
 }
 
-/** Records every changed or new file with `reason`; returns the paths it recorded. */
-export function recordProvenance(root, family, reason) {
+/**
+ * Records every changed, new or removed file with `reason`; returns the paths it recorded.
+ * `today` dates a removal (YYYY-MM-DD), for tests.
+ */
+export function recordProvenance(root, family, reason, { today } = {}) {
 	if (!PROVENANCE_FAMILIES[family]) throw new Error(`No provenance for family: ${family}`);
 	if (typeof reason !== 'string' || !reason.trim())
 		throw new Error('A provenance reason is required');
@@ -108,11 +123,19 @@ export function recordProvenance(root, family, reason) {
 	const adaptations = JSON.parse(readFileSync(adaptationsPath, 'utf8'));
 	const recorded = new Map(adaptations.files.map((file) => [file.path, file]));
 	const changed = [];
-	for (const path of provenancePaths(root, family)) {
+	const present = provenancePaths(root, family);
+	for (const path of present) {
 		const bytes = readFileSync(join(root, path));
 		const digest = sha(bytes);
 		const shape = isManifest(path) ? { manifest_shape_sha256: manifestShape(bytes) } : {};
 		const file = recorded.get(path);
+		const restored = Boolean(file && isRemoved(file));
+		if (restored) {
+			// Back after a removal: it takes its earlier classification and the removal is history.
+			file.import_classification = file.removed.import_classification;
+			file.earlier_removals = [...(file.earlier_removals ?? []), file.removed];
+			delete file.removed;
+		}
 		if (!file)
 			adaptations.files.push({
 				path,
@@ -139,8 +162,16 @@ export function recordProvenance(root, family, reason) {
 		} else if (hasStaleShape(file, bytes)) {
 			// The file is as recorded, so there is no reason to add: only the shape follows it.
 			Object.assign(file, shape);
-		} else continue;
+		} else if (!restored) continue;
 		changed.push(path);
+	}
+	const visible = new Set(present);
+	const date = today ?? new Date().toISOString().slice(0, 10);
+	for (const file of adaptations.files) {
+		if (visible.has(file.path) || isRemoved(file)) continue;
+		file.removed = { on: date, reason, import_classification: file.import_classification };
+		file.import_classification = REMOVED;
+		changed.push(file.path);
 	}
 	if (!changed.length) return changed;
 	writeFileSync(adaptationsPath, `${JSON.stringify(adaptations, null, 2)}\n`);

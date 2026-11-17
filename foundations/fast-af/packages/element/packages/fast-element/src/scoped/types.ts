@@ -18,34 +18,3 @@ export interface ScopedShadowRootInit extends ShadowRootInit {
     /** Native spec key - preferred (Safari 26+, Chrome 133+ Origin Trial) */
     customElementRegistry?: CustomElementRegistry;
 }
-
-/**
- * Element definition tuple: [Constructor, tag-name]
- *
- * @remarks
- * Used with createRegistry() to define elements in a scoped registry.
- *
- * @example
- * ```typescript
- * const definitions: ElementDefinition[] = [
- *   [MyButton, 'my-button'],
- *   [MyInput, 'my-input'],
- * ];
- * ```
- *
- * @public
- */
-export type ElementDefinition = [CustomElementConstructor, string];
-
-/**
- * Options for createRegistry helper.
- *
- * @public
- */
-export interface CreateRegistryOptions {
-    /**
-     * If true, throw when unsupported instead of falling back to global registry.
-     * Default: false (uses global registry fallback)
-     */
-    strict?: boolean;
-}

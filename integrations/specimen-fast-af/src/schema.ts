@@ -3,7 +3,8 @@ import type { ComponentSchema, PropertySchema } from '@lushly-dev/specimen';
 /**
  * FAST-AF's Definition Schema merged into core's schema. What the manifest already states
  * stays; FAST-AF adds what its definitions know: properties and their finite values, slots,
- * events, CSS properties and `@command` commands.
+ * events and CSS properties. A FAST-AF element declares no commands, so the merged schema states
+ * that it has none.
  */
 export interface FastComponentSchema {
 	name: string;
@@ -19,7 +20,6 @@ export interface FastComponentSchema {
 	events: { name: string; description?: string }[];
 	slots: { name: string; description?: string }[];
 	cssProperties: { name: string; default?: string; description?: string }[];
-	commands?: { id: string; label?: string; description?: string }[];
 }
 
 function text(value: unknown): string | undefined {
@@ -88,15 +88,6 @@ export function mergeFastSchema(
 			if (attribute[key] !== undefined) Object.assign(merged, { [key]: attribute[key] });
 		return merged;
 	};
-	const commands = (fast.commands ?? []).map((command) =>
-		Object.fromEntries(
-			Object.entries({
-				id: command.id,
-				label: command.label,
-				description: command.description,
-			}).filter(([, value]) => value !== undefined)
-		)
-	) as ComponentSchema['commands'];
 	return {
 		...schema,
 		properties: properties.map(absorbed),
@@ -113,11 +104,8 @@ export function mergeFastSchema(
 			}))
 		),
 		cssProperties: byName(schema.cssProperties, fast.cssProperties),
-		commands: byName(
-			schema.commands.map((command) => ({ ...command, name: command.id })),
-			commands.map((command) => ({ ...command, name: command.id }))
-		).map(({ name: _name, ...command }) => command),
-		// The definition states its commands, even when it has none.
+		// The runtime has no command system, so the definition settles that the element has no
+		// commands of its own.
 		unknown: schema.unknown.filter((field) => field !== 'commands'),
 	};
 }
