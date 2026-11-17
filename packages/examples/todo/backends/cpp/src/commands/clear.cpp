@@ -80,7 +80,7 @@ afd::CommandDefinition todo_clear(std::shared_ptr<TodoStore> store) {
                    ? afd::ApprovalDecision::not_required
                    : afd::ApprovalDecision::required;
     });
-    command.changed = [](const Json& data) { return ids_in(data["clearedIds"]); };
+    command.changed = [](const Json& data) { return ids_in(data.value("clearedIds", Json())); };
     command.run = [store](const Json& input, CommandContext&) {
         const Scope scope = scope_of(input);
         const ClearResult result = scope == Scope::all       ? store->clear_all()

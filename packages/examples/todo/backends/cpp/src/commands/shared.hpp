@@ -79,6 +79,9 @@ struct Stamp {
 
 Stamp stamp(const CommandContext& context);
 
+/// The context clock's time (the system's when the caller set none), as ISO 8601.
+std::string now_iso(const CommandContext& context);
+
 /// `NOT_FOUND` for an id with no live todo, with TypeScript's message and suggestion.
 afd::CommandError not_found(const std::string& id);
 
@@ -102,6 +105,7 @@ std::vector<std::string> todo_id_in(const Json& data);
 
 std::optional<std::string> string_field(const Json& input, const char* key);
 std::optional<bool> bool_field(const Json& input, const char* key);
+/// An integer input, clamped to [0, 2^53 - 1]; `fallback` when absent.
 std::int64_t integer_field(const Json& input, const char* key, std::int64_t fallback);
 
 /// JSON Schema pieces shared by several commands.

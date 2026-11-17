@@ -513,9 +513,14 @@ In review on branch `t3/cpp-todo-parity`, on the library's `afd::mcp_stdio`
     (legacy) to `pnpm verify`.
   - The library's `schema_test.cpp` no longer strips `x-implementedBy`.
 
-Verified locally on 2026-11-17 with Node 26 and Apple clang: the backend's tests (34 cases, 688
+Verified locally on 2026-11-17 with Node 26 and Apple clang: the backend's tests (36 cases, 715
 assertions) with warnings as errors; C++ conformance 41/41 in legacy, modern and auto modes,
-confirmations 5/5 and approvals 4/4 in legacy and modern modes.
+confirmations 5/5 and approvals 4/4 in legacy and modern modes; the README's commands, run once.
+An independent review compared 27 calls side by side with the TypeScript server (identical but
+for validation texts, now listed in the README) and found one blocker, fixed: an `offset` beyond
+int64 was cast out of range, which on x86 could read out of bounds. Integer inputs are now clamped
+to [0, 2^53 - 1]. Its improvements (missing-key reads, a test that an approved clear over MCP is
+recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC.
 
 ## Open questions
 

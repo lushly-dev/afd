@@ -90,3 +90,50 @@ TEST_CASE("an MCP agent's clear is held without a token when the client cannot b
     CHECK_FALSE(held["error"]["details"].contains("approvalToken"));
     CHECK(call(*server, "todo-list", {{"completed", true}})["data"]["total"] == 1);
 }
+
+TEST_CASE("a clear the person approves over MCP runs once and is recorded; a declined one is not") {
+    Fixture fixture(todo::Approvals::agents);
+    auto server = make_server(fixture);
+    reply(*server,
+          afd::Json{{"jsonrpc", "2.0"},
+                    {"id", 0},
+                    {"method", "initialize"},
+                    {"params",
+                     {{"protocolVersion", "2025-11-25"},
+                      {"capabilities", {{"elicitation", {{"form", afd::Json::object()}}}}}}}}
+              .dump());
+    const std::string id = call(*server, "todo-create", {{"title", "Done"}})["data"]["id"];
+    call(*server, "todo-toggle", {{"id", id}});
+
+    afd::Json answer{{"action", "decline"}};
+    int asked = 0;
+    const afd::mcp::ClientRequester ask = [&](const afd::Json&) -> std::optional<afd::Json> {
+        ++asked;
+        return answer;
+    };
+    const afd::Json clear{{"jsonrpc", "2.0"},
+                          {"id", 5},
+                          {"method", "tools/call"},
+                          {"params", {{"name", "todo-clear"}, {"arguments", afd::Json::object()}}}};
+    const auto body = [&] {
+        const auto out = server->handle_message(clear.dump(), ask);
+        REQUIRE(out.has_value());
+        return afd::Json::parse(
+            afd::Json::parse(*out)["result"]["content"][0]["text"].get<std::string>());
+    };
+
+    const auto declined = body();
+    CHECK(asked == 1);
+    CHECK(declined["error"]["code"] == "APPROVAL_REQUIRED");
+    CHECK(declined["error"]["details"]["reason"] == "declined");
+    CHECK(call(*server, "todo-history", {{"todoId", id}})["data"]["total"] == 2);
+
+    answer = afd::Json{{"action", "accept"}, {"content", {{"approve", true}}}};
+    const auto approved = body();
+    CHECK(asked == 2);
+    CHECK(approved["data"]["clearedIds"] == afd::Json::array({id}));
+    const auto history = call(*server, "todo-history", {{"todoId", id}});
+    CHECK(history["data"]["total"] == 3);
+    CHECK(history["data"]["entries"][0]["command"] == "todo-clear");
+    CHECK(history["data"]["entries"][0]["actor"]["kind"] == "agent");
+}

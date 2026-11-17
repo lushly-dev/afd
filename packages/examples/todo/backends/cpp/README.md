@@ -71,5 +71,9 @@ Add `--mode modern` for MCP 2026-07-28.
   has no meta-tools (`afd-call`, `afd-batch`, `afd-pipe`), bootstrap commands, grouped tool
   strategy or context tools yet, so the `todo-reading` and `todo-editing` contexts are declared
   on each command but not served ([#1425](https://github.com/lushly-dev/afd/issues/1425)).
+- **Validation messages** come from the library's validator, not TypeScript's custom zod texts
+  (`"Too small: expected string to have >=1 characters"` where TypeScript says `"Todo ID is
+  required"`), and `expectedFields` is in alphabetical order. An `offset` beyond 2^53 - 1 is
+  clamped to it, where TypeScript refuses it.
 - **No journal:** TypeScript records sessions for `afd replay`; this backend, like Python and
   Rust, does not.

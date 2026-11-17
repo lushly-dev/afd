@@ -97,7 +97,7 @@ afd::CommandDefinition todo_create_batch(std::shared_ptr<TodoStore> store) {
         {"Two todos at once",
          {{"todos", Json::array({{{"title", "Net the brassicas"}},
                                  {{"title", "Sow the broad beans"}, {"priority", "low"}}})}}}};
-    command.changed = [](const Json& data) { return todo_ids_in(data["succeeded"]); };
+    command.changed = [](const Json& data) { return todo_ids_in(data.value("succeeded", Json())); };
     command.run = [store](const Json& input, CommandContext& context) {
         const Stamp now = stamp(context);
         Json succeeded = Json::array();
@@ -181,9 +181,9 @@ afd::CommandDefinition todo_delete_batch(std::shared_ptr<TodoStore> store) {
                         {"summary", schema::summary()}}},
                       {"required", {"deletedIds", "failed", "summary"}}};
     command.examples = {{"Delete two todos", {{"ids", {example_id, other_id}}}}};
-    command.changed = [](const Json& data) { return ids_in(data["deletedIds"]); };
+    command.changed = [](const Json& data) { return ids_in(data.value("deletedIds", Json())); };
     command.run = [store](const Json& input, CommandContext& context) {
-        const std::string now = stamp(context).now;
+        const std::string now = now_iso(context);
         Json deleted_ids = Json::array();
         Json failed = Json::array();
         const auto& ids = input["ids"];
@@ -275,9 +275,9 @@ afd::CommandDefinition todo_toggle_batch(std::shared_ptr<TodoStore> store) {
         {"required", {"succeeded", "failed", "summary"}}};
     command.examples = {
         {"Mark two todos done", {{"ids", {example_id, other_id}}, {"completed", true}}}};
-    command.changed = [](const Json& data) { return todo_ids_in(data["succeeded"]); };
+    command.changed = [](const Json& data) { return todo_ids_in(data.value("succeeded", Json())); };
     command.run = [store](const Json& input, CommandContext& context) {
-        const std::string now = stamp(context).now;
+        const std::string now = now_iso(context);
         const std::optional<bool> target = bool_field(input, "completed");
         std::vector<Todo> succeeded;
         Json failed = Json::array();

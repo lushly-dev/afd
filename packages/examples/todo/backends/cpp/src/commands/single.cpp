@@ -70,7 +70,7 @@ Page page(const TodoStore& store, const TodoFilter& filter, const ListQuery& que
     const auto matching = store.list(filter, query.sort_by, query.sort_order);
     Page result;
     result.total = static_cast<std::int64_t>(matching.size());
-    const std::int64_t begin = (std::min)(query.offset, result.total);
+    const std::int64_t begin = (std::min)((std::max)(query.offset, std::int64_t{0}), result.total);
     const std::int64_t end = (std::min)(begin + query.limit, result.total);
     result.todos.assign(matching.begin() + begin, matching.begin() + end);
     result.has_more = query.offset + static_cast<std::int64_t>(result.todos.size()) < result.total;
@@ -274,7 +274,7 @@ afd::CommandDefinition todo_update(std::shared_ptr<TodoStore> store) {
             previous["priority"] = existing->priority;
         }
 
-        const auto updated = store->update(id, changes, stamp(context).now);
+        const auto updated = store->update(id, changes, now_iso(context));
         if (!updated) {
             return afd::failure(not_found(id));
         }
@@ -311,7 +311,7 @@ afd::CommandDefinition todo_toggle(std::shared_ptr<TodoStore> store) {
         if (!existing) {
             return afd::failure(not_found(id));
         }
-        const auto updated = store->toggle(id, stamp(context).now);
+        const auto updated = store->toggle(id, now_iso(context));
         if (!updated) {
             return afd::failure(not_found(id));
         }
@@ -347,7 +347,7 @@ afd::CommandDefinition todo_delete(std::shared_ptr<TodoStore> store) {
     command.changed = todo_id_in;
     command.run = [store](const Json& input, CommandContext& context) {
         const std::string id = input["id"].get<std::string>();
-        const auto todo = store->remove(id, stamp(context).now);
+        const auto todo = store->remove(id, now_iso(context));
         if (!todo) {
             return afd::failure(not_found(id));
         }

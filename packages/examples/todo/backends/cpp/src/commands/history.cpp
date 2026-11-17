@@ -54,7 +54,7 @@ afd::CommandDefinition todo_restore(std::shared_ptr<TodoStore> store) {
                         {"summary", schema::summary()}}},
                       {"required", {"restoredIds", "restored", "failed", "summary"}}};
     command.examples = {{"Undo a delete", {{"ids", Json::array({example_id})}}}};
-    command.changed = [](const Json& data) { return ids_in(data["restoredIds"]); };
+    command.changed = [](const Json& data) { return ids_in(data.value("restoredIds", Json())); };
     command.run = [store](const Json& input, CommandContext&) {
         std::vector<Todo> restored;
         Json restored_ids = Json::array();
@@ -190,7 +190,7 @@ afd::CommandDefinition todo_history(std::shared_ptr<TodoStore> store) {
             }
         }
         const auto total = static_cast<std::int64_t>(matching.size());
-        const std::int64_t begin = (std::min)(offset, total);
+        const std::int64_t begin = (std::min)((std::max)(offset, std::int64_t{0}), total);
         const std::int64_t end = (std::min)(begin + limit, total);
         const std::vector<Change> entries(matching.begin() + begin, matching.begin() + end);
         std::string reasoning = "No changes recorded that match";

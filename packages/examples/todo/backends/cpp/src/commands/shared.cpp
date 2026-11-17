@@ -1,5 +1,6 @@
 #include "commands/shared.hpp"
 
+#include <algorithm>
 #include <cmath>
 #include <utility>
 
@@ -27,7 +28,7 @@ void record(TodoStore& store, const Command& command, const CommandResult& resul
         return;
     }
     Change change;
-    change.at = stamp(context).now;
+    change.at = now_iso(context);
     if (context.actor) {
         change.actor_kind = std::string(afd::actor_kind_name(context.actor->kind));
         change.actor_id = context.actor->id;
@@ -101,9 +102,15 @@ std::string Stamp::new_id() const {
     return "todo-" + std::to_string(at) + "-" + suffix;
 }
 
+std::string now_iso(const CommandContext& context) {
+    static const afd::SystemClock system_clock;
+    const afd::Clock& clock = context.clock ? *context.clock : system_clock;
+    return afd::wire::iso8601_utc(clock.wall_ms());
+}
+
 Stamp stamp(const CommandContext& context) {
-    static const auto system_clock = std::make_shared<afd::SystemClock>();
-    const afd::Clock& clock = context.clock ? *context.clock : *system_clock;
+    static const afd::SystemClock system_clock;
+    const afd::Clock& clock = context.clock ? *context.clock : system_clock;
     Stamp result;
     result.at = clock.wall_ms();
     result.now = afd::wire::iso8601_utc(result.at);
@@ -178,8 +185,14 @@ std::optional<bool> bool_field(const Json& input, const char* key) {
 
 std::int64_t integer_field(const Json& input, const char* key, std::int64_t fallback) {
     const auto it = input.find(key);
-    return it != input.end() && it->is_number() ? static_cast<std::int64_t>(it->get<double>())
-                                                : fallback;
+    if (it == input.end() || !it->is_number()) {
+        return fallback;
+    }
+    // The schemas bound `limit` but not `offset`, and casting a double beyond int64 is
+    // undefined: clamp to [0, 2^53 - 1], the largest integer TypeScript accepts.
+    constexpr double max_safe_integer = 9007199254740991.0;
+    const double value = it->get<double>();
+    return value > 0 ? static_cast<std::int64_t>((std::min)(value, max_safe_integer)) : 0;
 }
 
 namespace schema {

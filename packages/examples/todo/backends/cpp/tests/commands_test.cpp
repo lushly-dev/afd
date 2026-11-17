@@ -225,3 +225,17 @@ TEST_CASE("toggle-batch names no single undo when the todos had different states
           "Successfully set to complete all 2 todos (2 complete, 0 incomplete)");
     CHECK(set["undoArgs"] == afd::Json{{"ids", afd::Json::array({done})}, {"completed", false}});
 }
+
+TEST_CASE("an offset past every integer is clamped, not cast out of range") {
+    Fixture fixture;
+    fixture.create("Only");
+    for (const char* name : {"todo-list", "todo-history"}) {
+        CAPTURE(name);
+        const auto huge = fixture.run(name, {{"offset", 1e300}});
+        REQUIRE(huge["success"] == true);
+        CHECK(huge["data"]["total"] == 1);
+        CHECK(huge["data"]["hasMore"] == false);
+    }
+    CHECK(fixture.run("todo-list", {{"offset", 1e300}})["reasoning"] ==
+          "Found 1 todos, returning 0 starting at offset 9007199254740991");
+}
