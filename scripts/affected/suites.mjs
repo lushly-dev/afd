@@ -302,12 +302,12 @@ export const SUITES = [
 			{
 				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings',
+				run: 'cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components --features component -- -D warnings',
 			},
 			{
 				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello --features umbel-plugin-hello/component,umbel-fixture-budget/component',
+				run: 'cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello -p umbel-plugin-components --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component',
 			},
 			{
 				gate: 'host',

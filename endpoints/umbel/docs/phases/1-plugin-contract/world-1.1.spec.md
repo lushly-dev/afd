@@ -267,10 +267,13 @@ messages; the tests that assert "1.1.0" in them (`tests/manifest_v2.rs`, `tests/
 The `components` plugin's component build (#1155) is the plugin's own change and needs no host change beyond this
 world, but its manifest and source do:
 
-- **`random`.** `src/brief.rs`, `src/select.rs` and `src/pack/mod.rs` use `HashMap` and `HashSet`, whose
+- **`random`.** ~~`src/brief.rs`, `src/select.rs` and `src/pack/mod.rs` use `HashMap` and `HashSet`, whose
   `RandomState` makes the component import `wasi:random/insecure-seed`, which needs the `random` grant (phase 1,
   section 4; `analyze.rs`'s `wasi_grant`). D2 either declares `random` in the component manifest (amending D151's
-  grant list) or uses `BTreeMap` and `BTreeSet`.
+  grant list) or uses `BTreeMap` and `BTreeSet`.~~ Corrected 2026-11-17 by D2 itself (D198, components
+  specification A29). `BTreeMap` alone does not remove the import: `regex-automata`'s map of capture names, reached
+  through `regex`, seeds from it too. Rust's standard library also imports `wasi:clocks/monotonic-clock`. So the
+  component manifest declares `random` (amending D151's grant list) and `clock`, and the source keeps its maps.
 - **`journal`.** The owner answered (D195): the deployer sets it in `umbel.toml`, built in
   [#1382](https://github.com/lushly-dev/afd/issues/1382) by the [component journal specification](component-journal.spec.md)
   (`[plugins.<id>.journal]`, added to configuration version 7). Until then, a component manifest beside the compiled one, as

@@ -109,6 +109,41 @@ the tool unless something named it: Claude Code defers MCP tools, and a hook's a
 arrives only after the write. What it costs is recorded in the
 [Component Briefs status](../../../../docs/features/complete/component-briefs/STATUS.md#step-c5-the-setup-and-its-cost).
 
+## As a WebAssembly component
+
+The same crate builds as a component for the stock `umbel` binary, which links no first-party
+plugin (Component Briefs step D2, [amendment A29](../../docs/plugins/components/spec.md#amendment-a29-the-component-build-step-d2-1155)):
+
+```sh
+cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-components --features component
+```
+
+Lay out a plugin directory with `manifests/component.toml` as `umbel-plugin.toml`, the built
+`umbel_plugin_components.wasm` as `components.wasm`, and the crate's `packs`, `skills` and
+`schemas`. Then point an instance at it with `source`. The component holds the compiled build's
+grants plus `clock` and `random`. The build imports both, and no command reads either: Rust's
+standard library imports the monotonic clock, and the hash maps of the plugin and of its `regex`
+dependency seed from `wasi:random`.
+
+A component declares no journal mode, so the deployer sets one. The compiled build journals every
+call as a digest. To do the same for the component, add this to `umbel.toml` (configuration
+version 7):
+
+```toml
+[plugins.components.journal]
+mode = "digest"
+keep = ["space", "library"]
+
+[plugins.components.journal.commands]
+components-brief = { mode = "digest", keep = ["space", "library", "detail", "render", "consumer"] }
+components-open = { mode = "digest", keep = ["space", "library", "tag"] }
+```
+
+Without it, the journal records each call in full, including a page's `source`. The doctor's
+`plugins.pack_checks` runs only on the compiled build. For the component, the doctor's
+`plugins.packs` checks a space override's layout only, and a pack the plugin refuses is refused on
+the call.
+
 ## Limits
 
 - A call reads at most 16 MiB of pack files. Every library a call touches is read whole, so a pack
