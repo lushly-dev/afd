@@ -564,7 +564,8 @@ async fn detail_reports_every_field_and_bounds_unknown_names() {
     assert_eq!(detailed["reasoning"], "Resolved 1 of 3 requested commands");
 }
 
-/// `requires`, `examples` and `contexts` are reported when set and omitted when empty (#474).
+/// `requires`, `examples` and `contexts` are reported when set, and they and `scopes` are omitted
+/// when empty (#474).
 #[tokio::test]
 async fn detail_reports_requires_examples_and_contexts() {
     let registry = CommandRegistry::new();
@@ -592,6 +593,7 @@ async fn detail_reports_requires_examples_and_contexts() {
                 .with_requires(Vec::<String>::new())
                 .with_contexts(Vec::<String>::new())
                 .with_examples(vec![])
+                .with_scopes(Vec::<String>::new())
                 .with_expose(mcp()),
         )
         .unwrap();
@@ -611,7 +613,7 @@ async fn detail_reports_requires_examples_and_contexts() {
         json!([{ "title": "Update one", "input": { "id": "t-1" } }])
     );
     assert_eq!(entries[0]["contexts"], json!(["planning"]));
-    for key in ["requires", "examples", "contexts"] {
+    for key in ["requires", "examples", "contexts", "scopes"] {
         assert!(entries[1].get(key).is_none(), "{key}: {}", entries[1]);
     }
 }

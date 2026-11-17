@@ -626,7 +626,11 @@ fn detail_entry(
     );
     optional(
         "scopes",
-        command.scopes.as_ref().map(|scopes| json!(scopes)),
+        command
+            .scopes
+            .as_ref()
+            .filter(|scopes| !scopes.is_empty())
+            .map(|scopes| json!(scopes)),
     );
     optional(
         "confirmationMode",
