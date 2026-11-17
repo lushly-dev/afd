@@ -257,6 +257,14 @@ fn neither_key_is_available_to_a_component_command() {
         assert!(error.message().contains("component"), "{error}");
         // World 1.1.0 carries neither (D189, D191).
         assert!(!error.message().contains("1.1.0"), "{error}");
+        // A component's journal mode is the deployer's (D195, the component journal
+        // specification, section 1).
+        if key == "journal" {
+            assert!(
+                error.message().contains("[plugins.<id>.journal]"),
+                "{error}"
+            );
+        }
     }
 }
 

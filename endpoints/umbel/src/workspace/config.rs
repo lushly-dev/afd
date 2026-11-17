@@ -29,8 +29,9 @@ use super::person::{
     AssuranceLevel, PersonConfig, SPACE_KEYS_V7, TOP_KEYS_V7, is_v7_key, verified_levels,
 };
 use super::plugins_config::{
-    GRANT_KEYS, INSTANCE_KEYS, INSTANCE_KEYS_V3, INSTANCE_RESERVED, LIMITS_KEYS,
-    MEMORY_WRITE_GRANT_KEYS, MEMORY_WRITE_GRANT_KEYS_V5, RECORDS_WRITE_GRANT_KEYS_V6, is_env_name,
+    GRANT_KEYS, INSTANCE_JOURNAL_ENTRY_KEYS, INSTANCE_JOURNAL_KEYS, INSTANCE_KEYS,
+    INSTANCE_KEYS_V3, INSTANCE_KEYS_V7, INSTANCE_RESERVED, LIMITS_KEYS, MEMORY_WRITE_GRANT_KEYS,
+    MEMORY_WRITE_GRANT_KEYS_V5, RECORDS_WRITE_GRANT_KEYS_V6, is_env_name,
 };
 use super::records::{
     COLLECTION_KEYS_V6, MeaningConfig, ModelConfig, SPACE_KEYS_V6, SpaceStanding, TOP_KEYS_V6,
@@ -612,7 +613,32 @@ impl ConfigFile {
             };
             let prefix = format!("plugins.{id}");
             if version >= 3 {
-                scan_table(instance, &prefix, INSTANCE_KEYS_V3, &[], scan);
+                let keys = if version >= 7 {
+                    INSTANCE_KEYS_V7
+                } else {
+                    INSTANCE_KEYS_V3
+                };
+                scan_table(instance, &prefix, keys, &[], scan);
+                if version >= 7
+                    && let Some(Value::Table(journal)) = instance.get("journal")
+                {
+                    let journal_prefix = format!("{prefix}.journal");
+                    scan_table(journal, &journal_prefix, INSTANCE_JOURNAL_KEYS, &[], scan);
+                    // `commands` is open over the names the deployer chooses; each entry is closed.
+                    if let Some(Value::Table(commands)) = journal.get("commands") {
+                        for (name, value) in commands {
+                            if let Value::Table(entry) = value {
+                                scan_table(
+                                    entry,
+                                    &format!("{journal_prefix}.commands.{name}"),
+                                    INSTANCE_JOURNAL_ENTRY_KEYS,
+                                    &[],
+                                    scan,
+                                );
+                            }
+                        }
+                    }
+                }
                 if let Some(Value::Table(grants)) = instance.get("grants") {
                     for (grant, value) in grants {
                         if let Value::Table(entry) = value {

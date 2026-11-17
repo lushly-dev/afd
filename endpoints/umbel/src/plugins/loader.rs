@@ -556,6 +556,7 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     destructive: command.destructive.unwrap_or(false),
                     pipeline: false,
                     digest: false,
+                    digest_by: None,
                     authority_prompt: None,
                     expose: command.expose.clone(),
                     task: TaskMode::Never,
@@ -590,6 +591,12 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                             .map(|tool| tool.effects.clone())
                     })
                 });
+            let digest = decl.is_some_and(|command| {
+                command
+                    .journal
+                    .as_ref()
+                    .is_some_and(|journal| journal.mode == JournalMode::Digest)
+            });
             known.insert(
                 definition.name.clone(),
                 Known {
@@ -597,12 +604,10 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     confirm_prompt: definition.confirm_prompt.clone(),
                     destructive: definition.destructive.unwrap_or(false),
                     pipeline: false,
-                    digest: decl.is_some_and(|command| {
-                        command
-                            .journal
-                            .as_ref()
-                            .is_some_and(|journal| journal.mode == JournalMode::Digest)
-                    }),
+                    digest,
+                    // A component's journal mode is only ever the deployer's (D191, D197).
+                    digest_by: (digest && prepared.manifest.plugin.kind == PluginKind::Component)
+                        .then(|| prepared.report.id.clone()),
                     authority_prompt: decl.and_then(|command| command.authority_prompt.clone()),
                     expose: definition.expose.clone(),
                     task: decl.map_or(TaskMode::Never, |command| command.task),
@@ -619,6 +624,7 @@ fn known_commands(inputs: &Inputs<'_>, slots: &[Slot]) -> BTreeMap<String, Known
                     destructive: false,
                     pipeline: true,
                     digest: false,
+                    digest_by: None,
                     authority_prompt: None,
                     expose: ExposeOptions::new()
                         .with_palette(false)
@@ -700,7 +706,7 @@ fn resolve(
         Some(inputs.catalog.manifests()),
     )
     .map_err(|error| (error, false))?;
-    let opened = match resolved {
+    let mut opened = match resolved {
         ResolvedSource::Unresolved { id } => {
             return Err((
                 PluginError::not_found(&instance.id, format!("compiled:{id} cannot be resolved")),
@@ -758,6 +764,7 @@ fn resolve(
     let http = opened.manifest.is_http_mount();
     super::doctor::fits(instance, &opened.manifest, opened.compiled.is_some())
         .map_err(|error| (error, http))?;
+    super::doctor::apply_journal(instance, &mut opened.manifest);
     let unavailable = match opened.manifest.plugin.kind {
         PluginKind::Component => !cfg!(feature = "component"),
         PluginKind::Mounted => !cfg!(feature = "mounted"),
