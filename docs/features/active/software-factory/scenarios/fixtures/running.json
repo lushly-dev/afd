@@ -70,7 +70,8 @@
 			"plan": "plan-b",
 			"route": "opus/medium",
 			"state": "queued",
-			"ejections": 0
+			"ejections": 0,
+			"worktree": "wt/export-csv"
 		},
 		{
 			"branch": "fix/retry-backoff",
@@ -79,7 +80,8 @@
 			"plan": "plan-a",
 			"route": "sol/high",
 			"state": "queued",
-			"ejections": 0
+			"ejections": 0,
+			"worktree": "wt/retry-backoff"
 		}
 	],
 	"queue": [
@@ -144,6 +146,32 @@
 			"head": "9a8b7c6",
 			"review": {
 				"head": "9a8b7c6"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": []
+		},
+		"wt/export-csv": {
+			"branch": "feat/export-csv",
+			"clean": true,
+			"head": "b2c3d4e",
+			"review": {
+				"head": "b2c3d4e"
+			},
+			"prequeue": {
+				"lint": "pass",
+				"typecheck": "pass"
+			},
+			"gatePathsChanged": []
+		},
+		"wt/retry-backoff": {
+			"branch": "fix/retry-backoff",
+			"clean": true,
+			"head": "c3d4e5f",
+			"review": {
+				"head": "c3d4e5f"
 			},
 			"prequeue": {
 				"lint": "pass",

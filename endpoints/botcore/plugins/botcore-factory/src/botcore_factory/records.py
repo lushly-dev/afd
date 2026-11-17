@@ -36,8 +36,8 @@ kind                    required fields                                     writ
                         older than that)
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
-                        | merge-failed | coverage-failed); optional head,
-                        logPath
+                        | merge-failed | coverage-failed | pr-closed |
+                        review-unverified); optional head, logPath
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
                         withoutCheck, advanced (merged after a
                         base-advanced, without a new validation),
@@ -108,6 +108,7 @@ EJECT_CAUSES = (
     "merge-failed",
     "coverage-failed",
     "pr-closed",
+    "review-unverified",
 )
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})
