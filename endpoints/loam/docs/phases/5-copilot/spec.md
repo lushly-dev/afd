@@ -11,8 +11,8 @@
 
 - **State: Approved** 2026-11-17 by the coordinator, under the owner's standing grant; the owner answered [Q1 to Q7](#questions-for-the-owner) the same day, each as recommended, Q2 with a condition. D141 to D152 are decided. Written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`, then a re-check and a final verify. Nothing is built.
 - **Last verified:** 2026-11-17. Read: the documents in the table above; Loam's STATUS rows that name this specification; [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), both merged while this specification was in review and merged into its branch. 10.8 was approved on 2026-11-17, with the owner's answers recorded as D137 to D140 in [#1378](https://github.com/lushly-dev/afd/pull/1378). This specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
-- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106.
-- **Not done:** every step in [section 19](#19-implementation-plan).
+- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106; step 0a, the spike, whose results amend 0.1, 0.3, 3.2, 4.2, 4.3, 16 and P5-A2 on 2026-11-17 ([0.3's results](#results-2026-11-17)).
+- **Not done:** every step in [section 19](#19-implementation-plan) after 0a.
 - **Follow-ups:** [at the end](#follow-ups).
 
 ## What this phase serves
@@ -56,7 +56,7 @@ D27 chose TanStack AI 1.0 behind the runtime adapter of D24. What a panel in a w
 | Outside a framework | `@tanstack/ai-client` is "the headless client under every framework package. Use it directly for vanilla JavaScript"; a `vanilla-chat` example exists; there is no web-component example [S102] | The panel is a FAST element over `ChatClient`, which the spike proves |
 | A transport to a worker | `ChatClient` takes a `connection`; besides HTTP adapters there are in-process ones (`stream`, `rpcStream`) and a custom `SubscribeConnectionAdapter` with `subscribe` and `send`, which the documentation names for BroadcastChannel, `postMessage` and a shared worker [S102] | The panel reaches the runtime in its opaque-origin frame over a `MessagePort` (section 3) |
 | `chat()` in a worker | Not documented. From 1.1.1 the OpenAI and Anthropic adapters call the provider with `fetch` rather than the vendors' SDKs [S103]. **Not confirmed** | The spike's first question; Loam supplies its own model transport either way (4.2) |
-| Approvals | A tool with `needsApproval` ends the run with an interrupt; the client resolves it with `resolveInterrupt`; `addToolApprovalResponse` was removed at 1.0 [S103] | Not Loam's gate. The gate is the kernel's (section 6); the panel uses the interrupt only to draw the card |
+| Approvals | A tool with `needsApproval` ends the run with an interrupt; the client resolves it with `resolveInterrupt`; `addToolApprovalResponse` was removed at 1.0 [S103] | Not used. The gate is the kernel's (section 6). The spike drew the card without an interrupt: the tool waits on the agent port while the run stays open, and the panel draws the card from the kernel's record (3.2, S4) |
 | Client tools | `.client()` tools run in the browser, ending the run with a client-execution interrupt [S103] | Not used: every tool is a command through the agent interface |
 | Stream | AG-UI events; `@tanstack/ai` 1.4.0 depends on `@ag-ui/core` 1.0.0, latest 1.0.4 [S103, S104] | D24's "the stream to the panel is AG-UI events" holds |
 | Subagents and the loop | `defineAgent` children with their own `chat`; the default loop is five iterations or a `length` stop, set by `agentLoopStrategy`; 1.3.0 marks a run the strategy stopped [S103] | Fresh-context units (7.3) and specialists (section 13) are subagents; the loop's limits are Loam's settings (4.4) |
@@ -74,13 +74,33 @@ A throwaway branch, never merged, whose report becomes an amendment to sections 
 | # | Question | Passes when |
 | --- | --- | --- |
 | S1 | Can the opaque frame start a `blob:` worker, and does TanStack AI's `chat()` run there with no Node API and no network of its own? | The worker starts under 3.2's policies; a turn with a scripted adapter completes in it, every model byte crossing Loam's model port |
-| S2 | Is the frame cut off from the shell in Chromium, WebView2 and WebKitGTK? | Its `indexedDB.open`, `caches`, `localStorage`, Web Locks and a `BroadcastChannel` with the shell's name throw or reach nothing of the shell's; a `fetch` and a `WebSocket` to any URL are refused; the worker has no `RTCPeerConnection`; Tauri's `invoke` from the frame is refused by its policy and by `from_shell` (`DESKTOP_ORIGIN_REFUSED`) |
+| S2 | Is the frame cut off from the shell in Chromium, WebView2 and WebKitGTK? | Its `indexedDB.open`, `caches`, `localStorage`, Web Locks and a `BroadcastChannel` with the shell's name throw or reach nothing of the shell's; a `fetch` and a `WebSocket` to any URL are refused; the worker has no `RTCPeerConnection`; Tauri's `invoke` from the frame reaches no command |
 | S3 | Does `ChatClient` drive a FAST element with a `SubscribeConnectionAdapter` over a `MessagePort`? | The panel streams text and tool-call parts with Violet's `violet-message`, `violet-tool-call-card` and `violet-approval-card`, and `stop()` cancels the worker's turn within 250 ms |
-| S4 | Can an AG-UI interrupt be drawn as a card whose answer is not the interrupt's resolution? | The card renders the kernel's notification record and its button calls a kernel command in the main frame; the runtime learns the outcome only through its agent port |
+| S4 | Can a confirmation be drawn as a card whose answer is not the run's resolution? | The card renders the kernel's notification record and its button calls a kernel command in the main frame; the runtime learns the outcome only through its agent port |
 | S5 | What do the panel's and the runtime's chunks cost? | Gzip sizes recorded; they set the rows of [section 16](#16-budgets) |
 | S6 | Can a provider adapter take an injected `fetch`, or does Loam need its own text adapter? | One of the two works with the model port; the report says which |
 
 **If S2 fails in an engine,** the copilot is not offered in that engine until an amendment, reviewed for trust, says where the runtime runs instead: T8 rests on the opaque origin, so moving the runtime into the shell's own origin or main frame would lose it. **The same holds if S1's worker fails:** a runtime in the frame itself would have WebRTC (#711), so the copilot is not offered in that engine until an amendment says otherwise.
+
+#### Results 2026-11-17
+
+Run on the throwaway branch `lush/loam-p5-spike-0a` (head `4a8055bb`, never merged), with a scripted model and no key or network: Chromium 156.0.8078.4 (Playwright's headless shell), WebView2 157 (on Windows, `tauri-driver` 2.1.0 with `msedgedriver` 157.0.4341.46, run locally since the desktop suite has no Windows job before phase 6's step 12), and WebKitGTK 2.52.6 (the desktop suite's Linux job, [run 44058820214](https://github.com/lushly-dev/afd/actions/runs/44058820214) and [run 44060148183](https://github.com/lushly-dev/afd/actions/runs/44060148183)).
+
+| | Chromium 156 | WebView2 157 | WebKitGTK 2.52.6 |
+| --- | --- | --- | --- |
+| S1 | Pass | Pass | **Fails under `script-src 'self'`; passes with the sandbox origin named** |
+| S2 | Pass | Pass | Pass, with the origin named |
+| S3 | Pass; `stop()` ends the turn in 0.2 to 1.0 ms | Pass; 0.3 to 0.9 ms | Pass; 2 to 7 ms |
+| S4 | Pass | Pass | Pass |
+| S5 | Measured (16) | Not applicable | Not applicable |
+| S6 | Pass: TanStack's Anthropic and OpenAI chat-completions adapters with an injected `fetch` | Pass (Anthropic) | Pass (Anthropic) |
+
+- **S1 in WebKitGTK.** A sandboxed, opaque-origin document served with `script-src 'self'` runs none of its scripts, since `'self'` matches nothing in an opaque origin there; the same document with `script-src` naming the sandbox origin ran in all three engines. This is the policy's wording, not where the runtime runs, so 3.2's policy changes and the copilot is offered in every engine.
+- **S2.** In Chromium and WebView2, IndexedDB, `localStorage`, `caches`, cookies and Web Locks throw `SecurityError` in the frame, the worker has no Cache Storage, Web Locks or IndexedDB, and the shell's `BroadcastChannel` heard nothing either way. In WebKitGTK the frame's storage throws the same way, `document.cookie` reads as empty, and the worker has an empty Cache Storage of its own. In every engine, `fetch`, XHR, `WebSocket` and another origin's `importScripts` were refused and a listener received no request, and the worker has no `RTCPeerConnection`; the frame has one in Chromium and WebView2 and none in WebKitGTK. The frame and its worker share one `BroadcastChannel` partition, apart from the shell's.
+- **IPC from the frame.** On WebView2 the frame's `invoke` is never answered: the frame's policy refuses both IPC URLs. On WebKitGTK the frame has no IPC script. No request reaches the Rust host, so `from_shell` is not reached from the frame; it stays as defence in depth and is tested against a forged origin (P5-A2).
+- **S4.** No AG-UI interrupt is used. The tool's `execute` reads `CONFIRMATION_PENDING`, emits a `CUSTOM` event named `loam-confirmation`, and waits on the agent port's `confirmation` while the run stays open. The panel draws the card from the kernel's record (3.2). An interrupt was not measured, and nothing needs one.
+- **Ports.** An agent-port message with an extra key was refused with `COPILOT_PORT_REFUSED` in all three engines.
+- **Not measured, left to P5-A2:** a `window` message from the frame being ignored, a change of person removing the frame, any real provider, the Rust host's `model_send`, and WebRTC packets (only whether the constructor exists).
 
 ### 0.4 Lushly's copilot code
 
@@ -217,8 +237,8 @@ Before the collaboration service, a person's documents and app data live in thei
 **The runtime is treated as an agent.** Everything that reaches the model, and so everything a model's output can steer, is on the runtime's side of its ports. The main frame is trusted shell code (D54).
 
 - **An opaque origin, not the shell's.** The runtime runs in a hidden frame the shell creates with `sandbox="allow-scripts"` and **no `allow-same-origin`**, so the frame, and any worker it starts, has an opaque origin. **It shares no storage with the shell**: no IndexedDB, Cache Storage, `localStorage`, cookies, Web Locks or `BroadcastChannel`. The shell's store, which holds the person's records, the journal, the autonomy rows and the confirmations (phase 6's 10.5), is therefore out of its reach, even for compromised code. A worker on the shell's own origin would not be: CSP limits connections, not storage.
-- **Its document** is served from the sandbox origin's `copilot/` path: the `loam-sandbox` protocol on the desktop, phase 1's sandbox origin elsewhere. It carries a header policy of `default-src 'none'; script-src 'self'; worker-src blob:; connect-src 'none'; frame-ancestors <the shell's origin>`, so it can open no connection of its own. On the desktop, step 11 measured that WebView2 injects Tauri's IPC script into every frame. This frame's `invoke` is still refused, as a view's is: its policy has no IPC source, and each Rust command's `from_shell` check refuses any origin but the shell's ([#1337](https://github.com/lushly-dev/afd/pull/1337)). **S2 proves each of these in every engine.**
-- **The runtime itself runs in a dedicated worker** that the frame starts from a `blob:` URL. The frame's document is a small first-party bootstrap: it starts the worker and passes it the ports, and it loads nothing else. **TanStack AI and every other third-party module load only in the worker.** A worker has no `RTCPeerConnection`, so the worker has no WebRTC channel. Phase 1 measured that an opaque frame does have one: in Chromium 156 it sent packets to any host with no CSP violation (phase 1's section 12, D62, [#711](https://github.com/lushly-dev/afd/issues/711)). The bootstrap holds no data the runtime reads, and opens no peer connection.
+- **Its document** is served from the sandbox origin's `copilot/` path: the `loam-sandbox` protocol on the desktop, phase 1's sandbox origin elsewhere. It carries a header policy of `default-src 'none'; script-src <the sandbox origin>; worker-src blob:; connect-src 'none'; frame-ancestors <the shell's origin>`, so it can open no connection of its own. **`script-src` names the sandbox origin, never `'self'`**: in an opaque-origin document `'self'` matches nothing on WebKitGTK 2.52, which then runs no script (S1). On the desktop, step 11 measured that WebView2 injects Tauri's IPC script into every frame. This frame's `invoke` still reaches no command: on WebView2 its policy refuses both IPC URLs, so the call is never answered, and on WebKitGTK the frame has no IPC script (S2). Each Rust command's `from_shell` check, which refuses any origin but the shell's ([#1337](https://github.com/lushly-dev/afd/pull/1337)), stays as defence in depth. **S2 proved each of these in every engine.**
+- **The runtime itself runs in a dedicated worker** that the frame starts from a `blob:` URL whose only line is `importScripts("<the sandbox origin>/copilot/runtime.js")`, so the frame never holds third-party code, even as a string. The worker inherits the frame's policy: its connections are refused, and it loads scripts only from the sandbox origin. The frame's document is a small first-party bootstrap: it starts the worker and passes it the ports, and it loads nothing else. **TanStack AI and every other third-party module load only in the worker.** A worker has no `RTCPeerConnection`, so the worker has no WebRTC channel. Phase 1 measured that an opaque frame does have one: in Chromium 156 it sent packets to any host with no CSP violation (phase 1's section 12, D62, [#711](https://github.com/lushly-dev/afd/issues/711)). The bootstrap holds no data the runtime reads, and opens no peer connection.
 - **Ports.** Three `MessagePort`s are transferred to the frame's `contentWindow`, which the shell created and holds a reference to. The main frame never acts on a `window` message from the frame. Each port's main-frame half refuses any message with a key it does not define (`COPILOT_PORT_REFUSED`, journaled):
   - **The agent port.** `call(name, input)`, `listCommands()` and `confirmation(notification)`.
     - Its half calls the kernel's agent interface with the agent name **`copilot`** and the session's trace (below).
@@ -226,13 +246,13 @@ Before the collaboration service, a person's documents and app data live in thei
     - `confirmation` reads only confirmations that this session raised (6.2); `call` refuses `confirmation-*`, so the session limit cannot be skipped.
     - **It never reaches `kernel.call`, the palette interface, `notification-act`, `palette-run` or any human path.**
   - **The model port.** `send({ provider, body })` returns a stream id; `cancel(stream)`; and stream events. Its half forwards to the trusted host (4.2) and enforces 4.4's bounds.
-  - **The panel port** carries AG-UI events out and the person's messages in. A message reaches the runtime only after `copilot-message-send` has run as a human command (3.5).
+  - **The panel port** carries AG-UI events out and, in, only `{ runId, threadId, text }` and `abort(runId)`. A message reaches the runtime only after `copilot-message-send` has run as a human command (3.5). `ChatClient` resends its whole history on every run, so its port half sends only the new text: the runtime builds the history from 5.2, never from the client's copy. `stop()` and `cancelRun` both become `abort(runId)`.
 - **The kernel's part** is kernel interface version 5, step 1:
   - `CallOptionsV5` adds `trace?: CopilotTraceV1 = { session; turn; call }`. The kernel accepts it only from a capability object it gives to the agent port's half, never from a caller's options.
   - `session`, `turn` and `trace` become declared context fields, journaled (`journal: true`), and copied to every call made while that call runs, nested `calls` included (5.3).
   - **`copilot` joins the reserved agent names** beside `local`, `signed-out` and `shell-agent`, so no other agent-interface caller or agent member can take it.
 - **The panel draws only from the kernel's records.** It lives in the main frame:
-  - An approval card renders the kernel's notification record, by an id the agent port's half recorded for this session when the call answered `CONFIRMATION_PENDING`. Fields in the runtime's events are never used.
+  - An approval card renders the kernel's notification record, by an id the agent port's half recorded for this session when the call answered `CONFIRMATION_PENDING`. The runtime's `CUSTOM` event `loam-confirmation` only prompts the panel to look: a notification id it carries is drawn only when it is one of those recorded ids, and any other field is ignored. No AG-UI interrupt is used (S4).
   - The card's buttons call `notification-act` as a human gesture (phase 4's D121).
   - The model's text is rendered as text, never as markup.
 - **Approvals are never the runtime's.** It learns an outcome only through the agent port's `confirmation`.
@@ -350,7 +370,8 @@ endpoint = "http://127.0.0.1:11434/v1"  # https, or http to 127.0.0.1 or ::1 onl
   | `model_send` | `{ provider, body }` | Refuses an id not in `models.json` (`COPILOT_PROVIDER_UNKNOWN`), a body over 4 MiB, and a body 4.2's allow-list refuses (`MODEL_BODY_REFUSED`). Resolves the key each time, and answers `COPILOT_KEY_MISSING` with the `key set` command as its suggestion when there is none. Builds the request itself: the endpoint is the kind's fixed URL (`https://api.anthropic.com/v1/messages`, `https://api.openai.com/v1/chat/completions`) or the configured `endpoint` plus the kind's path. It sets `model` in the body to the configured model, replacing any the body named, and adds the kind's key header and no other header. `reqwest` with no redirects and no proxy, as 10.4's. Returns a stream id at once |
   | `model_cancel` | `{ stream }` | Drops the request |
 
-- **The body's allow-list,** per kind. It allows the conversation and generation keys (for `anthropic`: `messages`, `system`, `max_tokens`, `temperature`, `top_p`, `stop_sequences`, `stream`, `tools`, `tool_choice`; for the OpenAI kinds, their equivalents), and in `tools` only function tools with a name, description and input schema. Everything else is refused: a provider-side tool (web search, code execution, a computer), `mcp_servers`, `container`, files and anything that names a URL. The model therefore reaches nothing but Loam's commands.
+- **The body's allow-list,** per kind. It allows the conversation and generation keys (for `anthropic`: `messages`, `system`, `max_tokens`, `temperature`, `top_p`, `stop_sequences`, `stream`, `tools`, `tool_choice`, and `cache_control` inside `system`, a message's content blocks and a tool, which TanStack's adapter sends; for the OpenAI kinds, the Chat Completions equivalents), and in `tools` only function tools with a name, description and input schema (for `anthropic`, a tool with no `type` or `type: "custom"`, as the adapter sends). Everything else is refused: a provider-side tool (web search, code execution, a computer), `mcp_servers`, `container`, files and anything that names a URL. The model therefore reaches nothing but Loam's commands.
+- **`max_tokens` is the turn's.** The runtime sets each request's `max_tokens` (`max_completion_tokens` for the OpenAI kinds) to what remains of `copilot.turn.outputTokens` (4.4), since TanStack's adapter otherwise sends its own default, 128,000 for Anthropic models. The model port's half refuses a body with none, or with more, as `MODEL_BODY_REFUSED`.
 - **What comes back.** Chunks arrive as the DOM event `loam:model`: `{ stream, chunk }`, then `{ stream, done, status }`. The Rust host dispatches them to the main frame by `Webview::eval`, under the serialization rule [#1337](https://github.com/lushly-dev/afd/pull/1337) set for a mount's notifications.
   - A provider's error body is passed as data. A key never appears in it, since the Rust host never echoes a request header.
   - A stream is bounded at 16 MiB and 10 minutes, then ended with `MODEL_STREAM_LIMIT`.
@@ -365,7 +386,9 @@ endpoint = "http://127.0.0.1:11434/v1"  # https, or http to 127.0.0.1 or ::1 onl
 ```ts
 export interface CopilotRuntimeV1 {
 	turn(input: {
-		session: CopilotSessionV1;
+		session: CopilotSessionV1;                // its id is ChatClient's threadId
+		runId: string;                            // the panel port's run, which abort(runId) stops
+		provider: { id: string; kind: 'anthropic' | 'openai' | 'openai-compatible' | 'test'; model: string }; // as copilot-provider-list, never a key or endpoint
 		history: ReadonlyArray<ContextMessageV1>; // built by 5.2, never raw results
 		text: string;
 		tools: ReadonlyArray<ToolDescriptorV1>;   // from listCommands, 4.5
@@ -373,8 +396,11 @@ export interface CopilotRuntimeV1 {
 }
 ```
 
-- **TanStack AI sits behind it** (D27), with its types kept inside the adapter so the choice stays reversible: `chat()` with Loam's tools, whose `execute` calls the agent port, and a text adapter over the model port (S6 decides whether that is TanStack's adapter with an injected `fetch` or Loam's own). No `needsApproval` and no client tools.
-- **The panel** is a `ChatClient` over the panel port with a `SubscribeConnectionAdapter` (S3).
+- **TanStack AI sits behind it** (D27), with its types kept inside the adapter so the choice stays reversible: `chat()` with Loam's tools, whose `execute` calls the agent port, and **TanStack's own provider adapter with an injected `fetch`** over the model port (S6). No `needsApproval` and no client tools.
+  - **The adapters:** for `anthropic`, `createAnthropicChat(model, <a placeholder key>, { fetch, maxRetries: 0 })`; for `openai` and `openai-compatible`, the Chat Completions adapter, `createOpenaiChatCompletions(…, { fetch, maxRetries: 0, dangerouslyAllowBrowser: true })`, since 4.2's endpoint is Chat Completions, not the Responses API that TanStack's default OpenAI adapter uses. The placeholder key never leaves the worker: the model port's injected `fetch` keeps only the request's body and drops its URL and headers, and the trusted host builds the request (4.2). `dangerouslyAllowBrowser` only lets the OpenAI client run in a worker, where it holds no key.
+  - **The model id** is given to the adapter, since its defaults depend on it; the trusted host still sets `model` (4.2).
+  - **The vendor SDKs are never bundled.** `@anthropic-ai/sdk` and `openai` are reached only by a dynamic import for options Loam does not use; the runtime's build aliases both to a stub that throws, which halves the runtime chunk (16).
+- **The panel** is a `ChatClient` over the panel port with a `SubscribeConnectionAdapter` (S3), its `threadId` the session's id.
 
 ### 4.4 A turn's limits
 
@@ -837,12 +863,14 @@ What an attacker can try, and what stops it. "Content" is text a stranger wrote,
 
 The copilot is never in first paint, so phase 0's first-paint ceiling is unchanged. New rows, set from the spike (S5) at its measurement plus 25%, and raised under D115 when a step exceeds them:
 
-| Row | Enforced in |
-| --- | --- |
-| `copilot-panel` chunk, gzip | `budget` |
-| `copilot-runtime` chunk, gzip | `budget` |
-| Time from opening the panel to an interactive input, p95 over 20 opens | The desktop suite and Chromium |
-| A scripted turn of five tool calls, end to end, p95 over 20 | The same |
+| Row | Ceiling | Enforced in |
+| --- | --- | --- |
+| `copilot-panel` chunk, gzip | 113 KB (S5: 90.2 KB) | `budget` |
+| `copilot-runtime` chunk, gzip, per provider kind | 120 KB (S5: 95.9 KB for Anthropic, 95.7 KB for OpenAI) | `budget` |
+| Time from opening the panel to an interactive input, p95 over 20 opens | Step 1's first measurement plus 25% | The desktop suite and Chromium |
+| A scripted turn of five tool calls, end to end, p95 over 20 | The same | The same |
+
+S5 measured minified ES2022 at gzip level 9. The panel's 90.2 KB includes FAST's element library, which the shell already loads, and about 19 KB of the spike's harness; `@tanstack/ai` and `@tanstack/ai-client` are most of the rest. The runtime's figure needs the vendor SDK stub of 4.3: without it, a single-file worker inlines the SDK, at 171.1 KB for Anthropic and 188.8 KB for OpenAI. The spike did not measure the two time rows.
 
 ## 17. Out of scope, and the seams reserved
 
@@ -866,7 +894,7 @@ The copilot is never in first paint, so phase 0's first-paint ceiling is unchang
 | Row | Test | Where | Passes when |
 | --- | --- | --- | --- |
 | P5-A1 | **The slice's scenarios** | Kernel units, Chromium and the desktop suite | Every scenario tagged `slice` passes on its seed |
-| P5-A2 | **The runtime's frame** | Chromium, WebView2, WebKitGTK | 0.3's S2 as a test: no storage of the shell's reachable (IndexedDB, Cache Storage, `localStorage`, Web Locks, `BroadcastChannel`); `fetch`, `WebSocket` and `importScripts` from another origin refused; no `RTCPeerConnection` in the worker, and no third-party module in the frame's bootstrap; Tauri's `invoke` refused by policy and by `from_shell`; an agent-port message with an actor, scope, `_meta`, trace or interface key refused and journaled; the port never reaches `notification-act`, `palette-run` or `kernel.call`; a `window` message from the frame ignored; a change of person removes the frame and stops its turn; `copilot` refused as another agent's name |
+| P5-A2 | **The runtime's frame** | Chromium, WebView2, WebKitGTK | 0.3's S2 as a test: no storage of the shell's reachable (IndexedDB, Cache Storage, `localStorage`, Web Locks, `BroadcastChannel`); `fetch`, `WebSocket` and `importScripts` from another origin refused; no `RTCPeerConnection` in the worker, and no third-party module in the frame's bootstrap; a frame served with `script-src 'self'` would run nothing in WebKitGTK, so the served policy names the sandbox origin; Tauri's `invoke` from the frame reaches no command, and `from_shell` refuses a forged origin; an agent-port message with an actor, scope, `_meta`, trace or interface key refused and journaled; the port never reaches `notification-act`, `palette-run` or `kernel.call`; a `window` message from the frame ignored; a change of person removes the frame and stops its turn; `copilot` refused as another agent's name |
 | P5-A3 | **The model transport** | Desktop | `model_send` from the main frame streams a scripted local provider; from the sandbox proxy, a view and the runtime's frame it is refused (`DESKTOP_ORIGIN_REFUSED`); an id not in `models.json` is refused; a body's `model` is replaced; a provider-side tool, `mcp_servers` and an unlisted key are refused (`MODEL_BODY_REFUSED`); a missing key gives `COPILOT_KEY_MISSING`; `models.json` not owner-only refuses; the key appears in no DOM, store, journal entry, log or error; a stream past 16 MiB ends with `MODEL_STREAM_LIMIT`; `model_cancel` stops it; `loam copilot key set` reads without echo and checks the key |
 | P5-A4 | **Labels and taint** | Kernel units, Chromium | `whole` taints on any mounted result, `per-part` only on content parts; a server's `trusted` label stays `server`; text duplicates never reach the model; a whole server's descriptions and schema words are not given; a content block cannot close its tag; under taint, a mutation elsewhere (the shell included) is `ask`, a `whole` source's own mutations are `ask`, a `per-part` source's non-destructive ones keep their mode, and a read of another mounted instance or of an `http` app is `ask`; a confirmation's stored outcome read back taints with its sources; a native app returning its mount's text unlabelled taints through the trace; a `calls`-grant call under a tainted turn is lowered; two sessions never share a confirmation |
 | P5-A5 | **Enforcement** | Kernel units | `act`, `ask` and `suggest` as 6.1, with the order; human, owner and person-session commands never asked or suggested; destructive and approval-held commands at most `ask` under any row; `per-part` reads default to `act`; "Run it" opens the prompt from the record, and a suggestion expires; a waiting turn continues once its confirmations end; a confirmation's 10 minutes, with the clock moved; `AUTONOMY_UNAVAILABLE` before phase 4's steps land; approval health's counters, rates and the flag over policy asks only; `loam-inbound` gets `CONFIRMATION_PENDING` and reads it with `confirmation-get` (10.8 amended) |
@@ -885,7 +913,7 @@ Each step is one pull request, merged on green, that updates this status block a
 
 | Step | Pull request | Contents | Needs | Checks |
 | --- | --- | --- | --- | --- |
-| 0a | **Spike** (not merged) | 0.3's S1 to S6; the report as an amendment to sections 3, 4 and 16 | Nothing | The report's amendment merged |
+| 0a | **Spike** (not merged) | 0.3's S1 to S6; the report as an amendment to sections 3, 4 and 16. **Run 2026-11-17** on `lush/loam-p5-spike-0a`; [results](#results-2026-11-17) | Nothing | The report's amendment merged |
 | 0b | **AFD: the `apps` flag** | [#884](https://github.com/lushly-dev/afd/issues/884)'s proposal and its spec-first change across languages | Nothing | `pnpm check`, `pnpm verify` |
 | 0c | **AFD: the approver carrier and display rules** | The proposal; `spec/command-metadata.md`'s subsection; Rust and TypeScript; vectors; the parity follow-up filed; a changeset. **Trust review** | Nothing | `pnpm check`, `pnpm verify` |
 | 1 | **Copilot core** | `@lushly-dev/loam-copilot`; kernel interface 5 with `trace` and the reserved name; the records and commands (3.4, 3.5); the runtime's frame on the sandbox origin and its policy; the ports; the test provider and `kernel/scenarios/model-scripts.ts`; the `mailfix` fixture and the `p5-base` seeds; the context builder; the panel without approval cards; `AUTONOMY_UNAVAILABLE` for mutations; no mounted tools listed; P5-A2; scenarios 6 and 8. **Trust review: the frame and the ports** | 0a | `pnpm check`, `pnpm verify`, `loam.yml`, `budget` |
