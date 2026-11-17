@@ -18,7 +18,8 @@ from __future__ import annotations
 
 import asyncio
 from contextlib import AsyncExitStack, asynccontextmanager
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from typing import Any, AsyncIterator, Awaitable, Callable, Dict, List, Literal, Optional, Union
 
 from afd.transports.sse import SseTransport, _EndOfStreamSignal
@@ -59,6 +60,21 @@ class ElicitationResponse:
 
 ElicitationHandler = Callable[[ElicitationRequest], Awaitable[ElicitationResponse]]
 """Answers a server's elicitation, such as a confirmation of a destructive command."""
+
+
+@dataclass
+class _Answering:
+    """One call's elicitations being answered now, and the seconds spent answering."""
+
+    count: int = 0
+    seconds: float = 0.0
+    idle: asyncio.Event = field(default_factory=asyncio.Event)
+
+    def __post_init__(self) -> None:
+        self.idle.set()
+
+
+_ANSWERING: ContextVar[Optional[_Answering]] = ContextVar("afd_answering", default=None)
 
 
 def input_required_result(input_requests: Any) -> Dict[str, Any]:
@@ -121,11 +137,6 @@ class StreamableHttpTransport(SseTransport):
         self._message_url = url
         self._mode = mode
         self._on_elicitation = on_elicitation
-        # Elicitations being answered now, and the seconds spent answering so far.
-        self._answering = 0
-        self._answered_seconds = 0.0
-        self._idle = asyncio.Event()
-        self._idle.set()
         self._protocol_version: Optional[str] = None
 
     @property
@@ -178,43 +189,65 @@ class StreamableHttpTransport(SseTransport):
         return client, client.server_info, client.server_capabilities
 
     async def _bounded(self, operation: Any) -> Any:
-        """:meth:`SseTransport._bounded`, except that time a person spends answering an
-        elicitation does not count against the deadline: a confirmation can take longer
-        than a request, and a timeout here reads as a lost connection."""
+        """:meth:`SseTransport._bounded`, except that time a person spends answering
+        this call's elicitations does not count against its deadline: a confirmation
+        can take longer than a request, and a timeout here reads as a lost connection.
+
+        The pause is per call: the record is set in a context the call's task copies,
+        and on MCP 2026-07-28 the SDK runs the handler inside that task. A 2025
+        server's ``elicitation/create`` arrives outside it, so nothing is paused there,
+        and the SDK's own request clock keeps running too.
+        """
         loop = asyncio.get_running_loop()
-        task = asyncio.ensure_future(operation)
-        start, answered_before = loop.time(), self._answered_seconds
-        while True:
-            if self._answering:
-                idle = asyncio.ensure_future(self._idle.wait())
-                await asyncio.wait({task, idle}, return_when=asyncio.FIRST_COMPLETED)
+        record = _Answering()
+        token = _ANSWERING.set(record)
+        try:
+            task = asyncio.ensure_future(operation)
+        finally:
+            _ANSWERING.reset(token)
+        start = loop.time()
+        idle: Optional[asyncio.Future] = None
+        try:
+            while True:
+                if record.count:
+                    idle = asyncio.ensure_future(record.idle.wait())
+                    await asyncio.wait({task, idle}, return_when=asyncio.FIRST_COMPLETED)
+                    idle.cancel()
+                    idle = None
+                else:
+                    remaining = start + self._timeout + record.seconds - loop.time()
+                    if remaining <= 0:
+                        break
+                    await asyncio.wait({task}, timeout=remaining)
+                if task.done():
+                    return task.result()
+        finally:
+            if idle is not None:
                 idle.cancel()
-            else:
-                answered = self._answered_seconds - answered_before
-                remaining = start + self._timeout + answered - loop.time()
-                if remaining <= 0:
-                    break
-                await asyncio.wait({task}, timeout=remaining)
-            if task.done():
-                return task.result()
-        task.cancel()
-        task.add_done_callback(lambda finished: finished.cancelled() or finished.exception())
+            if not task.done():
+                task.cancel()
+                task.add_done_callback(
+                    lambda finished: finished.cancelled() or finished.exception()
+                )
         raise asyncio.TimeoutError(f"MCP request timed out after {self._timeout}s")
 
     async def _answer(self, request: ElicitationRequest) -> ElicitationResponse:
-        """Run the handler with the call deadline paused."""
+        """Run the handler, pausing the deadline of the call it answers."""
         assert self._on_elicitation is not None
+        record = _ANSWERING.get()
+        if record is None:
+            return await self._on_elicitation(request)
         loop = asyncio.get_running_loop()
-        self._answering += 1
-        self._idle.clear()
+        record.count += 1
+        record.idle.clear()
         began = loop.time()
         try:
             return await self._on_elicitation(request)
         finally:
-            self._answered_seconds += loop.time() - began
-            self._answering -= 1
-            if not self._answering:
-                self._idle.set()
+            record.seconds += loop.time() - began
+            record.count -= 1
+            if not record.count:
+                record.idle.set()
 
     async def _call_tool_payload(
         self, session: Any, name: str, arguments: Dict[str, Any]

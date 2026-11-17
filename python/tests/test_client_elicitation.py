@@ -129,6 +129,12 @@ async def test_time_spent_answering_does_not_count_against_the_deadline():
     with pytest.raises(asyncio.TimeoutError):
         await transport._bounded(asyncio.sleep(0.3))
 
+    # The pause is per call: another call's answering does not extend this one.
+    answering = asyncio.ensure_future(transport._bounded(answered_call()))
+    with pytest.raises(asyncio.TimeoutError):
+        await transport._bounded(asyncio.sleep(0.3))
+    assert await answering == "done"
+
 
 async def test_without_a_handler_a_stale_schema_is_relisted_and_resent_once():
     from mcp import MCPError
@@ -219,6 +225,12 @@ async def test_cli_keeps_printable_text_in_any_script():
     handler, prompts = terminal(True)
     await handler(ElicitationRequest("Supprimer tout ? 全部削除?", CONFIRM))
     assert prompts == ["Supprimer tout ? 全部削除? [y/N] "]
+
+
+async def test_cli_escapes_bidi_and_zero_width_characters():
+    handler, prompts = terminal(True)
+    await handler(ElicitationRequest("Keep\u202eevil\u200b\u2028", CONFIRM))
+    assert prompts == ["Keep\\u202eevil\\u200b\\u2028 [y/N] "]
 
 
 def test_cli_asks_only_at_a_terminal(monkeypatch):

@@ -9,8 +9,8 @@ to stderr so that stdout keeps only the command's output. Mirrors
 
 from __future__ import annotations
 
-import re
 import sys
+import unicodedata
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 import click
@@ -35,13 +35,16 @@ def _boolean_properties(schema: Dict[str, Any]) -> Optional[List[str]]:
     return None
 
 
-_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+def _escaped(char: str) -> bool:
+    # Cc: C0, DEL and C1 (ESC, BEL). Cf, Zl, Zp: bidi overrides, zero-width and line
+    # separators, which can reorder or split the prompt around " [y/N] ".
+    return unicodedata.category(char) in ("Cc", "Cf", "Zl", "Zp")
 
 
 def _plain(text: str) -> str:
-    """Escape control characters (C0, DEL and C1, so ESC and BEL among them) so a
-    server cannot drive the terminal; printable text, any script, is kept."""
-    return _CONTROL.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
+    """Escape control and format characters so a server cannot drive the terminal or
+    disguise the prompt; printable text, in any script, is kept."""
+    return "".join(f"\\u{ord(char):04x}" if _escaped(char) else char for char in text)
 
 
 def terminal_elicitation(confirm: Confirm) -> ElicitationHandler:

@@ -87,8 +87,9 @@ class McpClientConfig:
             declares elicitation and the MCP SDK retries the call with the answer.
             Without one, a server's ``input_required`` result becomes an
             ``INPUT_REQUIRED`` failure whose ``data.inputRequests`` holds what the server
-            asked. ``streamable-http`` only. Time spent in the handler does not count
-            against ``timeout``.
+            asked. ``streamable-http`` only. On MCP 2026-07-28, time spent in the
+            handler does not count against ``timeout``; on a 2025 connection it
+            does, so give a person enough ``timeout`` to answer.
     """
 
     url: str = ""
