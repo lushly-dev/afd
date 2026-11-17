@@ -10,6 +10,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal, Protocol, runtime_checkable
 
+from afd import CommandResult, error, success
 from pydantic import BaseModel, ConfigDict, Field
 
 from .config import AgentConfig, AgentsPluginConfig
@@ -74,9 +75,9 @@ class TaskSnapshot(BaseModel):
     id: str
     description: str
     assigned_agent: str = ""
-    status: Literal[
-        "pending", "assigned", "running", "completed", "failed", "cancelled"
-    ] = "pending"
+    status: Literal["pending", "assigned", "running", "completed", "failed", "cancelled"] = (
+        "pending"
+    )
     priority: int = Field(default=5, ge=1, le=10)
     result: str = ""
     parent_task: str = ""
@@ -95,13 +96,15 @@ class TaskSnapshot(BaseModel):
         """Restore a task into a recoverable runtime form."""
         data = self.model_dump(mode="python")
         if self.status not in {"completed", "failed", "cancelled"}:
-            data.update({
-                "status": "pending",
-                "assigned_agent": "",
-                "result": "",
-                "started_at": None,
-                "completed_at": None,
-            })
+            data.update(
+                {
+                    "status": "pending",
+                    "assigned_agent": "",
+                    "result": "",
+                    "started_at": None,
+                    "completed_at": None,
+                }
+            )
         return Task(**data)
 
 
@@ -238,3 +241,126 @@ class JsonStateBackend:
             )
 
         return snapshot.model_copy(update={"tasks": kept_tasks})
+
+
+# Persistence moved here from orchestrator.py; it keeps that module's logger name so log
+# routing and filters see the same records.
+_orchestrator_logger = logging.getLogger("botcore_agents.orchestrator")
+
+
+class OrchestratorPersistenceMixin:
+    """Snapshot, restore and autosave; mixed into ``AgentOrchestrator``."""
+
+    _config: AgentsPluginConfig
+    _agents: dict[str, AgentState]
+    _tasks: dict[str, Task]
+    _progress: dict[str, dict[str, str]]
+    _backend: OrchestratorStateBackend | None
+
+    def _autosave_enabled(self) -> bool:
+        return self._backend is not None and self._config.state.autosave
+
+    async def _autosave_if_configured(self, reason: str) -> None:
+        """Persist a best-effort snapshot after durable lifecycle changes."""
+        if not self._autosave_enabled():
+            return
+
+        try:
+            await self._backend.save(self._build_snapshot())
+            _orchestrator_logger.debug("Autosaved orchestrator state after %s", reason)
+        except Exception as exc:
+            _orchestrator_logger.warning("Autosave failed after %s: %s", reason, exc)
+
+    def _build_snapshot(self) -> OrchestratorSnapshot:
+        """Create a snapshot of the current orchestrator state.
+
+        Deep-copies agents and tasks.  Session IDs are cleared in the copy
+        because sessions are not portable across processes.
+        """
+        agents = {name: AgentSnapshot.from_state(state) for name, state in self._agents.items()}
+        tasks = {tid: TaskSnapshot.from_task(task) for tid, task in self._tasks.items()}
+
+        return OrchestratorSnapshot(
+            config=self._config.model_copy(deep=True),
+            agents=agents,
+            tasks=tasks,
+        )
+
+    def _restore_from_snapshot(self, snapshot: OrchestratorSnapshot) -> None:
+        """Replace live state with *snapshot* contents.
+
+        Deep-copies snapshot data so the original is not mutated.
+        Restored agents are forced to ``stopped`` with cleared session
+        metadata since sessions are not portable.
+        """
+        _orchestrator_logger.info(
+            "Replacing orchestrator config from snapshot (version=%s)", snapshot.version
+        )
+        self._config = snapshot.config.model_copy(deep=True)
+        self._tasks = {
+            tid: task_snapshot.to_task() for tid, task_snapshot in snapshot.tasks.items()
+        }
+        self._progress.clear()
+        self._agents = {
+            name: agent_snapshot.to_state() for name, agent_snapshot in snapshot.agents.items()
+        }
+
+    async def save_state(self) -> CommandResult[dict]:
+        """Persist current state via the configured backend."""
+        if self._backend is None:
+            return error(
+                "NO_BACKEND",
+                "No state backend configured",
+                suggestion="Pass a backend= when constructing the orchestrator",
+            )
+        try:
+            snapshot = self._build_snapshot()
+            await self._backend.save(snapshot)
+            return success(
+                data={
+                    "saved": True,
+                    "agents": len(snapshot.agents),
+                    "tasks": len(snapshot.tasks),
+                    "timestamp": snapshot.timestamp.isoformat(),
+                },
+                reasoning="Orchestrator state saved",
+            )
+        except Exception as exc:
+            _orchestrator_logger.warning("State save failed: %s", exc)
+            return error("STATE_SAVE_ERROR", f"Failed to save state: {exc}")
+
+    async def load_state(self) -> CommandResult[dict]:
+        """Restore state from the configured backend."""
+        if self._backend is None:
+            return error(
+                "NO_BACKEND",
+                "No state backend configured",
+                suggestion="Pass a backend= when constructing the orchestrator",
+            )
+        try:
+            snapshot = await self._backend.load()
+            if snapshot is None:
+                return success(
+                    data={
+                        "restored": False,
+                        "note": "No saved snapshot found (missing or stale)",
+                    },
+                    reasoning="No saved state found (missing or stale)",
+                )
+            self._restore_from_snapshot(snapshot)
+            return success(
+                data={
+                    "restored": True,
+                    "agents": len(self._agents),
+                    "tasks": len(self._tasks),
+                    "timestamp": snapshot.timestamp.isoformat(),
+                    "note": (
+                        "Agents restore as stopped and incomplete tasks restore as pending; "
+                        "start an agent and use task_resume to continue work"
+                    ),
+                },
+                reasoning="Orchestrator state restored from snapshot",
+            )
+        except Exception as exc:
+            _orchestrator_logger.warning("State load failed: %s", exc)
+            return error("STATE_LOAD_ERROR", f"Failed to load state: {exc}")

@@ -8,6 +8,8 @@ Modules:
 - inspection.py: Inspect, query, snapshot
 - forms.py: Fill, upload, dialogs, page management
 - diagnostics.py: Screenshot, console, network, eval, emulate
+- tracing.py: Performance trace capture
+- trace_analysis.py: Trace queries and summaries
 """
 
 from botcore.commands.cdp.core import (
