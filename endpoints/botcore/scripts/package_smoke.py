@@ -166,7 +166,7 @@ async def main():
     assert {tool.name for tool in await server.list_tools()} == {
         "consumer-start", "consumer-docs", "consumer-call"
     }
-    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 10
+    assert len(list(get_bundled_skills_dir().glob("*/SKILL.md"))) == 11
     print(json.dumps({"installed_wheel": True, "application_platform_dependencies": [],
                       "directclient": True, "managed_mcp": True, "effects_denied": True}))
 asyncio.run(main())

@@ -1499,7 +1499,7 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "9dd4d9067994489da7c91904219a7d5292c5bc55a0469aac671ca9f8fe26bfc3",
+      "current_import_sha256": "0ecc1ba8320c63ce4262239e3c99328ede0f015f5d9c0e87240dd4078cef3f85",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
