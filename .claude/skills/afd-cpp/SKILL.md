@@ -258,7 +258,7 @@ TEST_CASE("todo-create validates and stamps metadata") {
 ## What C++ Does Not Have
 
 The full list is in [docs/language-parity.md](../../../docs/language-parity.md); `alfred parity` budgets the missing names (`alfred/tests/test_parity.py`). What a caller trips over:
-- **No MCP server, client or JSON-RPC types,** and no meta-tools or bootstrap commands (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`). Transports live in hosts and examples.
+- **No MCP client, JSON-RPC types, meta-tools or bootstrap commands** (`afd-call`, `afd-batch`, `afd-pipe`, `afd-discover`, `afd-detail`, `afd-help`, `afd-docs`, `afd-schema`). The only MCP server is the opt-in `afd::mcp_stdio` (stdio, individual tools); other transports live in hosts.
 - **No retry, rate-limit or telemetry middleware,** connectors, `CommandParameter` builders or streamable-command metadata.
 - **`output_schema` and `prerequisites` are stored but never emitted.**
 - **The JSON Schema subset rejects `pattern`, `format`, `const` and the combinators.** Rust's whole-schema path accepts `const`; C++ does not.

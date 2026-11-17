@@ -832,7 +832,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                  rejected ? std::optional<std::string>(approval_rejection_name(*rejected))
                           : std::nullopt});
         }
-        const bool include_token = settings.include_token && !context.direct_approval;
+        const bool on_mcp = context.surface == Interface::mcp;
+        const bool include_token =
+            settings.include_token.value_or(!on_mcp) && !context.direct_approval;
+        // A relay was offered for this tool call but another command claimed it (or this one
+        // runs inside another), so the client could not be asked for this command.
+        const bool relay_elsewhere = settings.relay == ApprovalRelay::mcp_elicitation &&
+                                     context.mcp_approval_relay != nullptr;
         const std::string why = rejected
                                     ? "The approval token was not accepted (" +
                                           std::string(approval_rejection_name(*rejected)) + "). "
@@ -845,7 +851,16 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                   "and details.approvalToken as its approval evidence (tool arguments cannot "
                   "carry it). The token expires at " +
                       expires_at + (state->single_use ? " and works once." : ".")
-                : "the application retries the same call once it has recorded the approval.";
+            : relay_elsewhere
+                ? "the client could not be asked from inside afd-batch, afd-pipe or another "
+                  "command. Call " +
+                      std::string(name) + " on its own so the client can ask the user."
+            : settings.relay == ApprovalRelay::mcp_elicitation && on_mcp
+                ? "the client could not be asked here. Call " + std::string(name) +
+                      " from an MCP client that supports form elicitation, or the application "
+                      "records the approval and retries."
+                : std::string(
+                      "the application retries the same call once it has recorded the approval.");
         Json details = Json::object();
         if (include_token) {
             details["approvalToken"] = token;

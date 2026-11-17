@@ -29,6 +29,7 @@
 #include "afd/runtime.hpp"
 
 #include <cstddef>
+#include <cstdint>
 #include <functional>
 #include <iosfwd>
 #include <memory>
@@ -79,6 +80,10 @@ struct StdioServerOptions {
     std::string state_secret;
     /// Expires `requestState` and times answers. Default: a `SystemClock`.
     std::shared_ptr<const Clock> clock;
+    /// How long `serve` waits for a 2025 client to answer a question it asked in band, in
+    /// milliseconds. The call then fails as unanswered, so one unanswered form cannot hold up the
+    /// connection for good. Default: 10 minutes, as long as an answer counts.
+    std::int64_t elicitation_timeout_ms = 600000;
     /// Called for every `tools/call` after the server filled the context (`surface` MCP, an
     /// `agent` actor, a trace id and the call's cancellation), to add what the host knows, such
     /// as the actor's id. Never set `approval` here from anything the request carries.

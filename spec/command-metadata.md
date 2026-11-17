@@ -548,7 +548,7 @@ Phase 5 of the MCP 2026-07-28 plan deferred three items. The owner decided them 
    in `_meta`, for clients that cannot set `_meta`. Only `dev.afd/context` has an effect on
    `afd-discover` and `afd-detail`. A key sent both ways must agree, or the call fails with
    `VALIDATION_ERROR`. [`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)
-   gives the rules; TypeScript, Python and Rust implement it (C++ has no MCP server).
+   gives the rules; TypeScript, Python and Rust implement it (C++'s `afd::mcp_stdio` has no meta-tools).
 3. **`x-mcp-header: "Afd-Command"` on `afd-call.command`: not adopted.** A server that declares it
    makes clients mirror the value into an `Mcp-Param-Afd-Command` header and rejects a call whose
    header is missing or differs, so a client without support could no longer use `afd-call`; client
@@ -633,6 +633,6 @@ follows `destructive`, `false` when it is unset.
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |
 | `scopes` and its surfaces ([Scopes](#scopes)) | Planned | Planned | Yes (Umbel phase 5 step 0b: `CommandDefinition::with_scopes`, checked at registration, in `_meta`, grouped `_meta.actions` and `afd-detail`; enforced with `server-auth`) | Planned (declaration only) |
 | Confirmation state bound to the principal ([#532](https://github.com/lushly-dev/afd/issues/532)) | Yes (Umbel phase 5 step 0c): confirmation and approval-relay state, the actor (`createContext`'s or the `actor` option) and `createContext`'s `credentials`, in the state's HMAC bind tag; `principalBinding` | Yes (step 0c): the server's `actor` and the SDK-verified token, through the SDK's `bind_principal`; a mismatch is `-32602` as tampering is | Yes (step 0c): the hook's actor and `CommandContext::credentials`, in the state's HMAC associated data; since step 0d the same state carries the form-mode approval relay's answers | N/A: no confirmation gate |
-| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | N/A: no MCP server |
+| `confirmationMode: "host-verified"` and `HumanRelay` ([Host-verified confirmation](#host-verified-confirmation)) | Planned | Planned | Yes (Umbel phase 5 step 0d: `CommandDefinition::with_confirmation_mode(CommandConfirmationMode::HostVerified)`, `McpServer::with_human_relay`, `afd::input_digest`) | Planned (`afd::mcp_stdio` has no `HumanRelay`) |
 | `task`, `TaskStore` and the `tasks/*` handlers ([Tasks](#tasks)) | Planned | Planned | Yes (Umbel phase 5 step 0e: `CommandDefinition::with_task(TaskSupport)`, `afd::server::tasks` with `TaskStore`, `InMemoryTaskStore` (32 tasks per owner, 256 in all), `McpServer::with_task_store` and `with_task_options`, `CommandContext::report_progress` and `cancellation`; `tests/server_tasks.rs`) | N/A: no MCP server |
 

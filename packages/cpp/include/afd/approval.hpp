@@ -132,11 +132,11 @@ struct ApprovalMiddlewareOptions {
     std::function<std::optional<std::string>(std::string_view command, const Json& input,
                                              const CommandContext& context)>
         summarize;
-    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default true,
-    /// which is safe only while the gated caller cannot set `CommandContext::approval` itself
-    /// (true of MCP tool calls, whose arguments never reach the context). Set false when the
+    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default (unset):
+    /// yes, except on calls whose `context.surface` is MCP, as in TypeScript, so an MCP agent
+    /// never holds the token (spec/command-metadata.md, "Approvals", rule 6). Set false when the
     /// caller must not hold the token, and deliver it through `on_approval_required`.
-    bool include_token = true;
+    std::optional<bool> include_token;
     /// Called for every held call, before the result is returned (for example, to notify a
     /// human).
     std::function<void(const ApprovalRequest& request)> on_approval_required;

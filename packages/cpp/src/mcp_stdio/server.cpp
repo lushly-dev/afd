@@ -8,11 +8,11 @@
 
 #include <algorithm>
 #include <array>
+#include <chrono>
 #include <condition_variable>
 #include <cstdint>
 #include <deque>
 #include <istream>
-#include <map>
 #include <mutex>
 #include <ostream>
 #include <random>
@@ -76,6 +76,17 @@ Json object_member(const Json& object, std::string_view key) {
     }
     const auto found = object.find(std::string(key));
     return found != object.end() && found->is_object() ? *found : Json::object();
+}
+
+/// `object[key]` when it is a string, else empty. Client data is read only through this and
+/// the other checked readers: nlohmann's `value()` throws (or aborts without exceptions) when the
+/// member has another type.
+std::string string_member(const Json& object, std::string_view key) {
+    if (!object.is_object()) {
+        return {};
+    }
+    const auto found = object.find(std::string(key));
+    return found != object.end() && found->is_string() ? found->get<std::string>() : std::string();
 }
 
 bool is_true(const Json& object, std::string_view key) {
@@ -184,6 +195,23 @@ CommandResult confirmation_required(std::string_view command, std::string_view p
     });
 }
 
+/// The result when a 2025 client asked in band gave no answer.
+CommandResult unanswered(std::string_view key, std::string_view command, std::string_view prompt) {
+    const bool confirmation = key == confirm_input_key;
+    return failure(CommandError{
+        .code = confirmation ? error_codes::CONFIRMATION_REQUIRED : error_codes::APPROVAL_REQUIRED,
+        .message = confirmation
+                       ? "'" + std::string(command) + "' needs confirmation: " + std::string(prompt)
+                       : std::string(command) + " needs approval before it runs",
+        .suggestion = std::string("The client did not answer the ") +
+                      (confirmation ? "confirmation" : "approval") +
+                      " question. Ask the user, then call again.",
+        .retryable = false,
+        .details = std::nullopt,
+        .cause = nullptr,
+    });
+}
+
 Json tool_result(const CommandResult& result) {
     return {{"content", {{{"type", "text"}, {"text", wire::serialize(Json(result))}}}},
             {"isError", !result.success}};
@@ -199,7 +227,7 @@ struct Round {
 
 /// Whether `entry` is a question of kind `kind` whose answer still counts at `now`.
 bool live(const Json& entry, std::string_view kind, std::int64_t now) {
-    return entry.is_object() && entry.value("k", "") == kind && entry.contains("t") &&
+    return entry.is_object() && string_member(entry, "k") == kind && entry.contains("t") &&
            entry["t"].is_number_integer() && now < entry["t"].get<std::int64_t>() + answer_ttl_ms;
 }
 
@@ -211,7 +239,7 @@ Response response_to(const Round& round, std::string_view key, std::string_view 
     if (found == round.responses.end() || !found->is_object()) {
         return Response::missing;
     }
-    if (found->value("action", "") == "accept" &&
+    if (string_member(*found, "action") == "accept" &&
         is_true(object_member(*found, "content"), field)) {
         return Response::accept;
     }
@@ -234,6 +262,8 @@ struct StdioServer::State {
     bool initialized = false;
     std::string legacy_version{legacy_versions.front()};
     Json legacy_capabilities = Json::object();
+    // Trace ids. Only the thread that handles messages uses it.
+    SystemRandom random;
 
     State(const CommandRegistry& source, StdioServerOptions settings, std::string secret)
         : registry(source), options(std::move(settings)), key(std::move(secret)) {}
@@ -405,7 +435,6 @@ struct StdioServer::State {
     // --- tools/call ---------------------------------------------------------------------------
 
     CommandContext call_context(const RequestInfo& info, const CancellationToken& cancellation) {
-        static thread_local SystemRandom random;
         CommandContext context;
         context.surface = Interface::mcp;
         context.actor = Actor{.kind = ActorKind::agent};
@@ -423,22 +452,24 @@ struct StdioServer::State {
     }
 
     /// One attempt at a call with the answers `round` carries.
-    Attempt attempt(const std::string& name, const Json& arguments, const CommandContext& base,
-                    const RegisteredCommand* command, bool gated, bool acknowledged,
-                    bool can_elicit, Round& round, std::string_view binding) {
+    /// `bound` is the validated input when the arguments are valid, the arguments otherwise.
+    Attempt attempt(const std::string& name, const Json& arguments, const Json& bound, bool valid,
+                    const CommandContext& base, const RegisteredCommand* command, bool gated,
+                    bool acknowledged, bool can_elicit, Round& round, std::string_view binding) {
         const std::int64_t at = now();
-        if (gated && !acknowledged && command->input_schema.validate(arguments)) {
-            const std::string question = confirm_question(name, arguments);
+        // Invalid input is never confirmed: the registry answers VALIDATION_ERROR instead.
+        if (gated && !acknowledged && valid) {
+            const std::string question = confirm_question(name, bound);
             bool confirmed = false;
             for (const auto& entry : round.accepted) {
-                confirmed =
-                    confirmed || (live(entry, "confirm", at) && entry.value("q", "") == question);
+                confirmed = confirmed ||
+                            (live(entry, "confirm", at) && string_member(entry, "q") == question);
             }
             if (!confirmed) {
                 bool asked = false;
                 for (const auto& entry : round.pending) {
-                    asked =
-                        asked || (live(entry, "confirm", at) && entry.value("q", "") == question);
+                    asked = asked ||
+                            (live(entry, "confirm", at) && string_member(entry, "q") == question);
                 }
                 const Response answer =
                     asked ? response_to(round, confirm_input_key, "confirm") : Response::missing;
@@ -473,7 +504,7 @@ struct StdioServer::State {
                         if (!live(entry, "approval", at)) {
                             continue;
                         }
-                        const std::string bound = entry.value("b", "");
+                        const std::string bound = string_member(entry, "b");
                         bool matches = false;
                         for (const auto& candidate : bindings) {
                             matches = matches || candidate == bound;
@@ -489,9 +520,9 @@ struct StdioServer::State {
                                    entry["e"].is_number_integer()) {
                             answer.kind = detail::RelayAnswer::Kind::accept;
                             answer.binding = bound;
-                            answer.nonce = entry.value("n", "");
+                            answer.nonce = string_member(entry, "n");
                             answer.expires_at_ms = entry["e"].get<std::int64_t>();
-                            answer.mac = entry.value("m", "");
+                            answer.mac = string_member(entry, "m");
                         }
                     }
                     return answer;
@@ -551,14 +582,25 @@ struct StdioServer::State {
         }
 
         const CommandContext context = call_context(info, cancellation);
-        const std::string binding = state_binding(context.actor, name, arguments);
+        // Questions and their state bind the validated input, as the person decides on exactly
+        // what will run: defaults filled in and undeclared members removed.
+        Json bound = arguments;
+        bool valid = false;
+        if (exposed) {
+            if (auto validated = command->input_schema.validate(arguments)) {
+                bound = std::move(*validated);
+                valid = true;
+            }
+        }
+        const std::string binding = state_binding(context.actor, name, bound);
         const bool can_elicit = declares_form_elicitation(info.client_capabilities) &&
                                 (info.modern || static_cast<bool>(ask));
         Round round = info.modern ? modern_round(params, binding) : Round{};
 
         for (int rounds = 0;; ++rounds) {
-            Attempt next = attempt(name, arguments, context, exposed ? command.get() : nullptr,
-                                   gated, acknowledged, can_elicit, round, binding);
+            Attempt next =
+                attempt(name, arguments, bound, valid, context, exposed ? command.get() : nullptr,
+                        gated, acknowledged, can_elicit, round, binding);
             if (next.complete) {
                 return std::move(*next.complete);
             }
@@ -579,8 +621,13 @@ struct StdioServer::State {
                     sent["params"].erase("mode");
                 }
                 const auto answer = ask(sent);
-                responses[key_name] =
-                    answer && answer->is_object() ? *answer : Json{{"action", "cancel"}};
+                if (!answer || !answer->is_object()) {
+                    // Cancelled (serve sends no reply then), or the client went away, timed out
+                    // or answered with an error: nobody declined, so do not say so.
+                    return tool_result(unanswered(key_name, name,
+                                                  command->definition.confirm_prompt.value_or("")));
+                }
+                responses[key_name] = *answer;
             }
             Json retry{{"requestState", (*next.input_required)["requestState"]},
                        {"inputResponses", std::move(responses)}};
@@ -718,6 +765,10 @@ namespace {
 struct Line {
     std::string text;
     bool too_long = false;
+    /// The request's id, when it is a request.
+    std::optional<Json> id;
+    /// Set when `notifications/cancelled` named it while it waited in the queue.
+    bool cancelled = false;
 };
 
 /// Shared between the reader thread and the thread that handles messages.
@@ -732,13 +783,7 @@ struct Connection {
     // The elicitation request waiting for the client's response, and the response.
     std::optional<std::string> waiting_for;
     std::optional<Json> answer;
-    // What arrived before it was looked for: answers to elicitations not yet waited on, and
-    // cancellations of requests still in the queue. Both bounded.
-    std::map<std::string, Json, std::less<>> early_answers;
-    std::vector<Json> early_cancellations;
 };
-
-constexpr std::size_t max_early_messages = 64;
 
 /// Reads one line of at most `limit` bytes from `in`; `std::nullopt` at EOF.
 std::optional<Line> read_line(std::istream& in, std::size_t limit) {
@@ -765,7 +810,7 @@ std::optional<Line> read_line(std::istream& in, std::size_t limit) {
     return line;
 }
 
-/// Routes what the client sends while a call runs: a cancellation reaches the call, a response
+/// Routes what the client sends: a cancellation reaches its call (running or queued), a response
 /// reaches the elicitation waiting for it, and everything else waits in the queue.
 void route(Connection& connection, Line line) {
     if (!line.too_long) {
@@ -775,32 +820,35 @@ void route(Connection& connection, Line line) {
             const std::lock_guard lock(connection.mutex);
             if (!message.contains("method") && message.contains("id")) {
                 // A response: the elicitation waiting for it takes it; any other is dropped.
-                if (!message["id"].is_string()) {
-                    return;
-                }
-                const auto& id = message["id"].get_ref<const std::string&>();
-                if (connection.waiting_for && id == *connection.waiting_for) {
+                if (connection.waiting_for && message["id"].is_string() &&
+                    message["id"].get_ref<const std::string&>() == *connection.waiting_for) {
                     connection.answer = message;
                     connection.changed.notify_all();
-                } else if (id.rfind(elicitation_id_prefix, 0) == 0 &&
-                           connection.early_answers.size() < max_early_messages) {
-                    connection.early_answers.emplace(id, message);
                 }
                 return;
             }
-            if (message.value("method", "") == "notifications/cancelled") {
+            if (string_member(message, "method") == "notifications/cancelled") {
                 const Json params = object_member(message, "params");
                 if (!params.contains("requestId")) {
                     return;
                 }
-                if (connection.current_id && params["requestId"] == *connection.current_id) {
+                const Json& id = params["requestId"];
+                if (connection.current_id && id == *connection.current_id) {
                     connection.current_cancel->cancel();
                     connection.changed.notify_all();
-                } else if (connection.early_cancellations.size() < max_early_messages) {
-                    // A request still in the queue is cancelled before it starts.
-                    connection.early_cancellations.push_back(params["requestId"]);
+                    return;
+                }
+                // A request still in the queue is cancelled before it starts; an unknown or
+                // finished one is ignored.
+                for (auto& queued : connection.queue) {
+                    if (queued.id && *queued.id == id) {
+                        queued.cancelled = true;
+                    }
                 }
                 return;
+            }
+            if (message.contains("id")) {
+                line.id = message["id"];
             }
         }
     }
@@ -813,6 +861,14 @@ void route(Connection& connection, Line line) {
 
 void StdioServer::serve(std::istream& in, std::ostream& out) {
     Connection connection;
+    // Writes are serialized on their own lock, never under `connection.mutex`: a client that
+    // stops reading must not stop the reader thread from draining its input.
+    std::mutex write_mutex;
+    const auto write = [&](const std::string& text) {
+        const std::lock_guard lock(write_mutex);
+        out << text << '\n';
+        out.flush();
+    };
     const std::size_t limit = state_->options.max_line_bytes;
     std::thread reader([&connection, &in, limit] {
         while (auto line = read_line(in, limit)) {
@@ -827,25 +883,29 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
     });
 
     std::uint64_t asked = 0;
+    const auto timeout = std::chrono::milliseconds(state_->options.elicitation_timeout_ms);
     const ClientRequester ask = [&](const Json& request) -> std::optional<Json> {
-        std::unique_lock lock(connection.mutex);
         const std::string request_id = std::string(elicitation_id_prefix) + std::to_string(++asked);
-        connection.waiting_for = request_id;
-        connection.answer.reset();
+        CancellationToken cancelled;
+        {
+            const std::lock_guard lock(connection.mutex);
+            connection.waiting_for = request_id;
+            connection.answer.reset();
+            cancelled = connection.current_cancel->token();
+        }
         Json message = request;
         message["jsonrpc"] = "2.0";
         message["id"] = request_id;
-        out << wire::serialize(message) << '\n';
-        out.flush();
-        if (const auto early = connection.early_answers.find(request_id);
-            early != connection.early_answers.end()) {
-            connection.answer = std::move(early->second);
-            connection.early_answers.erase(early);
+        write(wire::serialize(message));
+        std::unique_lock lock(connection.mutex);
+        // Cancellation sets no condition the wait can see without a notify, so poll it too.
+        const auto deadline = std::chrono::steady_clock::now() + timeout;
+        while (!connection.answer && !connection.eof && !cancelled.is_cancelled() &&
+               std::chrono::steady_clock::now() < deadline) {
+            connection.changed.wait_until(lock,
+                                          (std::min)(deadline, std::chrono::steady_clock::now() +
+                                                                   std::chrono::milliseconds(100)));
         }
-        const auto cancelled = connection.current_cancel->token();
-        connection.changed.wait(lock, [&] {
-            return connection.answer.has_value() || connection.eof || cancelled.is_cancelled();
-        });
         connection.waiting_for.reset();
         auto answer = std::move(connection.answer);
         connection.answer.reset();
@@ -857,6 +917,7 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
 
     while (true) {
         Line line;
+        CancellationToken token;
         {
             std::unique_lock lock(connection.mutex);
             connection.changed.wait(lock,
@@ -866,33 +927,24 @@ void StdioServer::serve(std::istream& in, std::ostream& out) {
             }
             line = std::move(connection.queue.front());
             connection.queue.pop_front();
-            connection.current_id.reset();
+            connection.current_id = line.id;
             connection.current_cancel = std::make_shared<CancellationSource>();
-            if (!line.too_long) {
-                const auto parsed = parse_bounded(line.text);
-                if (parsed && parsed->is_object() && parsed->contains("id")) {
-                    connection.current_id = (*parsed)["id"];
-                    auto& early = connection.early_cancellations;
-                    const auto found =
-                        std::find(early.begin(), early.end(), *connection.current_id);
-                    if (found != early.end()) {
-                        early.erase(found);
-                        connection.current_cancel->cancel();
-                    }
-                }
+            if (line.cancelled) {
+                connection.current_cancel->cancel();
             }
+            token = connection.current_cancel->token();
         }
         const auto reply =
             line.too_long
                 ? std::optional<std::string>(error_response(nullptr, -32600, "Message too large"))
-                : state_->handle(line.text, ask, connection.current_cancel->token());
+                : state_->handle(line.text, ask, token);
         {
             const std::lock_guard lock(connection.mutex);
             connection.current_id.reset();
-            if (reply) {
-                out << *reply << '\n';
-                out.flush();
-            }
+        }
+        // A cancelled request gets no response (MCP, cancellation).
+        if (reply && !(line.id && token.is_cancelled())) {
+            write(*reply);
         }
     }
     reader.join();
