@@ -357,6 +357,8 @@ fn confirm_preview_is_refused_on_component_commands_mounted_tools_and_pipelines(
     );
     let error = invalid(&component, "confirm_preview");
     assert!(error.message().contains("component"), "{error}");
+    // World 1.1.0 does not carry it (D191).
+    assert!(!error.message().contains("1.1.0"), "{error}");
     let mounted = format!(
         "{}\n[mount]\nprefix = \"review\"\ntransport = \"stdio\"\ncommand = [\"review-server\"]\n[[mount.tools]]\ntool = \"approve\"\nconfirm_prompt = \"Apply it?\"\nconfirm_preview = \"review-preview\"\n",
         head(4, "mounted").replace(

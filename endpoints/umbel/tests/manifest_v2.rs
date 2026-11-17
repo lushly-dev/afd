@@ -284,17 +284,21 @@ fn output_budget_is_closed_positive_and_ordered() {
     }
 }
 
+/// A component may declare a budget (D191); the component loader then requires its export to be
+/// world 1.1.0 (`plugin_component.rs`).
 #[test]
-fn output_budget_is_refused_to_a_component_naming_world_1_1_0() {
-    let error = invalid(
-        &budgeted("component", "{ default_bytes = 1, max_bytes = 2 }"),
-        "commands[0].output_budget",
+fn output_budget_is_stored_for_a_component_plugin() {
+    let manifest = parse(&budgeted(
+        "component",
+        "{ default_bytes = 1, max_bytes = 2 }",
+    ))
+    .unwrap();
+    let budget = manifest.commands[0].output_budget.unwrap();
+    assert_eq!((budget.default_bytes, budget.max_bytes), (1, 2));
+    invalid(
+        &budgeted("component", "{ default_bytes = 3, max_bytes = 2 }"),
+        "default_bytes",
     );
-    assert!(
-        error.message().contains("umbel:plugin/plugin@1.1.0"),
-        "{error}"
-    );
-    assert!(error.message().contains("component"), "{error}");
 }
 
 // ── confirm = "require-human" ──────────────────────────────────────────────────────────────────

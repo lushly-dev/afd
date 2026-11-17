@@ -14,7 +14,9 @@ use super::super::PluginError;
 use super::super::compiled::call_context;
 use super::super::grants::CallServices;
 use super::engine::EPOCH_MS;
-use super::state::bindings::umbel::plugin::types::CallContext;
+// `call-context` is the same record in worlds 1.0.0 and 1.1.0, and wasmtime checks a record
+// by its fields, so one typed function serves either `command` export.
+use super::state::bindings_1_0::umbel::plugin::types::CallContext;
 use super::state::{CallState, LimitHit, Limiter};
 use super::wasi::virtualized;
 use super::{ComponentRuntime, MAX_IO_BYTES};
@@ -42,6 +44,7 @@ pub(super) async fn run(
     }
     let services = Arc::new(runtime.services.call(&input, &context));
     let call = call_context(name, has_space, &services, &input, &context);
+    let output_budget = call.output_budget;
     let record = CallContext {
         command: call.command,
         trace_id: call.trace_id,
@@ -55,7 +58,14 @@ pub(super) async fn run(
     let name = name.to_owned();
     let handle = tokio::runtime::Handle::current();
     let joined = tokio::task::spawn_blocking(move || {
-        handle.block_on(execute(&runtime, &name, text, record, services))
+        handle.block_on(execute(
+            &runtime,
+            &name,
+            text,
+            record,
+            services,
+            output_budget,
+        ))
     })
     .await;
     match joined {
@@ -90,6 +100,7 @@ async fn execute(
     input: String,
     record: CallContext,
     services: Arc<CallServices>,
+    output_budget: Option<u64>,
 ) -> Result<String, PluginError> {
     let instance = &runtime.instance;
     let limits = runtime.limits;
@@ -102,6 +113,7 @@ async fn execute(
             usize::try_from(limits.table_elements).unwrap_or(usize::MAX),
         ),
         services,
+        output_budget,
     };
     let mut store = Store::new(&runtime.shared.engine, state);
     store.limiter(|state| &mut state.limiter);

@@ -15,10 +15,12 @@ Code paths are relative to `endpoints/umbel/` unless they start with `packages/`
 - **State:** written 2026-11-16 and revised the same day after an independent review (one blocker, the manifest
   schemas, fixed in section 4; the component `journal` moved to the owner's questions; the rest taken). D189 to D191
   are decided under the owner's delegation for #1364, which keeps every change to the trust model with the owner
-  (section 8). Nothing is implemented.
+  (section 8). Step 2 (the world, the host and the SDK) is implemented in its pull request, with the amendment in
+  section 3 item 4.
 - **Last verified:** 2026-11-16 against `origin/main` at `959a08e7`, by reading the files cited at each claim and
   wasmtime 48.0.8's `Linker` and `NameMap` (`wasmtime-environ` `src/component/names.rs`). **No code was built or run.**
-- **Not done:** everything (section 10). **Follow-ups:** the [table at the end](#follow-ups).
+- **Not done:** step 3, D2 itself (#1155), and the owner's questions (section 8). An export newer than 1.1 is
+  refused by the same check as a newer import, and is not tested with a fixture of its own. **Follow-ups:** the [table at the end](#follow-ups).
 
 ## What this specification serves
 
@@ -199,8 +201,9 @@ and a compiled plugin already reads (`CallContext::output_budget`). It names no 
    `umbel:plugin/command@1.0.0` and `@1.1.0`.
 4. **The analysis.** `src/plugins/component/analyze.rs`: `KNOWN_MINOR` becomes `1`. The export's minor version is
    checked as the imports' are (today only its major is): an export newer than `1.1` is
-   `PLUGIN_PROTOCOL_UNSUPPORTED`. `umbel_grant("call")` is `Some(None)`, an interface that needs no grant. `Analysis`
-   gains `world_minor: u64`, the export's minor version.
+   `PLUGIN_PROTOCOL_UNSUPPORTED`. `umbel_grant("call")` is `Some(None)`, an interface that needs no grant. The export's
+   minor version is used for section 4's budget check inside `check`; it is not stored in `Analysis`, since nothing
+   else reads it (amended by step 2).
 5. **The budget a component sees.** `CallState` gains `output_budget: Option<u64>`, set in `call.rs` from the
    `call_context` it already builds (`src/plugins/compiled.rs`, `output_budget: context.output_budget()`).
    `call::Host::output_budget` returns it. A component call has a fresh store per call, so the value is that call's.

@@ -226,32 +226,6 @@
 					"commands": {
 						"items": {
 							"not": {
-								"required": ["output_budget"]
-							}
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"plugin": {
-						"properties": {
-							"kind": {
-								"const": "component"
-							}
-						},
-						"required": ["kind"]
-					}
-				},
-				"required": ["plugin"]
-			},
-			"then": {
-				"properties": {
-					"commands": {
-						"items": {
-							"not": {
 								"anyOf": [
 									{
 										"required": ["journal"]
@@ -754,7 +728,7 @@
 					}
 				},
 				"output_budget": {
-					"description": "Compiled plugins only in phase 2. default_bytes <= max_bytes.",
+					"description": "default_bytes <= max_bytes. A component plugin's command may declare one when the component exports WIT world umbel:plugin/plugin@1.1.0, which the host checks at load.",
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["default_bytes", "max_bytes"],

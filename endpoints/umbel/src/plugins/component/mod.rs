@@ -1,5 +1,5 @@
 //! The component loader (specification section 6.2): a WebAssembly component built against the
-//! WIT world `umbel:plugin/plugin@1.0.0`, run on wasmtime 48 inside a sandbox.
+//! WIT worlds `umbel:plugin/plugin@1.0.0` and `@1.1.0`, run on wasmtime 48 inside a sandbox.
 //!
 //! A component can reach nothing the host did not link: no network, no file, no environment,
 //! only the `umbel:plugin` interfaces its grants allow and WASI 0.2 clocks and random bytes that
@@ -89,13 +89,28 @@ pub(crate) fn check(
             format!("`{}` is not a loadable component: {problem}", declared.path),
         )
     })?;
-    analyze::check(instance, &shared.engine, &component, |grant| {
-        manifest
-            .grants
-            .iter()
-            .any(|declared| declared.name == grant)
-    })
+    analyze::check(
+        instance,
+        &shared.engine,
+        &component,
+        |grant| {
+            manifest
+                .grants
+                .iter()
+                .any(|declared| declared.name == grant)
+        },
+        budgeted(manifest),
+    )
     .map(|_| ())
+}
+
+/// The first manifest command that declares `output_budget`, which needs world 1.1.0.
+fn budgeted(manifest: &Manifest) -> Option<&str> {
+    manifest
+        .commands
+        .iter()
+        .find(|command| command.output_budget.is_some())
+        .map(|command| command.name.as_str())
 }
 
 /// A component compiled, checked and linked at `seal`, ready to be instantiated per call.
@@ -141,9 +156,13 @@ impl ComponentRuntime {
                 format!("`{}` is not a loadable component: {problem}", declared.path),
             )
         })?;
-        let analysis = analyze::check(instance, &shared.engine, &component, |grant| {
-            services.is_granted(grant)
-        })?;
+        let analysis = analyze::check(
+            instance,
+            &shared.engine,
+            &component,
+            |grant| services.is_granted(grant),
+            budgeted(manifest),
+        )?;
         let pre = shared
             .linker
             .instantiate_pre(&component)
