@@ -86,6 +86,12 @@ only after a person approves it in Claude Code; for Codex, add the same command 
 `node scripts/umbel-components.mjs prepare` exports and prints what would be served, without
 serving.
 
+This crate's tests serve the same library without running the launcher or Specimen. `fast_af.rs`
+and `facts.rs` read `violet-elements`' committed records and rules and derive the catalog from them,
+as `pack-export` does, at run time (specification amendment A27). A rebuilt record needs no second
+step, and the tests need neither Node nor a Specimen build. A test holds the derivation to
+Specimen's own exported fixture, so the two cannot drift apart unnoticed.
+
 `UMBEL_COMPONENTS_LIBRARIES` serves more libraries beside `violet-elements`: directories separated
 by the platform's path delimiter (`:`, or `;` on Windows), each holding a `specimen.config.json`
 with a `pack` section and its committed pack, such as a Lushly checkout. Each is exported after

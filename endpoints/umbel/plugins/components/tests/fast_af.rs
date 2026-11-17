@@ -3,12 +3,13 @@
 //! library, answering briefs. With it, the proposal's criteria 1 (one round trip), 2 (smaller
 //! than what it replaces) and 7 (ships empty) on the real library.
 //!
-//! The test reads the export from two places: the records and rules from `violet-elements`'
-//! committed pack, which the format's exported form holds byte for byte, and the catalog export
-//! wrote from `tests/fast_af/library.json`. The reader checks every digest in that catalog, so the
-//! override is exactly what `pack-export` writes, and a record rebuilt without exporting again
-//! fails here, naming the fix. Neither Specimen nor Umbel depends on the other: this test reads
-//! files, as `default_pack.rs` reads Specimen's fixture.
+//! The test exports at run time, from committed files alone: the records and rules are
+//! `violet-elements`' committed pack, which the format's exported form holds byte for byte, and the
+//! catalog is derived from them and the library's stamp as `pack-export` derives it
+//! (`support::export_catalog`, held to Specimen's own export of its example by
+//! `catalog_is_what_specimen_exports`). A rebuilt record needs no second step here, and the test
+//! needs neither Node nor a Specimen build (plugin specification A17). Neither Specimen nor Umbel
+//! depends on the other: this test reads files, as `default_pack.rs` reads Specimen's fixture.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
 mod support;
@@ -19,16 +20,41 @@ use support::*;
 /// The library id `violet-elements`' configuration gives its pack.
 const LIBRARY: &str = "violet-elements";
 
-/// A host serving FAST-AF's export beside the example in space `main`, failing with the way to
-/// export again when the catalog no longer matches the records.
+/// A host serving FAST-AF's export beside the example in space `main`. The reader refusing the
+/// pack means a committed record is not a valid pack record, which `specimen pack-check` names.
 async fn fast_af_host() -> Fx {
     let fx = Pack::fast_af().host();
     let result = fx.list(json!({ "library": LIBRARY })).await;
     assert!(
         result["success"] == true,
-        "FAST-AF's committed records no longer match the catalog export wrote; {REEXPORT}. {result}"
+        "the reader refused FAST-AF's committed pack; run `specimen pack-check` from \
+         foundations/fast-af/packages/violet-elements to see which record. {result}"
     );
     fx
+}
+
+/// The catalog the tests derive is the one `specimen pack-export` writes: from Specimen's committed
+/// example and the stamp its exported example carries, `export_catalog` gives that exported
+/// catalog byte for byte (Specimen's tests hold the fixture to `packCatalog`).
+#[test]
+fn catalog_is_what_specimen_exports() {
+    let committed = read_tree(&specimen_fixtures().join("committed"));
+    let exported =
+        std::fs::read(specimen_fixtures().join("exported/data/example/library.json")).unwrap();
+    let catalog: Value = serde_json::from_slice(&exported).unwrap();
+    let mut stamp = json!({
+        "title": catalog["title"],
+        "package": catalog["package"],
+        "prefix": catalog["prefix"],
+    });
+    if let Some(revision) = catalog.get("revision") {
+        stamp["revision"] = revision.clone();
+    }
+    let derived = export_catalog(&committed, "example", &stamp);
+    assert_eq!(
+        String::from_utf8(derived).unwrap(),
+        String::from_utf8(exported).unwrap()
+    );
 }
 
 fn pages() -> Vec<(String, u64, Vec<String>)> {
@@ -85,8 +111,7 @@ async fn the_export_is_served_whole_beside_the_example_library() {
     let committed = read_tree(&fast_af_committed().join("data/violet-elements/components"));
     assert_eq!(
         catalog["components"].as_array().unwrap().len(),
-        committed.len(),
-        "{REEXPORT}"
+        committed.len()
     );
     assert_eq!(
         committed.len(),
