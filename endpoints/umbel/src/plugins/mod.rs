@@ -81,7 +81,7 @@ pub const MANIFEST_VERSIONS: &[u32] = &[1, 2, 3, 4, 5, 6];
 /// The plugin protocol version this host serves (`protocol`).
 pub const PLUGIN_PROTOCOL_VERSION: u32 = 1;
 /// The WIT world a component is built against.
-pub const WIT_WORLD: &str = "umbel:plugin/plugin@1.0.0";
+pub const WIT_WORLD: &str = "umbel:plugin/plugin@1.1.0";
 /// The pack manifest version (`pack_version`).
 pub const PACK_VERSION: u32 = 1;
 

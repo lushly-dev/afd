@@ -17,6 +17,7 @@ PATH_PATTERNS = {
         # Lookbehind keeps mid-word colons like `DTSTAMP:\d` or `User:\n` from matching —
         # a real drive letter is a single letter, not the tail of an identifier.
         "pattern": re.compile(r'(?<![A-Za-z0-9_])["\']?[A-Za-z]:\\[^"\']*["\']?'),
+        # portability-ok: the finding's description names the shape it reports
         "description": "Windows absolute path (D:\\...)",
         "severity": "error",
     },
@@ -77,8 +78,22 @@ DEFAULT_ALLOWLIST_PATTERNS = [
 
 # File extensions to check
 _CODE_EXTENSIONS = {
-    ".py", ".js", ".ts", ".jsx", ".tsx", ".json", ".yaml", ".yml",
-    ".toml", ".html", ".css", ".scss", ".sh", ".ps1", ".bat", ".cmd",
+    ".py",
+    ".js",
+    ".ts",
+    ".jsx",
+    ".tsx",
+    ".json",
+    ".yaml",
+    ".yml",
+    ".toml",
+    ".html",
+    ".css",
+    ".scss",
+    ".sh",
+    ".ps1",
+    ".bat",
+    ".cmd",
 }
 
 
@@ -95,8 +110,8 @@ async def dev_check_paths(
     """Scan for hardcoded paths that break cross-platform portability.
 
     Detects:
-    - Windows absolute paths (C:\\, D:\\, etc.)
-    - Unix/Mac absolute paths (/home/user, /Users/name)
+    - Windows drive-letter paths, such as a path on drive C or D
+    - Unix and macOS home-directory paths, under /home or /Users
     - Hardcoded localhost URLs with ports
 
     Args:

@@ -1212,7 +1212,7 @@ fn check_skill_names(
 
 /// Step 4 (section 7.2): each declared grant is granted, withheld, or fails the load.
 ///
-/// A store grant is refused to a component (protocol 1 has no import for it; world 1.1.0 will)
+/// A store grant is refused to a component (no world 1.x has an import for it yet; D189)
 /// and when the build links no store backend. A write grant needs `allow` entries in `umbel.toml`
 /// naming only spaces the instance is enabled for (D42, specification section 3.3, rule 1).
 fn decide_grants(
@@ -1237,7 +1237,7 @@ fn decide_grants(
             && manifest.plugin.kind != PluginKind::Compiled
         {
             Some(format!(
-                "is held by compiled plugins only in protocol 1; components get store grants with WIT world umbel:plugin/plugin@1.1.0, and a {} plugin never does",
+                "is held by compiled plugins only in protocol 1; no WIT world yet gives a component store imports (a later minor version of world 1 may), and a {} plugin never does",
                 manifest.plugin.kind.as_str()
             ))
         } else if crate::store::STORE_GRANTS.contains(&name) && !crate::store::AVAILABLE {
@@ -1561,7 +1561,8 @@ fn definitions(
         // caller the server can tell apart (step 8).
         // The manifest decides, whatever a compiled plugin's own definition said.
         definition = definition.with_task(command.task.support());
-        // The budget the manifest declares (version 2, compiled plugins only): AFD checks it in
+        // The budget the manifest declares (version 2; a component's must export world 1.1.0,
+        // checked at load): AFD checks it in
         // the innermost link of the middleware chain and the handler fits its result to it.
         if let Some(budget) = command.output_budget {
             definition = definition.with_output_budget(budget.default_bytes, budget.max_bytes);
@@ -1668,7 +1669,8 @@ mod tests {
             .expect_err(grant);
             assert_eq!(error.code(), "PLUGIN_GRANT_UNAVAILABLE", "{grant}");
             assert!(
-                error.message().contains("umbel:plugin/plugin@1.1.0"),
+                error.message().contains("a later minor version of world 1")
+                    && !error.message().contains("1.1.0"),
                 "{error}"
             );
         }

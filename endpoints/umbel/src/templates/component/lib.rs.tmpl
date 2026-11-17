@@ -1,7 +1,7 @@
 //! {{title}}: an Umbel plugin written against `umbel-sdk`, built as a WebAssembly component.
 //!
 //! [`plugin`] is the SDK value. With the `component` feature the crate exports the WIT world
-//! `umbel:plugin/plugin@1.0.0`; the tests link the same plugin into a host as `compiled:{{id}}`
+//! `umbel:plugin/plugin@1.1.0`; the tests link the same plugin into a host as `compiled:{{id}}`
 //! with `manifests/compiled.toml`, the manifest of that build. Keep the two manifests alike: they
 //! differ in `kind` and the `[component]` table.
 //!
@@ -75,6 +75,6 @@ fn hello(input: &Value, cx: &Cx) -> Outcome {
     success(json!({ "greeting": format!("{salutation}, {name}!"), "at_ms": at_ms }))
 }
 
-// The component build: the exports of `umbel:plugin/plugin@1.0.0`, routed to the plugin.
+// The component build: the exports of `umbel:plugin/plugin@1.1.0`, routed to the plugin.
 #[cfg(feature = "component")]
 umbel_sdk::export_component!({{type}});

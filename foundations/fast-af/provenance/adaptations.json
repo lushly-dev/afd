@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "03a41e71551025170e54a6754bbc580d22aca0c32a6898f2e53fff44f07a7432",
+      "current_import_sha256": "2372e68f202343707ff60f29ade7a664ffedbdb88137e90350f9a9d13b953151",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192)"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -93,11 +93,11 @@
       "upstream_sha256": "1f2816b73796735dcf5f6a031a8b2666847a1f2930094212ef9eebc3e61dc9fe",
       "staged_path": "packages/element/packages/fast-element/CHANGELOG.json",
       "staged_sha256": "1f2816b73796735dcf5f6a031a8b2666847a1f2930094212ef9eebc3e61dc9fe",
-      "current_import_sha256": "1f2816b73796735dcf5f6a031a8b2666847a1f2930094212ef9eebc3e61dc9fe",
+      "current_import_sha256": "cb127126ca4ca1e1879057f9b452dbbf3175365e7b05958d798da585d0a55fac",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/CHANGELOG.md",
@@ -105,11 +105,11 @@
       "upstream_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
       "staged_path": "packages/element/packages/fast-element/CHANGELOG.md",
       "staged_sha256": "4d5aeb94dd5e4e8728271f202dc8d3501da21ca87a0fe168731af65bf0ca5416",
-      "current_import_sha256": "4a4a50945f75fee43c77e7aa99eaeb76e77ebe0e5d7bb9fc75579d309c949529",
+      "current_import_sha256": "3466dbb7c4156ed01f380f99c3cae87158ab6e9b179c40f72853cb1d7243712e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (fast-element, specimen); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/DESIGN.md",
@@ -117,11 +117,11 @@
       "upstream_sha256": "eb8d00660f1f394a098a9dfe053a40cf252b35b83e83e08a0d58fcacb35bc4db",
       "staged_path": "packages/element/packages/fast-element/DESIGN.md",
       "staged_sha256": "eb8d00660f1f394a098a9dfe053a40cf252b35b83e83e08a0d58fcacb35bc4db",
-      "current_import_sha256": "eb8d00660f1f394a098a9dfe053a40cf252b35b83e83e08a0d58fcacb35bc4db",
+      "current_import_sha256": "f9e0ec5cc5c9e53bbdd3eb1dde95ae3f8ab77c6d6768966a77433b7565bd428d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/LICENSE",
@@ -141,11 +141,11 @@
       "upstream_sha256": "7eb5336d69ebeb2c4e65a7d05adacc95d3a045ef4cce9169197699df28646dff",
       "staged_path": "packages/element/packages/fast-element/README.md",
       "staged_sha256": "7eb5336d69ebeb2c4e65a7d05adacc95d3a045ef4cce9169197699df28646dff",
-      "current_import_sha256": "c9fd1628ff3b265e55e7c5c35738b7e66fc4303a87e225656e912f7f3dcd8a09",
+      "current_import_sha256": "e5a8e238d0920d32836db6c4d278e2636023f284a68e64f88a6c0208c3c030e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done"
+      "import_reason": "Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/SIZES.md",
@@ -153,11 +153,11 @@
       "upstream_sha256": "a79ff81c1f843a37151e2b013d8a430a4264bb7d222719096d050682b6f5660e",
       "staged_path": "packages/element/packages/fast-element/SIZES.md",
       "staged_sha256": "17c6f3080d8f85a98d916fda28cd7ba05eb23f1bbb1e1f293e258527cc47ad23",
-      "current_import_sha256": "a79ff81c1f843a37151e2b013d8a430a4264bb7d222719096d050682b6f5660e",
+      "current_import_sha256": "8c6e025c503c194bddfb8e3c9963d6edb830a4b438002cf5071d6d6cbae60115",
       "stage_classification": "modified-upstream",
       "stage_reason": "Regenerated by the upstream build",
       "import_classification": "modified-after-staging",
-      "import_reason": "Restored the upstream bytes: the AFD build no longer regenerates this advisory size report; build:sizes refreshes it explicitly"
+      "import_reason": "Restored the upstream bytes: the AFD build no longer regenerates this advisory size report; build:sizes refreshes it explicitly; Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/api-extractor.arrays.json",
@@ -417,11 +417,11 @@
       "upstream_sha256": "53f77e4e03246b045402e7130f9d08eb5739f6363c470644d9253d704cb95f62",
       "staged_path": "packages/element/packages/fast-element/docs/declarative/design.md",
       "staged_sha256": "53f77e4e03246b045402e7130f9d08eb5739f6363c470644d9253d704cb95f62",
-      "current_import_sha256": "53f77e4e03246b045402e7130f9d08eb5739f6363c470644d9253d704cb95f62",
+      "current_import_sha256": "c3a4611da3e614290ffbae767443ff227278f6cc7dfb8c4f38a286bd07c7401c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/declarative/lifecycle.md",
@@ -429,11 +429,11 @@
       "upstream_sha256": "afff56f67f08ea62be93e19220444528fd06fa79a01d7464bfbdd33a26fa6be2",
       "staged_path": "packages/element/packages/fast-element/docs/declarative/lifecycle.md",
       "staged_sha256": "afff56f67f08ea62be93e19220444528fd06fa79a01d7464bfbdd33a26fa6be2",
-      "current_import_sha256": "afff56f67f08ea62be93e19220444528fd06fa79a01d7464bfbdd33a26fa6be2",
+      "current_import_sha256": "8493a6d8a2ace59873169e546e2ad01e914066d1e443ac086f014dceb74458cd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/declarative/rendering.md",
@@ -465,11 +465,11 @@
       "upstream_sha256": "0df0577d2eecb13277c6268a7676f578a342b4b49fb1fce9fd03ddace25f311b",
       "staged_path": "packages/element/packages/fast-element/docs/declarative/syntax.md",
       "staged_sha256": "0df0577d2eecb13277c6268a7676f578a342b4b49fb1fce9fd03ddace25f311b",
-      "current_import_sha256": "0df0577d2eecb13277c6268a7676f578a342b4b49fb1fce9fd03ddace25f311b",
+      "current_import_sha256": "6e470c8cdb06c96c456e55fa1083acc2ae8be865372cc474ac26eead80e1d220",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/definition-schema/api-report.api.md",
@@ -513,11 +513,11 @@
       "upstream_sha256": "94ce50ab354b2ed75d43730f248c02838332736bc1fb98d289855d81c98f8fda",
       "staged_path": "packages/element/packages/fast-element/docs/migration/fast-element-3.md",
       "staged_sha256": "94ce50ab354b2ed75d43730f248c02838332736bc1fb98d289855d81c98f8fda",
-      "current_import_sha256": "94ce50ab354b2ed75d43730f248c02838332736bc1fb98d289855d81c98f8fda",
+      "current_import_sha256": "ae23e3fa8c8e3bbcf97584241695e8b28e54bacc8b55884e2e9c29c4401f5cc4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/migration/fast-html.md",
@@ -525,11 +525,11 @@
       "upstream_sha256": "2a51cf0d418e4635609e890998728d374a23c33fa92eb1abddc90c6fc77b45d3",
       "staged_path": "packages/element/packages/fast-element/docs/migration/fast-html.md",
       "staged_sha256": "2a51cf0d418e4635609e890998728d374a23c33fa92eb1abddc90c6fc77b45d3",
-      "current_import_sha256": "2a51cf0d418e4635609e890998728d374a23c33fa92eb1abddc90c6fc77b45d3",
+      "current_import_sha256": "580735459c22a0f41ed621ae44007057949431f3b0955017487fcf99bb98821d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/scoped/api-report.api.md",
@@ -561,11 +561,11 @@
       "upstream_sha256": "be6edf50ec4591b045c10206312a717a643bfe1fdfb63eac84fd8a4f1578c9f2",
       "staged_path": "packages/element/packages/fast-element/docs/template-bindings.md",
       "staged_sha256": "be6edf50ec4591b045c10206312a717a643bfe1fdfb63eac84fd8a4f1578c9f2",
-      "current_import_sha256": "be6edf50ec4591b045c10206312a717a643bfe1fdfb63eac84fd8a4f1578c9f2",
+      "current_import_sha256": "6d47474d1a03a4ed2d25bb344f75eab6ae8aa90a76d2939bf194c45087c3d846",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/trust/api-report.api.md",
@@ -705,12 +705,12 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "1bb47d23fe90564934a811f862988c5e054cb518acac2bb48af80df1963663d4",
-      "manifest_shape_sha256": "b88c96f11a76c5ed60c4f9b4bd78a5037a5c2ff155c5cdaa4462885c1be10044",
+      "current_import_sha256": "0dafcde99177e937b206a888e9a7e38f2ec4943dba3798de9cf489bdd83aa642",
+      "manifest_shape_sha256": "229cec439cf4bc2a1e468bdc79945511dc684696df4d8722c3e0a51f7b6761f2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #806: typescript moves from upstream ~5.9.3 to the workspace's ^7.0.2; @rollup/plugin-typescript and its tslib peer are removed because rollup.config.js now bundles tsc's dist/esm output and nothing else imports tslib; Versioned for release by pnpm version-packages (fast-element, specimen)"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #806: typescript moves from upstream ~5.9.3 to the workspace's ^7.0.2; @rollup/plugin-typescript and its tslib peer are removed because rollup.config.js now bundles tsc's dist/esm output and nothing else imports tslib; Versioned for release by pnpm version-packages (fast-element, specimen); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -790,11 +790,11 @@
       "upstream_sha256": "d6bf652915105064cb1027078dde58ffb45c5103d2837a0a63c6fc792c4b05f8",
       "staged_path": "packages/element/packages/fast-element/scripts/declarative/build-fixtures-with-webui.js",
       "staged_sha256": "d6bf652915105064cb1027078dde58ffb45c5103d2837a0a63c6fc792c4b05f8",
-      "current_import_sha256": "d6bf652915105064cb1027078dde58ffb45c5103d2837a0a63c6fc792c4b05f8",
+      "current_import_sha256": "c5ab85c2dbe82a784bce08725b4a7490fe1e199f7a3b910860166984a52ba117",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/declarative/build-fixtures.js",
@@ -814,11 +814,11 @@
       "upstream_sha256": "174922a91d849a9cb50492ceaa67ffd1aeff2b49c5bd33cd21077f3f23d67f13",
       "staged_path": "packages/element/packages/fast-element/scripts/declarative/build-fixtures.utilities.js",
       "staged_sha256": "174922a91d849a9cb50492ceaa67ffd1aeff2b49c5bd33cd21077f3f23d67f13",
-      "current_import_sha256": "174922a91d849a9cb50492ceaa67ffd1aeff2b49c5bd33cd21077f3f23d67f13",
+      "current_import_sha256": "f3178a6de30634853d5554d1827bf7747abb1aecc345f1d8a6406f64945be9f3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/measure-sizes.js",
@@ -826,11 +826,11 @@
       "upstream_sha256": "92b9c7f02718b7c57f2a2491da364b71f588f33b7537b7c81a1d03c968166188",
       "staged_path": "packages/element/packages/fast-element/scripts/measure-sizes.js",
       "staged_sha256": "92b9c7f02718b7c57f2a2491da364b71f588f33b7537b7c81a1d03c968166188",
-      "current_import_sha256": "92b9c7f02718b7c57f2a2491da364b71f588f33b7537b7c81a1d03c968166188",
+      "current_import_sha256": "30ffd54906d3c1a080b27f1dd95fe7581c23d80abb29acd627c91741cefadf2d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/run-api-extractor.js",
@@ -994,11 +994,11 @@
       "upstream_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
       "staged_path": "packages/element/packages/fast-element/src/command/command.pw.spec.ts",
       "staged_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
-      "current_import_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
+      "current_import_sha256": "e7611a3b132d45c087ea7db04786c2c6bb4031e2523c4e2e0cd147d637e178cd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/command.ts",
@@ -1162,11 +1162,11 @@
       "upstream_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.pw.spec.ts",
       "staged_sha256": "d2d2375a98c7214429fbff54aed182d55350e94be55ac6f6446eeb295189fda7",
-      "current_import_sha256": "9cf617208dc9cec78db0bf35e720e895ac9f809a2bbe1c46307353763c5a007f",
+      "current_import_sha256": "6b8863da2a5a7a26e1ef3fcbeb0c779f14e8611976b7b2057bebb027556eb991",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Sets the observable on the element before its upgrade, instead of relying on the test runner compiling a declared class field into a constructor assignment: Playwright 1.65 erases the declaration, as TypeScript does, so the change handler the test observes never ran; FAST's connection order is unchanged (#901)"
+      "import_reason": "Sets the observable on the element before its upgrade, instead of relying on the test runner compiling a declared class field into a constructor assignment: Playwright 1.65 erases the declaration, as TypeScript does, so the change handler the test observes never ran; FAST's connection order is unchanged (#901); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-controller.ts",
@@ -1174,11 +1174,11 @@
       "upstream_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.ts",
       "staged_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
-      "current_import_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
+      "current_import_sha256": "8fa37ea3d7454d3ca08307922447d1f8761f061fe3ad75764a3d2eee4a750540",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-hydration.ts",
@@ -1198,11 +1198,11 @@
       "upstream_sha256": "c9045ec7d64e8d80d8c7fff6b3d79d48bcbbb9870a81f6226429e887a11a3c08",
       "staged_path": "packages/element/packages/fast-element/src/components/enable-hydration.ts",
       "staged_sha256": "c9045ec7d64e8d80d8c7fff6b3d79d48bcbbb9870a81f6226429e887a11a3c08",
-      "current_import_sha256": "c9045ec7d64e8d80d8c7fff6b3d79d48bcbbb9870a81f6226429e887a11a3c08",
+      "current_import_sha256": "1960f18fec072b6091825bb50746a5bb743f986882670017b66bf0496f01eba7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/fast-definitions.pw.spec.ts",
@@ -1222,11 +1222,11 @@
       "upstream_sha256": "6b4e95645dda031444c43306131caeddb74cf2a315f9b8ff55967ab4b0d199a6",
       "staged_path": "packages/element/packages/fast-element/src/components/fast-definitions.ts",
       "staged_sha256": "6b4e95645dda031444c43306131caeddb74cf2a315f9b8ff55967ab4b0d199a6",
-      "current_import_sha256": "ecc4fb5d61e79574f6dc5a7a00bf341653896c29ae0a60f6fa5b70dd063bc7e8",
+      "current_import_sha256": "16c1700cac51de108d8a5c5ec116b28a104b390aa5ff0f2f24f1e6b10c13a3ea",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "#806: TypeScript 7's DOM types declare ShadowRootInit.customElementRegistry as CustomElementRegistry | null, which is not assignable to the registry alias (TS2322); a type assertion keeps the runtime value (null stays null) and the emitted JavaScript byte-identical"
+      "import_reason": "#806: TypeScript 7's DOM types declare ShadowRootInit.customElementRegistry as CustomElementRegistry | null, which is not assignable to the registry alias (TS2322); a type assertion keeps the runtime value (null stays null) and the emitted JavaScript byte-identical; Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/fast-element-registry.pw.spec.ts",
@@ -1246,11 +1246,11 @@
       "upstream_sha256": "cbaed7b24edd474c289e795100f1ffa91b4f48ee6227af5d5990e572214a646f",
       "staged_path": "packages/element/packages/fast-element/src/components/fast-element-registry.ts",
       "staged_sha256": "cbaed7b24edd474c289e795100f1ffa91b4f48ee6227af5d5990e572214a646f",
-      "current_import_sha256": "cbaed7b24edd474c289e795100f1ffa91b4f48ee6227af5d5990e572214a646f",
+      "current_import_sha256": "4baf5583009540fe62cc13e29c28d858835f0d08fe0db0dedd34356529152a21",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/fast-element.pw.spec.ts",
@@ -1282,11 +1282,11 @@
       "upstream_sha256": "4619a4a70479d77d8ee7851f618847edb10e6a748284bd10f52f2d482ad6459c",
       "staged_path": "packages/element/packages/fast-element/src/components/hydration-tracker.ts",
       "staged_sha256": "4619a4a70479d77d8ee7851f618847edb10e6a748284bd10f52f2d482ad6459c",
-      "current_import_sha256": "4619a4a70479d77d8ee7851f618847edb10e6a748284bd10f52f2d482ad6459c",
+      "current_import_sha256": "0929cf94c37f61f22f9a1a5478b7bbea171ec97c0642ae6e7092af852feba1df",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/hydration.pw.spec.ts",
@@ -1294,11 +1294,11 @@
       "upstream_sha256": "162275a7e332dae29e42e938e6f3d6883f08820a4134cdf29e35803dda7ab276",
       "staged_path": "packages/element/packages/fast-element/src/components/hydration.pw.spec.ts",
       "staged_sha256": "162275a7e332dae29e42e938e6f3d6883f08820a4134cdf29e35803dda7ab276",
-      "current_import_sha256": "162275a7e332dae29e42e938e6f3d6883f08820a4134cdf29e35803dda7ab276",
+      "current_import_sha256": "f7efff509afa0550d7b0f6704272c218d0588a6e86771f7ca1a6ee80c4969853",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/hydration.ts",
@@ -1306,11 +1306,11 @@
       "upstream_sha256": "68753520573c4ce4e1e1df0912b674ed54d4fbbd96f03184a45be42a71cf9991",
       "staged_path": "packages/element/packages/fast-element/src/components/hydration.ts",
       "staged_sha256": "68753520573c4ce4e1e1df0912b674ed54d4fbbd96f03184a45be42a71cf9991",
-      "current_import_sha256": "68753520573c4ce4e1e1df0912b674ed54d4fbbd96f03184a45be42a71cf9991",
+      "current_import_sha256": "06dcbe47f9233c52242fcdd7872a88fceaf077079b11dcdbb53b101f25a5e0af",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/schema.ts",
@@ -1450,11 +1450,11 @@
       "upstream_sha256": "5ad906cc99baecc32165bce0a4da7353deca91a7a90f0a29b55bc7c7d5fc40b7",
       "staged_path": "packages/element/packages/fast-element/src/declarative/observer-map-utilities.ts",
       "staged_sha256": "5ad906cc99baecc32165bce0a4da7353deca91a7a90f0a29b55bc7c7d5fc40b7",
-      "current_import_sha256": "5ad906cc99baecc32165bce0a4da7353deca91a7a90f0a29b55bc7c7d5fc40b7",
+      "current_import_sha256": "b0d1c85c71a8c0229b3b12d5c0eb0da68dafaaaf06a3885dd62d3735dd63ef45",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/observer-map.spec.ts",
@@ -1546,11 +1546,11 @@
       "upstream_sha256": "8730c5cc715dbc5699cfaad427d7c20168063b6f44afbe264acd780bcf37877d",
       "staged_path": "packages/element/packages/fast-element/src/declarative/template-parser.ts",
       "staged_sha256": "8730c5cc715dbc5699cfaad427d7c20168063b6f44afbe264acd780bcf37877d",
-      "current_import_sha256": "8730c5cc715dbc5699cfaad427d7c20168063b6f44afbe264acd780bcf37877d",
+      "current_import_sha256": "c09111f6f78df638f219d9248bd7083544fcb8fc885c65a4777f9b3f9a9d4149",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/template.ts",
@@ -1786,11 +1786,11 @@
       "upstream_sha256": "6273d8a8e90ad0c9f53c45cb592e6c6ed587cc970a837cc2b95b6ca381d8c30b",
       "staged_path": "packages/element/packages/fast-element/src/dom-policy.pw.spec.ts",
       "staged_sha256": "6273d8a8e90ad0c9f53c45cb592e6c6ed587cc970a837cc2b95b6ca381d8c30b",
-      "current_import_sha256": "6273d8a8e90ad0c9f53c45cb592e6c6ed587cc970a837cc2b95b6ca381d8c30b",
+      "current_import_sha256": "e1be727d1e8611f63fe22b1b628335a7ebfe9970a307b638d98637b66d39269c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/dom-policy.ts",
@@ -1798,11 +1798,11 @@
       "upstream_sha256": "cc63bbec4ef300cadb2a55799e7bf36db33575ea3235277423efaa94a52bc576",
       "staged_path": "packages/element/packages/fast-element/src/dom-policy.ts",
       "staged_sha256": "cc63bbec4ef300cadb2a55799e7bf36db33575ea3235277423efaa94a52bc576",
-      "current_import_sha256": "cc63bbec4ef300cadb2a55799e7bf36db33575ea3235277423efaa94a52bc576",
+      "current_import_sha256": "3f67be3de3fe88834100893d4d494829bbb94422389937f7b33e94feefc9dc32",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/dom.ts",
@@ -1810,11 +1810,11 @@
       "upstream_sha256": "e22eda38a6b1c0c31dc1907c88435eac1d587189874eb2996593e8c889e14a00",
       "staged_path": "packages/element/packages/fast-element/src/dom.ts",
       "staged_sha256": "e22eda38a6b1c0c31dc1907c88435eac1d587189874eb2996593e8c889e14a00",
-      "current_import_sha256": "e22eda38a6b1c0c31dc1907c88435eac1d587189874eb2996593e8c889e14a00",
+      "current_import_sha256": "24d8daf6c9c9a87e8e935774db879c149198bfb079fd4b2503149a95cc7835d0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/diagnostics.ts",
@@ -1834,11 +1834,11 @@
       "upstream_sha256": "73aa56e2d1325fc50a7c4472176bdb916bbc9b2b7d562765f1923a333c689abc",
       "staged_path": "packages/element/packages/fast-element/src/hydration/exports.ts",
       "staged_sha256": "73aa56e2d1325fc50a7c4472176bdb916bbc9b2b7d562765f1923a333c689abc",
-      "current_import_sha256": "73aa56e2d1325fc50a7c4472176bdb916bbc9b2b7d562765f1923a333c689abc",
+      "current_import_sha256": "a0e2859ab0e26c54b0a000995af1a98a351f7f0573fe98c184d1c3d30780830e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/hydration-debugger.ts",
@@ -1846,11 +1846,11 @@
       "upstream_sha256": "1ac0afe94fb02d5a63c8811453d92a92212c3f37429746605a4eb3deefe286d6",
       "staged_path": "packages/element/packages/fast-element/src/hydration/hydration-debugger.ts",
       "staged_sha256": "1ac0afe94fb02d5a63c8811453d92a92212c3f37429746605a4eb3deefe286d6",
-      "current_import_sha256": "1ac0afe94fb02d5a63c8811453d92a92212c3f37429746605a4eb3deefe286d6",
+      "current_import_sha256": "db18a653515c5130ea2a01bcbc658b6bc603d1f469adc43fd27f27a74733a11d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/messages.ts",
@@ -1858,11 +1858,11 @@
       "upstream_sha256": "4401d4ba51c2b2fa1eac4f2cf2d3812035ccb7fb26dd84124fb544e82b054be7",
       "staged_path": "packages/element/packages/fast-element/src/hydration/messages.ts",
       "staged_sha256": "4401d4ba51c2b2fa1eac4f2cf2d3812035ccb7fb26dd84124fb544e82b054be7",
-      "current_import_sha256": "4401d4ba51c2b2fa1eac4f2cf2d3812035ccb7fb26dd84124fb544e82b054be7",
+      "current_import_sha256": "4d9834c5330afe239171d436ab39f186673d199844c7ef74e0d928262014e670",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/runtime.ts",
@@ -1870,11 +1870,11 @@
       "upstream_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
       "staged_path": "packages/element/packages/fast-element/src/hydration/runtime.ts",
       "staged_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
-      "current_import_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
+      "current_import_sha256": "b940d2302c9f735fbc79ce798f5b39a499b4f8b1ac91de9ece6b4b8c1c5ee031",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/target-builder.ts",
@@ -1882,11 +1882,11 @@
       "upstream_sha256": "a40a64ce11bd8a27fbcf5fe066273463eacb180f7169377858ca804b5d9c894f",
       "staged_path": "packages/element/packages/fast-element/src/hydration/target-builder.ts",
       "staged_sha256": "a40a64ce11bd8a27fbcf5fe066273463eacb180f7169377858ca804b5d9c894f",
-      "current_import_sha256": "a40a64ce11bd8a27fbcf5fe066273463eacb180f7169377858ca804b5d9c894f",
+      "current_import_sha256": "20bb8a4fa0f326fa74ea27bfcbc450d47a41178f386c5744ecd8601fcb6453e8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/index.debug.ts",
@@ -1906,11 +1906,11 @@
       "upstream_sha256": "77985e9edeff9f0fe03ffd1269dfe469face7959e2a081c40c9bd6ff0b9f870f",
       "staged_path": "packages/element/packages/fast-element/src/index.rollup.debug.ts",
       "staged_sha256": "77985e9edeff9f0fe03ffd1269dfe469face7959e2a081c40c9bd6ff0b9f870f",
-      "current_import_sha256": "77985e9edeff9f0fe03ffd1269dfe469face7959e2a081c40c9bd6ff0b9f870f",
+      "current_import_sha256": "71f28846bdcb169488071c3d8736bc3e8a285de9e2912a4684f7119fe217ef6d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/index.rollup.ts",
@@ -1918,11 +1918,11 @@
       "upstream_sha256": "8c19b18f0b95515543669605b985314cc5c90ca14ea971c64e6885a39d248621",
       "staged_path": "packages/element/packages/fast-element/src/index.rollup.ts",
       "staged_sha256": "8c19b18f0b95515543669605b985314cc5c90ca14ea971c64e6885a39d248621",
-      "current_import_sha256": "8c19b18f0b95515543669605b985314cc5c90ca14ea971c64e6885a39d248621",
+      "current_import_sha256": "97e1818573679b5d3d697406abd3e5f1e9cd00da1f2783ab236912180462f5be",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/index.ts",
@@ -1966,11 +1966,11 @@
       "upstream_sha256": "e48362b4358e37edb39cfdb42f0df304c9dc52815fad8fd14e0e00f6a10ea14a",
       "staged_path": "packages/element/packages/fast-element/src/metadata.ts",
       "staged_sha256": "e48362b4358e37edb39cfdb42f0df304c9dc52815fad8fd14e0e00f6a10ea14a",
-      "current_import_sha256": "e48362b4358e37edb39cfdb42f0df304c9dc52815fad8fd14e0e00f6a10ea14a",
+      "current_import_sha256": "86f186c3d9ad9b328cdd8f479ed0f8e3d508bfd448ebabc940214c1b827ac43c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/observation/arrays.pw.spec.ts",
@@ -1978,11 +1978,11 @@
       "upstream_sha256": "051c40c303bc3a34a7b1857274a1424801f1ebbe1d9018f9eec09f3aab2957e5",
       "staged_path": "packages/element/packages/fast-element/src/observation/arrays.pw.spec.ts",
       "staged_sha256": "051c40c303bc3a34a7b1857274a1424801f1ebbe1d9018f9eec09f3aab2957e5",
-      "current_import_sha256": "051c40c303bc3a34a7b1857274a1424801f1ebbe1d9018f9eec09f3aab2957e5",
+      "current_import_sha256": "8b491b994035263cadd8fbcc016e284c411e947f52cf469707d9149dace6783d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/observation/arrays.ts",
@@ -1990,11 +1990,11 @@
       "upstream_sha256": "93e7569347976b256cc4d258e47bf894121d301884d79df921a816a1c7e61f01",
       "staged_path": "packages/element/packages/fast-element/src/observation/arrays.ts",
       "staged_sha256": "93e7569347976b256cc4d258e47bf894121d301884d79df921a816a1c7e61f01",
-      "current_import_sha256": "93e7569347976b256cc4d258e47bf894121d301884d79df921a816a1c7e61f01",
+      "current_import_sha256": "236c45950b54d2902c580b137fb47f205a46df90cb375e6f9f804cc24c30ee38",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/observation/notifier.pw.spec.ts",
@@ -2050,11 +2050,11 @@
       "upstream_sha256": "d85fc22332e36ae79d5a203459be9ef4ab5ad13b9d1c34fce445c40d07f9d493",
       "staged_path": "packages/element/packages/fast-element/src/observation/update-queue.pw.spec.ts",
       "staged_sha256": "d85fc22332e36ae79d5a203459be9ef4ab5ad13b9d1c34fce445c40d07f9d493",
-      "current_import_sha256": "d85fc22332e36ae79d5a203459be9ef4ab5ad13b9d1c34fce445c40d07f9d493",
+      "current_import_sha256": "9b40b162b3d48ed69e6951f9e084c68bef539e1f2ee5875cadefc4c14b5d026a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/observation/update-queue.ts",
@@ -2170,11 +2170,11 @@
       "upstream_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
       "staged_path": "packages/element/packages/fast-element/src/scoped/mixin.ts",
       "staged_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
-      "current_import_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
+      "current_import_sha256": "19205556322e41498130968ef97e1f4be1932db6f89348a046b06d4fb9a039e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/registry.ts",
@@ -2386,11 +2386,11 @@
       "upstream_sha256": "3e9982b6f407614e409ca0bef5afade35ac0faf13ba0b1d40185c1032d1d48d9",
       "staged_path": "packages/element/packages/fast-element/src/templating/binding.pw.spec.ts",
       "staged_sha256": "3e9982b6f407614e409ca0bef5afade35ac0faf13ba0b1d40185c1032d1d48d9",
-      "current_import_sha256": "3e9982b6f407614e409ca0bef5afade35ac0faf13ba0b1d40185c1032d1d48d9",
+      "current_import_sha256": "2356b9cdb432b94f7d04ffa5a6c2df4963b45b00f34f0b958e452035e9ef811a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/children.pw.spec.ts",
@@ -2422,11 +2422,11 @@
       "upstream_sha256": "7b07c748ee52d89c0822a4b3709126c64b0469e10970656bd684e1449c883c34",
       "staged_path": "packages/element/packages/fast-element/src/templating/compiler.pw.spec.ts",
       "staged_sha256": "7b07c748ee52d89c0822a4b3709126c64b0469e10970656bd684e1449c883c34",
-      "current_import_sha256": "7b07c748ee52d89c0822a4b3709126c64b0469e10970656bd684e1449c883c34",
+      "current_import_sha256": "ba75e6e4f5646fba2560dd9e599ba4de1754f8b596c0932ccce254f6b5adc9e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/compiler.ts",
@@ -2434,11 +2434,11 @@
       "upstream_sha256": "40829223286fc0e8a890204ee242667a953deee44bb51ee6ed0d73cac2628d02",
       "staged_path": "packages/element/packages/fast-element/src/templating/compiler.ts",
       "staged_sha256": "40829223286fc0e8a890204ee242667a953deee44bb51ee6ed0d73cac2628d02",
-      "current_import_sha256": "40829223286fc0e8a890204ee242667a953deee44bb51ee6ed0d73cac2628d02",
+      "current_import_sha256": "ec4b7423932b14f0b3c2e9144991b355bc0643d874e4ef391180633df72e3344",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/html-binding-directive.ts",
@@ -2446,11 +2446,11 @@
       "upstream_sha256": "499b23171373e77328739a4149ea1ee20790cd711193597b76d7e3ddf1abf259",
       "staged_path": "packages/element/packages/fast-element/src/templating/html-binding-directive.ts",
       "staged_sha256": "499b23171373e77328739a4149ea1ee20790cd711193597b76d7e3ddf1abf259",
-      "current_import_sha256": "499b23171373e77328739a4149ea1ee20790cd711193597b76d7e3ddf1abf259",
+      "current_import_sha256": "5323700a4b8a4241b1eee5b7fd19feddb9df8eb1e57a1afe78950a576f813362",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/html-directive.ts",
@@ -2458,11 +2458,11 @@
       "upstream_sha256": "f9c4144b35163758d6aa11a4c009a2342c0146afdb31bbdfaca1c871248244a0",
       "staged_path": "packages/element/packages/fast-element/src/templating/html-directive.ts",
       "staged_sha256": "f9c4144b35163758d6aa11a4c009a2342c0146afdb31bbdfaca1c871248244a0",
-      "current_import_sha256": "f9c4144b35163758d6aa11a4c009a2342c0146afdb31bbdfaca1c871248244a0",
+      "current_import_sha256": "5f7d84ad06d53c35de6a1166c9407f3711bce92351e001e525fbcccc4d81808b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/html.ts",
@@ -2482,11 +2482,11 @@
       "upstream_sha256": "1e0459c993f46d153edfeca201c956ac65dbf2a0bed67fa34fb294457889497e",
       "staged_path": "packages/element/packages/fast-element/src/templating/hydration-view.ts",
       "staged_sha256": "1e0459c993f46d153edfeca201c956ac65dbf2a0bed67fa34fb294457889497e",
-      "current_import_sha256": "1e0459c993f46d153edfeca201c956ac65dbf2a0bed67fa34fb294457889497e",
+      "current_import_sha256": "35f0ca194460953eba4df67e3865de2984d5d72f3792f35a94c102ee6e7a6ead",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/markup.ts",
@@ -2578,11 +2578,11 @@
       "upstream_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
       "staged_path": "packages/element/packages/fast-element/src/templating/render.ts",
       "staged_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
-      "current_import_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
+      "current_import_sha256": "057d6a95881091bcc28e2e4be5580c7bbc709f62d871f73a437111d98a676b5f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/repeat-lifecycle.pw.spec.ts",
@@ -2602,11 +2602,11 @@
       "upstream_sha256": "0d307f6754e2a1637c1894cb9d676f663e7dc599f872bcbc8491fd3cda568475",
       "staged_path": "packages/element/packages/fast-element/src/templating/repeat.pw.spec.ts",
       "staged_sha256": "0d307f6754e2a1637c1894cb9d676f663e7dc599f872bcbc8491fd3cda568475",
-      "current_import_sha256": "0d307f6754e2a1637c1894cb9d676f663e7dc599f872bcbc8491fd3cda568475",
+      "current_import_sha256": "f666d1b855493fa8457c96ee027aea370373c746d0903d4052ab6392ababe7a6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/repeat.ts",
@@ -2614,11 +2614,11 @@
       "upstream_sha256": "d0e45b04d1bbeacb641a34871d7a2291e4acd11bd9b7a10d716cc3acb639ced3",
       "staged_path": "packages/element/packages/fast-element/src/templating/repeat.ts",
       "staged_sha256": "d0e45b04d1bbeacb641a34871d7a2291e4acd11bd9b7a10d716cc3acb639ced3",
-      "current_import_sha256": "d0e45b04d1bbeacb641a34871d7a2291e4acd11bd9b7a10d716cc3acb639ced3",
+      "current_import_sha256": "f44daf24ad052da15a8f0b24444bf4bc445cd1d5b38bae34a97492e6e6753bce",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/slotted.pw.spec.ts",
@@ -2686,11 +2686,11 @@
       "upstream_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
       "staged_path": "packages/element/packages/fast-element/src/templating/view.ts",
       "staged_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
-      "current_import_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
+      "current_import_sha256": "e214578f0bdfbfbe149140180d3d5638268146c31c12a5e2032b78999e2c0f95",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/when.pw.spec.ts",
@@ -2698,11 +2698,11 @@
       "upstream_sha256": "93f6325af016546ddb8b549cb0ad247b9cf9338e9ff0a62763f804fb01914ede",
       "staged_path": "packages/element/packages/fast-element/src/templating/when.pw.spec.ts",
       "staged_sha256": "93f6325af016546ddb8b549cb0ad247b9cf9338e9ff0a62763f804fb01914ede",
-      "current_import_sha256": "93f6325af016546ddb8b549cb0ad247b9cf9338e9ff0a62763f804fb01914ede",
+      "current_import_sha256": "95720d0939c5ffe33377bdfc9922762e1a769945eadf6573d739afdfe0a0924f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/when.ts",
@@ -2710,11 +2710,11 @@
       "upstream_sha256": "add38438cee348b287188f2ac7249e6da17fb3bbe4594b5a7df0614a0dc012a2",
       "staged_path": "packages/element/packages/fast-element/src/templating/when.ts",
       "staged_sha256": "add38438cee348b287188f2ac7249e6da17fb3bbe4594b5a7df0614a0dc012a2",
-      "current_import_sha256": "add38438cee348b287188f2ac7249e6da17fb3bbe4594b5a7df0614a0dc012a2",
+      "current_import_sha256": "4e3d935bd89b256b41f00f2acb78641510c39c80d4b4844995524f68d2c5f603",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/testing/exports.ts",
@@ -2890,11 +2890,11 @@
       "upstream_sha256": "fc090981704d8bb32d16107c817b315a11ff64b9eb2eea20c8d3f29635ab4bb3",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/WRITING_FIXTURES.md",
       "staged_sha256": "fc090981704d8bb32d16107c817b315a11ff64b9eb2eea20c8d3f29635ab4bb3",
-      "current_import_sha256": "fc090981704d8bb32d16107c817b315a11ff64b9eb2eea20c8d3f29635ab4bb3",
+      "current_import_sha256": "1cda7f60b3ed21962900fdc662a7cc6082788b853f4a5642127b22a52b495873",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/README.md",
@@ -2902,11 +2902,11 @@
       "upstream_sha256": "fab5e5fed7254fbce61b438919df0b3254e1365830a636d0973b75c69b51b2d4",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/README.md",
       "staged_sha256": "fab5e5fed7254fbce61b438919df0b3254e1365830a636d0973b75c69b51b2d4",
-      "current_import_sha256": "fab5e5fed7254fbce61b438919df0b3254e1365830a636d0973b75c69b51b2d4",
+      "current_import_sha256": "9170bd187304ce6ae0068f4576eae402550afe0d2ffc21aab6e5472a02d4db74",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/attribute.spec.ts",
@@ -2914,11 +2914,11 @@
       "upstream_sha256": "af6dacf65c7a91ff2adf2ce33153d6aa6fa18ded1e1a52a6ed1c6323d3989a0b",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/attribute.spec.ts",
       "staged_sha256": "af6dacf65c7a91ff2adf2ce33153d6aa6fa18ded1e1a52a6ed1c6323d3989a0b",
-      "current_import_sha256": "af6dacf65c7a91ff2adf2ce33153d6aa6fa18ded1e1a52a6ed1c6323d3989a0b",
+      "current_import_sha256": "a3e5190ec7bad7531fa1e155763181f36116f344eda9d2c6b3b5e5ddbfe47c57",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/entry.html",
@@ -2926,11 +2926,11 @@
       "upstream_sha256": "349049c2a574ebc31b3d115c48df84d00902367503c24f28f9798074945954cd",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/entry.html",
       "staged_sha256": "349049c2a574ebc31b3d115c48df84d00902367503c24f28f9798074945954cd",
-      "current_import_sha256": "349049c2a574ebc31b3d115c48df84d00902367503c24f28f9798074945954cd",
+      "current_import_sha256": "0a97e51c7e5e8bc9d2541c450892634a68357abf8ec76ee864f70f72a99b8bf4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/fast-build.config.json",
@@ -2950,11 +2950,11 @@
       "upstream_sha256": "e3e34d904e7b121b8af68e55802d97d02c66e32e094bc81264c51623b6809e24",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/index.html",
       "staged_sha256": "e3e34d904e7b121b8af68e55802d97d02c66e32e094bc81264c51623b6809e24",
-      "current_import_sha256": "e3e34d904e7b121b8af68e55802d97d02c66e32e094bc81264c51623b6809e24",
+      "current_import_sha256": "3a533ac9304cf272c063fa566eefe6de37ab892b07c74d8228c3f97682911b0a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/main.ts",
@@ -2962,11 +2962,11 @@
       "upstream_sha256": "e6bc8c847f77aedba68b4359794bd3dfe063f25eefa4797a295fc550eca20617",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/main.ts",
       "staged_sha256": "e6bc8c847f77aedba68b4359794bd3dfe063f25eefa4797a295fc550eca20617",
-      "current_import_sha256": "e6bc8c847f77aedba68b4359794bd3dfe063f25eefa4797a295fc550eca20617",
+      "current_import_sha256": "1e1d0c60d371121c6f688f3e74ac0ca53920c4cc98a6d4fe487d1976120cd4e1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/state.json",
@@ -2974,11 +2974,11 @@
       "upstream_sha256": "6caa079e2d2396fbdad92cb1ebcbc92c8c89767a2c1a30d10a2ba45f839c1de6",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/state.json",
       "staged_sha256": "6caa079e2d2396fbdad92cb1ebcbc92c8c89767a2c1a30d10a2ba45f839c1de6",
-      "current_import_sha256": "6caa079e2d2396fbdad92cb1ebcbc92c8c89767a2c1a30d10a2ba45f839c1de6",
+      "current_import_sha256": "7d0e71d381987f3bd1ec9f6c8c79f827f9a0f23b89735a591f9ddcf56bd75cd9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/templates.html",
@@ -2986,11 +2986,11 @@
       "upstream_sha256": "ae999ebdc7ffab6c2991d8d690fea6aae65785a544f8461e35f97d21adf00d33",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/attribute/templates.html",
       "staged_sha256": "ae999ebdc7ffab6c2991d8d690fea6aae65785a544f8461e35f97d21adf00d33",
-      "current_import_sha256": "ae999ebdc7ffab6c2991d8d690fea6aae65785a544f8461e35f97d21adf00d33",
+      "current_import_sha256": "e39ad2989e939d5af7ea0483974a51201a44fb05425bbfcdae5cecdb0c895b60",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/content/content.spec.ts",
@@ -2998,11 +2998,11 @@
       "upstream_sha256": "0c6b60f4580a4765eb99c05fe96e0d56e6253dff828e0bc54281051cff32c1b3",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/content/content.spec.ts",
       "staged_sha256": "0c6b60f4580a4765eb99c05fe96e0d56e6253dff828e0bc54281051cff32c1b3",
-      "current_import_sha256": "0c6b60f4580a4765eb99c05fe96e0d56e6253dff828e0bc54281051cff32c1b3",
+      "current_import_sha256": "cd115cd4e3fb9efe6b2da410b6ba907a25a9cf0b76d25cc3e3b5486633bba772",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/content/entry.html",
@@ -3046,11 +3046,11 @@
       "upstream_sha256": "f75caacd99bd54b4ad0ae220852a8193792f69412ea45607cd90e5713d46f88c",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/content/main.ts",
       "staged_sha256": "f75caacd99bd54b4ad0ae220852a8193792f69412ea45607cd90e5713d46f88c",
-      "current_import_sha256": "f75caacd99bd54b4ad0ae220852a8193792f69412ea45607cd90e5713d46f88c",
+      "current_import_sha256": "c1c25df15abf021fde353ac1617484dabef4f703fb1167adaa2df8cb09e78abf",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/content/state.json",
@@ -3274,11 +3274,11 @@
       "upstream_sha256": "6751d20d5a63f47a46b1ed39cb568fe1b54b0a447fe9ab73aa4848cb826703dd",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/bindings/host/host.spec.ts",
       "staged_sha256": "6751d20d5a63f47a46b1ed39cb568fe1b54b0a447fe9ab73aa4848cb826703dd",
-      "current_import_sha256": "6751d20d5a63f47a46b1ed39cb568fe1b54b0a447fe9ab73aa4848cb826703dd",
+      "current_import_sha256": "46dead7a9b66fcbdbfd5c0ef96158560eca2f70e3599e53540915af245bca01c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/bindings/host/index.html",
@@ -3334,11 +3334,11 @@
       "upstream_sha256": "cd0ea2c5f5aa16d2b5e3be946925584a98e60dd9282cab1c7088e7614e7b5801",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/README.md",
       "staged_sha256": "cd0ea2c5f5aa16d2b5e3be946925584a98e60dd9282cab1c7088e7614e7b5801",
-      "current_import_sha256": "cd0ea2c5f5aa16d2b5e3be946925584a98e60dd9282cab1c7088e7614e7b5801",
+      "current_import_sha256": "a876ef819152303232df6b8406181816614d45c01360b30d130aa5f7d02d29a0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/children/children.spec.ts",
@@ -3346,11 +3346,11 @@
       "upstream_sha256": "03abb6c779255af3fea779485fc7ebaeaba0000e2e7242e73e73cce4764f95c2",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/children/children.spec.ts",
       "staged_sha256": "03abb6c779255af3fea779485fc7ebaeaba0000e2e7242e73e73cce4764f95c2",
-      "current_import_sha256": "03abb6c779255af3fea779485fc7ebaeaba0000e2e7242e73e73cce4764f95c2",
+      "current_import_sha256": "23252824f6ada409d37d1be1ec2c6b2ad2769c9551927f24f4b667d758934566",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/children/entry.html",
@@ -3382,11 +3382,11 @@
       "upstream_sha256": "0b57e59e24ace6056351a4dc08d26d24223686dd35a7d8f7700f82e5b2ddb60d",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/children/index.html",
       "staged_sha256": "0b57e59e24ace6056351a4dc08d26d24223686dd35a7d8f7700f82e5b2ddb60d",
-      "current_import_sha256": "0b57e59e24ace6056351a4dc08d26d24223686dd35a7d8f7700f82e5b2ddb60d",
+      "current_import_sha256": "01de5cb00a90dd5eee9f3dd5da2b7d15b2a6fe61765c4071c6b315a59c266f28",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/children/main.ts",
@@ -3394,11 +3394,11 @@
       "upstream_sha256": "96fc127e04518088dd50148f1e61d4e463733445ddfbb770447fd1cde19ef484",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/children/main.ts",
       "staged_sha256": "96fc127e04518088dd50148f1e61d4e463733445ddfbb770447fd1cde19ef484",
-      "current_import_sha256": "96fc127e04518088dd50148f1e61d4e463733445ddfbb770447fd1cde19ef484",
+      "current_import_sha256": "af58be625010338ee4502c1a2002af07aa30e4f034bddf250e6fa5d4d9e77f3b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/children/state.json",
@@ -3418,11 +3418,11 @@
       "upstream_sha256": "540cfdf45081254c1a152689311ee5522038c2bca4a80b94b6bb8dd8617b8ab8",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/children/templates.html",
       "staged_sha256": "540cfdf45081254c1a152689311ee5522038c2bca4a80b94b6bb8dd8617b8ab8",
-      "current_import_sha256": "540cfdf45081254c1a152689311ee5522038c2bca4a80b94b6bb8dd8617b8ab8",
+      "current_import_sha256": "d525ed2b6a1176ea76af1057f73b52df1fa65b5ee990aced062b750c6fa283d2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/ref/entry.html",
@@ -3514,11 +3514,11 @@
       "upstream_sha256": "32f04362f75c9692534280665a7acb6411f28b51dfc68d2ce1f91a7d2278c30d",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/entry.html",
       "staged_sha256": "32f04362f75c9692534280665a7acb6411f28b51dfc68d2ce1f91a7d2278c30d",
-      "current_import_sha256": "32f04362f75c9692534280665a7acb6411f28b51dfc68d2ce1f91a7d2278c30d",
+      "current_import_sha256": "b53613c4da93a8f608b4912a778bb90ec19f92c66b1d7630acda3c621ad9b4a6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/fast-build.config.json",
@@ -3538,11 +3538,11 @@
       "upstream_sha256": "a7238ed67c283f1a43d7cf7d283a5c7430d91bb97c83f7b52a90feaa86aa80a0",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/index.html",
       "staged_sha256": "a7238ed67c283f1a43d7cf7d283a5c7430d91bb97c83f7b52a90feaa86aa80a0",
-      "current_import_sha256": "a7238ed67c283f1a43d7cf7d283a5c7430d91bb97c83f7b52a90feaa86aa80a0",
+      "current_import_sha256": "16c154e49f698dbe6cd3a251831bee2cf9048999ffda02f532bd5440f44a4eb0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/main.ts",
@@ -3550,11 +3550,11 @@
       "upstream_sha256": "89cb7df25b23259a2f7ddfdfcebe1eefb2b9f5114d60ce5bf01451cc03ed3430",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/main.ts",
       "staged_sha256": "89cb7df25b23259a2f7ddfdfcebe1eefb2b9f5114d60ce5bf01451cc03ed3430",
-      "current_import_sha256": "89cb7df25b23259a2f7ddfdfcebe1eefb2b9f5114d60ce5bf01451cc03ed3430",
+      "current_import_sha256": "226092b4f0d8be9a74fafc407b37da9777c026cff628dbcfbd2b631d7287a96c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/repeat.spec.ts",
@@ -3562,11 +3562,11 @@
       "upstream_sha256": "5746120268b7373cef9c9b8883362a7a3f81e98319cb237cf499b1b6d61233d1",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/repeat.spec.ts",
       "staged_sha256": "5746120268b7373cef9c9b8883362a7a3f81e98319cb237cf499b1b6d61233d1",
-      "current_import_sha256": "5746120268b7373cef9c9b8883362a7a3f81e98319cb237cf499b1b6d61233d1",
+      "current_import_sha256": "30f1c4781f5f004ab8262583816f09e9d66d80c63da5f6a2b9e8806b7f8ce664",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/sprites.svg",
@@ -3586,11 +3586,11 @@
       "upstream_sha256": "ae0a801929a30493e5bf7e9bafaebea2a40c7237e2ab73125b34c42914a2f88d",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/state.json",
       "staged_sha256": "ae0a801929a30493e5bf7e9bafaebea2a40c7237e2ab73125b34c42914a2f88d",
-      "current_import_sha256": "ae0a801929a30493e5bf7e9bafaebea2a40c7237e2ab73125b34c42914a2f88d",
+      "current_import_sha256": "ba1cc02c6f1458467666ac667acb60fa5bb2b300007a5d6ba053c515e6a47f5a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/templates.html",
@@ -3598,11 +3598,11 @@
       "upstream_sha256": "6f4c4b7586f4bc9dd40f80e57c42e8e086a38e3973f4400d6005a8cfbea5cb1a",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/repeat/templates.html",
       "staged_sha256": "6f4c4b7586f4bc9dd40f80e57c42e8e086a38e3973f4400d6005a8cfbea5cb1a",
-      "current_import_sha256": "6f4c4b7586f4bc9dd40f80e57c42e8e086a38e3973f4400d6005a8cfbea5cb1a",
+      "current_import_sha256": "864556920085a6130ba565962b5d0db74ebb5af1e358479d099571b403a8482c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/slotted/entry.html",
@@ -3694,11 +3694,11 @@
       "upstream_sha256": "0d7a8e7bc1dd391efec5bbedef0ab061ab02e41018dd1a950cdcb4a9893a9abe",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/when/entry.html",
       "staged_sha256": "0d7a8e7bc1dd391efec5bbedef0ab061ab02e41018dd1a950cdcb4a9893a9abe",
-      "current_import_sha256": "0d7a8e7bc1dd391efec5bbedef0ab061ab02e41018dd1a950cdcb4a9893a9abe",
+      "current_import_sha256": "e2d36be38fb8b132acd815c85ca4f6c5d6fe94c99f4029ae47ea422e00851537",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/when/fast-build.config.json",
@@ -3718,11 +3718,11 @@
       "upstream_sha256": "f7449b272fb5c3cc46c28ce742fb0b108e00a613afd81c7e35ffe6676e4fc2f3",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/when/index.html",
       "staged_sha256": "f7449b272fb5c3cc46c28ce742fb0b108e00a613afd81c7e35ffe6676e4fc2f3",
-      "current_import_sha256": "f7449b272fb5c3cc46c28ce742fb0b108e00a613afd81c7e35ffe6676e4fc2f3",
+      "current_import_sha256": "cb0ea2710e1ab4dac5d9c6c02aec5e73631f04a59773b75fd2b35498ad08ae83",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/when/main.ts",
@@ -3730,11 +3730,11 @@
       "upstream_sha256": "58585168e44108b1ca46844e15b5ce0ceb5f189260ab9fdc586d2dd30f4f2d17",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/when/main.ts",
       "staged_sha256": "58585168e44108b1ca46844e15b5ce0ceb5f189260ab9fdc586d2dd30f4f2d17",
-      "current_import_sha256": "58585168e44108b1ca46844e15b5ce0ceb5f189260ab9fdc586d2dd30f4f2d17",
+      "current_import_sha256": "14f2e068866b9b86aa50849735e52540f7f79913e156fc887f40f5776cb04b37",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/when/state.json",
@@ -3754,11 +3754,11 @@
       "upstream_sha256": "6fef1366046d1e54eb9c83da23bb1e72348fac93bd7771a2171963ce52155d8e",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/when/templates.html",
       "staged_sha256": "6fef1366046d1e54eb9c83da23bb1e72348fac93bd7771a2171963ce52155d8e",
-      "current_import_sha256": "6fef1366046d1e54eb9c83da23bb1e72348fac93bd7771a2171963ce52155d8e",
+      "current_import_sha256": "8476a2ef3f6bb347b70a282b557019f064d4ce7ffd11bf93156aec4aa406f363",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/directives/when/when.spec.ts",
@@ -3766,11 +3766,11 @@
       "upstream_sha256": "fd5cd1d48cbabd778380ba404975c3102dc2c7d737b16125bfba515e82607d9e",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/directives/when/when.spec.ts",
       "staged_sha256": "fd5cd1d48cbabd778380ba404975c3102dc2c7d737b16125bfba515e82607d9e",
-      "current_import_sha256": "fd5cd1d48cbabd778380ba404975c3102dc2c7d737b16125bfba515e82607d9e",
+      "current_import_sha256": "16de4e33379518c3f45479e9e5c80a84d7e2b73116122db835a2c803308edb1f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/README.md",
@@ -3778,11 +3778,11 @@
       "upstream_sha256": "cc3a21ec4e289e42cbf0467088db1321379033e83ce4ac3a798e5ad2cbfae99c",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/README.md",
       "staged_sha256": "cc3a21ec4e289e42cbf0467088db1321379033e83ce4ac3a798e5ad2cbfae99c",
-      "current_import_sha256": "cc3a21ec4e289e42cbf0467088db1321379033e83ce4ac3a798e5ad2cbfae99c",
+      "current_import_sha256": "41948c565432ba90ea32d4ef0b421557cf02a8a502ae7fb8a615317aae2a0bb9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/declarative-no-hydration/declarative-no-hydration.spec.ts",
@@ -3886,11 +3886,11 @@
       "upstream_sha256": "0ed2a474391f69254db13ddabfe2d9228920de43becc4624d2a792ee7fbd938e",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/errors/errors.spec.ts",
       "staged_sha256": "0ed2a474391f69254db13ddabfe2d9228920de43becc4624d2a792ee7fbd938e",
-      "current_import_sha256": "0ed2a474391f69254db13ddabfe2d9228920de43becc4624d2a792ee7fbd938e",
+      "current_import_sha256": "750f3a46a96cc709b9adc49630ad3494ff26c21b9f3d56e8c9a58100f7a75812",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/errors/fast-build.config.json",
@@ -3982,11 +3982,11 @@
       "upstream_sha256": "9a0107bc291f18b44c52abb201f9e6cb5574cc4435353cf342f3bff873e408e3",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-config/hydration-config.spec.ts",
       "staged_sha256": "9a0107bc291f18b44c52abb201f9e6cb5574cc4435353cf342f3bff873e408e3",
-      "current_import_sha256": "9a0107bc291f18b44c52abb201f9e6cb5574cc4435353cf342f3bff873e408e3",
+      "current_import_sha256": "0fec20c039b5ee2db3398cef7f48fa0471e48c8993c331420027839245ead3a6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-config/index.html",
@@ -4618,11 +4618,11 @@
       "upstream_sha256": "4b4e89757bcdc50f79dc94db0d91c1f7bbd238d042ce136ec1094d86be0e2761",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/extensions/observer-map-deep-merge/main.ts",
       "staged_sha256": "4b4e89757bcdc50f79dc94db0d91c1f7bbd238d042ce136ec1094d86be0e2761",
-      "current_import_sha256": "4b4e89757bcdc50f79dc94db0d91c1f7bbd238d042ce136ec1094d86be0e2761",
+      "current_import_sha256": "ab44507cfb416995c1fd6d12e5324e207e6ad44add153694905c66106440430a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/extensions/observer-map-deep-merge/observer-map-deep-merge.spec.ts",
@@ -4630,11 +4630,11 @@
       "upstream_sha256": "bbe2fab1bddbdc6d957f69a38325d63a12a34999745786196169c9fbd12d86ba",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/extensions/observer-map-deep-merge/observer-map-deep-merge.spec.ts",
       "staged_sha256": "bbe2fab1bddbdc6d957f69a38325d63a12a34999745786196169c9fbd12d86ba",
-      "current_import_sha256": "bbe2fab1bddbdc6d957f69a38325d63a12a34999745786196169c9fbd12d86ba",
+      "current_import_sha256": "b2f0f6306746c59cb912e3e0ccbf3b868dbc47b2644a79dca87bc1f69119ef2f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/extensions/observer-map-deep-merge/state.json",
@@ -4834,11 +4834,11 @@
       "upstream_sha256": "21e2c6404c49654dc12581115839c47755d1b4863328d9ead9cc3e1c300ff30f",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/README.md",
       "staged_sha256": "21e2c6404c49654dc12581115839c47755d1b4863328d9ead9cc3e1c300ff30f",
-      "current_import_sha256": "21e2c6404c49654dc12581115839c47755d1b4863328d9ead9cc3e1c300ff30f",
+      "current_import_sha256": "a181d201a2f6f475fa19f09383bfaa5e3101f7238a64f6722c6677eaa7c1f05d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/code-sample/code-sample.spec.ts",
@@ -5014,11 +5014,11 @@
       "upstream_sha256": "79a138603bc27e93d79246608c5a67a3142e26757bd9956efa7704ba269f4ce0",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/entry.html",
       "staged_sha256": "79a138603bc27e93d79246608c5a67a3142e26757bd9956efa7704ba269f4ce0",
-      "current_import_sha256": "79a138603bc27e93d79246608c5a67a3142e26757bd9956efa7704ba269f4ce0",
+      "current_import_sha256": "62b1e8509444708516330d5251057d0015cce4d1dbcde920523f4ef18eaf745c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/fast-build.config.json",
@@ -5038,11 +5038,11 @@
       "upstream_sha256": "babec9f2bd9fee62fc0e6e73967c1abe0935751529b1f19ac85cf22e3de36420",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/index.html",
       "staged_sha256": "babec9f2bd9fee62fc0e6e73967c1abe0935751529b1f19ac85cf22e3de36420",
-      "current_import_sha256": "babec9f2bd9fee62fc0e6e73967c1abe0935751529b1f19ac85cf22e3de36420",
+      "current_import_sha256": "8e6a02b9d21a5829b9780734e5a6e9467bd6bb6ec2955e3e5004243c804662c5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/main.ts",
@@ -5050,11 +5050,11 @@
       "upstream_sha256": "f715e7e144f1cddefad206b6c3651090ad89d445667d7506826cc9bb41b2bb88",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/main.ts",
       "staged_sha256": "f715e7e144f1cddefad206b6c3651090ad89d445667d7506826cc9bb41b2bb88",
-      "current_import_sha256": "f715e7e144f1cddefad206b6c3651090ad89d445667d7506826cc9bb41b2bb88",
+      "current_import_sha256": "fb969a1b74d836edb0550f9b51280eba7f88c05418e7a88d7f39cc6e22ae2f8b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/nested-elements.spec.ts",
@@ -5062,11 +5062,11 @@
       "upstream_sha256": "96c5591f1243b75577d60df72d95263a48e5aa631e9d4b33d55252e7ee0aef84",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/nested-elements.spec.ts",
       "staged_sha256": "96c5591f1243b75577d60df72d95263a48e5aa631e9d4b33d55252e7ee0aef84",
-      "current_import_sha256": "96c5591f1243b75577d60df72d95263a48e5aa631e9d4b33d55252e7ee0aef84",
+      "current_import_sha256": "0324f43091c9eb987edbd09eac9d7f208d757cb71be037851226f28e9b3751f5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/state.json",
@@ -5074,11 +5074,11 @@
       "upstream_sha256": "3524905ef5964b72fab9e64d8e60b472eadb9c784acc243b4c0bc2b6e19bddd2",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/state.json",
       "staged_sha256": "3524905ef5964b72fab9e64d8e60b472eadb9c784acc243b4c0bc2b6e19bddd2",
-      "current_import_sha256": "3524905ef5964b72fab9e64d8e60b472eadb9c784acc243b4c0bc2b6e19bddd2",
+      "current_import_sha256": "73d8d04334a418dbcf6824a1893e133d32c11bdb27dec7c1633cd99b59cd410c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/templates.html",
@@ -5086,11 +5086,11 @@
       "upstream_sha256": "8cd379c0b3b78208260dc0927e0636ee691629a753746cbc402ec5f2d984e63d",
       "staged_path": "packages/element/packages/fast-element/test/declarative/fixtures/scenarios/nested-elements/templates.html",
       "staged_sha256": "8cd379c0b3b78208260dc0927e0636ee691629a753746cbc402ec5f2d984e63d",
-      "current_import_sha256": "8cd379c0b3b78208260dc0927e0636ee691629a753746cbc402ec5f2d984e63d",
+      "current_import_sha256": "bf06422ec4c91e1263da130a753011f47f94137cb5348cec14ea4238d5eafbd7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/index.html",
@@ -5110,11 +5110,11 @@
       "upstream_sha256": "40c4605a71f8d5d0525eb8235d202e846d6ed478b5481958a3c7d799034121b9",
       "staged_path": "packages/element/packages/fast-element/test/declarative/vite.config.ts",
       "staged_sha256": "40c4605a71f8d5d0525eb8235d202e846d6ed478b5481958a3c7d799034121b9",
-      "current_import_sha256": "40c4605a71f8d5d0525eb8235d202e846d6ed478b5481958a3c7d799034121b9",
+      "current_import_sha256": "0de53d0016347817f58d7d1d9e09be4f20ca22f6583a35d2ef87a49ab8c9c3c0",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/extension-subpaths-main.ts",
@@ -5170,11 +5170,11 @@
       "upstream_sha256": "448c49cbc2b78f4f6f4ccabc02338c7cf49161f24b71d6ec5e244f72fa65a959",
       "staged_path": "packages/element/packages/fast-element/test/main.ts",
       "staged_sha256": "448c49cbc2b78f4f6f4ccabc02338c7cf49161f24b71d6ec5e244f72fa65a959",
-      "current_import_sha256": "448c49cbc2b78f4f6f4ccabc02338c7cf49161f24b71d6ec5e244f72fa65a959",
+      "current_import_sha256": "ef0e0b4309b512c8289a86abebd6f29a0c65b29e25649eecabd7ffddaa82a44a",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/pure-declarative-main.ts",
@@ -5242,11 +5242,11 @@
       "upstream_sha256": "a39db37769afa5f6687368a3e2a2a5499d1e5fcb2bdaf5799625c4d1fee4e144",
       "staged_path": "packages/element/packages/fast-element/tsconfig.json",
       "staged_sha256": "a39db37769afa5f6687368a3e2a2a5499d1e5fcb2bdaf5799625c4d1fee4e144",
-      "current_import_sha256": "a39db37769afa5f6687368a3e2a2a5499d1e5fcb2bdaf5799625c4d1fee4e144",
+      "current_import_sha256": "1c885aa23f1aa27aea08557adb46b40d5c0f29588b6e4f4a0ef39f26df606ef7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
     },
     {
       "path": "foundations/fast-af/packages/element/sites/website/src/docs/3.x/advanced/path-exports.md",
@@ -11356,6 +11356,306 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm)"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "0bcb7b9a3ff75f5e041e18be1675eadb98b96347739e520ea0cca1429a9a2120",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/dom-aspect.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "25e6e89707a4d9e0e506c7c753b830bf2d18770b7037f3d2e6c7936713ef0b23",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/dom-policy-defaults.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "20e300a643898489f41e558b72e43acf3400ee2569146a90182379b86d981416",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/attribute-observation.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "598957842da4b61b40b38d92264f139396aa1c33747effd6d3995465a9340b69",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/hydration-benchmark.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b4ccccaf4eed815b475261dc4a0977cd359428a45af40daafbc80aa1a9ba1bef",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/hydration-performance.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "0512df0be4c4773b371a4da934de2f3e219b2e9071965e8fb125cf9965ca15e4",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/legacy-markers.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "5e04e694f4e1c6df515ef36e2f01be46aad23a9905a317dd1bf303aeef1098ed",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/markers-v2.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "262324d98bb085370e9db5c35578247aa9c468bfc59953ce216982b1d85343a6",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/markers.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "ae2b8d751488d5c2feff9cb75575f777f99d5474679bb984814e01f11b26ffb6",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/native-marker-cleanup.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "897708374690e713055237871df28f7ecd8f3459ebdce177dcd12fbb9a34cd9d",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/repeat-ranges.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "748fa01612cd1a9bef5226423a7333dfc19a4cc052eff7e49d92ff204ad17b38",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/repeat-ranges.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "9c52c6b40473afc9b6cb488d2fdd605d6a3b07e61c20bba436131d65004830c6",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/target-builder.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "30a265cd0e2184a65c22dcf696b7b0eb8f393c969ec340df1e2f2c4dd51a1802",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/traversal.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "9bc9fc021990cb047cdfbe06acbc8dfe85f61cfb40ff5364ec460d530111320a",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/metadata-reflection.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b529f5c2b85c18cfc154aa9f39d52e367c5971a8b4b15598732507c3619800b7",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/entry.html",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "3eceacad1961d4fb317cfe32a6a6f97ac2a591e1600ae10dfbd52e112482424d",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/fast-build.config.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "7332b6645ba146a912927cdc091e4a42c0eee052a70f5ac517e363a65217c5ed",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/hydration-markers-v2.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "b849b3339f44a0a8ae373258021aa1eebcf1d14dcb2ae49e892dac3232a76def",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/index.html",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e21b960d63c0b3cf7764b590ea260f0e734529e2ea1c62c5dd01cce6bf49361c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/main.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "bb8dc25fd845061c842336a1512e02a78efedca5d12386fd976791c93cd9aa41",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/state.json",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a8d8a0008d3951eb2a5530d3addd7e90dd23e23ed7c1aef67fd0ffd659f5fc50",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/declarative/fixtures/ecosystem/hydration-markers-v2/templates.html",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "a53aa5aac49ef1beafd45c872b67b6b69d2ab19778608345a54c1717b69c661e",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/hydration-workload.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "e3fd20404d5563fd3c305215bea963301cbcecc7c18b0e8768f7061691d47a1c",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/test/metadata-compatibility.test.js",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "8a4206b441bb5c5629ed97b341e6e2371183a1133dc753e60bfcc6958726ee06",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
+      "import_classification": "added-after-import",
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; compiles its decorator-metadata fixture with this package's TypeScript 7 tsc, which has no JavaScript compiler API, instead of ts.transpileModule"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/scoped-hydration.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1d5d0733b19f2d56804b981112d48b1ce3aa8c409b567831d870050111f968e9",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     }
   ]
 }

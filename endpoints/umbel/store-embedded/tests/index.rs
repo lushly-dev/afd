@@ -302,6 +302,52 @@ fn a_second_handle_sees_commits_made_through_the_first() {
 }
 
 #[test]
+fn independent_handles_search_while_another_commits() {
+    // Each handle is opened on its own, as a second process would open it. On Windows a reader
+    // holding `meta.json` open can make the commit's replacement of it fail ("access denied")
+    // unless the two are coordinated across handles (#1283).
+    let dir = tempfile::tempdir().expect("a temporary directory");
+    let writer_side = open_index(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let reader_side = open_index(dir.path(), "main", StoreOptions::default()).expect("opening");
+    let done = std::sync::atomic::AtomicBool::new(false);
+    std::thread::scope(|scope| {
+        let reading = scope.spawn(|| {
+            let mut reads = 0_u32;
+            while !done.load(std::sync::atomic::Ordering::Relaxed) {
+                reader_side.search(&ask("note"), &space()).expect("search");
+                reader_side.applied().expect("applied");
+                reads += 1;
+            }
+            reads
+        });
+        let committed = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            for applied in 1..=40 {
+                let doc = format!("a/{applied}");
+                commit(
+                    &*writer_side,
+                    vec![chunk(&doc, "One", "a note", &["space"])],
+                    applied,
+                );
+            }
+        }));
+        done.store(true, std::sync::atomic::Ordering::Relaxed);
+        let reads = reading.join().expect("the reader never failed");
+        if let Err(panic) = committed {
+            std::panic::resume_unwind(panic);
+        }
+        assert!(reads > 0);
+    });
+    assert_eq!(reader_side.applied().expect("applied"), 40);
+    assert_eq!(
+        reader_side
+            .search(&ask("note"), &space())
+            .expect("search")
+            .len(),
+        40
+    );
+}
+
+#[test]
 fn the_writer_wait_is_bounded_by_the_lock_timeout() {
     let dir = tempfile::tempdir().expect("a temporary directory");
     let index = open_index(

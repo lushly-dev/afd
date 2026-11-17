@@ -8,8 +8,10 @@ use wasmtime::component::Component;
 
 use super::super::PluginError;
 
-/// The newest `umbel:plugin` minor version this host provides (the world is 1.0.0).
-const KNOWN_MINOR: u64 = 0;
+/// The newest `umbel:plugin` minor version this host provides (worlds 1.0.0 and 1.1.0, D190).
+const KNOWN_MINOR: u64 = 1;
+/// The first minor version whose world carries the output budget (`call.output-budget`).
+const BUDGET_MINOR: u64 = 1;
 /// The host serves this major version of `umbel:plugin` and of the WASI interfaces below 0.3.
 const MAJOR: u64 = 1;
 
@@ -52,7 +54,7 @@ fn major_minor(version: &str) -> Option<(u64, u64)> {
 /// The grant a `umbel:plugin` interface needs; `Some(None)` is an interface that needs none.
 fn umbel_grant(interface: &str) -> Option<Option<&'static str>> {
     match interface {
-        "types" => Some(None),
+        "types" | "call" => Some(None),
         "config" => Some(Some("config")),
         "log" => Some(Some("log")),
         "packs" => Some(Some("packs")),
@@ -80,12 +82,15 @@ fn wasi_grant(package: &str, interface: &str) -> Option<Option<&'static str>> {
     }
 }
 
-/// Check `component` for instance `instance`; `holds` says which grants the instance holds.
+/// Check `component` for instance `instance`; `holds` says which grants the instance holds, and
+/// `budgeted` names a manifest command that declares `output_budget`, which needs world 1.1.0
+/// (the world 1.1.0 specification, section 4).
 pub(super) fn check(
     instance: &str,
     engine: &Engine,
     component: &Component,
     holds: impl Fn(&str) -> bool,
+    budgeted: Option<&str>,
 ) -> Result<Analysis, PluginError> {
     let ty = component.component_type();
     let mut command_export = None;
@@ -94,28 +99,42 @@ pub(super) fn check(
         if parts.package != "umbel:plugin" || parts.interface != "command" {
             continue;
         }
-        let (major, _) = parts.version.and_then(major_minor).ok_or_else(|| {
+        let (major, minor) = parts.version.and_then(major_minor).ok_or_else(|| {
             PluginError::world_unsupported(
                 instance,
                 format!("the component exports `{name}`, which has no usable version"),
             )
         })?;
-        if major != MAJOR {
+        if major != MAJOR || minor > KNOWN_MINOR {
             return Err(PluginError::world_unsupported(
                 instance,
                 format!(
-                    "the component exports `{name}`; this host serves umbel:plugin@1.x (WIT_WORLD umbel:plugin/plugin@1.0.0)"
+                    "the component exports `{name}`; this host serves umbel:plugin@{MAJOR}.0 and @{MAJOR}.{KNOWN_MINOR} (WIT_WORLD {})",
+                    crate::WIT_WORLD
                 ),
             ));
         }
-        command_export = Some(name.to_owned());
+        command_export = Some((name.to_owned(), minor));
     }
-    let Some(command_export) = command_export else {
+    let Some((command_export, world_minor)) = command_export else {
         return Err(PluginError::load_failed(
             instance,
-            "the component has no `umbel:plugin/command` export: build it against umbel:plugin/plugin@1.0.0 (umbel-sdk's export_component!)",
+            format!(
+                "the component has no `umbel:plugin/command` export: build it against {} (umbel-sdk's export_component!)",
+                crate::WIT_WORLD
+            ),
         ));
     };
+    if let Some(command) = budgeted
+        && world_minor < BUDGET_MINOR
+    {
+        return Err(PluginError::world_unsupported(
+            instance,
+            format!(
+                "the command `{command}` declares output_budget, which needs world umbel:plugin/plugin@1.1.0, and the component exports `{command_export}`: rebuild it with umbel-sdk, which targets 1.1.0, or remove output_budget"
+            ),
+        ));
+    }
 
     let mut seeds = false;
     for (name, _) in ty.imports(engine) {
@@ -202,6 +221,7 @@ mod tests {
         assert_eq!(wasi_grant("wasi:sockets", "tcp"), None);
         assert_eq!(wasi_grant("wasi:http", "outgoing-handler"), None);
         assert_eq!(umbel_grant("events"), Some(Some("events")));
+        assert_eq!(umbel_grant("call"), Some(None));
         assert_eq!(umbel_grant("command"), None);
     }
 }

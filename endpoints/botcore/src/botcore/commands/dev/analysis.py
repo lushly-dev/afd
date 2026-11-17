@@ -1,8 +1,10 @@
-"""Analysis commands — dead-code, circular-imports, unused-deps, dep-graph."""
+"""Analysis commands — dead-code, circular-imports, unused-deps, dep-graph.
+
+Python import scanning lives in import_graph.py and is re-exported here.
+"""
 
 from __future__ import annotations
 
-import ast
 import json
 import re
 import subprocess
@@ -13,13 +15,28 @@ from pathlib import Path
 
 from afd import CommandResult, error, success
 
+from botcore.commands.dev.import_graph import _STDLIB_MODULES as _STDLIB_MODULES
+from botcore.commands.dev.import_graph import (
+    _build_dep_graph_result as _build_dep_graph_result,
+)
+from botcore.commands.dev.import_graph import (
+    _collect_python_imports as _collect_python_imports,
+)
+from botcore.commands.dev.import_graph import _find_cycles as _find_cycles
+from botcore.commands.dev.import_graph import (
+    _is_type_checking_guard as _is_type_checking_guard,
+)
+from botcore.commands.dev.import_graph import _scan_imports as _scan_imports
+from botcore.commands.dev.import_graph import _top_level_imports as _top_level_imports
 from botcore.config import load_config
 from botcore.utils.runner import run_external_tool
 from botcore.utils.workspace import find_workspace, resolve_language
 
 
 async def dev_dead_code(
-    path: str | None = None, min_confidence: int = 80, language: str | None = None,
+    path: str | None = None,
+    min_confidence: int = 80,
+    language: str | None = None,
 ) -> CommandResult[dict]:
     """Find dead/unused code using vulture (Python), knip (TS), or cargo-udeps (Rust)."""
     from botcore.commands.dev.core import _aggregate_results, _should_run_all
@@ -31,18 +48,28 @@ async def dev_dead_code(
         results: dict[str, CommandResult[dict]] = {}
         for lang in config.languages:
             results[lang] = await dev_dead_code(
-                path=path, min_confidence=min_confidence, language=lang,
+                path=path,
+                min_confidence=min_confidence,
+                language=lang,
             )
         return _aggregate_results(results, "dead-code")
 
-    lang = resolve_language(
-        Path(path) if path else None, config, ws, language_override=language,
-    ) if ws else (language or config.language)
+    lang = (
+        resolve_language(
+            Path(path) if path else None,
+            config,
+            ws,
+            language_override=language,
+        )
+        if ws
+        else (language or config.language)
+    )
     scan_path = path or (str(ws / "src") if ws else "src")
 
     if lang == "typescript":
         result = await run_external_tool(
-            "npx", ["knip", "--no-progress"],
+            "npx",
+            ["knip", "--no-progress"],
             install_hint="npm i -D knip",
             cwd=ws,
         )
@@ -58,7 +85,8 @@ async def dev_dead_code(
 
     if lang == "rust":
         result = await run_external_tool(
-            "cargo", ["+nightly", "udeps"],
+            "cargo",
+            ["+nightly", "udeps"],
             install_hint="cargo install cargo-udeps",
             cwd=ws,
         )
@@ -86,11 +114,13 @@ async def dev_dead_code(
             continue
         parts = line.split(":", 2)
         if len(parts) >= 3:
-            issues.append({
-                "file": parts[0],
-                "line": int(parts[1]) if parts[1].isdigit() else 0,
-                "message": parts[2].strip(),
-            })
+            issues.append(
+                {
+                    "file": parts[0],
+                    "line": int(parts[1]) if parts[1].isdigit() else 0,
+                    "message": parts[2].strip(),
+                }
+            )
 
     result_data: dict = {
         "path": scan_path,
@@ -125,7 +155,8 @@ async def dev_dead_code(
 
 
 async def dev_circular_imports(
-    path: str | None = None, language: str | None = None,
+    path: str | None = None,
+    language: str | None = None,
 ) -> CommandResult[dict]:
     """Detect circular imports in Python code, or circular deps via madge (TS)."""
     from botcore.commands.dev.core import _aggregate_results, _should_run_all
@@ -139,15 +170,23 @@ async def dev_circular_imports(
             results[lang] = await dev_circular_imports(path=path, language=lang)
         return _aggregate_results(results, "circular-imports")
 
-    lang = resolve_language(
-        Path(path) if path else None, config, ws, language_override=language,
-    ) if ws else (language or config.language)
+    lang = (
+        resolve_language(
+            Path(path) if path else None,
+            config,
+            ws,
+            language_override=language,
+        )
+        if ws
+        else (language or config.language)
+    )
 
     if lang == "typescript":
         # --extensions is required: without it madge processes 0 files when
         # pointed at a TypeScript directory and cycles go undetected.
         result = await run_external_tool(
-            "npx", ["madge", "--circular", "--extensions", "ts,tsx", path or "."],
+            "npx",
+            ["madge", "--circular", "--extensions", "ts,tsx", path or "."],
             install_hint="npm i -D madge",
             cwd=ws,
         )
@@ -170,10 +209,7 @@ async def dev_circular_imports(
         # Cycles are listed as "N) a.ts > b.ts > a.ts" lines; madge's prose
         # ("No circular dependency found!") also contains the word "circular",
         # so parse the numbered lines rather than substring-matching.
-        cycles = [
-            line.strip() for line in output.splitlines()
-            if re.match(r"^\s*\d+\)\s", line)
-        ]
+        cycles = [line.strip() for line in output.splitlines() if re.match(r"^\s*\d+\)\s", line)]
         if len(cycles) > config.circular_deps_allowed:
             cycle_summary = "; ".join(cycles[:5])
             return error(
@@ -235,101 +271,6 @@ async def dev_circular_imports(
     )
 
 
-def _collect_python_imports(
-    scan_path: Path,
-) -> tuple[set[str], dict[str, set[str]]]:
-    """Parse Python files under *scan_path* and return (modules, imports).
-
-    Skips imports inside ``if TYPE_CHECKING:`` blocks and function/method
-    bodies since those are not runtime circular-import risks.
-    """
-    all_modules: set[str] = set()
-    imports: dict[str, set[str]] = defaultdict(set)
-
-    for py_file in scan_path.rglob("*.py"):
-        if "__pycache__" in str(py_file):
-            continue
-        try:
-            content = py_file.read_text(encoding="utf-8")
-            tree = ast.parse(content)
-        except Exception:
-            continue
-        try:
-            rel_path = py_file.relative_to(scan_path)
-            module_name = (
-                str(rel_path.with_suffix(""))
-                .replace("/", ".").replace("\\", ".")
-            )
-            if module_name.endswith(".__init__"):
-                module_name = module_name[:-9]
-        except ValueError:
-            continue
-
-        all_modules.add(module_name)
-        for node in _top_level_imports(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    if alias.name != module_name:
-                        imports[module_name].add(alias.name)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module and node.level == 0 and node.module != module_name:
-                    imports[module_name].add(node.module)
-
-    return all_modules, imports
-
-
-def _top_level_imports(tree: ast.Module) -> list[ast.stmt]:
-    """Return module-level import nodes, excluding TYPE_CHECKING blocks."""
-    result: list[ast.stmt] = []
-    for node in tree.body:
-        if isinstance(node, (ast.Import, ast.ImportFrom)):
-            result.append(node)
-        elif isinstance(node, ast.If) and _is_type_checking_guard(node):
-            continue  # skip TYPE_CHECKING block entirely
-    return result
-
-
-def _is_type_checking_guard(node: ast.If) -> bool:
-    """Return True when the if-test is ``TYPE_CHECKING`` or similar."""
-    test = node.test
-    if isinstance(test, ast.Name) and test.id == "TYPE_CHECKING":
-        return True
-    if isinstance(test, ast.Attribute) and test.attr == "TYPE_CHECKING":
-        return True
-    return False
-
-
-def _find_cycles(graph: dict[str, set[str]], known_modules: set[str]) -> list[list[str]]:
-    """Find cycles in the import graph via DFS."""
-    cycles: list[list[str]] = []
-    visited: set[str] = set()
-
-    def dfs(node: str, path: list[str]) -> None:
-        if node in path:
-            cycle_start = path.index(node)
-            cycle = path[cycle_start:] + [node]
-            if len(set(cycle)) > 1 and cycle not in cycles:
-                cycles.append(cycle)
-            return
-
-        if node in visited:
-            return
-
-        visited.add(node)
-        path.append(node)
-
-        for neighbor in graph.get(node, []):
-            for mod in known_modules:
-                if neighbor == mod or mod.startswith(neighbor + "."):
-                    dfs(neighbor, path.copy())
-                    break
-
-    for node in graph:
-        dfs(node, [])
-
-    return cycles
-
-
 async def dev_unused_deps(language: str | None = None) -> CommandResult[dict]:
     """Find unused dependencies in pyproject.toml (Python), depcheck (TS), or cargo-udeps (Rust)."""
     import re
@@ -356,7 +297,8 @@ async def dev_unused_deps(language: str | None = None) -> CommandResult[dict]:
 
     if lang == "typescript":
         result = await run_external_tool(
-            "npx", ["depcheck", "--json"],
+            "npx",
+            ["depcheck", "--json"],
             install_hint="npm i -D depcheck",
             cwd=ws,
         )
@@ -373,14 +315,14 @@ async def dev_unused_deps(language: str | None = None) -> CommandResult[dict]:
         return success(
             data={"potentially_unused": unused, "tool": "depcheck"},
             reasoning=(
-                f"{len(unused)} potentially unused npm deps"
-                if unused else "No unused npm deps"
+                f"{len(unused)} potentially unused npm deps" if unused else "No unused npm deps"
             ),
         )
 
     if lang == "rust":
         result = await run_external_tool(
-            "cargo", ["+nightly", "udeps"],
+            "cargo",
+            ["+nightly", "udeps"],
             install_hint="cargo install cargo-udeps",
             cwd=ws,
         )
@@ -439,55 +381,6 @@ async def dev_unused_deps(language: str | None = None) -> CommandResult[dict]:
     )
 
 
-# Known stdlib modules (subset) for filtering
-_STDLIB_MODULES = {
-    "os", "sys", "re", "json", "pathlib", "typing", "asyncio", "io",
-    "subprocess", "collections", "datetime", "time", "functools",
-    "itertools", "contextlib", "logging", "unittest", "dataclasses",
-    "abc", "copy", "tempfile", "shutil", "glob", "hashlib", "base64",
-    "urllib", "http", "email", "html", "xml", "sqlite3", "csv",
-    "pickle", "struct", "codecs", "locale", "gettext", "argparse",
-    "configparser", "traceback", "warnings", "inspect", "importlib",
-    "pkgutil", "platform", "socket", "ssl", "select", "threading",
-    "multiprocessing", "queue", "concurrent", "contextvars", "enum",
-    "numbers", "decimal", "fractions", "random", "statistics", "math",
-    "cmath", "operator", "string", "textwrap", "difflib", "secrets",
-    "uuid", "weakref", "types", "pprint", "reprlib", "graphlib",
-    "heapq", "bisect", "array", "ast", "dis", "compileall", "venv",
-    "zipfile", "tarfile", "gzip", "bz2", "lzma", "zlib", "signal",
-    "tomllib",
-}
-
-
-def _scan_imports(src_path: Path) -> set[str]:
-    """Scan Python files for imported third-party packages."""
-    used_imports: set[str] = set()
-
-    for py_file in src_path.rglob("*.py"):
-        if "__pycache__" in str(py_file):
-            continue
-
-        try:
-            content = py_file.read_text(encoding="utf-8")
-            tree = ast.parse(content)
-        except Exception:
-            continue
-
-        for node in ast.walk(tree):
-            if isinstance(node, ast.Import):
-                for alias in node.names:
-                    pkg = alias.name.split(".")[0].lower().replace("-", "_")
-                    if pkg not in _STDLIB_MODULES:
-                        used_imports.add(pkg)
-            elif isinstance(node, ast.ImportFrom):
-                if node.module and node.level == 0:
-                    pkg = node.module.split(".")[0].lower().replace("-", "_")
-                    if pkg not in _STDLIB_MODULES:
-                        used_imports.add(pkg)
-
-    return used_imports
-
-
 async def dev_dep_graph(
     path: str | None = None,
     output: str = "json",
@@ -505,13 +398,21 @@ async def dev_dep_graph(
             results[lang] = await dev_dep_graph(path=path, output=output, language=lang)
         return _aggregate_results(results, "dep-graph")
 
-    lang = resolve_language(
-        Path(path) if path else None, config, ws, language_override=language,
-    ) if ws else (language or config.language)
+    lang = (
+        resolve_language(
+            Path(path) if path else None,
+            config,
+            ws,
+            language_override=language,
+        )
+        if ws
+        else (language or config.language)
+    )
 
     if lang == "typescript":
         result = await run_external_tool(
-            "npx", ["madge", "--json", path or "."],
+            "npx",
+            ["madge", "--json", path or "."],
             install_hint="npm i -D madge",
             cwd=ws,
         )
@@ -525,14 +426,19 @@ async def dev_dep_graph(
         except (json.JSONDecodeError, TypeError):
             graph_data = {}
         return success(
-            data={"path": path or ".", "graph": graph_data, "tool": "madge",
-                  "module_count": len(graph_data)},
+            data={
+                "path": path or ".",
+                "graph": graph_data,
+                "tool": "madge",
+                "module_count": len(graph_data),
+            },
             reasoning=f"TypeScript dependency graph: {len(graph_data)} modules",
         )
 
     if lang == "rust":
         result = await run_external_tool(
-            "cargo", ["modules", "structure", "--lib"],
+            "cargo",
+            ["modules", "structure", "--lib"],
             install_hint="cargo install cargo-modules",
             cwd=ws,
         )
@@ -563,15 +469,15 @@ async def dev_dep_graph(
     modules, raw_imports = _collect_python_imports(scan_path)
     root_pkgs = {m.split(".")[0] for m in modules if m}
     graph: dict[str, list[str]] = {
-        mod: sorted({
-            t for t in targets
-            if t.split(".")[0] in root_pkgs
-        })
+        mod: sorted({t for t in targets if t.split(".")[0] in root_pkgs})
         for mod, targets in raw_imports.items()
     }
 
     result_data: dict = _build_dep_graph_result(
-        scan_path, modules, graph, output,
+        scan_path,
+        modules,
+        graph,
+        output,
     )
 
     edges = result_data["edges"]
@@ -579,29 +485,3 @@ async def dev_dep_graph(
         data=result_data,
         reasoning=f"Generated dependency graph: {len(modules)} modules, {edges} edges",
     )
-
-
-def _build_dep_graph_result(
-    scan_path: Path,
-    modules: set[str],
-    graph: dict[str, list[str]],
-    output: str,
-) -> dict:
-    """Build the result data dict for dep-graph, optionally with DOT output."""
-    result_data: dict = {
-        "path": str(scan_path),
-        "modules": sorted(modules),
-        "module_count": len(modules),
-        "edges": sum(len(v) for v in graph.values()),
-        "graph": dict(graph),
-    }
-
-    if output == "dot":
-        dot_lines = ["digraph dependencies {", "  rankdir=LR;"]
-        for src, targets in graph.items():
-            for target in targets:
-                dot_lines.append(f'  "{src}" -> "{target}";')
-        dot_lines.append("}")
-        result_data["dot"] = "\n".join(dot_lines)
-
-    return result_data

@@ -18,9 +18,83 @@
 
 - [#789](https://github.com/lushly-dev/afd/pull/789) [`4f2bed7`](https://github.com/lushly-dev/afd/commit/4f2bed76178dd5826e583d5725448dbd01f0307b) Thanks [@Falkicon](https://github.com/Falkicon)! - First preview on npm, under the `preview` tag: Specimen, the native component observation bench, with prebuilt hosts for Linux (x64 and arm64, glibc) and macOS (arm64 and x64); the `specimen` JSON CLI; its AFD command bindings; the FAST-AF plugin; and the FAST-AF runtime the plugin renders with. Install a package as `@lushly-dev/<name>@preview`. Its API can still change before the stable release.
 
-<!-- This log was last generated on Fri, 26 Jun 2026 21:42:49 GMT and should not be manually modified. -->
+<!-- This log was last generated on Wed, 11 Nov 2026 04:24:47 GMT and should not be manually modified. -->
 
 <!-- Start content -->
+
+## 3.1.4
+
+Wed, 11 Nov 2026 04:24:47 GMT
+
+### Patches
+
+- Preserve default-slot fallback when conditional or empty light-DOM bindings render no content. (7559015+janechu@users.noreply.github.com)
+
+## 3.1.3
+
+Mon, 02 Nov 2026 18:49:44 GMT
+
+### Patches
+
+- Initialize complete, dependency-free metadata reflection for Context and dependency injection while keeping core and declarative bundles unchanged. (7559015+janechu@users.noreply.github.com)
+- Fix repeat ordering for multi-digit indices and preserve structural changes in mixed array mutation batches. (7559015+janechu@users.noreply.github.com)
+- Reduce allocations and function calls in the when directive for fixed templates. (863023+radium-v@users.noreply.github.com)
+- Enable the built-in DOM sink guards consistently across entrypoints and validate coerced URL values while preserving application policy configuration. (7559015+janechu@users.noreply.github.com)
+
+## 3.1.2
+
+Wed, 14 Oct 2026 22:58:43 GMT
+
+### Patches
+
+- Avoid live-range hydration fallback for unobserved native markers on FAST elements registered after hydration is enabled, while keeping observation tracking out of client-only bundles. (7559015+janechu@users.noreply.github.com)
+
+## 3.1.1
+
+Wed, 14 Oct 2026 04:26:38 GMT
+
+### Patches
+
+- Reduce hydration traversal and native marker allocations, and pair scoped repeat ranges in a forward pass while preserving live DOM mutation behavior. (7559015+janechu@users.noreply.github.com)
+
+## 3.1.0
+
+Fri, 09 Oct 2026 21:33:43 GMT
+
+### Minor changes
+
+- Add an opt-in markers_v2 export providing the last major version's FAST Element 2.x indexed hydration markers, for interoperability with backend systems that have not yet adopted the FAST Element 3.x data-free marker format. The default reader continues to recognize only 3.x data-free markers; markers_v2 must be explicitly installed to hydrate against legacy 2.x indexed marker output, and its parsing logic is tree-shaken out of the bundle unless imported. (7559015+janechu@users.noreply.github.com)
+
+### Patches
+
+- Block iframe srcdoc attribute bindings in the default DOM policy. (jes@microsoft.com)
+
+## 3.0.4
+
+Thu, 01 Oct 2026 05:10:34 GMT
+
+### Patches
+
+- Fixed a memory leak in ElementController where a subscriber was created per element instead of per definition, causing every created element to be retained for the lifetime of the page. (7559015+janechu@users.noreply.github.com)
+- Support element filters for declarative f-children directives. (pradeepramolaa@gmail.com)
+- Preserve hydration target traversal behavior without performing per-node Range membership checks. (7559015+janechu@users.noreply.github.com)
+
+## 3.0.3
+
+Thu, 10 Sep 2026 02:52:27 GMT
+
+### Patches
+
+- Restore the built-in Trusted Types policy name to `fast-html`. (7559015+janechu@users.noreply.github.com)
+
+## 3.0.2
+
+Wed, 29 Jul 2026 19:34:55 GMT
+
+### Patches
+
+- Ignore stale observer map array notifications after replacement. (pradeepramolaa@gmail.com)
+- Prevent stale server-rendered structural views from being duplicated during hydration. (863023+radium-v@users.noreply.github.com)
 
 ## 3.0.1
 

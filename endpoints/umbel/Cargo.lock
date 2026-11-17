@@ -4047,6 +4047,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "umbel-fixture-budget"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "umbel-sdk",
+]
+
+[[package]]
 name = "umbel-fixture-future"
 version = "0.1.0"
 dependencies = [

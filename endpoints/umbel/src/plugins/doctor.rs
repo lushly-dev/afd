@@ -590,7 +590,7 @@ fn grants(loaded: &[Loaded<'_>]) -> Check {
                 Some(PluginError::grant_unavailable(
                     id,
                     name,
-                    "is held by compiled plugins only in protocol 1 (components get store grants with WIT world umbel:plugin/plugin@1.1.0)",
+                    "is held by compiled plugins only in protocol 1 (no WIT world yet gives a component store imports; a later minor version of world 1 may)",
                 ))
             } else if super::needs_allow_list(name)
                 && entry.instance.allow.get(name).is_none_or(Vec::is_empty)

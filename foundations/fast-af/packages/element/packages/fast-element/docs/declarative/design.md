@@ -242,7 +242,7 @@ packages/fast-element/
 │   ├── components/
 │   │   ├── schema.ts          # Shared Schema class + schemaRegistry
 │   │   └── definition-schema-transforms.ts # Definition-scoped schema transform storage
-│   └── declarative/
+│   ├── declarative/
 │       ├── index.ts           # Public declarative entrypoint implementation
 │       ├── interfaces.ts      # Message enum (error codes)
 │       ├── debug.ts           # Human-readable declarative debug messages
@@ -254,6 +254,9 @@ packages/fast-element/
 │       ├── observer-map-utilities.ts # Shared observer-map helpers
 │       ├── utilities.ts       # Declarative parsing helpers
 │       └── syntax.ts          # Syntax delimiter constants
+│   └── hydration/
+│       ├── markers.ts         # Default 3.x marker reader and marker strategy contract
+│       └── markers-v2.ts      # Opt-in 2.x indexed marker reader
 ├── scripts/
 │   └── declarative/           # Fixture build + webui integration scripts
 └── test/
@@ -320,6 +323,11 @@ Primary declarative exports intended for application code:
 | `Schema` | `@lushly-dev/fast-element/schema.js` JSON schema builder that records binding paths discovered during template parsing. Each instance owns its own schema map and registers itself in the `schemaRegistry` for cross-element `$ref` resolution. |
 | `schemaRegistry` | `@lushly-dev/fast-element/schema.js` module-level `Map<string, Map<string, JSONSchema>>` that indexes schemas by custom element name. Used for cross-element lookups (e.g. nested component `$ref` resolution). |
 
+Hydration marker selection is available from
+`@lushly-dev/fast-element/hydration.js`. FAST Element 3.x data-free markers are
+the default; `enableHydration({ markers: markers_v2 })` opts into the FAST Element 2.x
+indexed marker reader for staged server/client migrations.
+
 Primary map extension exports:
 
 | Export | Import path | Purpose |
@@ -365,6 +373,11 @@ The declarative syntax is a superset of HTML with three binding delimiters:
 | `{expr}` | `@click="{handleClick($e)}"` | Client-only binding (events, attribute directives) |
 
 ### Directives
+
+Bindings and FAST directive markup inside HTML comments are unsupported. The
+string-based parsers do not reliably exclude comment contents, so commenting out
+bound markup can still affect binding discovery and hydration. See the
+[HTML comment restrictions](./syntax.md#html-comments).
 
 | Directive | Example |
 |---|---|
@@ -622,7 +635,7 @@ sequenceDiagram
     participant Hydration as enableHydration().whenHydrated()
 
     App->>Hydration: const hydration = enableHydration() [optional]
-    App->>FER: await MyElement.define({name:'my-el', template: declarativeTemplate()}, [attributeMap(), observerMap()])
+    App->>FER: MyElement.define({name:'my-el', template: declarativeTemplate()}, [attributeMap(), observerMap()])
     note over FER: definition composed; resolver waits for template
 
     DOM->>FTE: f-template connected to DOM
@@ -701,6 +714,12 @@ With `declarativeTemplate()`, connection gating happens before platform registra
 
 ### Hydration marker formats
 
+`enableHydration()` uses the FAST Element 3.x data-free marker reader by
+default. The marker strategy is shared by target discovery and nested repeat
+hydration so a view uses one consistent format throughout its hydration walk.
+The optional `markers_v2` strategy contains the legacy indexed-marker parsing logic and
+is selected with `enableHydration({ markers: markers_v2 })`.
+
 **Content bindings** use HTML comments (data-free, matched by string equality):
 
 ```
@@ -756,15 +775,20 @@ A separate integration test suite validates that `@microsoft/webui` can build an
 
 1. **Build** (`npm run build:fixtures:webui`) — runs
    `scripts/declarative/build-fixtures-with-webui.js`, which extracts
-   `<f-template>` elements, builds each fixture with `webui build --plugin=fast`,
-   renders the protocol with `state.json`, and writes the output alongside
-   `main.ts` and assets to `temp/integrations/webui/fixtures/`.
+   `<f-template>` elements, converts each component template with
+   `fast convert --syntax=webui-prerelease`, builds each fixture with
+   `webui build --plugin=fast`, renders the protocol with `state.json`, and
+   writes the output alongside `main.ts` and assets to
+   `temp/integrations/webui/fixtures/`.
 2. **Test** (`npm run test:webui-integration`) — builds the fixtures, then runs
    the same Playwright specs against the webui-rendered output served by a Vite
    dev server on port 5174 (configured in
    `playwright.declarative.webui.config.ts`).
 
-Run locally with `npm run test:webui-integration` or via the `ci-webui-integration.yml` GitHub Action on PRs and pushes to `main`.
+Fixtures that intentionally contain invalid FAST declarative templates are skipped in
+the WebUI build because `fast convert` validates and rejects them before WebUI
+renders. Run locally with `npm run test:webui-integration` or via the
+`ci-webui-integration.yml` GitHub Action on PRs and pushes to `main`.
 
 #### Skipped tests
 

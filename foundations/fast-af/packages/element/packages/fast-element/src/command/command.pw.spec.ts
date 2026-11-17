@@ -87,6 +87,110 @@ test.describe("FAST-AF commands", () => {
         expect(result.removedAfterLastDisconnect).toBe(true);
     });
 
+    test("tears down the replaced controller when a late template arrives", async ({
+        page,
+    }) => {
+        await page.goto("/");
+
+        const result = await page.evaluate(async commandUrl => {
+            // @ts-expect-error: Client module.
+            const { FASTElement, FASTElementDefinition, html, uniqueElementName } =
+                await import("/main.js");
+            const { CommandRegistry, command, success } = await import(commandUrl);
+            CommandRegistry.clear();
+
+            class LateElement extends FASTElement {
+                save() {
+                    return success({ saved: true });
+                }
+            }
+
+            const descriptor = Object.getOwnPropertyDescriptor(
+                LateElement.prototype,
+                "save",
+            )!;
+            command("late.save", { label: "Save" })(
+                LateElement.prototype,
+                "save",
+                descriptor,
+            );
+
+            // No template yet, as for a declarative element whose <f-template>
+            // arrives after the element has connected.
+            const name = uniqueElementName();
+            await FASTElement.define(LateElement, { name });
+            const element = document.createElement(name) as any;
+            document.body.append(element);
+
+            const first = element.$fastController;
+            const registeredBeforeTemplate =
+                CommandRegistry.get("late.save")?.source.deref() === element;
+
+            FASTElementDefinition.getByType(LateElement).template =
+                html`<span>ready</span>`;
+
+            const second = element.$fastController;
+            let trusted: CustomEvent | undefined;
+            element.addEventListener("saved", (event: Event) => {
+                trusted = event as CustomEvent;
+            });
+            const replacement = {
+                replaced: second !== first,
+                rendered: element.shadowRoot?.textContent,
+                firstConnected: first.isConnected,
+                secondConnected: second.isConnected,
+                activeIsElement:
+                    CommandRegistry.get("late.save")?.source.deref() === element,
+                execution: await CommandRegistry.execute("late.save"),
+                staleEmit: first.emit("stale", null, { confidence: 1 }),
+                emit: element.$emit("saved", { value: 1 }, { confidence: 0.5 }),
+                emitDetail: trusted?.detail,
+            };
+
+            element.remove();
+            const afterRemove = {
+                command: CommandRegistry.get("late.save") ?? null,
+                actions: CommandRegistry.getActions().map((action: any) => action.id),
+            };
+
+            document.body.append(element);
+            const reconnected =
+                CommandRegistry.get("late.save")?.source.deref() === element;
+            element.remove();
+            const afterSecondRemove = CommandRegistry.get("late.save") ?? null;
+            CommandRegistry.clear();
+
+            return {
+                registeredBeforeTemplate,
+                replacement,
+                afterRemove,
+                reconnected,
+                afterSecondRemove,
+            };
+        }, commandModuleUrl);
+
+        expect(result).toEqual({
+            registeredBeforeTemplate: true,
+            replacement: {
+                replaced: true,
+                rendered: "ready",
+                firstConnected: false,
+                secondConnected: true,
+                activeIsElement: true,
+                execution: expect.objectContaining({
+                    success: true,
+                    data: { saved: true },
+                }),
+                staleEmit: false,
+                emit: true,
+                emitDetail: { value: 1, __trust: { confidence: 0.5 } },
+            },
+            afterRemove: { command: null, actions: [] },
+            reconnected: true,
+            afterSecondRemove: null,
+        });
+    });
+
     test("executes interceptors in priority order and observes structured results", async ({
         page,
     }) => {

@@ -22,6 +22,7 @@ import type {
 import type { DocumentRecordV1, DocumentTypeV1 } from '@lushly-dev/loam-sdk';
 import '@lushly-dev/violet-elements/dist/button/violet-button.js';
 import '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
+import '@lushly-dev/violet-elements/dist/progress/violet-progress.js';
 import type { VioletTextField } from '@lushly-dev/violet-elements/dist/text-field/violet-text-field.js';
 import { type ProjectLookup, resourceLinkUrl } from '../resource-link.js';
 import { formatRoute } from '../route-format.js';
@@ -209,8 +210,9 @@ const home = html<LoamProjectsSection>`
 	${when((x) => x.formOpen, renameForm)}
 	${when(
 		(x) => !x.loaded,
-		// Text, not `violet-progress`, which would put `sectionsMinified` over its ceiling (about 6 KB).
-		html<LoamProjectsSection>`<p class="muted">Loading the summaries…</p>`
+		// Indeterminate (`value=""`); its label is the visible text and the bar's name, so reduced motion,
+		// which slows the bar and never stops it, still shows loading as text (design.md, Motion).
+		html<LoamProjectsSection>`<violet-progress label="Loading the summaries…" value=""></violet-progress>`
 	)}
 	${when(
 		(x) => x.loaded && x.cards.length === 0,

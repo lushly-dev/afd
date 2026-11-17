@@ -53,6 +53,13 @@ For simplicity, examples throughout the documentation will assume the library ha
 Looking for a quick guide on building components?  Check out [our Cheat Sheet](../resources/cheat-sheet.md#building-components).
 :::
 
+## Slot fallback
+
+A false `when()` without an else template, or an empty content binding, does not
+itself suppress default-slot fallback. This applies to both client-rendered and
+hydrated templates, including subsequent conditional updates. Authored whitespace
+and other real light-DOM text still participate in slot assignment.
+
 ## Browser Requirements
 
 FAST Element v3 assumes a client-side browser `Window` runtime with native
@@ -68,6 +75,12 @@ client window where custom elements connect, render, update, and hydrate.
 
 ## Debug entrypoint
 
+The declarative attribute fixture covers server-side omission of null/missing
+attributes and subsequent hydration updates. Explicit empty strings remain
+present, and omitted attributes retain binding slots. See the
+[server-rendering guide](https://www.fast.design/docs/3.x/declarative-templates/server-rendering/)
+for the rendering contract.
+
 `@lushly-dev/fast-element/debug.js` exports `enableDebug()` instead of configuring
 FAST at import time. The development root export and debug rollup bundle still
 enable debug behavior automatically.
@@ -77,6 +90,53 @@ import { enableDebug } from "@lushly-dev/fast-element/debug.js";
 
 enableDebug();
 ```
+
+## DOM policy
+
+All entrypoints use the same default DOM sink guards, including ESM, focused
+imports, declarative HTML, and CDN bundles. The baseline filters unsafe protocols
+in guarded URL bindings and blocks known dangerous sinks such as `:innerHTML`
+and inline event-handler attributes. Normal text bindings and `@click` listeners
+continue to work without configuration.
+
+Applications can still call `DOM.setPolicy()` once, before templates compile or
+render, to customize the global policy. Use an explicit sanitizing policy when
+binding rich HTML; the default Trusted Types policy does not sanitize template
+strings. See the
+[DOMPolicy and Trusted Types guide](https://www.fast.design/docs/3.x/advanced/dom-policy-and-trusted-types/)
+and [migration guidance](./docs/migration/fast-element-3.md#default-dom-sink-guards-v3).
+
+## Server-rendered hydration
+
+Call `enableHydration()` from `@lushly-dev/fast-element/hydration.js` before
+components connect to reuse their server-rendered DOM. Ordered sibling-bounded
+views use pointer traversal and consume native markers without factory-index
+arrays; unusual boundaries and potentially mutating cleanup retain the live
+Range fallback. Nested and adjacent repeats pair only their own server ranges,
+preserving SSR nodes while reconciling missing or excess items.
+
+Call `enableHydration()` before components are registered with the platform to
+also enable pointer-only native marker cleanup for FAST components that do not
+observe `data-fe`. Observation tracking is opt-in and excluded from client-only
+`FASTElement` bundles. Earlier registrations still hydrate correctly through
+the conservative fallback, as do unknown registration, observed markers,
+customized built-ins, and overridden attribute methods. Cleanup remains
+synchronous.
+
+Existing FAST 3 marker output and opt-in `markers_v2` remain supported without
+application changes. See the [server-rendering guide](https://www.fast.design/docs/3.x/declarative-templates/server-rendering/)
+and [contributor performance workloads](./docs/template-bindings.md#hydration-cpu-regression-coverage).
+Contributor-facing internals separate DOM traversal, binding target mapping,
+and repeat-range discovery; the opt-in benchmark spec is independent of the
+deterministic correctness and allocation regression spec.
+
+## Array mutations in repeat
+
+`repeat()` enables observation of its source array automatically. In-place
+`sort()` and `reverse()` operations reorder the existing views, including lists
+whose view indices have multiple digits. If structural edits and sorting occur
+before the same update flush, repeat refreshes from the final array state so
+added and removed items are not lost.
 
 ## Export Sizes
 
@@ -97,6 +157,27 @@ Focused package path exports remain available for consumers that want to import
 a narrower entrypoint directly. The website's
 [Path Exports](https://www.fast.design/docs/3.x/advanced/path-exports/) page is
 generated from `package.json` and lists each supported path.
+
+## Context and Dependency Injection Metadata
+
+The optional `@lushly-dev/fast-element/context.js` and
+`@lushly-dev/fast-element/di.js` entrypoints automatically initialize the complete
+legacy decorator metadata API through a dependency-free, FAST-owned shim. No separate setup
+is needed for TypeScript's `experimentalDecorators` and `emitDecoratorMetadata`
+support. These metadata methods extend `Reflect`; they are not native JavaScript
+reflection methods.
+
+The shim supplies the complete metadata API, including decorator application,
+property metadata, inherited lookup, key enumeration, and deletion. It uses
+native collections and weakly held targets. An existing complete metadata API
+is reused without replacing its methods or data. An incomplete existing API
+causes an explicit `TypeError` rather than silently mixing incompatible stores.
+
+Core, focused `FASTElement`, and declarative imports do not include or initialize
+this metadata implementation unless Context/DI is also used. Bundlers can remove
+unused Context/DI imports; used Context/DI APIs retain the complete implementation
+to preserve automatic metadata support. Importing both entrypoints shares one
+copy. See [`SIZES.md`](./SIZES.md) for their measured bundle sizes.
 
 ## Dynamic Style Application
 
@@ -120,6 +201,11 @@ the element and toggle a separate `ElementStyles` instance through the
 controller when styles need to change.
 
 ## Declarative HTML
+
+Bindings and FAST directive markup inside HTML comments are unsupported in
+declarative templates. Commenting out bound markup does not reliably disable its
+bindings; remove unused markup instead. See the
+[template syntax restrictions](./docs/declarative/syntax.md#html-comments).
 
 FAST Element publishes its declarative HTML runtime from
 `@lushly-dev/fast-element/declarative.js`. This entrypoint exports the
@@ -211,6 +297,24 @@ enableHydration({
     stopHydration: StopHydration.never,
 });
 ```
+
+FAST Element 3.x data-free hydration markers are the only format recognized
+by default. Server output that still emits the legacy FAST Element 2.x
+indexed markers will fail to hydrate unless you opt into that reader on its
+dedicated export path — an interoperability enhancement for backend systems
+that have not yet adopted the data-free format:
+
+```typescript
+import { enableHydration, markers_v2 } from "@lushly-dev/fast-element/hydration.js";
+
+enableHydration({ markers: markers_v2 });
+```
+
+Because `markers_v2` is only referenced when explicitly imported, its legacy
+parsing logic is tree-shaken out of the bundle for consumers who don't use it.
+
+When using `@microsoft/fast-build`, set `"markers_v2": true` in
+`fast-build.config.json` so the renderer and client use the same format.
 
 When hydration is enabled and a FAST element connects with an existing shadow root (from server-side rendering or declarative shadow DOM), `ElementController` detects this and hydrates instead of re-rendering. Two properties on the controller let you inspect the result:
 

@@ -306,7 +306,8 @@ sequenceDiagram
   including clock and random from the command context, and the exports a
   component provides. Versioned with the manifest. Settled as
   `umbel:plugin/plugin@1.0.0` on WASI 0.2, with WASI 0.3 reserved for world
-  2.0.0 ([D38](decisions.md)).
+  2.0.0 ([D38](decisions.md)). World 1.1.0 adds the output budget and four
+  error cases, and the host serves both ([D189, D190](decisions.md)).
 - **Store traits.** Document store, index, graph, memory store, each with a
   conformance suite; the embedded backend is the reference implementation.
   Version 1 of the first three, per space and synchronous, with the suite in

@@ -1516,16 +1516,26 @@ fn command(
             authority_prompt: authority_prompt.is_some(),
         },
     )?;
+    // Refused on a component command (D191): `authority_prompt` is for memory writes, which a
+    // component cannot make; whether a component's author may choose how the deployer's journal
+    // records its calls is the owner's open question (the world 1.1.0 specification, section 8).
     if plugin.kind == PluginKind::Component {
-        for (key, present) in [
-            ("journal", journal.is_some()),
-            ("authority_prompt", authority_prompt.is_some()),
+        for (key, problem) in [
+            (
+                "journal",
+                journal.is_some().then_some(
+                    "is not available to a component plugin: whether a sandboxed component may choose how the journal records its calls is not decided",
+                ),
+            ),
+            (
+                "authority_prompt",
+                authority_prompt.is_some().then_some(
+                    "is not available to a component plugin: a component holds no memory grant in plugin protocol 1",
+                ),
+            ),
         ] {
-            if present {
-                return Err(table.bad(
-                    key,
-                    "is not available to a component plugin in phase 3: a component holds no memory grant until WIT world umbel:plugin/plugin@1.1.0",
-                ));
+            if let Some(problem) = problem {
+                return Err(table.bad(key, problem));
             }
         }
     }
@@ -1544,7 +1554,7 @@ fn command(
         destructive: table.boolean("destructive")?.unwrap_or(false),
         approval_required: approval,
         require_human,
-        output_budget: output_budget(table, plugin.kind)?,
+        output_budget: output_budget(table)?,
         journal,
         authority_prompt,
         confirm_preview,
@@ -1650,18 +1660,13 @@ fn journal(table: &Tbl<'_>) -> Result<Option<JournalDecl>, PluginError> {
     Ok(Some(JournalDecl { mode, keep, show }))
 }
 
-/// `output_budget = { default_bytes, max_bytes }` (manifest version 2). A component plugin's
-/// call context cannot carry a budget in protocol 1, so only a compiled plugin may declare one.
-fn output_budget(table: &Tbl<'_>, kind: PluginKind) -> Result<Option<OutputBudget>, PluginError> {
+/// `output_budget = { default_bytes, max_bytes }` (manifest version 2). A component plugin may
+/// declare one too; its component must then export world 1.1.0, which carries the budget, and the
+/// component loader checks that (the world 1.1.0 specification, section 4).
+fn output_budget(table: &Tbl<'_>) -> Result<Option<OutputBudget>, PluginError> {
     let Some(budget) = table.table("output_budget")? else {
         return Ok(None);
     };
-    if kind == PluginKind::Component {
-        return Err(table.bad(
-            "output_budget",
-            "is not available to a component plugin: the umbel:plugin@1.0.0 world's call context cannot carry a budget; it arrives with world umbel:plugin/plugin@1.1.0",
-        ));
-    }
     budget.check_keys(OUTPUT_BUDGET_KEYS, &[])?;
     let positive = |key: &str| -> Result<u64, PluginError> {
         budget

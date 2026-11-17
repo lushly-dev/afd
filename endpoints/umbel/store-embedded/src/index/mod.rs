@@ -41,46 +41,72 @@ const WRITER_BUDGET: usize = 64 * 1024 * 1024;
 /// How often a waiter retries the writer lock.
 const LOCK_POLL: Duration = Duration::from_millis(50);
 
-/// For readers and writer sessions using one [`TantivyIndex`] instance, keeps reading its
-/// `meta.json` apart from replacing it on Windows: an open file can make replacement fail with
-/// "access denied". Reads share the guard; a commit holds it alone while replacing metadata.
-/// Independently opened indexes are not coordinated. Elsewhere this does nothing.
-#[derive(Clone, Default)]
-pub(crate) struct MetaGuard(#[cfg(windows)] std::sync::Arc<std::sync::RwLock<()>>);
+/// The file in the index directory whose lock keeps reading `meta.json` apart from replacing it.
+#[cfg(windows)]
+const META_GUARD_FILE: &str = ".umbel-meta.lock";
 
-impl MetaGuard {
-    /// Held while `meta.json` is read.
+/// Keeps reading an index's metadata apart from replacing it, on Windows, across threads,
+/// handles and processes: an open file can make replacement fail with "access denied". Reads
+/// share a lock on a file in the index directory; a commit holds it alone from preparing until
+/// its merges are done, since both replace `meta.json` and `.managed.json`. A wait lasts as long
+/// as the holder, as the in-process lock it replaces did: reads hold it briefly, and a commit
+/// already holds the writer lock. Elsewhere this does nothing: replacement never conflicts with
+/// an open file there.
+#[derive(Clone)]
+pub(crate) struct MetaGuard {
     #[cfg(windows)]
-    pub(crate) fn reading(&self) -> std::sync::RwLockReadGuard<'_, ()> {
-        self.0
-            .read()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
-    /// Held while `meta.json` is replaced.
-    #[cfg(windows)]
-    pub(crate) fn writing(&self) -> std::sync::RwLockWriteGuard<'_, ()> {
-        self.0
-            .write()
-            .unwrap_or_else(std::sync::PoisonError::into_inner)
-    }
-
-    /// Held while `meta.json` is read.
-    #[cfg(not(windows))]
-    pub(crate) fn reading(&self) -> Unguarded {
-        Unguarded
-    }
-
-    /// Held while `meta.json` is replaced.
-    #[cfg(not(windows))]
-    pub(crate) fn writing(&self) -> Unguarded {
-        Unguarded
-    }
+    path: std::sync::Arc<PathBuf>,
 }
 
-/// [`MetaGuard`]'s hold where it does nothing.
-#[cfg(not(windows))]
-pub(crate) struct Unguarded;
+/// A hold on [`MetaGuard`], released when dropped.
+pub(crate) struct MetaHold(
+    #[cfg(windows)]
+    #[expect(dead_code, reason = "held open for its lock, which closing releases")]
+    std::fs::File,
+);
+
+impl MetaGuard {
+    #[cfg_attr(not(windows), allow(unused_variables))]
+    fn new(dir: &Path) -> Self {
+        Self {
+            #[cfg(windows)]
+            path: std::sync::Arc::new(dir.join(META_GUARD_FILE)),
+        }
+    }
+
+    /// Held while the metadata is read.
+    pub(crate) fn reading(&self) -> Result<MetaHold, StoreError> {
+        self.hold(false)
+    }
+
+    /// Held while the metadata is replaced.
+    pub(crate) fn writing(&self) -> Result<MetaHold, StoreError> {
+        self.hold(true)
+    }
+
+    #[cfg(windows)]
+    fn hold(&self, exclusive: bool) -> Result<MetaHold, StoreError> {
+        let io = |e: std::io::Error| StoreError::Io(format!("{}: {e}", self.path.display()));
+        let file = std::fs::OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .truncate(false)
+            .open(&*self.path)
+            .map_err(io)?;
+        if exclusive {
+            file.lock().map_err(io)?;
+        } else {
+            file.lock_shared().map_err(io)?;
+        }
+        Ok(MetaHold(file))
+    }
+
+    #[cfg(not(windows))]
+    fn hold(&self, _exclusive: bool) -> Result<MetaHold, StoreError> {
+        Ok(MetaHold())
+    }
+}
 /// A snippet's length, in characters (the concise form of section 8.2).
 const SNIPPET_CHARS: usize = 240;
 /// Scores are rounded to this many decimal places (section 8.2).
@@ -183,6 +209,7 @@ impl TantivyIndex {
         let directory = MmapDirectory::open(&dir)
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
         let lock_timeout = Duration::from_millis(options.lock_timeout_ms);
+        let meta = MetaGuard::new(&dir);
         let (tantivy_schema, fields) = schema::build();
         let build = || {
             IndexBuilder::new()
@@ -194,13 +221,21 @@ impl TantivyIndex {
         // An index that exists is opened without the writer lock, so a reader never waits for an
         // indexer. Creating one is serialised with every indexer by that lock, and a process
         // that loses the race opens what the winner made.
-        let index = if Index::exists(&directory).map_err(|e| StoreError::Io(e.to_string()))? {
+        let exists = {
+            let _meta = meta.reading()?;
+            Index::exists(&directory).map_err(|e| StoreError::Io(e.to_string()))?
+        };
+        let index = if exists {
+            let _meta = meta.reading()?;
             build()?
         } else {
             let deadline = Instant::now() + lock_timeout;
             loop {
                 match directory.acquire_lock(&INDEX_WRITER_LOCK) {
-                    Ok(_held) => break build()?,
+                    Ok(_held) => {
+                        let _meta = meta.writing()?;
+                        break build()?;
+                    }
                     Err(LockError::LockBusy) if Instant::now() < deadline => {
                         std::thread::sleep(LOCK_POLL);
                     }
@@ -214,20 +249,23 @@ impl TantivyIndex {
                 "the index was not written with LZ4 compression".into(),
             ));
         }
-        // A newer commit payload is refused here, not at the first search.
-        read_applied(&index)?;
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .map_err(|e| map_tantivy(&e))?;
+        let reader = {
+            let _meta = meta.reading()?;
+            // A newer commit payload is refused here, not at the first search.
+            read_applied(&index)?;
+            index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::Manual)
+                .try_into()
+                .map_err(|e| map_tantivy(&e))?
+        };
         Ok(Self {
             dir,
             index,
             fields,
             reader,
             lock_timeout,
-            meta: MetaGuard::default(),
+            meta,
             statistics: stats::Cache::default(),
         })
     }
@@ -240,7 +278,7 @@ impl TantivyIndex {
 
     /// A searcher over the latest commit, whoever made it.
     fn searcher(&self) -> Result<Searcher, StoreError> {
-        let _meta = self.meta.reading();
+        let _meta = self.meta.reading()?;
         self.reader.reload().map_err(|e| map_tantivy(&e))?;
         Ok(self.reader.searcher())
     }
@@ -260,7 +298,7 @@ impl TantivyIndex {
             .sum();
         Ok(IndexInfo {
             applied: {
-                let _meta = self.meta.reading();
+                let _meta = self.meta.reading()?;
                 read_applied(&self.index)?
             },
             schema_version: SCHEMA_VERSION,
@@ -290,7 +328,7 @@ impl TantivyIndex {
     /// # Errors
     /// `Io` or `Corrupt` if the index's metadata cannot be read.
     pub fn check(&self) -> Result<IndexCheck, StoreError> {
-        let _meta = self.meta.reading();
+        let _meta = self.meta.reading()?;
         let damaged = self
             .index
             .validate_checksum()
@@ -309,7 +347,10 @@ impl TantivyIndex {
     /// # Errors
     /// `Io` or `Corrupt` if the index's metadata cannot be read.
     pub fn live_files(&self) -> Result<Vec<PathBuf>, StoreError> {
-        let metas = self.index.load_metas().map_err(|e| map_tantivy(&e))?;
+        let metas = {
+            let _meta = self.meta.reading()?;
+            self.index.load_metas().map_err(|e| map_tantivy(&e))?
+        };
         let mut files: Vec<PathBuf> = vec![PathBuf::from("meta.json")];
         files.extend(metas.list_segment_files());
         files.sort();
@@ -442,7 +483,7 @@ impl SearchIndex for TantivyIndex {
     }
 
     fn applied(&self) -> Result<Rev, StoreError> {
-        let _meta = self.meta.reading();
+        let _meta = self.meta.reading()?;
         read_applied(&self.index)
     }
 

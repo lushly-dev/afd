@@ -52,7 +52,7 @@ jobs:
           uv lock --check
           uv sync --frozen --extra dev --extra mcp --extra cdp
       - name: Lint
-        run: uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/
+        run: uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/
       - name: Core tests
         # Stateful optional plugin integration scenarios are preserved but not admitted here.
         run: uv run --frozen pytest tests/ --ignore=tests/integration -q

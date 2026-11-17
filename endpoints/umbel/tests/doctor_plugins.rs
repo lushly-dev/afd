@@ -612,14 +612,15 @@ fn a_reserved_or_unknown_grant_fails_when_required_and_warns_when_optional() {
 }
 
 #[test]
-fn a_store_grant_on_a_component_is_unavailable_until_world_1_1_0() {
+fn a_store_grant_on_a_component_is_unavailable_in_every_world_so_far() {
     for name in ["documents", "index_write", "content"] {
         let report = grants_report("", &grant(name, true));
         let found = check(&report, "plugins.grants");
         assert_eq!(found.status, CheckStatus::Fail, "{name}");
         assert!(
             found.message.contains("PLUGIN_GRANT_UNAVAILABLE")
-                && found.message.contains("umbel:plugin/plugin@1.1.0"),
+                && found.message.contains("a later minor version of world 1")
+                && !found.message.contains("1.1.0"),
             "{name}: {}",
             found.message
         );

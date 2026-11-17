@@ -58,7 +58,7 @@ impl PipelineResult {
 
 /// `confirm_preview` of a command: the name of a command of the same plugin, with the command's
 /// own `confirm_prompt`. Refused on a component command, since a preview declares a journal and a
-/// component command cannot. The named command is checked by [`Manifest::check_previews`].
+/// component command cannot (D191). The named command is checked by [`Manifest::check_previews`].
 pub(super) fn confirm_preview(
     table: &Tbl<'_>,
     kind: PluginKind,
@@ -70,7 +70,7 @@ pub(super) fn confirm_preview(
     if kind == PluginKind::Component {
         return Err(table.bad(
             "confirm_preview",
-            "is not available to a component plugin: a preview command declares a journal, which a component command cannot until WIT world umbel:plugin/plugin@1.1.0",
+            "is not available to a component plugin: a preview command declares a journal, which a component command cannot",
         ));
     }
     afd::validate_command_name(&name).map_err(|problem| table.bad("confirm_preview", problem))?;
