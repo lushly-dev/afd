@@ -161,8 +161,10 @@ describe('P6-D4: the capabilities', () => {
 	it("P6-D4: a frame's invoke with a forged Origin, through Tauri's postMessage fallback, and its raw IPC messages run no command", async () => {
 		// On Tauri's postMessage fallback the request's headers are the caller's, so `from_shell`'s `Origin` check
 		// is no barrier there; the barriers are what each engine delivers from a frame and Tauri's invoke key.
-		// On WebView2 a frame has Tauri's IPC script, so its `invoke` falls back with the real key and the forged
-		// `Origin` below. The raw messages carry a forged `Origin` and no valid key.
+		// On WebView2 a frame has Tauri's IPC script, so once its IPC fetch is refused (the test above) its
+		// `invoke` falls back with the real key and the forged `Origin` below, and would pass `from_shell` if it
+		// arrived. The raw messages carry a forged `Origin` and no valid key, so on their own they show only that
+		// the key holds.
 		await openView(desktop);
 		const first = await invoke('mount_open', { instance: 'fixture' });
 		expect(first.ok).toBe(true);
@@ -232,8 +234,9 @@ describe('P6-D4: the capabilities', () => {
 			await leaveFrames(desktop);
 		}
 		process.stderr.write(`P6-D4 forged frames on ${process.platform}: ${JSON.stringify(seen)}\n`);
-		for (const frame of ['proxy', 'view']) expect(seen[frame]?.invoke, frame).not.toBe('answered');
-		// The handle counter: no message from either frame ran `mount_open`.
+		// A frame's own answer proves nothing: the fallback answers by `eval` in the top-level document, so a
+		// frame's promise never settles either way. The handle counter is the oracle: no message from either
+		// frame ran `mount_open`.
 		const second = await invoke('mount_open', { instance: 'fixture' });
 		expect(second.ok).toBe(true);
 		expect(Number(second.value)).toBe(Number(first.value) + 1);
