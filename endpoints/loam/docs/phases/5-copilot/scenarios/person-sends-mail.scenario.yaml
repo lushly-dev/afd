@@ -21,7 +21,7 @@ steps:
       data: { draft: drf_1 }
   - description: "[caller: hello] An app without the grant cannot reach the mail engine"
     command: mailfix-draft-send
-    input: { draft: drf_1 }
+    input: { draft: drf_1, revision: 1 }
     expect:
       success: false
       error:
@@ -29,7 +29,7 @@ steps:
         suggestion: { contains: calls }
   - description: "[caller: mailfixapp, inactive] I press Send; it waits for my approval"
     command: mailfix-draft-send
-    input: { draft: drf_1 }
+    input: { draft: drf_1, revision: 1 }
     expect:
       success: false
       error:
