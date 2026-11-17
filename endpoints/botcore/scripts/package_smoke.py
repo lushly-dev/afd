@@ -105,7 +105,11 @@ def audit(artifacts: Path) -> list[dict]:
                 )
                 # A skill's helper ships with it: seeding copies the whole directory.
                 assert "botcore/skills/bloat-sweeper/scripts/sweep.mjs" in names
-                for script in ("check-test-quarantine.mjs", "check-test-configs.mjs"):
+                for script in (
+                    "check-test-quarantine.mjs",
+                    "check-test-configs.mjs",
+                    "report-test-changes.mjs",
+                ):
                     assert f"botcore/skills/gate-discipline/scripts/{script}" in names
                 verify_records(lambda path: archive.read("botcore/provenance/" + path))
                 for path in (ROOT / "provenance").glob("*.json"):

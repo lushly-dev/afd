@@ -2,8 +2,9 @@
 name: maintain-gates
 description: >
   Rules for adding, changing or exempting a quality gate: watch it fail, assert
-  properties, make exemptions expire, register skipped tests. Use when editing a
-  check, hook or CI, skipping a test or reviewing a gate diff.
+  properties, make exemptions expire, register skipped tests, report weakened ones.
+  Use when editing a check, hook or CI, skipping a test or reviewing a test or gate
+  diff.
 metadata:
   source: botcore
   version: 1.0.0
@@ -104,8 +105,9 @@ every probe "fail" for the wrong reason.
 
 ## The scripts
 
-Both need only Node and git, read what `git ls-files` lists (so ignored directories stay
-out), and print each finding with its file and line. Wire them into the gate CI runs.
+All three need only Node and git and print each finding with its file and line. Wire the
+two checks into the gate CI runs; they read what `git ls-files` lists, so ignored
+directories stay out. The report is for the reviewer, not a gate.
 
 **`scripts/check-test-quarantine.mjs`: no silent test suppression.** `.only` always
 fails. An unconditional `.skip`, `.todo` or Playwright `.fixme` on `describe`, `it`,
@@ -145,6 +147,29 @@ any `package.json`, GitHub workflow or Lefthook configuration. Paths after the o
 a repository's own scripts that start runners; a path with no file in it fails. A package
 with no tests yet adds its first test with its configuration instead.
 
-If a software factory or another agent loop may repair a failing branch, list both
+**`scripts/report-test-changes.mjs`: what a branch did to its tests.** It compares each
+changed test file at the merge base with the branch (`--base`, default `origin/main`;
+`--head <ref>` for a commit, else the working tree with uncommitted edits) and lists:
+
+- a test or scenario file deleted, and fewer tests or assertions in a file;
+- a skip added, including a whole file's (`pytestmark`, `test.describe.skip`, `xdescribe`),
+  a conditional skip made unconditional, and a new file born with an unconditional skip;
+- an assertion line changed (an expected value, a matcher), and exact matchers traded for
+  loose ones (`toEqual` for `toBeDefined`);
+- a snapshot that lost lines, and a runner config (Vitest, Vite, Playwright, Jest, pytest,
+  a tests `CMakeLists.txt`) or the quarantine register changed or added.
+
+It quotes the lines involved. A rename is compared with its old self; in the working
+tree, stage a move (`git mv`), or the untracked new file is unseen and the old one reads
+as deleted. It counts JavaScript and TypeScript, Python, Rust, C++ (doctest, Catch2,
+GoogleTest) and `*.scenario.yaml` steps lexically, file by file. A test moved between
+files shows as one fewer in the old file; the totals, which include new test files, net
+it out. Not seen: a test called through an alias (`const linux = it.skipIf(...)`), a
+narrowed scenario `expect:` block, and anything a count and a changed line cannot show,
+so read the test diffs as well. It exits 0 whatever it finds, because many deletions are
+right; `--json` gives the same report to a program. Put the Markdown in the pull request
+with a reason for each item: a reviewer treats an unexplained one as a blocker.
+
+If a software factory or another agent loop may repair a failing branch, list the
 scripts and the register among the paths a repair may not edit, or the repair can pass
 by registering a skip.
