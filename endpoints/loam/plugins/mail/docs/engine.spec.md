@@ -1251,8 +1251,29 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
   starts (the latest of their earliest first contacts, and the account's own); and its kept ones
   and their senders, against the median of kept ones from the account's earliest. A median needs
   30 covered days before the window, so a flood in the first month of an account's history is
-  never a burst, and nor is one wholly in a junk mailbox within a month of the oldest mail it
-  still holds: the first sync of an account whose provider empties junk monthly sees none there.
+  never a burst, and nor is one wholly in junk or trash within a month of the oldest first
+  contact the engine has seen there: the first sync of an account whose provider empties junk
+  monthly sees no older one.
+  A flood that is not kept is judged from the later of where junk's and trash's histories start,
+  each at the oldest first contact the engine has seen there and kept after the provider empties
+  it. With providers that delete each message 30 days after it arrives, and mailboxes that often
+  get first contacts, the gap is the month before the first sync. It ends later when a mailbox
+  is emptied all at once, appears later, or gets its first first contact later, such as a trash
+  mailbox the person seldom deletes a new sender's first message into: it runs until a month
+  after that start. A time the engine does not sync for longer than the provider keeps junk
+  leaves days that read as quiet.
+  The messages moved out of junk are kept, and are judged on their own against the account's
+  whole history of kept ones; a message stays kept after it is deleted. The owner accepted the
+  gap for junk on 2026-11-16: a flood the provider filed away and nobody moved out did not
+  reach the person.
+- **A flood that lasts weeks is one burst while it is unusual.** Its windows overlap from day to
+  day, so it is one burst, and it stays one while fewer than half the covered days of the 90
+  before a window are its days; after that it is the account's usual day. Thirty new senders a
+  day after quiet months are one burst of about 45 days (a day either way, by how full its first
+  UTC day is), and what comes after is not; fewer than 30 in any 24 hours, or from fewer than 10
+  senders, is no burst. The owner's own flood spiked over a few days and went on for weeks: its
+  spike and first weeks would be found if its mail is still held and its tail brought 30 new
+  senders a day, which a run on that account would show.
 - **An account's bursts are found once it has been listed whole**, every mailbox it had then
   listed at least once (`mailbox.first_listed_at`, `account.listed_at`). Sync fetches newest
   first, so until then each sender's oldest message so far looks like its first. Nor while a

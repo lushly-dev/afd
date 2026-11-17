@@ -41,6 +41,20 @@ impl Mail {
         fields: &[&str],
         at: i64,
     ) -> (MessageId, HeaderSeen) {
+        let seen = self.seen_at(from, fields, at);
+        self.store
+            .record_headers(mailbox, "", std::slice::from_ref(&seen), NOW)
+            .unwrap();
+        let message = self
+            .store
+            .find_message(&seen.header_block, seen.reported_size)
+            .unwrap()
+            .unwrap();
+        (message, seen)
+    }
+
+    /// A new message's headers, from `from` with `fields`, received at `at`.
+    fn seen_at(&mut self, from: &str, fields: &[&str], at: i64) -> HeaderSeen {
         let number = self.next;
         self.next += 1;
         let mut seen = header(number, from, fields);
@@ -59,15 +73,7 @@ impl Mail {
             .join("\r\n");
         seen.header_block = format!("{block}\r\n").into_bytes();
         seen.internal_date = Some(at);
-        self.store
-            .record_headers(mailbox, "", std::slice::from_ref(&seen), NOW)
-            .unwrap();
-        let message = self
-            .store
-            .find_message(&seen.header_block, seen.reported_size)
-            .unwrap()
-            .unwrap();
-        (message, seen)
+        seen
     }
 
     /// `n` messages from `n` new senders, a minute apart from `at`, each
@@ -322,6 +328,119 @@ fn a_flood_in_junk_is_a_burst_with_no_story() {
         "a flood the provider filed away is a flood"
     );
     assert_eq!(mail.store.story(bursts[0].id).unwrap(), None);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_junk_flood_is_a_burst_once_junk_covers_a_month() {
+    let mut mail = Mail::with_history();
+    let junk = mail.mailbox("Junk", Role::Junk);
+    // The first sync of an account whose provider empties junk monthly:
+    // the oldest junk it holds is from twenty days before the flood, so
+    // those twenty days are all the junk history there is.
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 20 * DAY);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert!(mail.bursts().is_empty());
+    mail.assert_as_from_nothing();
+    // Junk from thirty days before the flood: a month covered.
+    mail.add_at(junk, "older@example.biz", &[], FLOOD - 30 * DAY);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn junk_the_provider_emptied_after_it_was_seen_still_covers_its_days() {
+    let mut mail = Mail::with_history();
+    let junk = mail.mailbox("Junk", Role::Junk);
+    // Seen in junk forty days before the flood, then emptied by the
+    // provider: what the engine saw there still counts.
+    let (_, old) = mail.add_at_seen(junk, "spam@example.biz", &[], FLOOD - 40 * DAY);
+    let ended = mail
+        .store
+        .record_removed(junk, "", &[old.provider_id.as_str()], NOW)
+        .unwrap();
+    assert_eq!(ended, 1);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_kept_first_contact_stays_kept_after_it_is_deleted() {
+    let mut mail = Mail::with_history();
+    let (inbox, junk) = (mail.inbox, mail.mailbox("Junk", Role::Junk));
+    // Junk from five days before: all first contacts cover too little, so
+    // the flood is a burst on its kept ones alone.
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 5 * DAY);
+    let flood = mail.flood_seen(inbox, "s", &[], 35, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    // Deleted for good: it reached the person, so it stays kept.
+    let ids: Vec<&str> = flood
+        .iter()
+        .map(|(_, seen)| seen.provider_id.as_str())
+        .collect();
+    assert_eq!(mail.store.record_removed(inbox, "", &ids, NOW).unwrap(), 35);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_junk_flood_moved_out_of_junk_is_judged_as_kept() {
+    let mut mail = Mail::with_history();
+    let (inbox, junk) = (mail.inbox, mail.mailbox("Junk", Role::Junk));
+    // Junk that holds only the flood: no burst on all first contacts.
+    let flood = mail.flood_seen(junk, "s", &[], 40, FLOOD);
+    assert!(mail.bursts().is_empty());
+    let move_out = |mail: &mut Mail, moved: &[(MessageId, HeaderSeen)]| {
+        let ids: Vec<&str> = moved
+            .iter()
+            .map(|(_, seen)| seen.provider_id.as_str())
+            .collect();
+        let ended = mail.store.record_removed(junk, "", &ids, NOW).unwrap();
+        assert_eq!(ended, ids.len() as u64);
+        let seen: Vec<HeaderSeen> = moved.iter().map(|(_, seen)| seen.clone()).collect();
+        mail.store.record_headers(inbox, "", &seen, NOW).unwrap();
+    };
+    // Five moved to the inbox are five that reached the person: no burst.
+    move_out(&mut mail, &flood[..5]);
+    assert!(mail.bursts().is_empty());
+    mail.assert_as_from_nothing();
+    // Thirty moved are a burst of kept first contacts, judged on the
+    // account's whole history, and it holds the ten left in junk too.
+    move_out(&mut mail, &flood[5..30]);
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1);
+    assert_eq!(bursts[0].messages, 40);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_flood_that_lasts_weeks_is_one_burst_until_it_is_the_usual_day() {
+    let mut mail = Mail::with_history();
+    let inbox = mail.inbox;
+    // A flood of new senders spread over each day: two hundred a day for
+    // three days, then thirty a day for eight weeks, each day's mail
+    // recorded in one batch. Without the spike it lasts a day longer: its
+    // first UTC day holds only its first few messages.
+    for day in 0..59 {
+        let n: i64 = if day < 3 { 200 } else { 30 };
+        let seen: Vec<HeaderSeen> = (0..n)
+            .map(|i| {
+                let at = FLOOD + day * DAY + i * (DAY - HOUR) / n;
+                mail.seen_at(&format!("d{day}x{i}@flood.example"), &[], at)
+            })
+            .collect();
+        mail.store.record_headers(inbox, "", &seen, NOW).unwrap();
+    }
+    // Its windows overlap, so it is one burst while thirty a day is ten
+    // times the median day before; that holds until flood days are half
+    // the ninety before, and after that the flood is the usual day.
+    let bursts = mail.bursts();
+    assert_eq!(bursts.len(), 1, "{bursts:?}");
+    assert_eq!(bursts[0].first, FLOOD);
+    // The last window that passes starts on its forty-fifth day, when
+    // fewer than half the ninety days before are flood days.
+    assert_eq!((bursts[0].last - FLOOD) / DAY, 45);
     mail.assert_as_from_nothing();
 }
 
