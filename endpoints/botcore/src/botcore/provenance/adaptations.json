@@ -747,11 +747,11 @@
       "path": "docs/operations/model-routing.md",
       "upstream_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
       "staged_sha256": "0857e34d7b43ed79f566f7d8e6ffefffe42354da9ce3f87f55924e3840905815",
-      "current_import_sha256": "d6e36703601c4438078b3fb3b387e1dc277aace67cae45b38152d03ee53587f2",
+      "current_import_sha256": "97a9f197a0768fb403d89037d18a79f2277b410fa7eb21f83480e8dbb3da79fb",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes"
+      "import_reason": "Point at AFD's development model routing, the single copy, after the Fable 5.2 routes; Point the development routing summary at GPT-6.2 Sol's trial and Astra's owner-started trial"
     },
     {
       "path": "packages/botcore-agents/LICENSE",

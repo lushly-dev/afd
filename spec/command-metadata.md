@@ -325,7 +325,8 @@ Rust and C++ have no CLI. MCP approval relay remains a separate capability.
 ### Asking the human over MCP
 
 A server MAY relay the approval to the human behind the MCP client (TypeScript
-`relay: 'mcp-elicitation'`, Rust `ApprovalRelay::McpElicitation`). The relay is opt-in: it trusts the client application to show the
+`relay: 'mcp-elicitation'`, Python `relay="mcp-elicitation"`, Rust
+`ApprovalRelay::McpElicitation`, C++ `ApprovalRelay::mcp_elicitation`). The relay is opt-in: it trusts the client application to show the
 question to a person, and a server cannot tell a person's answer from client code that answers on
 its own.
 
@@ -430,8 +431,8 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | Approval middleware | Yes (`createApprovalMiddleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) | Yes (`create_approval_middleware`) |
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
-| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
-| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Planned (with the relay) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | N/A: `afd::mcp_stdio` serves no meta-tools |
+| MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio or stateful HTTP connection is asked in band) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
+| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | N/A: `afd::mcp_stdio` serves no meta-tools |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence

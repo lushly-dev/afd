@@ -21,6 +21,10 @@ The MAC is HMAC-SHA256 over ``afdap1.<payload>`` with the application's secret.
 The input and actor are keyed digests rather than plain hashes, so a token
 reveals neither a low-entropy input (such as a record ID) nor the actor ID.
 Every comparison is constant-time.
+
+With ``relay="mcp-elicitation"`` (#1312, TypeScript's #418), an MCP call that can carry a
+form elicitation is not answered with a token: the server asks the human, and the call runs
+once the sealed ``requestState`` and the human's answer check out (``afd.server.approval_relay``).
 """
 
 import base64
@@ -54,11 +58,20 @@ from afd.core.commands import CommandContext, CommandDefinition, CommandMiddlewa
 from afd.core.errors import ErrorCodes
 from afd.core.journal import _js_number, _js_string
 from afd.core.result import CommandError, CommandResult, failure
+from afd.server.approval_relay import (
+    AcceptedApproval,
+    ApprovalQuestion,
+    StepsHold,
+    current_approval_relay,
+    current_up_front_approval,
+    relay_message,
+)
 
 __all__ = [
     "ApprovalCommand",
     "ApprovalNonceStore",
     "ApprovalRejection",
+    "ApprovalRelayMode",
     "ApprovalRequest",
     "ApprovalSecret",
     "create_approval_middleware",
@@ -75,6 +88,10 @@ _MAX_SAFE_INTEGER = 2**53 - 1
 
 ApprovalSecret = Union[str, bytes, bytearray, memoryview]
 """An HMAC key: a string (UTF-8) or raw bytes, at least 32 bytes long."""
+
+ApprovalRelayMode = Literal["none", "mcp-elicitation"]
+"""How a held MCP call reaches the human: ``"none"`` returns ``APPROVAL_REQUIRED``;
+``"mcp-elicitation"`` asks the human behind the client with a form elicitation."""
 
 ApprovalRejection = Literal[
     "malformed",
@@ -157,6 +174,7 @@ def create_approval_middleware(
         Callable[[ApprovalRequest], Union[None, Awaitable[None]]]
     ] = None,
     clock: Optional[Clock] = None,
+    relay: ApprovalRelayMode = "none",
 ) -> CommandMiddleware:
     """A middleware that runs a command whose ``approval`` policy requires approval only
     when ``context.approval`` holds a valid token for this command, input and actor.
@@ -192,11 +210,20 @@ def create_approval_middleware(
             gated caller cannot set ``context.approval`` itself (true of MCP tool calls,
             whose arguments never reach the context). Set ``False`` when the caller must
             not hold the token, and deliver it through ``on_approval_required``.
-        on_approval_required: Called (sync or async) for every held call, before the
-            result is returned, for example to notify a human.
+        on_approval_required: Called (sync or async) for every held call that is answered
+            with a token, before the result is returned, for example to notify a human. Not
+            called for a call whose approval is asked over MCP (``relay``): no token exists.
         clock: Source of time for issuing and expiring tokens and for forgetting spent
             nonces. Default: ``system_clock``. ``context.clock`` is never used: a caller
             can set it, and this is security time.
+        relay: ``"mcp-elicitation"`` asks the human behind an MCP client (#1312): a call to
+            one command whose request can carry a form elicitation (on MCP 2026-07-28, or a
+            2025 connection with a back channel) is answered with an elicitation instead of
+            a token, and runs once the human approves. ``afd-batch`` and ``afd-pipe`` are
+            approved up front, as a whole, before any step runs. A call that cannot be asked
+            falls back to ``APPROVAL_REQUIRED``. It trusts the client application to show the
+            question to a person (``spec/command-metadata.md``, "Asking the human over MCP").
+            Default ``"none"``.
 
     Raises:
         TypeError: When no secret is given, a secret is not a string or bytes, or a
@@ -228,6 +255,9 @@ def create_approval_middleware(
         raise ValueError("Approval ttl_ms must be a positive number of milliseconds, at most 24 hours")
     if replay not in ("single-use", "within-ttl"):
         raise ValueError("Approval replay must be 'single-use' or 'within-ttl'")
+    if relay not in ("none", "mcp-elicitation"):
+        raise ValueError("Approval relay must be 'none' or 'mcp-elicitation'")
+    relays = relay == "mcp-elicitation"
     security_clock = clock or system_clock
     single_use = replay == "single-use"
     memory_store = None if nonce_store is not None else _MemoryNonceStore()
@@ -302,9 +332,87 @@ def create_approval_middleware(
         signing_input = f"{_TOKEN_PREFIX}.{_b64url(payload.encode('utf-8'))}"
         return f"{signing_input}.{_b64url(_hmac(key, signing_input))}", expires_at
 
+    async def spend(nonce: str, expires_at: float, now: float) -> bool:
+        """Spend a single-use nonce; ``True`` when it was fresh (or reuse is allowed)."""
+        if not single_use:
+            return True
+        if memory_store is not None:
+            return memory_store.consume(nonce, expires_at, now)
+        assert nonce_store is not None
+        outcome = nonce_store.consume(nonce, expires_at)
+        if inspect.isawaitable(outcome):
+            outcome = await outcome
+        # Only an explicit True from the store counts as fresh.
+        return outcome is True
+
+    def summary_of(command_name: str, input: Any, context: CommandContext) -> str:
+        return (
+            (summarize(command_name, input, context) if summarize is not None else None)
+            or getattr(gated.get(command_name), "confirm_prompt", None)
+            or f"Run {command_name}"
+        )
+
+    def relay_bindings(command_name: str, input_binding: str, actor_binding: str) -> list[str]:
+        """The binding of a relayed approval, one per key: a keyed digest of the command, input
+        and actor."""
+        data = "relay\0" + _canonical_json([command_name, input_binding, actor_binding])
+        return [_b64url(_hmac(key, data)) for key in keys]
+
+    def hold_mac(key: bytes, binding: str, nonce: str, expires_at: int) -> str:
+        """The MAC of a relayed approval's nonce and expiry, so the elicitation state cannot set
+        them."""
+        return _b64url(
+            _hmac(key, "relay-hold\0" + _canonical_json([binding, nonce, expires_at]))
+        )
+
+    def genuine(answer: AcceptedApproval, bindings: Sequence[str], now: float) -> bool:
+        """Whether an accepted relayed approval was issued by this middleware and is unexpired."""
+        if answer.binding not in bindings:
+            return False
+        key = keys[list(bindings).index(answer.binding)]
+        try:
+            expected = hold_mac(key, answer.binding, answer.nonce, answer.expires_at)
+        except TypeError:
+            return False
+        if not hmac.compare_digest(_utf8(answer.mac), expected.encode()):
+            return False
+        return now < answer.expires_at <= now + ttl_ms
+
+    def question(bindings: Sequence[str], now: float) -> ApprovalQuestion:
+        binding = bindings[0]
+        nonce = _b64url(secrets.token_bytes(16))
+        expires_at = math.floor(now + ttl_ms)
+        return ApprovalQuestion(
+            binding=binding,
+            bindings=tuple(bindings),
+            nonce=nonce,
+            expires_at=expires_at,
+            mac=hold_mac(keys[0], binding, nonce, expires_at),
+        )
+
+    up_front_deps = _UpFrontDeps(
+        now=security_clock.now,
+        requires=lambda name, value, context: _requires_approval(gated.get(name), value, context),
+        may_require=lambda name: getattr(gated.get(name), "approval", None)
+        not in (None, "not-required"),
+        keys=keys,
+        genuine=genuine,
+        spend=spend,
+        question=question,
+        summarize=summary_of,
+    )
+
     async def approval_middleware(
         command_name: str, input: Any, context: CommandContext, next_fn: NextFn
     ) -> CommandResult[Any]:
+        # Claimed only by the command the tool call routes to, once, gated or not, so a command
+        # that runs inside another (or after it) cannot turn the tool call into an elicitation.
+        bound = current_approval_relay() if relays else None
+        relay_here = bound if bound is not None and bound.claim(command_name) else None
+        # A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
+        up_front = current_up_front_approval() if relays else None
+        if up_front is not None:
+            return await up_front.run(up_front_deps, command_name, input, context, next_fn)
         command = gated.get(command_name)
         if not await _requires_approval(command, input, context):
             return await next_fn()
@@ -320,30 +428,64 @@ def create_approval_middleware(
         if evidence is not None:
             verdict = verify(evidence, command_name, input_binding, actor_binding, now)
             if isinstance(verdict, _Accepted):
-                if not single_use:
-                    return await next_fn()
-                if memory_store is not None:
-                    fresh = memory_store.consume(verdict.nonce, verdict.expires_at, now)
-                else:
-                    assert nonce_store is not None
-                    outcome = nonce_store.consume(verdict.nonce, verdict.expires_at)
-                    if inspect.isawaitable(outcome):
-                        outcome = await outcome
-                    # Only an explicit True from the store counts as fresh.
-                    fresh = outcome is True
-                if fresh:
+                if await spend(verdict.nonce, verdict.expires_at, now):
                     return await next_fn()
                 rejected = "already-used"
             else:
                 rejected = verdict
 
+        summary = summary_of(command_name, input, context)
+
+        if relay_here is not None:
+            bindings = relay_bindings(command_name, input_binding, actor_binding)
+            answer = await relay_here.answer(bindings)
+            if answer.kind == "decline":
+                return failure(
+                    CommandError(
+                        code=ErrorCodes.APPROVAL_REQUIRED,
+                        message=f"The user did not approve {command_name}",
+                        suggestion=(
+                            "Do not run this again without asking the user first; the user "
+                            "chose not to approve it."
+                        ),
+                        retryable=False,
+                        details={"summary": summary, "reason": "declined"},
+                    )
+                )
+            if (
+                answer.accepted is not None
+                and genuine(answer.accepted, bindings, now)
+                and await spend(answer.accepted.nonce, answer.accepted.expires_at, now)
+            ):
+                return await next_fn()
+            # An expired, spent or invalid approval is asked again, saying why.
+            asked = question(bindings, now)
+            relay_here.hold(
+                StepsHold(
+                    questions=(asked,),
+                    message=relay_message(
+                        summary,
+                        command_name,
+                        input_binding,
+                        "The earlier approval expired or was already used; approve again to run it."
+                        if answer.kind == "accept"
+                        else None,
+                    ),
+                )
+            )
+            # The lane answers with the elicitation instead; this result is never sent.
+            return failure(
+                CommandError(
+                    code=ErrorCodes.APPROVAL_REQUIRED,
+                    message=f"{command_name} needs approval before it runs",
+                    suggestion=f'Wait for the user to approve "{summary}" in the client.',
+                    retryable=False,
+                    details={"expiresAt": _iso_timestamp(asked.expires_at), "summary": summary},
+                )
+            )
+
         approval_token, expires_ms = sign(command_name, input_binding, actor_binding, now)
         expires_at = _iso_timestamp(expires_ms)
-        summary = (
-            (summarize(command_name, input, context) if summarize is not None else None)
-            or getattr(command, "confirm_prompt", None)
-            or f"Run {command_name}"
-        )
 
         if on_approval_required is not None:
             notified = on_approval_required(
@@ -371,13 +513,26 @@ def create_approval_middleware(
         why = f"The approval token was not accepted ({rejected}). " if rejected else ""
         # Addressed to whoever relays the decision: the token is the approval, so the gated
         # caller must not resubmit it on its own, and tool arguments cannot carry it.
-        retry = (
-            "once they approve, the application retries the same call with the same input and "
-            "details.approvalToken as its approval evidence (tool arguments cannot carry it). "
-            f"The token expires at {expires_at}{' and works once' if single_use else ''}."
-            if public_token
-            else "the application retries the same call once it has recorded the approval."
-        )
+        on_mcp = (context.extra or {}).get("interface") == "mcp"
+        if public_token:
+            retry = (
+                "once they approve, the application retries the same call with the same input "
+                "and details.approvalToken as its approval evidence (tool arguments cannot carry "
+                f"it). The token expires at {expires_at}{' and works once' if single_use else ''}."
+            )
+        elif bound is not None:
+            retry = (
+                "the client could not be asked from inside afd-batch, afd-pipe or another "
+                f"command. Call {command_name} on its own so the client can ask the user."
+            )
+        elif relays and on_mcp:
+            retry = (
+                f"the client could not be asked here. Call {command_name} from an MCP client "
+                "that supports form elicitation, or the application records the approval and "
+                "retries."
+            )
+        else:
+            retry = "the application retries the same call once it has recorded the approval."
         details: dict[str, Any] = {}
         if public_token:
             details["approvalToken"] = approval_token
@@ -396,6 +551,44 @@ def create_approval_middleware(
         )
 
     return approval_middleware
+
+
+@dataclass(frozen=True)
+class _UpFrontDeps:
+    """What the up-front gate of an ``afd-batch`` or ``afd-pipe`` needs from one approval
+    middleware (``afd.server.approval_relay.UpFrontDeps``)."""
+
+    now: Callable[[], float]
+    requires: Callable[[str, Any, CommandContext], Awaitable[bool]]
+    may_require: Callable[[str], bool]
+    keys: Sequence[bytes]
+    genuine: Callable[[AcceptedApproval, Sequence[str], float], bool]
+    spend: Callable[[str, float, float], Awaitable[bool]]
+    question: Callable[[Sequence[str], float], ApprovalQuestion]
+    summarize: Callable[[str, Any, CommandContext], str]
+
+    async def requires_approval(self, command: str, input: Any, context: CommandContext) -> bool:
+        return await self.requires(command, input, context)
+
+    def may_require_approval(self, command: str) -> bool:
+        return self.may_require(command)
+
+    def binding_input(self, input: Any) -> str:
+        return _canonical_json(_plain_input(input))
+
+    def actor_binding(self, context: CommandContext) -> str:
+        return _actor_json(getattr(context, "actor", None))
+
+    def bindings(self, tags: Sequence[str], command: str, input: str, actor: str) -> list[str]:
+        """One per key, the signing key's first: a keyed digest of the call (its tag under that
+        key), the command, its input and the actor."""
+        return [
+            _b64url(_hmac(key, "relay-step\0" + _canonical_json([tags[at], command, input, actor])))
+            for at, key in enumerate(self.keys)
+        ]
+
+    def call_tags(self, call: str) -> list[str]:
+        return [_b64url(_hmac(key, f"relay-call\0{call}")) for key in self.keys]
 
 
 async def _requires_approval(command: Any, input: Any, context: CommandContext) -> bool:
