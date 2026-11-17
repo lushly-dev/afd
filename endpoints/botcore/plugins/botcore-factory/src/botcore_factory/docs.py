@@ -51,13 +51,18 @@ base branch's origin head in, then runs the adapter's `install`, bounded by a ti
 the push and just before the merge; when it moved, the branch advances to it without a new
 validation, a `base-advanced` record, only if main's changes touch no `shared_paths` or
 `gate_paths`, merge cleanly with the validated head, and share no unit with the branch's, as the
-adapter's `units` command names them; otherwise it is validated again), pushes the validated commit
+adapter's `units` command names them; otherwise it is validated again, `rerun` `main-moved`;
+after `lane.maxBaseReruns` of those, a move that merges cleanly and touches no `gate_paths`
+advances it anyway, a `base-advanced` record with `reason` `rerun-limit`, and the PR's
+`required_check`, run on the pull request's merge ref, stands in; a move after the push merges
+on that check of the older main, `checkBase` in the record), pushes the validated commit
 (with a lease on its own last push), opens the PR, waits for `required_check` on that commit and
 squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` merges and at
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
-that advanced without a new validation the lane watches the check runs and workflow runs
-(`workflow: <name>`) `main_checks` selects on its merge commit; one failing is `main-broken`, and
-checks still unfinished after `lane.checkTimeoutMinutes` are one `lane-error`, the watch dropped.
+that advanced without a new validation (either way) the lane watches the check runs and
+workflow runs (`workflow: <name>`) `main_checks` selects on its merge commit; one failing is
+`main-broken`, and checks still unfinished after `lane.checkTimeoutMinutes` are one `lane-error`,
+the watch dropped.
 The lane never edits code, and nothing is killed unless its pid and start time both match.
 
 ## Commands
@@ -121,7 +126,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `moveTo`; with `recover`, `rebuilt {queue, claims}` from origin's queue refs and GitHub's
   claims (a person confirms recovery). Refuses `NOT_FOUND`, `HOST_NOT_READY`, `LANE_BUSY`.
 - `lane_report(run?, compare?)` -> `run`, `mergedPerHour`, `validationsPerMerge`,
-  `productiveShare`, `staleRuns`, `reruns`, `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
+  `productiveShare`, `staleRuns`, `reruns`, `baseAdvances`, `rerunLimitAdvances` (those whose
+  required check stood in), `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
   `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.
 - `dial_set(key, value)` -> `key`, `value`, `previous`, `default`. Refuses `NOT_FOUND`,
@@ -132,9 +138,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `lane.coverageEvery` 5,
-`lane.checkTimeoutMinutes` 90, `claims.leaseHours` 24, `cells.maxEjections` 3,
-`experience.hold` false, `lane.autostart` true, `logs.keepDays` 30, and the owner's `review.*`
-dials.
+`lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but turns the guard off),
+`claims.leaseHours` 24, `cells.maxEjections` 3, `experience.hold` false, `lane.autostart`
+true, `logs.keepDays` 30, and the owner's `review.*` dials.
 
 ## State and claims
 
