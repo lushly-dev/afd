@@ -7,9 +7,10 @@
 //! (fields, threads, the search index), the provider interface and its IMAP
 //! implementation, sync, the keychain, the read commands, senders, screening
 //! (classes, the person's decisions and agents' suggestions), stream stories,
-//! the tokens and the journal, and the server: `serve` over HTTP, `mcp` over
-//! stdio, and the command line's forwarding to a running server. The other
-//! commands arrive with the steps that follow.
+//! bursts, selections and the person's policy, the tokens and the journal,
+//! and the server: `serve` over HTTP, `mcp` over stdio, and the command
+//! line's forwarding to a running server. The other commands arrive with the
+//! steps that follow.
 
 pub mod cli;
 pub mod commands;
@@ -23,11 +24,13 @@ pub mod index;
 pub mod journal;
 pub mod log;
 pub mod parts;
+pub mod policy;
 pub mod provider;
 pub mod read;
 pub mod rules;
 pub mod screening;
 pub mod secrets;
+pub mod selections;
 pub mod senders;
 pub mod serve;
 pub mod store;
@@ -87,6 +90,9 @@ pub fn registry(engine: &Arc<Engine>) -> Result<CommandRegistry, String> {
     registry.register(tokens::create(Arc::clone(engine)))?;
     registry.register(tokens::list(Arc::clone(engine)))?;
     registry.register(tokens::revoke(Arc::clone(engine)))?;
+    registry.register(selections::create(Arc::clone(engine)))?;
+    registry.register(policy::show(Arc::clone(engine)))?;
+    registry.register(policy::set(Arc::clone(engine)))?;
     let broken = rules::check(&registry);
     if !broken.is_empty() {
         return Err(broken.join("\n"));

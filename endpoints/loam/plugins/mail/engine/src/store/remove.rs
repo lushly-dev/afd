@@ -128,6 +128,14 @@ impl Store {
              DELETE FROM body_missing WHERE message_id IN (SELECT id FROM removing_message);
              DELETE FROM structure WHERE message_id IN (SELECT id FROM removing_message);",
         )?;
+        // A selection that holds any of the account's mail no longer counts
+        // what it counted: it goes whole, with what it froze.
+        transaction.execute(
+            "DELETE FROM selection WHERE id IN
+                 (SELECT selection_id FROM selection_item WHERE mailbox_id IN
+                      (SELECT id FROM mailbox WHERE account_id = ?1))",
+            [account.0],
+        )?;
         transaction.execute(
             "DELETE FROM observation WHERE mailbox_id IN
                  (SELECT id FROM mailbox WHERE account_id = ?1)",
@@ -179,6 +187,8 @@ const HANDLED: &[(&str, &str)] = &[
     ("observation", "mailbox"),
     ("unreturned", "mailbox"),
     ("mailbox", "account"),
+    ("selection_item", "message"),
+    ("selection_item", "mailbox"),
     // Derived: emptied by the rebuild that removal begins.
     ("envelope", "message"),
     ("part", "message"),
