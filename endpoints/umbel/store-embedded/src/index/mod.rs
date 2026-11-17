@@ -249,15 +249,16 @@ impl TantivyIndex {
                 "the index was not written with LZ4 compression".into(),
             ));
         }
-        let reading = meta.reading()?;
-        // A newer commit payload is refused here, not at the first search.
-        read_applied(&index)?;
-        let reader = index
-            .reader_builder()
-            .reload_policy(ReloadPolicy::Manual)
-            .try_into()
-            .map_err(|e| map_tantivy(&e))?;
-        drop(reading);
+        let reader = {
+            let _meta = meta.reading()?;
+            // A newer commit payload is refused here, not at the first search.
+            read_applied(&index)?;
+            index
+                .reader_builder()
+                .reload_policy(ReloadPolicy::Manual)
+                .try_into()
+                .map_err(|e| map_tantivy(&e))?
+        };
         Ok(Self {
             dir,
             index,
