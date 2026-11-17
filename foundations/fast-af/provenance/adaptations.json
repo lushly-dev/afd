@@ -8987,11 +8987,11 @@
       "upstream_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.spec.ts",
       "staged_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
-      "current_import_sha256": "a786868e249c4374a4b0b0ef85e78d3797fd139817a7c4a4ff320fd2146d0dd1",
+      "current_import_sha256": "c7ddacd99b500de798665a6f50e014e3bba24d413b3234013c983524a3609671",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.stories.ts",
@@ -9011,11 +9011,11 @@
       "upstream_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.ts",
       "staged_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
-      "current_import_sha256": "335ac3ea0828db8bebfd26614ff1458b2482bf697626fdc057eac2903c834e4c",
+      "current_import_sha256": "fcf14a19a45b7d8ff5a638c5b05d78841bc62b239f8122048bea57eabd2a6f13",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.spec.ts",

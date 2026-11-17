@@ -1,4 +1,5 @@
 import { afterEach, describe, expect, it } from "vitest";
+import { page, userEvent } from "vitest/browser";
 
 import "./violet-switch";
 import type { VioletSwitch } from "./violet-switch";
@@ -118,5 +119,105 @@ describe("violet-switch", () => {
 
         expect(element.shadowRoot?.querySelector(".content")?.hasAttribute("hidden")).toBe(true);
         expect(input?.getAttribute("aria-label")).toBe("Compact automation switch");
+    });
+
+    describe("hit area", () => {
+        function nativeInput(element: VioletSwitch): HTMLInputElement {
+            return element.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement;
+        }
+
+        function centerOf(target: Element): { x: number; y: number } {
+            const rect = target.getBoundingClientRect();
+            return { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 };
+        }
+
+        it("toggles from a role-based click without force", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            const changes: boolean[] = [];
+            element.addEventListener("change", () => changes.push(element.checked));
+
+            await page.getByRole("switch", { name: "Enable notifications" }).click();
+
+            expect(element.checked).toBe(true);
+            expect(nativeInput(element).checked).toBe(true);
+            expect(changes).toEqual([true]);
+
+            await page.getByRole("switch", { name: "Enable notifications" }).click();
+            expect(element.checked).toBe(false);
+            expect(changes).toEqual([true, false]);
+        });
+
+        it("toggles an inline switch from a role-based click", async () => {
+            const element = await renderSwitch({ inline: true, ariaLabel: "Compact automation switch" });
+
+            await page.getByRole("switch", { name: "Compact automation switch" }).click();
+
+            expect(element.checked).toBe(true);
+        });
+
+        it("hit-tests the visible track to the native input and toggles exactly once", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            const track = element.shadowRoot?.querySelector(".track") as HTMLElement;
+            const changes: boolean[] = [];
+            element.addEventListener("change", () => changes.push(element.checked));
+
+            const { x, y } = centerOf(track);
+            expect(element.shadowRoot?.elementFromPoint(x, y)).toBe(nativeInput(element));
+
+            // A real pointer at the track's centre: the control shell contains the input,
+            // so Playwright's hit-test accepts it and the click lands where a person's would.
+            await page.elementLocator(element.shadowRoot?.querySelector(".control-shell") as HTMLElement).click();
+
+            expect(element.checked).toBe(true);
+            expect(changes).toEqual([true]);
+        });
+
+        it("still toggles once when the track is clicked programmatically", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            const changes: boolean[] = [];
+            element.addEventListener("change", () => changes.push(element.checked));
+
+            (element.shadowRoot?.querySelector(".track") as HTMLElement).click();
+
+            expect(element.checked).toBe(true);
+            expect(changes).toEqual([true]);
+        });
+
+        it("toggles from a label click and from the keyboard", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+
+            await page.getByText("Enable notifications").click();
+            expect(element.checked).toBe(true);
+
+            nativeInput(element).focus();
+            await userEvent.keyboard("{ }");
+            expect(element.checked).toBe(false);
+        });
+
+        it("ignores clicks while disabled", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            element.disabled = true;
+            await nextFrame();
+
+            const shell = element.shadowRoot?.querySelector(".control-shell") as HTMLElement;
+            await page.elementLocator(shell).click({ force: true });
+            (element.shadowRoot?.querySelector(".track") as HTMLElement).click();
+
+            expect(nativeInput(element).disabled).toBe(true);
+            expect(element.checked).toBe(false);
+            expect(nativeInput(element).checked).toBe(false);
+        });
+
+        it("keeps the focus ring on the track when the input has keyboard focus", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            const track = element.shadowRoot?.querySelector(".track") as HTMLElement;
+            const before = getComputedStyle(track).boxShadow;
+
+            await userEvent.tab();
+            await nextFrame();
+
+            expect(element.shadowRoot?.activeElement).toBe(nativeInput(element));
+            expect(getComputedStyle(track).boxShadow).not.toBe(before);
+        });
     });
 });
