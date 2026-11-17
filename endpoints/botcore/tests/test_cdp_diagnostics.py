@@ -7,7 +7,7 @@ from pathlib import Path
 import pytest
 from afd.testing import assert_error, assert_success
 
-from botcore.commands.cdp import diagnostics
+from botcore.commands.cdp import diagnostics, trace_analysis, tracing
 from botcore.commands.cdp.core import CdpSession, ConsoleEntry
 
 
@@ -126,13 +126,13 @@ async def test_cdp_trace_capture_writes_default_trace_path(monkeypatch, tmp_path
         launched_at="2026-01-01T00:00:00",
     )
 
-    monkeypatch.setattr(diagnostics, "_session_root", lambda: tmp_path)
-    monkeypatch.setattr(diagnostics, "_load_session", lambda root: session)
+    monkeypatch.setattr(tracing, "_session_root", lambda: tmp_path)
+    monkeypatch.setattr(tracing, "_load_session", lambda root: session)
 
     async def _fake_connect(playwright, endpoint):
         return browser
 
-    monkeypatch.setattr(diagnostics, "_connect_over_cdp_with_retry", _fake_connect)
+    monkeypatch.setattr(tracing, "_connect_over_cdp_with_retry", _fake_connect)
 
     class _AsyncPlaywrightFactory:
         def __call__(self):
@@ -174,8 +174,8 @@ async def test_cdp_trace_capture_writes_default_trace_path(monkeypatch, tmp_path
 
 @pytest.mark.asyncio
 async def test_cdp_trace_capture_errors_without_session(monkeypatch, tmp_path: Path) -> None:
-    monkeypatch.setattr(diagnostics, "_session_root", lambda: tmp_path)
-    monkeypatch.setattr(diagnostics, "_load_session", lambda root: None)
+    monkeypatch.setattr(tracing, "_session_root", lambda: tmp_path)
+    monkeypatch.setattr(tracing, "_load_session", lambda root: None)
 
     result = await diagnostics.cdp_trace_capture()
 
@@ -229,7 +229,7 @@ async def test_cdp_trace_query_returns_compact_rows(monkeypatch, tmp_path: Path)
     }
 
     monkeypatch.setattr(
-        diagnostics,
+        trace_analysis,
         "_load_trace_processor",
         lambda: lambda trace: _FakeTraceProcessor(trace, query_map),
     )
@@ -326,7 +326,7 @@ async def test_cdp_trace_summary_returns_stable_shape(monkeypatch, tmp_path: Pat
     }
 
     monkeypatch.setattr(
-        diagnostics,
+        trace_analysis,
         "_load_trace_processor",
         lambda: lambda trace: _FakeTraceProcessor(trace, query_map),
     )

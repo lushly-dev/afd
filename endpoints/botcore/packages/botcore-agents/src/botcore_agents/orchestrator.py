@@ -1,6 +1,8 @@
-"""Agent orchestrator — pool management, task assignment, session lifecycle."""
+"""Agent orchestrator — pool management, task assignment, session lifecycle.
 
-# botcore-override: max-lines=750 — already 692 lines on main; splitting is a separate refactor
+Connector resolution lives in ``capabilities.py``; target resolution in ``targets.py``
+and state persistence in ``state.py`` are mixed into ``AgentOrchestrator``.
+"""
 
 from __future__ import annotations
 
@@ -12,15 +14,18 @@ from typing import TYPE_CHECKING, Any
 from afd import CommandResult, error, success
 from botcore_llm.commands import llm_session_create, llm_session_destroy
 
+from .capabilities import ConnectorIntegrationUnavailable, resolve_connector_commands
 from .config import AgentConfig, AgentsPluginConfig
 from .models import AgentHealth, AgentState, Task
+from .state import OrchestratorPersistenceMixin
+from .targets import TargetResolutionMixin
 
 if TYPE_CHECKING:
     from collections.abc import AsyncIterator
 
     from afd.core.streaming import StreamChunk
 
-    from .state import OrchestratorSnapshot, OrchestratorStateBackend
+    from .state import OrchestratorStateBackend
 
 logger = logging.getLogger(__name__)
 
@@ -28,51 +33,7 @@ logger = logging.getLogger(__name__)
 _namespace: dict[str, Callable[..., Any]] | None = None
 
 
-class ConnectorIntegrationUnavailable(RuntimeError):
-    """An explicitly requested optional connector adapter is unavailable."""
-
-
-def resolve_connector_commands(
-    connectors: list[str],
-    connector_commands: list[str],
-    namespace: dict[str, Any],
-) -> list[str]:
-    """Resolve which connector commands an agent may access.
-
-    Resolution order:
-    1. *connector_commands* non-empty → return those directly (explicit override).
-    2. *connectors* empty → ``[]`` (deny-by-default).
-    3. ``"*"`` in *connectors* → all known connector-prefixed commands.
-    4. Otherwise → prefix-filter *namespace* keys against *connectors*.
-    """
-    # 1. Explicit command list takes precedence
-    if connector_commands:
-        missing = [c for c in connector_commands if c not in namespace]
-        if missing:
-            logger.warning("connector_commands not in namespace: %s", missing)
-        return list(connector_commands)
-
-    # 2. Deny-by-default
-    if not connectors:
-        return []
-
-    # 3. Wildcard — all connector-prefixed commands
-    if "*" in connectors:
-        try:
-            from botcore_connectors.config import KNOWN_CONNECTORS
-        except ImportError as exc:
-            raise ConnectorIntegrationUnavailable(
-                "Wildcard connector discovery requires the optional botcore-connectors integration"
-            ) from exc
-        prefixes = tuple(f"{c}_" for c in KNOWN_CONNECTORS)
-        return [k for k in namespace if any(k.startswith(p) for p in prefixes)]
-
-    # 4. Prefix-filter against connectors list
-    prefixes = tuple(f"{c}_" for c in connectors)
-    return [k for k in namespace if any(k.startswith(p) for p in prefixes)]
-
-
-class AgentOrchestrator:
+class AgentOrchestrator(TargetResolutionMixin, OrchestratorPersistenceMixin):
     """Manages agent lifecycle and task execution.
 
     Phase 1: synchronous task execution (no background loop).
@@ -102,20 +63,6 @@ class AgentOrchestrator:
     @property
     def tasks(self) -> dict[str, Task]:
         return dict(self._tasks)
-
-    def _autosave_enabled(self) -> bool:
-        return self._backend is not None and self._config.state.autosave
-
-    async def _autosave_if_configured(self, reason: str) -> None:
-        """Persist a best-effort snapshot after durable lifecycle changes."""
-        if not self._autosave_enabled():
-            return
-
-        try:
-            await self._backend.save(self._build_snapshot())
-            logger.debug("Autosaved orchestrator state after %s", reason)
-        except Exception as exc:
-            logger.warning("Autosave failed after %s: %s", reason, exc)
 
     def _resolve_tools(self, config: AgentConfig) -> list[str]:
         """Build the tools list from connector commands.
@@ -309,85 +256,6 @@ class AgentOrchestrator:
             reasoning=f"Agent {name!r} stopped, {len(cancelled_tasks)} task(s) cancelled",
         )
 
-    async def _resolve_agent_for_role(self, role: str) -> CommandResult[dict]:
-        """Find an idle agent for *role*, or spawn a new instance.
-
-        Search order:
-        1. Existing idle agent with matching role → use it
-        2. Pool has capacity → create + start a new instance from the role template
-        3. All at capacity → return error
-        """
-        # 1. Find an instance with capacity
-        for name, state in self._agents.items():
-            if (
-                state.config.role == role
-                and state.health.status in ("idle", "busy")
-                and len(state.active_tasks) < state.config.max_concurrent_tasks
-            ):
-                return success(
-                    data={"name": name},
-                    reasoning=f"Reusing agent {name!r} for role {role!r}",
-                )
-
-        # 2. Find the config template for this role
-        template_config = self._find_role_config(role)
-        if template_config is None:
-            return error(
-                "ROLE_NOT_CONFIGURED",
-                f"No agent configuration with role={role!r}",
-                suggestion=f'Add role = "{role}" to an agent config in botcore.toml',
-            )
-
-        # 3. Check pool capacity
-        if len(self._agents) >= self._config.max_agents:
-            return error(
-                "MAX_AGENTS_REACHED",
-                f"Agent pool is full ({self._config.max_agents} max) "
-                f"and no idle {role!r} agents available",
-                suggestion="Stop idle agents or increase max_agents",
-            )
-
-        # 4. Create + start a new instance
-        instance_name = self._next_instance_name(role)
-        agent_config = template_config.model_copy(update={"name": instance_name})
-        health = AgentHealth(name=instance_name, status="stopped")
-        state = AgentState(config=agent_config, health=health)
-        self._agents[instance_name] = state
-
-        start_result = await self.start_agent(instance_name)
-        if not start_result.success:
-            # Clean up the created-but-failed-to-start agent
-            del self._agents[instance_name]
-            return error(
-                "ROLE_SPAWN_FAILED",
-                f"Spawned {instance_name!r} for role {role!r} but failed to start: "
-                f"{start_result.error.message}",
-                suggestion=start_result.error.suggestion,
-            )
-
-        return success(
-            data={"name": instance_name, "spawned": True},
-            reasoning=f"Spawned new agent {instance_name!r} for role {role!r}",
-        )
-
-    def _find_role_config(self, role: str) -> AgentConfig | None:
-        """Return the first configured agent template matching *role*.
-
-        Uses insertion-order (dict order) so the first matching entry
-        in ``[plugins.agents.agents]`` wins.
-        """
-        for cfg in self._config.agents.values():
-            if cfg.role == role:
-                return cfg
-        return None
-
-    def _next_instance_name(self, role: str) -> str:
-        """Generate the next sequential instance name for *role*."""
-        idx = 1
-        while f"{role}-{idx}" in self._agents:
-            idx += 1
-        return f"{role}-{idx}"
-
     async def assign_task(
         self,
         description: str,
@@ -488,49 +356,6 @@ class AgentOrchestrator:
             reasoning=f"Heartbeat for {name!r} at {now.isoformat()}",
         )
 
-    # -- State serialization ------------------------------------------------
-
-    async def _resolve_execution_target(
-        self,
-        *,
-        agent: str,
-        role: str,
-    ) -> CommandResult[dict]:
-        if not agent and not role:
-            return error(
-                "NO_TARGET",
-                "Provide either 'agent' or 'role' to assign the task",
-                suggestion="Pass agent='name' or role='pm'",
-            )
-
-        if role and not agent:
-            resolved = await self._resolve_agent_for_role(role)
-            if not resolved.success:
-                return resolved
-            agent = resolved.data["name"]
-
-        if agent not in self._agents:
-            return error("AGENT_NOT_FOUND", f"Agent {agent!r} does not exist")
-
-        state = self._agents[agent]
-        if state.health.status == "stopped":
-            return error(
-                "AGENT_NOT_STARTED",
-                f"Agent {agent!r} is not started",
-            )
-
-        if len(state.active_tasks) >= state.config.max_concurrent_tasks:
-            return error(
-                "AGENT_AT_CAPACITY",
-                f"Agent {agent!r} is at capacity "
-                f"({state.config.max_concurrent_tasks} concurrent tasks)",
-            )
-
-        return success(
-            data={"name": agent},
-            reasoning=f"Agent {agent!r} selected for task execution",
-        )
-
     async def _begin_task(self, task: Task, agent: str) -> AgentState:
         """Mark *task* running on *agent* and the agent busy; return the agent's state."""
         state = self._agents[agent]
@@ -593,100 +418,6 @@ class AgentOrchestrator:
             },
             reasoning=f"Task {task.id} completed by agent {agent!r}",
         )
-
-    def _build_snapshot(self) -> OrchestratorSnapshot:
-        """Create a snapshot of the current orchestrator state.
-
-        Deep-copies agents and tasks.  Session IDs are cleared in the copy
-        because sessions are not portable across processes.
-        """
-        from .state import AgentSnapshot, OrchestratorSnapshot, TaskSnapshot
-
-        agents = {name: AgentSnapshot.from_state(state) for name, state in self._agents.items()}
-        tasks = {tid: TaskSnapshot.from_task(task) for tid, task in self._tasks.items()}
-
-        return OrchestratorSnapshot(
-            config=self._config.model_copy(deep=True),
-            agents=agents,
-            tasks=tasks,
-        )
-
-    def _restore_from_snapshot(self, snapshot: OrchestratorSnapshot) -> None:
-        """Replace live state with *snapshot* contents.
-
-        Deep-copies snapshot data so the original is not mutated.
-        Restored agents are forced to ``stopped`` with cleared session
-        metadata since sessions are not portable.
-        """
-        logger.info("Replacing orchestrator config from snapshot (version=%s)", snapshot.version)
-        self._config = snapshot.config.model_copy(deep=True)
-        self._tasks = {
-            tid: task_snapshot.to_task() for tid, task_snapshot in snapshot.tasks.items()
-        }
-        self._progress.clear()
-        self._agents = {
-            name: agent_snapshot.to_state() for name, agent_snapshot in snapshot.agents.items()
-        }
-
-    async def save_state(self) -> CommandResult[dict]:
-        """Persist current state via the configured backend."""
-        if self._backend is None:
-            return error(
-                "NO_BACKEND",
-                "No state backend configured",
-                suggestion="Pass a backend= when constructing the orchestrator",
-            )
-        try:
-            snapshot = self._build_snapshot()
-            await self._backend.save(snapshot)
-            return success(
-                data={
-                    "saved": True,
-                    "agents": len(snapshot.agents),
-                    "tasks": len(snapshot.tasks),
-                    "timestamp": snapshot.timestamp.isoformat(),
-                },
-                reasoning="Orchestrator state saved",
-            )
-        except Exception as exc:
-            logger.warning("State save failed: %s", exc)
-            return error("STATE_SAVE_ERROR", f"Failed to save state: {exc}")
-
-    async def load_state(self) -> CommandResult[dict]:
-        """Restore state from the configured backend."""
-        if self._backend is None:
-            return error(
-                "NO_BACKEND",
-                "No state backend configured",
-                suggestion="Pass a backend= when constructing the orchestrator",
-            )
-        try:
-            snapshot = await self._backend.load()
-            if snapshot is None:
-                return success(
-                    data={
-                        "restored": False,
-                        "note": "No saved snapshot found (missing or stale)",
-                    },
-                    reasoning="No saved state found (missing or stale)",
-                )
-            self._restore_from_snapshot(snapshot)
-            return success(
-                data={
-                    "restored": True,
-                    "agents": len(self._agents),
-                    "tasks": len(self._tasks),
-                    "timestamp": snapshot.timestamp.isoformat(),
-                    "note": (
-                        "Agents restore as stopped and incomplete tasks restore as pending; "
-                        "start an agent and use task_resume to continue work"
-                    ),
-                },
-                reasoning="Orchestrator state restored from snapshot",
-            )
-        except Exception as exc:
-            logger.warning("State load failed: %s", exc)
-            return error("STATE_LOAD_ERROR", f"Failed to load state: {exc}")
 
 
 # ---------------------------------------------------------------------------

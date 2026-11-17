@@ -3,7 +3,9 @@
 Commands are split into modules:
 - core.py: lint, test, build, skill-lint (language-aware dispatch)
 - quality.py: check-size, check-coverage, check-deps, check-lockfile
+  (dependencies.py and lockfile.py hold the dependency and lockfile checks)
 - analysis.py: dead-code, circular-imports, unused-deps, dep-graph
+  (import_graph.py holds the Python import scanning)
 - portability.py: check-paths (cross-platform path detection)
 """
 
