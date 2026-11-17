@@ -24,9 +24,10 @@ import {
 	bindApprovalRelay,
 	bindUpFrontApproval,
 	type StepsHold,
-	type UpFrontStep,
+	upFrontApproval,
 	withoutApprovalRelay,
 } from './approval-relay.js';
+import { createUpFrontApproval } from './approval-up-front.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
@@ -1244,14 +1245,12 @@ describe('approval middleware with a relay', () => {
 			commands: [remove],
 			relay: 'mcp-elicitation',
 		});
-		const steps: UpFrontStep[] = [
-			{ index: 0, command: 'todo-delete', dynamic: false, valid: true, input: { id: 1 } },
-		];
+		const request = { commands: [{ command: 'todo-delete', input: { id: 1 } }] };
 		let held: StepsHold | undefined;
 		const asking = { ...fakeRelay(missing).relay, holdSteps: (hold: StepsHold) => (held = hold) };
 		const first = bindUpFrontApproval(
 			{ interface: 'mcp' },
-			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => steps, relay: asking }
+			createUpFrontApproval(asking, 'afd-batch', request, commands([]))
 		);
 		expect((await middleware('todo-delete', { id: 1 }, first, ran)).success).toBe(false);
 		const question = held?.questions[0] as ApprovalQuestion;
@@ -1269,15 +1268,20 @@ describe('approval middleware with a relay', () => {
 				declined: [],
 			}),
 		};
-		const context = bindUpFrontApproval(
+		const call = bindUpFrontApproval(
 			{ interface: 'mcp' },
-			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => steps, relay: accepted }
+			createUpFrontApproval(accepted, 'afd-batch', request, commands([]))
 		);
+		// Each step runs with a context of its own, as the engine gives it.
+		const step = () => ({ ...call });
 		// Another input (say, from a handler's nested call) does not take the step's approval.
-		const other = await middleware('todo-delete', { id: 2 }, context, ran);
+		const other = await middleware('todo-delete', { id: 2 }, step(), ran);
 		expect(other.error?.code).toBe('APPROVAL_REQUIRED');
-		expect((await middleware('todo-delete', { id: 1 }, context, ran)).data).toBe('ran');
-		const again = await middleware('todo-delete', { id: 1 }, context, ran);
+		const own = step();
+		expect((await middleware('todo-delete', { id: 1 }, own, ran)).data).toBe('ran');
+		// The handler's context no longer carries the up-front approval.
+		expect(upFrontApproval(own)).toBeUndefined();
+		const again = await middleware('todo-delete', { id: 1 }, step(), ran);
 		expect(again.error?.code).toBe('APPROVAL_REQUIRED');
 	});
 

@@ -44,6 +44,7 @@ import {
 	bindApprovalRelay,
 	type StepsHold,
 } from './approval-relay.js';
+import { createUpFrontApproval } from './approval-up-front.js';
 import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
@@ -442,6 +443,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			holdSteps(hold) {
 				if (hold.questions.length > 0) held ??= hold;
 			},
+			upFront: (tool, request, commands) => createUpFrontApproval(relay, tool, request, commands),
 		};
 		return { relay, held: () => held };
 	}

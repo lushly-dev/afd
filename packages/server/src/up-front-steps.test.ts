@@ -80,7 +80,9 @@ describe('steps', () => {
 describe('handlers of up-front steps', () => {
 	it('never see the up-front approval, so a command they run cannot take it', async () => {
 		const { createExecutionEngine } = await import('./execution.js');
+		const { createApprovalMiddleware } = await import('./approval.js');
 		const { bindUpFrontApproval, upFrontApproval } = await import('./approval-relay.js');
+		const { createUpFrontApproval } = await import('./approval-up-front.js');
 		const seen: boolean[] = [];
 		const peek = defineCommand({
 			name: 'todo-peek',
@@ -98,6 +100,11 @@ describe('handlers of up-front steps', () => {
 					seen.push(upFrontApproval(context) !== undefined);
 					return next();
 				},
+				createApprovalMiddleware({
+					secret: 'test-approval-secret-0123456789abcdef',
+					commands: [peek],
+					relay: 'mcp-elicitation',
+				}),
 			],
 			devMode: false,
 		});
@@ -109,11 +116,13 @@ describe('handlers of up-front steps', () => {
 			answers: async () => ({ accepted: [], declined: [] }),
 			holdSteps() {},
 		};
+		const request = { commands: [{ command: 'todo-peek', input: {} }] };
 		const context = bindUpFrontApproval(
 			{},
-			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => [], relay }
+			createUpFrontApproval(relay, 'afd-batch', request, [peek])
 		);
-		await engine.executeCommand('todo-peek', {}, context);
+		const result = await engine.executeCommand('todo-peek', {}, context);
+		expect(result.success).toBe(true);
 		expect(seen).toEqual([true, false]);
 	});
 });

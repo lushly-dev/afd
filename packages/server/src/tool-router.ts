@@ -25,12 +25,10 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
-import { canonicalJson } from './approval-crypto.js';
 import {
 	approvalRelay,
 	bindUpFrontApproval,
 	type UpFrontApproval,
-	type UpFrontStep,
 	withoutApprovalRelay,
 } from './approval-relay.js';
 import type { ContextState } from './bootstrap/afd-context.js';
@@ -65,7 +63,6 @@ import {
 import type { ZodCommandDefinition } from './schema.js';
 import { knownOnly, listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { ToolStrategy } from './server-types.js';
-import { batchSteps, pipelineSteps } from './up-front-steps.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -155,15 +152,6 @@ function namedAcknowledgement(value: unknown): Acknowledgement {
 		: undefined;
 }
 
-/** The request an up-front approval is bound to, as canonical JSON (the wire sends plain JSON). */
-function requestJson(tool: string, request: BatchRequest | PipelineRequest): string {
-	try {
-		return canonicalJson([tool, request]);
-	} catch {
-		return JSON.stringify([tool, request]);
-	}
-}
-
 /** The arguments without a top-level `confirm`, which the executors do not know. */
 function withoutConfirm<T>(args: T): T {
 	if (!isRecord(args) || !('confirm' in args)) return args;
@@ -245,32 +233,20 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		/**
 		 * The context of a batch's or pipeline's steps. Steps cannot ask for approval mid-run (the
 		 * retry would run the earlier steps again), so a call that can ask is approved up front, as
-		 * a whole, before any step runs (#459); its steps are worked out only if the approval
-		 * middleware asks for them.
+		 * a whole, before any step runs (#459). Only the MCP lane's relay offers that.
 		 */
 		const stepsContext = (
 			tool: UpFrontApproval['tool'],
 			prefix: string,
-			request: BatchRequest | PipelineRequest,
-			steps: () => UpFrontStep[]
+			request: BatchRequest | PipelineRequest
 		): { context: CommandContext; upFront?: UpFrontApproval } => {
 			const relay = approvalRelay(callContext);
 			if (!relay) return { context: traced(prefix) };
-			let known: UpFrontStep[] | undefined;
-			const upFront: UpFrontApproval = {
-				tool,
-				relay,
-				call: requestJson(tool, request),
-				conditional: 'steps' in request && request.steps.some((step) => step.when !== undefined),
-				steps: () => {
-					known ??= steps();
-					return known;
-				},
-			};
-			return {
-				context: bindUpFrontApproval(withoutApprovalRelay(traced(prefix)), upFront),
-				upFront,
-			};
+			const steps = withoutApprovalRelay(traced(prefix));
+			const upFront = relay.upFront?.(tool, request, commands);
+			return upFront
+				? { context: bindUpFrontApproval(steps, upFront), upFront }
+				: { context: steps };
 		};
 
 		// MCP authorization (spec/authorization.md, M6). After routing and before the confirmation
@@ -416,9 +392,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
-			const steps = stepsContext('afd-batch', 'batch', request, () =>
-				batchSteps(request, commands)
-			);
+			const steps = stepsContext('afd-batch', 'batch', request);
 			const result = await executeBatch(request, steps.context);
 			// Nothing ran: the whole batch was refused, or waits for the user's approval.
 			const refusal = steps.upFront?.refusal;
@@ -464,9 +438,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
-			const steps = stepsContext('afd-pipe', 'pipeline', request, () =>
-				pipelineSteps(request, commands)
-			);
+			const steps = stepsContext('afd-pipe', 'pipeline', request);
 			const result = await executePipeline(request, steps.context);
 			const refusal = steps.upFront?.refusal;
 			if (refusal) return resultContent(failedPipeline(refusal), true);

@@ -62,9 +62,9 @@ import {
 	type AcceptedApproval,
 	approvalRelay,
 	relayMessage,
+	type UpFrontDeps,
 	upFrontApproval,
 } from './approval-relay.js';
-import { createUpFrontGate } from './approval-up-front.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -401,7 +401,8 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		);
 	}
 
-	const upFrontGate = createUpFrontGate({
+	// What the up-front gate of an afd-batch or afd-pipe needs; the MCP lane brings the gate.
+	const upFrontDeps: UpFrontDeps = {
 		clock,
 		requiresApproval: (commandName, input, context) =>
 			requiresApproval(commands.get(commandName), input, context),
@@ -429,7 +430,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			return { binding, bindings, nonce, expiresAt, mac };
 		},
 		summarize,
-	});
+	};
 
 	async function sign(payload: TokenPayload): Promise<string> {
 		const signingInput = `${TOKEN_PREFIX}.${base64urlText(JSON.stringify(payload))}`;
@@ -443,7 +444,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		const relay = bound?.claim(commandName) ? bound : undefined;
 		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
 		const upFront = relayMode === 'mcp-elicitation' ? upFrontApproval(context) : undefined;
-		if (upFront) return upFrontGate(upFront, commandName, input, context, next);
+		if (upFront) return upFront.run(upFrontDeps, commandName, input, context, next);
 		const command = commands.get(commandName);
 		if (!(await requiresApproval(command, input, context))) return next();
 

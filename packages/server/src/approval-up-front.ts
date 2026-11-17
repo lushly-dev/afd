@@ -15,46 +15,31 @@
  *
  * While the plan is not to run, every step answers without calling `next`, and the router answers
  * the call with the refusal (or the lane with the elicitation), so no handler runs.
+ *
+ * Only the MCP lane loads this module (through its relay's `upFront`): a host that runs commands
+ * in process, with or without the approval middleware or the tool surface, never does.
  */
 
-import type { Clock, CommandContext, CommandError, CommandResult } from '@lushly-dev/afd-core';
+import type {
+	BatchRequest,
+	CommandContext,
+	CommandError,
+	CommandResult,
+	PipelineRequest,
+} from '@lushly-dev/afd-core';
 import { ErrorCodes, failure } from '@lushly-dev/afd-core';
 import { actorJson, canonicalJson } from './approval-crypto.js';
 import {
 	type AcceptedApproval,
-	type ApprovalQuestion,
-	type GatedStep,
-	stepsRelayMessage,
+	type ApprovalRelay,
+	releaseUpFrontApproval,
+	shownInput,
 	type UpFrontApproval,
+	type UpFrontDeps,
+	type UpFrontStep,
 } from './approval-relay.js';
-
-/** What the up-front gate needs from the approval middleware. */
-export interface UpFrontDeps {
-	clock: Clock;
-	/** Whether `command`'s policy holds this input. */
-	requiresApproval(command: string, input: unknown, context: CommandContext): Promise<boolean>;
-	/** Whether `command`'s policy could hold some input ('required' or a function). */
-	mayRequireApproval(command: string): boolean;
-	/**
-	 * The bindings of an up-front approval, one per key, the signing key's first: a keyed digest of
-	 * the call (its {@link callTags} under that key), the command, its input and the actor.
-	 */
-	bindings(
-		tags: readonly string[],
-		command: string,
-		input: string,
-		actor: string
-	): Promise<string[]>;
-	/** The call's tag under each key: a keyed digest of the whole request as sent. */
-	callTags(call: string): Promise<string[]>;
-	/** Whether an accepted approval's MAC verifies for `bindings` and it has not expired. */
-	genuine(answer: AcceptedApproval, bindings: readonly string[], now: number): Promise<boolean>;
-	/** Spend a single-use nonce; `true` when it was fresh (or reuse is allowed). */
-	spend(nonce: string, expiresAt: number, now: number): Promise<boolean>;
-	/** A fresh question (nonce, expiry and MAC) for `bindings`. */
-	question(bindings: readonly string[], now: number): Promise<ApprovalQuestion>;
-	summarize(command: string, input: unknown, context: CommandContext): string;
-}
+import type { ZodCommandDefinition } from './schema.js';
+import { batchSteps, pipelineSteps } from './up-front-steps.js';
 
 /** An approval the human gave up front, taken once by the step it is bound to. */
 interface Approved {
@@ -67,8 +52,65 @@ type Plan = { kind: 'run'; approved: Approved[] } | { kind: 'refuse'; error: Com
 /** The most gated steps one question lists; a person cannot weigh more at once. */
 export const MAX_UP_FRONT_APPROVALS = 20;
 
-/** Create the gate the approval middleware runs each step of an up-front call through. */
-export function createUpFrontGate(deps: UpFrontDeps) {
+/**
+ * The up-front approval of one `afd-batch` or `afd-pipe` request that can carry a form
+ * elicitation, asking and reading answers through `relay`. Its steps are worked out only if an
+ * approval middleware asks for them.
+ */
+export function createUpFrontApproval(
+	relay: ApprovalRelay,
+	tool: UpFrontApproval['tool'],
+	request: BatchRequest | PipelineRequest,
+	commands: readonly ZodCommandDefinition[]
+): UpFrontApproval {
+	let steps: UpFrontStep[] | undefined;
+	const upFront: UpFrontApproval = {
+		tool,
+		relay,
+		call: requestJson(tool, request),
+		conditional: 'steps' in request && request.steps.some((step) => step.when !== undefined),
+		steps: () => {
+			steps ??=
+				'steps' in request ? pipelineSteps(request, commands) : batchSteps(request, commands);
+			return steps;
+		},
+		run: (deps, command, input, context, next) =>
+			gateFor(deps)(upFront, command, input, context, next),
+	};
+	return upFront;
+}
+
+/** The request an up-front approval is bound to, as canonical JSON (the wire sends plain JSON). */
+function requestJson(tool: string, request: BatchRequest | PipelineRequest): string {
+	try {
+		return canonicalJson([tool, request]);
+	} catch {
+		return JSON.stringify([tool, request]);
+	}
+}
+
+type Gate = (
+	upFront: UpFrontApproval,
+	command: string,
+	input: unknown,
+	context: CommandContext,
+	next: () => Promise<CommandResult>
+) => Promise<CommandResult>;
+
+/** One gate per approval middleware, so each keeps its own plans. */
+const gates = new WeakMap<UpFrontDeps, Gate>();
+
+function gateFor(deps: UpFrontDeps): Gate {
+	let gate = gates.get(deps);
+	if (!gate) {
+		gate = createUpFrontGate(deps);
+		gates.set(deps, gate);
+	}
+	return gate;
+}
+
+/** Create the gate an approval middleware runs each step of an up-front call through. */
+function createUpFrontGate(deps: UpFrontDeps): Gate {
 	// One plan per call, shared by its steps (concurrent ones too) and decided before any runs.
 	const plans = new WeakMap<UpFrontApproval, Promise<Plan>>();
 	const tags = new WeakMap<UpFrontApproval, Promise<string[]>>();
@@ -184,6 +226,8 @@ export function createUpFrontGate(deps: UpFrontDeps) {
 			upFront.refusal ??= decided.error;
 			return failure(decided.error);
 		}
+		// The handler, and any command it runs, never sees the up-front approval.
+		releaseUpFrontApproval(context);
 		if (!(await deps.requiresApproval(commandName, input, context))) return next();
 		const bindings = await deps.bindings(
 			await callTags(upFront),
@@ -274,4 +318,44 @@ function unplannedError(tool: UpFrontApproval['tool'], command: string): Command
 		retryable: false,
 		details: { summary: `Run ${command}` },
 	};
+}
+
+/** One gated step as the up-front question shows it. */
+interface GatedStep {
+	index: number;
+	command: string;
+	/** The canonical JSON of its validated input. */
+	input: string;
+	summary: string;
+}
+
+/**
+ * The question of an up-front approval: what the call is, then each gated step's summary,
+ * command and canonical input, so the human sees exactly what would run.
+ */
+function stepsRelayMessage(
+	upFront: Pick<UpFrontApproval, 'tool' | 'conditional'>,
+	steps: readonly GatedStep[],
+	note?: string
+): string {
+	const what = upFront.tool === 'afd-batch' ? 'batch' : 'pipeline';
+	const count = steps.length === 1 ? 'a step that needs' : `${steps.length} steps that need`;
+	const lines = [
+		...(note ? [note] : []),
+		`This ${what} includes ${count} your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the ${what} runs.`,
+		...(upFront.conditional
+			? [
+					'Some steps run only when their conditions hold, so one step may run while another is skipped.',
+				]
+			: []),
+	];
+	for (const step of steps) {
+		lines.push(
+			'',
+			`Step ${step.index + 1}: ${step.summary}`,
+			`Command: ${step.command}`,
+			`Input: ${shownInput(step.input)}`
+		);
+	}
+	return lines.join('\n');
 }
