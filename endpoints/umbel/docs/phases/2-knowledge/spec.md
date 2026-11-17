@@ -565,6 +565,10 @@ state/spaces/<space>/
 
 ### 3.3 Grants and host services (D54)
 
+> **Amended 2026-11-16 (D189 to D191, the [world 1.1.0 specification](../1-plugin-contract/world-1.1.spec.md)).** World 1.1.0 carries the four `host-error` cases
+> and the output budget (3.4), not store grants: those stay refused to components, now naming no world version, until
+> the owner decides them for a later minor version of world 1.
+
 The phase 1 catalog (config, log, packs, events, clock, random) gains ten
 grants. Each is scoped to the instance's spaces (D44) and refused to
 components and mounted plugins in protocol 1 with `PLUGIN_GRANT_UNAVAILABLE`
@@ -718,7 +722,10 @@ effects admitted for plugins:
 command a mutation, so its successful result is projected into the event
 log. Version 2 also admits two command keys:
 
-- `output_budget = { default_bytes, max_bytes }` (section 8.6). In phase 2
+- `output_budget = { default_bytes, max_bytes }` (section 8.6). (Amended
+  2026-11-16 by D190 and D191: a component plugin's command may declare one
+  when its component exports world 1.1.0, which the loader checks; the
+  schemas no longer refuse it.) In phase 2
   only a **compiled** plugin's command may declare it; on a component
   plugin's command it is `PLUGIN_MANIFEST_INVALID` naming world 1.1.0 (the
   1.0.0 world's call context cannot carry a budget), and mounted tools have
@@ -1869,7 +1876,7 @@ SQLite or tantivy.
 | Vector lane, embeddings provider (O4) | Opt-in after phase 2, gated by section 10.4 | `knowledge` config `lanes = ["bm25"]` (the only value); RRF fusion code shared with multi-space search; trait names `VectorIndex` and `Embedder` reserved in `umbel-store`, undefined; envelope `derivedFrom` for embeddings |
 | Rerank lane | Same | The ranking pipeline's step between aggregation and expansion; trait name `Reranker` reserved |
 | Model-extracted entities | Per-collection opt-in after phase 2 | Node kind `entity` and edge kind `extracted` reserved; their own provenance layer via `derivedFrom` |
-| Store grants for components | World `umbel:plugin/plugin@1.1.0` | The grants refused to components with that world named |
+| Store grants for components | World `umbel:plugin/plugin@1.1.0` | The grants refused to components with that world named (amended 2026-11-16 by D189: not world 1.1.0, which carries no store import; a later minor version of world 1, the owner's decision) |
 | Documents as MCP resources | When resources can be permission-filtered (2026-07-28 lists do not vary per connection) | URI scheme `kb://<space>/<doc>` reserved; `knowledge-open` is the fetch tool |
 | Federation, native connectors, source ACL mirroring (O1) | After phase 2 | `sources-*` command shape; envelope `sources` |
 | Deterministic auto-approval rules, the curator, inconsistency proposals, scheduled re-verification | Phase 4 | Proposal record version 1; `policy.rule` (only `person` now); `knowledge-stale` |
@@ -2409,7 +2416,7 @@ and verified callers (phase 5).
 
 | Date | Follow-up | Owner |
 | --- | --- | --- |
-| 2026-11-01 | Store grants for components: WIT world `umbel:plugin/plugin@1.1.0` with `documents`, `index`, `graph`, `records` and `content` imports | The first phase that needs a component reading stores |
+| 2026-11-01 | Store grants for components: WIT world `umbel:plugin/plugin@1.1.0` with `documents`, `index`, `graph`, `records` and `content` imports (amended 2026-11-16 by D189: not world 1.1.0, which carries no store import; a later minor version of world 1, the owner's decision) | The first phase that needs a component reading stores |
 | 2026-11-01 | Output budgets in TypeScript, Python and C++ after step 0b | AFD |
 | 2026-11-01 | Documents as MCP resources once a permission-filtered listing exists (`kb://`) | After phase 5 |
 | 2026-11-01 | Restore from `store-backup` | Phase 6 |

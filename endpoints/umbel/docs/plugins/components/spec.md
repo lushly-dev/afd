@@ -219,7 +219,7 @@ already depends on. Checked 2026-11-10 against the watchlist rows, with no sourc
 | Row | Bears on | Effect |
 | --- | --- | --- |
 | W9, W16 | The `components-guide` skill, served as phases 1 and 2 serve skills | None: the skill uses the delivery paths that exist |
-| W17 | The component build (step D2) | None now: D2 waits for WIT world 1.1.0, which this plugin does not ask for |
+| W17 | The component build (step D2) | None now: D2 waits for WIT world 1.1.0, which this plugin does not ask for. World 1.1.0 is specified 2026-11-16 ([its specification](../../phases/1-plugin-contract/world-1.1.spec.md), D189 to D191): the budget through the `call` interface, and `journal` admitted on component commands |
 | W18 | `render: "text"`, the block a harness injects | The block is capped by the call's budget, and Claude Code's `additionalContext` cap is 10 000 characters (W18's refresh of 2026-11-01); the skill tells a harness to pass `maxBytes` when it injects |
 
 The custom-element name rule a tag must follow is Specimen's pattern, not re-derived here from the HTML standard.
