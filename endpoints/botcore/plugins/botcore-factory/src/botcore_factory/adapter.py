@@ -3,10 +3,12 @@
 Botcore validates ``[tool.botcore.plugins.factory]`` in ``pyproject.toml`` or
 ``[plugins.factory]`` in ``botcore.toml`` against ``FactoryConfig`` and hands the result to the
 plugin. Commands are argument lists, never shell strings. Intake reads ``labels``; enqueue reads
-``prequeue`` (named stages), ``review_evidence`` (``{head}`` stands for the head being enqueued)
-and ``gate_paths``. When the base moves under a validated branch, the lane reads ``units``,
-``shared_paths`` and ``gate_paths`` to decide whether it may advance the branch without validating
-it again, and ``main_checks`` to watch main after such a merge. The other keys are parsed and
+``prequeue`` (named stages), ``review_evidence`` (``{head}`` stands for the head being enqueued,
+``{worktree}`` for the cell's worktree; the lane runs it again from its ``review`` slot at the
+base before each validation, and that run binds) and ``gate_paths``. When the base moves under a
+validated branch, the lane reads ``units``, ``shared_paths`` and ``gate_paths`` to decide whether
+it may advance the branch without validating it again, and ``main_checks`` to watch main after
+such a merge. The other keys are parsed and
 validated now so the lane's later commands find them checked.
 """
 

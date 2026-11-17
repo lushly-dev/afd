@@ -109,6 +109,7 @@ int main(int argc, char** argv) {
         auto server = afd::mcp::StdioServer::create(**registry, {.name = "afd-todo-cpp",
                                                                  .version = TODO_BACKEND_VERSION,
                                                                  .confirmations = *confirmations,
+                                                                 .contexts = todo::todo_contexts(),
                                                                  .clock = clock});
         if (!server) {
             std::fprintf(stderr, "failed to start the MCP server: %s\n", server.error().c_str());
