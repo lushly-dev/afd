@@ -1,33 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("scoped custom element registries", () => {
-    test("creates a scoped registry or an explicit global fallback", async ({ page }) => {
-        await page.goto("/");
-
-        const result = await page.evaluate(async () => {
-            // @ts-expect-error: Client module.
-            const { createRegistry, supportsScopedRegistries, uniqueElementName } =
-                await import("/main.js");
-
-            class ChildElement extends HTMLElement {}
-
-            const name = uniqueElementName();
-            const supported = supportsScopedRegistries();
-            const registry = createRegistry([[ChildElement, name]]);
-            const effectiveRegistry = registry ?? customElements;
-
-            return {
-                registered: effectiveRegistry.get(name) === ChildElement,
-                returnedScopedRegistry: registry !== undefined,
-                supported,
-            };
-        });
-
-        expect(result.registered).toBe(true);
-        expect(result.returnedScopedRegistry).toBe(result.supported);
-    });
-
-    test("honors strict mode and reuses FAST definition registration", async ({
+    test("defines a composed FAST child in a scoped registry through its definition", async ({
         page,
     }) => {
         await page.goto("/");
@@ -37,109 +11,53 @@ test.describe("scoped custom element registries", () => {
             const {
                 FASTElement,
                 FASTElementDefinition,
-                createRegistry,
-                fastElementRegistry,
-                supportsScopedRegistries,
-                uniqueElementName,
-            } = await import("/main.js");
-
-            const supported = supportsScopedRegistries();
-            let strictThrew = false;
-
-            class StrictElement extends HTMLElement {}
-
-            try {
-                createRegistry([[StrictElement, uniqueElementName()]], {
-                    strict: true,
-                });
-            } catch {
-                strictThrew = true;
-            }
-
-            class FastChildElement extends FASTElement {}
-
-            const name = uniqueElementName();
-            const definition = await FASTElementDefinition.compose(FastChildElement, {
-                name,
-            });
-            const registry = createRegistry([[FastChildElement, name]]);
-            const effectiveRegistry = registry ?? customElements;
-
-            return {
-                definitionReused:
-                    fastElementRegistry.getByType(FastChildElement) === definition,
-                registered: effectiveRegistry.get(name) === FastChildElement,
-                strictThrew,
-                supported,
-            };
-        });
-
-        expect(result.registered).toBe(true);
-        expect(result.definitionReused).toBe(true);
-        expect(result.strictThrew).toBe(!result.supported);
-    });
-
-    test("caches one registry per concrete mixin class", async ({ page }) => {
-        await page.goto("/");
-
-        const result = await page.evaluate(async () => {
-            // @ts-expect-error: Client module.
-            const {
-                FASTElement,
-                ScopedRegistryMixin,
                 ensureScopedRegistrySupport,
+                fastElementRegistry,
+                html,
                 uniqueElementName,
             } = await import("/main.js");
 
-            // Native support or the polyfill, so the registry assertions below are
-            // unconditional on every browser.
             await ensureScopedRegistrySupport();
 
-            class ChildA extends HTMLElement {}
-            class ChildB extends HTMLElement {}
+            class FastChildElement extends FASTElement {}
+            class HostElement extends FASTElement {}
 
-            const ScopedBase = ScopedRegistryMixin(FASTElement);
-            class HostA extends ScopedBase {}
-            class HostB extends ScopedBase {}
+            const childName = uniqueElementName();
+            const definition = await FASTElementDefinition.compose(FastChildElement, {
+                name: childName,
+                template: html`child`,
+            });
+            const registry = new CustomElementRegistry();
+            definition.define(registry);
 
-            (HostA as any).elementDefinitions = {
-                [uniqueElementName()]: ChildA,
-            };
-            (HostB as any).elementDefinitions = {
-                [uniqueElementName()]: ChildB,
-            };
-
-            const registryA = (HostA as any).scopedRegistry;
-            const registryAAgain = (HostA as any).scopedRegistry;
-            const registryB = (HostB as any).scopedRegistry;
-            const options = (HostA as any).getShadowOptions({
-                clonable: true,
-                delegatesFocus: true,
-                mode: "closed",
-                serializable: true,
+            const hostName = uniqueElementName();
+            await FASTElement.define(HostElement, {
+                name: hostName,
+                template: html`${html.partial(`<${childName}></${childName}>`)}`,
+                shadowOptions: { mode: "open", customElementRegistry: registry },
             });
 
-            return {
-                registryCreated: registryA !== undefined && registryB !== undefined,
-                customRegistryMatches: options.customElementRegistry === registryA,
-                distinctRegistry: registryA !== registryB,
-                legacyRegistryMatches: options.registry === registryA,
-                optionsPreserved:
-                    options.mode === "closed" &&
-                    options.delegatesFocus === true &&
-                    options.clonable === true &&
-                    options.serializable === true,
-                sameRegistry: registryA === registryAAgain,
+            const host = document.createElement(hostName);
+            document.body.append(host);
+            const child = host.shadowRoot!.querySelector(childName) as any;
+            const output = {
+                definitionReused:
+                    fastElementRegistry.getByType(FastChildElement) === definition,
+                registered: registry.get(childName) === FastChildElement,
+                upgraded: child instanceof FastChildElement,
+                rendered: child?.shadowRoot?.textContent,
+                definedGlobally: customElements.get(childName) !== undefined,
             };
+            host.remove();
+            return output;
         });
 
         expect(result).toEqual({
-            registryCreated: true,
-            customRegistryMatches: true,
-            distinctRegistry: true,
-            legacyRegistryMatches: true,
-            optionsPreserved: true,
-            sameRegistry: true,
+            definitionReused: true,
+            registered: true,
+            upgraded: true,
+            rendered: "child",
+            definedGlobally: false,
         });
     });
 
@@ -240,7 +158,6 @@ test.describe("scoped custom element registries", () => {
             const {
                 FASTElement,
                 Observable,
-                ScopedRegistryMixin,
                 ensureScopedRegistrySupport,
                 html,
                 repeat,
@@ -261,14 +178,16 @@ test.describe("scoped custom element registries", () => {
                 readonly version = 2;
             }
 
-            const ScopedBase = ScopedRegistryMixin(FASTElement);
-            class HostA extends ScopedBase {
-                static elementDefinitions = { [childTag]: ChildV1 };
+            const registryA = new CustomElementRegistry();
+            const registryB = new CustomElementRegistry();
+            registryA.define(childTag, ChildV1);
+            registryB.define(childTag, ChildV2);
+
+            class HostA extends FASTElement {
                 items = ["a", "b"];
                 show = true;
             }
-            class HostB extends ScopedBase {
-                static elementDefinitions = { [childTag]: ChildV2 };
+            class HostB extends FASTElement {
                 items = ["c"];
                 show = true;
             }
@@ -292,12 +211,12 @@ test.describe("scoped custom element registries", () => {
             await FASTElement.define(HostA, {
                 name: nameA,
                 template: templateFor(),
-                shadowOptions: (HostA as any).getShadowOptions(),
+                shadowOptions: { mode: "open", customElementRegistry: registryA },
             });
             await FASTElement.define(HostB, {
                 name: nameB,
                 template: templateFor(),
-                shadowOptions: (HostB as any).getShadowOptions(),
+                shadowOptions: { mode: "open", customElementRegistry: registryB },
             });
 
             const hostA = document.createElement(nameA);

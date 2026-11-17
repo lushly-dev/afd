@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "2372e68f202343707ff60f29ade7a664ffedbdb88137e90350f9a9d13b953151",
+      "current_import_sha256": "7e23c92c841c1c963632443b9da36c6f653d2f19d262d57cd8833895a01b7d42",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -153,11 +153,11 @@
       "upstream_sha256": "a79ff81c1f843a37151e2b013d8a430a4264bb7d222719096d050682b6f5660e",
       "staged_path": "packages/element/packages/fast-element/SIZES.md",
       "staged_sha256": "17c6f3080d8f85a98d916fda28cd7ba05eb23f1bbb1e1f293e258527cc47ad23",
-      "current_import_sha256": "8c6e025c503c194bddfb8e3c9963d6edb830a4b438002cf5071d6d6cbae60115",
+      "current_import_sha256": "098b4d39a7362aa53f2bd0b9463c3b4a0f10ffed4fedf871030d86b5035575e9",
       "stage_classification": "modified-upstream",
       "stage_reason": "Regenerated by the upstream build",
       "import_classification": "modified-after-staging",
-      "import_reason": "Restored the upstream bytes: the AFD build no longer regenerates this advisory size report; build:sizes refreshes it explicitly; Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Restored the upstream bytes: the AFD build no longer regenerates this advisory size report; build:sizes refreshes it explicitly; Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/api-extractor.arrays.json",
@@ -180,8 +180,13 @@
       "current_import_sha256": "8567754c20144f7fc9d7419b1d3249e35d98fc158fa90eecf5b603946bf7d7af",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/api-extractor.context.json",
@@ -264,8 +269,13 @@
       "current_import_sha256": "934487b3a09ffb06abcd5df4625a5b934d323854cd2b69536fd94785906d3925",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/biome.json",
@@ -297,11 +307,11 @@
       "upstream_sha256": "bb8be68fd0965eeb1213f334c34c79c902d6696a44d85ad1b232db5eadd2a0c8",
       "staged_path": "packages/element/packages/fast-element/docs/api-report.api.md",
       "staged_sha256": "bb8be68fd0965eeb1213f334c34c79c902d6696a44d85ad1b232db5eadd2a0c8",
-      "current_import_sha256": "bb8be68fd0965eeb1213f334c34c79c902d6696a44d85ad1b232db5eadd2a0c8",
+      "current_import_sha256": "6bcc0f5e29d4896abf45d2e272ab9ed869b6a1d88c7e2a00c88516f7f21fc7ed",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/architecture/fastelement.md",
@@ -384,8 +394,13 @@
       "current_import_sha256": "1a00d2305f617cbc784e63b79228dc4c29da1beec6944101193297701685ecfa",
       "stage_classification": "modified-upstream",
       "stage_reason": "Regenerated by the build because the upstream report was stale (CommandEntry lacked hidden?: boolean); API Extractor wrote CRLF line endings",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Same regenerated content with LF line endings, the bytes Git stores and checks out under the repository eol=lf attributes; the build and the doc:ci check leave it unchanged"
+      "import_classification": "removed-after-import",
+      "import_reason": "Same regenerated content with LF line endings, the bytes Git stores and checks out under the repository eol=lf attributes; the build and the doc:ci check leave it unchanged",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "modified-after-staging"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/context/api-report.api.md",
@@ -477,11 +492,11 @@
       "upstream_sha256": "eb7078d85d236f316dc09731291b3e676bdbe115d6ceaa8bf1fa08af897ea4b4",
       "staged_path": "packages/element/packages/fast-element/docs/definition-schema/api-report.api.md",
       "staged_sha256": "eb7078d85d236f316dc09731291b3e676bdbe115d6ceaa8bf1fa08af897ea4b4",
-      "current_import_sha256": "eb7078d85d236f316dc09731291b3e676bdbe115d6ceaa8bf1fa08af897ea4b4",
+      "current_import_sha256": "694706df6cf72546ecd86ba07b93d7c68e6ee2ad595c79cd0f5aeb2828f149a9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/di/api-report.api.md",
@@ -537,11 +552,11 @@
       "upstream_sha256": "6e6c541184bb6dfb108cb958716e61a9f2a0e34be5b2d8f60e1ad4791b245762",
       "staged_path": "packages/element/packages/fast-element/docs/scoped/api-report.api.md",
       "staged_sha256": "6e6c541184bb6dfb108cb958716e61a9f2a0e34be5b2d8f60e1ad4791b245762",
-      "current_import_sha256": "6e6c541184bb6dfb108cb958716e61a9f2a0e34be5b2d8f60e1ad4791b245762",
+      "current_import_sha256": "07e6b3b4fefa4e94ea8f78ad321599e0c91b827cfae6b3622f134f6f4e99d8ec",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/docs/styles/api-report.api.md",
@@ -576,8 +591,13 @@
       "current_import_sha256": "914e514379bd7e4f69ef3a15d2eac2c8d2752964e9278c502a95d560665636fe",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/migration/fast-html/rule-tests/attribute-directive.test.yml",
@@ -705,12 +725,12 @@
       "upstream_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
       "staged_path": "packages/element/packages/fast-element/package.json",
       "staged_sha256": "fc59c46838c46f27fc9db904e31d5a1b487b994aa59787b6a57c1359fe168028",
-      "current_import_sha256": "0dafcde99177e937b206a888e9a7e38f2ec4943dba3798de9cf489bdd83aa642",
-      "manifest_shape_sha256": "229cec439cf4bc2a1e468bdc79945511dc684696df4d8722c3e0a51f7b6761f2",
+      "current_import_sha256": "1100bcc46dd65df478a9641f5dd8d91778e2c4674ed30beb6ccc6108ea7c96e3",
+      "manifest_shape_sha256": "f55b5e6c2e002eb80b516bd6e3f0bbd4ed0f455e94f06899a2950dbcf6c865e8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Reconciled to upstream 5e64a6a5 (fast-af #186, fast-af #185) from the immutable upstream Git object; the dc3a2b98 staging candidate predates this change",
       "import_classification": "modified-after-staging",
-      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #806: typescript moves from upstream ~5.9.3 to the workspace's ^7.0.2; @rollup/plugin-typescript and its tslib peer are removed because rollup.config.js now bundles tsc's dist/esm output and nothing else imports tslib; Versioned for release by pnpm version-packages (fast-element, specimen); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "build drops build:sizes so pnpm build does not rewrite the tracked, platform-sensitive size report; test becomes the browser-free subset run by pnpm check (lint, path-export docs, API reports in CI mode, declaration tests, export smoke); devDependency @playwright/test moves from upstream 1.56.1 to 1.64.0 because Playwright before 1.64 cannot install browsers on Ubuntu 26.04, which GitHub ubuntu-latest runners use since 2026-10-30; scripts call each other with pnpm run instead of npm run, and start vite and playwright from their bins instead of npx, so a run under pnpm does not print npm's unknown-config warnings (npm's next major version rejects that config); test:ci and all other scripts, dependencies and metadata, including the reconciled upstream devDependencies @ast-grep/cli ^0.51.0 (fast-af #186) and vite 8.3.5 (fast-af #185), are upstream and fast-af.yml runs test:ci; Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Versioned for release by pnpm version-packages (fast-element, specimen, specimen-afd, specimen-cli, specimen-fast-af); Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-cli, specimen-fast-af); #806: typescript moves from upstream ~5.9.3 to the workspace's ^7.0.2; @rollup/plugin-typescript and its tslib peer are removed because rollup.config.js now bundles tsc's dist/esm output and nothing else imports tslib; Versioned for release by pnpm version-packages (fast-element, specimen); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/playwright.config.ts",
@@ -766,11 +786,11 @@
       "upstream_sha256": "8acb70381919f10e4f1a73b39afa8bc3adbbc42fe564c3ed963641aa256d6968",
       "staged_path": "packages/element/packages/fast-element/scripts/check-path-exports-docs.js",
       "staged_sha256": "8acb70381919f10e4f1a73b39afa8bc3adbbc42fe564c3ed963641aa256d6968",
-      "current_import_sha256": "8acb70381919f10e4f1a73b39afa8bc3adbbc42fe564c3ed963641aa256d6968",
+      "current_import_sha256": "0f4a618d910921e0d72c1dcde44fc51d793bc52006cfe7ad424855d3db609990",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/command-coverage.mjs",
@@ -781,8 +801,13 @@
       "current_import_sha256": "50aa4fabf1bfd607ea2cfc8ad90a96e79a2f0430ccac463f5bfe8412fdb1a469",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/declarative/build-fixtures-with-webui.js",
@@ -838,11 +863,11 @@
       "upstream_sha256": "6334753ac8e16b8056610f12cd08ecdfb491052b5a71621c4256aa4486b23b47",
       "staged_path": "packages/element/packages/fast-element/scripts/run-api-extractor.js",
       "staged_sha256": "6334753ac8e16b8056610f12cd08ecdfb491052b5a71621c4256aa4486b23b47",
-      "current_import_sha256": "6334753ac8e16b8056610f12cd08ecdfb491052b5a71621c4256aa4486b23b47",
+      "current_import_sha256": "f02ad8b131794974e81a9f72e27374e182c416cf5d1bd7bc5ecb74d9ab98e9b9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/scripts/smoke-package-exports.js",
@@ -961,8 +986,13 @@
       "current_import_sha256": "2ed8a75075012ba80bc0b3922e1252bcf76014d4065b692bc76fab6e08c7cb4c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/behaviors/confirm-behavior.ts",
@@ -973,8 +1003,13 @@
       "current_import_sha256": "c8504bcbcbd428f7841787d892c27f30d0339e1395952f542f0b0400794d411c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/behaviors/undo-behavior.ts",
@@ -985,8 +1020,13 @@
       "current_import_sha256": "17d007abc2546cf38696da2fb2ac9939b9d84096f32d7e390de92cb2513f7f68",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/command.pw.spec.ts",
@@ -997,8 +1037,13 @@
       "current_import_sha256": "e7611a3b132d45c087ea7db04786c2c6bb4031e2523c4e2e0cd147d637e178cd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
+      "import_classification": "removed-after-import",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "modified-after-staging"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/command.ts",
@@ -1009,8 +1054,13 @@
       "current_import_sha256": "0c2cfea50b41627c7981c1e45cb0d79eefe3c33eff9a3dcfdd59b26293640931",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/component-registry.ts",
@@ -1021,8 +1071,13 @@
       "current_import_sha256": "391fe07e2ff9844eb95c71fc1c535fc90a1904d4a4a2b5b1d08e9a10c61d70bb",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/components/confirm-dialog.ts",
@@ -1033,8 +1088,13 @@
       "current_import_sha256": "c190d38b79ee993d835883dbbf07211d7acb45ca3f7fbd1a67fba59276616e4f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/coverage-fixture.spec.ts",
@@ -1045,8 +1105,13 @@
       "current_import_sha256": "15e866c9a47ac9fe585c3a829382a4a7dc90c3d9440f810ebc4e98cc3ebfa999",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/index.ts",
@@ -1057,8 +1122,13 @@
       "current_import_sha256": "65cde7faee941f289fa2cef4bb150ef47eecc1fac2781908d0cd183af1ab5f2e",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/registry.ts",
@@ -1069,8 +1139,13 @@
       "current_import_sha256": "0c4dcbf99e99bd1976ab73faf0eef64c966036ccd4aa4c59cdd10d54a19725e6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/schema-validation.ts",
@@ -1081,8 +1156,13 @@
       "current_import_sha256": "a986b56057ceee6076bab74ba19557c1191cefc1aa32461d0421878e4ea578c3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/types.ts",
@@ -1093,8 +1173,13 @@
       "current_import_sha256": "d2e857ff4e178e8554a741742fa124aa0dc4c444d82ca0200fb2388174649a91",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/validation.ts",
@@ -1105,8 +1190,13 @@
       "current_import_sha256": "4407f3b0753309772dfd4e43456b1ba90d12f71ec81938a4d4ac7b4f44791094",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/weak-ref.ts",
@@ -1117,8 +1207,13 @@
       "current_import_sha256": "3d2c340c0d9fcfe3545f52acdffc3de404fd3ed9827bb228fece3def294e43dd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/attributes.pw.spec.ts",
@@ -1174,11 +1269,11 @@
       "upstream_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.ts",
       "staged_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
-      "current_import_sha256": "8fa37ea3d7454d3ca08307922447d1f8761f061fe3ad75764a3d2eee4a750540",
+      "current_import_sha256": "921ebfa36e5af41f259dc4386b890385853cc74b827882971b1e91a763438142",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-hydration.ts",
@@ -1270,11 +1365,11 @@
       "upstream_sha256": "caeaf3a49bb05ff03a4f1812f010e31214268cf84be83c212f64aa590c5412cf",
       "staged_path": "packages/element/packages/fast-element/src/components/fast-element.ts",
       "staged_sha256": "caeaf3a49bb05ff03a4f1812f010e31214268cf84be83c212f64aa590c5412cf",
-      "current_import_sha256": "caeaf3a49bb05ff03a4f1812f010e31214268cf84be83c212f64aa590c5412cf",
+      "current_import_sha256": "15306cdb8149b3ce6fbcc77f2c1ae3b817f70f3f6187f32c6897e850f234c803",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/hydration-tracker.ts",
@@ -1414,11 +1509,11 @@
       "upstream_sha256": "b34c9632b62604201d734fbcb9169d53dedf45b66d91cc586b12e6c69c51b2ce",
       "staged_path": "packages/element/packages/fast-element/src/declarative/extension-subpaths.pw.spec.ts",
       "staged_sha256": "b34c9632b62604201d734fbcb9169d53dedf45b66d91cc586b12e6c69c51b2ce",
-      "current_import_sha256": "b34c9632b62604201d734fbcb9169d53dedf45b66d91cc586b12e6c69c51b2ce",
+      "current_import_sha256": "4c54732e6425a88bfc7f7934630c966b0ea86ca14ac720879a356cd750b27ea6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/declarative/index.ts",
@@ -1609,8 +1704,13 @@
       "current_import_sha256": "a9b664b794bd64e22074fa9b29b88c3dfde86362b4068cf7ef7c90253fee799b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/definition-schema/definition-schema.pw.spec.ts",
@@ -1618,11 +1718,11 @@
       "upstream_sha256": "477eca949ec8075ddd7402a37ab1c241ded3a345ea9b169e35789b192dfe20cf",
       "staged_path": "packages/element/packages/fast-element/src/definition-schema/definition-schema.pw.spec.ts",
       "staged_sha256": "477eca949ec8075ddd7402a37ab1c241ded3a345ea9b169e35789b192dfe20cf",
-      "current_import_sha256": "477eca949ec8075ddd7402a37ab1c241ded3a345ea9b169e35789b192dfe20cf",
+      "current_import_sha256": "7c2926dbec94dbf774bb15066c04c389531c93fac08696e4a763c0ce4b0200df",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/definition-schema/extension.ts",
@@ -1630,11 +1730,11 @@
       "upstream_sha256": "80138b9bfeb12908fb51884c9c39b9bda684df256fd3e5f8160c740b950dfeda",
       "staged_path": "packages/element/packages/fast-element/src/definition-schema/extension.ts",
       "staged_sha256": "80138b9bfeb12908fb51884c9c39b9bda684df256fd3e5f8160c740b950dfeda",
-      "current_import_sha256": "80138b9bfeb12908fb51884c9c39b9bda684df256fd3e5f8160c740b950dfeda",
+      "current_import_sha256": "4cc1126346f7dbcbb02f0fbfb5ba5e5ee07886c15addaddd4e26f259bfcb7c09",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/definition-schema/extract.ts",
@@ -1642,11 +1742,11 @@
       "upstream_sha256": "5962abdc421059a313c499e06008c2f9068540e94664bc7c8a70642da8a066d2",
       "staged_path": "packages/element/packages/fast-element/src/definition-schema/extract.ts",
       "staged_sha256": "5962abdc421059a313c499e06008c2f9068540e94664bc7c8a70642da8a066d2",
-      "current_import_sha256": "5962abdc421059a313c499e06008c2f9068540e94664bc7c8a70642da8a066d2",
+      "current_import_sha256": "8543d233dbbcf2f4228b75a9d7a95d4b76994e8f6090bee01fffb57e504bebb1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/definition-schema/index.ts",
@@ -1654,11 +1754,11 @@
       "upstream_sha256": "44012168b504c3f870b5d8c10d70761783d0dd25e57c7455c8419a3cbf2234a0",
       "staged_path": "packages/element/packages/fast-element/src/definition-schema/index.ts",
       "staged_sha256": "44012168b504c3f870b5d8c10d70761783d0dd25e57c7455c8419a3cbf2234a0",
-      "current_import_sha256": "44012168b504c3f870b5d8c10d70761783d0dd25e57c7455c8419a3cbf2234a0",
+      "current_import_sha256": "4d42d56777d2e9d503f22251dd256b4cc909602a4951ce432bd988e7364a837c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/definition-schema/storage.ts",
@@ -1678,11 +1778,11 @@
       "upstream_sha256": "5fb9afed923a35a159125ae13b28c4b0248513986e326cfaac843d17ed5012f4",
       "staged_path": "packages/element/packages/fast-element/src/definition-schema/types.ts",
       "staged_sha256": "5fb9afed923a35a159125ae13b28c4b0248513986e326cfaac843d17ed5012f4",
-      "current_import_sha256": "5fb9afed923a35a159125ae13b28c4b0248513986e326cfaac843d17ed5012f4",
+      "current_import_sha256": "2fc7ba9fb5754b3fc4f4343f33633223218d9987f12d0eef3ae826edc0665eb1",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/dev-mode.ts",
@@ -1930,11 +2030,11 @@
       "upstream_sha256": "023c77c6cc4bd2c90af63de55a3d71ab4799ea72fd828aaa7b4631e439be5efc",
       "staged_path": "packages/element/packages/fast-element/src/index.ts",
       "staged_sha256": "023c77c6cc4bd2c90af63de55a3d71ab4799ea72fd828aaa7b4631e439be5efc",
-      "current_import_sha256": "023c77c6cc4bd2c90af63de55a3d71ab4799ea72fd828aaa7b4631e439be5efc",
+      "current_import_sha256": "d33509366a72d6c4fdd2ecd25829d558370a12fe7b6fd6e0cb6760bdb2f9695f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/interfaces.ts",
@@ -2158,11 +2258,11 @@
       "upstream_sha256": "9f53f793e414efb3beee7b1458ab4d1cc1ecf8aec95ee50a6fd437e38d9b519e",
       "staged_path": "packages/element/packages/fast-element/src/scoped/index.ts",
       "staged_sha256": "9f53f793e414efb3beee7b1458ab4d1cc1ecf8aec95ee50a6fd437e38d9b519e",
-      "current_import_sha256": "9f53f793e414efb3beee7b1458ab4d1cc1ecf8aec95ee50a6fd437e38d9b519e",
+      "current_import_sha256": "7c8448457688f85b7f9450e9ae9bb5c43a6a49ffff2cac66858b848a10d4e474",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/mixin.ts",
@@ -2173,8 +2273,13 @@
       "current_import_sha256": "19205556322e41498130968ef97e1f4be1932db6f89348a046b06d4fb9a039e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "modified-after-staging",
-      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
+      "import_classification": "removed-after-import",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "modified-after-staging"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/registry.ts",
@@ -2185,8 +2290,13 @@
       "current_import_sha256": "d4a764c8dc005264f1703bc92e5a86e9dd00e815544b4c1132db96424e78658b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/scoped.pw.spec.ts",
@@ -2194,11 +2304,11 @@
       "upstream_sha256": "e6717e55871c96595fb1b76c65d7a11519f541e81800d5397cedc251b064cb9c",
       "staged_path": "packages/element/packages/fast-element/src/scoped/scoped.pw.spec.ts",
       "staged_sha256": "e6717e55871c96595fb1b76c65d7a11519f541e81800d5397cedc251b064cb9c",
-      "current_import_sha256": "e6717e55871c96595fb1b76c65d7a11519f541e81800d5397cedc251b064cb9c",
+      "current_import_sha256": "03af7105d47a6b37f95b99f07e2dff7133b17d797a9a5cb137b9b524847d8099",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/types.ts",
@@ -2206,11 +2316,11 @@
       "upstream_sha256": "8c11b416d2a7fd6268a097e8d7626bff1d239faddc664b98f42750d7b8a96fcf",
       "staged_path": "packages/element/packages/fast-element/src/scoped/types.ts",
       "staged_sha256": "8c11b416d2a7fd6268a097e8d7626bff1d239faddc664b98f42750d7b8a96fcf",
-      "current_import_sha256": "8c11b416d2a7fd6268a097e8d7626bff1d239faddc664b98f42750d7b8a96fcf",
+      "current_import_sha256": "d13e20126e444e28fe25c95f4e1840b1d8a39bd44ca17f79c5d88306b0760399",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/state/exports.ts",
@@ -2797,8 +2907,13 @@
       "current_import_sha256": "83b8bad71624a88f24e0cb803272947965a3b6be5c495f0fe1978f350f0629c6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/trust/trust.pw.spec.ts",
@@ -2809,8 +2924,13 @@
       "current_import_sha256": "e8aad0c5a0990022a823c7cf09aca841ca709752f7fd5b38bc462fc8badb40b4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/trust/types.ts",
@@ -2821,8 +2941,13 @@
       "current_import_sha256": "ca20351e0bff88ae34e211c2261d594d92cc1944132f71bd22a3c1dccfae8110",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/trust/utils.ts",
@@ -2833,8 +2958,13 @@
       "current_import_sha256": "ec67fd2d3ef470c196127902218a3fe5988738b8d47a94e6344bf59eb72cafb2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "removed-after-import",
+      "import_reason": "Imported exact staged bytes",
+      "removed": {
+        "on": "2026-11-17",
+        "reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again",
+        "import_classification": "unchanged-staged"
+      }
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/utilities.pw.spec.ts",
@@ -5122,11 +5252,11 @@
       "upstream_sha256": "0b369e19728fdfdfe75ae1aa8cefc45b3b29f6699d06f2dfa381c252e266af20",
       "staged_path": "packages/element/packages/fast-element/test/extension-subpaths-main.ts",
       "staged_sha256": "0b369e19728fdfdfe75ae1aa8cefc45b3b29f6699d06f2dfa381c252e266af20",
-      "current_import_sha256": "0b369e19728fdfdfe75ae1aa8cefc45b3b29f6699d06f2dfa381c252e266af20",
+      "current_import_sha256": "3a069d29aad91b9d501636fc64e3fe429eee4cbe42188f601f228dc2b3df9301",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/extension-subpaths-types.ts",
@@ -5134,11 +5264,11 @@
       "upstream_sha256": "018610b3fcacd329fc5c11d3b67488e0353605d53c94977439172c573c5cde30",
       "staged_path": "packages/element/packages/fast-element/test/extension-subpaths-types.ts",
       "staged_sha256": "018610b3fcacd329fc5c11d3b67488e0353605d53c94977439172c573c5cde30",
-      "current_import_sha256": "018610b3fcacd329fc5c11d3b67488e0353605d53c94977439172c573c5cde30",
+      "current_import_sha256": "d36ab4696708c7941d63c7c5c1fb3d7638b61dd6e20ef98c38cc616bac14d5b9",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/helpers.ts",
@@ -5170,11 +5300,11 @@
       "upstream_sha256": "448c49cbc2b78f4f6f4ccabc02338c7cf49161f24b71d6ec5e244f72fa65a959",
       "staged_path": "packages/element/packages/fast-element/test/main.ts",
       "staged_sha256": "448c49cbc2b78f4f6f4ccabc02338c7cf49161f24b71d6ec5e244f72fa65a959",
-      "current_import_sha256": "ef0e0b4309b512c8289a86abebd6f29a0c65b29e25649eecabd7ffddaa82a44a",
+      "current_import_sha256": "e1c09c4c4376aca5dd3ebeb8c6037d695658bba62714a016db6e3eb4702eecd5",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/test/pure-declarative-main.ts",
@@ -5254,11 +5384,11 @@
       "upstream_sha256": "15358f9a0580b2d84f88e667b0e2e75e98c06d6cf1d8cc0ef1e321399fb7de45",
       "staged_path": "packages/element/sites/website/src/docs/3.x/advanced/path-exports.md",
       "staged_sha256": "15358f9a0580b2d84f88e667b0e2e75e98c06d6cf1d8cc0ef1e321399fb7de45",
-      "current_import_sha256": "15358f9a0580b2d84f88e667b0e2e75e98c06d6cf1d8cc0ef1e321399fb7de45",
+      "current_import_sha256": "62265e6e4da8c2463a7e8b958185bcc35f7177161f0a88c0ecdf569bb2e93772",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/element/tsconfig.json",
@@ -9671,11 +9801,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "db7a6005fe077c286e4744eee8f51f66e5d099d43d1cda5adb607d62583525b3",
+      "current_import_sha256": "25ad56f5eb7f7c2d0b8ecf41861b7e8d58c9b680a968bf60f5441c110e83c90e",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; start pnpm and tar portably so the consumer check runs on windows; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Serve the browser consumer without dependency discovery (#1247)"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; start pnpm and tar portably so the consumer check runs on windows; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Serve the browser consumer without dependency discovery (#1247); Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen/plugins.ts",
@@ -9683,11 +9813,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "8128079740e6a3201d5ee9820ec670044c8e2a120cc8ede8f20770653008f5d4",
+      "current_import_sha256": "d35480b0feab37bc16bce1667ca1d17a520441e498abc85528ad40c6a2f21248",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built"
+      "import_reason": "Component Briefs B4: wire the FAST-AF Specimen plugin into the stories' configuration (specimen/plugins.ts and a development dependency on @lushly-dev/specimen-fast-af), before any component pack is built; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/GAPS.md",
@@ -11651,11 +11781,23 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "1d5d0733b19f2d56804b981112d48b1ce3aa8c409b567831d870050111f968e9",
+      "current_import_sha256": "59f59e9fbadb3bf382533396679cdf42e4749337549dfcd0ddcd518624def9bc",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first; Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/replaced-controller.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "195a30255c158f1e2ff0ce5065d53300e227646d36ba3231b9fab45bcd28290f",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults"
     }
   ]
 }

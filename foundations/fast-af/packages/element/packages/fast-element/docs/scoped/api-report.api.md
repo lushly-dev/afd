@@ -5,40 +5,7 @@
 ```ts
 
 // @public
-export function createRegistry(definitions: ElementDefinition[], options?: CreateRegistryOptions): CustomElementRegistry | undefined;
-
-// @public
-export function createRegistryAsync(definitions: ElementDefinition[], options?: CreateRegistryOptions): Promise<CustomElementRegistry>;
-
-// @public
-export interface CreateRegistryOptions {
-    strict?: boolean;
-}
-
-// @public
-export type ElementDefinition = [CustomElementConstructor, string];
-
-// @public
-export type ElementDefinitionMap = Record<string, CustomElementConstructor>;
-
-// @public
 export function ensureScopedRegistrySupport(): Promise<void>;
-
-// @public
-export interface ScopedRegistryHost {
-    elementDefinitions?: ElementDefinitionMap;
-    scopedRegistry: CustomElementRegistry | undefined;
-}
-
-// @public
-export interface ScopedRegistryHostConstructor {
-    elementDefinitions?: ElementDefinitionMap;
-    getShadowOptions(baseOptions?: ScopedShadowRootInit): ScopedShadowRootInit;
-    readonly scopedRegistry: CustomElementRegistry | undefined;
-}
-
-// @public
-export function ScopedRegistryMixin<T extends CustomElementConstructor>(Base: T): T & ScopedRegistryHostConstructor;
 
 // @public
 export interface ScopedShadowRootInit extends ShadowRootInit {

@@ -96,7 +96,7 @@ assert.equal(runtime.version, runtimeVersion);
 assert.equal(component.version, await sourceVersion(componentSource));
 // Published as a preview since 2026-11-14; upstream it was private and never published.
 assert.equal(component.private, undefined, 'violet-elements is publishable');
-assert.equal(Object.keys(runtime.exports).length, 38);
+assert.equal(Object.keys(runtime.exports).length, 36);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
 	'./theme-css',
@@ -197,8 +197,8 @@ for (const condition of ['production', 'development']) {
 		[`--conditions=${condition}`, 'runtime-consumer.mjs'],
 		{ cwd: runtimeOnly.root, encoding: 'utf8' }
 	);
-	assert.match(result, /Imported 38 package exports successfully/);
-	passed(`runtime-only: 38 exports runtime-import under the ${condition} condition (Node shims)`);
+	assert.match(result, /Imported 36 package exports successfully/);
+	passed(`runtime-only: 36 exports runtime-import under the ${condition} condition (Node shims)`);
 }
 
 // Components without the required runtime peer fail at installation.
