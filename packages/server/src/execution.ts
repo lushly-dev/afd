@@ -30,6 +30,7 @@ import {
 	withContextDefaults,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { withoutUpFrontApproval } from './approval-relay.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
 	filterByContext,
@@ -198,7 +199,8 @@ export function createExecutionEngine(deps: ExecutionDeps) {
 		const runHandler = async (): Promise<CommandResult> => {
 			const { clock } = context;
 			const startTime = clock.now();
-			const result = await command.handler(data, context);
+			// A command the handler runs never takes an afd-batch or afd-pipe step's approval.
+			const result = await command.handler(data, withoutUpFrontApproval(context));
 
 			// Build a new result rather than mutating the handler's (possibly frozen) object.
 			// Read the actor after the handler: middleware (auth) may have refined it.

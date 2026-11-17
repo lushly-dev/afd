@@ -322,25 +322,38 @@ pub(crate) enum UpFrontPlan {
 pub(crate) struct UpFrontApproval {
     /// `afd-batch` or `afd-pipe`.
     pub(crate) tool: &'static str,
+    /// The whole request as sent (its steps or commands, inputs, conditions and options), as
+    /// canonical JSON: every approval is bound to it, so it covers this call and no other.
+    pub(crate) call: String,
+    /// Whether a step runs only under a condition (`when`), so one may run while another is
+    /// skipped.
+    pub(crate) conditional: bool,
     pub(crate) steps: Vec<UpFrontStep>,
     /// Reads the human's answers and records the hold.
     pub(crate) channel: Arc<ApprovalRelayChannel>,
     /// Decided once, by the first step to reach the approval middleware; the others wait for it.
     pub(crate) plan: futures_util::lock::Mutex<Option<Arc<UpFrontPlan>>>,
+    /// The call's tag under each approval key, which the middleware computes once.
+    pub(crate) call_tags: std::sync::OnceLock<Vec<String>>,
     refusal: Mutex<Option<CommandError>>,
 }
 
 impl UpFrontApproval {
     pub(crate) fn new(
         tool: &'static str,
+        call: String,
+        conditional: bool,
         steps: Vec<UpFrontStep>,
         channel: Arc<ApprovalRelayChannel>,
     ) -> Self {
         Self {
             tool,
+            call,
+            conditional,
             steps,
             channel,
             plan: futures_util::lock::Mutex::new(None),
+            call_tags: std::sync::OnceLock::new(),
             refusal: Mutex::new(None),
         }
     }

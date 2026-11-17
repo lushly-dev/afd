@@ -76,3 +76,44 @@ describe('steps', () => {
 		]);
 	});
 });
+
+describe('handlers of up-front steps', () => {
+	it('never see the up-front approval, so a command they run cannot take it', async () => {
+		const { createExecutionEngine } = await import('./execution.js');
+		const { bindUpFrontApproval, upFrontApproval } = await import('./approval-relay.js');
+		const seen: boolean[] = [];
+		const peek = defineCommand({
+			name: 'todo-peek',
+			description: 'Peek',
+			input: z.object({}),
+			handler: async (_input, context) => {
+				seen.push(upFrontApproval(context) !== undefined);
+				return { success: true, data: null };
+			},
+		});
+		const engine = createExecutionEngine({
+			commandMap: new Map([[peek.name, peek]]),
+			middleware: [
+				async (_name, _input, context, next) => {
+					seen.push(upFrontApproval(context) !== undefined);
+					return next();
+				},
+			],
+			devMode: false,
+		});
+		const relay = {
+			route() {},
+			claim: () => false,
+			answer: async () => ({ kind: 'missing' as const }),
+			hold() {},
+			answers: async () => ({ accepted: [], declined: [] }),
+			holdSteps() {},
+		};
+		const context = bindUpFrontApproval(
+			{},
+			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => [], relay }
+		);
+		await engine.executeCommand('todo-peek', {}, context);
+		expect(seen).toEqual([true, false]);
+	});
+});

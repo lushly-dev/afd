@@ -392,7 +392,7 @@ describe('approval relay over MCP', () => {
 			},
 		});
 		expect(body(batch)).toMatchObject({ success: true });
-		expect(prompts[1]).toMatch(/^This batch runs a step that needs your approval/);
+		expect(prompts[1]).toMatch(/^This batch includes a step that needs your approval/);
 		expect(calls).toEqual(['delete:3', 'list', 'delete:4']);
 	});
 
@@ -769,7 +769,7 @@ const BATCH = {
 };
 
 const BATCH_QUESTION = [
-	'This batch runs 2 steps that need your approval. Nothing runs unless you approve all of them.',
+	'This batch includes 2 steps that need your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the batch runs.',
 	'',
 	'Step 2: Run todo-delete',
 	'Command: todo-delete',
@@ -812,7 +812,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 			'success',
 		]);
 		expect(prompts).toEqual([
-			'approve: This pipeline runs a step that needs your approval. Nothing runs unless you approve all of them.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {"id":4}',
+			'approve: This pipeline includes a step that needs your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the pipeline runs.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {"id":4}',
 		]);
 		expect(calls).toEqual(['list', 'delete:4']);
 	});
@@ -842,7 +842,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 			arguments: { commands: [step, step] },
 		});
 		expect(body(result)).toMatchObject({ success: true });
-		expect(prompts[0]).toMatch(/^approve: This batch runs 2 steps/);
+		expect(prompts[0]).toMatch(/^approve: This batch includes 2 steps/);
 		expect(calls).toEqual(['delete:1', 'delete:1']);
 	});
 
@@ -913,7 +913,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 				code: 'APPROVAL_REQUIRED',
 				details: { reason: 'input-not-known', step: 2, command: 'todo-delete' },
 			});
-			expect(error?.suggestion).toContain('Split the pipeline at step 2');
+			expect(error?.suggestion).toContain('Split the pipeline before the step at index 2');
 		}
 		expect(prompts).toEqual([]);
 		expect(calls).toEqual([]);
@@ -971,6 +971,78 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 		expect(calls).toEqual([]);
 	});
 
+	it('does not take an up-front approval in another call or on the single-command path', async () => {
+		const { url, calls } = await serve();
+		const call = rawCaller(url);
+		const state = asked(await call('afd-batch', BATCH)).requestState as string;
+		const retry = { inputResponses: approved, requestState: state };
+		const elsewhere = [
+			call('afd-pipe', { steps: [{ command: 'todo-delete-strict', input: { id: 2 } }] }, retry),
+			call('todo-delete', { id: 1 }, retry),
+			call('afd-batch', { commands: [...BATCH.commands].reverse() }, retry),
+			call('afd-batch', { ...BATCH, options: { stopOnError: true } }, retry),
+		];
+		for (const response of await Promise.all(elsewhere)) {
+			expect(asked(response).resultType).toBe('input_required');
+		}
+		expect(calls).toEqual([]);
+		const original = await call('afd-batch', BATCH, retry);
+		expect((original.result as { isError?: boolean }).isError).toBe(false);
+		expect(calls).toEqual(['list', 'delete:1', 'strict:2']);
+	});
+
+	it('starts no approved step once its batch has timed out', async () => {
+		const slow = {
+			consume: async () => {
+				await new Promise((resolve) => setTimeout(resolve, 100));
+				return true;
+			},
+		};
+		const { url, calls } = await serve({ middleware: { nonceStore: slow } });
+		const call = rawCaller(url);
+		const timed = {
+			commands: [{ command: 'todo-delete', input: { id: 7 } }],
+			options: { timeout: 30 },
+		};
+		const state = asked(await call('afd-batch', timed)).requestState as string;
+		const result = await call('afd-batch', timed, {
+			inputResponses: approved,
+			requestState: state,
+		});
+		expect(JSON.stringify(result)).toContain('BATCH_TIMEOUT');
+		await new Promise((resolve) => setTimeout(resolve, 200));
+		expect(calls).toEqual([]);
+	});
+
+	it('names no hidden command and asks about at most 20 steps at once', async () => {
+		const hidden = defineCommand({
+			name: 'secret-wipe',
+			description: 'Not exposed over MCP',
+			approval: 'required',
+			input: z.object({ id: z.unknown() }),
+			handler: async () => success({}),
+		});
+		const { url, calls } = await serve({ middleware: { commands: [...commands([]), hidden] } });
+		const client = await connect(url, 'accept');
+		const pipe = await client.callTool({
+			name: 'afd-pipe',
+			arguments: {
+				steps: [{ command: 'todo-list' }, { command: 'secret-wipe', input: { id: '$prev' } }],
+			},
+		});
+		expect(JSON.stringify(body(pipe))).not.toContain('input-not-known');
+		expect((body(pipe).steps as Array<{ error?: { code: string } }>)[1]?.error?.code).toBe(
+			'COMMAND_NOT_FOUND'
+		);
+		const many = Array.from({ length: 21 }, (_, id) => ({ command: 'todo-delete', input: { id } }));
+		const batch = await client.callTool({ name: 'afd-batch', arguments: { commands: many } });
+		expect(refusal(batch)).toMatchObject({
+			code: 'APPROVAL_REQUIRED',
+			details: { reason: 'too-many-approvals', limit: 20 },
+		});
+		expect(calls).toEqual(['list']);
+	});
+
 	it('asks for the confirmation, then the approval, keeping the first answer', async () => {
 		const { url, calls } = await serve({ server: { confirmations: 'require-human' } });
 		const prompts: string[] = [];
@@ -983,7 +1055,7 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 		expect(prompts).toHaveLength(2);
 		expect(prompts[0]).toMatch(/^confirm: /);
 		expect(prompts[1]).toBe(
-			'approve: This batch runs a step that needs your approval. Nothing runs unless you approve all of them.\n\nStep 1: Delete every todo?\nCommand: todo-clear\nInput: {}'
+			'approve: This batch includes a step that needs your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the batch runs.\n\nStep 1: Delete every todo?\nCommand: todo-clear\nInput: {}'
 		);
 		expect(calls).toEqual(['clear']);
 	});
@@ -1160,7 +1232,7 @@ describe('approval middleware with a relay', () => {
 		const asking = { ...fakeRelay(missing).relay, holdSteps: (hold: StepsHold) => (held = hold) };
 		const first = bindUpFrontApproval(
 			{ interface: 'mcp' },
-			{ tool: 'afd-batch', steps: () => steps, relay: asking }
+			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => steps, relay: asking }
 		);
 		expect((await middleware('todo-delete', { id: 1 }, first, ran)).success).toBe(false);
 		const question = held?.questions[0] as ApprovalQuestion;
@@ -1180,7 +1252,7 @@ describe('approval middleware with a relay', () => {
 		};
 		const context = bindUpFrontApproval(
 			{ interface: 'mcp' },
-			{ tool: 'afd-batch', steps: () => steps, relay: accepted }
+			{ tool: 'afd-batch', call: '[]', conditional: false, steps: () => steps, relay: accepted }
 		);
 		// Another input (say, from a handler's nested call) does not take the step's approval.
 		const other = await middleware('todo-delete', { id: 2 }, context, ran);

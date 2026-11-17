@@ -27,12 +27,12 @@ export function readsStepData(value: unknown, depth = 0): boolean {
 		const match = REFERENCE.exec(value);
 		return match !== null && match[1] !== 'input';
 	}
+	const isArray = Array.isArray(value);
+	if (!isArray && !(value && typeof value === 'object')) return false;
+	// Deeper containers are rejected by the pipeline before any step runs.
 	if (depth >= MAX_DEPTH) return true;
-	if (Array.isArray(value)) return value.some((item) => readsStepData(item, depth + 1));
-	if (value && typeof value === 'object') {
-		return Object.values(value).some((item) => readsStepData(item, depth + 1));
-	}
-	return false;
+	const items = isArray ? (value as unknown[]) : Object.values(value as object);
+	return items.some((item) => readsStepData(item, depth + 1));
 }
 
 function validated(
@@ -75,6 +75,10 @@ export function pipelineSteps(
 	// Resolved values are copies, so validation cannot change the request.
 	const context = { pipelineInput: request.input, steps: [] };
 	return request.steps.map((step, index) => {
+		// A command the caller cannot run is not one: it fails as a missing name, telling nothing.
+		if (!commands.some((command) => command.name === step.command)) {
+			return { index, command: step.command, dynamic: false, valid: false };
+		}
 		if (readsStepData(step.input)) {
 			return { index, command: step.command, dynamic: true, valid: false };
 		}

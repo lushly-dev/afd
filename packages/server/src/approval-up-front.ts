@@ -35,8 +35,18 @@ export interface UpFrontDeps {
 	requiresApproval(command: string, input: unknown, context: CommandContext): Promise<boolean>;
 	/** Whether `command`'s policy could hold some input ('required' or a function). */
 	mayRequireApproval(command: string): boolean;
-	/** The relay bindings of a command, input and actor, one per key, the signing key's first. */
-	bindings(command: string, input: string, actor: string): Promise<string[]>;
+	/**
+	 * The bindings of an up-front approval, one per key, the signing key's first: a keyed digest of
+	 * the call (its {@link callTags} under that key), the command, its input and the actor.
+	 */
+	bindings(
+		tags: readonly string[],
+		command: string,
+		input: string,
+		actor: string
+	): Promise<string[]>;
+	/** The call's tag under each key: a keyed digest of the whole request as sent. */
+	callTags(call: string): Promise<string[]>;
 	/** Whether an accepted approval's MAC verifies for `bindings` and it has not expired. */
 	genuine(answer: AcceptedApproval, bindings: readonly string[], now: number): Promise<boolean>;
 	/** Spend a single-use nonce; `true` when it was fresh (or reuse is allowed). */
@@ -54,15 +64,30 @@ interface Approved {
 
 type Plan = { kind: 'run'; approved: Approved[] } | { kind: 'refuse'; error: CommandError };
 
+/** The most gated steps one question lists; a person cannot weigh more at once. */
+export const MAX_UP_FRONT_APPROVALS = 20;
+
 /** Create the gate the approval middleware runs each step of an up-front call through. */
 export function createUpFrontGate(deps: UpFrontDeps) {
 	// One plan per call, shared by its steps (concurrent ones too) and decided before any runs.
 	const plans = new WeakMap<UpFrontApproval, Promise<Plan>>();
+	const tags = new WeakMap<UpFrontApproval, Promise<string[]>>();
+
+	/** Approvals are bound to the call, so one given for this request covers no other. */
+	function callTags(upFront: UpFrontApproval): Promise<string[]> {
+		let tagged = tags.get(upFront);
+		if (!tagged) {
+			tagged = deps.callTags(upFront.call);
+			tags.set(upFront, tagged);
+		}
+		return tagged;
+	}
 
 	async function decide(upFront: UpFrontApproval, context: CommandContext): Promise<Plan> {
 		const steps = upFront.steps();
 		const late = steps.find((step) => step.dynamic && deps.mayRequireApproval(step.command));
 		if (late) return { kind: 'refuse', error: splitError(upFront.tool, late.index, late.command) };
+		const scope = await callTags(upFront);
 
 		const now = deps.clock.now();
 		const actor = actorJson(context.actor);
@@ -76,8 +101,11 @@ export function createUpFrontGate(deps: UpFrontDeps) {
 				command: step.command,
 				input,
 				summary: deps.summarize(step.command, step.input, context),
-				bindings: await deps.bindings(step.command, input, actor),
+				bindings: await deps.bindings(scope, step.command, input, actor),
 			});
+			if (gated.length > MAX_UP_FRONT_APPROVALS) {
+				return { kind: 'refuse', error: tooManyError(upFront.tool) };
+			}
 		}
 		if (gated.length === 0) return { kind: 'run', approved: [] };
 
@@ -125,7 +153,7 @@ export function createUpFrontGate(deps: UpFrontDeps) {
 		upFront.relay.holdSteps({
 			questions,
 			message: stepsRelayMessage(
-				upFront.tool,
+				upFront,
 				gated,
 				answers.accepted.length > 0
 					? 'The earlier approval expired, was already used or no longer matches; approve again to run it.'
@@ -158,10 +186,14 @@ export function createUpFrontGate(deps: UpFrontDeps) {
 		}
 		if (!(await deps.requiresApproval(commandName, input, context))) return next();
 		const bindings = await deps.bindings(
+			await callTags(upFront),
 			commandName,
 			canonicalJson(input),
 			actorJson(context.actor)
 		);
+		// A step whose batch or pipeline already timed out or was cancelled never starts: its
+		// caller was told it did not run.
+		if (context.signal?.aborted) return failure(cancelledError(upFront.tool, commandName));
 		// No await between finding and taking it, so concurrent steps cannot take the same one.
 		// Its expiry was checked when the call started, as a single command's is.
 		const approval = decided.approved.find((item) => !item.used && bindings.includes(item.binding));
@@ -181,8 +213,8 @@ function toolName(tool: UpFrontApproval['tool']): string {
 function splitError(tool: UpFrontApproval['tool'], index: number, command: string): CommandError {
 	return {
 		code: ErrorCodes.APPROVAL_REQUIRED,
-		message: `${command} (step ${index}) needs approval, and its input comes from an earlier step, so the user cannot approve it before the ${toolName(tool)} runs. Nothing ran.`,
-		suggestion: `Split the ${toolName(tool)} at step ${index}: run the steps before it with ${tool}, then call ${command} on its own with the input they returned, so the client can ask the user.`,
+		message: `${command} (the step at index ${index}) needs approval, and its input comes from an earlier step, so the user cannot approve it before the ${toolName(tool)} runs. Nothing ran.`,
+		suggestion: `Split the ${toolName(tool)} before the step at index ${index}: run the steps before it with ${tool}, then call ${command} on its own with the input they returned, so the client can ask the user.`,
 		retryable: false,
 		details: { reason: 'input-not-known', step: index, command },
 	};
@@ -197,6 +229,27 @@ function declinedError(tool: UpFrontApproval['tool'], gated: readonly GatedStep[
 			'Do not run this again without asking the user first; the user chose not to approve it.',
 		retryable: false,
 		details: { reason: 'declined', summary: gated.map((step) => step.summary).join('; ') },
+	};
+}
+
+/** More gated steps than one question may list: nothing ran. */
+function tooManyError(tool: UpFrontApproval['tool']): CommandError {
+	return {
+		code: ErrorCodes.APPROVAL_REQUIRED,
+		message: `The ${toolName(tool)} has more than ${MAX_UP_FRONT_APPROVALS} steps that need approval, more than the user can be asked about at once. Nothing ran.`,
+		suggestion: `Split it into calls of ${tool} with at most ${MAX_UP_FRONT_APPROVALS} steps that need approval each.`,
+		retryable: false,
+		details: { reason: 'too-many-approvals', limit: MAX_UP_FRONT_APPROVALS },
+	};
+}
+
+/** A step whose call already timed out or was cancelled. */
+function cancelledError(tool: UpFrontApproval['tool'], command: string): CommandError {
+	return {
+		code: ErrorCodes.COMMAND_CANCELLED,
+		message: `${command} did not run: the ${toolName(tool)} timed out or was cancelled first`,
+		suggestion: `Check which steps ran before running the ${toolName(tool)} again; the user is asked again for a new approval.`,
+		retryable: false,
 	};
 }
 

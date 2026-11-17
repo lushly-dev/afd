@@ -382,21 +382,30 @@ evaluates each step's policy on it:
    [pipeline variables](./pipeline-variables.md)) and whose command has an approval policy other
    than `not-required` (a policy function cannot be evaluated on an input that does not exist yet)
    cannot be shown to the human. Nothing runs, and the call fails with `APPROVAL_REQUIRED`,
-   `details.reason: "input-not-known"`, `details.step` (0-based) and `details.command`, and a
-   suggestion to split the pipeline at that step. A step that references an earlier step but whose
-   command has no such policy does not stop the pipeline.
+   `details.reason: "input-not-known"`, `details.step` (its 0-based index) and `details.command`,
+   and a suggestion to split the pipeline before that step. A step that references an earlier step
+   but whose command has no such policy does not stop the pipeline, and a step naming a command
+   the caller cannot run is never named here: it fails as a missing name.
 2. **No gated step.** The call runs as usual.
 3. **Ask once.** Otherwise the server answers with one form elicitation under the key `approval`.
-   Its message lists each gated step's position (1-based), summary, command and canonical validated
-   input (truncated, as for one command). The `requestState` carries one question per gated step,
-   each as for a single command: its own binding of command, input and actor, nonce, expiry and MAC.
-   One answer covers them all.
+   Its message says each listed step runs once, exactly as shown, and nothing runs without
+   approval (and, for a pipeline with `when` conditions, that a condition may skip a step), then
+   lists each gated step's position (1-based), summary, command and canonical validated input
+   (truncated, as for one command). The `requestState` carries one question per gated step, each
+   as for a single command but with its own binding: a keyed digest of the whole request as sent
+   (the tool, its steps or commands, their inputs, conditions and options), the command, the input
+   and the actor. So an approval covers this exact request: never another batch or pipeline, the
+   same steps reordered or with other options, or a call to the command on its own. One answer
+   covers them all. More than 20 gated steps are not asked about: nothing runs, and the call fails
+   with `APPROVAL_REQUIRED`, `details.reason: "too-many-approvals"` and `details.limit`.
 4. **The retry runs** only when, for every gated step, the request carries a distinct accepted
    question whose binding is that step's, whose MAC verifies and which has not expired. Two
    identical steps need two questions. Every nonce is spent before any step runs, so a replay of
    the retry runs nothing and is asked again. Each gated step then runs on one unused approval of
-   its own binding, once; a gated step without one (a policy that changed its mind) fails with
-   `APPROVAL_REQUIRED` and runs nothing.
+   its own binding, once; a gated step without one (a policy that changed its mind, or a schema
+   whose defaults differ between validations, such as a random or time-based default) fails with
+   `APPROVAL_REQUIRED` and runs nothing, though earlier steps may have run. A step whose batch or
+   pipeline already timed out or was cancelled never starts.
 5. **Anything else is asked again**, saying why when the request carried approvals that did not
    hold: an expired, spent or mismatched approval, or one for a changed batch.
 
@@ -404,9 +413,8 @@ A declined, cancelled or unchecked answer to any gated step fails the whole call
 `APPROVAL_REQUIRED`, `details.reason: "declined"`, `retryable: false`, and nothing runs. A refusal
 or decline is the call's whole result: a batch result with no item results and the error, or a
 pipeline with one synthetic step at index -1, as for a refused confirmation. A request that cannot
-elicit keeps the fallback above, step by step. Commands a step's handler runs never take a step's
-approval (Rust removes it from the handler's context; TypeScript binds each approval to its
-command, input and actor, so another input never matches). Confirmations are checked first, so a
+elicit keeps the fallback above, step by step. A step's handler never sees the up-front approval,
+so a command it runs falls back as a nested command does. Confirmations are checked first, so a
 batch that needs both asks for each in turn.
 
 An accepted approval that has expired or was already used is asked again, and the question says

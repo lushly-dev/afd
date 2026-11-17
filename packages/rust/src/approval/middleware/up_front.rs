@@ -25,10 +25,14 @@ use super::{shown_input, Accepted, Gate};
 use crate::approval::relay::{
     AcceptedApproval, ApprovalHold, Approved, UpFrontApproval, UpFrontPlan,
 };
-use crate::approval::token::{actor_json, canonical_json};
+use crate::approval::token::{actor_json, canonical_json, hmac_sha256};
+use crate::canonical::base64url_encode;
 use crate::commands::{CommandContext, MiddlewareNext};
 use crate::errors::{error_codes, CommandError};
 use crate::result::{failure, CommandResult};
+
+/// The most gated steps one question lists; a person cannot weigh more at once.
+const MAX_UP_FRONT_APPROVALS: usize = 20;
 
 /// One gated step as the plan sees it.
 struct Gated {
@@ -41,6 +45,42 @@ struct Gated {
 }
 
 impl Gate {
+    /// The call's tag under each key: a keyed digest of the whole request as sent, computed once.
+    fn call_tags<'u>(&self, up_front: &'u UpFrontApproval) -> &'u [String] {
+        up_front.call_tags.get_or_init(|| {
+            let data = format!("relay-call\0{}", up_front.call);
+            self.options
+                .secrets
+                .iter()
+                .map(|key| base64url_encode(&hmac_sha256(key, data.as_bytes())))
+                .collect()
+        })
+    }
+
+    /// The bindings of an up-front approval, one per key, the signing key's first: a keyed digest
+    /// of the call's tag under that key, the command, its canonical input and the actor, so an
+    /// approval given for one request covers no other (nor a call to the command on its own).
+    fn up_front_bindings(
+        &self,
+        up_front: &UpFrontApproval,
+        name: &str,
+        input: &str,
+        actor: &str,
+    ) -> Vec<String> {
+        self.call_tags(up_front)
+            .iter()
+            .zip(&self.options.secrets)
+            .map(|(tag, key)| {
+                let data = format!(
+                    "relay-step\0{}",
+                    canonical_json(&json!([tag, name, input, actor]))
+                        .expect("strings are canonical")
+                );
+                base64url_encode(&hmac_sha256(key, data.as_bytes()))
+            })
+            .collect()
+    }
+
     /// Run one step of an up-front call: nothing runs until the plan is to run, and then a gated
     /// step runs only on an unused approval of its own binding.
     pub(super) async fn run_up_front(
@@ -74,7 +114,12 @@ impl Gate {
             return next().await;
         }
         let taken = canonical_json(&input).is_ok_and(|input| {
-            let bindings = self.relay_bindings(&name, &input, &actor_json(context.actor.as_ref()));
+            let bindings = self.up_front_bindings(
+                up_front,
+                &name,
+                &input,
+                &actor_json(context.actor.as_ref()),
+            );
             let mut approved = approved.lock().unwrap_or_else(PoisonError::into_inner);
             approved
                 .iter_mut()
@@ -123,9 +168,12 @@ impl Gate {
                 index: step.index,
                 command: step.command.clone(),
                 summary: self.summary(&step.command, input, context),
-                bindings: self.relay_bindings(&step.command, &canonical, &actor),
+                bindings: self.up_front_bindings(up_front, &step.command, &canonical, &actor),
                 input: canonical,
             });
+            if gated.len() > MAX_UP_FRONT_APPROVALS {
+                return UpFrontPlan::Refuse(too_many_error(up_front.tool));
+            }
         }
         if gated.is_empty() {
             return UpFrontPlan::Run(Mutex::new(Vec::new()));
@@ -204,7 +252,7 @@ impl Gate {
         up_front.channel.hold(ApprovalHold {
             questions,
             message: steps_message(
-                up_front.tool,
+                up_front,
                 &gated,
                 (!accepted.is_empty()).then_some(
                     "The earlier approval expired, was already used or no longer matches; approve again to run it.",
@@ -225,12 +273,8 @@ fn noun(tool: &str) -> &'static str {
 
 /// The question of an up-front approval: what the call is, then each gated step's summary,
 /// command and canonical input, so the human sees exactly what would run.
-fn steps_message(tool: &str, gated: &[Gated], note: Option<&str>) -> String {
-    let what = if tool == "afd-batch" {
-        "This batch"
-    } else {
-        "This pipeline"
-    };
+fn steps_message(up_front: &UpFrontApproval, gated: &[Gated], note: Option<&str>) -> String {
+    let what = noun(up_front.tool);
     let count = if gated.len() == 1 {
         "a step that needs".to_owned()
     } else {
@@ -238,8 +282,14 @@ fn steps_message(tool: &str, gated: &[Gated], note: Option<&str>) -> String {
     };
     let mut lines: Vec<String> = note.into_iter().map(str::to_owned).collect();
     lines.push(format!(
-        "{what} runs {count} your approval. Nothing runs unless you approve all of them."
+        "This {what} includes {count} your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the {what} runs."
     ));
+    if up_front.conditional {
+        lines.push(
+            "Some steps run only when their conditions hold, so one step may run while another is skipped."
+                .to_owned(),
+        );
+    }
     for step in gated {
         lines.push(String::new());
         lines.push(format!("Step {}: {}", step.index + 1, step.summary));
@@ -254,16 +304,33 @@ fn split_error(tool: &str, index: usize, command: &str) -> CommandError {
     let noun = noun(tool);
     CommandError::new(
         error_codes::APPROVAL_REQUIRED,
-        format!("{command} (step {index}) needs approval, and its input comes from an earlier step, so the user cannot approve it before the {noun} runs. Nothing ran."),
+        format!("{command} (the step at index {index}) needs approval, and its input comes from an earlier step, so the user cannot approve it before the {noun} runs. Nothing ran."),
     )
     .with_suggestion(format!(
-        "Split the {noun} at step {index}: run the steps before it with {tool}, then call {command} on its own with the input they returned, so the client can ask the user."
+        "Split the {noun} before the step at index {index}: run the steps before it with {tool}, then call {command} on its own with the input they returned, so the client can ask the user."
     ))
     .with_retryable(false)
     .with_details(HashMap::from([
         ("reason".to_owned(), json!("input-not-known")),
         ("step".to_owned(), json!(index)),
         ("command".to_owned(), json!(command)),
+    ]))
+}
+
+/// More gated steps than one question may list: nothing ran.
+fn too_many_error(tool: &str) -> CommandError {
+    let noun = noun(tool);
+    CommandError::new(
+        error_codes::APPROVAL_REQUIRED,
+        format!("The {noun} has more than {MAX_UP_FRONT_APPROVALS} steps that need approval, more than the user can be asked about at once. Nothing ran."),
+    )
+    .with_suggestion(format!(
+        "Split it into calls of {tool} with at most {MAX_UP_FRONT_APPROVALS} steps that need approval each."
+    ))
+    .with_retryable(false)
+    .with_details(HashMap::from([
+        ("reason".to_owned(), json!("too-many-approvals")),
+        ("limit".to_owned(), json!(MAX_UP_FRONT_APPROVALS)),
     ]))
 }
 

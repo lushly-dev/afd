@@ -64,7 +64,7 @@ use crate::approval::relay::{ApprovalRelayChannel, RoundAnswers};
 
 mod up_front;
 
-use up_front::UpFrontOutcome;
+use up_front::{UpFrontCall, UpFrontOutcome};
 
 static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -741,8 +741,9 @@ impl Call<'_> {
             return tool_result(&result, !result.success);
         };
         // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
+        let call = UpFrontCall::new("afd-batch", &request, false);
         let outcome = self
-            .run_up_front("afd-batch", steps, &round, |context| {
+            .run_up_front(call, steps, &round, |context| {
                 registry.execute_batch_with_context(request.clone(), context)
             })
             .await;
@@ -825,7 +826,19 @@ impl Call<'_> {
         let result = match self.pipeline_up_front(&request) {
             None => run(self.step_context()).await,
             // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs.
-            Some(steps) => match self.run_up_front("afd-pipe", steps, &round, run).await {
+            Some(steps) => match self
+                .run_up_front(
+                    UpFrontCall::new(
+                        "afd-pipe",
+                        &request,
+                        request.steps.iter().any(|step| step.when.is_some()),
+                    ),
+                    steps,
+                    &round,
+                    run,
+                )
+                .await
+            {
                 UpFrontOutcome::Ran(result) => result,
                 UpFrontOutcome::Refused(error) => {
                     return tool_result(&pipeline_failure(&error), true)

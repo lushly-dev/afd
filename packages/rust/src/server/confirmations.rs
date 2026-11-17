@@ -114,7 +114,7 @@ pub fn confirm_property() -> Value {
 }
 
 /// JSON with object keys sorted, so equal inputs bind equally whatever the key order.
-fn canonical(value: &Value) -> String {
+pub(crate) fn canonical(value: &Value) -> String {
     match value {
         Value::Object(map) => {
             let mut keys: Vec<&String> = map.keys().collect();

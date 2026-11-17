@@ -129,6 +129,13 @@ export interface UpFrontStep {
  */
 export interface UpFrontApproval {
 	tool: 'afd-batch' | 'afd-pipe';
+	/**
+	 * The whole request as sent (its steps or commands, inputs, conditions and options), as
+	 * canonical JSON: every approval is bound to it, so it covers this call and no other.
+	 */
+	call: string;
+	/** Whether a step runs only under a condition (`when`), so one may run while another is skipped. */
+	conditional: boolean;
 	/** The call's steps, worked out when the middleware first asks for them. */
 	steps(): readonly UpFrontStep[];
 	/** The call's relay, which reads the human's answers and records the hold. */
@@ -195,6 +202,17 @@ export function upFrontApproval(context: CommandContext | undefined): UpFrontApp
 	return (context as RelayContext | undefined)?.[UP_FRONT];
 }
 
+/**
+ * `context` without its up-front approval: a step's handler gets this, so a command it runs never
+ * takes a step's approval. `context` itself when it has none.
+ */
+export function withoutUpFrontApproval(context: CommandContext): CommandContext {
+	if (!(context as RelayContext)[UP_FRONT]) return context;
+	const copy: RelayContext = { ...context };
+	delete copy[UP_FRONT];
+	return copy;
+}
+
 /** Longest input shown in an approval elicitation, in characters. */
 const MAX_SHOWN_INPUT = 1000;
 
@@ -232,15 +250,20 @@ export interface GatedStep {
  * command and canonical input, so the human sees exactly what would run.
  */
 export function stepsRelayMessage(
-	tool: UpFrontApproval['tool'],
+	upFront: Pick<UpFrontApproval, 'tool' | 'conditional'>,
 	steps: readonly GatedStep[],
 	note?: string
 ): string {
-	const what = tool === 'afd-batch' ? 'This batch' : 'This pipeline';
+	const what = upFront.tool === 'afd-batch' ? 'batch' : 'pipeline';
 	const count = steps.length === 1 ? 'a step that needs' : `${steps.length} steps that need`;
 	const lines = [
 		...(note ? [note] : []),
-		`${what} runs ${count} your approval. Nothing runs unless you approve all of them.`,
+		`This ${what} includes ${count} your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the ${what} runs.`,
+		...(upFront.conditional
+			? [
+					'Some steps run only when their conditions hold, so one step may run while another is skipped.',
+				]
+			: []),
 	];
 	for (const step of steps) {
 		lines.push(

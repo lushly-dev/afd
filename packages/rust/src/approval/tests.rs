@@ -1641,6 +1641,30 @@ fn accepted_answer(expires_at: i64) -> relay::Asked {
         )
         .as_bytes(),
     ));
+    accepted_binding(binding, expires_at)
+}
+
+/// [`accepted_answer`], for an up-front approval within the call `call`.
+fn up_front_answer(call: &str, expires_at: i64) -> relay::Asked {
+    let input = canonical_json(&validated(1)).unwrap();
+    let actor = crate::credentials::actor_binding_json(Some(&agent()));
+    let tag = base64url_encode(&hmac_sha256(
+        SECRET.as_bytes(),
+        format!("relay-call\0{call}").as_bytes(),
+    ));
+    let binding = base64url_encode(&hmac_sha256(
+        SECRET.as_bytes(),
+        format!(
+            "relay-step\0{}",
+            canonical_json(&json!([tag, "todo-delete", input, actor])).unwrap()
+        )
+        .as_bytes(),
+    ));
+    accepted_binding(binding, expires_at)
+}
+
+/// An accepted answer for `binding`, its nonce and expiry MACed as the middleware does.
+fn accepted_binding(binding: String, expires_at: i64) -> relay::Asked {
     let nonce = format!("nonce-{expires_at}");
     let mac = base64url_encode(&hmac_sha256(
         SECRET.as_bytes(),
@@ -1697,8 +1721,12 @@ async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
     let harness = setup_with(ApprovalPolicy::Required, |options| {
         options.with_relay(ApprovalRelay::McpElicitation)
     });
+    // A single-command answer for the same command, input and actor is not an up-front one.
     let answers = Arc::new(relay::RoundAnswers {
-        accepted: vec![accepted_answer(START + 4 * 60_000)],
+        accepted: vec![
+            accepted_answer(START + 4 * 60_000),
+            up_front_answer("[]", START + 3 * 60_000),
+        ],
         declined: Vec::new(),
     });
     let channel = Arc::new(relay::ApprovalRelayChannel::up_front(Box::new(move || {
@@ -1712,6 +1740,8 @@ async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
     };
     let up_front = Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
+        "[]".into(),
+        false,
         vec![step],
         Arc::clone(&channel),
     ));
@@ -1763,9 +1793,45 @@ async fn the_handler_never_sees_the_up_front_approval() {
     let mut context = CommandContext::new();
     context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
+        "[]".into(),
+        false,
         Vec::new(),
         Arc::new(relay::ApprovalRelayChannel::never_asks()),
     )));
     registry.execute("peek-run", json!({}), Some(context)).await;
     assert_eq!(*seen.lock().unwrap(), vec![false]);
+}
+
+#[tokio::test]
+async fn a_single_command_answer_is_never_an_up_front_approval() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options.with_relay(ApprovalRelay::McpElicitation)
+    });
+    let answers = Arc::new(relay::RoundAnswers {
+        accepted: vec![accepted_answer(START + 4 * 60_000)],
+        declined: Vec::new(),
+    });
+    let channel = Arc::new(relay::ApprovalRelayChannel::up_front(Box::new(move || {
+        Some(Arc::clone(&answers))
+    })));
+    let step = relay::UpFrontStep {
+        index: 0,
+        command: "todo-delete".into(),
+        dynamic: false,
+        input: Some(validated(1)),
+    };
+    let mut context = CommandContext::new().with_actor(agent());
+    context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
+        "afd-batch",
+        "[]".into(),
+        false,
+        vec![step],
+        Arc::clone(&channel),
+    )));
+    let held = harness
+        .call("todo-delete", json!({ "id": 1 }), context)
+        .await;
+    assert!(!held.success);
+    assert_eq!(harness.handled.load(Ordering::SeqCst), 0);
+    assert!(channel.held().is_some());
 }

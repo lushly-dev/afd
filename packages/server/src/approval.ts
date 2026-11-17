@@ -409,7 +409,16 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			const policy = commands.get(commandName)?.approval;
 			return policy !== undefined && policy !== 'not-required';
 		},
-		bindings: relayBindings,
+		bindings: async (tags, commandName, input, actor) =>
+			Promise.all(
+				keys.map(async (key, at) =>
+					base64url(
+						await hmac(key, `relay-step\0${canonicalJson([tags[at], commandName, input, actor])}`)
+					)
+				)
+			),
+		callTags: (call) =>
+			Promise.all(keys.map(async (key) => base64url(await hmac(key, `relay-call\0${call}`)))),
 		genuine,
 		spend,
 		question: async (bindings, now) => {

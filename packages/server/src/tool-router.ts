@@ -25,6 +25,7 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
+import { canonicalJson } from './approval-crypto.js';
 import {
 	approvalRelay,
 	bindUpFrontApproval,
@@ -155,6 +156,15 @@ function namedAcknowledgement(value: unknown): Acknowledgement {
 }
 
 /** The arguments without a top-level `confirm`, which the executors do not know. */
+/** The request an up-front approval is bound to, as canonical JSON (the wire sends plain JSON). */
+function requestJson(tool: string, request: BatchRequest | PipelineRequest): string {
+	try {
+		return canonicalJson([tool, request]);
+	} catch {
+		return JSON.stringify([tool, request]);
+	}
+}
+
 function withoutConfirm<T>(args: T): T {
 	if (!isRecord(args) || !('confirm' in args)) return args;
 	const { confirm: _confirm, ...rest } = args;
@@ -241,6 +251,7 @@ export function createToolRouter(deps: ToolRouterDeps) {
 		const stepsContext = (
 			tool: UpFrontApproval['tool'],
 			prefix: string,
+			request: BatchRequest | PipelineRequest,
 			steps: () => UpFrontStep[]
 		): { context: CommandContext; upFront?: UpFrontApproval } => {
 			const relay = approvalRelay(callContext);
@@ -249,6 +260,8 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			const upFront: UpFrontApproval = {
 				tool,
 				relay,
+				call: requestJson(tool, request),
+				conditional: 'steps' in request && request.steps.some((step) => step.when !== undefined),
 				steps: () => {
 					known ??= steps();
 					return known;
@@ -403,7 +416,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
-			const steps = stepsContext('afd-batch', 'batch', () => batchSteps(request, commands));
+			const steps = stepsContext('afd-batch', 'batch', request, () =>
+				batchSteps(request, commands)
+			);
 			const result = await executeBatch(request, steps.context);
 			// Nothing ran: the whole batch was refused, or waits for the user's approval.
 			const refusal = steps.upFront?.refusal;
@@ -449,7 +464,9 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			);
 			if (unconfirmed) return unconfirmed;
 			const request = withoutConfirm(args);
-			const steps = stepsContext('afd-pipe', 'pipeline', () => pipelineSteps(request, commands));
+			const steps = stepsContext('afd-pipe', 'pipeline', request, () =>
+				pipelineSteps(request, commands)
+			);
 			const result = await executePipeline(request, steps.context);
 			const refusal = steps.upFront?.refusal;
 			if (refusal) return resultContent(failedPipeline(refusal), true);

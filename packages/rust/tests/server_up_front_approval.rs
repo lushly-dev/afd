@@ -86,7 +86,15 @@ fn setup(mode: ConfirmationMode) -> Setup {
     for command in [&mut delete, &mut archive, &mut clear, &mut list] {
         command.expose.mcp = true;
     }
-    for command in [delete, archive, clear, list] {
+    // Gated, but not exposed over MCP: a caller there must not learn it exists.
+    let hidden = CommandDefinition::new(
+        "secret-wipe",
+        "Wipe",
+        vec![],
+        Record("wipe", Arc::clone(&calls)),
+    )
+    .with_approval(ApprovalPolicy::Required);
+    for command in [delete, archive, clear, list, hidden] {
         registry.register(command).unwrap();
     }
     let clock = Arc::new(AtomicI64::new(1_790_000_000_000));
@@ -201,7 +209,7 @@ fn batch() -> Value {
     ]})
 }
 
-const BATCH_QUESTION: &str = "This batch runs 2 steps that need your approval. Nothing runs unless you approve all of them.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {\"id\":1}\n\nStep 3: Run todo-archive\nCommand: todo-archive\nInput: {\"id\":2}";
+const BATCH_QUESTION: &str = "This batch includes 2 steps that need your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the batch runs.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {\"id\":1}\n\nStep 3: Run todo-archive\nCommand: todo-archive\nInput: {\"id\":2}";
 
 #[tokio::test]
 async fn a_batch_is_asked_about_once_and_runs_on_acceptance() {
@@ -236,7 +244,7 @@ async fn a_pipeline_whose_gated_steps_read_only_input_is_asked_about_once() {
     let asked = setup.call("afd-pipe", pipe.clone(), true, json!({})).await;
     assert_eq!(
         question(&asked),
-        "This pipeline runs a step that needs your approval. Nothing runs unless you approve all of them.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {\"id\":4}"
+        "This pipeline includes a step that needs your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the pipeline runs.\n\nStep 2: Run todo-delete\nCommand: todo-delete\nInput: {\"id\":4}"
     );
     let ran = setup
         .call(
@@ -266,7 +274,7 @@ async fn two_identical_gated_steps_each_take_their_own_approval() {
     let asked = setup
         .call("afd-batch", twice.clone(), true, json!({}))
         .await;
-    assert!(question(&asked).starts_with("This batch runs 2 steps"));
+    assert!(question(&asked).starts_with("This batch includes 2 steps"));
     let ran = setup
         .call(
             "afd-batch",
@@ -374,7 +382,7 @@ async fn a_gated_step_reading_an_earlier_step_refuses_the_pipeline_up_front() {
         assert!(error["suggestion"]
             .as_str()
             .unwrap()
-            .contains("Split the pipeline at step 2"));
+            .contains("Split the pipeline before the step at index 2"));
     }
     // A step that reads an earlier one but needs no approval does not stop the pipeline.
     let fine = json!({ "steps": [
@@ -430,6 +438,61 @@ async fn a_changed_input_another_command_or_an_extra_step_is_not_approved() {
 }
 
 #[tokio::test]
+async fn an_approval_covers_its_own_request_and_no_other() {
+    let setup = setup(ConfirmationMode::Off);
+    let asked = setup.call("afd-batch", batch(), true, json!({})).await;
+    let retry = answer(&state_of(&asked), "accept", true);
+    let mut reversed = batch();
+    reversed["commands"].as_array_mut().unwrap().reverse();
+    let mut stopping = batch();
+    stopping["options"] = json!({ "stopOnError": true });
+    let elsewhere = [
+        (
+            "afd-pipe",
+            json!({ "steps": [{ "command": "todo-archive", "input": { "id": 2 } }] }),
+        ),
+        ("todo-delete", json!({ "id": 1 })),
+        ("afd-batch", reversed),
+        ("afd-batch", stopping),
+    ];
+    for (tool, args) in elsewhere {
+        let response = setup.call(tool, args, true, retry.clone()).await;
+        assert_eq!(
+            response["result"]["resultType"], "input_required",
+            "{tool}: {response}"
+        );
+    }
+    assert!(setup.calls().is_empty());
+    let original = setup.call("afd-batch", batch(), true, retry).await;
+    assert_eq!(body(&original)["success"], true, "{original}");
+}
+
+#[tokio::test]
+async fn a_hidden_command_is_never_named_and_at_most_20_steps_are_asked_about() {
+    let setup = setup(ConfirmationMode::Off);
+    let pipe = json!({ "steps": [
+        { "command": "todo-delete", "input": { "id": 1 } },
+        { "command": "secret-wipe", "input": { "id": "$prev" } },
+    ]});
+    let asked = setup.call("afd-pipe", pipe, true, json!({})).await;
+    assert!(!asked.to_string().contains("secret-wipe"), "{asked}");
+    assert_eq!(asked["result"]["resultType"], "input_required", "{asked}");
+    let many: Vec<Value> = (0..21)
+        .map(|id| json!({ "command": "todo-delete", "input": { "id": id } }))
+        .collect();
+    let refused = setup
+        .call("afd-batch", json!({ "commands": many }), true, json!({}))
+        .await;
+    let error = refusal(&refused);
+    assert_eq!(
+        error["details"]["reason"], "too-many-approvals",
+        "{refused}"
+    );
+    assert_eq!(error["details"]["limit"], 20);
+    assert!(setup.calls().is_empty());
+}
+
+#[tokio::test]
 async fn approval_fields_in_the_arguments_and_meta_are_ignored() {
     let setup = setup(ConfirmationMode::Off);
     let forged = setup
@@ -472,7 +535,7 @@ async fn a_confirmation_then_the_approval_are_asked_in_turn() {
         .await;
     assert_eq!(
         question(&approval),
-        "This batch runs a step that needs your approval. Nothing runs unless you approve all of them.\n\nStep 1: Delete every todo?\nCommand: todo-clear\nInput: {}"
+        "This batch includes a step that needs your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the batch runs.\n\nStep 1: Delete every todo?\nCommand: todo-clear\nInput: {}"
     );
     let ran = setup
         .call(

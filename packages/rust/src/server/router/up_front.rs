@@ -15,6 +15,46 @@ use crate::pipeline::{reads_step_data, resolve_variables, PipelineContext};
 use crate::server::confirmations::{self, Round};
 use crate::{BatchRequest, CommandContext, CommandError, PipelineRequest};
 
+/// The request an up-front approval is bound to.
+pub(super) struct UpFrontCall {
+    pub(super) tool: &'static str,
+    /// The request as sent, as canonical JSON.
+    pub(super) call: String,
+    /// Whether a step runs only under a condition.
+    pub(super) conditional: bool,
+}
+
+impl UpFrontCall {
+    /// `request` of `tool`, with object keys sorted.
+    pub(super) fn new(
+        tool: &'static str,
+        request: &impl serde::Serialize,
+        conditional: bool,
+    ) -> Self {
+        let value = serde_json::to_value(request).unwrap_or(Value::Null);
+        let call = confirmations::canonical(&json!([tool, value]));
+        Self {
+            tool,
+            call,
+            conditional,
+        }
+    }
+
+    fn approval(
+        &self,
+        steps: Vec<UpFrontStep>,
+        channel: Arc<ApprovalRelayChannel>,
+    ) -> UpFrontApproval {
+        UpFrontApproval::new(
+            self.tool,
+            self.call.clone(),
+            self.conditional,
+            steps,
+            channel,
+        )
+    }
+}
+
 /// What an up-front call came to.
 pub(super) enum UpFrontOutcome<R> {
     /// The steps ran (or the plan was decided without a question): the run's result.
@@ -81,6 +121,13 @@ impl Call<'_> {
                 .iter()
                 .enumerate()
                 .map(|(index, step)| match step.input.as_ref() {
+                    // A command the caller cannot run is not one: it fails as a missing name.
+                    _ if self.exposed(&step.command).is_none() => UpFrontStep {
+                        index,
+                        command: step.command.clone(),
+                        dynamic: false,
+                        input: None,
+                    },
                     Some(input) if reads_step_data(input) => UpFrontStep {
                         index,
                         command: step.command.clone(),
@@ -100,7 +147,7 @@ impl Call<'_> {
     /// nothing runs unless every gated step is approved, and the human is asked once for all.
     pub(super) async fn run_up_front<R, F, Fut>(
         &self,
-        tool: &'static str,
+        call: UpFrontCall,
         steps: Vec<UpFrontStep>,
         round: &Arc<Round>,
         run: F,
@@ -114,7 +161,7 @@ impl Call<'_> {
             let channel = Arc::new(ApprovalRelayChannel::up_front(Box::new(move || {
                 answers.answers()
             })));
-            let up_front = Arc::new(UpFrontApproval::new(tool, steps, Arc::clone(&channel)));
+            let up_front = Arc::new(call.approval(steps, Arc::clone(&channel)));
             let result = run(self.up_front_context(&up_front)).await;
             if channel.unbindable() {
                 return UpFrontOutcome::Internal;
@@ -134,11 +181,7 @@ impl Call<'_> {
             let channel = Arc::new(ApprovalRelayChannel::up_front(Box::new(move || {
                 Some(Arc::clone(&carried))
             })));
-            let up_front = Arc::new(UpFrontApproval::new(
-                tool,
-                steps.clone(),
-                Arc::clone(&channel),
-            ));
+            let up_front = Arc::new(call.approval(steps.clone(), Arc::clone(&channel)));
             let result = run(self.up_front_context(&up_front)).await;
             let Some(hold) = channel.held() else {
                 return finished(&up_front, result);
@@ -172,7 +215,7 @@ impl Call<'_> {
         let channel = Arc::new(ApprovalRelayChannel::up_front(Box::new(move || {
             Some(Arc::clone(&carried))
         })));
-        let up_front = Arc::new(UpFrontApproval::new(tool, steps, channel));
+        let up_front = Arc::new(call.approval(steps, channel));
         let result = run(self.up_front_context(&up_front)).await;
         finished(&up_front, result)
     }
