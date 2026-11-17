@@ -76,7 +76,10 @@ try {
   const consumer = path.join(scratch, "consumer");
   const installed = path.join(consumer, "node_modules", ...packageName.split("/"));
   mkdirSync(installed, { recursive: true });
-  run("tar", ["-xzf", path.join(scratch, packed.filename), "-C", installed, "--strip-components=1"], scratch);
+  // Both paths are relative to `scratch`, the working directory: on Windows the GNU tar that Git
+  // puts on PATH reads an absolute `C:\...` as host:path, a remote archive, where bsdtar reads a drive.
+  const destination = path.relative(scratch, installed).split(path.sep).join("/");
+  run("tar", ["-xzf", packed.filename, "-C", destination, "--strip-components=1"], scratch);
   writeFileSync(path.join(consumer, "package.json"), JSON.stringify({ name: "consumer", type: "module" }));
   writeFileSync(path.join(consumer, "index.ts"), "");
 
