@@ -372,6 +372,12 @@ test('test changes: reports a changed assertion line, but not one only moved or 
 		findingKinds(compareTestFile('a.test.ts', js, before, skipped, diff(before, skipped))),
 		['skip-added']
 	);
+	const wrapped = "it('a', () => {\n\texpect(sum(2, 2)).toBe(4);\n});\n";
+	const rewrap = {
+		removed: [{ line: 1, text: before.trim() }],
+		added: wrapped.split('\n').map((text, index) => ({ line: index + 1, text: text.trim() })),
+	};
+	assert.deepEqual(compareTestFile('a.test.ts', js, before, wrapped, rewrap).findings, []);
 });
 
 test('test changes: sees a whole file or suite skipped', () => {
@@ -422,6 +428,21 @@ test('test changes: a bare skipIf is an alias, not a test, and a called one is b
 	);
 	assert.deepEqual(findingKinds(made), ['skip-added']);
 	assert.match(made.findings[0].detail, /skips 1 → 1, 1 more unconditional/);
+	for (const [name, from, to] of [
+		['Python', '@pytest.mark.skipif(win, reason="r")\n', '@pytest.mark.skip(reason="r")\n'],
+		['Rust', '#[cfg_attr(windows, ignore)]\n#[test]\n', '#[ignore]\n#[test]\n'],
+	])
+		assert.deepEqual(
+			findingKinds(compareTestFile('t', language(name), from, to)),
+			['skip-added'],
+			name
+		);
+	// Jasmine-style prefixes skip or focus with no condition.
+	for (const text of ["xit('a', () => {});", "xdescribe('s', () => {});", "fit('a', () => {});"]) {
+		const { skips, unconditional } = js.measure(text);
+		assert.deepEqual([skips, unconditional], [1, 1], text);
+	}
+	assert.equal(js.measure("xit('a', () => {});").tests, 1);
 });
 
 test('test changes: counts tests and assertions in Python, Rust, C++ and scenarios', () => {
@@ -429,12 +450,12 @@ test('test changes: counts tests and assertions in Python, Rust, C++ and scenari
 		[
 			'Python',
 			'def test_a():\n    assert x == 1  # pytest.raises(E)\n\n@pytest.mark.skip(reason="r")\ndef test_b():\n    with pytest.raises(E):\n        f()\n',
-			{ tests: 2, assertions: 2, skips: 1 },
+			{ tests: 2, assertions: 2, skips: 1, unconditional: 1 },
 		],
 		[
 			'Rust',
 			'#[test]\nfn a() { assert_eq!(1, 1); } // assert!(x)\n#[tokio::test]\n#[ignore]\nasync fn b() { assert!(ok); }\n',
-			{ tests: 2, assertions: 2, skips: 1 },
+			{ tests: 2, assertions: 2, skips: 1, unconditional: 1 },
 		],
 		[
 			'C++',
@@ -580,6 +601,13 @@ test('test changes: reads from the merge base, nets a move into a new file, and 
 	writeFileSync(join(root, 'src/both.test.ts'), "it('a', () => { expect(1).toBe(1); });\n");
 	writeFileSync(join(root, 'src/moved.test.ts'), "it('b', () => { expect(2).toBe(2); });\n");
 	writeFileSync(join(root, 'src/born-skipped.test.ts'), "it.skip('c', () => {});\n");
+	// A new file with only a conditional skip runs where it can; a new conftest can drop tests.
+	mkdirSync(join(root, 'py'));
+	writeFileSync(
+		join(root, 'py/test_opt.py'),
+		'yaml = pytest.importorskip("yaml")\n\ndef test_a():\n    assert yaml\n'
+	);
+	writeFileSync(join(root, 'py/conftest.py'), 'collect_ignore_glob = ["test_*.py"]\n');
 	writeFileSync(join(root, 'app/[id]/page.test.ts'), "it('a', () => { expect(1).toBe(1); });\n");
 	// Read as a glob, `app/[id]` would also match this file and quote its removed line.
 	writeFileSync(join(root, 'app/i/page.test.ts'), SUITE.replace("it('b'", "it('b2'"));
@@ -597,6 +625,7 @@ test('test changes: reads from the merge base, nets a move into a new file, and 
 	const report = JSON.parse(result.stdout);
 	assert.deepEqual(report.findings.map(({ file, kind }) => `${kind} ${file}`).sort(), [
 		'config-changed playwright.config.ts',
+		'config-changed py/conftest.py',
 		'fewer-assertions app/[id]/page.test.ts',
 		'fewer-assertions src/both.test.ts',
 		'fewer-tests app/[id]/page.test.ts',
@@ -615,6 +644,12 @@ test('test changes: reads from the merge base, nets a move into a new file, and 
 	});
 	const snapshot = report.findings.find((finding) => finding.kind === 'snapshot-changed');
 	assert.equal(snapshot.detail, '1 lines removed, 0 added');
-	const config = report.findings.find((finding) => finding.kind === 'config-changed');
-	assert.equal(config.detail, '1 lines removed, 1 added');
+	const configs = report.findings.filter((finding) => finding.kind === 'config-changed');
+	assert.deepEqual(
+		configs.map(({ detail, lines }) => [detail, lines[0].text]),
+		[
+			['1 lines removed, 1 added', 'export default { retries: 0 };'],
+			['new, 1 lines', 'collect_ignore_glob = ["test_*.py"]'],
+		]
+	);
 });

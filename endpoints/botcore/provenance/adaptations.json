@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "8f22b56a66600667022c9b69d952eb167678765de05aba8a38fba4d54c8c28a8",
+      "current_import_sha256": "20a1cbc842bb8e411af2979d94a48f2e6cf8f0efadeec9fa3c67bce22650e507",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -3759,7 +3759,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "4b5704bba91badc0b00277b4989b01df324b3edd3053ceedcb8ab0a0cd2d941e",
+      "current_import_sha256": "bf3e39d3126cba174e78725a9283023141bb60672c52f82c91a103c61d35aea6",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
@@ -3792,7 +3792,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "6b8d03e64cea9451b56cf2ee533e673fe00ffed78d34518c752588faf2324c5b",
+      "current_import_sha256": "9f9f8f78408f92cd689a576fe13256d7d4481d6ce804d89f85a1208ad731b837",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."

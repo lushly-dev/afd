@@ -150,12 +150,12 @@ changed test file at the merge base with the branch (`--base`, default `origin/m
 `--head <ref>` for a commit, else the working tree with uncommitted edits) and lists:
 
 - a test or scenario file deleted, and fewer tests or assertions in a file;
-- a skip added, including a whole file's (`pytestmark`, `test.describe.skip`) and a new
-  file born skipped;
+- a skip added, including a whole file's (`pytestmark`, `test.describe.skip`, `xdescribe`),
+  a conditional skip made unconditional, and a new file born with an unconditional skip;
 - an assertion line changed (an expected value, a matcher), and exact matchers traded for
   loose ones (`toEqual` for `toBeDefined`);
 - a snapshot that lost lines, and a runner config (Vitest, Vite, Playwright, Jest, pytest,
-  a tests `CMakeLists.txt`) or the quarantine register changed.
+  a tests `CMakeLists.txt`) or the quarantine register changed or added.
 
 It quotes the lines involved. A rename is compared with its old self; in the working
 tree, stage a move (`git mv`), or the untracked new file is unseen and the old one reads

@@ -6,14 +6,15 @@
  *
  * - a test or scenario file deleted (a rename is compared, not reported as a deletion);
  * - fewer tests, or fewer assertions, in a file;
- * - a skip, focus or todo added, a whole file's or suite's included, or a new test file born
- *   with one (unconditional ones are also the quarantine check's business);
+ * - a skip, focus or todo added, a whole file's or suite's included, a conditional one made
+ *   unconditional, or a new test file born with an unconditional one (unconditional
+ *   JavaScript ones are also the quarantine check's business);
  * - an assertion line removed and not put back word for word (a changed expected value, a
  *   swapped matcher), when the count did not fall;
  * - JavaScript matchers loosened: exact matchers (`toBe`, `toEqual`...) fewer while loose
  *   ones (`toBeDefined`, `toBeTruthy`...) more;
  * - a snapshot that lost lines, a test runner config (Vitest, Vite, Playwright, Jest, pytest,
- *   a tests CMakeLists.txt) or the quarantine register changed.
+ *   a tests CMakeLists.txt) or the quarantine register changed or added.
  *
  * It is a report, not a gate: it exits 0 whatever it finds, because a deleted test is often
  * right (the code it tested went too). What it removes is the chance that nobody noticed.
@@ -90,11 +91,16 @@ function closingParen(code, open) {
 function countJsTests(code) {
 	let tests = 0;
 	let skips = 0;
-	const chain = /(?<![\w$.])(it|test|bench)((?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*(?:<[^()]*?>\s*)?\(/g;
+	// Jasmine-style `xit`, `xdescribe` (skip) and `fit`, `fdescribe` (focus) never depend on a
+	// condition, and the quarantine scan does not read them.
+	let prefixed = 0;
+	const chain =
+		/(?<![\w$.])([xf]?(?:it|test)|bench)((?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*(?:<[^()]*?>\s*)?\(/g;
 	for (const match of code.matchAll(chain)) {
 		const members = [...match[2].matchAll(/[A-Za-z_$][\w$]*/g)].map((member) => member[0]);
 		if (!members.every((member) => TEST_MEMBERS.has(member))) continue;
-		if (members.some((member) => SKIP_MEMBERS.has(member))) skips += 1;
+		if (/^[xf]/.test(match[1])) prefixed += 1;
+		if (/^[xf]/.test(match[1]) || members.some((member) => SKIP_MEMBERS.has(member))) skips += 1;
 		// `it.skipIf(cond)` only makes a test function: a test when called on the spot,
 		// `it.skipIf(cond)('title', fn)`, and an alias otherwise.
 		const last = members.at(-1);
@@ -107,11 +113,16 @@ function countJsTests(code) {
 	}
 	// A suite-level skip or focus: `describe.skip(...)`, Playwright's `test.describe.only(...)`.
 	const suites =
-		/(?<![\w$.])(?:(?:test|it)\s*\.\s*)?(?:describe|suite)((?:\s*\.\s*[A-Za-z_$][\w$]*)+)\s*\(/g;
-	for (const match of code.matchAll(suites))
-		if ([...match[1].matchAll(/[A-Za-z_$][\w$]*/g)].some((member) => SKIP_MEMBERS.has(member[0])))
+		/(?<![\w$.])(?:(?:test|it)\s*\.\s*)?([xf]?)(?:describe|suite)((?:\s*\.\s*[A-Za-z_$][\w$]*)*)\s*\(/g;
+	for (const match of code.matchAll(suites)) {
+		if (match[1]) prefixed += 1;
+		if (
+			match[1] ||
+			[...match[2].matchAll(/[A-Za-z_$][\w$]*/g)].some((member) => SKIP_MEMBERS.has(member[0]))
+		)
 			skips += 1;
-	return { tests, skips };
+	}
+	return { tests, skips, prefixed };
 }
 
 const count = (text, pattern) => [...text.matchAll(pattern)].length;
@@ -126,7 +137,7 @@ export const LANGUAGES = [
 		owns: (file) => TEST_FILE.test(file),
 		measure(text) {
 			const code = maskSource(text);
-			const { tests, skips } = countJsTests(code);
+			const { tests, skips, prefixed } = countJsTests(code);
 			return {
 				tests,
 				// Not `expect.any(...)` and its kin, which are values inside an assertion.
@@ -135,7 +146,7 @@ export const LANGUAGES = [
 					/(?<![\w$.])(?:expect(?:\s*\.\s*(?:soft|poll))?|assert(?:\s*\.\s*[A-Za-z_$][\w$]*)?)\s*\(/g
 				),
 				skips,
-				unconditional: findSuppressions(text).length,
+				unconditional: findSuppressions(text).length + prefixed,
 				exact: count(code, EXACT),
 				loose: count(code, LOOSE),
 			};
@@ -143,7 +154,8 @@ export const LANGUAGES = [
 		line: {
 			tests: /(?<![\w$.])(?:it|test|bench)\b\s*[.(]/,
 			assertions: /(?<![\w$.])(?:expect|assert)\b\s*[.(]/,
-			skips: /\.\s*(?:only|skip|todo|fixme|skipIf|runIf)\b/,
+			skips:
+				/\.\s*(?:only|skip|todo|fixme|skipIf|runIf)\b|(?<![\w$.])[xf](?:describe|it|test)\s*\(/,
 		},
 	},
 	{
@@ -156,6 +168,8 @@ export const LANGUAGES = [
 		// Decorators, a module-wide `pytestmark`, and skips raised at run time.
 		skips:
 			/\bpytest\.mark\.(?:skip|skipif|xfail)\b|@(?:unittest\.)?(?:skip(?:If|Unless)?|expectedFailure)\b|\bpytest\.(?:skip|xfail|importorskip)\s*\(|\bself\.skipTest\s*\(|\braise\s+(?:unittest\.)?SkipTest\b/g,
+		// The markers that hold whatever the environment: `skipif` turned into `skip` shows.
+		unconditional: /\bpytest\.mark\.skip\b|@(?:unittest\.)?skip\s*\(/g,
 	},
 	{
 		name: 'Rust',
@@ -166,6 +180,7 @@ export const LANGUAGES = [
 		tests: /#\[(?:[\w:]+::)?test\b/g,
 		assertions: /\b(?:debug_)?assert(?:_eq|_ne|_matches)?!|#\[should_panic\b/g,
 		skips: /#\[ignore\b|#\[cfg_attr\([^\]]*\bignore\b/g,
+		unconditional: /#\[ignore\b/g,
 	},
 	{
 		name: 'C++',
@@ -198,6 +213,7 @@ for (const language of LANGUAGES) {
 			tests: count(code, language.tests),
 			assertions: count(code, language.assertions),
 			skips: count(code, language.skips),
+			...(language.unconditional && { unconditional: count(code, language.unconditional) }),
 		};
 	};
 	language.line = {
@@ -216,6 +232,8 @@ function gitRunner(root) {
 			cwd: root,
 			encoding: 'utf8',
 			env,
+			// A failed read is handled, so git's own complaint would only look like a failure.
+			stdio: ['ignore', 'pipe', 'pipe'],
 			maxBuffer: 256 * 1024 * 1024,
 		});
 }
@@ -320,9 +338,11 @@ export function compareTestFile(file, language, before, after, diff = { removed:
 	// Compared from the assertion on, so `it('a', () => expect(x).toBe(1))` turned into
 	// `it.skip('a', ...)` is a skip, not also a changed assertion.
 	if (now.assertions >= old.assertions) {
+		// Trailing closers dropped, so splitting `it('a', () => { expect(x).toBe(1); });` over
+		// three lines reads as the same assertion.
 		const assertion = (text) => {
 			const match = language.line.assertions.exec(text);
-			return match ? text.slice(match.index) : undefined;
+			return match ? text.slice(match.index).replace(/[\s;,)}\]]+$/, '') : undefined;
 		};
 		const kept = new Set(diff.added.map((entry) => assertion(entry.text)));
 		const rewritten = diff.removed.filter((entry) => {
@@ -400,7 +420,7 @@ export function reportTestChanges({
 			: CONFIG.test(to) || RUNNER_CONFIG.test(to) || to === register
 				? 'config-changed'
 				: undefined;
-		if (candidates.length === 0 && (!kind || added)) continue;
+		if (candidates.length === 0 && !kind) continue;
 		const before = added ? undefined : read.before(from);
 		const after = status === 'D' ? undefined : read.after(to);
 		const texts = [before, after].filter((text) => text !== undefined);
@@ -408,16 +428,18 @@ export function reportTestChanges({
 		if (language) {
 			testFiles += 1;
 			if (added || before === undefined) {
-				// New files enter the totals, so a test moved into one nets out; only a skip in
-				// one is a finding, since a test born skipped has never run.
+				// New files enter the totals, so a test moved into one nets out. Only an
+				// unconditional skip in one is a finding, since that test has never run; a
+				// conditional one (`importorskip`, `skipIf`) runs where its condition holds.
 				if (after === undefined) continue;
 				const measures = { after: language.measure(after) };
 				tally(language.name, measures);
-				if (measures.after.skips > 0)
+				const born = measures.after.unconditional ?? measures.after.skips;
+				if (born > 0)
 					findings.push({
 						file: to,
 						kind: 'skip-added',
-						detail: `new file with ${measures.after.skips} ${measures.after.skips === 1 ? 'skip' : 'skips'}`,
+						detail: `new file with ${born} ${measures.after.unconditional === undefined ? '' : 'unconditional '}${born === 1 ? 'skip' : 'skips'}`,
 						lines: after
 							.split('\n')
 							.map((text, index) => ({ line: index + 1, text: text.trim() }))
@@ -434,7 +456,8 @@ export function reportTestChanges({
 			tally(language.name, result.measures);
 			continue;
 		}
-		if (!kind || added) continue;
+		// A new runner config is reported too: a new `conftest.py` can drop every test beside it.
+		if (!kind) continue;
 		const diff = after === undefined ? undefined : diffLines(git, mergeBase, head, change);
 		// A snapshot that only gained entries lost nothing.
 		if (kind === 'snapshot-changed' && diff && diff.removed.length === 0) continue;
@@ -444,7 +467,9 @@ export function reportTestChanges({
 			detail:
 				after === undefined
 					? 'deleted'
-					: `${diff.removed.length} lines removed, ${diff.added.length} added`,
+					: added
+						? `new, ${diff.added.length} lines`
+						: `${diff.removed.length} lines removed, ${diff.added.length} added`,
 			// What went, or else what came: an added `exclude` loosens as much as a removed include.
 			lines:
 				kind === 'config-changed' && diff
