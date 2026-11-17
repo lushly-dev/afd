@@ -153,7 +153,23 @@ gate_paths = [
     "scripts/pre-push.mjs",
     "scripts/verify-record.mjs",
     "scripts/review-record.mjs",
+    "scripts/provenance-merge.mjs",
     "biome.json",
     "package.json",
     "botcore.toml",
 ]
+
+# Two branches that each edit an imported unit both change its provenance records, so their merge
+# conflicts in the records alone. The lane merges them three ways instead of ejecting the branch;
+# a row or value both sides changed differently still ejects (lushly-dev/afd#1410). Health's records
+# keep their rows in provenance.json, which the script does not merge, so they are not listed.
+[[plugins.factory.regenerate]]
+name = "provenance"
+paths = [
+    "foundations/fast-af/provenance/*.json",
+    "foundations/specimen/provenance/*.json",
+    "foundations/violet/provenance/*.json",
+    "endpoints/botcore/provenance/*.json",
+    "endpoints/botcore/src/botcore/provenance/*.json",
+]
+run = ["node", "scripts/provenance-merge.mjs"]

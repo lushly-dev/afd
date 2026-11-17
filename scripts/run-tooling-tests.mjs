@@ -49,6 +49,7 @@ export const testFiles = [
 	'scripts/ci-verdict.test.mjs',
 	'scripts/verify-record.test.mjs',
 	'scripts/review-record.test.mjs',
+	'scripts/provenance-merge.test.mjs',
 	'scripts/components-brief-hook.test.mjs',
 	'scripts/issue-labels.test.mjs',
 	'scripts/release/exec-tool.test.mjs',

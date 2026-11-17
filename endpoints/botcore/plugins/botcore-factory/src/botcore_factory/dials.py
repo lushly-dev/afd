@@ -57,6 +57,13 @@ DIALS: dict[str, Dial] = {
             "Local re-validations on a moved main before the PR's required check stands in",
         ),
         Dial("claims.leaseHours", 24, "number", 1, 168, "How long a silent claim holds an issue"),
+        _int(
+            "foreman.leaseMinutes",
+            30,
+            5,
+            240,
+            "How long a silent foreman keeps the lane from another session",
+        ),
         _int("cells.maxEjections", 3, 1, 10, "Repair attempts before a branch is parked"),
         Dial("experience.hold", False, "bool", trades="Merging UI changes at once or seeing them"),
         Dial("lane.autostart", True, "bool", trades="Restarting the lane with the host"),

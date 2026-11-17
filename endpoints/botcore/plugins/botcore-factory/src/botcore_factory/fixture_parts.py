@@ -276,18 +276,40 @@ class FixtureGit:
     def _slot(self, path: str) -> dict:
         return self._slots()[path.removeprefix("slots/")]
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
+    def merge_main(self, path: str, main: str, keep_open=None) -> MergeOutcome:
         slot = self._slot(path)
         result = _outcome(self.store, "merge", slot["branch"], "clean")
         if result.startswith("conflict"):
             files = result.split(":", 1)[1] if ":" in result else ""
             names = tuple(name.strip() for name in files.split(",") if name.strip())
+            if keep_open is not None and keep_open(names):
+                slot["merging"] = main
+                self.store.save()
+                return MergeOutcome(False, conflicts=names, open=True)
             return MergeOutcome(False, conflicts=names)
         if result.startswith("fail"):
             raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge did not happen")
         slot["head"] = f"{slot['head']}+{main}"
         self.store.save()
         return MergeOutcome(True, head=slot["head"])
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        """``outcomes.finish[branch]``: ``clean`` (the default) commits the open merge, or
+        ``conflict: a, b`` names paths still unmerged."""
+        slot = self._slot(path)
+        main = slot.pop("merging")
+        result = _outcome(self.store, "finish", slot["branch"], "clean")
+        if result.startswith("conflict"):
+            files = result.split(":", 1)[1] if ":" in result else ""
+            self.store.save()
+            return MergeOutcome(False, conflicts=tuple(f.strip() for f in files.split(",") if f))
+        slot["head"] = f"{slot['head']}+{main}"
+        self.store.save()
+        return MergeOutcome(True, head=slot["head"])
+
+    def abort_merge(self, path: str) -> None:
+        self._slot(path).pop("merging", None)
+        self.store.save()
 
     def tree(self, path: str) -> str:
         return f"tree-{self._slot(path)['head']}"
@@ -486,6 +508,16 @@ class FixtureProcesses:
     ) -> Completed:
         if label == "units":
             return _units_run(self.store, tuple(args))
+        if label and label.startswith("regenerate:"):
+            # ``outcomes.regenerate[name]``: ``pass`` (the default), ``fail: why`` (exits 1) or
+            # ``error: why`` (cannot run).
+            name = label.split(":", 1)[1]
+            result = _outcome(self.store, "regenerate", name, "pass")
+            if result.startswith("error"):
+                raise WorldError(result.removeprefix("error").lstrip(": ") or "cannot run")
+            if result.startswith("fail"):
+                return Completed(tuple(args), 1, "", result.removeprefix("fail").lstrip(": "))
+            return Completed(tuple(args), 0, "regenerated", "")
         worktrees = self.store.data.get("worktrees", {})
         worktree = worktrees.get(cwd)
         if worktree is None and label == "review-evidence":

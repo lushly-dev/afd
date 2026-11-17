@@ -13,7 +13,9 @@ a fixture world and a fake clock. Each step, in order:
    checks the cell's review of the queued head (``review_evidence``, run from the ``review`` slot
    at the base, never the branch's copy: lushly-dev/afd#1308; a refusal ejects as
    ``review-unverified``), then each slot checks the queued head out,
-   merges the base's head in (a conflict ejects; it is never resolved), then runs one background
+   merges the base's head in (a conflict ejects; it is never resolved, except that conflicts
+   only in files the adapter's ``regenerate`` names are written again by its command and the
+   merge committed: lushly-dev/afd#1410), then runs one background
    job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
    ``.nvmrc`` names (missing, it is the lane's trouble);
 5. runs coverage on the base (``lane_coverage``);
@@ -27,6 +29,7 @@ never edits code.
 from __future__ import annotations
 
 from botcore_factory import job
+from botcore_factory.adapter import matches
 from botcore_factory.lane_base import (
     BAD_REVISION,
     INFRASTRUCTURE,
@@ -37,7 +40,7 @@ from botcore_factory.lane_base import (
 from botcore_factory.lane_coverage import Coverage
 from botcore_factory.lane_merge import Merging
 from botcore_factory.runtime import Factory
-from botcore_factory.world import WorldError
+from botcore_factory.world import MergeOutcome, WorldError
 
 __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
 
@@ -45,6 +48,8 @@ __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
 REVIEW_SLOT = "review"
 #: Seconds; the verifier only reads a record.
 REVIEW_TIMEOUT = 120
+#: Seconds a ``regenerate`` command may take.
+REGENERATE_TIMEOUT = 300
 #: The verifier's exit code for a refused review (``scripts/review-record.mjs``'s ``REFUSED``).
 REVIEW_REFUSED = 3
 
@@ -168,9 +173,15 @@ class Step(Merging, Coverage):
                 return False
             raise LaneTrouble(f"Preparing slot {slot} for {branch} failed: {exc}") from exc
         try:
-            merged = self.world.git.merge_main(path, base)
+            merged = self.world.git.merge_main(path, base, keep_open=self.regenerable)
         except WorldError as exc:
             raise LaneTrouble(f"Merging {base} into {branch} did not happen: {exc}") from exc
+        regenerated: list[str] = []
+        if merged.open:
+            outcome = self.regenerate(entry, path, base, merged.conflicts)
+            if outcome is None:
+                return False
+            merged, regenerated = outcome
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
@@ -200,9 +211,57 @@ class Step(Merging, Coverage):
             head=merged.head,
             base=base,
             slot=slot,
+            **({"regenerated": regenerated} if regenerated else {}),
         )
+        if regenerated:
+            self.actions.append(f"regenerated {', '.join(regenerated)} for {branch}")
         self.actions.append(f"validating {branch} in slot {slot}")
         return True
+
+    def regenerable(self, conflicts: tuple[str, ...]) -> bool:
+        """Whether every conflicting path is a file the adapter's ``regenerate`` writes."""
+        specs = self.config.regenerate
+        return bool(specs) and all(any(matches(c, s.paths) for s in specs) for c in conflicts)
+
+    def regenerate(
+        self, entry: dict, path: str, base: str, conflicts: tuple[str, ...]
+    ) -> tuple[MergeOutcome, list[str]] | None:
+        """Write the conflicting generated files again and commit the merge (lushly-dev/afd#1410).
+
+        Each ``regenerate`` entry whose paths conflict runs in the slot while the merge is open;
+        it writes and stages its files. One that refuses (a real conflict in what it merges)
+        ejects as ``conflict``, as before; one that cannot run is the lane's trouble. The merge is
+        committed only when nothing is left unmerged. None when the branch was ejected.
+        """
+        names: list[str] = []
+        for spec in self.config.regenerate:
+            if not any(matches(conflict, spec.paths) for conflict in conflicts):
+                continue
+            try:
+                done = self.world.processes.run(
+                    spec.run, cwd=path, timeout=REGENERATE_TIMEOUT, label=f"regenerate:{spec.name}"
+                )
+            except WorldError as exc:
+                self.world.git.abort_merge(path)
+                raise LaneTrouble(
+                    f"Regenerating {spec.name} for {entry['branch']} could not run: {exc}"
+                ) from exc
+            if done.returncode != 0:
+                self.world.git.abort_merge(path)
+                why = (first_lines(done.stderr + "\n" + done.stdout) or ["no output"])[0]
+                self.eject(
+                    entry,
+                    "conflict",
+                    f"Conflicts with {base}: {', '.join(conflicts)}; {spec.name} could not "
+                    f"merge them: {why}",
+                )
+                return None
+            names.append(spec.name)
+        try:
+            return self.world.git.finish_merge(path), names
+        except WorldError as exc:
+            self.world.git.abort_merge(path)
+            raise LaneTrouble(f"Committing the merge for {entry['branch']} failed: {exc}") from exc
 
     def review_verified(self, entry: dict, base: str) -> bool:
         """Whether the base's review verifier accepts the cell's review of the queued head.
