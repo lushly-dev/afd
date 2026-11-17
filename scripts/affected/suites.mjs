@@ -182,7 +182,7 @@ export const SUITES = [
 			{ cwd: 'endpoints/botcore', run: 'uv sync --frozen --extra dev --extra mcp --extra cdp' },
 			{
 				cwd: 'endpoints/botcore',
-				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/',
+				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/',
 			},
 			{
 				cwd: 'endpoints/botcore',

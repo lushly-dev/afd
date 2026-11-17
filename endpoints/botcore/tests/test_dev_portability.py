@@ -52,6 +52,7 @@ async def test_check_paths_detects_windows_drive(tmp_path) -> None:
     """Detects hardcoded Windows drive paths."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must flag
     (src / "config.toml").write_text('DATA_DIR = "C:\\\\Users\\\\admin\\\\data"\n')
 
     with (
@@ -68,8 +69,7 @@ async def test_check_paths_ignores_escape_sequences(tmp_path) -> None:
     src = tmp_path / "src"
     src.mkdir()
     (src / "app.ts").write_text(
-        "expect(ical).toMatch(/DTSTAMP:\\d{8}/);\n"
-        "sections.push(`User:\\n${ctx.join('\\n')}`);\n"
+        "expect(ical).toMatch(/DTSTAMP:\\d{8}/);\nsections.push(`User:\\n${ctx.join('\\n')}`);\n"
     )
 
     with (
@@ -86,6 +86,7 @@ async def test_check_paths_detects_unix_home(tmp_path) -> None:
     """Detects hardcoded Unix home paths."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must flag
     (src / "config.toml").write_text('LOG_DIR = "/home/deploy/logs"\n')
 
     with (
@@ -101,6 +102,7 @@ async def test_check_paths_detects_mac_users(tmp_path) -> None:
     """Detects hardcoded macOS user paths."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must flag
     (src / "config.toml").write_text('CACHE = "/Users/developer/cache"\n')
 
     with (
@@ -116,6 +118,7 @@ async def test_check_paths_detects_localhost_warning(tmp_path) -> None:
     """Detects hardcoded localhost URLs as warnings."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must flag
     (src / "config.toml").write_text('API_URL = "http://localhost:3000/api"\n')
 
     with (
@@ -148,6 +151,7 @@ async def test_check_paths_skips_comments(tmp_path) -> None:
     """Skips paths in comments."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must skip
     (src / "app.toml").write_text('# Default: /home/user/.config\nconfig = "safe"\n')
 
     with (
@@ -164,9 +168,7 @@ async def test_check_paths_skips_regex_patterns(tmp_path) -> None:
     """Skips lines containing regex patterns (re.compile, r-strings)."""
     src = tmp_path / "src"
     src.mkdir()
-    (src / "parser.toml").write_text(
-        "# regex: re.compile(r'/home/[a-z]+/data')\n"
-    )
+    (src / "parser.toml").write_text("# regex: re.compile(r'/home/[a-z]+/data')\n")
 
     with (
         patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path),
@@ -182,6 +184,7 @@ async def test_check_paths_skips_non_code_extensions(tmp_path) -> None:
     """Skips files with non-code extensions."""
     src = tmp_path / "src"
     src.mkdir()
+    # portability-ok: a fixture the portability scanner must skip
     (src / "data.bin").write_bytes(b"/home/user/bad/path")
 
     with patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path):
@@ -204,6 +207,7 @@ async def test_check_paths_respects_exclude_patterns(tmp_path) -> None:
     src = tmp_path / "src"
     nm = src / "node_modules" / "pkg"
     nm.mkdir(parents=True)
+    # portability-ok: a fixture the portability scanner must skip
     (nm / "index.js").write_text('const p = "/home/admin/data";\n')
 
     with patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path):

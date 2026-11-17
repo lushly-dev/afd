@@ -36,6 +36,7 @@ What a plugin served through the managed host needs: its own command policies, a
 
 ### Fixed
 
+- **Botcore's quality gate passes on a clean `main`** (lushly-dev/afd#513). `scripts/check-portability.mjs` no longer flags the portability command's own pattern description and docstring or its test fixtures, which now carry `# portability-ok:` markers. The Botcore workflow's lint step also covers `packages/botcore-llm/src/` and `packages/botcore-memory/src/`. `ruff format` is compared against base only (`AGENTS.md`), and `SETUP.md` describes the gates AFD runs instead of the retired Botcore hooks.
 - **Windows HTTP token stores are private and coordinated across processes.** New
   files and directories receive ACLs for the operator, SYSTEM and Administrators
   at creation; unsafe owners, ACLs and reparse points refuse access. Readers and
