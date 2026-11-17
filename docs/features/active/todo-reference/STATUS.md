@@ -517,7 +517,8 @@ An independent review compared 27 calls side by side with the TypeScript server 
 for validation texts, now listed in the README) and found one blocker, fixed: an `offset` beyond
 int64 was cast out of range, which on x86 could read out of bounds. Integer inputs are now clamped
 to [0, 2^53 - 1]. Its improvements (missing-key reads, a test that an approved clear over MCP is
-recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC.
+recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC. MSVC
+later failed on `std::getenv` (see the findings log); fixed in #PRNUM.
 
 ### Python's approval relay
 
@@ -576,6 +577,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Rust | Under Umbel `todo-clear` is not held for agents: a plugin manifest declares only a fixed `approval = "required"`, and the loader refuses a definition with a per-call policy (`mismatch` in `endpoints/umbel/src/plugins/loader.rs`), so the plugin drops it and the clear is gated by its confirmation prompt alone. The description says so in every host | Open: [#1329](https://github.com/lushly-dev/afd/issues/1329) |
 | 2026-11-16 | Phase 5 Rust | The conformance runner reaches the Rust backend over stdio, so asking the person over Streamable HTTP (MCP 2026-07-28) is not exercised: the backend's HTTP test checks only that a client declaring no elicitation gets `APPROVAL_REQUIRED` without a token, and Umbel's mounted run uses HTTP with `APPROVALS=off` | Open |
 | 2026-11-16 | Phase 5 Rust review | Two small differences from TypeScript kept on purpose: Rust's `NOT_FOUND` errors carry `retryable: false`, which TypeScript leaves unset, and the Rust commands are also exposed to its own command line (`expose.cli`) | Kept |
+| 2026-11-17 | Windows verify | The C++ backend does not build with MSVC: `main.cpp` (from #1379) calls `std::getenv`, which MSVC deprecates (C4996), and `AFD_WARNINGS_AS_ERRORS` makes that C2220, so `test:conformance:cpp` failed on Windows. No CI job built the backend with MSVC: `conformance.yml` runs it on Linux and `cpp.yml`'s MSVC legs build only the library, daily | Fixed in #PRNUM: `_dupenv_s` on MSVC, `std::getenv` elsewhere, warnings still errors; `conformance.yml`'s `todo-cpp-windows` job builds the backend and its tests with MSVC and runs them |
 | 2026-11-17 | Phase 5 C++ | `afd::mcp_stdio` serves one tool per command and nothing else: no context tools, meta-tools, bootstrap commands or tool strategies, so the C++ backend declares its two contexts but cannot serve them (W2) and its tool list is not TypeScript's (W9) | Open: [#1425](https://github.com/lushly-dev/afd/issues/1425); the hybrid step is [#1202](https://github.com/lushly-dev/afd/issues/1202), unblocked by #1379 |
 
 ## Session log
@@ -596,3 +598,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. In #1335 |
 | 2026-11-17 | Phase 5 C++ | C++ at parity on the library (restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties, the clear held for agents through the MCP relay); the spec's `implementedBy` markers removed; all approval cases in both eras. In #1426 |
 | 2026-11-17 | Phase 5 Python relay | The Python library's MCP approval relay and the up-front approval of `afd-batch` and `afd-pipe` (#1312); the Python backend asks the person over MCP; every approval case runs against every backend |
+| 2026-11-17 | C++ on MSVC | The C++ backend reads its settings without `std::getenv` on MSVC and builds there with warnings as errors; `conformance.yml` builds and tests it on Windows. In #PRNUM |

@@ -26,7 +26,8 @@ namespace {
 
 /// The environment variable's value, or nothing when it is unset. MSVC's runtime deprecates
 /// `std::getenv` (C4996, an error under `AFD_WARNINGS_AS_ERRORS`), so there it is read with
-/// `_dupenv_s`, which returns a copy the caller frees.
+/// `_dupenv_s`, which returns a copy the caller frees. A failed read counts as unset, which leaves
+/// each setting at its default.
 std::optional<std::string> environment(const char* name) {
 #if defined(_MSC_VER)
     char* buffer = nullptr;
