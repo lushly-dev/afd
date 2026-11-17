@@ -235,6 +235,18 @@ fn run_command(
     let runtime = tokio::runtime::Builder::new_current_thread()
         .enable_all()
         .build()?;
+    // A person's large change to mail is shown by its count, and asked
+    // about, before it runs (the specification's 9.4).
+    let mut caller = caller;
+    if let Caller::Terminal(person) = &mut caller
+        && let Some(change) = large_change(name, &input, runner, &runtime)
+    {
+        writeln!(err, "{change}.")?;
+        if !person.confirm("Go ahead? [y/N] ")? {
+            writeln!(err, "Nothing was done.")?;
+            return Ok(EXIT_FAILED);
+        }
+    }
     let mut result = runtime.block_on(runner.run(name, input.clone(), terminal, None));
     if let Some((summary, token)) = held(&result) {
         match caller {
@@ -457,6 +469,82 @@ fn preview(
     };
     lines.push(format!("Suggested by {by}."));
     Some(lines)
+}
+
+/// What a person's change to mail does, in counts, when it is larger than
+/// the policy's count to ask above: `None` for any other command, a change
+/// within the count, or one whose count cannot be read (the handler then
+/// says why it cannot run).
+fn large_change(
+    name: &str,
+    input: &serde_json::Value,
+    runner: &(dyn Runner + Sync),
+    runtime: &tokio::runtime::Runtime,
+) -> Option<String> {
+    let stated = || -> Option<u64> {
+        input
+            .get("expectedCount")
+            .and_then(serde_json::Value::as_u64)
+            .or_else(|| {
+                input
+                    .get("messages")
+                    .and_then(serde_json::Value::as_array)
+                    .map(|ids| ids.len() as u64)
+            })
+    };
+    let operation = || -> Option<(i64, serde_json::Value)> {
+        let id = crate::operations::operation_input(input)?;
+        let shown = runtime.block_on(runner.run(
+            "mail-operation-show",
+            serde_json::json!({ "operation": id, "limit": 1 }),
+            true,
+            None,
+        ));
+        Some((id, shown.data.filter(|_| shown.success)?))
+    };
+    let count = |value: &serde_json::Value, field: &str| {
+        value.get(field).and_then(serde_json::Value::as_u64)
+    };
+    let (count, what) = match name {
+        "mail-archive" => (stated()?, "Archive {n} messages".to_string()),
+        "mail-trash" => (stated()?, "Move {n} messages to the trash".to_string()),
+        "mail-mark" => (stated()?, "Mark {n} messages".to_string()),
+        "mail-label" => {
+            let mailbox = input.get("mailbox").and_then(serde_json::Value::as_i64)?;
+            let verb = if input.get("copy") == Some(&serde_json::Value::Bool(true)) {
+                "Copy"
+            } else {
+                "Move"
+            };
+            (
+                stated()?,
+                format!("{verb} {{n}} messages to mailbox {mailbox}"),
+            )
+        }
+        crate::operations::RESUME => {
+            let (id, shown) = operation()?;
+            (
+                count(&shown, "waiting")?,
+                format!("Carry on operation {id}: {{n}} places left"),
+            )
+        }
+        crate::operations::UNDO => {
+            let (id, shown) = operation()?;
+            (
+                count(&shown, "changed")?,
+                format!("Undo operation {id}: put back {{n}} places it changed"),
+            )
+        }
+        _ => return None,
+    };
+    let policy =
+        runtime.block_on(runner.run("mail-policy-show", serde_json::json!({}), true, None));
+    let ask_above = policy
+        .data
+        .filter(|_| policy.success)?
+        .pointer("/policy/askAbove")?
+        .as_u64()?;
+    (count > ask_above).then(|| what.replace("{n}", &count.to_string()))
 }
 
 /// Text from mail made safe to write to a terminal: control characters

@@ -470,10 +470,12 @@ impl CommandHandler for Status {
                     "mailboxes": mailboxes,
                 }));
             }
-            Ok((result, stale, screening))
+            let (running, stopped) = store.operation_states()?;
+            let operations = json!({ "running": running, "stopped": stopped });
+            Ok((result, stale, screening, operations))
         });
         match read {
-            Ok((accounts, stale, screening)) => success(json!({
+            Ok((accounts, stale, screening, operations)) => success(json!({
                 "accounts": accounts,
                 // Messages an older derivation read, waiting to be read again.
                 "stale": stale,
@@ -482,6 +484,9 @@ impl CommandHandler for Status {
                 "screening": screening,
                 // What a running server carries on; null without one.
                 "work": self.engine.work().status(),
+                // Changes to mail at the provider that run now, and that
+                // stopped before their end and can be resumed (9.1).
+                "operations": operations,
             })),
             Err(error) => failure(store_failure(&error)),
         }
