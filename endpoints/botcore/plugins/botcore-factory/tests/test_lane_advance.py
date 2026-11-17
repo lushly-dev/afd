@@ -263,3 +263,104 @@ def test_check_selection_includes_and_excludes():
     assert not check_selected("deploy", ["TypeScript (Node *)"])
     assert not check_selected("Version or Publish", ["!Version or Publish"])
     assert check_selected("CI", ["!Version or Publish"])
+
+
+# A branch that affects every unit (a lockfile change) overlaps every move of main (#1369).
+STARVING = {**UNITS, "pnpm-lock.yaml": ["*"]}
+GUARDED = {**ADAPTER, "gate_paths": ["lefthook.yml"]}
+
+
+def validated_on(base: str) -> str:
+    return f"b2c3d4e+{base}"
+
+
+def move_to(run, n: int, changes: list[str], **outcomes) -> list[str]:
+    """Main moves to main-``n`` changing ``changes``, the branch changes the lockfile; one step."""
+    run.change_world(
+        main={
+            "head": f"main-{n}",
+            "changes": {f"main-{n}": changes, validated_on(f"main-{n - 1}"): ["pnpm-lock.yaml"]},
+        },
+        outcomes=outcomes,
+    )
+    return run_steps(run, **GUARDED)
+
+
+@pytest.fixture
+def starving(make_run):
+    """feat/export-csv changes the lockfile; main moved under two validations that passed."""
+    run = make_run("running")
+    run.change_world(
+        units=STARVING,
+        outcomes={"checks": {BRANCH: "pending"}, "validate": {"fix/retry-backoff": "running"}},
+    )
+    run_steps(run, **GUARDED)  # Validating on main-0.
+    for n in (1, 2):
+        assert "rerun feat/export-csv (main-moved)" in move_to(run, n, ["packages/b/y.ts"])
+    assert entry_of(run, BRANCH)["baseReruns"] == 2
+    return run
+
+
+def test_after_the_rerun_limit_the_required_check_stands_in(starving):
+    actions = move_to(starving, 3, ["packages/b/y.ts"])
+    assert "advanced feat/export-csv to main-3 (2 reruns; its required check stands in)" in actions
+    assert f"opened PR 600 for feat/export-csv at {validated_on('main-2')}" in actions
+    body = prs(starving)["600"]["body"]
+    assert "Main moved under it 2 times" in body and "`ci-ok` on this pull request" in body
+    records = starving.store.read_records()
+    [advanced] = [r for r in records if r["kind"] == "base-advanced"]
+    assert (advanced["reason"], advanced["previous"], advanced["base"]) == (
+        "rerun-limit",
+        "main-2",
+        "main-3",
+    )
+    assert advanced["detail"] == "a change affects every unit"
+    starving.change_world(outcomes={"checks": {BRANCH: "success"}})
+    assert "merged feat/export-csv (PR 600)" in run_steps(starving, **GUARDED)
+    assert prs(starving)["600"]["mergedHead"] == validated_on("main-2")  # Bound to that head.
+    [merged] = [r for r in starving.store.read_records() if r["kind"] == "merged"]
+    assert merged["advanced"] is True and merged["checkStoodIn"] is True
+    assert [item["pr"] for item in starving.state()["lane"]["uncheckedMerges"]] == [600]
+    report = lane_report(starving.factory(), None, None)
+    assert (report["reruns"], report["baseAdvances"], report["rerunLimitAdvances"]) == (2, 1, 1)
+
+
+def test_a_move_while_its_check_runs_past_the_limit_still_merges_and_is_watched(starving):
+    move_to(starving, 3, ["packages/b/y.ts"])  # Pushed; the check is pending.
+    starving.change_world(
+        main={"head": "main-4", "changes": {"main-4": ["packages/a/z.ts"]}},
+        outcomes={"checks": {BRANCH: "success"}},
+    )
+    actions = run_steps(starving, **GUARDED)
+    assert "advanced feat/export-csv to main-4 (2 reruns; its required check stands in)" in actions
+    assert "merged feat/export-csv (PR 600)" in actions
+    starving.change_world(mainChecks={"main@600": {"CI": "failure"}})
+    run_steps(starving, **GUARDED)
+    [broken] = events(starving, "main-broken")
+    assert broken["suspects"] == [600] and starving.state()["lane"]["paused"] is True
+
+
+def test_past_the_limit_a_move_touching_a_gate_path_validates_again(starving):
+    assert "rerun feat/export-csv (main-moved)" in move_to(starving, 3, ["lefthook.yml"])
+    assert "base-advanced" not in kinds(starving)
+    assert entry_of(starving, BRANCH)["baseReruns"] == 3
+
+
+def test_past_the_limit_a_conflict_validates_again(starving):
+    actions = move_to(
+        starving,
+        3,
+        ["packages/b/y.ts"],
+        mergeTree={validated_on("main-2"): "conflict: pnpm-lock.yaml"},
+    )
+    assert "rerun feat/export-csv (main-moved)" in actions
+    assert "base-advanced" not in kinds(starving)
+
+
+def test_the_rerun_limit_is_a_dial(starving):
+    with starving.store.update("dial") as state:
+        state["dials"]["lane.maxBaseReruns"] = 3
+    assert "rerun feat/export-csv (main-moved)" in move_to(starving, 3, ["packages/b/y.ts"])
+    assert "advanced feat/export-csv to main-4 (3 reruns; its required check stands in)" in (
+        move_to(starving, 4, ["packages/b/y.ts"])
+    )

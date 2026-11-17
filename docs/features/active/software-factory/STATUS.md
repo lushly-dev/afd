@@ -5,6 +5,27 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## A branch that affects every unit is no longer validated again for ever, 2026-11-17
+
+[#1369](https://github.com/lushly-dev/afd/issues/1369): in the second fleet (run-3), the #424
+branch adds a workspace package, so it changes `pnpm-lock.yaml` and maps to `*`, and every move
+of `main` overlapped it. Its validations passed five times in two attempts (35 to 40 minutes
+each) and each was discarded by an unrelated merge outside the lane: two `a change affects every
+unit`, three `main changed a shared input` (workflow files among them). The lane now counts an
+attempt's main-moved reruns (`baseReruns` on its queue entry). Once they reach the new dial
+`lane.maxBaseReruns` (default 2), the next move is not validated again locally when the validated
+head merges onto the new `main` without a conflict and `main`'s changes touch none of the
+adapter's `gate_paths`: the branch advances (`base-advanced` with `reason` `rerun-limit`, `detail`
+saying why it would have rerun), is pushed at its validated head, and the PR's `ci-ok`, which
+runs on the pull request's merge ref, stands in. It merges on green bound to that head and is
+watched on `main` like any advance, so a red `main` afterwards pauses the lane and names it. A
+conflict or a gate path still validates again (a `gate_paths` change on `main` keeps the
+coverage rules as they were). `lane-report` counts `rerunLimitAdvances` (part of
+`baseAdvances`), and the merged record carries `checkStoodIn`. The PR body says the check stood
+in when the lane opens the PR; an already open PR keeps its body. A move of `main` while `ci-ok`
+runs is not checked again before the merge, only by the watch on `main` after it. Not yet seen in
+a fleet run.
+
 ## A moved `main` no longer always means validating again, 2026-11-16
 
 [#1350](https://github.com/lushly-dev/afd/issues/1350): in the first fleet, every move of `main`
