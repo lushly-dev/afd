@@ -9,7 +9,7 @@
 
 ## Status
 
-- **State:** written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`. Proposed, not approved. Nothing is built.
+- **State: Approved** 2026-11-17 by the coordinator, under the owner's standing grant; the owner answered [Q1 to Q7](#questions-for-the-owner) the same day, each as recommended, Q2 with a condition. D141 to D152 are decided. Written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`, then a re-check and a final verify. Nothing is built.
 - **Last verified:** 2026-11-17. Read: the documents in the table above; Loam's STATUS rows that name this specification; [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), both merged while this specification was in review and merged into its branch. 10.8 was approved on 2026-11-17, with the owner's answers recorded as D137 to D140 in [#1378](https://github.com/lushly-dev/afd/pull/1378). This specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
 - **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106.
 - **Not done:** every step in [section 19](#19-implementation-plan).
@@ -19,7 +19,7 @@
 
 - **Principles:** 3, everything is a command; 8, agents are first-class users; 13, deterministic core; 15, AFD first; the architecture's copilot, bus and mounted-server components.
 - **The owner's direction of 2026-11-15 and 2026-11-16.** The first Loam is a local, personal Loam on the desktop (D128, D133); its local parts should not wait on hosted work (D129); mail is the first app (D135), and Mail's step F, the mount and the native app, runs on the desktop lane (D132). So this specification orders the desktop path first: **the copilot runtime in the shell, mounted servers through the Rust host, and mail as the first consumer.**
-- **Decisions this specification proposes:** D141 to D152, in [Proposed decisions](#proposed-decisions). [#1345](https://github.com/lushly-dev/afd/pull/1345) takes D137 to D140, the owner's answers on the desktop's inbound MCP and CLI (phase 6's 10.8), as the coordinator directed on 2026-11-16, so this specification starts at D141. 10.8 is treated as decided.
+- **Decisions:** D141 to D152, decided 2026-11-17, in [Decisions](#decisions) and the [decision log](../../decisions.md). D137 to D140 are the owner's answers on the desktop's inbound MCP and CLI (phase 6's 10.8, approved 2026-11-17), so this specification starts at D141.
 
 ### Carried from earlier phases, answered here
 
@@ -896,7 +896,7 @@ Each step is one pull request, merged on green, that updates this status block a
 | 6 | **Units** | 7.3; P5-A7; scenario 4 | 4 | `pnpm check`, `loam.yml` |
 | 7 | **Mail on the desktop** | The real engine mounted by hand on the desktop suite; P5-A9. **Trust review: the mount, the labels and the send** | 2, 5, 6; the engine's step F changes (7.2) | `pnpm verify`, `loam-desktop.yml`, `loam-plugins.yml` |
 | 8 | **Milestone A** | `--phase 5 --milestone a`; STATUS records "the desktop copilot" | 1 to 7; phase 4's step 10 | The check exits 0 for A |
-| 9 | **Plugin engines** | 7.4: the plugin manifest, `plugin install` and `uninstall`, the service per Q2; D56 and D63 amended. **Trust review** | 8; Q2 answered | `pnpm check`, `pnpm verify`, `loam-desktop.yml` |
+| 9 | **Plugin engines** | 7.4: the plugin manifest, `plugin install` and `uninstall`, the service per Q2; D56 and D63 amended. **Trust review** | 8; the no-terminal amendment (Q2's condition) | `pnpm check`, `pnpm verify`, `loam-desktop.yml` |
 | B0 | **Milestone B's amendment** | Exact tables and tests for section 9; its scenario files; its jobs rewritten as jobs | 8 | Review |
 | 10 | Bus: native `calls`, `event-list`, `shell-open` | Section 9 | 0b, B0 | `pnpm check`, `loam.yml` |
 | 11 | Specialists, delegations, groups, provider swap | Section 9, with D118's limit | B0 | `pnpm check`, `loam.yml` |
@@ -927,9 +927,11 @@ Each step is one pull request, merged on green, that updates this status block a
 
 ## Questions for the owner
 
-Each is about who can do what, or who is trusted. The specification is written to each recommendation, and says where an answer would change it. An open question blocks only the steps that build it.
+Each is about who can do what, or who is trusted. **The owner answered all seven on 2026-11-17, each as recommended**, Q2 with a condition. The specification is written to each recommendation.
 
 ### Q1. Mail send: how does a person approve a mounted send?
+
+**Answered 2026-11-17: (a).** The shell approves, through the AFD carrier (D146).
 
 Blocks steps 0c and 5. The mail engine sends only after a person approves. From Loam, that approval has to reach the engine.
 
@@ -946,6 +948,8 @@ Blocks steps 0c and 5. The mail engine sends only after a person approves. From 
 
 ### Q2. Engine: who keeps a plugin's engine running?
 
+**Answered 2026-11-17: (a), with a condition.** The install registers the engine to start at sign-in (D148). The owner agreed on the condition that this happens as part of installing, and that a person never has to run a command. So 7.4's terminal install, the approver token made at the engine's terminal, and 4.2's `loam copilot key set` are the mechanism and the development path only: before step 9 starts, an amendment to this specification gives each of them a path with no terminal, such as Loam's desktop installer registering mail's engine (a follow-up below).
+
 Blocks step 9 only; mail can be mounted by hand until then. Mail must keep syncing when Loam is closed.
 
 - **(a) Installing the plugin registers the engine to start when you sign in to your computer (recommended).** It runs whether Loam is open or not, like a mail sync service, and uninstalling removes it.
@@ -959,6 +963,8 @@ Blocks step 9 only; mail can be mounted by hand until then. Mail must keep synci
   - Cost: small, in the Rust host.
 
 ### Q3. Taint: what must the copilot ask before, once it has read a stranger's text?
+
+**Answered 2026-11-17: (a).** Ask before any change outside mail, anything sent to another server, and anything that cannot be undone (D144).
 
 Blocks step 4. Once the copilot has read mail, a message could try to steer it.
 
@@ -974,6 +980,8 @@ Blocks step 4. Once the copilot has read mail, a message could try to steer it.
 
 ### Q4. Labels: whose word decides which parts of a server's result are written by strangers?
 
+**Answered 2026-11-17: (a).** The deployer turns on per-part labels for each server (D144).
+
 Blocks step 4.
 
 - **(a) The deployer turns on per-part labels for each server (recommended).** By default, everything from a mounted server is treated as a stranger's text. You turn on per-part reading for servers you trust to label, such as mail's engine; with it, their reads run without asking.
@@ -984,6 +992,8 @@ Blocks step 4.
   - Cost: slightly less than (a).
 
 ### Q5. Builder: may phase 7 start after milestone A?
+
+**Answered 2026-11-17: (a).** Phase 7 waits for phase 5's exit (D141).
 
 Changes the architecture's phase 7 gate. Phase 7, the builder, needs a working copilot.
 
@@ -996,6 +1006,8 @@ Changes the architecture's phase 7 gate. Phase 7, the builder, needs a working c
 
 ### Q6. Jobs: are these the right jobs, in the right order?
 
+**Answered 2026-11-17:** the ranking stands.
+
 The slice ranks nine jobs ([Jobs and scenarios](#jobs-and-scenarios)), and milestone B lists more.
 
 - **Recommendation:** keep the ranking. It puts the mail safety jobs (2 to 4) and your own send (9) before convenience.
@@ -1003,6 +1015,8 @@ The slice ranks nine jobs ([Jobs and scenarios](#jobs-and-scenarios)), and miles
 - Not ranked, because they are terminal steps rather than commands: setting a model's key (4.2) and installing a plugin (7.4).
 
 ### Q7. Delegation: may this specification decide #913 and #883?
+
+**Answered 2026-11-17: (a).** All three confirmed: #913 (D142), #883 (D150) and the two inbound reads on D138's list (D145).
 
 The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](https://github.com/lushly-dev/afd/issues/883) left their choices to you. This specification decides them, as D142 and D150, under your standing grant to the coordinator. It also adds two reads, `confirmation-get` and `confirmation-withdraw`, to the desktop's inbound list you approved in D138 (6.1).
 
@@ -1015,26 +1029,26 @@ The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](
   - #883's alternative is to put the execution origin in AFD for all four languages, at the cost of a field in every language for one consumer.
   - Cost: (b) for #913 would move milestone A's runtime design.
 
-## Proposed decisions
+## Decisions
 
-Proposed by this specification on 2026-11-16, and decided only with its approval. D137 to D140 are #1345's, the owner's answers on 10.8; this specification's numbers start at D141.
+Proposed by this specification on 2026-11-16 and **decided 2026-11-17**: D142, D144, D145, D146, D148 and D150 by the owner's answers to Q1 to Q4 and Q7, D141 by Q5 as well, and the rest by the coordinator's approval under the owner's standing grant. They are recorded in the [decision log](../../decisions.md). D137 to D140 are the owner's answers on 10.8; this specification's numbers start at D141.
 
 | ID | Decision | Amends or annotates |
 | --- | --- | --- |
 | D141 | Phase 5 has three milestones: A, the desktop copilot, which needs nothing hosted; B, the rest of the local criterion; C, the hosted criterion, which needs M1 and phase 3's step 10. It exits when all three pass | Annotates D100 and D129; the architecture's phase 5 row, and its gate in STATUS |
-| D142 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913, subject to Q7 | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
-| D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
+| D142 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913; confirmed by the owner (Q7) | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
+| D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal until the amendment that Q2's condition requires gives the desktop a path with no terminal, before step 9. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
 | D144 | A mounted result is content as a whole unless its instance entry says `labels = "per-part"`, and a whole server's own words never reach the model. Content taints a session, through stored outcomes and nested calls too. A tainted session's mutations outside a vouched source, and its calls to other servers or `http` apps, are at most `ask`, through `calls` grants as well. Answers L1 and L2 | Annotates D41 and D65 |
 | D145 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D138's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
-| D146 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1, subject to Q1 | Annotates D65; needs AFD's step 0c |
+| D146 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1; the owner's Q1 | Annotates D65; needs AFD's step 0c |
 | D147 | A vouched server's result marked as a unit is composed in a fresh context with no history and no tools, and neither its payload nor its submit's result reaches the parent. Isolation is guaranteed on that path only. Answers L6 | None |
-| D148 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5, subject to Q2 | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
+| D148 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5; the owner's Q2, on the condition that a person never has to run a command, so an amendment before step 9 gives the install a path with no terminal | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
 | D149 | The WebMCP projection is the browser's only, outward only, never on the desktop, and in no exit criterion while WebMCP has no shipping milestone. Answers #885 | Annotates D39 |
-| D150 | Of Lushly's copilot code: the approval display rules go to AFD with step 0c, and the approval link store to AFD when milestone C needs it; the runtime interfaces, tool bridge and transport handshake go to `@lushly-dev/loam-copilot`; the execution origin stays in Lushly. Answers #883, subject to Q7 | None |
+| D150 | Of Lushly's copilot code: the approval display rules go to AFD with step 0c, and the approval link store to AFD when milestone C needs it; the runtime interfaces, tool bridge and transport handshake go to `@lushly-dev/loam-copilot`; the execution origin stays in Lushly. Answers #883; confirmed by the owner (Q7) | None |
 | D151 | The copilot's records are sessions and turns in the person's store, kept for a person's retention setting. Its commands are human commands, served to no agent. There is no memory across sessions in phase 5 | Annotates D24 |
 | D152 | `calls` grants reach mounted instances in milestone A, on the instance entry's declaration. Milestone B's bus adds native callees with AFD's `apps` flag, `event-list` as a projection of the journal the caller may see, and `shell-open` over phase 2's resource links, with exact tables in its amendment | Annotates D30, D65 and D81 |
 
-**Amendments to other documents, if approved.** Each is applied by the step named, so as not to collide with open pull requests:
+**Amendments to other documents.** Each is applied by the step named, so as not to collide with open pull requests:
 
 - the architecture's phase 5 row and its section 9 text gain the milestones (step 1);
 - phase 6's 10.2, 10.4, 17, P6-D4 and D106's consequence gain `model_send` and `model_cancel`, and 10.2 the runtime frame's document on the sandbox origin (step 2);
@@ -1042,7 +1056,7 @@ Proposed by this specification on 2026-11-16, and decided only with its approval
 - phase 4's 4.2 gains the default for vouched reads (step 3);
 - phase 1's 7.4 and D65's consequence gain `labels`, `approvals`, `preview` and `expose.apps` (steps 4 and 5);
 - phase 1's section 2, D56 and D63 gain 7.4's plugin manifest and wording (step 9);
-- W20 and D39's consequence note D149 (with approval).
+- W20 and D39's consequence note D149 (W20 with this approval).
 
 ## Review 2026-11-16
 
@@ -1144,3 +1158,4 @@ Its improvements were taken too:
 | 2026-11-16 | Re-check WebMCP (W20) when Chrome 162 nears or an Intent to Ship appears | Open |
 | 2026-11-16 | An actor per client of the desktop's inbound endpoint, so clients do not share confirmations and decline windows (6.1) | Open |
 | 2026-11-16 | Taint per mail account, so a personal message cannot steer the work account (5.3) | Open; mail's step F |
+| 2026-11-17 | The owner's condition on Q2: a person never has to run a command. An amendment gives the plugin install and its approver token (7.4), and the model key (4.2), a path with no terminal, such as Loam's desktop installer registering mail's engine; the terminal paths stay for development | Open; before step 9 |
