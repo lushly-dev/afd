@@ -78,8 +78,8 @@ def _read_private_key_windows(path: Path) -> str:
         descriptor = open_private(path)
     except PermissionError as error:
         raise ValueError(
-            f"{path} is readable by others ({error}); grant only the service user, "
-            "SYSTEM and Administrators, and make the service user its owner"
+            f"{path} is not private to the service user ({error}); grant only the service "
+            "user, SYSTEM and Administrators, and make the service user its owner"
         ) from None
     with os.fdopen(descriptor, encoding="utf-8") as key:
         return key.read()

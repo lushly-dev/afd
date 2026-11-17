@@ -562,6 +562,10 @@ def test_an_unreachable_remote_is_an_outage(github, tmp_path):
 # ── the key and serve ───────────────────────────────────────────────────────
 
 
+# What a shared key's refusal names: the mode on POSIX, the extra grant on Windows.
+REFUSED = "grants another principal" if os.name == "nt" else "chmod 600"
+
+
 def share(key: Path, *, shared: bool) -> None:
     """Make the key readable by others, or private to this user, natively on each platform."""
     if os.name != "nt":
@@ -589,7 +593,7 @@ def test_a_key_others_can_read_is_refused(tmp_path, key_pair):
     key.write_text(key_pair[0])
     share(key, shared=False)
     share(key, shared=True)
-    with pytest.raises(ValueError, match="readable by others"):
+    with pytest.raises(ValueError, match=REFUSED):
         read_private_key(key)
     share(key, shared=False)
     assert read_private_key(key).startswith("-----BEGIN")
@@ -613,4 +617,4 @@ def test_serve_needs_the_app_in_the_config_and_one_github(tmp_path, key_pair):
     config.write_text(json.dumps({**base_config, "githubApp": {"appId": 5, "installationId": 7}}))
     share(key, shared=True)
     shared = runner.invoke(admin_cli, [*base, "--app-key", str(key)])
-    assert shared.exit_code == 2 and "readable by others" in shared.output
+    assert shared.exit_code == 2 and REFUSED in shared.output
