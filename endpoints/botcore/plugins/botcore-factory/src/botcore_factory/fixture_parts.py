@@ -486,7 +486,16 @@ class FixtureProcesses:
     ) -> Completed:
         if label == "units":
             return _units_run(self.store, tuple(args))
-        worktree = self.store.data.get("worktrees", {}).get(cwd)
+        worktrees = self.store.data.get("worktrees", {})
+        worktree = worktrees.get(cwd)
+        if worktree is None and label == "review-evidence":
+            # The lane's own run, from its review slot: the worktree is named in the arguments,
+            # and ``outcomes.review`` scripts a verifier that cannot run.
+            _fail(self.store, "review")
+            named = [worktrees[arg] for arg in args if arg in worktrees]
+            if not named:
+                return Completed(tuple(args), 1, "", "review-record: no such worktree")
+            worktree = named[0]
         if worktree is not None and label:
             return _worktree_run(tuple(args), worktree, label)
         commands = self.store.data.get("processes", {}).get("results", {})
@@ -536,7 +545,8 @@ def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Complete
     """Answer a labelled run in a fixture worktree: its review record or a prequeue stage."""
     if label == "review-evidence":
         review = worktree.get("review")
-        reviewed = bool(review) and review.get("head") == worktree.get("head")
+        asked = args[args.index("--head") + 1] if "--head" in args[:-1] else worktree.get("head")
+        reviewed = bool(review) and review.get("head") == worktree.get("head") == asked
         return Completed(args, 0 if reviewed else 1, "", "" if reviewed else "no review record")
     if label.startswith("prequeue:"):
         stage = label.split(":", 1)[1]

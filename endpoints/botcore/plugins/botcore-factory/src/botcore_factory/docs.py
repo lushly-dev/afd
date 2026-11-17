@@ -92,9 +92,11 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   worktree), `IGNORED_BRANCH` (`ignore_branches`), `BODY_FILE_OUTSIDE` (`body_file` must be a
   relative path inside the worktree), `NOT_FOUND` (no cell for its branch), `NOT_LANE_HOST`,
   `DIRTY_WORKTREE` (names the files), `NOT_CONFIGURED` (no `review_evidence`), `REVIEW_MISSING`
-  (no review recorded for the exact head), `GATE_EDIT_IN_REPAIR` (a repair after a failing
-  check edits `gate_paths`; names them; only the branch's own changes count, against a base the
-  lane fetches, so main's gate changes a rebase or merge brings in do not),
+  (no review recorded for the exact head; advisory, since it runs the branch's own verifier: the
+  lane checks again with the base's before each validation and ejects as `review-unverified`),
+  `GATE_EDIT_IN_REPAIR` (a repair after a failing check edits `gate_paths`; names them; only the
+  branch's own changes count, against a base the lane fetches, so main's gate changes a rebase or
+  merge brings in do not),
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
   (names the stage, with its first lines), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
@@ -158,7 +160,9 @@ ejected and merged, each with its attempt, plan, route and execution profile.
 
 `[plugins.factory]` in `botcore.toml` (`[tool.botcore.plugins.factory]` in `pyproject.toml`):
 `labels` (the label definitions intake reads), `prequeue` (named stages:
-`{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued),
+`{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued, `{worktree}`
+for the cell's worktree, which the lane's own run needs: it runs from a clean `review` slot at the
+base, so a change to the verifier binds only once it is on the base and the lane restarts),
 `gate_paths`, and the lane's later keys: `validate`, `coverage`, `install`,
 `required_check`, `base_branch` (default `main`), `units` (an argument list the lane runs with
 changed paths appended; it prints a JSON list of unit names, `"*"` for all), `shared_paths` (globs

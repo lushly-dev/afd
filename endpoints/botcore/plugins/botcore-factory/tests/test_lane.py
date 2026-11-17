@@ -45,6 +45,15 @@ def entry_of(run, branch: str) -> dict:
     return next(e for e in run.state()["queue"] if e["branch"] == branch)
 
 
+def reviewed(run, state: dict, branch: str, head: str, worktree: str) -> None:
+    """What lane-enqueue records for a branch a test queues by hand: its cell's worktree, which
+    holds the head and its review, for the lane's own review check."""
+    next(c for c in state["cells"] if c["branch"] == branch)["worktree"] = worktree
+    run.change_world(
+        worktrees={worktree: {"branch": branch, "head": head, "review": {"head": head}}}
+    )
+
+
 @pytest.fixture
 def lane(make_run):
     """The running fixture: two branches queued, one slot, this machine the lane host."""
@@ -101,6 +110,7 @@ def test_a_queued_branch_is_validated_pushed_merged_and_landed(lane):
 def test_a_validated_head_keeps_its_checkout_until_pushed(lane):
     with lane.store.update("third") as state:
         state["queue"].append({"branch": "fix/parser-empty-input", "head": "a1b2c3d"})
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
     lane.change_world(
         outcomes={
             "checks": {"feat/export-csv": "pending"},
@@ -416,6 +426,7 @@ def test_a_repair_pushes_over_the_lane_s_own_merge_commit_with_a_lease(lane):
     assert lane.world_data()["pushed"]["feat/export-csv"] == "b2c3d4e+main-0"
     with lane.store.update("repaired") as state:  # The cell's repair, enqueued again.
         state["queue"].insert(0, {"branch": "feat/export-csv", "head": "b2c3d4f", "attempt": 2})
+        reviewed(lane, state, "feat/export-csv", "b2c3d4f", "wt/export-csv")
         next(c for c in state["cells"] if c["branch"] == "feat/export-csv")["state"] = "queued"
     lane.change_world(outcomes={"checks": {"feat/export-csv": "success"}})
     run_steps(lane, 3)
@@ -429,6 +440,7 @@ def test_a_branch_someone_else_pushed_to_is_not_overwritten(lane):
     lane.change_world(pushed={"feat/export-csv": "someone-else"})
     with lane.store.update("repaired") as state:
         state["queue"].insert(0, {"branch": "feat/export-csv", "head": "b2c3d4f", "attempt": 2})
+        reviewed(lane, state, "feat/export-csv", "b2c3d4f", "wt/export-csv")
     run_steps(lane, 2)
     assert events(lane, "ejected")[-1]["reason"] == "push-failed"
     assert lane.world_data()["pushed"]["feat/export-csv"] == "someone-else"
@@ -441,6 +453,7 @@ def test_coverage_debt_from_a_merge_during_a_coverage_run_is_kept(lane):
     with lane.store.update("every merge") as state:
         state["dials"]["lane.coverageEvery"] = 1
         state["queue"].append({"branch": "fix/parser-empty-input", "head": "a1b2c3d"})
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
     lane.change_world(
         outcomes={"coverage": "running", "changed": {"fix/retry-backoff": ["lefthook.yml"]}}
     )
@@ -691,3 +704,53 @@ def test_first_lines_prefer_failures_and_logs_are_named_per_attempt():
     assert first_lines("ok\nok\nFAIL a\nError: b\n") == ["FAIL a", "Error: b"]
     assert first_lines("one\ntwo") == ["one", "two"]
     assert log_path("fix/a b", 2) == "attempts/fix-a-b-2.log"
+
+
+# lushly-dev/afd#1308: the lane checks each review itself, with the base's verifier.
+
+
+def test_the_lane_ejects_a_head_whose_review_the_base_s_verifier_refuses(lane):
+    """Enqueue ran the branch's own verifier; the lane's run, from the base, binds."""
+    lane.change_world(worktrees={"wt/export-csv": {"review": None}})
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (review-unverified)" in actions
+    assert "validating fix/retry-backoff in slot 1" in actions
+    ejected = events(lane, "ejected")[0]
+    assert (ejected["reason"], ejected["detail"]) == ("review-unverified", "no review record")
+    assert "validation-started" not in [
+        r["kind"] for r in lane.store.read_records() if r.get("branch") == "feat/export-csv"
+    ]
+    review = lane.world_data()["checkouts"]["review"]
+    assert (review["branch"], review["head"]) == ("", "main-0")  # The base, never the branch.
+
+
+def test_a_review_of_an_older_head_does_not_pass_the_lane(lane):
+    lane.change_world(worktrees={"wt/export-csv": {"head": "b2c3d4f"}})  # Moved after enqueue.
+    assert "ejected feat/export-csv (review-unverified)" in run_steps(lane)
+
+
+def test_a_cell_whose_worktree_is_gone_is_ejected_not_paused(lane):
+    data = lane.world_data()
+    del data["worktrees"]["wt/export-csv"]
+    lane.world_path.write_text(json.dumps(data), encoding="utf-8")
+    actions = run_steps(lane)
+    assert "ejected feat/export-csv (review-unverified)" in actions
+    assert "is gone" in events(lane, "ejected")[0]["detail"]
+    assert not lane.state()["lane"].get("paused")
+
+
+def test_a_verifier_that_cannot_run_pauses_the_lane_and_ejects_nothing(lane):
+    lane.change_world(outcomes={"review": "fail: node is not on PATH"})
+    run_steps(lane)
+    assert lane.state()["lane"]["paused"] is True
+    assert "node is not on PATH" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+    assert queue(lane) == [("feat/export-csv", "queued"), ("fix/retry-backoff", "queued")]
+
+
+def test_review_evidence_without_the_worktree_is_the_lane_s_trouble(lane):
+    run_steps(
+        lane, review_evidence=["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
+    )
+    assert "must name {worktree}" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")

@@ -202,6 +202,29 @@ describe('run, against a real repository', () => {
 		assert.match(there.out, /no review is recorded/);
 	});
 
+	it('verifies the worktree --worktree names, from another checkout (lushly-dev/afd#1308)', (t) => {
+		const { root, git, gitIn } = repo();
+		const lane = `${root}-lane`;
+		t.after(() => {
+			rmSync(root, { recursive: true, force: true });
+			rmSync(lane, { recursive: true, force: true });
+		});
+		git(['worktree', 'add', '-q', '--detach', lane, 'origin/main']);
+		const head = git(['rev-parse', 'HEAD']).trim();
+		const fromLane = (worktree) =>
+			run(['verify', '--head', head, '--worktree', worktree], {
+				git: gitIn(lane),
+				root: lane,
+				gitAt: gitIn,
+			});
+		assert.match(fromLane(root).out, /no review is recorded/);
+		assert.equal(run(['write', '--lanes', lanes], { git, root }).code, 0);
+		assert.equal(fromLane(root).code, 0);
+		assert.equal(fromLane(lane).code, 1, "the lane's own checkout is not the cell's");
+		const without = run(['verify', '--head', head, '--worktree', root], { git, root });
+		assert.equal(without.code, 2);
+	});
+
 	it('records a failing review but exits non-zero, and refuses a dirty checkout', (t) => {
 		const { root, git } = repo();
 		t.after(() => rmSync(root, { recursive: true, force: true }));

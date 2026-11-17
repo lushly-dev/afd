@@ -38,6 +38,8 @@ def test_afd_s_botcore_toml_states_its_labels_cheap_checks_and_gates():
         "verify",
         "--head",
         "{head}",
+        "--worktree",
+        "{worktree}",
     ]
     assert (REPO_ROOT / "scripts/review-record.mjs").is_file()  # prepare-pr lane mode writes it.
 

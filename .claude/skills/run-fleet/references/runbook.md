@@ -48,6 +48,7 @@ until it is resolved.
 | Cell ended without queueing | The lane cannot see this; T3 Code tells you. If its thread has a run in progress (`t3_thread_read`), it resumed itself, as a cell does when a background reviewer returns: wait. Otherwise answer a question about the work; access or authority goes to the owner. Otherwise `lane-drop` it with the reason |
 | Cell reports `GATE_EDIT_IN_REPAIR` | A diagnosis on the stronger route, never a looser check. If the gate edit is the right repair, `gate-allow` it with the reason and resume the cell to enqueue again |
 | `ejected` | Resume the cell's thread (`t3_thread_send`) with the reason, detail and `logPath`. It repairs and enqueues again, at the front |
+| `ejected` with `review-unverified` | `main`'s verifier refused the review the cell's own copy accepted, or the cell's worktree moved or is gone. Resume the cell to record its review of the head again with `main`'s `scripts/review-record.mjs` and enqueue again. A change to `review_evidence` or the verifier binds only once it is on `main` and the lane restarts |
 | Second ejection of one branch | A diagnosis on the stronger route first, then resume the cell with it |
 | `ejection-limit` | `lane-drop` it, put the diagnosis on the issue and label it `needs:decision` for the owner (`cell-park` is not built yet) |
 | `merged`, `queue-room` | Start a cell if `canStartCell` |
