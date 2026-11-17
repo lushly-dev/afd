@@ -141,6 +141,7 @@ gate_paths = [
     ".github/labels.json",
     "scripts/check-*.mjs",
     "scripts/policy/**",
+    "scripts/gate-discipline.test.mjs",
     ".claude/skills/maintain-gates/scripts/**",
     "endpoints/botcore/src/botcore/skills/gate-discipline/scripts/**",
     "scripts/issue-labels.mjs",

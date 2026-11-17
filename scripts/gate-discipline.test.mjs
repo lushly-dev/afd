@@ -176,6 +176,10 @@ test('quarantine: finds .only and unconditional skips, and allows conditional on
 	assert.deepEqual(kinds('test.skip(true);'), ['1:skip']);
 	assert.deepEqual(kinds('test.skip(!0, "x");'), ['1:skip']);
 	assert.deepEqual(kinds("test.skip<Fixtures>('a', async () => {});"), ['1:skip']);
+	assert.deepEqual(kinds("test.skip((true), 'x');"), ['1:skip']);
+	assert.deepEqual(kinds("it.skipIf(true)('a', () => {});"), ['1:skip']);
+	assert.deepEqual(kinds("describe.runIf(false)('a', () => {});"), ['1:skip']);
+	assert.deepEqual(kinds("it.runIf(true)('a', () => {});"), []);
 
 	assert.deepEqual(kinds("it.skipIf(process.platform === 'win32')('a', () => {});"), []);
 	assert.deepEqual(kinds("describe.runIf(url)('a', () => {});"), []);
@@ -199,6 +203,10 @@ test('quarantine: never reads a comment, a string, a template or a regular expre
 	assert.deepEqual(kinds("function f(s) { return /x'/.test(s); } it.only('a', fn);"), ['1:only']);
 	assert.deepEqual(kinds("const k = typeof /`/;\nit.only('a', fn);"), ['2:only']);
 	assert.deepEqual(kinds("let n = a++ / b; it.only('a', fn);"), ['1:only']);
+	// A property named like a keyword is an operand, and so is a non-ASCII identifier.
+	assert.deepEqual(kinds("const n = x.in / 2; it.only('a', fn);"), ['1:only']);
+	assert.deepEqual(kinds("const n = obj.return / 2; it.only('a', fn);"), ['1:only']);
+	assert.deepEqual(kinds("const n = ñ / 2; it.only('a', fn);"), ['1:only']);
 	const masked = maskSource('const a = "x"; // c\nit.only(`y`);');
 	assert.equal(masked.length, 'const a = "x"; // c\nit.only(`y`);'.length);
 	assert.equal(masked.split('\n')[1], 'it.only(` `);');

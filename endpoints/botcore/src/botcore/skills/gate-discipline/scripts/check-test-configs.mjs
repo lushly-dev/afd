@@ -105,9 +105,10 @@ if (
 	const { files, problems } = check(root, extra);
 	if (problems.length > 0) {
 		console.error(`Test config check failed:\n- ${problems.join('\n- ')}`);
-		console.error(
-			'Remove it. A package with no tests yet adds its first test with its config; a runner that finds none must fail.'
-		);
+		if (problems.some((problem) => problem.includes('passWithNoTests')))
+			console.error(
+				'Remove passWithNoTests. A package with no tests yet adds its first test with its config; a runner that finds none must fail.'
+			);
 		process.exit(1);
 	}
 	console.log(`Test config check passed (${files} configs and launchers)`);

@@ -170,9 +170,13 @@ export function maskSource(text) {
 					}
 					depth--;
 				}
-				if (/[A-Za-z_$]/.test(c)) {
-					const word = /^[\w$]+/.exec(text.slice(i, i + 64))[0];
-					previous = EXPRESSION_KEYWORDS.has(word) ? word : 'x';
+				if (/[\p{L}_$]/u.test(c)) {
+					const word = /^[\p{L}\p{N}_$]+/u.exec(text.slice(i, i + 64))[0];
+					// A property named like a keyword (`x.in`, `obj.return`) is an operand.
+					let before = i - 1;
+					while (before >= 0 && /\s/.test(out[before])) before--;
+					const property = before >= 0 && out[before] === '.';
+					previous = EXPRESSION_KEYWORDS.has(word) && !property ? word : 'x';
 					i += word.length;
 					continue;
 				}
@@ -216,10 +220,13 @@ function callArguments(code, open) {
 }
 
 /** Whether a `.skip(...)` call skips unconditionally (a declaration or a bare runtime skip). */
+const ALWAYS = /^\(*\s*(true|1|!0|!false)\s*\)*$/;
+const NEVER = /^\(*\s*(false|0|!1|!true|null|undefined)\s*\)*$/;
+
 function unconditionalSkip(args) {
 	if (args.length === 0) return true;
 	if (/^['"`]/.test(args[0])) return true; // a title: `it.skip('title', fn)`
-	if (/^(true|1|!0|!false)$/.test(args[0])) return true; // a condition that always holds
+	if (ALWAYS.test(args[0])) return true; // a condition that always holds
 	// A variable title still declares a test when a function follows.
 	return args.slice(1).some((arg) => /=>|^(async\s+)?function\b/.test(arg));
 }
@@ -237,6 +244,18 @@ export function findSuppressions(text) {
 		const members = [...match[2].matchAll(/\.\s*([A-Za-z_$][\w$]*)/g)];
 		members.forEach((member, index) => {
 			const kind = member[1];
+			if (kind === 'skipIf' || kind === 'runIf') {
+				// A condition that is a literal decides once and for all: `it.skipIf(true)`.
+				const after = base + member.index + member[0].length;
+				const call = code.slice(after).match(/^\s*\(/);
+				const first = call ? callArguments(code, after + call[0].length - 1)[0] : undefined;
+				if (first !== undefined && (kind === 'skipIf' ? ALWAYS : NEVER).test(first))
+					found.push({
+						line: lineAt(base + member.index + member[0].indexOf(kind)),
+						kind: 'skip',
+					});
+				return;
+			}
 			if (!SUPPRESSIONS.has(kind)) return;
 			const line = lineAt(base + member.index + member[0].indexOf(kind));
 			const last = index === members.length - 1;

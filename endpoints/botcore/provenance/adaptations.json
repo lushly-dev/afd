@@ -3759,7 +3759,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "a0326b430d6db93ae5799fcc03d70f026dc819d114857c527dbded92268f7e42",
+      "current_import_sha256": "665caf7707e3e9fa5c24664a976f46aa5192d06f123607d95b8f146d4ee8719a",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories"
@@ -3770,7 +3770,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "ce24db82d72ee93020b26c232ffcb4557a99b4307d4849e39b1f0e04bf8ff66b",
+      "current_import_sha256": "0ccfa988e381bea450b750049a03376f9af0264bc013e165e7b0e6d8e9a1edd8",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken"
