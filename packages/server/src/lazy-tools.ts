@@ -49,6 +49,12 @@ interface DetailResult {
 	handoffProtocol?: string;
 	version?: string;
 	callable: boolean;
+	/** Commands to call first; on an authorized server, only those that exist for the caller. */
+	requires?: string[];
+	/** Input examples, each valid against the input schema. */
+	examples?: Array<{ title: string; input: unknown }>;
+	/** The contexts the command belongs to. */
+	contexts?: string[];
 	/** The command's extra tool `_meta` entries (`spec/mcp-resources.md`, T1). */
 	toolMeta?: Record<string, unknown>;
 	/** The OAuth scopes the command needs over authorized HTTP (`spec/authorization.md`, M6). */
@@ -221,6 +227,9 @@ export function executeDetail(
 			handoffProtocol: cmd.handoffProtocol,
 			version: cmd.version,
 			callable: exposedCommandNames.has(cmd.name),
+			...(cmd.requires?.length && { requires: cmd.requires }),
+			...(cmd.examples?.length && { examples: cmd.examples }),
+			...(cmd.contexts?.length && { contexts: cmd.contexts }),
 			...(cmd.toolMeta && Object.keys(cmd.toolMeta).length > 0 && { toolMeta: cmd.toolMeta }),
 			...(cmd.scopes?.length && { scopes: cmd.scopes }),
 		};

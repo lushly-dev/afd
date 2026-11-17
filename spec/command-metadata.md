@@ -23,7 +23,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `errors` | string[] of error codes | None | afd-detail |
 | `version` | string | None | afd-detail; results carry it as `metadata.commandVersion` |
 | `tags` | string[] | None | afd-detail, afd-help (full), afd-docs; afd-discover filters on it |
-| `requires` | string[] of command names | None | `_meta`, afd-help (brief and full). Metadata only: not enforced at runtime. On an authorized server, only the commands that exist for the caller ([hidden commands](./authorization.md#hidden-commands)) |
+| `requires` | string[] of command names | None | `_meta`, afd-detail, afd-help (brief and full). Metadata only: not enforced at runtime. On an authorized server, only the commands that exist for the caller ([hidden commands](./authorization.md#hidden-commands)) |
 | `mutation` | boolean | `false` | `_meta`, afd-detail, afd-discover (`includeMutation`), afd-help (full), afd-docs |
 | `destructive` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools`. `afd validate --execute` never calls it |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
@@ -33,8 +33,8 @@ an unset field stays distinguishable from an explicit `false`.
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
 | `expose` | `palette`, `agent`, `mcp`, `cli` booleans | `palette` and `agent` true, `mcp` and `cli` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable` |
-| `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
-| `contexts` | string[] | None: the command is visible in every context | `_meta`; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
+| `examples` | `{ title, input }[]` | None | `_meta`, afd-detail, afd-help (full). Each `input` must pass the input schema when the command is defined |
+| `contexts` | string[] | None: the command is visible in every context | `_meta`, afd-detail; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
 | `toolMeta` | object: `_meta` key to JSON value | None | Merged into the command tool's `_meta`, a grouped action entry and afd-detail (`toolMeta`). Keys follow the [key rule](./mcp-resources.md#t2-the-key-rule): reverse-DNS prefixed keys outside `dev.afd/`, or the MCP Apps key `ui`; anything else is refused at registration ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
 | `scopes` | string[] of OAuth scope names | None: the command needs no scope of its own | `_meta`, afd-detail. Enforced only on authorized HTTP: the scopes a caller's token needs, beside the server's `requiredScopes`. A host `ScopeResolver` may decide each call instead ([Scopes](#scopes)) |
 | `confirmationMode` | `host-verified` | None: the server's `confirmations` option applies | `_meta`, afd-detail. Only the host's `HumanRelay` may confirm the command over MCP ([Host-verified confirmation](#host-verified-confirmation)) |
@@ -53,7 +53,7 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` omits empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
+- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -70,7 +70,7 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
 | --- | --- |
 | tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`, `scopes`, `confirmationMode`, `task`, `dev.afd/outputBudget` ([B1](./output-budgets.md#b1-the-declaration)), and the command's `toolMeta` entries |
 | tools/list `title` | `title`, on a command's own tool (individual, and first-class under hybrid); the meta-tools carry fixed titles |
-| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `toolMeta`, `outputBudget`, `scopes`, `confirmationMode`, `task` |
+| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `requires`, `examples`, `contexts`, `toolMeta`, `outputBudget`, `scopes`, `confirmationMode`, `task` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
 | afd-help | `name`, `description`, `requires`; the `full` format adds `title`, `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report)) |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |

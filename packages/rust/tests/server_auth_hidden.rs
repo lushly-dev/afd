@@ -804,8 +804,8 @@ async fn a_resolver_is_never_asked_about_a_command_the_caller_does_not_know() {
     assert_unknown_everywhere(|| Naming).await;
 }
 
-/// `requires` names only commands that exist for the caller: in `afd-help`, `afd-docs` and a
-/// grouped tool's `_meta.actions`.
+/// `requires` names only commands that exist for the caller: in `afd-help`, `afd-detail`,
+/// `afd-docs` and a grouped tool's `_meta.actions`.
 #[tokio::test]
 async fn requires_names_only_commands_that_exist_for_the_caller() {
     let [plain, _] = metas();
@@ -831,6 +831,16 @@ async fn requires_names_only_commands_that_exist_for_the_caller() {
             .unwrap()
             .clone();
         assert_eq!(list["requires"], expected, "{list}");
+        let detail = main
+            .send(
+                "tools/call",
+                call("afd-detail", Some(json!({ "command": "notes-list" }))),
+                &plain,
+                &token,
+            )
+            .await;
+        let entry = command_result(&detail.body)["data"][0].clone();
+        assert_eq!(entry["requires"], expected, "{entry}");
         let listed = main.send("tools/list", json!({}), &plain, &token).await;
         let notes = listed.body["result"]["tools"]
             .as_array()

@@ -667,7 +667,7 @@ impl Call<'_> {
                         (command, tool)
                     })
                     .collect();
-                command_result(&meta_tools::detail(&commands, &args))
+                command_result(&meta_tools::detail(&commands, &args, self.known.as_ref()))
             }
             Err(error) => refused(*error),
         }

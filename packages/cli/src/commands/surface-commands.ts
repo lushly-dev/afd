@@ -225,7 +225,7 @@ export async function collectSurfaceCommands(
 /**
  * Warn about first-class commands of a hybrid server that declare `contexts`: the list shows
  * them in every context, but a call works only in theirs (`spec/tool-strategies.md`, H4). The
- * listing is what carries `contexts`; afd-detail does not return them.
+ * listing is what carries a first-class command's `contexts`.
  */
 async function warnFirstClassContexts(
 	set: SurfaceCommandSet,
@@ -292,7 +292,7 @@ function detailToSurfaceCommand(entry: Json): SurfaceCommand {
 		category: typeof entry.category === 'string' ? entry.category : undefined,
 		jsonSchema: schemaOf(entry.inputSchema),
 		outputJsonSchema: schemaOf(entry.outputSchema),
-		// afd-detail does not currently return these; use them when a server does.
+		// Older servers' afd-detail leaves these out (#474).
 		requires: optionalArray<string>(entry.requires),
 		examples: optionalArray<NonNullable<SurfaceCommand['examples']>[number]>(entry.examples),
 		contexts: optionalArray<string>(entry.contexts),

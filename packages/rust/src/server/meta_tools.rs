@@ -11,6 +11,7 @@ use std::time::Instant;
 use serde_json::{json, Map, Value};
 
 use crate::approval::approval_mode;
+use crate::commands::Visibility;
 use crate::{
     error_codes, success_with, CommandDefinition, CommandError, CommandResult, ResultMetadata,
     ResultOptions,
@@ -490,9 +491,12 @@ pub(crate) fn discover(commands: &[Arc<CommandDefinition>], args: &Value) -> Com
 const MAX_DETAIL_NAMES: usize = 10;
 
 /// `afd-detail` over `commands` (MCP-exposed and in the active context), with their tools.
+/// `known`, on an authorized server, is which commands exist for the caller: a `requires` names
+/// only those (`spec/authorization.md`, M6, "Hidden commands").
 pub(crate) fn detail(
     commands: &[(Arc<CommandDefinition>, Option<Value>)],
     args: &Value,
+    known: Option<&Visibility>,
 ) -> CommandResult<Value> {
     let started = Instant::now();
     let names: Vec<String> = strings(&args["command"])
@@ -522,7 +526,7 @@ pub(crate) fn detail(
                     },
                 })
             }
-            Some((command, tool)) => detail_entry(command, tool.as_ref()),
+            Some((command, tool)) => detail_entry(command, tool.as_ref(), known),
         })
         .collect();
     let found = entries
@@ -536,7 +540,11 @@ pub(crate) fn detail(
     )
 }
 
-fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
+fn detail_entry(
+    command: &CommandDefinition,
+    tool: Option<&Value>,
+    known: Option<&Visibility>,
+) -> Value {
     let mut entry = Map::new();
     entry.insert("name".into(), json!(command.name));
     entry.insert("found".into(), json!(true));
@@ -590,6 +598,32 @@ fn detail_entry(command: &CommandDefinition, tool: Option<&Value>) -> Value {
     );
     // Every command afd-detail can see is MCP-exposed, so callable.
     optional("callable", Some(json!(true)));
+    let requires = command.requires.as_ref().map(|names| match known {
+        Some(known) => known.admitted(names),
+        None => names.clone(),
+    });
+    optional(
+        "requires",
+        requires
+            .filter(|names| !names.is_empty())
+            .map(|names| json!(names)),
+    );
+    optional(
+        "examples",
+        command
+            .examples
+            .as_ref()
+            .filter(|examples| !examples.is_empty())
+            .map(|examples| json!(examples)),
+    );
+    optional(
+        "contexts",
+        command
+            .contexts
+            .as_ref()
+            .filter(|contexts| !contexts.is_empty())
+            .map(|contexts| json!(contexts)),
+    );
     optional(
         "scopes",
         command.scopes.as_ref().map(|scopes| json!(scopes)),

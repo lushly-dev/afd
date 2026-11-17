@@ -8,8 +8,8 @@ use std::sync::Arc;
 
 use afd::server::{ConfirmationMode, HttpOptions, McpServer, ToolStrategy};
 use afd::{
-    success, CommandContext, CommandDefinition, CommandHandler, CommandParameter, CommandRegistry,
-    CommandResult, ExposeOptions,
+    success, CommandContext, CommandDefinition, CommandExample, CommandHandler, CommandParameter,
+    CommandRegistry, CommandResult, ExposeOptions,
 };
 use async_trait::async_trait;
 use http_body_util::{BodyExt, Full};
@@ -562,6 +562,58 @@ async fn detail_reports_every_field_and_bounds_unknown_names() {
     );
     assert!(entries[2]["name"].as_str().unwrap().ends_with('…'));
     assert_eq!(detailed["reasoning"], "Resolved 1 of 3 requested commands");
+}
+
+/// `requires`, `examples` and `contexts` are reported when set and omitted when empty (#474).
+#[tokio::test]
+async fn detail_reports_requires_examples_and_contexts() {
+    let registry = CommandRegistry::new();
+    let runs = Arc::new(AtomicUsize::new(0));
+    registry
+        .register(
+            CommandDefinition::new(
+                "todo-update",
+                "Update a todo",
+                vec![CommandParameter::required_string("id", "Id")],
+                Echo(Arc::clone(&runs)),
+            )
+            .with_requires(["todo-list"])
+            .with_examples(vec![CommandExample::new(
+                "Update one",
+                json!({ "id": "t-1" }),
+            )])
+            .with_contexts(["planning"])
+            .with_expose(mcp()),
+        )
+        .unwrap();
+    registry
+        .register(
+            CommandDefinition::new("todo-list", "List todos", vec![], Echo(runs))
+                .with_requires(Vec::<String>::new())
+                .with_contexts(Vec::<String>::new())
+                .with_examples(vec![])
+                .with_expose(mcp()),
+        )
+        .unwrap();
+    let server = McpServer::new(Arc::new(registry), "detail", "1.0.0")
+        .with_tool_strategy(ToolStrategy::Lazy);
+    let (detailed, failed) = call(
+        &server,
+        "afd-detail",
+        json!({ "command": ["todo-update", "todo-list"] }),
+    )
+    .await;
+    assert!(!failed, "{detailed}");
+    let entries = detailed["data"].as_array().unwrap();
+    assert_eq!(entries[0]["requires"], json!(["todo-list"]));
+    assert_eq!(
+        entries[0]["examples"],
+        json!([{ "title": "Update one", "input": { "id": "t-1" } }])
+    );
+    assert_eq!(entries[0]["contexts"], json!(["planning"]));
+    for key in ["requires", "examples", "contexts"] {
+        assert!(entries[1].get(key).is_none(), "{key}: {}", entries[1]);
+    }
 }
 
 #[tokio::test]

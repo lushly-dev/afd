@@ -428,8 +428,8 @@ with it, and its runner never asks again once the request is answered. A host wh
 state it keeps only while a request is in flight is therefore asked only then.
 
 A command's `requires` names only commands that exist for the caller, wherever it appears:
-`_meta.requires`, a grouped action's entry in `_meta.actions`, `afd-help` and `afd-docs`. A
-command that exists for the caller but is hidden from its listings may be named.
+`_meta.requires`, a grouped action's entry in `_meta.actions`, `afd-detail`, `afd-help` and
+`afd-docs`. A command that exists for the caller but is hidden from its listings may be named.
 
 On a `tasks/*` request ([Other methods](#other-methods)), a task whose command no longer exists
 for its owner answers exactly as a task that does not exist (`-32602`, "Task not found"), for

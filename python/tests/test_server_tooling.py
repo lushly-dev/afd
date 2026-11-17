@@ -294,6 +294,7 @@ class TestBuiltInRoutedTools:
         assert detail.data[0]["found"] is True
         assert detail.data[0]["requires"] == ["session-open"]
         assert detail.data[0]["contexts"] == ["editing"]
+        assert detail.data[0]["examples"] == [{"title": "Basic", "input": {"value": 1}}]
         assert detail.data[0]["outputSchema"]["properties"]["total"]["type"] == "integer"
 
     @pytest.mark.asyncio
@@ -321,6 +322,8 @@ class TestBuiltInRoutedTools:
         detail = await server.call_tool("afd-detail", {"command": ["todo-create", "todo-list"]})
         assert detail.success is True
         assert [item["name"] for item in detail.data] == ["todo-create", "todo-list"]
+        # Unset, requires, contexts and examples are omitted, as in the other languages.
+        assert not {"requires", "contexts", "examples"} & detail.data[1].keys()
 
 
 class TestContextScoping:

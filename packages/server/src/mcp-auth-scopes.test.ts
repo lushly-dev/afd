@@ -603,7 +603,12 @@ describe('P3-E9: M6, hidden commands answer as names that do not exist', () => {
 			call(base, bearer, 'afd-detail', { command: 'todo-purge' })
 		);
 		expect(detail.body).toContain('found\\":false');
-		await same((base) => call(base, bearer, 'afd-detail', { command: 'todo-export' }));
+		// Its `requires` names only the commands that exist for the caller.
+		const exported = await same((base) =>
+			call(base, bearer, 'afd-detail', { command: 'todo-export' })
+		);
+		expect(exported.body).toContain('requires\\":[\\"todo-list\\"]');
+		expect(exported.body).not.toContain('todo-purge');
 		await same((base) =>
 			post(`${base}/rpc`, { jsonrpc: '2.0', id: 1, method: 'todo-purge', params: {} }, bearer)
 		);
