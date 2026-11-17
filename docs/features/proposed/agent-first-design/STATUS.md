@@ -88,7 +88,7 @@ shape of the [Patterns status](../patterns/STATUS.md).
 | Scaffold: problem, what exists, model, draft jobs, design direction | Done 2026-11-14, merged in #1223 | [`agent-first-design.proposal.md`](agent-first-design.proposal.md) |
 | Open the epic | Not started; the owner's call | |
 | The owner answers the proposal's section 9 | In progress. Answered 2026-11-14: questions 1, 2, 3, 5, 6, 11 and 12, and the todo example in question 7. Answered 2026-11-15: the bench's domain in 7 and the budget in 12. Answered 2026-11-16: question 13. Open: 4, 8, 9 and 10 | Proposal, section 9 |
-| Amend with where the parts live (5.10) | Done 2026-11-16 in this change: the owner's test for the component layer, the layer map, two facts in section 2 and question 13. Its code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s | Proposal, sections 2 and 5.10 |
+| Amend with where the parts live (5.10) | Done 2026-11-16, merged in #1386: the owner's test for the component layer, the layer map, two facts in section 2 and question 13. Its code changes are [epic #1385](https://github.com/lushly-dev/afd/issues/1385)'s | Proposal, sections 2 and 5.10 |
 | Move each part into the proposal that owns it | Not started. Ready to move: customizing a default (5.1) and who owns the result-state patterns (5.2) into Patterns; the panel's provisional answer and the triggers (5.5) into Design Decisions | Question 1 |
 | Draft the commands against the ranked jobs | Not started. The rank is confirmed; this is phase A's, after phase 0's decision | |
 | Write each job as a scenario and run the checks | Not started | [Jobs first](../../../../.claude/skills/afd/references/jobs-first.md) |
