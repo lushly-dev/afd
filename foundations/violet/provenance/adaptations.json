@@ -107,9 +107,9 @@
       "path": "endpoints/violet-cli/src/cicd-templates.test.ts",
       "upstream_path": "packages/cli/src/cicd-templates.test.ts",
       "upstream_sha256": "f5ca49d8467884bfab66fbcea5bdffd1249c2ab69f0d05b53eed3e040206213d",
-      "current_import_sha256": "eb9f3d14e64e9765ee7ed885e15939b97900c8fc86576ac6b703452a6af82565",
+      "current_import_sha256": "38e25d01fe4cfe57d5ce95bd22abf22a24704a704a75d4f346c9839f7e789c4e",
       "classification": "adapted",
-      "reason": "Read the frozen fixture copy of Violet's CI workflow; package specifier @lushly-dev/violet-afd; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); #497: daily persistent SQLite snapshot workflow, file-driven persistence refusal, focused coverage and indefinite retention decision",
+      "reason": "Read the frozen fixture copy of Violet's CI workflow; package specifier @lushly-dev/violet-afd; Biome 2 lint and format (#599): import specifier order, formatter output and fixes for findings new in Biome 2 (Object.hasOwn, non-null assertions after optional chains in tests, optional chain, unused catch binding); #497: daily persistent SQLite snapshot workflow, file-driven persistence refusal, focused coverage and indefinite retention decision; #1437: skip the /bin/bash snapshot case on Windows, which has no /bin/bash",
       "candidate": {
         "path": "packages/cli/src/cicd-templates.test.ts",
         "sha256": "306cf6665772c62af847b55f984adb6dc813372733ccab1dffe90275312df606",
