@@ -329,7 +329,9 @@ TEST_CASE("tool results carry structuredContent that satisfies the advertised ou
 
     // The top-level outputSchema can be switched off; _meta.outputSchema stays.
     auto quiet = make_server(registry, {.advertise_output_schema = false});
-    for (const auto& tool : send(*quiet, request(5, "tools/list"))["result"]["tools"]) {
+    const auto quiet_tools = send(*quiet, request(5, "tools/list"))["result"]["tools"];
+    REQUIRE(quiet_tools.size() == 2);
+    for (const auto& tool : quiet_tools) {
         CHECK_FALSE(tool.contains("outputSchema"));
         if (tool["name"] == "note-get") {
             CHECK(tool["_meta"]["outputSchema"]["required"] == Json::array({"id", "tags"}));
