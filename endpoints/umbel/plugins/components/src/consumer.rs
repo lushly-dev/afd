@@ -77,7 +77,7 @@ fn invalid() -> Outcome {
     failure(
         "CONSUMERS_INVALID",
         "the deployment's consumer map is unreadable or invalid",
-        "Repair data/consumers.json in the space's components/consumers pack: version 1 or 2, library-qualified rule ids, and at most 24 statements a consumer, each with a unique statement id and one line of text, 4096 bytes of text in all.",
+        "Repair data/consumers.json in the space's components/consumers pack: version 1 or 2, library-qualified rule ids, and at most 24 statements a consumer, each with a unique statement id and one line of 1 to 240 characters, 4096 bytes of ids and text in all; at most 32 consumers and 256 exclusions each, in a file of at most 64 KiB.",
     )
 }
 
@@ -103,7 +103,11 @@ fn statement_ok(statement: &Statement) -> bool {
 fn statements_ok(statements: &[Statement]) -> bool {
     let mut ids = HashSet::new();
     statements.len() <= MAX_STATEMENTS
-        && statements.iter().map(|s| s.text.len()).sum::<usize>() <= MAX_STATEMENT_BYTES
+        && statements
+            .iter()
+            .map(|s| s.id.len() + s.text.len())
+            .sum::<usize>()
+            <= MAX_STATEMENT_BYTES
         && statements
             .iter()
             .all(|s| statement_ok(s) && ids.insert(s.id.as_str()))

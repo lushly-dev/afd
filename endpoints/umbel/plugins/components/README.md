@@ -150,7 +150,7 @@ A brief for that consumer carries the statements once, whatever its tags, `detai
 as `content.guidance` (`consumer`, `basis: "authored"`, `items`), or as a
 `[guidance storefront authored]` block in text. They are scanned and flagged like any pack text, and
 never shed: the components' facts shed around them. A profile holds at most 24 statements, with
-unique ids and at most 4 096 bytes of text. `default_consumer` in `[plugins.components.config]`
+unique ids and at most 4 096 bytes of ids and text together. `default_consumer` in `[plugins.components.config]`
 names the profile a call uses when it names none, and a call that names one overrides it. This
 repository's launcher adds the profiles of the file `UMBEL_COMPONENTS_CONSUMERS` names to its own
 (a name the repository already configures refuses to start) and writes `UMBEL_COMPONENTS_CONSUMER`

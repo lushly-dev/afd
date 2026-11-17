@@ -555,6 +555,21 @@ async fn each_limit_refuses_on_the_call_and_in_the_doctor_without_echoing_the_te
             ),
         ),
         (
+            // 17 × 240 code points is under 4 096, but 17 × 480 bytes is over it.
+            "over 4096 bytes, under it in code points",
+            profile(
+                "storefront",
+                json!({"statements":many(17, &format!("PRIVATE{}", "é".repeat(233)))}),
+            ),
+        ),
+        (
+            "over 4096 bytes once the ids count",
+            profile(
+                "storefront",
+                json!({"statements":many(16, &format!("PRIVATE{}", "x".repeat(248)))}),
+            ),
+        ),
+        (
             "statements in version 1",
             json!({"version":1,"consumers":{"storefront":{"exclude_rules":[],"statements":[statement("a.b","PRIVATE")]}}}),
         ),
@@ -599,12 +614,13 @@ async fn each_limit_refuses_on_the_call_and_in_the_doctor_without_echoing_the_te
 
 #[tokio::test]
 async fn each_limit_admits_its_boundary() {
-    let mut at_bytes: Vec<Value> = (0..17)
+    // Ids count toward the 4 096 bytes: 16 × (13 + 240) + 14 + 34 = 4 096.
+    let mut at_bytes: Vec<Value> = (0..16)
         .map(|n| statement(&format!("rule.keep.s{n:02}"), &"x".repeat(240)))
         .collect();
-    at_bytes.push(statement("rule.keep.last", &"x".repeat(16)));
+    at_bytes.push(statement("rule.keep.last", &"x".repeat(34)));
     for (case, statements) in [
-        ("24 statements", many(24, &"x".repeat(170))),
+        ("24 statements", many(24, &"x".repeat(150))),
         (
             "240 code points",
             json!([statement("a.b", &"é".repeat(240))]),

@@ -252,7 +252,7 @@ said what to leave out; they could not say what to add.
   `<pattern>.<kind>.<name>` (`forms.keep.labels-visible`) keeps it a file move from a future
   patterns pack. Its text is one line of 1 to 240 code points with no control or bidirectional
   character, as the format's statement text is. A profile holds at most 24 statements, with unique
-  ids, and at most 4 096 UTF-8 bytes of statement text. The file's other limits are A25's. An
+  ids, and at most 4 096 UTF-8 bytes of ids and text together. The file's other limits are A25's. An
   older binary given version 2 refuses it with `CONSUMERS_INVALID`.
 - **Always `authored`.** The file has no `basis` key, so a deployment cannot claim a checked basis
   for text nothing checked. `minimum_basis` applies as to every fact (5.5): with `observed` or
@@ -281,7 +281,9 @@ said what to leave out; they could not say what to add.
 - **Part of the floor, never shed.** Guidance is in every build of an answer and in no step of the
   shedding order (6.4). The components' facts shed around it and stay reachable: `omitted` names
   the `components-open` call that returns them. Shed guidance would have no way back without a new
-  command; the deployment chose it, and the 4 KiB cap bounds what it costs every brief. Because
+  command; the deployment chose it, and its cost is bounded: the cap counts every byte of the ids
+  and texts, and the served block adds only its framing (about 20 bytes a statement) and JSON's
+  escaping of quotes and backslashes, so ordinary guidance costs a brief little more than 4 KiB. Because
   every build includes it, `fits` in `OUTPUT_BUDGET_EXCEEDED` counts it with no new logic. That
   refusal gains `details.guidance`, the count of statements, and when no tag fits beside them its
   suggestion is to raise the budget, since briefing fewer tags cannot help.
@@ -968,7 +970,7 @@ patterns and identifier scan, even when the call serves only one library. Repeat
 exclusions are read once. A well-formed id absent from the selected library is a no-op,
 so a profile may cover more than one library or a newer pack. A profile holds at most 24 statements, with unique
 ids of the format's statement-id pattern that pass the identifier scan, each text one line of 1 to 240 code points
-with no control or bidirectional character, and at most 4 096 UTF-8 bytes of statement text in all.
+with no control or bidirectional character, and at most 4 096 UTF-8 bytes of ids and text in all.
 
 The call's `consumer`, else the deployment's `default_consumer` (2.2), selects the profile. A call with neither
 never reads the map. With one, the whole map is validated;

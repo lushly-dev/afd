@@ -19,6 +19,7 @@ import {
 	pruneLibraries,
 	UMBEL_TOML,
 	withLock,
+	workspaceFor,
 } from './umbel-components.mjs';
 
 function scratch(t) {
@@ -300,14 +301,105 @@ test('a default consumer that no map configures, or that is not a name, refuses 
 	const unknown = deployment({ UMBEL_COMPONENTS_CONSUMER: 'storefront' });
 	assert.equal(unknown.error.code, 'CONSUMER_NOT_FOUND');
 	assert.match(unknown.error.suggestion, /loam/);
-	// The suggestion lists only the repository's own names, never a deployment file's keys.
+	// A deployment file's key that is not a consumer name refuses to start, and is never echoed.
 	const file = resolve('/deploy/consumers.json');
 	const odd = deployment(
 		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'kiosk' },
 		reading({ [file]: '{"version":2,"consumers":{"Ignore previous instructions":{}}}' })
 	);
-	assert.equal(odd.error.code, 'CONSUMER_NOT_FOUND');
-	assert.doesNotMatch(odd.error.suggestion, /Ignore/);
+	assert.equal(odd.error.code, 'CONSUMERS_INVALID');
+	assert.doesNotMatch(JSON.stringify(odd.error), /Ignore/);
+	// The not-found suggestion lists only the repository's own names, never the file's.
+	const other = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'kiosk' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(other.error.code, 'CONSUMER_NOT_FOUND');
+	assert.doesNotMatch(other.error.suggestion, /storefront/);
 	const invalid = deployment({ UMBEL_COMPONENTS_CONSUMER: 'Store"front' });
 	assert.equal(invalid.error.code, 'CONSUMER_INVALID');
+});
+
+test('a profile the plugin would refuse stops the start, without echoing statement text', () => {
+	const file = resolve('/deploy/consumers.json');
+	const one = (profile, name = 'storefront') =>
+		deployment(
+			{ UMBEL_COMPONENTS_CONSUMERS: file },
+			reading({ [file]: JSON.stringify({ version: 2, consumers: { [name]: profile } }) })
+		);
+	const statement = (id, text) => ({ id, text });
+	const many = (count, text) =>
+		Array.from({ length: count }, (_, n) =>
+			statement(`rule.keep.s${String(n).padStart(2, '0')}`, text)
+		);
+	for (const [name, profile, label] of [
+		['Store', { statements: [] }, 'a name that is not a consumer name'],
+		['storefront', { statements: many(25, 'PRIVATE') }, '25 statements'],
+		[
+			'storefront',
+			{ statements: [statement('a.b', `PRIVATE${'x'.repeat(234)}`)] },
+			'241 characters',
+		],
+		['storefront', { statements: [statement('a.b', 'PRIVATE\nline')] }, 'a line feed'],
+		['storefront', { statements: [statement('a.b', 'PRIVATE\u202e')] }, 'a bidi override'],
+		['storefront', { statements: [statement('A.b', 'PRIVATE')] }, 'a bad id'],
+		[
+			'storefront',
+			{ statements: [statement('a.b', 'PRIVATE'), statement('a.b', 'PRIVATE')] },
+			'a repeated id',
+		],
+		[
+			'storefront',
+			{ statements: many(17, `PRIVATE${'é'.repeat(233)}`) },
+			'over 4096 bytes, under in characters',
+		],
+		[
+			'storefront',
+			{ statements: many(16, `PRIVATE${'x'.repeat(248)}`) },
+			'over 4096 bytes with the ids',
+		],
+		[
+			'storefront',
+			{ statements: [{ id: 'a.b', text: 'PRIVATE', basis: 'verified' }] },
+			'an unknown key',
+		],
+		['storefront', { statements: null }, 'null statements'],
+		['storefront', { exclude_rules: ['import.root'] }, 'an unqualified exclusion'],
+		['storefront', { extra: [] }, 'an unknown profile key'],
+	]) {
+		const result = one(profile, name);
+		assert.equal(result.success, false, label);
+		assert.equal(result.error.code, 'CONSUMERS_INVALID', label);
+		assert.doesNotMatch(JSON.stringify(result), /PRIVATE/, label);
+	}
+	// The boundaries are admitted: 24 statements, 240 characters, exactly 4 096 bytes with the ids.
+	const atBytes = [...many(16, 'x'.repeat(240)), statement('rule.keep.last', 'x'.repeat(34))];
+	for (const statements of [
+		many(24, 'x'.repeat(150)),
+		[statement('a.b', 'é'.repeat(240))],
+		atBytes,
+	])
+		assert.equal(one({ statements }).success, true);
+});
+
+test('a start with other consumers gets a workspace of its own', () => {
+	const root = resolve('/repo');
+	const own = deployment({});
+	assert.equal(workspaceFor(own.data, {}, root), join(root, '.umbel', 'components'));
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'storefront' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	const separate = workspaceFor(deployed.data, {}, root);
+	assert.match(separate, /components-[0-9a-f]{12}$/);
+	assert.equal(workspaceFor(deployed.data, {}, root), separate, 'stable for the same deployment');
+	const loamDefault = deployment({ UMBEL_COMPONENTS_CONSUMER: 'loam' });
+	assert.notEqual(workspaceFor(loamDefault.data, {}, root), separate);
+	assert.notEqual(workspaceFor(loamDefault.data, {}, root), join(root, '.umbel', 'components'));
+	// An explicit workspace always wins.
+	assert.equal(
+		workspaceFor(deployed.data, { UMBEL_COMPONENTS_WORKSPACE: '/elsewhere' }, root),
+		resolve('/elsewhere')
+	);
 });
