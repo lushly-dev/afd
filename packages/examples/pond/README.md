@@ -22,7 +22,9 @@ It is an example, private to this repository and never published.
   replays it into a fresh pond with `stopOnDivergence`, throws `PondReplayError` if any entry
   replays to a different result, then runs new calls one at a time through the same registry,
   journaling each successful change.
-- **`src/cli.ts`**: runs one command against a journal file, rebuilding the pond first.
+- **`src/cli.ts`**: runs one command against a journal file, rebuilding the pond first. A journal
+  that cannot be read (a damaged line other than a torn last one) or does not replay stops it
+  with exit code 2.
 
 ## Running it
 
@@ -43,7 +45,10 @@ only because replay restores what each call read.
 
 `replayJournal` restores, per entry, the command's input, its actor, trace ID and interface, the
 context fields declared `journal: true`, and the values the call read from `context.clock` and
-`context.random`. Nothing else. It then compares each replayed result with the recorded one.
+`context.random`. Nothing else. Where an entry has no tape, or a call reads more than its tape
+holds, replay hands out a clock fixed at the entry's time and values from a seeded source:
+deterministic, but not what the recording read. It then compares each replayed result with the
+recorded one.
 
 Everything else that could make a replay come out different is the application's to keep
 deterministic. In this example:
@@ -65,9 +70,11 @@ deterministic. In this example:
    `recordFailures` defaults to `false`), so each handler checks everything that can refuse it
    before it changes the pond. A handler that changed the pond and then failed would leave a
    change that replay never repeats.
-5. **One change at a time.** `run` queues calls, so the journal's order is the order the pond
-   changed in. Two handlers that interleaved could change the pond in one order and be appended
-   in another.
+5. **One change at a time.** The journal appends each entry after its handler returns, so two
+   handlers that interleaved (one awaiting part-way through its change while another runs) could
+   change the state in one order and be appended in another. The pond's handlers make their whole
+   change before their first `await`, so they cannot interleave, but `run` queues calls anyway: a
+   handler that later awaits something keeps the journal's order the order of the changes.
 6. **No outside input.** Handlers read no file, network, environment variable or other process.
    Anything they depend on must arrive in the command's input, so it is journaled.
 7. **Stable iteration and arithmetic.** Fish live in a `Map`, which iterates in insertion order.

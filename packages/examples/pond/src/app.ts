@@ -61,6 +61,20 @@ export class PondReplayError extends Error {
 	}
 }
 
+/** The journal file exists but cannot be read as a journal. */
+export class PondJournalError extends Error {
+	constructor(
+		readonly journalPath: string,
+		cause: unknown
+	) {
+		super(
+			`The journal ${journalPath} could not be read: ${cause instanceof Error ? cause.message : String(cause)}`,
+			{ cause }
+		);
+		this.name = 'PondJournalError';
+	}
+}
+
 function stale(error: Error): CommandResult<never> {
 	return failure({
 		code: 'JOURNAL_WRITE_FAILED',
@@ -75,6 +89,7 @@ function stale(error: Error): CommandResult<never> {
  * Open the pond kept in `journalPath`: replay its journal into a fresh pond, then record every
  * new change to the same file.
  *
+ * @throws PondJournalError when the journal file cannot be read
  * @throws PondReplayError when an entry replays to a different result than it recorded
  */
 export async function openPond(options: OpenPondOptions): Promise<OpenedPond> {
@@ -98,7 +113,13 @@ export async function openPond(options: OpenPondOptions): Promise<OpenedPond> {
 	const registry = createDirectRegistry(commands, { middleware: [journal] });
 
 	// The journal middleware records nothing while replayJournal runs the same registry.
-	const entries = await sink.read();
+	let entries: Awaited<ReturnType<FileJournalSink['read']>>;
+	try {
+		entries = await sink.read();
+	} catch (error) {
+		// A torn last line is skipped; a damaged line anywhere else cannot be.
+		throw new PondJournalError(options.journalPath, error);
+	}
 	const replay = await replayJournal(registry, entries, { stopOnDivergence: true });
 	if (replay.diverged) throw new PondReplayError(options.journalPath, replay);
 

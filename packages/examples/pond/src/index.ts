@@ -3,7 +3,13 @@
  * journal. See README.md for what the app keeps deterministic itself.
  */
 
-export { type OpenedPond, type OpenPondOptions, openPond, PondReplayError } from './app.js';
+export {
+	type OpenedPond,
+	type OpenPondOptions,
+	openPond,
+	PondJournalError,
+	PondReplayError,
+} from './app.js';
 export { createPondCommands } from './commands.js';
 export {
 	type Fish,

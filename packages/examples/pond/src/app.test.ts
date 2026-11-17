@@ -3,8 +3,8 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { parseJournal, serializeJournalEntry } from '@lushly-dev/afd-core';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { openPond, PondReplayError } from './app.js';
-import type { Fish } from './pond.js';
+import { openPond, PondJournalError, PondReplayError } from './app.js';
+import { type Fish, MAX_RANDOM_READS } from './pond.js';
 
 let dir: string;
 let journalPath: string;
@@ -58,7 +58,7 @@ describe('the pond rebuilt from its journal', () => {
 		expect(await journalLines()).toBe(4);
 	});
 
-	it('records calls made without waiting in the order they changed the pond', async () => {
+	it('rebuilds the same pond from calls made without waiting for each other', async () => {
 		const first = await openPond({ journalPath });
 		await Promise.all([
 			first.run('pond-stock', { species: 'koi', count: 2 }),
@@ -101,26 +101,39 @@ describe('the pond rebuilt from its journal', () => {
 		const long = await first.run('pond-tick', { days: 30 });
 		expect(long.success).toBe(true);
 		const [, , , , ticked] = parseJournal(await readFile(journalPath, 'utf8'));
-		expect(ticked?.tape?.random.length).toBeGreaterThan(1000);
+		expect(ticked?.tape?.random.length).toBe(MAX_RANDOM_READS);
 		expect(ticked?.tape?.truncated).toBeUndefined();
 		const second = await openPond({ journalPath });
 		expect(second.pond.snapshot()).toEqual(first.pond.snapshot());
 	});
 
-	it('stops taking calls once a change could not be journaled', async () => {
+	it('refuses to open a journal with a damaged line before its last', async () => {
 		const first = await openPond({ journalPath });
 		await first.run('pond-stock', { species: 'koi' });
-		await chmod(journalPath, 0o444);
-		try {
-			const lost = await first.run('pond-stock', { species: 'minnow' });
-			expect(lost.error).toMatchObject({ code: 'JOURNAL_WRITE_FAILED' });
-			const after = await first.run('pond-status');
-			expect(after.error).toMatchObject({ code: 'JOURNAL_WRITE_FAILED' });
-		} finally {
-			await chmod(journalPath, 0o644);
-		}
-		// Reopened, the pond is what the journal holds: the unrecorded minnow is gone.
-		const second = await openPond({ journalPath });
-		expect(second.pond.snapshot().fish.map((fish: Fish) => fish.species)).toEqual(['koi']);
+		await first.run('pond-tick');
+		const [stocked, ticked] = (await readFile(journalPath, 'utf8')).split('\n');
+		await writeFile(journalPath, `${stocked?.slice(0, 20)}\n${ticked}\n`);
+		await expect(openPond({ journalPath })).rejects.toBeInstanceOf(PondJournalError);
 	});
+
+	// Root ignores file modes, so the append would not fail.
+	it.skipIf(process.getuid?.() === 0)(
+		'stops taking calls once a change could not be journaled',
+		async () => {
+			const first = await openPond({ journalPath });
+			await first.run('pond-stock', { species: 'koi' });
+			await chmod(journalPath, 0o444);
+			try {
+				const lost = await first.run('pond-stock', { species: 'minnow' });
+				expect(lost.error).toMatchObject({ code: 'JOURNAL_WRITE_FAILED' });
+				const after = await first.run('pond-status');
+				expect(after.error).toMatchObject({ code: 'JOURNAL_WRITE_FAILED' });
+			} finally {
+				await chmod(journalPath, 0o644);
+			}
+			// Reopened, the pond is what the journal holds: the unrecorded minnow is gone.
+			const second = await openPond({ journalPath });
+			expect(second.pond.snapshot().fish.map((fish: Fish) => fish.species)).toEqual(['koi']);
+		}
+	);
 });
