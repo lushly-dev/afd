@@ -541,9 +541,14 @@ On branch `t3/python-approval-relay`, from `main` at `feca7208`, for
 - **Spec and CI.** `accept` and `decline` in `approval-cases.json` are every language's now;
   `conformance.yml` already ran Python's approvals in both eras.
 
-Verified locally on 2026-11-17: the Python library's tests (3,202, with 34 new relay tests over
+Verified locally on 2026-11-17: the Python library's tests (3,216, with 48 new relay tests over
 real MCP sessions in both eras), the backend's tests, Python conformance 41/41 in legacy and
-modern modes, confirmations 5/5 and approvals 4/4 in legacy, modern and auto modes.
+modern modes, confirmations 5/5 and approvals 4/4 in legacy, modern and auto modes, and the full
+`pnpm verify` on Node 26. An independent review found no blocker; its improvements are in: the
+spec's own parity table, no channel or relay inherited by a call outside a request, a shielded
+up-front plan, and tests for identical steps, hidden and nested commands, first-class tools, a
+batch confirmed then approved, a policy that raises, a 2025 client that gives no answer, every
+step reference and a re-asked batch.
 
 ## Open questions
 

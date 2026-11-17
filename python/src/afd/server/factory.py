@@ -1091,6 +1091,8 @@ class MCPServer:
         return self._router
 
     def _step_context(self) -> CommandContext:
+        # No actor: validation does not read it, and a step that validates differently when it
+        # runs fails closed (it was not asked about, so it is held).
         return CommandContext(extra={"interface": "mcp", "remote": True})
 
     def _step_can_run(self, name: str) -> bool:
@@ -1237,7 +1239,9 @@ class MCPServer:
             # The SDK's own call_tool, outside any request: nothing can be asked.
             round = None
         if round is None:
-            return _tool_call_result(await self.route_tool_call(tool_name, payload))
+            # Nothing an enclosing call bound may answer for this one.
+            with bind_confirmation_channel(None), bind_approval_relay(None):
+                return _tool_call_result(await self.route_tool_call(tool_name, payload))
         for _ in range(MAX_IN_BAND_ROUNDS):
             relay = round.relay() if round.can_elicit else None
             with bind_confirmation_channel(round), bind_approval_relay(relay):

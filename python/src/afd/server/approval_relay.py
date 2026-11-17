@@ -345,7 +345,8 @@ class UpFrontApproval:
         plan = self._plans.get(id(deps))
         if plan is None:
             plan = self._plans[id(deps)] = asyncio.ensure_future(self._decide(deps, context))
-        decided = await plan
+        # Shielded: a step cancelled while its siblings wait must not cancel their shared plan.
+        decided = await asyncio.shield(plan)
         if decided.kind == "refuse":
             assert decided.error is not None
             if self.refusal is None:
