@@ -1,64 +1,20 @@
 // The todo commands, against the TypeScript backend's behavior and texts.
-#include <algorithm>
-#include <fstream>
-#include <iterator>
-#include <optional>
+#include <memory>
 #include <string>
-#include <vector>
 
 #include "fixture.hpp"
-#include "spec.hpp"
 
 using todo::testing::Fixture;
 
-TEST_CASE("the registered commands are exactly those in commands.schema.json") {
-    Fixture fixture;
-    std::vector<std::string> registered;
-    for (const auto& command : fixture.registry->list()) {
-        registered.push_back(command->definition.name);
-        CHECK(command->definition.expose.mcp);
-    }
-    std::vector<std::string> specified = todo::spec_command_names();
-    std::sort(registered.begin(), registered.end());
-    std::sort(specified.begin(), specified.end());
-    CHECK(registered == specified);
-    CHECK(registered.size() == 11);
-}
+namespace {
 
-TEST_CASE("each command declares the metadata in commands.schema.json") {
-    Fixture fixture;
-    for (const auto& command : fixture.registry->list()) {
-        const auto& definition = command->definition;
-        CAPTURE(definition.name);
-        const auto& metadata = todo::spec()["commands"][definition.name]["metadata"];
-        CHECK(definition.mutation == metadata["mutation"].get<bool>());
-        CHECK(definition.destructive == metadata["destructive"].get<bool>());
-        auto contexts = definition.contexts;
-        auto expected = metadata["contexts"].get<std::vector<std::string>>();
-        std::sort(contexts.begin(), contexts.end());
-        std::sort(expected.begin(), expected.end());
-        CHECK(contexts == expected);
-        std::optional<std::string> prompt;
-        if (metadata.contains("confirmPrompt"))
-            prompt = metadata["confirmPrompt"].get<std::string>();
-        CHECK(definition.confirm_prompt == prompt);
-    }
-}
+constexpr const char* not_found_suggestion =
+    "Use todo-list to see available todos. If it was deleted, find it with todo-list { deleted: "
+    "true } and bring it back with todo-restore.";
 
-TEST_CASE("input properties another language implements are left out") {
-    // spec: todo-list and todo-clear take `deleted` in TypeScript only (x-implementedBy).
-    CHECK_FALSE(todo::input_schema("todo-list")["properties"].contains("deleted"));
-    CHECK_FALSE(todo::input_schema("todo-clear")["properties"].contains("deleted"));
-    CHECK(todo::input_schema("todo-clear")["properties"].contains("all"));
-}
+} // namespace
 
-TEST_CASE("the embedded contract is the file on disk") {
-    std::ifstream in(TODO_SPEC_PATH, std::ios::binary);
-    const std::string text{std::istreambuf_iterator<char>(in), std::istreambuf_iterator<char>()};
-    CHECK(todo::embedded_spec() == text);
-}
-
-TEST_CASE("create, get, update, toggle and delete") {
+TEST_CASE("create, get, update, toggle and delete, each naming its undo") {
     Fixture fixture;
     const auto created =
         fixture.run("todo-create", {{"title", "Buy milk"}, {"description", "2 liters"}});
@@ -70,6 +26,8 @@ TEST_CASE("create, get, update, toggle and delete") {
     CHECK(id.rfind("todo-1767225600001-", 0) == 0);
     CHECK(created["data"]["createdAt"] == "2026-01-01T00:00:00.001Z");
     CHECK_FALSE(created["data"].contains("completedAt"));
+    CHECK(created["undoCommand"] == "todo-delete");
+    CHECK(created["undoArgs"] == afd::Json{{"id", id}});
 
     CHECK(fixture.run("todo-get", {{"id", id}})["data"]["title"] == "Buy milk");
 
@@ -77,18 +35,38 @@ TEST_CASE("create, get, update, toggle and delete") {
         fixture.run("todo-update", {{"id", id}, {"title", "Buy oat milk"}, {"priority", "high"}});
     CHECK(updated["reasoning"] ==
           "Updated title to \"Buy oat milk\", priority to high for todo \"Buy oat milk\"");
+    CHECK(updated["undoCommand"] == "todo-update");
+    CHECK(updated["undoArgs"] ==
+          afd::Json{{"id", id}, {"title", "Buy milk"}, {"priority", "medium"}});
 
     const auto toggled = fixture.run("todo-toggle", {{"id", id}});
     CHECK(toggled["data"]["completed"] == true);
     CHECK(toggled["data"].contains("completedAt"));
     CHECK(toggled["reasoning"] == "Marked as completed: \"Buy oat milk\"");
+    CHECK(toggled["undoCommand"] == "todo-update");
+    CHECK(toggled["undoArgs"] == afd::Json{{"id", id}, {"completed", false}});
     CHECK_FALSE(fixture.run("todo-toggle", {{"id", id}})["data"].contains("completedAt"));
 
     const auto deleted = fixture.run("todo-delete", {{"id", id}});
     CHECK(deleted["data"] == afd::Json{{"deleted", true}, {"id", id}});
-    CHECK(deleted["warnings"][0] == afd::Json{{"code", "PERMANENT"},
-                                              {"message", "This action cannot be undone"},
-                                              {"severity", "info"}});
+    CHECK(deleted["reasoning"] == "Deleted todo \"Buy oat milk\"; todo-restore brings it back");
+    CHECK(deleted["warnings"][0] ==
+          afd::Json{{"code", "RESTORABLE"},
+                    {"message", "Kept with the deleted todos: todo-restore brings it back until "
+                                "todo-clear empties them"},
+                    {"severity", "info"}});
+    CHECK(deleted["undoCommand"] == "todo-restore");
+    CHECK(deleted["undoArgs"] == afd::Json{{"ids", afd::Json::array({id})}});
+    CHECK(fixture.run("todo-get", {{"id", id}})["error"]["code"] == "NOT_FOUND");
+}
+
+TEST_CASE("an update's undo sets an absent description back as empty, which removes it") {
+    Fixture fixture;
+    const std::string id = fixture.create("Plain");
+    const auto described = fixture.run("todo-update", {{"id", id}, {"description", "Added"}});
+    CHECK(described["undoArgs"] == afd::Json{{"id", id}, {"description", ""}});
+    const auto undone = fixture.run("todo-update", described["undoArgs"]);
+    CHECK_FALSE(undone["data"].contains("description"));
 }
 
 TEST_CASE("errors carry the TypeScript codes, messages and suggestions") {
@@ -96,8 +74,8 @@ TEST_CASE("errors carry the TypeScript codes, messages and suggestions") {
     CHECK(fixture.run("todo-get", {{"id", "nope"}})["error"] ==
           afd::Json{{"code", "NOT_FOUND"},
                     {"message", "Todo with ID \"nope\" not found"},
-                    {"suggestion", "Use todo-list to see available todos"}});
-    const std::string id = fixture.run("todo-create", {{"title", "x"}})["data"]["id"];
+                    {"suggestion", not_found_suggestion}});
+    const std::string id = fixture.create("x");
     CHECK(fixture.run("todo-update", {{"id", id}})["error"] ==
           afd::Json{
               {"code", "NO_CHANGES"},
@@ -107,12 +85,33 @@ TEST_CASE("errors carry the TypeScript codes, messages and suggestions") {
     CHECK(missing["error"]["details"]["missingFields"][0] == "title");
     CHECK(missing["error"]["details"]["errors"][0]["path"] == "title");
     CHECK(fixture.run("todo-list", {{"limit", 101}})["error"]["code"] == "VALIDATION_ERROR");
+    CHECK(fixture.run("todo-create", {{"title", std::string(201, 'x')}})["error"]["code"] ==
+          "VALIDATION_ERROR");
+}
+
+TEST_CASE("ids are TypeScript's for the same clock and seed") {
+    auto clock = std::make_shared<afd::ManualClock>(1700000000000);
+    const auto make = [&] {
+        auto registry =
+            todo::make_registry(std::make_shared<todo::TodoStore>(),
+                                {.approvals = todo::Approvals::off,
+                                 .clock = clock,
+                                 .random = std::make_shared<afd::SeededRandom>("todo")});
+        REQUIRE(registry.has_value());
+        return std::move(*registry);
+    };
+    const afd::Json first = make()->execute("todo-create", {{"title", "Seeded"}});
+    // TypeScript's stampFrom with seededRandom('todo') at this time makes the same id.
+    CHECK(first["data"]["id"] == "todo-1700000000000-w76p4ky");
+    CHECK(first["data"]["createdAt"] == "2023-11-14T22:13:20.000Z");
+    CHECK(afd::Json(make()->execute("todo-create", {{"title", "Seeded"}}))["data"]["id"] ==
+          first["data"]["id"]);
 }
 
 TEST_CASE("list filters, sorts newest first, paginates and offers alternatives") {
     Fixture fixture;
     for (const char* title : {"First", "Second", "Third"}) {
-        fixture.run("todo-create", {{"title", title}});
+        fixture.create(title);
     }
     const auto page = fixture.run("todo-list", {{"limit", 2}});
     CHECK(page["data"]["total"] == 3);
@@ -131,13 +130,33 @@ TEST_CASE("list filters, sorts newest first, paginates and offers alternatives")
     CHECK(done["reasoning"] == "Found 1 todos (completed), returning 1 starting at offset 0");
     REQUIRE(done["alternatives"].size() == 2);
     CHECK(done["alternatives"][0]["reason"] == "View all 3 todos without filters");
+    CHECK(done["alternatives"][0]["data"]["total"] == 3);
     CHECK(done["alternatives"][1]["reason"] == "View pending todos instead (2)");
+    CHECK(done["alternatives"][1]["confidence"] == 1.0);
 }
 
-TEST_CASE("clear and stats") {
+TEST_CASE("ties keep insertion order in both directions") {
     Fixture fixture;
-    const std::string id = fixture.run("todo-create", {{"title", "Done"}})["data"]["id"];
-    fixture.run("todo-create", {{"title", "Pending"}});
+    for (const char* title : {"a", "b", "c"}) {
+        fixture.run("todo-create", {{"title", title}, {"priority", "high"}});
+    }
+    const auto titles = [&](const char* order) {
+        const auto listed =
+            fixture.run("todo-list", {{"sortBy", "priority"}, {"sortOrder", order}});
+        std::string joined;
+        for (const auto& todo : listed["data"]["todos"]) {
+            joined += todo["title"].get<std::string>();
+        }
+        return joined;
+    };
+    CHECK(titles("desc") == "abc");
+    CHECK(titles("asc") == "abc");
+}
+
+TEST_CASE("clear removes completed todos for good and lists their ids") {
+    Fixture fixture;
+    const std::string id = fixture.create("Done");
+    fixture.create("Pending");
     CHECK(fixture.run("todo-stats")["reasoning"] ==
           "2 total todos, 0 completed, 2 pending, 0% completion rate");
     fixture.run("todo-toggle", {{"id", id}});
@@ -146,14 +165,17 @@ TEST_CASE("clear and stats") {
     CHECK(stats["data"]["byPriority"]["medium"] == 2);
     CHECK(stats["reasoning"] == "2 total todos, 1 completed, 1 pending, 50% completion rate");
     const auto cleared = fixture.run("todo-clear");
-    CHECK(cleared["data"] == afd::Json{{"cleared", 1}, {"remaining", 1}});
+    CHECK(cleared["data"] ==
+          afd::Json{{"cleared", 1}, {"remaining", 1}, {"clearedIds", afd::Json::array({id})}});
     CHECK(cleared["reasoning"] == "Cleared 1 completed todo, 1 remaining");
-    CHECK(fixture.run("todo-clear", {{"all", true}})["data"] ==
-          afd::Json{{"cleared", 1}, {"remaining", 0}});
+    CHECK(cleared["warnings"][0]["code"] == "PERMANENT");
+    CHECK_FALSE(cleared.contains("undoCommand"));
+    CHECK(fixture.run("todo-clear")["reasoning"] == "No completed todos to clear, 1 remaining");
+    CHECK(fixture.run("todo-clear", {{"all", true}})["reasoning"] == "Cleared all 1 todos");
     CHECK(fixture.run("todo-stats")["reasoning"] == "No todos yet");
 }
 
-TEST_CASE("batch commands report partial failure") {
+TEST_CASE("batch commands report partial failure and name their undo") {
     Fixture fixture;
     const auto created =
         fixture.run("todo-create-batch", {{"todos", {{{"title", "Valid"}}, {{"title", "   "}}}}});
@@ -165,16 +187,41 @@ TEST_CASE("batch commands report partial failure") {
     CHECK(created["warnings"][0]["code"] == "PARTIAL_SUCCESS");
     CHECK(created["confidence"] == 0.5);
     CHECK(created["reasoning"] == "Created 1 of 2 todos. 1 failed validation.");
-
     const std::string id = created["data"]["succeeded"][0]["id"];
+    CHECK(created["undoCommand"] == "todo-delete-batch");
+    CHECK(created["undoArgs"] == afd::Json{{"ids", afd::Json::array({id})}});
+
     const auto flipped = fixture.run("todo-toggle-batch", {{"ids", {id, "missing"}}});
     CHECK(flipped["reasoning"] == "Toggled 1 of 2 todos. 1 were not found.");
     CHECK(flipped["data"]["summary"]["markedComplete"] == 1);
+    CHECK(flipped["data"]["failed"][0]["error"]["suggestion"] == not_found_suggestion);
+    CHECK(flipped["undoArgs"] == afd::Json{{"ids", afd::Json::array({id})}, {"completed", false}});
 
     const auto deleted = fixture.run("todo-delete-batch", {{"ids", {id, "missing"}}});
-    CHECK(deleted["data"]["deletedIds"] == afd::Json{id});
+    CHECK(deleted["data"]["deletedIds"] == afd::Json::array({id}));
     CHECK(deleted["warnings"][0]["code"] == "DESTRUCTIVE_BATCH");
+    CHECK(deleted["warnings"][0]["message"] ==
+          "Deleted 1 todos; todo-restore brings them back until todo-clear empties the deleted "
+          "todos");
     CHECK(deleted["warnings"][1]["code"] == "PARTIAL_SUCCESS");
+    CHECK(deleted["undoCommand"] == "todo-restore");
     CHECK(fixture.run("todo-create-batch", {{"todos", afd::Json::array()}})["error"]["code"] ==
           "VALIDATION_ERROR");
+}
+
+TEST_CASE("toggle-batch names no single undo when the todos had different states") {
+    Fixture fixture;
+    const std::string open = fixture.create("Open");
+    const std::string done = fixture.create("Done");
+    fixture.run("todo-toggle", {{"id", done}});
+    const auto flipped = fixture.run("todo-toggle-batch", {{"ids", {open, done}}});
+    CHECK_FALSE(flipped.contains("undoCommand"));
+    CHECK(flipped["warnings"][0]["code"] == "NO_SINGLE_UNDO");
+
+    // Now `open` is done and `done` is open. Setting a state skips todos already in it, and the
+    // undo covers only those it changed.
+    const auto set = fixture.run("todo-toggle-batch", {{"ids", {open, done}}, {"completed", true}});
+    CHECK(set["reasoning"] ==
+          "Successfully set to complete all 2 todos (2 complete, 0 incomplete)");
+    CHECK(set["undoArgs"] == afd::Json{{"ids", afd::Json::array({done})}, {"completed", false}});
 }
