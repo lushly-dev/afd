@@ -54,6 +54,8 @@ Cargo.lock
 !foundations/specimen/host/Cargo.lock
 # And Mail's engine
 !endpoints/loam/plugins/mail/engine/Cargo.lock
+# And Loam's desktop host (phase 6 specification, section 2)
+!endpoints/loam/packages/desktop/src-tauri/Cargo.lock
 
 # C++ (CMake build trees; see packages/cpp)
 /packages/cpp/build/

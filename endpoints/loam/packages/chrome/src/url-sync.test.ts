@@ -51,6 +51,8 @@ interface FixtureOptions {
 	urlBooted?: boolean;
 	/** Instances `scope-set { app }` refuses, as `canOpen` does one that does not list the project. */
 	unopenable?: string[];
+	/** The page's origin, `http://127.0.0.1:4173` by default. */
+	origin?: string;
 }
 
 /** A shell and a kernel holding `state`; `scope-set` fails for a slug it does not hold. */
@@ -70,7 +72,8 @@ async function fixture(
 		active: null,
 		...initial,
 	};
-	const location = { origin: 'http://127.0.0.1:4173', pathname: `/loam/${path}` };
+	const origin = options.origin ?? 'http://127.0.0.1:4173';
+	const location = { origin, protocol: `${origin.split(':')[0]}:`, pathname: `/loam/${path}` };
 	const kernel = {
 		appsReady: Promise.resolve(),
 		lateFailure: options.lateFailure ? { code: 'LATE_COMMANDS_UNAVAILABLE' } : undefined,
@@ -164,6 +167,17 @@ const event = (extra: Partial<KernelEventV3>): KernelEventV3 =>
 		mutation: true,
 		...extra,
 	}) as KernelEventV3;
+
+describe('P6-D3: the desktop on a custom scheme', () => {
+	it('P6-D3: leaves the address where it is, since a loam: document cannot rewrite its path', async () => {
+		const { moves, sync, timers, host } = await fixture('', {}, { origin: 'loam://localhost' });
+		await host.kernel?.call('app-open', { instance: 'hello' });
+		sync.changed(event({ command: 'app-open', mainChanged: 'push' }));
+		await timers();
+		expect(moves).toEqual([]);
+		expect(host.route).toBe('home');
+	});
+});
 
 describe('P2-E8: a route runs journaled commands, only where the state differs', () => {
 	it('P2-E8: an app in a project: scope-set, then app-open, then app-route-set, and one replace', async () => {

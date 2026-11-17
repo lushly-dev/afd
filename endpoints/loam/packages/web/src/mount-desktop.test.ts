@@ -1,0 +1,140 @@
+import { afterEach, describe, expect, it } from 'vitest';
+import { createDesktopMountTransport, DESKTOP_PROTOCOL_VERSION } from './mount-desktop.js';
+import { webPorts } from './ports.js';
+
+type Invoke = (command: string, args: Record<string, unknown>) => Promise<unknown>;
+const held = globalThis as { __TAURI_INTERNALS__?: { invoke: Invoke } };
+
+/** A fake Rust host: each call recorded, each `mount_send` answered by `answer`. */
+function fakeHost(answer: (message: { id?: number; method: string }) => unknown) {
+	const calls: { command: string; args: Record<string, unknown> }[] = [];
+	held.__TAURI_INTERNALS__ = {
+		async invoke(command, args) {
+			calls.push({ command, args });
+			if (command === 'mount_open') return 7;
+			if (command === 'mount_close') return null;
+			return answer(args.message as { id?: number; method: string });
+		},
+	};
+	return calls;
+}
+
+const respond = (message: { id?: number; method: string }, result: unknown) =>
+	message.id === undefined ? null : { jsonrpc: '2.0', id: message.id, result };
+
+afterEach(() => {
+	delete held.__TAURI_INTERNALS__;
+});
+
+describe('DesktopMountTransport (phase 6 specification, 10.4)', () => {
+	it('P6-D2: names the instance alone, shakes hands, and carries the scope in _meta untouched', async () => {
+		const calls = fakeHost((message) =>
+			message.method === 'initialize'
+				? respond(message, { protocolVersion: '2025-06-18', capabilities: {} })
+				: message.method === 'tools/list'
+					? respond(message, { tools: [{ name: 'hello-greet', inputSchema: {} }] })
+					: respond(message, { content: [], structuredContent: { success: true } })
+		);
+		const transport = createDesktopMountTransport('home');
+		expect(await transport.connect()).toEqual({ protocolVersion: '2025-06-18' });
+		expect(await transport.listTools()).toEqual([{ name: 'hello-greet', inputSchema: {} }]);
+		await transport.callTool('hello-greet', { name: 'Ada' }, undefined, {
+			'dev.loam/scope': { workspace: 'personal' },
+		});
+		await transport.close();
+		expect(calls.map(({ command }) => command)).toEqual([
+			'mount_open',
+			'mount_send',
+			'mount_send',
+			'mount_send',
+			'mount_send',
+			'mount_close',
+		]);
+		expect(calls[0]?.args).toEqual({ instance: 'home' });
+		expect(calls[1]?.args.message).toMatchObject({
+			method: 'initialize',
+			params: { protocolVersion: DESKTOP_PROTOCOL_VERSION },
+		});
+		expect(calls[2]?.args.message).toEqual({ jsonrpc: '2.0', method: 'notifications/initialized' });
+		expect(calls[4]?.args).toEqual({
+			handle: 7,
+			message: {
+				jsonrpc: '2.0',
+				id: 3,
+				method: 'tools/call',
+				params: {
+					name: 'hello-greet',
+					arguments: { name: 'Ada' },
+					_meta: { 'dev.loam/scope': { workspace: 'personal' } },
+				},
+			},
+		});
+		expect(calls[5]?.args).toEqual({ handle: 7 });
+	});
+
+	it("maps the host's codes to the kernel's, and a server's error or a wrong id to MOUNT_RESULT_INVALID", async () => {
+		held.__TAURI_INTERNALS__ = { invoke: () => Promise.reject('INSTANCE_UNKNOWN') };
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_UNREACHABLE',
+		});
+		held.__TAURI_INTERNALS__ = {
+			invoke: (command) =>
+				command === 'mount_open' ? Promise.resolve(1) : Promise.reject('MOUNT_UNAUTHORIZED'),
+		};
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_UNAUTHORIZED',
+		});
+		fakeHost((message) =>
+			message.method === 'initialize'
+				? respond(message, { protocolVersion: '2025-06-18' })
+				: { jsonrpc: '2.0', id: message.id, error: { code: -1, message: 'a server <b>says</b>' } }
+		);
+		const transport = createDesktopMountTransport('x');
+		await transport.connect();
+		const refused = await transport.listTools().catch((error: Error) => error);
+		expect(refused).toMatchObject({
+			code: 'MOUNT_RESULT_INVALID',
+			message: 'MOUNT_RESULT_INVALID',
+		});
+		fakeHost(() => ({ jsonrpc: '2.0', id: 999, result: { protocolVersion: '1' } }) as never);
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_RESULT_INVALID',
+		});
+	});
+
+	it('refuses with no IPC in the frame, and when the handshake names no version', async () => {
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_UNREACHABLE',
+		});
+		fakeHost((message) => respond(message, {}));
+		await expect(createDesktopMountTransport('x').connect()).rejects.toMatchObject({
+			code: 'MOUNT_UNREACHABLE',
+		});
+	});
+
+	it("is the desktop's port, and the browser's stays the web host's", async () => {
+		const made: string[] = [];
+		const chunk = {
+			createMountTransport(url: string) {
+				made.push(`web ${url}`);
+				return {} as never;
+			},
+			createDesktopMountTransport(instance: string) {
+				made.push(`desktop ${instance}`);
+				return {} as never;
+			},
+		};
+		const entry = { instance: 'home' } as never;
+		const load = () => Promise.resolve(chunk);
+		const view = () => Promise.reject(new Error('no view'));
+		await webPorts({} as Document, 'http://loam.localhost/', null, view, load, true).mountTransport(
+			entry,
+			'http://loam.localhost/mounts/home/mcp'
+		);
+		await webPorts({} as Document, 'https://x.example/', null, view, load).mountTransport(
+			entry,
+			'https://x.example/mounts/home/mcp'
+		);
+		expect(made).toEqual(['desktop home', 'web https://x.example/mounts/home/mcp']);
+	});
+});

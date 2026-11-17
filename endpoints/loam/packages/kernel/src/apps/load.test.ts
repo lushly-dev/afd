@@ -404,6 +404,52 @@ describe('mounted instances before discovery', () => {
 		expect((await statusOf(kernel, 'none'))?.error?.code).toBe('DEPLOYMENT_AUDIENCE_REQUIRED');
 	});
 
+	it('P6-D2: starts a stdio instance on the desktop, through its port, and still fails one on any other host', async () => {
+		const opened: string[] = [];
+		const ports = {
+			...createFixturePorts({ 'apps/home/': { manifest: mountedManifest() } }),
+			mountTransport: (entry: { instance: string }) => {
+				opened.push(entry.instance);
+				return Promise.reject(new Error('no instance in this test'));
+			},
+		};
+		const apps = [
+			entry('home', 'umbel', { audience: 'person', transport: 'stdio', route: 'mounts/home/mcp' }),
+		];
+		const desktop = await createTestKernel({
+			deployment: {
+				...probeDeployment(apps, null),
+				deployment_version: 4,
+				host: { kind: 'desktop' },
+			},
+			ports,
+			environment: createFixedEnvironment(),
+		});
+		kernels.push(desktop.kernel);
+		await desktop.kernel.call('app-instance-refresh', { instance: 'home' });
+		expect(opened).toContain('home');
+		expect((await statusOf(desktop.kernel, 'home'))?.error?.code).not.toBe(
+			'MOUNT_TRANSPORT_UNAVAILABLE'
+		);
+		expect((await desktop.kernel.call('shell-info-get')).data).toMatchObject({ host: 'desktop' });
+		for (const kind of ['static', 'hosted'] as const) {
+			const other = await createTestKernel({
+				deployment: {
+					...probeDeployment(apps, null),
+					deployment_version: 4,
+					host: kind === 'hosted' ? { kind, kernel: 'api/kernel' } : { kind },
+				},
+				ports,
+				environment: createFixedEnvironment(),
+			});
+			kernels.push(other.kernel);
+			expect((await statusOf(other.kernel, 'home'))?.error?.code).toBe(
+				'MOUNT_TRANSPORT_UNAVAILABLE'
+			);
+			expect((await other.kernel.call('shell-info-get')).data).toMatchObject({ host: 'test' });
+		}
+	});
+
 	it('lets a refused entry hold its domain, as deployment check does', async () => {
 		const { kernel } = await boot(
 			[entry('reports'), mounted('work', { prefix: 'reports' }), mounted('other')],

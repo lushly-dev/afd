@@ -240,7 +240,8 @@ export async function loadApps(input: AppsHostInput): Promise<AppsRuntime> {
 			if (transport === 'stdio') {
 				record.notices.push({ code: 'STDIO_TRUSTED_CODE', message: NOTICES_V1.STDIO_TRUSTED_CODE });
 			}
-			if (transport === 'stdio') {
+			// The desktop's Rust host starts the process (phase 6 specification, 10.4); no other host can.
+			if (transport === 'stdio' && deployment.host?.kind !== 'desktop') {
 				return settle(
 					record,
 					'failed',
