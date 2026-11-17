@@ -182,7 +182,7 @@ export const SUITES = [
 			{ cwd: 'endpoints/botcore', run: 'uv sync --frozen --extra dev --extra mcp --extra cdp' },
 			{
 				cwd: 'endpoints/botcore',
-				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/',
+				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/',
 			},
 			{
 				cwd: 'endpoints/botcore',
@@ -307,7 +307,7 @@ export const SUITES = [
 			{
 				gate: 'host',
 				cwd: 'endpoints/umbel',
-				run: 'cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-plugin-hello --features umbel-plugin-hello/component',
+				run: 'cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello --features umbel-plugin-hello/component,umbel-fixture-budget/component',
 			},
 			{
 				gate: 'host',

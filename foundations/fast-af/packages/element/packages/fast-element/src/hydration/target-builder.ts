@@ -1,9 +1,9 @@
-import { HydrationMarkup } from "../components/hydration.js";
 import type {
     CompiledViewBehaviorFactory,
     ViewBehaviorFactory,
     ViewBehaviorTargets,
 } from "../templating/html-directive.js";
+import { isHydrationMarkerUnobserved } from "./attribute-observation.js";
 import {
     getHostName,
     getHydrationDiagnostic,
@@ -11,12 +11,18 @@ import {
     type HydrationMismatchExpectation,
 } from "./diagnostics.js";
 import {
+    getHydrationMarkers,
+    type HydrationMarkerStrategy,
+    HydrationMarkup,
+} from "./markers.js";
+import {
     expectedContentAfterStartMarker,
     expectedContentEndMarker,
     expectedElementBoundaryEndMarker,
     formatNoMoreAttributeBindings,
     formatNoMoreContentBindings,
 } from "./messages.js";
+import { createHydrationTraversal, type HydrationMove, isComment } from "./traversal.js";
 
 export class HydrationTargetElementError extends Error {
     /**
@@ -72,38 +78,61 @@ export interface ViewBoundaries {
 export interface ViewBehaviorBoundaries {
     [factoryId: string]: ViewBoundaries;
 }
+const removeAttribute = Element.prototype.removeAttribute;
+const getAttribute = Element.prototype.getAttribute;
+const hasAttribute = Element.prototype.hasAttribute;
 
-function isComment(node: Node): node is Comment {
-    return node.nodeType === Node.COMMENT_NODE;
+function hasNativeAttributeMethod(
+    element: Element,
+    name: "getAttribute" | "removeAttribute",
+    method: typeof getAttribute | typeof removeAttribute,
+): boolean {
+    let current: object | null = element;
+    while (current !== null) {
+        const descriptor = Object.getOwnPropertyDescriptor(current, name);
+        if (descriptor !== void 0) return descriptor.value === method;
+        current = Object.getPrototypeOf(current);
+    }
+    return false;
 }
 
-function isText(node: Node): node is Text {
-    return node.nodeType === Node.TEXT_NODE;
-}
-
-/**
- * Returns a range object inclusive of all nodes including and between the
- * provided first and last node.
- * @param first - The first node
- * @param last - This last node
- * @returns
- */
-export function createRangeForNodes(first: Node, last: Node): Range {
-    const range = document.createRange();
-    range.setStart(first, 0);
-
-    // The lastIndex should be inclusive of the end of the lastChild. Obtain offset based
-    // on usageNotes:  https://developer.mozilla.org/en-US/docs/Web/API/Range/setEnd#usage_notes
-    range.setEnd(
-        last,
-        isComment(last) || isText(last) ? last.data.length : last.childNodes.length,
+function canMutateOnAttributeRemoval(element: Element, unobserved: boolean): boolean {
+    if (unobserved) {
+        return (
+            hasAttribute.call(element, "is") ||
+            !hasNativeAttributeMethod(element, "removeAttribute", removeAttribute)
+        );
+    }
+    return (
+        element.localName.includes("-") ||
+        element.hasAttribute("is") ||
+        "attributeChangedCallback" in element ||
+        element.removeAttribute !== removeAttribute
     );
-    return range;
+}
+
+function throwHydrationError(
+    node: Node,
+    factories: CompiledViewBehaviorFactory[],
+    expected: string,
+): never {
+    const result = getHydrationDiagnostic().formatStructuralError(
+        node,
+        getHostName(node),
+        expected,
+    );
+    throw new HydrationTargetElementError(
+        result.message,
+        factories,
+        node,
+        result.expected,
+        result.received,
+    );
 }
 
 /**
  * Maps compiled ViewBehaviorFactory IDs to their corresponding DOM nodes in the
- * server-rendered shadow root. Uses a TreeWalker to scan the existing DOM between
+ * server-rendered shadow root. Scans the existing DOM between
  * firstNode and lastNode, processing data-free sequential hydration markers.
  *
  * A sequential factory pointer advances through the factories array in DFS order.
@@ -130,172 +159,179 @@ export function buildViewBindingTargets(
     lastNode: Node,
     factories: CompiledViewBehaviorFactory[],
 ): { targets: ViewBehaviorTargets; boundaries: ViewBehaviorBoundaries } {
-    const range = createRangeForNodes(firstNode, lastNode);
-    const treeRoot = range.commonAncestorContainer;
-    const walker = document.createTreeWalker(
-        treeRoot,
-        NodeFilter.SHOW_ELEMENT + NodeFilter.SHOW_COMMENT + NodeFilter.SHOW_TEXT,
-        {
-            acceptNode(node) {
-                return range.comparePoint(node, 0) === 0
-                    ? NodeFilter.FILTER_ACCEPT
-                    : NodeFilter.FILTER_REJECT;
-            },
-        },
+    const [move, update, prepareForMutation] = createHydrationTraversal(
+        firstNode,
+        lastNode,
     );
 
     const targets: ViewBehaviorTargets = {};
     const boundaries: ViewBehaviorBoundaries = {};
+    const markers = getHydrationMarkers();
+    const nativeMarkers = markers === HydrationMarkup;
+    if (markers !== HydrationMarkup) {
+        // Custom resolvers and cleanup callbacks may synchronously change the DOM.
+        prepareForMutation();
+    }
 
     // Sequential factory pointer — skip host bindings at the start
     const hydrationIndexOffset = getHydrationIndexOffset(factories);
     let factoryPointer = hydrationIndexOffset;
 
-    let node: Node | null = (walker.currentNode = firstNode);
+    let node: Node | null = firstNode;
 
     while (node !== null) {
         switch (node.nodeType) {
             case Node.ELEMENT_NODE: {
                 const element = node as Element;
-                const legacyIndices =
-                    HydrationMarkup.parseLegacyAttributeBindingIndices(element);
-
-                if (legacyIndices !== null) {
-                    for (const index of legacyIndices) {
-                        const factoryIndex = index + hydrationIndexOffset;
-                        const factory = factories[factoryIndex];
-                        if (!factory) {
-                            const expected = formatNoMoreAttributeBindings(
-                                factories.length,
-                            );
-                            const result = getHydrationDiagnostic().formatStructuralError(
-                                node,
-                                getHostName(node),
-                                expected,
-                            );
-                            throw new HydrationTargetElementError(
-                                result.message,
-                                factories,
+                const nativeCustomElement =
+                    nativeMarkers && element.localName.includes("-");
+                const unobserved =
+                    nativeCustomElement && isHydrationMarkerUnobserved(element);
+                if (
+                    nativeCustomElement
+                        ? !hasNativeAttributeMethod(element, "getAttribute", getAttribute)
+                        : element.getAttribute !== getAttribute
+                ) {
+                    prepareForMutation();
+                }
+                if (nativeMarkers) {
+                    const count = HydrationMarkup.parseAttributeBindingCount(element);
+                    if (count !== null) {
+                        if (count > 0xffffffff) {
+                            // Preserve the existing resolver's invalid-array-length error.
+                            HydrationMarkup.resolveAttributeBindings(
                                 element,
-                                result.expected,
-                                result.received,
+                                factoryPointer,
+                                hydrationIndexOffset,
                             );
                         }
-
-                        targetFactory(factory, node, targets);
-                        factoryPointer = Math.max(factoryPointer, factoryIndex + 1);
+                        for (let i = 0; i < count; i++) {
+                            const factory = factories[factoryPointer++];
+                            if (!factory) {
+                                throwHydrationError(
+                                    node,
+                                    factories,
+                                    formatNoMoreAttributeBindings(factories.length),
+                                );
+                            }
+                            targetFactory(factory, node, targets);
+                        }
+                        if (canMutateOnAttributeRemoval(element, unobserved)) {
+                            prepareForMutation();
+                        }
+                        element.removeAttribute("data-fe");
+                        update();
                     }
-
-                    HydrationMarkup.removeLegacyAttributeBindingMarkers(element);
                     break;
                 }
+                const resolution = markers.resolveAttributeBindings(
+                    element,
+                    factoryPointer,
+                    hydrationIndexOffset,
+                );
+                if (resolution !== null) {
+                    factoryPointer = resolution.nextFactoryPointer;
 
-                const count = HydrationMarkup.parseAttributeBindingCount(element);
-                if (count !== null) {
-                    for (let i = 0; i < count; i++) {
-                        const factory = factories[factoryPointer++];
+                    for (const factoryIndex of resolution.factoryIndices) {
+                        const factory = factories[factoryIndex];
                         if (!factory) {
-                            const expected = formatNoMoreAttributeBindings(
-                                factories.length,
-                            );
-                            const result = getHydrationDiagnostic().formatStructuralError(
+                            throwHydrationError(
                                 node,
-                                getHostName(node),
-                                expected,
-                            );
-                            throw new HydrationTargetElementError(
-                                result.message,
                                 factories,
-                                node as Element,
-                                result.expected,
-                                result.received,
+                                formatNoMoreAttributeBindings(factories.length),
                             );
                         }
                         targetFactory(factory, node, targets);
                     }
-                    element.removeAttribute(HydrationMarkup.attributeMarkerName);
+
+                    if (canMutateOnAttributeRemoval(element, false)) {
+                        prepareForMutation();
+                    }
+                    resolution.cleanup?.();
+                    update();
                 }
                 break;
             }
 
-            case Node.COMMENT_NODE: {
+            case 8: {
                 const data = (node as Comment).data;
-                if (HydrationMarkup.isElementBoundaryStartMarker(node)) {
+                if (
+                    nativeMarkers
+                        ? data === "fe:e"
+                        : markers.isElementBoundaryStartMarker(node)
+                ) {
                     // Element boundary — clear start marker and skip subtree
                     (node as Comment).data = "";
-                    skipToElementBoundaryEnd(walker, factories, node);
-                } else if (HydrationMarkup.isContentBindingStartMarker(data)) {
-                    // Content binding — consume next factory
-                    const legacyIndex =
-                        HydrationMarkup.parseLegacyContentBindingStartIndex(data);
-                    const factoryIndex =
-                        legacyIndex === null
-                            ? factoryPointer++
-                            : legacyIndex + hydrationIndexOffset;
-                    const factory = factories[factoryIndex];
-                    factoryPointer = Math.max(factoryPointer, factoryIndex + 1);
-
-                    if (!factory) {
-                        const expected = formatNoMoreContentBindings(factories.length);
-                        const result = getHydrationDiagnostic().formatStructuralError(
-                            node,
-                            getHostName(node),
-                            expected,
+                    skipToElementBoundaryEnd(
+                        move,
+                        factories,
+                        node,
+                        markers,
+                        nativeMarkers,
+                    );
+                } else {
+                    let factoryIndex: number;
+                    if (nativeMarkers) {
+                        if (data !== "fe:b") {
+                            break;
+                        }
+                        factoryIndex = factoryPointer++;
+                    } else {
+                        const resolution = markers.resolveContentBinding(
+                            data,
+                            factoryPointer,
+                            hydrationIndexOffset,
                         );
-                        throw new HydrationTargetElementError(
-                            result.message,
-                            factories,
+                        if (resolution === null) {
+                            break;
+                        }
+                        factoryPointer = resolution.nextFactoryPointer;
+                        factoryIndex = resolution.factoryIndices[0];
+                    }
+                    const factory = factories[factoryIndex];
+                    if (!factory) {
+                        throwHydrationError(
                             node,
-                            result.expected,
-                            result.received,
+                            factories,
+                            formatNoMoreContentBindings(factories.length),
                         );
                     }
                     targetContentBinding(
                         node as Comment,
-                        walker,
+                        move,
                         factory,
                         factories,
                         targets,
                         boundaries,
+                        markers,
+                        nativeMarkers,
                     );
                 }
                 break;
             }
         }
 
-        node = walker.nextNode();
+        node = move();
     }
 
-    range.detach();
     return { targets, boundaries };
 }
 
 function targetContentBinding(
     node: Comment,
-    walker: TreeWalker,
+    move: HydrationMove,
     factory: CompiledViewBehaviorFactory,
     factories: CompiledViewBehaviorFactory[],
     targets: ViewBehaviorTargets,
     boundaries: ViewBehaviorBoundaries,
+    markers: HydrationMarkerStrategy,
+    nativeMarkers: boolean,
 ) {
-    const nodes: Node[] = [];
-    let current: Node | null = walker.nextSibling();
+    let current: Node | null = move(true);
     node.data = "";
 
     if (current === null) {
-        const expected = expectedContentAfterStartMarker;
-        const result = getHydrationDiagnostic().formatStructuralError(
-            node,
-            getHostName(node),
-            expected,
-        );
-        throw new HydrationTargetElementError(
-            result.message,
-            factories,
-            node,
-            result.expected,
-            result.received,
-        );
+        throwHydrationError(node, factories, expectedContentAfterStartMarker);
     }
 
     const first = current;
@@ -304,54 +340,38 @@ function targetContentBinding(
     let depth = 0;
     while (current !== null) {
         if (isComment(current)) {
-            if (HydrationMarkup.isContentBindingStartMarker(current.data)) {
+            if (
+                nativeMarkers
+                    ? current.data === "fe:b"
+                    : markers.isContentBindingStartMarker(current.data)
+            ) {
                 depth++;
-            } else if (HydrationMarkup.isContentBindingEndMarker(current.data)) {
+            } else if (
+                nativeMarkers
+                    ? current.data === "fe:/b"
+                    : markers.isContentBindingEndMarker(current.data)
+            ) {
                 if (depth === 0) break;
                 depth--;
             }
         }
-        nodes.push(current);
-        current = walker.nextSibling();
+        current = move(true);
     }
 
     if (current === null) {
-        const expected = expectedContentEndMarker;
-        const result = getHydrationDiagnostic().formatStructuralError(
-            node,
-            getHostName(node),
-            expected,
-        );
-        throw new HydrationTargetElementError(
-            result.message,
-            factories,
-            node,
-            result.expected,
-            result.received,
-        );
+        throwHydrationError(node, factories, expectedContentEndMarker);
     }
 
     (current as Comment).data = "";
 
-    if (nodes.length === 1 && isText(nodes[0])) {
-        targetFactory(factory, nodes[0], targets);
-    } else {
-        // If current === first, it means there is no content in
-        // the view. This happens when a `when` directive evaluates false,
-        // or whenever a content binding returns null or undefined.
-        if (current !== first && current.previousSibling !== null) {
-            boundaries[factory.targetNodeId] = {
-                first,
-                last: current.previousSibling,
-            };
-        }
-        // Insert a text node so text content binding targets it
-        const dummyTextNode = current.parentNode!.insertBefore(
-            document.createTextNode(""),
-            current,
-        );
-        targetFactory(factory, dummyTextNode, targets);
+    if (current !== first && current.previousSibling !== null) {
+        boundaries[factory.targetNodeId] = {
+            first,
+            last: current.previousSibling,
+        };
     }
+    // Comment anchors cannot participate in default-slot assignment.
+    targetFactory(factory, current, targets);
 }
 
 /**
@@ -359,42 +379,38 @@ function targetContentBinding(
  * depth counting to handle nested element boundaries correctly.
  */
 function skipToElementBoundaryEnd(
-    walker: TreeWalker,
+    move: HydrationMove,
     factories: CompiledViewBehaviorFactory[],
     startNode: Node,
+    markers: HydrationMarkerStrategy,
+    nativeMarkers: boolean,
 ) {
     let depth = 0;
-    let current = walker.nextSibling();
+    let current = move(true);
     while (current !== null) {
         if (isComment(current)) {
-            if (HydrationMarkup.isElementBoundaryStartMarker(current)) {
+            if (
+                nativeMarkers
+                    ? current.data === "fe:e"
+                    : markers.isElementBoundaryStartMarker(current)
+            ) {
                 current.data = "";
                 depth++;
-            } else if (HydrationMarkup.isElementBoundaryEndMarker(current)) {
-                if (depth === 0) {
-                    current.data = "";
+            } else if (
+                nativeMarkers
+                    ? current.data === "fe:/e"
+                    : markers.isElementBoundaryEndMarker(current)
+            ) {
+                current.data = "";
+                if (depth-- === 0) {
                     return;
                 }
-                current.data = "";
-                depth--;
             }
         }
-        current = walker.nextSibling();
+        current = move(true);
     }
 
-    const expected = expectedElementBoundaryEndMarker;
-    const result = getHydrationDiagnostic().formatStructuralError(
-        startNode,
-        getHostName(startNode),
-        expected,
-    );
-    throw new HydrationTargetElementError(
-        result.message,
-        factories,
-        startNode,
-        result.expected,
-        result.received,
-    );
+    throwHydrationError(startNode, factories, expectedElementBoundaryEndMarker);
 }
 
 /**
@@ -405,12 +421,8 @@ function skipToElementBoundaryEnd(
 function getHydrationIndexOffset(factories: CompiledViewBehaviorFactory[]): number {
     let offset = 0;
 
-    for (let i = 0, ii = factories.length; i < ii; ++i) {
-        if (factories[i].targetNodeId === "h") {
-            offset++;
-        } else {
-            break;
-        }
+    while (offset < factories.length && factories[offset].targetNodeId === "h") {
+        offset++;
     }
 
     return offset;
@@ -421,10 +433,11 @@ export function targetFactory(
     node: Node,
     targets: ViewBehaviorTargets,
 ): void {
-    if (factory.targetNodeId === undefined) {
+    const id = factory.targetNodeId;
+    if (id === undefined) {
         // Dev error, this shouldn't ever be thrown
         throw new Error("Factory could not be target to the node");
     }
 
-    targets[factory.targetNodeId] = node;
+    targets[id] = node;
 }

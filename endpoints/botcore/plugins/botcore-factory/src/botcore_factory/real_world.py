@@ -263,6 +263,80 @@ class GhGitHub:
         data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "state"]), "gh pr")
         return str(data.get("state", "OPEN"))
 
+    def merge_commit(self, pr: int) -> str | None:
+        data = parse_json(self.run(["gh", "pr", "view", str(pr), "--json", "mergeCommit"]), "gh pr")
+        return (data.get("mergeCommit") or {}).get("oid") or None
+
+    def commit_checks(self, commit: str) -> dict[str, str]:
+        """Each check run name's worst state across the workflows (check suites) that ran it,
+        the latest run of each within a suite; then each workflow run, as ``workflow: <name>``,
+        so a job GitHub has not created yet still holds the answer at ``pending``."""
+        repository = self.repository()
+        runs = self._pages(f"repos/{repository}/commits/{commit}/check-runs", "check_runs")
+        latest: dict[tuple, dict] = {}
+        for run in runs:
+            key = ((run.get("check_suite") or {}).get("id"), run.get("name", ""))
+            if (run.get("started_at") or "") >= (latest.get(key, {}).get("started_at") or ""):
+                latest[key] = run
+        checks: dict[str, str] = {}
+        for (_, name), run in latest.items():
+            _worst(checks, name, _run_state(run))
+        statuses = parse_json(
+            self.run(["gh", "api", f"repos/{repository}/commits/{commit}/status"]),
+            "gh api status",
+        ).get("statuses", [])
+        seen = set()
+        for status in statuses:  # Newest first: the first of each context is its state.
+            name = status.get("context", "")
+            if name not in seen:
+                seen.add(name)
+                state = {"success": "success", "pending": "pending"}.get(status.get("state"))
+                _worst(checks, name, state or "failure")
+        workflows = self._pages(
+            f"repos/{repository}/actions/runs?head_sha={commit}", "workflow_runs"
+        )
+        for run in workflows:
+            _worst(checks, f"workflow: {run.get('name', '')}", _run_state(run))
+        return checks
+
+    def _pages(self, path: str, key: str) -> list[dict]:
+        """Every item of a paged list; a read that stops short raises."""
+        items: list[dict] = []
+        separator = "&" if "?" in path else "?"
+        for page in range(1, 11):
+            found = parse_json(
+                self.run(["gh", "api", f"{path}{separator}per_page=100&page={page}"]),
+                f"gh api {key}",
+            )
+            batch = found.get(key, [])
+            items += batch
+            if len(items) >= found.get("total_count", len(items)) or not batch:
+                break
+        if len(items) < found.get("total_count", len(items)):
+            raise WorldError(f"{path} lists more {key} than were read")
+        return items
+
+
+#: A state's weight: the worst of several runs of one name is what that name is.
+_WEIGHT = {"success": 0, "skipped": 1, "cancelled": 2, "pending": 3, "failure": 4}
+
+
+def _worst(checks: dict[str, str], name: str, state: str) -> None:
+    if _WEIGHT[state] >= _WEIGHT.get(checks.get(name, "success"), 0):
+        checks[name] = state
+
+
+def _run_state(run: dict) -> str:
+    """A check run's or workflow run's state."""
+    if run.get("status") != "completed":
+        return "pending"
+    conclusion = run.get("conclusion")
+    if conclusion in ("success", "neutral"):
+        return "success"
+    if conclusion == "skipped":
+        return "skipped"
+    return "cancelled" if conclusion in ("cancelled", "stale") else "failure"
+
 
 class CliGit:
     """git in the target checkout. Host records are fetched from origin's refs/factory/hosts."""
@@ -453,6 +527,26 @@ class CliGit:
 
     def tree(self, path: str) -> str:
         return self.run(["git", "-C", path, "rev-parse", "HEAD^{tree}"]).strip()
+
+    def diff_names(self, old: str, new: str) -> list[str]:
+        out = self.run(["git", "diff", "--name-only", "--no-renames", old, new])
+        return [line for line in out.splitlines() if line.strip()]
+
+    def merges_cleanly(self, head: str, base: str) -> MergeOutcome:
+        args = ["git", "merge-tree", "--write-tree", "--name-only", "--no-messages", head, base]
+        try:
+            out = self.run(args)  # Exit 0: clean; its first line is the merged tree.
+        except WorldError:
+            # Exit 1 is a conflict: the tree, then the conflicting paths. Anything else (an
+            # unknown commit, a git without --write-tree) prints no conflict and is an error.
+            lines = [line for line in self.run(args, None, False).splitlines() if line.strip()]
+            if len(lines) < 2:
+                raise
+            return MergeOutcome(False, conflicts=tuple(dict.fromkeys(lines[1:])))
+        lines = out.split()
+        if not lines:
+            raise WorldError(f"git merge-tree gave no tree for {head} onto {base}")
+        return MergeOutcome(True, head=lines[0])
 
     def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
         """Use the validated checkout's pre-push record and push its exact commit.

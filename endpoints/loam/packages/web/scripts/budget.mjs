@@ -277,8 +277,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * member and the sponsor's read before the handler) and the kernel alone 115,379 (+180) are within their rows.
  */
 export const CEILINGS = Object.freeze({
-	jsMinified: 300_000,
-	jsGzip: 93_000,
+	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
+	// fast-element: measured against `main` at `38d883d9` on the same machine, first paint 299,415 to 303,018
+	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
+	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
+	// `switcher` (+100) and `tooltip` (+5) are within their rows.
+	jsMinified: 304_000,
+	jsGzip: 95_500,
 	cssMinified: 8_496,
 	kernelMinified: 115_500,
 	lateMinified: 78_500,
@@ -302,8 +307,10 @@ export const CEILINGS = Object.freeze({
 	tooltipMinified: 3_126,
 	// Raised from 45,000 to 46,200 by AFD #1159 (D115): violet-button resolves its id-list ARIA attributes to
 	// element references on its inner button, so they reach across its shadow root; measured 45,651
-	// (+778 over 44,873), plus a margin.
-	sectionsMinified: 46_200,
+	// (+778 over 44,873), plus a margin. Raised from 46,200 to 51,000 by AFD #863 (D115): the home's loading
+	// state is `violet-progress`, as design.md's States table asks, and no chunk loaded before the section holds
+	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
+	sectionsMinified: 51_000,
 	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,

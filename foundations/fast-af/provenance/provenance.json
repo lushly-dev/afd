@@ -64,6 +64,272 @@
       },
       "changesets": "The three upstream fragments for these changes (color-picker-closed-panel, message-media-remote-policy, consumer-repairs-upstream; all @lushly-dev/violet-elements) are carried into AFD .changeset; both units stay quarantined",
       "still_upstream": "Draft fast-af PR #239 (violet-elements data-grid ARIA grid) is open and not ported"
+    },
+    {
+      "source_repository": "https://github.com/microsoft/fast",
+      "package_path": "packages/fast-element",
+      "from": "1b389e8218e197945e9c603cd223517b7f01009b",
+      "from_tag": "@microsoft/fast-element_v3.0.1",
+      "from_package_tree": "7b3f79f9ba73b7a52f38aac64092a6abc3c8cc81",
+      "to": "d26aa135cf1cc17c886745d6b028443f37943bd4",
+      "to_tag": "@microsoft/fast-element_v3.1.4",
+      "to_package_tree": "b7ca1a1b6debece0c056a74ba49e9b7e5a9b2d3a",
+      "date": "2026-11-16",
+      "reason": "fast-element is a fork of Microsoft FAST Element 3.0.1 (fast-af #119 records the same commit and package tree). Microsoft's releases 3.0.2 through 3.1.4 are taken as a three-way merge of that package from 3.0.1 into foundations/fast-af/packages/element/packages/fast-element, so FAST-AF's command, definition-schema, scoped-registry and trust modules and AFD's fixes stay",
+      "commits": [
+        {
+          "ref": "443b8a1316eb80467808053e0fe6d5369690d218",
+          "summary": "feat: add FAST template converter CLI (#7633)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "febeabc2a244df71de8f3d4f35f5fccfc4fc5e7b",
+          "summary": "docs: split v3 migration guide (#7628)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "6be5bb6643458101400494e3efa6b0fdd78acc85",
+          "summary": "fix: ignore stale observer map array notifications (#7629)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "8681f2b8e548535ddfa172f9ce75307f6247a105",
+          "summary": "docs: clarify declarative fixture testing guidance (#7657)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "27a4304bdfa69433b8532bff192d8ac747aef79f",
+          "summary": "Remove the concurrently as a dependency and update other outdated dependencies (#7659)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "582df1842d9d8e2bebf9a325fc3088aabb29240f",
+          "summary": "fix: prevent duplicated structural views during hydration (#7668)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "446b78f7a919eda293beb1865ff1fe4ce4d744b5",
+          "summary": "chore: release packages (#7669)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "896537217c159fecb97f4761645dad8fc31798bb",
+          "summary": "Revert trusted types change (#7692)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "806b0992fc9814e0d2df9986bdf3d91c78cb7947",
+          "summary": "chore: release packages (#7693)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "6f97b2ea4ce5e7cf3d52c5b91f426fd60b805ecb",
+          "summary": "Support f-children element filters (#7658)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "bfabb30b51912c3b2dd834604579702fe21c106e",
+          "summary": "perf: reduce hydration target traversal overhead (#7697)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "b0a4f22377c6bcbb4e17a5845563a040b6f373ca",
+          "summary": "fix: memory leak in ElementController template subscriptions (#7704)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "54a61689351d13d2fe8e78097f51193845d30f1c",
+          "summary": "chore: release packages (#7721)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "28d1e78c6819d85758e8723dc5d9249df5a4582d",
+          "summary": "chore: upadate to typescript 6 and use typescript 7 for compilation (#7731)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "c05d0d79637ac313cf67f09820c2aec8ad755c24",
+          "summary": "fix(fast-element): block iframe srcdoc attribute bindings (#7730)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "da3b472f58dfbfef6a9290819d70f6f2b3f544e7",
+          "summary": "docs: explain deepMerge array replacement when migrating to v3 (#7725)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "6515f93bb3eb0f8fde4f87fb0960d37288cf3341",
+          "summary": "test: cover repeat hydration error diagnostics (#7726)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "c31cde075f64a8b108d426a11e0b54f2ebb3a82d",
+          "summary": "feat: add opt-in v2 hydration marker support (#7689)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "a38c2f1aea2840ea530de42d055f0a03cefe5872",
+          "summary": "chore: release packages (#7739)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "fb55a8b887edc12f0cd48f9249d5f8c6cd0bcb53",
+          "summary": "feat: support FAST Build plugin integrations (#7753)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "83fad59b1b687fc2ee7dc10aacca482f650cdedb",
+          "summary": "perf: reduce hydration traversal CPU overhead (#7756)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "0378ead65391f85e9a279838078788b5c4182eea",
+          "summary": "chore: release FAST Build 0.13.0 (#7754)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "436c08bc8e603eb9cbfc46d255fcbec6d4f8c998",
+          "summary": "perf: avoid live-range fallback for native FAST hydration (#7758)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "8f42cb3a66e5efae36941715c250fcb95240f0f2",
+          "summary": "chore: prepare FAST Element 3.1.2 release (#7760)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "c4013349a5914759dba9dc070f0617ebcaa4ec63",
+          "summary": "docs: clarify unsupported bindings in HTML comments (#7766)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "910cf3f9bba94d26b1eb4e063604fe7acaf99433",
+          "summary": "chore: release fast-build 0.14.0 (#7770)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "bfa3155e823f7d922018f25cb50177029c2d6af3",
+          "summary": "fix: apply DOM sink guards consistently across entrypoints (#7772)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "2e3880fdccac48134aaffdf8126ffe1742f347e2",
+          "summary": "optimize 'when' directive for fixed templates (#7783)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "a0786bf7265b28a8c41bfa651d9f16ee647545ad",
+          "summary": "fix: preserve repeat ordering across array mutations (#7793)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "4be355ca16bb4fdf5b440671b704cc7add426171",
+          "summary": "fix: initialize complete metadata reflection (#7785)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "e915f1c4ade476b5f7be455afe2368cb9f8c9a28",
+          "summary": "chore: release fast-element 3.1.3 (#7796)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "59c074544aa20b99d5b15774b05777e875a89f03",
+          "summary": "test: fix cross-platform prepared fixtures and queue timing (#7806)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "759121804207e65d9431ab2c74baf3f7268fd42d",
+          "summary": "fix: preserve default-slot fallback for empty bindings (#7808)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        },
+        {
+          "ref": "d26aa135cf1cc17c886745d6b028443f37943bd4",
+          "summary": "chore: release fast-element 3.1.4 (#7809)",
+          "touches": [
+            "packages/fast-element"
+          ]
+        }
+      ],
+      "adapted": {
+        "@microsoft/fast-element": "Renamed @lushly-dev/fast-element in code, tests, fixtures, scripts and docs, as at import; docs/migration/fast-element-3.md, docs/migration/fast-html.md and the changelogs keep the upstream name, as before",
+        "src/templating/html-binding-directive.ts": "Child views are still created with createChildView, which carries a scoped registry; upstream's removeNodeSequence import joins it",
+        "package.json": "AFD's name, version, author, homepage, repository, pnpm scripts and dependencies stay; upstream's test:node joins test and test:ci. Upstream's removal of concurrently (#7659) is not taken: dev:declarative and test:ui:declarative still use it",
+        "tsconfig.json": "AFD's empty types list stays; upstream adds the ES2021.WeakRef library",
+        "test/main.ts": "AFD's SourceLifetime export stays beside upstream's new hydration exports",
+        "test/metadata-compatibility.test.js": "TypeScript 7 has no JavaScript compiler API, so the decorator-metadata fixture is compiled by the package's tsc instead of ts.transpileModule",
+        "test/declarative/fixtures/WRITING_FIXTURES.md": "AFD's dev:declarative tip stays, since the script does",
+        "SIZES.md": "Regenerated with build:sizes from this build",
+        "CHANGELOG.md": "AFD's Changesets entries stay above upstream's generated log, which gains 3.0.2 through 3.1.4"
+      },
+      "not_ported": {
+        "ff8b082aa, 34f3a99e2, 994a9f0ee, 7eef158a3": "After the 3.1.4 tag: fast-build's server compilation and its benchmark and fixture material, with a DESIGN.md note and a content fixture test; no runtime change"
+      }
     }
   ],
   "in_flight_reconciliation": "All upstream main commits to the selected paths through 5e64a6a5 are reconciled (see reconciliations). Moved code is frozen upstream; later changes are made in AFD. The 45 upstream .changeset fragments that predate the import were not imported and remain upstream release intent",
@@ -90,7 +356,7 @@
     },
     "adaptations": {
       "manifest": "adaptations.json",
-      "sha256": "995125b4cc542eb555578e2c2d090dd3b8345e06bc89e161693aefe75dba0070"
+      "sha256": "6fb6c31c94fb32f157494de2113a568a0023230209e22347cdccf3a298a00b16"
     }
   },
   "units": [

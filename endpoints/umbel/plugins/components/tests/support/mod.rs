@@ -24,19 +24,96 @@ pub fn specimen_fixtures() -> PathBuf {
 
 /// `violet-elements`' committed pack: its records and rules, in Specimen's committed form.
 pub fn fast_af_committed() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../../../foundations/fast-af/packages/violet-elements/pack")
+    let config: Value = serde_json::from_slice(
+        &std::fs::read(fast_af_library().join("specimen.config.json")).unwrap(),
+    )
+    .unwrap();
+    fast_af_library().join(config["pack"]["directory"].as_str().unwrap())
 }
 
-/// This crate's FAST-AF test data: the catalog export wrote, the page set and the fact fixture.
+/// `violet-elements`' directory, whose `specimen.config.json` and `package.json` stamp its catalog.
+pub fn fast_af_library() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("../../../../foundations/fast-af/packages/violet-elements")
+}
+
+/// This crate's FAST-AF test data: the page set and the fact fixture.
 pub fn fast_af_fixtures() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fast_af")
 }
 
-/// How to write `tests/fast_af/library.json` again, for a failure to name.
-pub const REEXPORT: &str = "export FAST-AF's pack again: from foundations/fast-af/packages/violet-elements, \
-    `node ../../../../endpoints/specimen-cli/dist/bin.js pack-export \"$DIR\"` into an empty directory, then copy \
-    `$DIR/data/violet-elements/library.json` to endpoints/umbel/plugins/components/tests/fast_af/library.json";
+/// The catalog `specimen pack-export` writes for `library` from its committed `files` (keyed as in
+/// a pack, `rules/<library>.json` and `data/<library>/components/<tag>.json`) and a `stamp` holding
+/// `title`, `package` and `prefix` (no `revision`, which the tests never stamp): `packCatalog` in
+/// the format's words (Specimen's `pack-format.md`, "Catalog"). The records are listed by tag, each with its
+/// summary when it has one, its status and its digest; the pack digest covers the rules and every
+/// record. `catalog_is_what_specimen_exports` in `fast_af.rs` holds it to Specimen's own export.
+pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &Value) -> Vec<u8> {
+    let rules_path = format!("rules/{library}.json");
+    let rules = files
+        .get(&rules_path)
+        .unwrap_or_else(|| panic!("{rules_path} is missing"));
+    let prefix = format!("data/{library}/components/");
+    let mut tags: Vec<&str> = files
+        .keys()
+        .filter_map(|path| path.strip_prefix(&prefix)?.strip_suffix(".json"))
+        .collect();
+    tags.sort_by(|a, b| digest::utf16_cmp(a, b));
+    let components: Vec<Value> = tags
+        .iter()
+        .map(|tag| {
+            let bytes = &files[&format!("{prefix}{tag}.json")];
+            let record: Value = serde_json::from_slice(bytes).unwrap();
+            let mut entry = json!({
+                "tag": tag,
+                "status": record["status"],
+                "digest": digest::file_digest(bytes),
+            });
+            if let Some(summary) = record.get("summary") {
+                entry["summary"] = summary.clone();
+            }
+            entry
+        })
+        .collect();
+    let digested = files
+        .iter()
+        .filter(|(path, _)| **path == rules_path || path.starts_with(&prefix))
+        .map(|(path, bytes)| (path.as_str(), bytes.as_slice()));
+    // `packCatalog` writes `PACK_FORMAT_VERSION`; every file of a pack the reader accepts carries
+    // that same version, so the rules file's is it.
+    let format = serde_json::from_slice::<Value>(rules).unwrap()["format"].clone();
+    let catalog = json!({
+        "format": format,
+        "library": library,
+        "title": stamp["title"],
+        "package": stamp["package"],
+        "prefix": stamp["prefix"],
+        "digest": digest::pack_digest(digested),
+        "rules": digest::file_digest(rules),
+        "components": components,
+    });
+    canonical::canonical_json(&catalog).into_bytes()
+}
+
+/// The stamp `specimen pack-export` gives `violet-elements`: the title and prefix from its
+/// `specimen.config.json`'s `pack` section, the name and version from the `package.json` it names.
+pub fn fast_af_stamp() -> (String, Value) {
+    let read = |path: PathBuf| -> Value {
+        serde_json::from_slice(&std::fs::read(&path).unwrap_or_else(|error| {
+            panic!("{}: {error}", path.display());
+        }))
+        .unwrap()
+    };
+    let config = read(fast_af_library().join("specimen.config.json"));
+    let pack = &config["pack"];
+    let manifest = read(fast_af_library().join(pack["package"].as_str().unwrap()));
+    let stamp = json!({
+        "title": pack["title"],
+        "package": { "name": manifest["name"], "version": manifest["version"] },
+        "prefix": pack["prefix"],
+    });
+    (pack["library"].as_str().unwrap().to_owned(), stamp)
+}
 
 pub const PACK_TOML: &str = r#"pack_version = 1
 id = "library"
@@ -102,19 +179,19 @@ impl Pack {
 
     /// The pack `specimen pack-export` writes for `violet-elements`, beside Specimen's example
     /// library: the export's records and rules are the committed ones byte for byte (the format's
-    /// two forms differ only by the catalog), and its catalog is the one export wrote,
-    /// `tests/fast_af/library.json`, whose digests the reader checks against those records.
+    /// two forms differ only by the catalog), and its catalog is derived from them here, as export
+    /// derives it, so a rebuilt record needs no second step.
     pub fn fast_af() -> Self {
         let mut pack = Self::example();
-        for (path, bytes) in read_tree(&fast_af_committed()) {
-            if path.starts_with("data/") || path.starts_with("rules/") {
-                pack.files.insert(path, bytes);
-            }
-        }
-        pack.files.insert(
-            "data/violet-elements/library.json".to_owned(),
-            std::fs::read(fast_af_fixtures().join("library.json")).unwrap(),
-        );
+        let (library, stamp) = fast_af_stamp();
+        let committed: BTreeMap<String, Vec<u8>> = read_tree(&fast_af_committed())
+            .into_iter()
+            .filter(|(path, _)| path.starts_with("data/") || path.starts_with("rules/"))
+            .collect();
+        let catalog = export_catalog(&committed, &library, &stamp);
+        pack.files.extend(committed);
+        pack.files
+            .insert(format!("data/{library}/library.json"), catalog);
         pack
     }
 

@@ -1,10 +1,12 @@
 //! The plugin as a WebAssembly component (feature `component`, target `wasm32-wasip2`).
 //!
 //! [`export_component!`](crate::export_component) generates the exports of the WIT world
-//! `umbel:plugin/plugin@1.0.0` for a plugin and routes `command.execute` to
+//! `umbel:plugin/plugin@1.1.0` for a plugin and routes `command.execute` to
 //! [`Plugin::handle`]. The imports (the host services) are reached through [`Cx`], which calls
 //! each one only when a handler asks for it, so a component imports exactly the interfaces its
-//! plugin uses, and the host checks those against the grants the manifest declares.
+//! plugin uses, and the host checks those against the grants the manifest declares. Every
+//! component also imports world 1.1.0's grant-free `call`, read once per call for the output
+//! budget, so it loads on a host that serves world 1.1.0.
 //!
 //! Components must read time and randomness only through [`Cx::now_ms`] and [`Cx::random`], or
 //! the standard library, whose WASI clocks and random bytes the host also takes from the command
@@ -20,7 +22,7 @@ use crate::{CallContext, Cx, HostError, Level, Plugin, failure};
 #[allow(unsafe_code, missing_docs, unreachable_pub, clippy::all)]
 pub mod bindings {
     wit_bindgen::generate!({
-        path: "../wit/umbel-plugin-1.0.0",
+        path: "../wit/umbel-plugin-1.1.0",
         world: "plugin",
         pub_export_macro: true,
         export_macro_name: "__umbel_export_plugin",
@@ -28,7 +30,7 @@ pub mod bindings {
     });
 }
 
-use bindings::umbel::plugin::{clock, config, events, log, packs, random, types};
+use bindings::umbel::plugin::{call, clock, config, events, log, packs, random, types};
 
 /// Run one command: parse the input, build the [`Cx`] over the imports and call the plugin.
 /// Used by [`export_component!`](crate::export_component); the answer is a `CommandResult` as
@@ -39,13 +41,14 @@ pub fn run(plugin: &impl Plugin, name: &str, input: &str, context: types::CallCo
         command: context.command,
         trace_id: context.trace_id,
         spaces: context.space.iter().cloned().collect(),
-        output_budget: None,
+        // World 1.1.0 carries the effective budget of a command that declares one.
+        output_budget: call::output_budget(),
         space: context.space,
         actor_kind: context.actor_kind,
         actor_id: context.actor_id,
         on_behalf_of: context.on_behalf_of,
         interface: context.interface,
-        // WIT world 1.0.0 has no attestation: a component never sees one.
+        // The WIT world has no attestation: a component never sees one.
         pipeline: None,
         // Nor the host's terminal check, nor the workspace's equivalents.
         person: false,
@@ -76,6 +79,10 @@ fn host_error(error: types::HostError) -> HostError {
         types::HostError::NotFound(message) => HostError::NotFound(message),
         types::HostError::Invalid(message) => HostError::Invalid(message),
         types::HostError::TooLarge(message) => HostError::TooLarge(message),
+        types::HostError::Conflict(current) => HostError::Conflict { current },
+        types::HostError::Busy(message) => HostError::Busy(message),
+        types::HostError::Corrupt(message) => HostError::Corrupt(message),
+        types::HostError::Io(message) => HostError::Io(message),
     }
 }
 
@@ -125,7 +132,7 @@ pub(crate) fn random() -> f64 {
 }
 
 /// Build the plugin as a WebAssembly component: generate the exports of
-/// `umbel:plugin/plugin@1.0.0` and route `command.execute` to [`Plugin::handle`].
+/// `umbel:plugin/plugin@1.1.0` and route `command.execute` to [`Plugin::handle`].
 ///
 /// ```ignore
 /// umbel_sdk::export_component!(MyPlugin);

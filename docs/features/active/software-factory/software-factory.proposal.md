@@ -126,7 +126,7 @@ improvement loop's five commands are in [its section](#the-improvement-loop).
 | Command | Input | Result `data` | Refusals |
 |---|---|---|---|
 | `lane-status` | `limit?`, `cursor?` | `runId`, `host { id, isLaneHost }`, `running`, `paused` and `pauseReason`, `draining`, `slots { total, busy }`, `queue[]`, `held[]`, active `cells[] { branch, issue, state, plan, route, ejections }`, `openEvents[]`, `waitingOnOwner` (count), `orphans[]`, `dials`, `canStartCell` with `plan` and `nextIssue`, or `reason` and `nextReset` | — |
-| `lane-start` | — | `running` | `HOST_NOT_SET`, `NOT_LANE_HOST`, `LANE_LOCKED`, `REQUIRED_CHECK_MISSING`, `TOOLCHAIN_MISMATCH` |
+| `lane-start` | — | `running` | `HOST_NOT_SET`, `NOT_LANE_HOST`, `LANE_LOCKED`, `REQUIRED_CHECK_MISSING`, `NODE_MISSING`, `NODE_UNPINNED`, `TOOLCHAIN_MISMATCH` |
 | `lane-stop` | `force?` | `running`; a running validation finishes first unless `force` | — |
 | `lane-run` | — | The loop in the foreground, for debugging the lane itself; no job uses it | As `lane-start` |
 | `lane-host-probe` | — | `record`: this machine's cores, memory, free disk, toolchains, `gh` sign-in, checkout, `origin` fetch, adapter commands and (Windows) symlink support, published to `refs/factory/hosts/<id>` on `origin` | — |

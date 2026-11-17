@@ -255,6 +255,8 @@ fn neither_key_is_available_to_a_component_command() {
         let key = keys.split(' ').next().unwrap();
         let error = invalid(&component(keys), key);
         assert!(error.message().contains("component"), "{error}");
+        // World 1.1.0 carries neither (D189, D191).
+        assert!(!error.message().contains("1.1.0"), "{error}");
     }
 }
 

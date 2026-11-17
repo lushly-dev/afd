@@ -687,7 +687,7 @@ Rules:
   to read the clock once per call and pass the value down;
   `component_replay.rs` asserts that hello's tape stays under 16 reads per
   call.
-- **Versioning.** The package is `umbel:plugin@1.0.0`. The host's linker
+- **Versioning.** (World 1.1.0, added 2026-11-16, is specified in [its own document](world-1.1.spec.md), D189 to D191. Its `packs` and `events` change signature through `host-error`, which section 3's table would class as major; the host therefore links worlds 1.0.0 and 1.1.0 side by side rather than the newest alone, and section 3 of that document states the exception.) The package is `umbel:plugin@1.0.0`. The host's linker
   provides the newest `1.x` it knows; a component built against an older
   `1.y` resolves through wasmtime's semver-compatible import matching. A world
   with a different major version fails with `PLUGIN_PROTOCOL_UNSUPPORTED`.

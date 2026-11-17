@@ -1,14 +1,33 @@
-"""Quality gate commands — check-size, check-coverage, check-deps."""
+"""Quality gate commands — check-size, check-coverage, check-deps, check-lockfile.
+
+Dependency discovery and PyPI checks live in dependencies.py and the lockfile check in
+lockfile.py; both are re-exported here.
+"""
 
 from __future__ import annotations
 
 import json
-import re
 import subprocess
 from pathlib import Path
 
 from afd import CommandResult, error, success
 
+from botcore.commands.dev.dependencies import (
+    _check_pkg_version as _check_pkg_version,
+)
+from botcore.commands.dev.dependencies import (
+    _check_pypi_deps as _check_pypi_deps,
+)
+from botcore.commands.dev.dependencies import (
+    _collect_all_deps as _collect_all_deps,
+)
+from botcore.commands.dev.dependencies import (
+    _collect_staged_deps as _collect_staged_deps,
+)
+from botcore.commands.dev.dependencies import (
+    _parse_version as _parse_version,
+)
+from botcore.commands.dev.lockfile import dev_check_lockfile as dev_check_lockfile
 from botcore.config import load_config
 from botcore.utils.runner import run_external_tool, run_python_module
 from botcore.utils.workspace import find_workspace, resolve_language
@@ -21,17 +40,6 @@ _LANG_EXTENSIONS: dict[str, list[str]] = {
 
 # Directory names never scanned for size — dependency trees and build output
 _SKIP_DIRS = {"node_modules", "__pycache__", "dist", "build", "target", ".venv", ".git", "coverage"}
-
-
-def _parse_version(version: str) -> tuple[int, int, int]:
-    """Parse version string into (major, minor, patch) tuple."""
-    match = re.match(r"(\d+)(?:\.(\d+))?(?:\.(\d+))?", version)
-    if not match:
-        return (0, 0, 0)
-    major = int(match.group(1)) if match.group(1) else 0
-    minor = int(match.group(2)) if match.group(2) else 0
-    patch = int(match.group(3)) if match.group(3) else 0
-    return (major, minor, patch)
 
 
 async def dev_check_size(
@@ -65,7 +73,9 @@ async def dev_check_size(
     if staged_only:
         result = subprocess.run(
             ["git", "diff", "--cached", "--name-only"],
-            cwd=ws or Path.cwd(), capture_output=True, text=True,
+            cwd=ws or Path.cwd(),
+            capture_output=True,
+            text=True,
         )
         if result.returncode == 0:
             staged_files = set(
@@ -79,9 +89,16 @@ async def dev_check_size(
         staged_files = None
 
     # Determine which extensions to scan
-    lang = resolve_language(
-        Path(path) if path else None, config, ws, language_override=language,
-    ) if ws else (language or config.language)
+    lang = (
+        resolve_language(
+            Path(path) if path else None,
+            config,
+            ws,
+            language_override=language,
+        )
+        if ws
+        else (language or config.language)
+    )
     if lang and lang in _LANG_EXTENSIONS:
         extensions = set(_LANG_EXTENSIONS[lang])
     else:
@@ -137,7 +154,8 @@ async def dev_check_size(
 
 
 async def _check_python_coverage(
-    ws: Path, coverage_paths: list[str],
+    ws: Path,
+    coverage_paths: list[str],
 ) -> dict | None:
     """Run pytest --cov and return coverage data, or None on failure."""
     cov_args = [f"--cov={p}" for p in coverage_paths]
@@ -159,7 +177,8 @@ async def _check_python_coverage(
 async def _check_ts_coverage(ws: Path) -> dict | None:
     """Run vitest --coverage and return coverage data."""
     result = await run_external_tool(
-        "npx", ["vitest", "run", "--coverage", "--reporter=json"],
+        "npx",
+        ["vitest", "run", "--coverage", "--reporter=json"],
         install_hint="npm i -D vitest @vitest/coverage-v8",
         cwd=ws,
     )
@@ -171,7 +190,8 @@ async def _check_ts_coverage(ws: Path) -> dict | None:
 async def _check_rust_coverage(ws: Path) -> dict | None:
     """Run cargo-tarpaulin and return coverage data."""
     result = await run_external_tool(
-        "cargo", ["tarpaulin", "--out", "Json"],
+        "cargo",
+        ["tarpaulin", "--out", "Json"],
         install_hint="cargo install cargo-tarpaulin",
         cwd=ws,
     )
@@ -196,7 +216,10 @@ async def dev_check_coverage(language: str | None = None) -> CommandResult[dict]
     coverage_paths = config.coverage_paths
 
     lang = resolve_language(
-        None, config, ws, language_override=language,
+        None,
+        config,
+        ws,
+        language_override=language,
     )
 
     if lang == "typescript":
@@ -257,174 +280,11 @@ async def dev_check_coverage(language: str | None = None) -> CommandResult[dict]
     )
 
 
-def _collect_staged_deps(ws: Path) -> list[str]:
-    """Collect dependency names from staged git changes."""
-    packages: list[str] = []
-
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--unified=0", "pyproject.toml"],
-        cwd=ws, capture_output=True, text=True,
-    )
-    if result.returncode == 0:
-        for line in result.stdout.splitlines():
-            if line.startswith("+") and not line.startswith("+++"):
-                matches = re.findall(r'["\']?([a-zA-Z0-9_-]+)(?:[>=<\[].+)?["\']?,?', line)
-                for match in matches:
-                    if match and not match.startswith("#"):
-                        packages.append(match.lower())
-
-    req_file = ws / "requirements.txt"
-    if req_file.exists():
-        result = subprocess.run(
-            ["git", "diff", "--cached", "--unified=0", "requirements.txt"],
-            cwd=ws, capture_output=True, text=True,
-        )
-        if result.returncode == 0:
-            for line in result.stdout.splitlines():
-                if line.startswith("+") and not line.startswith("+++"):
-                    match = re.match(r"\+([a-zA-Z0-9_-]+)", line)
-                    if match:
-                        packages.append(match.group(1).lower())
-
-    return packages
-
-
-def _collect_all_deps(ws: Path) -> list[str]:
-    """Collect all declared dependency names from pyproject.toml."""
-    import tomllib
-
-    packages: list[str] = []
-    pyproject = ws / "pyproject.toml"
-    if pyproject.exists():
-        data = tomllib.loads(pyproject.read_text(encoding="utf-8"))
-        deps = data.get("project", {}).get("dependencies", [])
-        for dep in deps:
-            match = re.match(r"([a-zA-Z0-9_-]+)", dep)
-            if match:
-                packages.append(match.group(1).lower())
-    return packages
-
-
-async def _check_pkg_version(
-    pkg: str,
-    client: object,
-    max_major: int,
-    max_minor: int,
-    outdated: list[str],
-    errors: list[dict],
-    warnings: list[dict],
-) -> None:
-    """Check a single package against PyPI and classify staleness."""
-    result = subprocess.run(["pip", "show", pkg], capture_output=True, text=True)
-    if result.returncode != 0:
-        return
-
-    installed_version = None
-    for line in result.stdout.splitlines():
-        if line.startswith("Version:"):
-            installed_version = line.split(":", 1)[1].strip()
-            break
-    if not installed_version:
-        return
-
-    response = await client.get(f"https://pypi.org/pypi/{pkg}/json")  # type: ignore[union-attr]
-    if response.status_code != 200:
-        return
-
-    latest_version = response.json().get("info", {}).get("version", "")
-    if not latest_version:
-        return
-
-    installed_parts = _parse_version(installed_version)
-    latest_parts = _parse_version(latest_version)
-    major_behind = latest_parts[0] - installed_parts[0]
-    minor_behind = latest_parts[1] - installed_parts[1] if major_behind == 0 else 0
-
-    if major_behind > max_major:
-        errors.append({
-            "package": pkg, "installed": installed_version,
-            "latest": latest_version, "major_behind": major_behind,
-        })
-        outdated.append(pkg)
-    elif major_behind > 0 or minor_behind > max_minor:
-        warnings.append({
-            "package": pkg, "installed": installed_version,
-            "latest": latest_version, "major_behind": major_behind,
-            "minor_behind": minor_behind,
-        })
-        outdated.append(pkg)
-
-
-async def _check_pypi_deps(
-    ws: Path, config: object, staged_only: bool,
-) -> CommandResult[dict]:
-    """Check Python dependencies against PyPI."""
-    try:
-        import httpx
-    except ImportError:
-        return error(
-            "MISSING_HTTPX",
-            "httpx package required for dependency checking",
-            suggestion="Install with: pip install botcore[quality]",
-        )
-
-    packages_to_check = _collect_staged_deps(ws) if staged_only else _collect_all_deps(ws)
-
-    if not packages_to_check:
-        return success(
-            data={"checked": 0, "outdated": [], "errors": [], "warnings": []},
-            reasoning="No new Python dependencies to check",
-        )
-
-    packages_to_check = list(set(packages_to_check))
-    outdated: list[str] = []
-    errors: list[dict] = []
-    warnings: list[dict] = []
-
-    async with httpx.AsyncClient(timeout=10.0) as client:
-        for pkg in packages_to_check:
-            try:
-                await _check_pkg_version(
-                    pkg, client, config.deps_max_major_behind,  # type: ignore[attr-defined]
-                    config.deps_max_minor_behind,  # type: ignore[attr-defined]
-                    outdated, errors, warnings,
-                )
-            except Exception:
-                continue
-
-    result_data = {
-        "checked": len(packages_to_check), "packages": packages_to_check,
-        "outdated": outdated, "errors": errors, "warnings": warnings,
-    }
-
-    if errors:
-        pkg_list = ", ".join(
-            f"{e['package']} ({e['installed']} → {e['latest']})" for e in errors
-        )
-        return error(
-            "DEPS_TOO_OLD",
-            f"Packages significantly outdated: {pkg_list}",
-            suggestion="Update with: pip install --upgrade "
-            + " ".join(e["package"] for e in errors),
-        )
-
-    if warnings:
-        pkg_list = ", ".join(w["package"] for w in warnings)
-        return success(
-            data=result_data,
-            reasoning=f"{len(warnings)} package(s) behind latest: {pkg_list}",
-        )
-
-    return success(
-        data=result_data,
-        reasoning=f"All {len(packages_to_check)} checked packages are up-to-date",
-    )
-
-
 async def _check_npm_deps(ws: Path) -> CommandResult[dict]:
     """Check npm dependencies via 'npm outdated --json'."""
     result = await run_external_tool(
-        "npm", ["outdated", "--json"],
+        "npm",
+        ["outdated", "--json"],
         install_hint="Install Node.js from https://nodejs.org",
         cwd=ws,
     )
@@ -462,7 +322,8 @@ async def _check_npm_deps(ws: Path) -> CommandResult[dict]:
 async def _check_cargo_deps(ws: Path) -> CommandResult[dict]:
     """Check Cargo dependencies via 'cargo outdated'."""
     result = await run_external_tool(
-        "cargo", ["outdated", "-R", "--format", "json"],
+        "cargo",
+        ["outdated", "-R", "--format", "json"],
         install_hint="cargo install cargo-outdated",
         cwd=ws,
     )
@@ -499,7 +360,10 @@ async def _check_cargo_deps(ws: Path) -> CommandResult[dict]:
 
 
 async def _check_deps_for_language(
-    lang: str, ws: Path, config: object, staged_only: bool,
+    lang: str,
+    ws: Path,
+    config: object,
+    staged_only: bool,
 ) -> CommandResult[dict]:
     """Check deps for a single language."""
     if lang == "typescript":
@@ -511,7 +375,8 @@ async def _check_deps_for_language(
 
 
 async def dev_check_deps(
-    staged_only: bool = True, language: str | None = None,
+    staged_only: bool = True,
+    language: str | None = None,
 ) -> CommandResult[dict]:
     """Check that dependencies are up-to-date.
 
@@ -539,110 +404,10 @@ async def dev_check_deps(
         return _aggregate_results(results, "check-deps")
 
     lang = resolve_language(
-        None, config, ws, language_override=language,
+        None,
+        config,
+        ws,
+        language_override=language,
     )
 
     return await _check_deps_for_language(lang or "python", ws, config, staged_only)
-
-
-async def dev_check_lockfile(
-    path: str | None = None,
-    language: str | None = None,
-) -> CommandResult[dict]:
-    """Check for lockfile drift — lockfile changed without manifest change.
-
-    Detects when a lockfile is staged for commit without a corresponding
-    manifest file change, which usually indicates accidental drift from
-    running install commands.
-
-    Warning-only: always returns success, but includes a warning message.
-    """
-    ws = find_workspace()
-    if not ws:
-        return error(
-            "NO_WORKSPACE",
-            "Could not find workspace root",
-            suggestion="Run from within a Git repository",
-        )
-
-    config = load_config(workspace=ws)
-    lang = resolve_language(
-        Path(path) if path else None, config, ws, language_override=language,
-    ) if ws else (language or config.language)
-
-    # Language-specific lockfile -> manifest mappings
-    lockfile_pairs: dict[str, list[tuple[str, list[str]]]] = {
-        "typescript": [
-            ("pnpm-lock.yaml", ["package.json", "packages/*/package.json"]),
-            ("package-lock.json", ["package.json", "packages/*/package.json"]),
-            ("yarn.lock", ["package.json", "packages/*/package.json"]),
-        ],
-        "python": [
-            ("poetry.lock", ["pyproject.toml"]),
-            ("uv.lock", ["pyproject.toml"]),
-            ("Pipfile.lock", ["Pipfile"]),
-        ],
-        "rust": [
-            ("Cargo.lock", ["Cargo.toml"]),
-        ],
-    }
-
-    # Get staged files
-    result = subprocess.run(
-        ["git", "diff", "--cached", "--name-only"],
-        cwd=ws, capture_output=True, text=True,
-    )
-    if result.returncode != 0:
-        return success(
-            data={"checked": False, "reason": "git diff failed"},
-            reasoning="Could not check staged files",
-        )
-
-    staged = set(result.stdout.strip().split("\n")) if result.stdout.strip() else set()
-
-    if not staged:
-        return success(
-            data={"checked": True, "drift": False},
-            reasoning="No staged files",
-        )
-
-    # Check pairs for the detected language (or all if unknown)
-    pairs_to_check = lockfile_pairs.get(lang, []) if lang else [
-        pair for pairs in lockfile_pairs.values() for pair in pairs
-    ]
-
-    warnings = []
-    for lockfile, manifests in pairs_to_check:
-        if lockfile not in staged:
-            continue
-
-        # Check if any manifest file is also staged
-        # Support glob patterns like "packages/*/package.json"
-        manifest_staged = False
-        for manifest in manifests:
-            if "*" in manifest:
-                # Glob pattern -- check if any matching file is staged
-                import fnmatch
-                manifest_staged = any(fnmatch.fnmatch(f, manifest) for f in staged)
-            else:
-                manifest_staged = manifest in staged
-            if manifest_staged:
-                break
-
-        if not manifest_staged:
-            warnings.append({
-                "lockfile": lockfile,
-                "expected_manifests": manifests,
-                "message": f"{lockfile} changed without a manifest file change"
-                " -- accidental install drift?",
-            })
-
-    return success(
-        data={
-            "checked": True,
-            "drift": len(warnings) > 0,
-            "warnings": warnings,
-        },
-        reasoning=f"{len(warnings)} lockfile drift warning(s)" if warnings
-        else "No lockfile drift detected",
-    )

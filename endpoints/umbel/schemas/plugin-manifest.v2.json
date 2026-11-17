@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/umbel/schemas/plugin-manifest.v2.json",
 	"title": "Umbel plugin manifest, version 2",
-	"description": "umbel-plugin.toml read as JSON (D37, D54). Version 2 is version 1 with two more effects, store-write (needs a store write grant declared) and workspace-write (needs content_write declared), and two more command keys: output_budget = { default_bytes, max_bytes } (compiled plugins only in phase 2; default_bytes <= max_bytes is checked when the manifest is read) and confirm = \"require-human\" (needs confirm_prompt and expose = { mcp = false, agent = false }). It is an addition within plugin protocol 1: a phase 2 host reads manifest versions 1 and 2. Closed: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read.",
+	"description": "umbel-plugin.toml read as JSON (D37, D54). Version 2 is version 1 with two more effects, store-write (needs a store write grant declared) and workspace-write (needs content_write declared), and two more command keys: output_budget = { default_bytes, max_bytes } (a component plugin's only when its component exports WIT world 1.1.0, checked at load; default_bytes <= max_bytes is checked when the manifest is read) and confirm = \"require-human\" (needs confirm_prompt and expose = { mcp = false, agent = false }). It is an addition within plugin protocol 1: a phase 2 host reads manifest versions 1 and 2. Closed: the reserved keys (ui, connectors, backends, dependencies, signature, scopes, on_conflict, and allow in a grant) are refused until a manifest version defines them. Every top-level property is defined under $defs by its own name, so a larger manifest (Loam's app manifest) can reference each of them and add its own. Rules that need more than a schema, such as a command name starting with one of plugin.domains, schemas that the afd crate's checker accepts, and paths that stay inside the plugin root once symlinks are resolved, are checked when the manifest is read.",
 	"type": "object",
 	"required": ["manifest_version", "protocol", "plugin"],
 	"additionalProperties": false,
@@ -196,32 +196,6 @@
 								}
 							},
 							"required": ["name"]
-						}
-					}
-				}
-			}
-		},
-		{
-			"if": {
-				"properties": {
-					"plugin": {
-						"properties": {
-							"kind": {
-								"const": "component"
-							}
-						},
-						"required": ["kind"]
-					}
-				},
-				"required": ["plugin"]
-			},
-			"then": {
-				"properties": {
-					"commands": {
-						"items": {
-							"not": {
-								"required": ["output_budget"]
-							}
 						}
 					}
 				}
@@ -615,7 +589,7 @@
 					}
 				},
 				"output_budget": {
-					"description": "Compiled plugins only in phase 2. default_bytes <= max_bytes.",
+					"description": "default_bytes <= max_bytes. A component plugin's command may declare one when the component exports WIT world umbel:plugin/plugin@1.1.0, which the host checks at load.",
 					"type": "object",
 					"additionalProperties": false,
 					"required": ["default_bytes", "max_bytes"],

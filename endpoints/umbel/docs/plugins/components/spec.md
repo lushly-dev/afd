@@ -17,10 +17,12 @@
   proposal's criterion 2 does not hold on the real pack; that is the owner's decision ([C4](#amendments-from-step-c4)).
   Step C5 set the binary up for agents in this repository and measured it ([C5](#amendments-from-step-c5)). Amended after C3 by
   [A23](#amendments-after-step-c3) (D172, the owner's decision of 2026-11-11): the doctor runs this plugin's own
-  check on each space override, so an override a call would refuse fails the doctor first.
+  check on each space override, so an override a call would refuse fails the doctor first. Amended by
+  [A27](#amendment-a27-the-catalog-derived-at-run-time-1153) (#1153): the tests derive FAST-AF's catalog at run
+  time, and the committed `tests/fast_af/library.json` is gone.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
@@ -117,7 +119,7 @@ The step found these points the document had not settled, and took the narrowest
 
 | # | Point | Decision |
 | --- | --- | --- |
-| A17 | How the tests get "a pack Specimen built and exported" without Specimen and Umbel depending on each other (D3, the proposal's decision 5) | The format's two forms differ only by the catalog, so the export of `violet-elements` is its committed records and rules, which `tests/support` reads from `foundations/fast-af/packages/violet-elements/pack/`, plus the catalog `specimen pack-export` wrote, committed as `tests/fast_af/library.json`. The reader checks every digest in that catalog, so the override the tests serve is byte for byte what export writes; a record rebuilt without exporting again fails `fast_af.rs` with the command that writes the catalog again. Rejected: a test step that runs export, which would put Node, a Specimen build and FAST-AF's guide sources in the Umbel job and in its local gate; and a committed copy of all 79 files (600 KB), which adds nothing the digests do not already bind. The catalog names the package version, which the tests do not compare, so a version bump alone changes nothing here. `umbel.yml`'s `paths` and its `Affected units` gate gain `foundations/fast-af/packages/violet-elements/pack/`, so a record change runs these tests. The cost: a FAST-AF change that rebuilds a record also exports again, and two branches that do conflict in that one catalog |
+| A17 | How the tests get "a pack Specimen built and exported" without Specimen and Umbel depending on each other (D3, the proposal's decision 5) | The format's two forms differ only by the catalog, so the export of `violet-elements` is its committed records and rules, which `tests/support` reads from `foundations/fast-af/packages/violet-elements/pack/`, plus the catalog `specimen pack-export` wrote, committed as `tests/fast_af/library.json`. The reader checks every digest in that catalog, so the override the tests serve is byte for byte what export writes; a record rebuilt without exporting again fails `fast_af.rs` with the command that writes the catalog again. Rejected: a test step that runs export, which would put Node, a Specimen build and FAST-AF's guide sources in the Umbel job and in its local gate; and a committed copy of all 79 files (600 KB), which adds nothing the digests do not already bind. The catalog names the package version, which the tests do not compare, so a version bump alone changes nothing here. `umbel.yml`'s `paths` and its `Affected units` gate gain `foundations/fast-af/packages/violet-elements/pack/`, so a record change runs these tests. The cost: a FAST-AF change that rebuilds a record also exports again, and two branches that do conflict in that one catalog. **Amended by [A27](#amendment-a27-the-catalog-derived-at-run-time-1153):** the tests derive the catalog at run time and nothing is committed |
 | A18 | Criterion 2 on the real pack | It does not hold, and the test does not pretend it does. `fast_af.rs` measures each page at the default budget, at 96 000 bytes and with `detail: "api"`, and asserts only what holds: the API alone is at most half of the declarations on every page, and no brief exceeds its budget. The numbers, and the owner's options, are in the Component Briefs status |
 | A19 | The fact fixture's shape | `tests/fast_af/facts.json`: 42 facts over 16 tags and three tags that do not exist. A fact names a section (5.3), `floor` or `ruleText`; a `match` picking one item; a `field`, compared with `basis` and `flags` left out; or `contains` for `rules` and `gaps`. `facts.rs` briefs every tag in one call at the default budget; a fact the brief does not hold must have its section (or `rules`, for rule text) in the budget entry's `open.sections`, and is then read from that `components-open` call. The answers were read from the pack once and are not regenerated |
 | A20 | Section 3.5's format version | Done: the reader reads format 1 only (`pack::FORMAT_VERSION`), the default pack is Specimen's format 1 example, and Specimen's `format-version` case is now a record in format 0 |
@@ -189,6 +191,43 @@ tags and prefixes appear in the refusal, never the caller's names, and at most t
 are matched. Any other refused name, or a pack that cannot be read, keeps the general refusal.
 `tests/sections.rs` (`a_bare_name_is_refused_with_the_tags_it_matches`) covers all three cases.
 
+### Amendment A27: the catalog derived at run time (#1153)
+
+A17's cost came due: every FAST-AF or Violet change that rebuilt a record had to export the catalog
+again, two such branches conflicted in `tests/fast_af/library.json`, and #1340 had to regenerate it.
+The tests now export at run time, from committed files alone, and the committed catalog is gone.
+
+- **What the tests serve.** `tests/support`'s `Pack::fast_af` reads `violet-elements`' committed
+  records and rules, as before, and derives the catalog from them with `export_catalog`: the
+  format's `packCatalog` (Specimen's `pack-format.md`, "Catalog"), using this crate's
+  `digest.rs` and `canonical.rs`. The stamp is what `pack-export` stamps: the title and prefix from
+  `specimen.config.json`'s `pack` section and the name and version from the `package.json` it names.
+  On the records of 2026-11-16 the derived catalog was byte for byte the committed one it replaces.
+- **What holds it to Specimen.** `fast_af.rs`'s `catalog_is_what_specimen_exports` derives the
+  example's catalog from Specimen's committed fixture and the stamp of its exported fixture, and
+  requires the exported `library.json` byte for byte; Specimen's `pack.test.ts` holds that fixture to
+  `packCatalog`. So the record list, digests, order and summary omission cannot drift apart from
+  `pack-export` without a test failing on one side. The stamp is not bound that way: the test takes
+  it from the fixture, and the reader compares neither title nor package, so `fast_af_stamp` reading
+  the wrong field would pass. It reads them as `exportPack` does, and the derived FAST-AF catalog
+  matched the committed one byte for byte when this landed. No `revision` is stamped.
+- **Why not run `specimen pack-export`.** `scripts/umbel-components.mjs` does, for agents, but the CLI
+  opens a bench, and the bench indexes stories with Specimen's native host (oxc and rolldown, about
+  290 crates) before any command runs. A test that ran it would put Node, `pnpm install`, the
+  TypeScript build and that host build in the Umbel job and its local gate, which A17 already
+  rejected; a test that ran it only when built would answer differently by machine. Deriving needs
+  neither, so there is no "CLI not built" case: the tests run offline and the same everywhere.
+- **What is no longer checked here.** A record that no longer matches the manifest or the guides
+  passed this test before only if someone exported; it now passes it either way. That check is
+  Specimen's (`specimen pack-check`, `pack-export` and FAST-AF's suites) and the launcher's, which
+  refuses to serve a stale export. A record the reader refuses still fails `fast_af.rs`, naming
+  `specimen pack-check`.
+- **What runs.** `umbel.yml`'s `paths` and `Affected units` gate add
+  `foundations/fast-af/packages/violet-elements/specimen.config.json`, which now stamps the catalog.
+  `package.json` is left out: the tests compare its name only with itself, and a version bump would
+  otherwise run Umbel on every release. A FAST-AF source change still runs no Umbel suite; a rebuilt
+  record still runs these tests, and now needs nothing else.
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -219,7 +258,7 @@ already depends on. Checked 2026-11-10 against the watchlist rows, with no sourc
 | Row | Bears on | Effect |
 | --- | --- | --- |
 | W9, W16 | The `components-guide` skill, served as phases 1 and 2 serve skills | None: the skill uses the delivery paths that exist |
-| W17 | The component build (step D2) | None now: D2 waits for WIT world 1.1.0, which this plugin does not ask for |
+| W17 | The component build (step D2) | None now: D2 waits for WIT world 1.1.0, which this plugin does not ask for. World 1.1.0 is specified 2026-11-16 ([its specification](../../phases/1-plugin-contract/world-1.1.spec.md), D189 to D191): the budget through the `call` interface, and `journal` admitted on component commands |
 | W18 | `render: "text"`, the block a harness injects | The block is capped by the call's budget, and Claude Code's `additionalContext` cap is 10 000 characters (W18's refresh of 2026-11-01); the skill tells a harness to pass `maxBytes` when it injects |
 
 The custom-element name rule a tag must follow is Specimen's pattern, not re-derived here from the HTML standard.
@@ -1023,7 +1062,7 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/surfaces.rs` | The plugin and an override as `plugin-show` and doctor show them; an override the plugin refuses failing the doctor's `plugins.pack_checks` with the call's code, problems and suggestion; the one first-class suggestion on every lane; the skill on the three delivery paths (step C3, A15, A16, A23) |
 | `first-party/tests/first_class.rs` | With all six first-party plugins enabled, five suggestions and two built-ins in the first-class set, in every lane's `tools/list` and the binary's, and every skill listed (step C3, A14) |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
-| `tests/fast_af.rs` | Step C4's end-to-end test (A17): FAST-AF's export, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
+| `tests/fast_af.rs` | Step C4's end-to-end test (A17, A27): FAST-AF's export, its catalog derived at run time and held to Specimen's exported fixture, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
 | `tests/facts.rs` | Proposal criterion 3: every fact in `tests/fast_af/facts.json` is in one brief or in the `components-open` call its `omitted` names, and every tag that does not exist is in `unknown` (A19) |
 
 The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components

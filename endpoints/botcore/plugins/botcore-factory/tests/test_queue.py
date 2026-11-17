@@ -78,7 +78,7 @@ async def test_enqueue_records_what_measurement_needs(make_run):
     run = make_run("running")
     await run.call("lane_enqueue", worktree="wt/parser", title="t")
     [record] = run.store.read_records()
-    assert record["kind"] == "enqueued" and record["schema"] == 1
+    assert record["kind"] == "enqueued" and record["schema"] == 2
     assert (record["plan"], record["route"], record["profile"]) == ("plan-a", "sol/high", "bounded")
     assert record["firstEnqueuedAt"] == record["at"] == "2030-01-01T00:00:00Z"
     assert record["runId"] == "run-2" and record["state"] == "queued"

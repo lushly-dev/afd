@@ -678,6 +678,7 @@ test('Umbel is a private, route-less endpoint over the afd crate', async () => {
 		'pack-manifest-1',
 		'plugin-protocol-1',
 		'wit:umbel:plugin@1.0.0',
+		'wit:umbel:plugin@1.1.0',
 		'principal-0',
 		'provenance-envelope-0',
 		'event-0',

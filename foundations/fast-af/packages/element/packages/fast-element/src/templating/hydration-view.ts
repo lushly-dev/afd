@@ -7,11 +7,11 @@ import {
 } from "../hydration/diagnostics.js";
 import {
     buildViewBindingTargets,
-    createRangeForNodes,
     HydrationTargetElementError,
     targetFactory,
     type ViewBehaviorBoundaries,
 } from "../hydration/target-builder.js";
+import { createRangeForNodes } from "../hydration/traversal.js";
 import { type ExecutionContext, SourceLifetime } from "../observation/observable.js";
 import { makeSerializationNoop } from "../platform.js";
 import type { ViewTemplate } from "../templating/template.js";
@@ -132,6 +132,12 @@ export class HydrationView<TSource = any, TParent = any>
         public readonly lastChild: Node,
         private sourceTemplate: ViewTemplate,
         private hostBindingTarget?: Element,
+        /**
+         * The shadow root whose scoped custom element registry this view's
+         * elements belong to, if any. Child views inherit it.
+         * @internal
+         */
+        public readonly _scope?: ShadowRoot,
     ) {
         super();
         this.factories = sourceTemplate.compile().factories;

@@ -162,7 +162,7 @@ async fn workspace_show_lists_the_plugins_and_the_versions() {
     // The Ideas host-review specification, section 3: person decision version 2.
     assert_eq!(shown["versions"]["person"], 2);
     assert_eq!(shown["versions"]["protocol"], 1);
-    assert_eq!(shown["versions"]["wit"], "umbel:plugin/plugin@1.0.0");
+    assert_eq!(shown["versions"]["wit"], "umbel:plugin/plugin@1.1.0");
     assert_eq!(shown["versions"]["pack"], 1);
 }
 

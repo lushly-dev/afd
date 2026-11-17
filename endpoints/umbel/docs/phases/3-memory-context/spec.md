@@ -294,7 +294,9 @@ entry; at most 16 keys.
   registry, and the pipeline is itself one recorded command).
 - **A pipeline that passes a digest step's output to a step that is not digest is `PLUGIN_MANIFEST_INVALID` at seal**,
   because the plain step's resolved input would enter the journal. The check is over the pipeline's variable references.
-- A `journal` key on a mounted tool or a component command is `PLUGIN_MANIFEST_INVALID` in phase 3.
+- A `journal` key on a mounted tool or a component command is `PLUGIN_MANIFEST_INVALID` in phase 3. (2026-11-16, D191: still
+  refused on a component command, now for its own reason: whether a sandboxed component's author may choose how the
+  deployer's journal records its calls is the owner's question, not a matter of world version.)
 
 A host reads manifest versions 1, 2 and 3.
 
@@ -1010,6 +1012,10 @@ sections 5.4 and 7.4.
 ## 6. Host services (D74)
 
 ### 6.1 Grants
+
+> **Amended 2026-11-16 (D189, the [world 1.1.0 specification](../1-plugin-contract/world-1.1.spec.md)).** World 1.1.0 gives components no
+> memory grant, and decides no masking (6.2 item 4): both wait for a later minor version of world 1, the owner's
+> decision. `journal` on a component command stays refused (2.3), as the owner's question.
 
 The reserved grant `memory` becomes two, per D42's rule. Compiled plugins only;
 components and mounts get `PLUGIN_GRANT_UNAVAILABLE`, naming world 1.1.0.
@@ -2097,7 +2103,7 @@ at once; a transcript captured with `default_access = "space"` stays private.
 | Vector or rerank lane on memory (O4) | Opt-in, gated as D65 | `lanes` config reserved; S17's finding on embedding retrieval of updated facts argues for caution |
 | Memory in the graph; entity extraction | Later, opt-in | Node kind `memory` reserved |
 | Multi-space recall and bundles | When a deployer asks | Commands take `space` only; a `spaces` input can be added |
-| Store grants for components and mounts | World 1.1.0, which must also decide masking (6.2) | Refused, naming it |
+| Store grants for components and mounts | World 1.1.0, which must also decide masking (6.2) | Refused, naming it (amended 2026-11-16 by D189: not world 1.1.0, which carries no store import; a later minor version of world 1, the owner's decision) |
 | Verified principals, delegation narrowing, read rate limits, usage events | Phase 5 | Sections 3.1, 8.11; envelope `delegationChain` |
 | Coarsened ranking under global FTS statistics | Phase 5 prerequisite (extended) | No score returned |
 | Encrypting the FTS index and labels; wrapping `memory.keys` in a passphrase or a system keychain; key rotation | When a deployer asks | Sections 5.4, 11; `user_version` on the key file |
@@ -2829,7 +2835,7 @@ Nothing here touches O1, O4 or O5.
 | 2026-11-02 | `memory-erase`, on the conditions of section 13 (D85) | Phase 5 |
 | 2026-11-02 | `memory-confirm` on another person's record, with verified identity (D88, section 13) | Phase 5 |
 | 2026-11-02 | A `cursor` profile: read its transcript format; decide whether to push at all, since its docs put `additional_context` in the "initial system context" and `sessionStart` is fire-and-forget; never read `user_email` from its stdin | When asked |
-| 2026-11-02 | How a component's memory writes are masked, before world 1.1.0 may hold `memory_write` (6.2) | World 1.1.0 |
+| 2026-11-02 | How a component's memory writes are masked, before world 1.1.0 may hold `memory_write` (6.2) | World 1.1.0 (amended 2026-11-16 by D189: not world 1.1.0, which carries no store import; a later minor version of world 1, the owner's decision) |
 | 2026-11-02 | Re-check the transcript reader on an interactive CLI session (10.3). Step 8 found no local CLI session with conversation and re-checked the other entrypoints ([Amendments from step 8](#amendments-from-step-8), item 1) | Open: when a CLI session with conversation exists |
 | 2026-11-02 | Measure whether labels, quoting or the scan protect a pushed record; none of it is measured (section 11). If a deployer widens the push, this matters more | After phase 4's eval work |
 | 2026-11-02 | Pinned documents for a no-task bundle, and wrapping `memory.keys` | When a deployer asks |

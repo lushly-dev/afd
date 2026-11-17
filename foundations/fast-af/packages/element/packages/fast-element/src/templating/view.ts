@@ -117,6 +117,35 @@ export function createChildView<TView>(
           );
 }
 
+/**
+ * Hydrates a child view from existing nodes on behalf of a directive, carrying over
+ * the scoped custom element registry scope of the parent view (if it has one), so
+ * that views the hydrated view creates later use the same registry.
+ * For views without a scope this is exactly `template.hydrate(first, last)`.
+ * @internal
+ */
+export function hydrateChildView<TView>(
+    template: { hydrate(first: Node, last: Node): TView },
+    first: Node,
+    last: Node,
+    controller: { readonly _scope?: ShadowRoot },
+): TView {
+    const scope = controller._scope;
+
+    return scope === void 0
+        ? template.hydrate(first, last)
+        : (
+              template as {
+                  hydrate(
+                      first: Node,
+                      last: Node,
+                      host?: Element,
+                      scope?: ShadowRoot,
+                  ): TView;
+              }
+          ).hydrate(first, last, void 0, scope);
+}
+
 export function removeNodeSequence(firstNode: Node, lastNode: Node): void {
     const parent = firstNode.parentNode!;
     let current = firstNode;

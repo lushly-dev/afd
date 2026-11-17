@@ -50,6 +50,14 @@ Fixtures are auto-discovered by scanning category directories for subdirectories
 
 ---
 
+## When to add or update a fixture
+
+Use fixtures for changes to declarative syntax, directive parsing, template generation, hydration behavior, or other behavior that users express in `entry.html` or `templates.html`. Fixture coverage runs the generated template in a browser and catches integration issues that parser-only tests can miss.
+
+Source-level parser tests may still be useful for very narrow edge cases, but they should supplement fixture coverage rather than replace it. Use the local README files in this directory and each fixture category to choose the right fixture type, then add or update the matching fixture and assert the behavior from the fixture's Playwright spec.
+
+---
+
 ## fast-build.config.json
 
 Each fixture must include a `fast-build.config.json` file that tells the `@microsoft/fast-build` CLI where to find the fixture's source files and how to build them. The build script passes `--config=<path>` to the CLI for each fixture.
@@ -316,7 +324,7 @@ npm run build:fixtures:webui -w @lushly-dev/fast-element
 npm exec -w @lushly-dev/fast-element -- playwright test --config=playwright.declarative.webui.config.ts
 ```
 
-The webui build step (`scripts/build-fixtures-with-webui.js`) extracts `<f-template>` elements, builds each fixture with `webui build --plugin=fast`, renders the output with `state.json`, and writes the result to `temp/integrations/webui/fixtures/`. The existing Playwright specs then run against this output.
+The webui build step (`scripts/build-fixtures-with-webui.js`) extracts `<f-template>` elements, converts each component template with `fast convert --syntax=webui-prerelease`, builds each fixture with `webui build --plugin=fast`, renders the output with `state.json`, and writes the result to `temp/integrations/webui/fixtures/`. Fixtures that intentionally contain invalid FAST declarative templates are skipped because `fast convert` validates and rejects them before WebUI renders. The existing Playwright specs then run against this output.
 
 ---
 
