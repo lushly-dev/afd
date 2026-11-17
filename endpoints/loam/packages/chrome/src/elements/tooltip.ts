@@ -65,6 +65,21 @@ const tipOf = (path: readonly EventTarget[], root: Node): TipTarget | undefined 
 			node instanceof HTMLElement && node.getRootNode() === root && 'tip' in node
 	);
 
+/** The open modal dialogs of a document, through its shadow roots: looked for only on an Escape. */
+const openModals = (root: Document | ShadowRoot): Element[] =>
+	[...root.querySelectorAll('*')].flatMap((element) => [
+		...(element.matches(':modal') ? [element] : []),
+		...(element.shadowRoot ? openModals(element.shadowRoot) : []),
+	]);
+
+/** Whether `node` is inside `container`, across shadow boundaries. */
+const holds = (container: Element, node: Node): boolean => {
+	for (let at: Node | null = node; at; at = at.parentNode ?? (at as ShadowRoot).host ?? null) {
+		if (at === container) return true;
+	}
+	return false;
+};
+
 export class LoamTooltip extends FASTElement {
 	#anchor: TipTarget | null = null;
 	#dismissed = false;
@@ -168,10 +183,12 @@ export class LoamTooltip extends FASTElement {
 
 	#escape(event: KeyboardEvent): void {
 		if (event.key !== 'Escape' || !this.matches(':popover-open')) return;
-		// A modal dialog opened since it showed, as a view's can: its entry is inert behind it, and Escape is
-		// the dialog's. Taking it would leave the person's first Escape closing a tooltip they cannot reach
-		// and the modal open (#1054), so the tooltip goes with the dialog's Escape instead.
-		if (event.composedPath().some((node) => node instanceof Element && node.matches(':modal'))) {
+		// A modal dialog over its entry, as a view's can open: the entry is inert behind it, and Escape is the
+		// dialog's wherever focus is. Taking it would leave the person's first Escape closing a tooltip they
+		// cannot reach and the modal open (#1054), so the tooltip goes with the dialog's Escape instead. A
+		// tooltip whose entry is inside the modal keeps its own Escape.
+		const anchor = this.#anchor;
+		if (anchor && openModals(this.ownerDocument).some((modal) => !holds(modal, anchor))) {
 			this.#hide();
 			return;
 		}
