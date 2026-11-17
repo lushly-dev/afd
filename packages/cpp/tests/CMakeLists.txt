@@ -17,6 +17,7 @@ add_executable(
     journal_wire_test.cpp
     json_test.cpp
     main.cpp
+    mcp_test.cpp
     middleware_test.cpp
     pipeline_test.cpp
     pipeline_variables_test.cpp
@@ -32,6 +33,10 @@ if(AFD_JOURNAL_FILE)
     target_sources(afd_tests PRIVATE journal_file_test.cpp)
 endif()
 target_link_libraries(afd_tests PRIVATE afd::afd afd_doctest)
+if(AFD_BUILD_MCP_STDIO)
+    target_sources(afd_tests PRIVATE mcp_stdio_test.cpp)
+    target_link_libraries(afd_tests PRIVATE afd::mcp_stdio)
+endif()
 # approval_test.cpp checks the private HMAC and base64url helpers (header-only) directly.
 target_include_directories(afd_tests PRIVATE ${PROJECT_SOURCE_DIR}/src)
 # main.cpp compiles doctest's implementation; in a unity build it must not share a translation

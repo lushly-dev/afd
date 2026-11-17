@@ -8,11 +8,13 @@
 #include <cmath>
 #include <cstdio>
 #include <cstdlib>
+#include <iterator>
 #include <map>
 #include <mutex>
 #include <random>
 #include <utility>
 
+#include "detail/approval_relay.hpp"
 #include "detail/direct_approval.hpp"
 #include "detail/hmac.hpp"
 #include "detail/utf8.hpp"
@@ -508,6 +510,65 @@ struct ApprovalState {
         return signing_input + "." + mac(key, signing_input);
     }
 
+    /// The binding of a relayed approval, one per key: a keyed digest of the command, input and
+    /// actor (TypeScript's `relayBindings`).
+    std::vector<std::string> relay_bindings(std::string_view command, std::string_view input,
+                                            std::string_view actor) const {
+        Json triple = Json::array({std::string(command), std::string(input), std::string(actor)});
+        const auto canonical = canonical_json(triple);
+        std::string data = "relay";
+        data.push_back('\0');
+        data += canonical ? *canonical : std::string();
+        std::vector<std::string> bindings;
+        bindings.reserve(keys.size());
+        for (const auto& key : keys) {
+            bindings.push_back(mac(key, data));
+        }
+        return bindings;
+    }
+
+    /// The MAC of a relayed approval's nonce and expiry, so the elicitation state cannot set
+    /// them (TypeScript's `holdMac`).
+    static std::string hold_mac(std::string_view key, const std::string& binding,
+                                const std::string& nonce, std::int64_t expires_at_ms) {
+        Json fields = Json::array({binding, nonce, expires_at_ms});
+        const auto canonical = canonical_json(fields);
+        std::string data = "relay-hold";
+        data.push_back('\0');
+        data += canonical ? *canonical : std::string();
+        return mac(key, data);
+    }
+
+    /// Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent.
+    bool relayed_approval_holds(const detail::RelayAnswer& answer,
+                                const std::vector<std::string>& bindings, std::int64_t now) {
+        const auto found = std::find(bindings.begin(), bindings.end(), answer.binding);
+        if (found == bindings.end()) {
+            return false;
+        }
+        const std::string& key =
+            keys[static_cast<std::size_t>(std::distance(bindings.begin(), found))];
+        if (!detail::constant_time_equal(
+                answer.mac, hold_mac(key, answer.binding, answer.nonce, answer.expires_at_ms))) {
+            return false;
+        }
+        if (now >= answer.expires_at_ms || answer.expires_at_ms > now + ttl_ms) {
+            return false;
+        }
+        return consume(answer.nonce, answer.expires_at_ms, now);
+    }
+
+    std::string random_nonce() const {
+        std::array<std::uint8_t, 16> nonce{};
+        if (options.random_bytes) {
+            options.random_bytes(nonce.data(), nonce.size());
+        } else {
+            system_random_bytes(nonce.data(), nonce.size());
+        }
+        return detail::base64url_encode(
+            std::string_view(reinterpret_cast<const char*>(nonce.data()), nonce.size()));
+    }
+
     bool consume(const std::string& nonce, std::int64_t expires_at_ms, std::int64_t now) {
         if (!single_use) {
             return true;
@@ -527,6 +588,43 @@ CommandResult unbindable(std::string_view command, const std::string& reason) {
                       "cannot be bound to this input.",
         .retryable = false,
         .details = std::nullopt,
+        .cause = nullptr,
+    });
+}
+
+/// Longest input shown in a relayed approval's question, in UTF-16 code units as TypeScript
+/// counts them; C++ cuts at a code point boundary at or below that many bytes.
+constexpr std::size_t max_shown_input = 1000;
+
+/// The question of a relayed approval: the summary, then what exactly would run.
+std::string relay_message(std::string_view summary, std::string_view command,
+                          std::string_view input, std::string_view note) {
+    std::string shown(input);
+    if (shown.size() > max_shown_input) {
+        std::size_t cut = max_shown_input;
+        while (cut > 0 && (static_cast<unsigned char>(shown[cut]) & 0xC0U) == 0x80U) {
+            --cut;
+        }
+        shown.resize(cut);
+        shown += "\xE2\x80\xA6"; // U+2026, as TypeScript appends
+    }
+    std::string message;
+    if (!note.empty()) {
+        message.append(note).append("\n");
+    }
+    message.append(summary).append("\n\nCommand: ").append(command).append("\nInput: ");
+    message += shown;
+    return message;
+}
+
+CommandResult relay_declined(std::string_view command, const std::string& summary) {
+    return failure(CommandError{
+        .code = error_codes::APPROVAL_REQUIRED,
+        .message = "The user did not approve " + std::string(command),
+        .suggestion = "Do not run this again without asking the user first; the user chose not "
+                      "to approve it.",
+        .retryable = false,
+        .details = Json{{"summary", summary}, {"reason", "declined"}},
         .cause = nullptr,
     });
 }
@@ -612,6 +710,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
     return CommandMiddleware([state](std::string_view name, const Json& input,
                                      CommandContext& context, const Next& next) -> CommandResult {
+        // Claimed only by the command the tool call routes to, once, gated or not, so a command
+        // that runs inside another (or after it) cannot turn the tool call into an elicitation.
+        detail::McpApprovalRelay* relay = nullptr;
+        if (state->options.relay == ApprovalRelay::mcp_elicitation && context.mcp_approval_relay &&
+            context.mcp_approval_relay->claim(name)) {
+            relay = context.mcp_approval_relay.get();
+        }
         const auto found = state->commands.find(name);
         const ApprovalCommand* command = found == state->commands.end() ? nullptr : &found->second;
         if (!state->requires_approval(command, input, context)) {
@@ -658,9 +763,6 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
         }
 
-        std::int64_t expires_at_ms = 0;
-        std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms);
-        const std::string expires_at = wire::iso8601_utc(expires_at_ms);
         std::string summary;
         if (settings.summarize) {
             summary = settings.summarize(name, input, context).value_or("");
@@ -671,6 +773,46 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         if (summary.empty()) {
             summary = "Run " + std::string(name);
         }
+
+        if (relay) {
+            const auto bindings = state->relay_bindings(name, *input_binding, *actor);
+            const detail::RelayAnswer answer = relay->answer(bindings);
+            if (answer.kind == detail::RelayAnswer::Kind::decline) {
+                return relay_declined(name, summary);
+            }
+            if (answer.kind == detail::RelayAnswer::Kind::accept &&
+                state->relayed_approval_holds(answer, bindings, now)) {
+                return next();
+            }
+            // An expired, spent or invalid approval is asked again, saying why.
+            detail::RelayHold hold;
+            hold.binding = bindings.front();
+            hold.bindings = bindings;
+            hold.nonce = state->random_nonce();
+            hold.expires_at_ms = now + state->ttl_ms;
+            hold.mac = ApprovalState::hold_mac(state->keys.front(), hold.binding, hold.nonce,
+                                               hold.expires_at_ms);
+            hold.message = relay_message(
+                summary, name, *input_binding,
+                answer.kind == detail::RelayAnswer::Kind::accept
+                    ? "The earlier approval expired or was already used; approve again to run it."
+                    : "");
+            const std::string expires_at = wire::iso8601_utc(hold.expires_at_ms);
+            relay->hold(std::move(hold));
+            // The server answers with the elicitation instead; this result is never sent.
+            return failure(CommandError{
+                .code = error_codes::APPROVAL_REQUIRED,
+                .message = std::string(name) + " needs approval before it runs",
+                .suggestion = "Wait for the user to approve \"" + summary + "\" in the client.",
+                .retryable = false,
+                .details = Json{{"expiresAt", expires_at}, {"summary", summary}},
+                .cause = nullptr,
+            });
+        }
+
+        std::int64_t expires_at_ms = 0;
+        std::string token = state->issue(name, *input_binding, *actor, now, expires_at_ms);
+        const std::string expires_at = wire::iso8601_utc(expires_at_ms);
 
         if (settings.on_approval_required) {
             settings.on_approval_required(ApprovalRequest{
@@ -690,7 +832,13 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                  rejected ? std::optional<std::string>(approval_rejection_name(*rejected))
                           : std::nullopt});
         }
-        const bool include_token = settings.include_token && !context.direct_approval;
+        const bool on_mcp = context.surface == Interface::mcp;
+        const bool include_token =
+            settings.include_token.value_or(!on_mcp) && !context.direct_approval;
+        // A relay was offered for this tool call but another command claimed it (or this one
+        // runs inside another), so the client could not be asked for this command.
+        const bool relay_elsewhere = settings.relay == ApprovalRelay::mcp_elicitation &&
+                                     context.mcp_approval_relay != nullptr;
         const std::string why = rejected
                                     ? "The approval token was not accepted (" +
                                           std::string(approval_rejection_name(*rejected)) + "). "
@@ -703,7 +851,16 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                   "and details.approvalToken as its approval evidence (tool arguments cannot "
                   "carry it). The token expires at " +
                       expires_at + (state->single_use ? " and works once." : ".")
-                : "the application retries the same call once it has recorded the approval.";
+            : relay_elsewhere
+                ? "the client could not be asked from inside afd-batch, afd-pipe or another "
+                  "command. Call " +
+                      std::string(name) + " on its own so the client can ask the user."
+            : settings.relay == ApprovalRelay::mcp_elicitation && on_mcp
+                ? "the client could not be asked here. Call " + std::string(name) +
+                      " from an MCP client that supports form elicitation, or the application "
+                      "records the approval and retries."
+                : std::string(
+                      "the application retries the same call once it has recorded the approval.");
         Json details = Json::object();
         if (include_token) {
             details["approvalToken"] = token;

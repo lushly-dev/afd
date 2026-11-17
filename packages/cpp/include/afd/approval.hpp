@@ -99,6 +99,17 @@ enum class ApprovalReplay {
     within_ttl
 };
 
+/// How a held MCP call reaches the human (spec/command-metadata.md, "Asking the human over MCP").
+enum class ApprovalRelay {
+    /// No relay: a held call returns `APPROVAL_REQUIRED`.
+    none,
+    /// On an `afd::mcp_stdio` server, ask the human behind the MCP client with a form elicitation
+    /// when the request can carry one, instead of returning the hold to the agent. Opt in only
+    /// when the client application shows the question to a person: a server cannot tell a
+    /// person's answer from client code that answers on its own.
+    mcp_elicitation
+};
+
 /// Options for `create_approval_middleware`.
 struct ApprovalMiddlewareOptions {
     /// The HMAC keys, as bytes: the first signs, any of them verifies (for key rotation).
@@ -121,11 +132,11 @@ struct ApprovalMiddlewareOptions {
     std::function<std::optional<std::string>(std::string_view command, const Json& input,
                                              const CommandContext& context)>
         summarize;
-    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default true,
-    /// which is safe only while the gated caller cannot set `CommandContext::approval` itself
-    /// (true of MCP tool calls, whose arguments never reach the context). Set false when the
+    /// Whether the `APPROVAL_REQUIRED` result carries `details.approvalToken`. Default (unset):
+    /// yes, except on calls whose `context.surface` is MCP, as in TypeScript, so an MCP agent
+    /// never holds the token (spec/command-metadata.md, "Approvals", rule 6). Set false when the
     /// caller must not hold the token, and deliver it through `on_approval_required`.
-    bool include_token = true;
+    std::optional<bool> include_token;
     /// Called for every held call, before the result is returned (for example, to notify a
     /// human).
     std::function<void(const ApprovalRequest& request)> on_approval_required;
@@ -137,6 +148,11 @@ struct ApprovalMiddlewareOptions {
     /// MSVC and Emscripten. MinGW's libstdc++ before GCC 9.2 makes it deterministic: supply a
     /// generator there. Never pass a `RandomSource`-based generator.
     std::function<void(std::uint8_t* out, std::size_t size)> random_bytes;
+    /// Whether to ask the human over MCP. Default: no relay. With `mcp_elicitation`, a call the
+    /// `afd::mcp_stdio` server routes to one command is asked as a form elicitation; no token is
+    /// issued and `on_approval_required` is not called for it. A declined form fails the call
+    /// with `APPROVAL_REQUIRED`, `details.reason: "declined"`.
+    ApprovalRelay relay = ApprovalRelay::none;
 };
 
 /// A middleware that runs a command whose `approval` policy requires approval only when

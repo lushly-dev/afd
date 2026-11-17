@@ -123,6 +123,43 @@ registry.execute("todo-delete", {{"id", 42}}, context); // runs once
 - **Tokens are TypeScript's**, byte for byte: HMAC-SHA256 over the command, keyed digests of `canonical_json(input)` and of the actor's kind, id and `on_behalf_of`, issue and expiry times and a random nonce. A token issued by a TypeScript server with the same secret verifies here, and the reverse. Single-use by default (`ApprovalReplay::within_ttl` allows reuse until expiry); share an `ApprovalNonceStore` between instances. Expiry uses the middleware's `clock`, never the context's.
 - **HMAC-SHA256** is self-contained (on the SHA-256 the journal uses) and checked against the RFC 4231 vectors, so there is no crypto dependency. Nonces come from `std::random_device` unless `random_bytes` is set.
 
+## MCP over stdio
+
+`afd/mcp.hpp`, in `afd::afd`, turns a command into the MCP tool a client reads:
+- `command_to_mcp_tool` gives `name`, `title`, `description`, `inputSchema`, `annotations` and the per-command `_meta` of [`spec/command-metadata.md`](../../spec/command-metadata.md#surfaces).
+- `commands_to_mcp_tools` does the same for the commands exposed to MCP.
+- `to_json` describes a command as afd-detail does.
+
+The opt-in `afd::mcp_stdio` target (CMake option `AFD_BUILD_MCP_STDIO`, which needs `AFD_ENABLE_THREADS`) serves a registry over stdio. `afd::afd` itself stays transport-free.
+
+```cpp
+#include <afd/mcp_stdio.hpp>   // link afd::mcp_stdio
+
+auto server = afd::mcp::StdioServer::create(
+    registry, {.name = "notes",
+               .version = "1.0.0",
+               .confirmations = afd::mcp::ConfirmationMode::enforce});
+if (!server) { /* server.error() says why */ }
+(*server)->serve(std::cin, std::cout);
+```
+
+- **Both MCP eras on one connection.**
+  - MCP 2026-07-28 requests are served from their own `_meta`, with `server/discover`, `resultType` and cache hints.
+  - 2025 clients use `initialize` and `ping`.
+- **One tool per command** whose `expose.mcp` is true. There are no meta-tools or context tools, and no HTTP transport.
+- **Errors.** A command failure is a `CommandResult` with `isError: true`, never a JSON-RPC error.
+- **Context.** Each call's context has `surface` MCP and an `agent` actor. `context_hook` adds what the host knows, such as the actor's id. Approval evidence never comes from the request.
+- **Cancellation.** `notifications/cancelled` cancels the named call through `CommandContext::cancellation`, including a call still in the queue.
+- **Confirmations** ([spec](../../spec/command-metadata.md#confirmations)).
+  - With `confirmations` set to `enforce` or `require_human`, a command with `confirm_prompt` runs only after the person accepts a form elicitation, or, under `enforce` only, after an acknowledgement (`confirm: true` or `_meta["dev.afd/confirm"]`).
+  - A 2025 connection is asked in band. A 2026-07-28 request gets `input_required` with a signed `requestState`, bound to the command, its input and the actor.
+- **Approvals over MCP** ([spec](../../spec/command-metadata.md#asking-the-human-over-mcp)).
+  - Create the approval middleware with `.relay = afd::ApprovalRelay::mcp_elicitation`, and a held call is asked of the person in the same way. No token reaches the agent.
+  - A call that needs both questions asks them in turn, and one state carries both answers.
+  - Opt in only when the client application shows the question to a person.
+- **State key.** The `requestState` key is `state_secret`, at least 32 bytes. When it is unset, the key is random for each server.
+- `examples/mcp_stdio_server.cpp` is a complete server, and the [C++ todo backend](../examples/todo/backends/cpp/README.md) runs on this target.
+
 ## Wire types
 
 ```cpp
@@ -214,6 +251,7 @@ on CI's `linux-clang-sanitize` job, or run the preset on Linux (for example in a
 | `AFD_USE_SYSTEM_JSON` | OFF | Require `nlohmann_json` from `find_package` instead of downloading it |
 | `AFD_DEPENDENCY_CACHE` | `$AFD_DEPENDENCY_CACHE` | A directory of pre-downloaded dependency files under their upstream names (`json.tar.xz`, `doctest.h`), used instead of downloading and checked against the same hashes; CI fills it from its cache |
 | `AFD_ENABLE_THREADS` | ON (OFF for Emscripten) | Build `ThreadTaskRunner` and link `Threads::Threads` |
+| `AFD_BUILD_MCP_STDIO` | OFF (ON in presets except `emscripten`) | Build the `afd::mcp_stdio` target, an MCP server over stdio ([MCP over stdio](#mcp-over-stdio)); needs `AFD_ENABLE_THREADS` |
 | `AFD_JOURNAL_FILE` | ON | Build `FileJournalSink` (`afd/journal_file.hpp`, not in `afd/afd.hpp`), which uses `std::filesystem` |
 | `AFD_BUILD_BENCHMARKS` | OFF | Build `benchmarks/` (`afd_benchmarks`); see [Benchmarks](#benchmarks) |
 | `AFD_BUILD_FUZZERS` | OFF | Build the `fuzz/` targets: libFuzzer with Clang, corpus replay elsewhere |
