@@ -76,8 +76,8 @@ try {
   const consumer = path.join(scratch, "consumer");
   const installed = path.join(consumer, "node_modules", ...packageName.split("/"));
   mkdirSync(installed, { recursive: true });
-  // Both paths are relative to `scratch`, the working directory: on Windows the GNU tar that Git
-  // puts on PATH reads an absolute `C:\...` as host:path, a remote archive, where bsdtar reads a drive.
+  // tar runs in `scratch` with relative paths: under Git Bash on Windows, tar is GNU tar, which reads
+  // an absolute `C:\...` archive as host:path (a remote archive), where bsdtar reads a drive (#1388).
   const destination = path.relative(scratch, installed).split(path.sep).join("/");
   run("tar", ["-xzf", packed.filename, "-C", destination, "--strip-components=1"], scratch);
   writeFileSync(path.join(consumer, "package.json"), JSON.stringify({ name: "consumer", type: "module" }));
