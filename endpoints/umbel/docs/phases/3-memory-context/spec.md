@@ -296,7 +296,9 @@ entry; at most 16 keys.
   because the plain step's resolved input would enter the journal. The check is over the pipeline's variable references.
 - A `journal` key on a mounted tool or a component command is `PLUGIN_MANIFEST_INVALID` in phase 3. (2026-11-16, D191: still
   refused on a component command, now for its own reason: whether a sandboxed component's author may choose how the
-  deployer's journal records its calls is the owner's question, not a matter of world version.)
+  deployer's journal records its calls is the owner's question, not a matter of world version. 2026-11-17: the owner
+  decided the deployer chooses (D195); configuration version 7's `[plugins.<id>.journal]` sets a component
+  instance's mode, D196 and D197, the [component journal specification](../1-plugin-contract/component-journal.spec.md).)
 
 A host reads manifest versions 1, 2 and 3.
 

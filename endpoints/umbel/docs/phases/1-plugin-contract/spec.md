@@ -1437,6 +1437,10 @@ TICKETS_REGION = "eu"
   unknown keys; `limits` within the caps; `spaces` naming declared spaces;
   kind-specific keys used with another kind are refused at load
   (`PLUGIN_CONFIG_INVALID`), because the kind is in the manifest.
+- **Journal mode** (added 2026-11-17, D196): configuration version 7 gains
+  `[plugins.<id>.journal]`, additively (D188's rule), a component instance's journal mode set by the
+  deployer, with the rules of the [component journal
+  specification](component-journal.spec.md).
 
 ### 9.2 The doctor
 
