@@ -73,6 +73,8 @@ export interface ShellCommandDeps {
 	storeKind: KernelOptionsV0['storeKind'];
 	/** The deployment's identity, which `shell-info-get` reports (phase 3 specification, 12). */
 	identity?: IdentityV1;
+	/** Whether stage B applied a desktop projection: `shell-info-get`'s host (phase 6 specification, 10.1). */
+	desktop?(): boolean;
 	overlays: OverlayStore;
 	/** The palette registry's commands, and a number that changes when they do. */
 	paletteRows(): CommandSummaryV1[];
@@ -509,7 +511,7 @@ export function createShellCommands(deps: ShellCommandDeps): ZodCommandDefinitio
 				surfaceCatalog: 1 as const,
 				compositionLibrary: 1 as const,
 				sdk: 1 as const,
-				host: deps.host,
+				host: deps.desktop?.() ? 'desktop' : deps.host,
 				store: deps.storeKind,
 				identity: {
 					mode: deps.identity?.mode ?? 'local',

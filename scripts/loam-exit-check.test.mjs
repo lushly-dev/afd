@@ -371,6 +371,18 @@ test("P2-E14: the row table is the specifications' Job columns", () => {
 	);
 });
 
+test("P6-E8: the desktop workflow's jobs are loam-desktop.yml's, by name", () => {
+	const desktop = readFileSync(join(root, '.github/workflows', WORKFLOWS.desktop.file), 'utf8');
+	assert.match(desktop, new RegExp(`^name: ${WORKFLOWS.desktop.name}$`, 'm'));
+	const jobs = desktop
+		.slice(desktop.indexOf('\njobs:\n'))
+		.split(/\n(?= {2}[\w-]+:\n)/)
+		.slice(1)
+		.map((block) => /^ {4}name: (.+)$/m.exec(block)?.[1]);
+	assert.deepEqual(jobs, WORKFLOWS.desktop.jobs);
+	assert.match(desktop, /^ {6}- name: Desktop suite under tauri-driver$/m);
+});
+
 test("P2-E14: the jobs and steps the check reads are loam.yml's and ci.yml's", () => {
 	const loam = readFileSync(join(root, '.github/workflows/loam.yml'), 'utf8');
 	const jobs = loam

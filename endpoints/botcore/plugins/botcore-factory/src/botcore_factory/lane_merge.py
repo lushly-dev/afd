@@ -5,7 +5,9 @@ holds now; with a lease on the head the lane last pushed there, since the lane o
 its PR opened, and the adapter's ``required_check`` awaited on that head. Before the push and
 again before the merge the base is read again: if it moved since the validation started, the
 branch advances to it when main's move cannot touch what it validated, and is validated again
-otherwise (``lane_advance``). The merge is bound to the validated head (``--match-head-commit``).
+otherwise (``lane_advance``), unless its reruns reached ``lane.maxBaseReruns``: then the PR's
+required check, run on the pull request's merge ref, stands in for the local validation. The merge
+is bound to the validated head (``--match-head-commit``).
 Nothing advances while coverage a gate-path merge owes has not passed.
 """
 
@@ -46,6 +48,7 @@ class Merging(Advancing):
                 return
             raise LaneTrouble(f"Pushing {branch} failed: {exc}") from exc
         entry["pushedHead"] = head
+        entry["checkBase"] = entry["base"]  # What the required check's merge ref holds at least.
         if cell:
             cell["pushedHead"] = head
         try:
@@ -71,7 +74,14 @@ class Merging(Advancing):
             f"`{' '.join(self.config.validate_command or [])}` passed on {entry['validatedHead']} "
             f"(base {entry.get('validatedBase', entry['base'])}, tree {entry.get('tree')})."
         )
-        if entry.get("validatedBase"):
+        if entry.get("checkStandsIn"):
+            verified += (
+                f" Main moved under it {entry.get('baseReruns', 0)} times while it was validated "
+                f"again, so it advanced to base {entry['base']} without a new local validation: "
+                f"`{self.config.required_check}` on this pull request's merge ref stands in "
+                "(`lane.maxBaseReruns`), and main's checks are watched after the merge."
+            )
+        elif entry.get("validatedBase"):
             verified += (
                 f" Advanced to base {entry['base']} without a new validation: main's changes "
                 "touched none of its units or shared inputs."
@@ -153,6 +163,12 @@ class Merging(Advancing):
             pr=pr,
             withoutCheck=without_check,
             advanced=bool(entry.get("advanced")),
+            checkStoodIn=bool(entry.get("checkStandsIn")),
+            **(
+                {"checkBase": entry.get("checkBase"), "base": entry.get("base")}
+                if entry.get("checkStandsIn")
+                else {}
+            ),
         )
         self.watch_unchecked(entry, pr)
         cell = self.cell(branch)

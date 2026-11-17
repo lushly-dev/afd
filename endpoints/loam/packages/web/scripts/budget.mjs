@@ -304,7 +304,10 @@ export const CEILINGS = Object.freeze({
 	mountMinified: 238_268,
 	switcherMinified: 11_317,
 	switcherColdMinified: 45_163,
-	tooltipMinified: 3_126,
+	// Raised from 3,126 to 3,490 by AFD #1054: an Escape is the dialog's while a modal dialog that does not hold
+	// the tooltip's entry is open, so the tooltip looks for one through the shadow roots; measured against `main`
+	// at `683d8e20` on the same machine, 2,932 to 3,173 (+241), plus phase 0's 10%.
+	tooltipMinified: 3_490,
 	// Raised from 45,000 to 46,200 by AFD #1159 (D115): violet-button resolves its id-list ARIA attributes to
 	// element references on its inner button, so they reach across its shadow root; measured 45,651
 	// (+778 over 44,873), plus a margin. Raised from 46,200 to 51,000 by AFD #863 (D115): the home's loading

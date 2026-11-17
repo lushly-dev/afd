@@ -49,6 +49,13 @@ DIALS: dict[str, Dial] = {
             1440,
             "How long a PR's required check may run before it is the lane's trouble",
         ),
+        _int(
+            "lane.maxBaseReruns",
+            2,
+            1,
+            100,
+            "Local re-validations on a moved main before the PR's required check stands in",
+        ),
         Dial("claims.leaseHours", 24, "number", 1, 168, "How long a silent claim holds an issue"),
         _int("cells.maxEjections", 3, 1, 10, "Repair attempts before a branch is parked"),
         Dial("experience.hold", False, "bool", trades="Merging UI changes at once or seeing them"),

@@ -318,6 +318,12 @@ export function createUrlSync(host: UrlHostV1): UrlSyncV1 {
 		const wanted = routeOf(state);
 		const here = view.location.origin + view.location.pathname;
 		if (!wanted) return;
+		// A document on another scheme than http(s), the desktop's on macOS and Linux, cannot have its path rewritten
+		// (HTML's rule): moving the URL would load the shell again. Its address stays where it is (phase 6, 10.2).
+		if (!/^https?:$/.test(view.location.protocol)) {
+			host.route = 'home';
+			return;
+		}
 		let url: string;
 		try {
 			url = formatRoute(wanted, base);

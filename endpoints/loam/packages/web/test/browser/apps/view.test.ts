@@ -449,6 +449,65 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		await opened.context.close();
 	});
 
+	it.each([
+		['in the modal', false],
+		['on the page behind it', true],
+	])(
+		'closes its modal on the first Escape, with a rail tooltip left showing beneath it and focus %s (#1054)',
+		async (_where, blurred) => {
+			const opened = await openShell(browser, site.origin);
+			const { page } = opened;
+			await openApp(page, 'fixture');
+			const { inner } = await viewFrames(page);
+			// A hover loads the rail's tooltip. The pointer then leaves the rail, so no pointer event of its is
+			// still on its way when the view opens a modal, which makes the rail inert.
+			await page.locator('loam-rail loam-app-entry[instance="fixture"] button').hover();
+			const tip = page.locator('loam-rail loam-tooltip');
+			await expect.poll(() => tip.evaluate((el) => el.matches(':popover-open'))).toBe(true);
+			await page.locator('loam-view-frame').hover();
+			await expect.poll(() => tip.evaluate((el) => el.matches(':popover-open'))).toBe(false);
+			await inner.evaluate(() => {
+				parent.postMessage(
+					{
+						jsonrpc: '2.0',
+						id: 'over-the-tip',
+						method: 'tools/call',
+						params: { name: 'modal-open', arguments: { title: 'Over', body: 'The tooltip' } },
+					},
+					'*'
+				);
+			});
+			const modal = page.locator('loam-modal dialog[open]');
+			await modal.waitFor();
+			// When this failed, the entry's tooltip was showing while the view's modal was open: shown here through
+			// its own handler, as a hover on the entry shows it, so the test does not depend on when it appeared.
+			await tip.evaluate((el) => {
+				const entry = (el.getRootNode() as ShadowRoot).querySelector(
+					'loam-app-entry[instance="fixture"]'
+				);
+				(el as unknown as { handle(type: string, path: EventTarget[]): void }).handle(
+					'pointerover',
+					[entry as Element]
+				);
+			});
+			expect(await tip.evaluate((el) => el.matches(':popover-open'))).toBe(true);
+			if (blurred) {
+				// As after a press on the modal's text: the dialog still takes Escape, though focus is not in it.
+				await page.evaluate(() => {
+					let active = document.activeElement;
+					while (active?.shadowRoot?.activeElement) active = active.shadowRoot.activeElement;
+					(active as HTMLElement | null)?.blur();
+				});
+				expect(await page.evaluate(() => document.activeElement === document.body)).toBe(true);
+			}
+			await page.keyboard.press('Escape');
+			await expect.poll(() => modal.count()).toBe(0);
+			const dismissed = (await journal(page)).filter((e) => e.command === 'overlay-dismiss');
+			expect(dismissed).toHaveLength(1);
+			await opened.context.close();
+		}
+	);
+
 	it('cannot lose a journal entry with a value JSON cannot hold', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
