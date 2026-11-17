@@ -297,7 +297,7 @@ describe('specimen.get and specimen.set (#118)', () => {
 		);
 		expect(wrong.error).toMatchObject({
 			code: 'VALIDATION_ERROR',
-			message: 'Unknown role(s): button.ring, link.check',
+			message: 'Role(s) the component does not take: button.ring, link.check',
 		});
 		expect(wrong.error?.suggestion).toContain('link roles are: foreground, font.size');
 		expect(wrong.error?.suggestion).toContain('button roles are: background, foreground');

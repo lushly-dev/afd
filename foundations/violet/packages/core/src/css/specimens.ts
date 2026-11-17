@@ -36,7 +36,11 @@ function lineHeight(value: unknown): string | null {
  */
 export const SPECIMEN_CHECK_PROPERTY = '--violet-specimen-check';
 
-/** Each role, in drawing order, with the declaration its validated value makes */
+/**
+ * Each role, in drawing order, with the declaration its validated value makes.
+ * A declaration can contain double quotes (a quoted `font.family` name), so a
+ * renderer that writes it into an HTML attribute must escape it.
+ */
 export const SPECIMEN_ROLES: Record<string, (value: unknown) => string | null> = {
 	background: (v) => declaration('background', safeCssColor(v)),
 	foreground: (v) => declaration('color', safeCssColor(v)),
@@ -68,7 +72,7 @@ export const SPECIMEN_ROLES: Record<string, (value: unknown) => string | null> =
 	'ring.offset': (v) => declaration('outline-offset', safeCssLength(v)),
 };
 
-/** Roles in drawing order */
+/** Every role, in drawing order; each component takes the subset in its `roles` */
 export const SPECIMEN_ROLE_NAMES = Object.keys(SPECIMEN_ROLES);
 
 /** The roles of the button, input and card specimens */
@@ -132,7 +136,8 @@ export const SPECIMEN_COMPONENTS: Record<string, SpecimenComponent> = {
 
 /**
  * The role the button, input and card need for their specimens to be drawn.
- * Each component names its own in `SPECIMEN_COMPONENTS[component].required`.
+ * @deprecated Other components need other roles; read
+ * `SPECIMEN_COMPONENTS[component].required`.
  */
 export const SPECIMEN_REQUIRED_ROLE = 'background';
 

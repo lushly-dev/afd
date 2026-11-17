@@ -122,7 +122,7 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 			const components = [...new Set(unknownRoles.map(({ component }) => component))];
 			return failure({
 				code: ErrorCodes.VALIDATION_ERROR,
-				message: `Unknown role(s): ${unknownRoles.map(({ component, role }) => `${component}.${role}`).join(', ')}`,
+				message: `Role(s) the component does not take: ${unknownRoles.map(({ component, role }) => `${component}.${role}`).join(', ')}`,
 				suggestion: components
 					.map(
 						(component) =>
