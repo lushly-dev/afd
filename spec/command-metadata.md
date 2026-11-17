@@ -325,7 +325,8 @@ Rust and C++ have no CLI. MCP approval relay remains a separate capability.
 ### Asking the human over MCP
 
 A server MAY relay the approval to the human behind the MCP client (TypeScript
-`relay: 'mcp-elicitation'`, Rust `ApprovalRelay::McpElicitation`). The relay is opt-in: it trusts the client application to show the
+`relay: 'mcp-elicitation'`, Python `relay="mcp-elicitation"`, Rust
+`ApprovalRelay::McpElicitation`, C++ `ApprovalRelay::mcp_elicitation`). The relay is opt-in: it trusts the client application to show the
 question to a person, and a server cannot tell a person's answer from client code that answers on
 its own.
 

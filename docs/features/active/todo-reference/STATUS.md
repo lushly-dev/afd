@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
   TypeScript, and both backends on one SQLite database by default (D4). Rust is merged in
-  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; the C++ parity pull request is in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) (see [C++](#c)). After it, what stands of phase 5 is the C++ contexts and tool list, which wait on the library ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) and the wider suite.
+  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; C++ parity merged in [#1426](https://github.com/lushly-dev/afd/pull/1426) on 2026-11-17 (`feca7208`; see [C++](#c)). Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) is on branch `t3/python-approval-relay`: every backend runs every approval case. What then stands of phase 5 is the C++ contexts and tool list, which wait on the library ([#1425](https://github.com/lushly-dev/afd/issues/1425)), and the wider suite.
 
 ## Plan
 
@@ -42,7 +42,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) | See [phase 5](#phase-5-the-other-languages) | C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)), the wider suite |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in [#1426](https://github.com/lushly-dev/afd/pull/1426); Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) on branch `t3/python-approval-relay` | See [phase 5](#phase-5-the-other-languages) | C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)), the wider suite |
 
 ## Findings
 
@@ -324,14 +324,11 @@ Merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16:
   bytes, else a random key) as TypeScript reads them; `todo-clear` is held for any caller that is
   not a person through `create_approval_middleware`, with TypeScript's summary text. The store is
   synchronous here, so the summary reads its counts directly, with no counts middleware. The
-  approval suite's two `acknowledge` cases now name Python; `accept` and `decline` stay
-  TypeScript's until the library can ask over MCP
-  ([#1312](https://github.com/lushly-dev/afd/issues/1312)). The runner now skips a client kind
-  with no case for the language, and still fails a suite that leaves it none. **Until #1312, a
-  held clear cannot be approved over the Python server's MCP:** no MCP call carries the token, so
-  the retry is held again. `APPROVALS` stays `agents` by default (parity, and safe); a clear runs
-  with `APPROVALS=off`, from trusted in-process code that retries with the token, from a person in
-  process, or through the TypeScript server on the same database. Each server keeps its own spent
+  approval suite's two `acknowledge` cases name Python. Until #1312, `accept` and `decline` stayed
+  TypeScript's and a held clear could not be approved over the Python server's MCP; since the
+  Python relay (2026-11-17, see [the relay](#pythons-approval-relay)), the server asks the person
+  as the others do and every case runs against it. The runner skips a client kind with no case
+  for the language, and still fails a suite that leaves it none. Each server keeps its own spent
   tokens, so with a shared `TODO_APPROVAL_SECRET` one approval can run the clear once on each
   server; both backends' READMEs say so.
 - **The shared SQLite store (D4).** `store/sqlite.py` reads and writes local-db's layout through
@@ -522,6 +519,32 @@ int64 was cast out of range, which on x86 could read out of bounds. Integer inpu
 to [0, 2^53 - 1]. Its improvements (missing-key reads, a test that an approved clear over MCP is
 recorded once and a declined one not at all) are in too. Not run locally: GCC and MSVC.
 
+### Python's approval relay
+
+On branch `t3/python-approval-relay`, from `main` at `feca7208`, for
+[#1312](https://github.com/lushly-dev/afd/issues/1312).
+
+- **The library.** `create_approval_middleware(relay="mcp-elicitation")` asks the person behind
+  an MCP client that declares form elicitation, as TypeScript's, Rust's and C++'s do
+  (`spec/command-metadata.md`, "Asking the human over MCP"): `input_required` on 2026-07-28, a
+  server-sent elicitation on a 2025 stdio or stateful HTTP connection, then the call runs again.
+  `afd-batch` and `afd-pipe` are approved up front (#459), which the issue left out but the spec
+  and the parity matrix ask of every server that serves them.
+- **One state per call.** The confirmation's `requestState` was its bare digest; it is now a
+  sealed JSON object that carries the questions asked and the earlier rounds' answers, each
+  lapsing 10 minutes after it was asked, so a call that needs a confirmation and an approval asks
+  for each in turn. The SDK still seals it and binds it to the request and the principal, so a
+  retry with other arguments is refused before any handler runs.
+- **The backend.** `server.py` passes `relay="mcp-elicitation"`. `include_token` keeps Python's
+  default (on), which in-process callers rely on; an MCP agent that cannot elicit still gets
+  the token, which no tool argument can carry.
+- **Spec and CI.** `accept` and `decline` in `approval-cases.json` are every language's now;
+  `conformance.yml` already ran Python's approvals in both eras.
+
+Verified locally on 2026-11-17: the Python library's tests (3,202, with 34 new relay tests over
+real MCP sessions in both eras), the backend's tests, Python conformance 41/41 in legacy and
+modern modes, confirmations 5/5 and approvals 4/4 in legacy, modern and auto modes.
+
 ## Open questions
 
 None. The owner decided D1 to D3 on 2026-11-14 and D6 to D10 on 2026-11-15, and noted that the
@@ -540,7 +563,7 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-14 | Phase 1 session | `ruff check` with default rules reports 14 findings in each of the Python backend's command modules on `main`; CI does not lint the example | Fixed in #1319 (D8): the repository's rules found 84 across the backend; the rewrite leaves none, and `conformance.yml` and `pnpm verify` run `ruff check` and `ruff format --check` |
 | 2026-11-16 | Phase 5 Python | `afd.testing` cannot be imported with only the `testing` extra: `afd/testing/__init__.py` imports `fixtures.py`, which imports `afd.transports` and so `httpx` from the `client` extra (`python/pyproject.toml`). The example lists both extras | Open |
 | 2026-11-16 | Phase 5 Python | `afd.testing`'s scenario evaluator compares an expected array of objects whole (`_deep_equal` in `python/src/afd/testing/scenarios/evaluator.py`), where TypeScript's matches it item by item with matchers (`evaluateArrayAssertions` in `packages/testing/src/runner/evaluator.ts`), so job 9 fails against Python; its test is a strict `xfail` | Open |
-| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Open: [#1312](https://github.com/lushly-dev/afd/issues/1312) |
+| 2026-11-16 | Phase 5 Python | The Python library has no MCP relay for approvals (TypeScript's `relay: 'mcp-elicitation'`), so the approval suite's accept and decline cases run against TypeScript only, and a held clear cannot be approved over the Python server's MCP at all: only `APPROVALS=off`, an in-process caller with the token, a person in process or the TypeScript server can clear | Fixed on branch `t3/python-approval-relay` ([#1312](https://github.com/lushly-dev/afd/issues/1312)): `relay="mcp-elicitation"` and the up-front approval of `afd-batch` and `afd-pipe`; see [the relay](#pythons-approval-relay) |
 | 2026-11-16 | Phase 5 review | TypeScript's `SqliteStore.record()` reads the next `seq` outside its write, so two writers (TypeScript and Python, or two TypeScript servers) can take one `seq` and one history entry replaces the other; the reviewer saw 79 of 80 entries once in 5 mixed runs. Python's store reads it inside the write. Documented in both stores, the todo README and the TypeScript README | Open: [#1317](https://github.com/lushly-dev/afd/issues/1317) |
 | 2026-11-16 | Phase 5 review | A shared `TODO_APPROVAL_SECRET` lets one token run the clear once on each server, since each process keeps its own nonce store (the library's in-memory default). Documented in both backends' READMEs; a shared nonce store would close it | Open |
 | 2026-11-16 | Phase 5 Python | `backends/cpp/tests/commands_test.cpp` says `deleted` is TypeScript-only; the spec now names Python too (and Rust, in #1335). Left for the C++ pull request, so this one does not run the C++ suites for a comment | Fixed on the C++ parity branch: C++ takes `deleted`, and the spec marks no language |
@@ -567,3 +590,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; in #1319 |
 | 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. In #1335 |
 | 2026-11-17 | Phase 5 C++ | C++ at parity on the library (restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties, the clear held for agents through the MCP relay); the spec's `implementedBy` markers removed; all approval cases in both eras. In #1426 |
+| 2026-11-17 | Phase 5 Python relay | The Python library's MCP approval relay and the up-front approval of `afd-batch` and `afd-pipe` (#1312); the Python backend asks the person over MCP; every approval case runs against every backend |

@@ -45,7 +45,7 @@ from afd.core.commands import (
     ExposeOptions,
     create_command_registry,
 )
-from afd.core.errors import CommandError
+from afd.core.errors import CommandError, ErrorCodes
 from afd.core.pipeline import (
     PipelineRequest,
     PipelineResult,
@@ -89,18 +89,16 @@ from afd.server.first_class import check_first_class_tools, normalize_first_clas
 from afd.server.lazy_tools import not_found_suggestion
 from afd.server.meta_argument import lift_meta_argument, meta_argument_keys
 from afd.server.middleware import CommandMiddleware
+from afd.server.approval_relay import bind_approval_relay
 from afd.server.confirmations import (
-    AFD_CONFIRM_META_KEY,
-    CONFIRM_INPUT_KEY,
-    CONFIRM_REQUESTED_SCHEMA,
     CONFIRMATION_MODES,
     ConfirmationGate,
     bind_confirmation_channel,
 )
+from afd.server.elicitation import MAX_IN_BAND_ROUNDS, ElicitationRound
 from afd.server.session_context import (
     SessionContextState,
     UnknownContextError,
-    is_modern_protocol,
 )
 from afd.server.tool_router import (
     NOT_IN_CONTEXT_SUGGESTION,
@@ -1086,9 +1084,31 @@ class MCPServer:
                     context_state=self._context_state,
                     actor=self.config.actor or Actor(kind="agent"),
                     confirmations=ConfirmationGate(self.config.confirmations, commands),
+                    can_run=self._step_can_run,
+                    validate_step=self._validate_step,
                 )
             )
         return self._router
+
+    def _step_context(self) -> CommandContext:
+        return CommandContext(extra={"interface": "mcp", "remote": True})
+
+    def _step_can_run(self, name: str) -> bool:
+        """Whether an MCP caller can run ``name`` (for the up-front approval of ``afd-pipe``)."""
+        command = self._find_command(name)
+        return (
+            command is not None
+            and self._is_exposed_to(command, "mcp")
+            and _in_context(command, self._context_state.get_active())
+        )
+
+    def _validate_step(self, name: str, input: Any) -> tuple[bool, Any]:
+        """One step's validated input, as the step will run it (for the up-front approval of
+        ``afd-batch`` and ``afd-pipe``)."""
+        prepared = self._prepare_command(name, input, self._step_context())
+        if isinstance(prepared, CommandResult):
+            return False, None
+        return True, prepared[1]
 
     def _create_router(self) -> Callable[[str, Any], Any]:
         """Compatibility alias for :meth:`_get_router`."""
@@ -1182,18 +1202,8 @@ class MCPServer:
         tool_name = tool_definition["name"]
 
         async def handler(afd_ctx: Any = None, **payload: Any) -> Any:
-            # The SDK request this call serves decides how it can be confirmed.
-            channel = (
-                _SdkConfirmationChannel(afd_ctx, self._stateless_http, _CURRENT_REQUEST.get())
-                if afd_ctx is not None and self.config.confirmations != "off"
-                else None
-            )
             try:
-                with bind_confirmation_channel(channel):
-                    result = await self.route_tool_call(tool_name, payload)
-                if _is_input_required(result):
-                    return result
-                return _tool_call_result(result)
+                return await self._serve_tool_call(tool_name, payload, afd_ctx)
             except Exception as exc:
                 return _tool_call_result(self._internal_error(tool_name, exc))
 
@@ -1208,6 +1218,40 @@ class MCPServer:
             context_kwarg="afd_ctx",
             meta=tool_definition.get("_meta"),
         )
+
+    async def _serve_tool_call(self, tool_name: str, payload: dict[str, Any], afd_ctx: Any) -> Any:
+        """Answer one SDK ``tools/call``: its result, or the next question.
+
+        The SDK request decides how the call can be confirmed and whether its approval can be
+        asked (``afd.server.elicitation``). When the approval middleware held the call for the
+        human, a 2026-07-28 request is answered with ``input_required``; a 2025 connection is
+        asked in band, and the call runs again with the answer.
+        """
+        try:
+            round = (
+                ElicitationRound(afd_ctx, self._stateless_http, _CURRENT_REQUEST.get())
+                if afd_ctx is not None
+                else None
+            )
+        except ValueError:
+            # The SDK's own call_tool, outside any request: nothing can be asked.
+            round = None
+        if round is None:
+            return _tool_call_result(await self.route_tool_call(tool_name, payload))
+        for _ in range(MAX_IN_BAND_ROUNDS):
+            relay = round.relay() if round.can_elicit else None
+            with bind_confirmation_channel(round), bind_approval_relay(relay):
+                result = await self.route_tool_call(tool_name, payload)
+            if _is_input_required(result):
+                return result
+            held = relay.held if relay is not None else None
+            if held is None:
+                return _tool_call_result(result)
+            if round.modern:
+                return round.ask_approval(held)
+            if not await round.ask_in_band(held):
+                return _tool_call_result(_unanswered_approval(tool_name))
+        return _tool_call_result(_unanswered_approval(tool_name))
 
     def _create_mcp_server(self):
         """Create the underlying MCP SDK server (``mcp.server.mcpserver.MCPServer``)."""
@@ -1475,62 +1519,16 @@ def _is_input_required(result: Any) -> bool:
     return type(result).__name__ == "InputRequiredResult"
 
 
-class _SdkConfirmationChannel:
-    """What one SDK ``tools/call`` can carry for confirmations (``afd.server.confirmations``).
-
-    A 2026-07-28 request elicits through ``input_required`` when it declares form
-    elicitation; the SDK seals the ``requestState`` and binds it to the request and to the
-    call's principal binding (``_request_principal``). A 2025
-    request elicits with a server-sent request when its connection has a back channel
-    (stdio, stateful HTTP), never over stateless HTTP.
-    """
-
-    def __init__(self, ctx: Any, stateless_http: bool, request: Any) -> None:
-        self._ctx = ctx
-        self._modern = is_modern_protocol(getattr(ctx, "protocol_version", None))
-        capabilities = getattr(ctx, "client_capabilities", None)
-        elicitation = getattr(capabilities, "elicitation", None) if capabilities else None
-        form = elicitation is not None and (
-            getattr(elicitation, "form", None) is not None or getattr(elicitation, "url", None) is None
+def _unanswered_approval(tool_name: str) -> CommandResult[Any]:
+    """The result when a 2025 client asked in band gave no answer."""
+    return failure(
+        CommandError(
+            code=ErrorCodes.APPROVAL_REQUIRED,
+            message=f"{tool_name} needs approval before it runs",
+            suggestion="The client did not answer the approval question. Ask the user, then call again.",
+            retryable=False,
         )
-        self.can_elicit = form and (self._modern or not stateless_http)
-        params = getattr(request, "params", None)
-        meta = params.get("_meta") if isinstance(params, dict) else None
-        self.acknowledged = isinstance(meta, dict) and meta.get(AFD_CONFIRM_META_KEY) is True
-
-    @staticmethod
-    def _answer(action: Any, content: Any) -> str:
-        confirmed = isinstance(content, dict) and content.get("confirm") is True
-        return "accept" if action == "accept" and confirmed else "decline"
-
-    async def response(self, binding: str) -> str:
-        if not self._modern:
-            return "missing"
-        answer = (self._ctx.input_responses or {}).get(CONFIRM_INPUT_KEY)
-        if answer is None or not hasattr(answer, "action"):
-            return "missing"
-        if self._ctx.request_state != binding:
-            return "missing"
-        return self._answer(answer.action, getattr(answer, "content", None))
-
-    async def ask(self, message: str, binding: str) -> Any:
-        if self._modern:
-            from mcp_types import ElicitRequest, ElicitRequestFormParams, InputRequiredResult
-
-            return InputRequiredResult(
-                input_requests={
-                    CONFIRM_INPUT_KEY: ElicitRequest(
-                        params=ElicitRequestFormParams(
-                            message=message, requested_schema=CONFIRM_REQUESTED_SCHEMA
-                        )
-                    )
-                },
-                request_state=binding,
-            )
-        result = await self._ctx.session.elicit_form(
-            message, CONFIRM_REQUESTED_SCHEMA, related_request_id=self._ctx.request_id
-        )
-        return self._answer(result.action, result.content)
+    )
 
 
 def _tool_call_result(result: Any) -> Any:
