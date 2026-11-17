@@ -7,6 +7,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
 	hasStaleShape,
+	isRemoved,
 	matchesRecord,
 	PROVENANCE_FAMILIES,
 	provenancePaths,
@@ -52,6 +53,20 @@ test('every imported Specimen file is present, recorded and unchanged since revi
 	const unrecorded = present.filter((path) => !recorded.has(path));
 	assert.deepEqual(unrecorded, [], 'record new Specimen files in adaptations.json');
 	for (const file of adaptations.files) {
+		if (isRemoved(file)) {
+			// A removed file's record is kept as history; the file must stay gone.
+			assert(
+				!present.includes(file.path),
+				`${file.path} is back; run scripts/release/provenance.mjs`
+			);
+			assert.match(
+				file.removed?.on ?? '',
+				/^\d{4}-\d{2}-\d{2}$/,
+				`${file.path} needs a removal date`
+			);
+			assert(file.removed.reason && file.removed.import_classification, `${file.path} removal`);
+			continue;
+		}
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
 		const bytes = readFileSync(join(root, file.path));

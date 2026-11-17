@@ -48,6 +48,12 @@ test.describe("a controller replaced when a late template arrives", () => {
             });
             const staleEmit = first.emit("stale", null);
             const emitted = element.$emit("saved", { value: 1 });
+            // Options override the defaults, as in Microsoft FAST Element 3.1.4.
+            let local: CustomEvent | undefined;
+            element.addEventListener("local", (event: Event) => {
+                local = event as CustomEvent;
+            });
+            element.$emit("local", "kept", { bubbles: false, composed: false });
             const firstConnected = first.isConnected;
             const secondConnected = second.isConnected;
 
@@ -66,6 +72,7 @@ test.describe("a controller replaced when a late template arrives", () => {
                 detail: received?.detail,
                 bubbles: received?.bubbles,
                 composed: received?.composed,
+                local: [local?.detail, local?.bubbles, local?.composed],
             };
         });
 
@@ -82,6 +89,7 @@ test.describe("a controller replaced when a late template arrives", () => {
             detail: { value: 1 },
             bubbles: true,
             composed: true,
+            local: ["kept", false, false],
         });
     });
 });

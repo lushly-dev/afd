@@ -96,7 +96,7 @@ assert.equal(runtime.version, runtimeVersion);
 assert.equal(component.version, await sourceVersion(componentSource));
 // Published as a preview since 2026-11-14; upstream it was private and never published.
 assert.equal(component.private, undefined, 'violet-elements is publishable');
-assert.equal(Object.keys(runtime.exports).length, 38);
+assert.equal(Object.keys(runtime.exports).length, 36);
 assert.deepEqual(Object.keys(component.exports), [
 	'.',
 	'./theme-css',

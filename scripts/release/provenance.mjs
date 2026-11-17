@@ -3,11 +3,14 @@
  * Records changes to imported files in a family's provenance: each changed or new file's digest in
  * `adaptations.json`, with the reason, and that file's digest in `provenance.json`.
  *
- * A recorded file that is gone is recorded as removed, never dropped: its record keeps its history
- * and digest, takes the `removed-after-import` classification and gains `removed`, the date, the
- * reason and the classification it had. The provenance tests skip a removed record when they look
- * for the file, and it still accounts for its upstream file. A removed file that comes back takes
- * its earlier classification again, and `removed` moves to `earlier_removals`.
+ * Run from the command line, it also records a removal. A recorded file that is gone is recorded
+ * as removed, never dropped: its record keeps its history and digest, takes the
+ * `removed-after-import` classification and gains `removed`, the date, the reason and the
+ * classification it had. The provenance tests skip a removed record when they look for the file,
+ * and it still accounts for its upstream file. A removed file that comes back takes its earlier
+ * classification again, and `removed` moves to `earlier_removals`. The release path never records
+ * a removal, so a file deleted by accident fails the tests instead of being written off, and a
+ * recorded file that is still on disk but ignored by Git is refused, not recorded as removed.
  *
  * `pnpm version-packages` runs it after Changesets, before it writes the release intent, so the
  * release pull request passes the provenance tests and its intent already covers the records.
@@ -105,16 +108,17 @@ export function provenancePaths(root, family) {
 
 /** Records Changesets' edits for every family this repository carries; returns the paths. */
 export function recordReleaseProvenance(root, reason) {
+	// Changesets never removes an imported file, so a release records no removal.
 	return Object.entries(PROVENANCE_FAMILIES)
 		.filter(([, { directory }]) => existsSync(join(root, directory, 'adaptations.json')))
-		.flatMap(([family]) => recordProvenance(root, family, reason));
+		.flatMap(([family]) => recordProvenance(root, family, reason, { removals: false }));
 }
 
 /**
- * Records every changed, new or removed file with `reason`; returns the paths it recorded.
- * `today` dates a removal (YYYY-MM-DD), for tests.
+ * Records every changed or new file with `reason`, and with `removals` every recorded file that is
+ * gone; returns the paths it recorded. `today` dates a removal (YYYY-MM-DD), for tests.
  */
-export function recordProvenance(root, family, reason, { today } = {}) {
+export function recordProvenance(root, family, reason, { today, removals = false } = {}) {
 	if (!PROVENANCE_FAMILIES[family]) throw new Error(`No provenance for family: ${family}`);
 	if (typeof reason !== 'string' || !reason.trim())
 		throw new Error('A provenance reason is required');
@@ -131,6 +135,10 @@ export function recordProvenance(root, family, reason, { today } = {}) {
 		const file = recorded.get(path);
 		const restored = Boolean(file && isRemoved(file));
 		if (restored) {
+			if (!file.removed?.import_classification)
+				throw new Error(
+					`${path}: its record is ${REMOVED} without \`removed.import_classification\`; restore the record by hand`
+				);
 			// Back after a removal: it takes its earlier classification and the removal is history.
 			file.import_classification = file.removed.import_classification;
 			file.earlier_removals = [...(file.earlier_removals ?? []), file.removed];
@@ -168,7 +176,11 @@ export function recordProvenance(root, family, reason, { today } = {}) {
 	const visible = new Set(present);
 	const date = today ?? new Date().toISOString().slice(0, 10);
 	for (const file of adaptations.files) {
-		if (visible.has(file.path) || isRemoved(file)) continue;
+		if (!removals || visible.has(file.path) || isRemoved(file)) continue;
+		if (existsSync(join(root, file.path)))
+			throw new Error(
+				`${file.path} is on disk but ignored by Git; it is not removed (check .gitignore)`
+			);
 		file.removed = { on: date, reason, import_classification: file.import_classification };
 		file.import_classification = REMOVED;
 		changed.push(file.path);
@@ -186,7 +198,8 @@ if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.ur
 	try {
 		const [family, reason] = process.argv.slice(2);
 		const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
-		for (const path of recordProvenance(root, family, reason)) console.log(`recorded ${path}`);
+		for (const path of recordProvenance(root, family, reason, { removals: true }))
+			console.log(`recorded ${path}`);
 	} catch (error) {
 		console.error(error.message);
 		process.exitCode = 1;

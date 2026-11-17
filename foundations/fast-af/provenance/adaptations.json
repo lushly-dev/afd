@@ -9801,11 +9801,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "5587468c866dee087ec090be97be9a4b8ff86407f417da9497ec790f651bf23b",
+      "current_import_sha256": "25ad56f5eb7f7c2d0b8ecf41861b7e8d58c9b680a968bf60f5441c110e83c90e",
       "stage_classification": "not-in-staging",
       "stage_reason": "Replaces the staged consumer/ directory and upstream scripts/check-v3-pack-consumer.mjs",
       "import_classification": "added-after-staging",
-      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; start pnpm and tar portably so the consumer check runs on windows; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Serve the browser consumer without dependency discovery (#1247); Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
+      "import_reason": "Packed-artifact consumers outside the workspace: every runtime export for NodeNext types and both runtime conditions (retargeting the package export smoke as upstream does), components with strict bundler types and the ./dist/* export reconciled from fast-af #235, assets, missing peer and a browser render/registration smoke; also hashes the packed tokens/violet-theme.export.json (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; start pnpm and tar portably so the consumer check runs on windows; AFD #1190: violet-elements owns and publishes its token interface (tokens/interface.json, checked for drift by a spec), reads font.family.body instead of hard-coded typefaces, and installs a product's complete theme set as data (installVioletThemeSet) with open preset names in place of the built-in default, which stays AFD's, shared with Loam; review fixes: balanced values, weak style tracking, a lazy built-in set, the Node-safe theme-css entry and the grid host's autosize font; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Serve the browser consumer without dependency discovery (#1247); Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/specimen/plugins.ts",
@@ -11793,11 +11793,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "215673299fea36f0d45de4eea37a595a98bce18473d94b59c790396038b3d418",
+      "current_import_sha256": "195a30255c158f1e2ff0ce5065d53300e227646d36ba3231b9fab45bcd28290f",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again"
+      "import_reason": "Epic #1385 runtime cleanup: removed the command and trust modules, the element behaviour hook, the scoped mixin and registry builders and the schema's manifest export; emit and $emit match Microsoft FAST Element 3.1.4 again; Removed what does not belong in the component layer (#1385): review fixes, the packed consumer's export count and a test that emit options override the defaults"
     }
   ]
 }

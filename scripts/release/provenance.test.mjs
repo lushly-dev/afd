@@ -143,7 +143,13 @@ test('a removed file keeps its record, classified as removed, and a returning on
 	const record = () => read(root, records).files[0];
 	const manifest = readFileSync(join(root, 'foundations/specimen/package.json'));
 	rmSync(join(root, 'foundations/specimen/package.json'));
-	assert.deepEqual(recordProvenance(root, 'specimen', 'Not needed', { today: '2026-11-16' }), [
+	// Only an explicit run records a removal: the default and the release path leave the record,
+	// so the provenance tests fail on a file deleted by accident.
+	assert.deepEqual(recordProvenance(root, 'specimen', 'Not asked'), []);
+	assert.deepEqual(recordReleaseProvenance(root, 'Versioned'), []);
+	assert.ok(!isRemoved(record()));
+	const removed = { today: '2026-11-16', removals: true };
+	assert.deepEqual(recordProvenance(root, 'specimen', 'Not needed', removed), [
 		'foundations/specimen/package.json',
 	]);
 	assert.ok(isRemoved(record()));
@@ -160,7 +166,7 @@ test('a removed file keeps its record, classified as removed, and a returning on
 		sha(readFileSync(join(root, records)))
 	);
 	// Recording again changes nothing: the removal is recorded once.
-	assert.deepEqual(recordProvenance(root, 'specimen', 'Again'), []);
+	assert.deepEqual(recordProvenance(root, 'specimen', 'Again', { removals: true }), []);
 
 	// The same bytes come back: the earlier classification returns and the removal is history.
 	write(root, 'foundations/specimen/package.json', manifest.toString('utf8'));
@@ -173,6 +179,28 @@ test('a removed file keeps its record, classified as removed, and a returning on
 	assert.deepEqual(record().earlier_removals, [
 		{ on: '2026-11-16', reason: 'Not needed', import_classification: 'unchanged-staged' },
 	]);
+});
+
+test('a recorded file that Git ignores is refused, not recorded as removed', (t) => {
+	const root = fixture(t);
+	write(root, '.gitignore', 'foundations/specimen/package.json\n');
+	assert.throws(
+		() => recordProvenance(root, 'specimen', 'Ignored', { removals: true }),
+		/is on disk but ignored by Git/
+	);
+	assert.ok(!isRemoved(read(root, 'foundations/specimen/provenance/adaptations.json').files[0]));
+});
+
+test('a removed record without its earlier classification is refused when the file returns', (t) => {
+	const root = fixture(t);
+	const records = 'foundations/specimen/provenance/adaptations.json';
+	const adaptations = read(root, records);
+	adaptations.files[0].import_classification = 'removed-after-import';
+	write(root, records, `${JSON.stringify(adaptations, null, 2)}\n`);
+	assert.throws(
+		() => recordProvenance(root, 'specimen', 'Back'),
+		/without `removed.import_classification`/
+	);
 });
 
 test('recording requires a known family and a reason', (t) => {
