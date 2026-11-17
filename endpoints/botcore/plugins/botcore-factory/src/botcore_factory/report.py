@@ -17,6 +17,7 @@ NUMBERS = (
     "staleRuns",
     "reruns",
     "baseAdvances",
+    "rerunLimitAdvances",
 )
 
 
@@ -43,6 +44,11 @@ def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_
         "staleRuns": sum(1 for r in mine if r.get("kind") == "rerun" and r["reason"] == "restart"),
         # Moves of main a validated branch advanced past without validating again.
         "baseAdvances": sum(1 for r in mine if r.get("kind") == "base-advanced"),
+        # Of those, the moves where the PR's required check stood in for a new validation
+        # after lane.maxBaseReruns reruns (#1369).
+        "rerunLimitAdvances": sum(
+            1 for r in mine if r.get("kind") == "base-advanced" and r.get("reason") == "rerun-limit"
+        ),
         "foremanWakes": sum(1 for r in mine if r.get("kind") == "wake"),
         "prs": [
             {
@@ -73,6 +79,7 @@ def numbers(summary: dict) -> dict:
         "staleRuns": summary.get("staleRuns", 0),
         "reruns": summary.get("reruns", 0),
         "baseAdvances": summary.get("baseAdvances", 0),
+        "rerunLimitAdvances": summary.get("rerunLimitAdvances", 0),
         "foreman": {"wakes": wakes, "wakesPerMerge": _ratio(wakes, merged)},
         "byPlan": _count(prs, "plan"),
         "byRoute": _count(prs, "route"),

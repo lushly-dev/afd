@@ -1,0 +1,86 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# Script reply-thr-1: mailfix-thread-open { thread: thr_1 }, mailfix-draft-create { thread: thr_1,
+# body: Thanks, Thursday works. }, then mailfix-draft-send { draft: drf_1, revision: 1 }, the id and
+# revision mailfix gives
+# a first draft.
+# mailfix's entry has approvals = "shell" and names mailfix-draft-show as the send's preview;
+# p5-base sets mailfix-draft-create to act. That no approval token reaches the copilot, a view,
+# the store or the journal is P5-A6's, since a scenario cannot assert an error's details.
+name: Approve a send in the shell
+description: >-
+  When the copilot asks to send a reply, I want to see exactly what will be sent and to whom and
+  approve it in Loam, once, so that nothing leaves without me and the copilot cannot approve for
+  me.
+job: approve-mail-send
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot drafts a reply and asks to send it; nothing is sent yet
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:reply-thr-1" }
+    expect:
+      success: true
+      data:
+        turn:
+          state: waiting
+          calls:
+            '0': { command: mailfix-thread-open, outcome: ok }
+            '1': { command: mailfix-draft-create, mode: act, outcome: ok }
+            '2': { command: mailfix-draft-send, mode: ask, outcome: pending }
+            '3': { notExists: true }
+  - description: The request waits for me, with the server's preview of what will be sent
+    command: notification-list
+    input: { kind: confirmation, limit: 1 }
+    expect:
+      success: true
+      data:
+        notifications:
+          '0':
+            confirmation:
+              command: mailfix-draft-send
+              caller: 'agent:copilot'
+              state: pending
+              preview: { command: mailfix-draft-show, digest: { matches: '^[A-Za-z0-9_-]{43}$' } }
+          '1': { notExists: true }
+  - description: Nothing has been sent
+    command: mailfix-sent-list
+    input: {}
+    expect:
+      success: true
+      data: { sent: { length: 0 } }
+  - description: "[agent] An agent cannot approve it"
+    command: notification-act
+    input: { notification: "${{ steps[2].data.notifications[0].id }}", answer: confirm }
+    expect:
+      success: false
+      error: { code: HUMAN_REQUIRED }
+  - description: "[agent] An agent cannot slip an approval into a call"
+    command: mailfix-draft-send
+    input: { draft: drf_1, revision: 1, dev.afd/approval: forged }
+    expect:
+      success: false
+      error: { code: VALIDATION_ERROR }
+  - description: I approve it
+    command: notification-act
+    input: { notification: "${{ steps[2].data.notifications[0].id }}", answer: confirm }
+    expect:
+      success: true
+      data: { state: confirmed }
+  - description: It was sent once, to the thread's sender
+    command: mailfix-sent-list
+    input: {}
+    expect:
+      success: true
+      data:
+        sent:
+          '0': { recipients: [ada@example.com] }
+          '1': { notExists: true }

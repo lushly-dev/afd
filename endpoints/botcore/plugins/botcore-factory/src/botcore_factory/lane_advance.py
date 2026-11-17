@@ -10,9 +10,26 @@ branch to the new base without validating it again only when all of these hold:
   adapter's ``units`` command names them; without it, a moved base is always validated again).
 
 Otherwise the branch is validated again (``rerun``, ``main-moved``, with why in ``detail``). An
-advance is a ``base-advanced`` record. A merge after one is watched on main (``uncheckedMerges``):
-when a check the adapter's ``main_checks`` selects fails on its merge commit, the lane pauses and
-raises ``main-broken`` naming the PRs merged without a re-check.
+advance is a ``base-advanced`` record.
+
+A branch whose changes affect every unit (a lockfile change) overlaps every move of main, and
+when main moves about as often as a validation takes it would be validated again for ever
+(lushly-dev/afd#1369). So after ``lane.maxBaseReruns`` main-moved reruns of one attempt (each of a
+validation that passed), the next move needs no new local validation when the validated head
+still merges onto the new base without a conflict and main's changes touch none of the adapter's
+``gate_paths``: the branch advances (``base-advanced`` with ``reason`` ``rerun-limit``) and the
+PR's ``required_check``, which runs on the pull request's merge ref (the branch merged onto
+main), stands in for the local validation. A conflict, a gate path or changes that cannot be read
+are validated again as before.
+
+The check runs on a main no older than the one at the push (``checkBase``). Past the limit, a
+move of main after the push, while the check runs or after it passed, does not trigger it again:
+the branch merges on that check, as any pull request here does (``main`` does not require an
+up-to-date branch), and the record names ``checkBase``. Only the watch on main covers that move.
+
+A merge after either advance is watched on main (``uncheckedMerges``): when a check the adapter's
+``main_checks`` selects fails on its merge commit, the lane pauses and raises ``main-broken``
+naming the PRs merged without a local re-check.
 """
 
 from __future__ import annotations
@@ -40,12 +57,19 @@ class Advancing(StepBase):
         if new == old:
             return True
         reason = self.why_validate_again(entry, old, new)
-        if reason is not None:
+        guarded = reason is not None and self.check_stands_in(entry, old, new)
+        if reason is not None and not guarded:
+            entry["baseReruns"] = int(entry.get("baseReruns", 0)) + 1  # Kept across the rerun.
             self.requeue(entry, "main-moved", detail=reason)
             return False
         entry.setdefault("validatedBase", old)
         entry["base"] = new
         entry["advanced"] = int(entry.get("advanced", 0)) + 1
+        fields = {"reason": "rerun-limit", "detail": reason} if guarded else {}
+        if guarded:
+            entry["checkStandsIn"] = True
+            if entry.get("checkBase"):  # Already pushed: its check ran onto an older main.
+                fields["checkBase"] = entry["checkBase"]
         self.record(
             "base-advanced",
             branch=entry["branch"],
@@ -53,9 +77,26 @@ class Advancing(StepBase):
             head=entry.get("validatedHead"),
             previous=old,
             base=new,
+            **fields,
         )
-        self.actions.append(f"advanced {entry['branch']} to {new}")
+        why = f" ({entry['baseReruns']} reruns; its required check stands in)" if guarded else ""
+        self.actions.append(f"advanced {entry['branch']} to {new}{why}")
         return True
+
+    def check_stands_in(self, entry: dict, old: str, new: str) -> bool:
+        """Whether the PR's required check stands in for validating again on ``new``: the attempt
+        reached ``lane.maxBaseReruns``, the validated head merges onto ``new`` cleanly, and main's
+        changes touch no gate path (whose merge the lane already treats specially)."""
+        if int(entry.get("baseReruns", 0)) < self.dial("lane.maxBaseReruns"):
+            return False
+        try:
+            changed = self.world.git.diff_names(old, new)
+            merged = self.world.git.merges_cleanly(entry["validatedHead"], new)
+        except WorldError:
+            return False
+        if any(matches(path, self.config.gate_paths) for path in changed):
+            return False
+        return merged.clean
 
     def why_validate_again(self, entry: dict, old: str, new: str) -> str | None:
         """Why the move from ``old`` to ``new`` needs a new validation, or None when it does not."""
