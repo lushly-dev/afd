@@ -307,8 +307,10 @@ export const CEILINGS = Object.freeze({
 	tooltipMinified: 3_126,
 	// Raised from 45,000 to 46,200 by AFD #1159 (D115): violet-button resolves its id-list ARIA attributes to
 	// element references on its inner button, so they reach across its shadow root; measured 45,651
-	// (+778 over 44,873), plus a margin.
-	sectionsMinified: 46_200,
+	// (+778 over 44,873), plus a margin. Raised from 46,200 to 51,000 by AFD #863 (D115): the home's loading
+	// state is `violet-progress`, as design.md's States table asks, and no chunk loaded before the section holds
+	// it; measured against `main` at `959a08e7` on the same machine, 45,657 to 50,182 (+4,525), plus a margin.
+	sectionsMinified: 51_000,
 	editorMinified: 35_445,
 	documentsMinified: 56_314,
 	newMinified: 17_366,
