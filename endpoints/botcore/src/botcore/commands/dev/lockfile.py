@@ -3,12 +3,11 @@
 from __future__ import annotations
 
 import subprocess
-from pathlib import Path
 
 from afd import CommandResult, error, success
 
 from botcore.config import load_config
-from botcore.utils.workspace import find_workspace, resolve_language
+from botcore.utils.workspace import find_workspace, resolve_language, resolve_path
 
 
 async def dev_check_lockfile(
@@ -34,7 +33,7 @@ async def dev_check_lockfile(
     config = load_config(workspace=ws)
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,

@@ -179,15 +179,19 @@ export const SUITES = [
 		remote: 'Python 3.11',
 		steps: [
 			{ cwd: 'endpoints/botcore', run: 'uv lock --check' },
-			{ cwd: 'endpoints/botcore', run: 'uv sync --frozen --extra dev --extra mcp --extra cdp' },
 			{
 				cwd: 'endpoints/botcore',
-				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/',
+				run: 'uv sync --frozen --extra dev --extra mcp --extra cdp --group packages',
+			},
+			{
+				cwd: 'endpoints/botcore',
+				run: 'uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/',
 			},
 			{
 				cwd: 'endpoints/botcore',
 				run: 'uv run --frozen pytest tests/ --ignore=tests/integration -q',
 			},
+			{ cwd: 'endpoints/botcore', run: 'uv run --frozen python scripts/package_tests.py' },
 			{ cwd: 'endpoints/botcore', run: 'uv run --frozen python scripts/package_smoke.py' },
 		],
 	},

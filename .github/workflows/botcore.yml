@@ -50,11 +50,13 @@ jobs:
       - name: Verify lock and install core development environment
         run: |
           uv lock --check
-          uv sync --frozen --extra dev --extra mcp --extra cdp
+          uv sync --frozen --extra dev --extra mcp --extra cdp --group packages
       - name: Lint
-        run: uv run --frozen ruff check src/ tests/ scripts/ packages/botcore-agents/src/ packages/botcore-llm/src/ packages/botcore-memory/src/
+        run: uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/
       - name: Core tests
         # Stateful optional plugin integration scenarios are preserved but not admitted here.
         run: uv run --frozen pytest tests/ --ignore=tests/integration -q
+      - name: Sibling package tests
+        run: uv run --frozen python scripts/package_tests.py
       - name: Build all distributions and smoke-test isolated wheel assets
         run: uv run --frozen python scripts/package_smoke.py

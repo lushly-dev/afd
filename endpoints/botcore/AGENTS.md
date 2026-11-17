@@ -8,9 +8,12 @@ only the owner pushes (see `docs/features/complete/platform-monorepo/botcore-han
 other five distributions remain quarantined; source import authorizes no publishing.
 
 Use the repository Python AFD source through `[tool.uv.sources]`. Distribution
-metadata retains `afd>=0.9.0`. Run `uv sync --frozen --extra dev --extra mcp --extra cdp`,
-`uv run --frozen ruff check src/ tests/ scripts/ packages/*/src/`, and
-`uv run --frozen pytest tests/ --ignore=tests/integration -q` on Python 3.11 and 3.12.
+metadata retains `afd>=0.9.0`. Run
+`uv sync --frozen --extra dev --extra mcp --extra cdp --group packages`,
+`uv run --frozen ruff check src/ tests/ scripts/ packages/ botcore-connectors/src/ botcore-connectors/tests/ plugins/botcore-teams/`,
+`uv run --frozen pytest tests/ --ignore=tests/integration -q` and
+`uv run --frozen python scripts/package_tests.py` (the sibling packages' tests) on Python 3.11
+and 3.12.
 The Botcore workflow runs these core gates plus all six wheel/sdist and asset smoke checks.
 `ruff format` is compared against base only: format the files a change touches and leave the
 rest, whose drift is known (lushly-dev/afd#513).

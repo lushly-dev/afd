@@ -11,7 +11,6 @@ import subprocess
 import sys
 import tomllib
 from collections import defaultdict
-from pathlib import Path
 
 from afd import CommandResult, error, success
 
@@ -30,7 +29,7 @@ from botcore.commands.dev.import_graph import _scan_imports as _scan_imports
 from botcore.commands.dev.import_graph import _top_level_imports as _top_level_imports
 from botcore.config import load_config
 from botcore.utils.runner import run_external_tool
-from botcore.utils.workspace import find_workspace, resolve_language
+from botcore.utils.workspace import find_workspace, resolve_language, resolve_path
 
 
 async def dev_dead_code(
@@ -56,7 +55,7 @@ async def dev_dead_code(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,
@@ -64,7 +63,7 @@ async def dev_dead_code(
         if ws
         else (language or config.language)
     )
-    scan_path = path or (str(ws / "src") if ws else "src")
+    scan_path = str(resolve_path(path, ws))
 
     if lang == "typescript":
         result = await run_external_tool(
@@ -172,7 +171,7 @@ async def dev_circular_imports(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,
@@ -229,7 +228,7 @@ async def dev_circular_imports(
             reasoning=f"Circular dependency check via madge — {len(cycles)} cycle(s)",
         )
 
-    scan_path = Path(path) if path else (ws / "src" if ws else Path("src"))
+    scan_path = resolve_path(path, ws)
 
     if not scan_path.exists():
         return error(
@@ -400,7 +399,7 @@ async def dev_dep_graph(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,
@@ -457,7 +456,7 @@ async def dev_dep_graph(
         )
 
     # Default: Python AST graph
-    scan_path = Path(path) if path else (ws / "src" if ws else Path("src"))
+    scan_path = resolve_path(path, ws)
 
     if not scan_path.exists():
         return error(
