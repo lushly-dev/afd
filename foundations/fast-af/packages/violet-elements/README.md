@@ -261,3 +261,16 @@ component emits an additive `viewport-change` request with reason `resize`.
 The consumer remains responsible for loading and accepting that later exclusive
 end; the component keeps the current fixed scale and never paints unloaded days
 or shortens an accepted range when its container narrows.
+
+## Data grid fill
+
+In `focus-mode="cell"`, select a cell or rectangular range, then choose the built-in
+**Fill down** or **Fill right** button to extend it by one row or column. The actions
+work with a click, touch tap, Enter or Space. They use `fillSelection` and emit the
+same `cell-fill` detail as dragging to that range; consumers apply the emitted
+changes to their rows. Read-only targets and active edits disable the actions.
+
+The drag handle keeps its small visual square with a transparent 24 × 24 CSS px
+pointer target inside the selected corner cell. Grid navigation and editing keys
+remain available; the labelled fill buttons are separate Tab stops before the grid.
+For custom fill controls or larger ranges, call `fillSelection(direction, count)`.

@@ -1,5 +1,9 @@
 # @lushly-dev/violet-elements
 
+## Unreleased
+
+- Give the data-grid fill handle a 24 × 24 CSS px pointer target while retaining its visual size. Cell focus mode includes keyboard-accessible Fill down and Fill right buttons that emit the same `cell-fill` detail as dragging one row or column, with touch support and live feedback (#506).
+
 ## 0.2.0-preview.1
 
 ### Patch Changes
