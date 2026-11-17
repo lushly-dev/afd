@@ -58,12 +58,31 @@ _REVERT_BRANCH = re.compile(r"^revert-(\d+)-")
 
 def read_private_key(path: Path) -> str:
     """The App's private key, refused when anyone but its owner can read the file."""
+    if os.name == "nt":
+        return _read_private_key_windows(path)
     info = path.stat()
     if info.st_mode & (stat.S_IRWXG | stat.S_IRWXO):
         raise ValueError(f"{path} is readable by others; chmod 600 it, owned by the service user")
     if hasattr(os, "getuid") and info.st_uid != os.getuid():
         raise ValueError(f"{path} belongs to another user; chown it to the service user")
     return path.read_text(encoding="utf-8")
+
+
+def _read_private_key_windows(path: Path) -> str:
+    # Windows reports every writable file as mode 0o666, so judge the ACL instead, by
+    # Botcore's token-store rule: owned by and granted only to this user, SYSTEM and
+    # Administrators, and not a reparse point. An unreadable ACL is refused.
+    from botcore._windows_security import open_private
+
+    try:
+        descriptor = open_private(path)
+    except PermissionError as error:
+        raise ValueError(
+            f"{path} is readable by others ({error}); grant only the service user, "
+            "SYSTEM and Administrators, and make the service user its owner"
+        ) from None
+    with os.fdopen(descriptor, encoding="utf-8") as key:
+        return key.read()
 
 
 class GitHubApp:

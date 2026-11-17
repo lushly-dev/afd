@@ -562,13 +562,36 @@ def test_an_unreachable_remote_is_an_outage(github, tmp_path):
 # ── the key and serve ───────────────────────────────────────────────────────
 
 
+def share(key: Path, *, shared: bool) -> None:
+    """Make the key readable by others, or private to this user, natively on each platform."""
+    if os.name != "nt":
+        key.chmod(0o644 if shared else 0o600)
+        return
+    # Windows judges the ACL, not the mode bits: Everyone (S-1-1-0) may read, or only this
+    # user, SYSTEM and Administrators may.
+    grants = ["/grant", "*S-1-1-0:R"] if shared else ["/remove:g", "*S-1-1-0"]
+    subprocess.run(["icacls", str(key), "/inheritance:r", *grants], check=True, capture_output=True)
+    if not shared:
+        user = (
+            subprocess.run(
+                ["whoami", "/user", "/fo", "csv", "/nh"], check=True, capture_output=True, text=True
+            )
+            .stdout.strip()
+            .split(",")[-1]
+            .strip('"')
+        )
+        grants = [f"*{sid}:F" for sid in (user, "S-1-5-18", "S-1-5-32-544")]
+        subprocess.run(["icacls", str(key), "/grant:r", *grants], check=True, capture_output=True)
+
+
 def test_a_key_others_can_read_is_refused(tmp_path, key_pair):
     key = tmp_path / "app.pem"
     key.write_text(key_pair[0])
-    key.chmod(0o644)
-    with pytest.raises(ValueError, match="chmod 600"):
+    share(key, shared=False)
+    share(key, shared=True)
+    with pytest.raises(ValueError, match="readable by others"):
         read_private_key(key)
-    key.chmod(0o600)
+    share(key, shared=False)
     assert read_private_key(key).startswith("-----BEGIN")
 
 
@@ -578,7 +601,7 @@ def test_serve_needs_the_app_in_the_config_and_one_github(tmp_path, key_pair):
     config.write_text(json.dumps(base_config))
     key = tmp_path / "app.pem"
     key.write_text(key_pair[0])
-    key.chmod(0o600)
+    share(key, shared=False)
     fake = tmp_path / "github.json"
     fake.write_text(json.dumps({"repo": REPO}))
     runner = CliRunner()
@@ -588,6 +611,6 @@ def test_serve_needs_the_app_in_the_config_and_one_github(tmp_path, key_pair):
     both = runner.invoke(admin_cli, [*base, "--app-key", str(key), "--fake-github", str(fake)])
     assert both.exit_code == 2 and "not both" in both.output
     config.write_text(json.dumps({**base_config, "githubApp": {"appId": 5, "installationId": 7}}))
-    key.chmod(0o640)
+    share(key, shared=True)
     shared = runner.invoke(admin_cli, [*base, "--app-key", str(key)])
-    assert shared.exit_code == 2 and "chmod 600" in shared.output
+    assert shared.exit_code == 2 and "readable by others" in shared.output

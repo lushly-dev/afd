@@ -42,6 +42,10 @@ What a plugin served through the managed host needs: its own command policies, a
   at creation; unsafe owners, ACLs and reparse points refuse access. Readers and
   writers share a native lock, preserving tokens issued by concurrent operator
   commands and avoiding read/replace races. Unix modes and `flock` remain intact.
+- **The Factory gateway reads its GitHub App key on Windows** (lushly-dev/afd#1346). Windows
+  reports every writable file as mode `0o666`, so the key was refused whatever its ACL. On
+  Windows the key is now judged by the token store's rule: owned by and granted only to the
+  service user, SYSTEM and Administrators, and not a reparse point. POSIX keeps `chmod 600`.
 - The Factory plugin's lane loop pushes the exact validated commit from its validation
   checkout, retaining the worktree's pre-push verification record until the push. Completed
   slots stay reserved; an earlier repair or revalidation can release a later reservation
