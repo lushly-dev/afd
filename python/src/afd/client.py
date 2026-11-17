@@ -43,7 +43,7 @@ from afd.transports.base import (
     TransportState,
 )
 
-from afd.transports.streamable_http import (
+from afd.transports.streamable_http import (  # noqa: F401 - re-exported
     ElicitationHandler,
     ElicitationRequest,
     ElicitationResponse,
@@ -83,11 +83,12 @@ class McpClientConfig:
         client_version: Client version sent in the MCP initialize handshake.
         debug: Enable debug logging.
         on_elicitation: Answers servers' form elicitations, such as an AFD server's
-            confirmation of a command with ``requires_confirmation``. With it the client
+            confirmation of a command with ``confirm_prompt``. With it the client
             declares elicitation and the MCP SDK retries the call with the answer.
             Without one, a server's ``input_required`` result becomes an
             ``INPUT_REQUIRED`` failure whose ``data.inputRequests`` holds what the server
-            asked. ``streamable-http`` only.
+            asked. ``streamable-http`` only. Time spent in the handler does not count
+            against ``timeout``.
     """
 
     url: str = ""

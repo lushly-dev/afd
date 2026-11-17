@@ -42,11 +42,17 @@ async def call_tool(ctx, params):
     if params.name == "state-run":
         return InputRequiredResult(request_state="opaque")
     answer = (params.input_responses or {}).get("confirm")
-    if not (
-        isinstance(answer, ElicitResult)
-        and answer.action == "accept"
-        and (answer.content or {}).get("confirm") is True
-    ):
+    if isinstance(answer, ElicitResult) and answer.action != "accept":
+        body = {
+            "success": False,
+            "error": {
+                "code": "CONFIRMATION_DECLINED",
+                "message": f"The user answered {answer.action}",
+                "suggestion": "Ask the user before calling wipe-run again",
+            },
+        }
+        return CallToolResult(content=[TextContent(text=json.dumps(body))], is_error=True)
+    if not (isinstance(answer, ElicitResult) and (answer.content or {}).get("confirm") is True):
         return InputRequiredResult(
             input_requests={
                 "confirm": ElicitRequest(

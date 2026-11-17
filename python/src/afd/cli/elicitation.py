@@ -9,7 +9,7 @@ to stderr so that stdout keeps only the command's output. Mirrors
 
 from __future__ import annotations
 
-import json
+import re
 import sys
 from typing import Any, Awaitable, Callable, Dict, List, Optional
 
@@ -35,9 +35,13 @@ def _boolean_properties(schema: Dict[str, Any]) -> Optional[List[str]]:
     return None
 
 
+_CONTROL = re.compile(r"[\x00-\x1f\x7f-\x9f]")
+
+
 def _plain(text: str) -> str:
-    # JSON escaping keeps server-provided control characters out of the terminal.
-    return json.dumps(text, ensure_ascii=True)[1:-1]
+    """Escape control characters (C0, DEL and C1, so ESC and BEL among them) so a
+    server cannot drive the terminal; printable text, any script, is kept."""
+    return _CONTROL.sub(lambda match: f"\\u{ord(match.group()):04x}", text)
 
 
 def terminal_elicitation(confirm: Confirm) -> ElicitationHandler:
@@ -52,7 +56,7 @@ def terminal_elicitation(confirm: Confirm) -> ElicitationHandler:
             return ElicitationResponse(action="cancel")
         if not await confirm(f"{message} [y/N] "):
             return ElicitationResponse(action="decline")
-        return ElicitationResponse(action="accept", content={name: True for name in names})
+        return ElicitationResponse(action="accept", content=dict.fromkeys(names, True))
 
     return handler
 

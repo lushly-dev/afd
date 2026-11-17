@@ -121,6 +121,11 @@ class StreamableHttpTransport(SseTransport):
         self._message_url = url
         self._mode = mode
         self._on_elicitation = on_elicitation
+        # Elicitations being answered now, and the seconds spent answering so far.
+        self._answering = 0
+        self._answered_seconds = 0.0
+        self._idle = asyncio.Event()
+        self._idle.set()
         self._protocol_version: Optional[str] = None
 
     @property
@@ -158,7 +163,7 @@ class StreamableHttpTransport(SseTransport):
             # With a handler the SDK declares elicitation and answers input_required
             # rounds itself; without one, `_call_tool_payload` returns them unanswered.
             elicitation_callback=(
-                _elicitation_callback(self._on_elicitation) if self._on_elicitation else None
+                _elicitation_callback(self._answer) if self._on_elicitation else None
             ),
         )
         await stack.enter_async_context(client)
@@ -172,13 +177,55 @@ class StreamableHttpTransport(SseTransport):
             )
         return client, client.server_info, client.server_capabilities
 
+    async def _bounded(self, operation: Any) -> Any:
+        """:meth:`SseTransport._bounded`, except that time a person spends answering an
+        elicitation does not count against the deadline: a confirmation can take longer
+        than a request, and a timeout here reads as a lost connection."""
+        loop = asyncio.get_running_loop()
+        task = asyncio.ensure_future(operation)
+        start, answered_before = loop.time(), self._answered_seconds
+        while True:
+            if self._answering:
+                idle = asyncio.ensure_future(self._idle.wait())
+                await asyncio.wait({task, idle}, return_when=asyncio.FIRST_COMPLETED)
+                idle.cancel()
+            else:
+                answered = self._answered_seconds - answered_before
+                remaining = start + self._timeout + answered - loop.time()
+                if remaining <= 0:
+                    break
+                await asyncio.wait({task}, timeout=remaining)
+            if task.done():
+                return task.result()
+        task.cancel()
+        task.add_done_callback(lambda finished: finished.cancelled() or finished.exception())
+        raise asyncio.TimeoutError(f"MCP request timed out after {self._timeout}s")
+
+    async def _answer(self, request: ElicitationRequest) -> ElicitationResponse:
+        """Run the handler with the call deadline paused."""
+        assert self._on_elicitation is not None
+        loop = asyncio.get_running_loop()
+        self._answering += 1
+        self._idle.clear()
+        began = loop.time()
+        try:
+            return await self._on_elicitation(request)
+        finally:
+            self._answered_seconds += loop.time() - began
+            self._answering -= 1
+            if not self._answering:
+                self._idle.set()
+
     async def _call_tool_payload(
         self, session: Any, name: str, arguments: Dict[str, Any]
     ) -> Dict[str, Any]:
         if self._on_elicitation is not None:
             return await super()._call_tool_payload(session, name, arguments)
+        import anyio
         from mcp import MCPError
         from mcp.types import HEADER_MISMATCH, InputRequiredResult
+        from mcp_types.version import MODERN_PROTOCOL_VERSIONS
+        from pydantic import ValidationError
 
         # Send the call by hand so an input_required answer comes back unanswered
         # instead of reaching the SDK's refusing default elicitation callback.
@@ -193,10 +240,15 @@ class StreamableHttpTransport(SseTransport):
         try:
             result = await send()
         except MCPError as mismatch:
-            # mcp.Client.call_tool's recovery: re-list a stale tool schema and resend once.
-            if mismatch.code != HEADER_MISMATCH:
+            # mcp.Client.call_tool's recovery: the tool's listed schema is missing or
+            # stale on a 2026-07-28 connection, so re-list it and resend once.
+            if mismatch.code != HEADER_MISMATCH or session.protocol_version not in MODERN_PROTOCOL_VERSIONS:
                 raise
-            await session.list_tools(cache_mode="refresh")
+            try:
+                with anyio.fail_after(self._timeout):
+                    await _relist_tool(session, name)
+            except (MCPError, TimeoutError, ValidationError) as relist_error:
+                raise mismatch from relist_error
             result = await send()
         if isinstance(result, InputRequiredResult):
             asked = result.model_dump(by_alias=True, mode="json", exclude_none=True)
@@ -204,17 +256,32 @@ class StreamableHttpTransport(SseTransport):
         return result.model_dump(by_alias=True, mode="json", exclude_none=True)
 
 
+_RELIST_PAGE_CAP = 100
+"""Page cap for the re-list after a ``HEADER_MISMATCH``, as ``mcp.Client`` caps it."""
+
+
+async def _relist_tool(client: Any, name: str) -> None:
+    """Refetch the tool listing, page by page, until a page lists ``name``
+    (``mcp.Client._relist_tool``)."""
+    cursor: Optional[str] = None
+    for _ in range(_RELIST_PAGE_CAP):
+        page = await client.list_tools(cursor=cursor, cache_mode="refresh")
+        cursor = page.next_cursor
+        if cursor is None or any(tool.name == name for tool in page.tools):
+            return
+
+
 def _elicitation_callback(handler: ElicitationHandler) -> Any:
     """Adapt an :data:`ElicitationHandler` to ``mcp.Client(elicitation_callback=...)``."""
 
     async def callback(context: Any, params: Any) -> Any:
-        from mcp.types import INVALID_REQUEST, ElicitRequestFormParams, ElicitResult, ErrorData
+        from mcp.types import ElicitRequestFormParams, ElicitResult
 
-        # The SDK declares URL elicitation along with form; AFD answers forms only.
+        # The SDK declares URL elicitation along with form, but AFD's handler answers
+        # forms only. Cancelling (not refusing) lets the server answer with its own
+        # failure and suggestion instead of the call failing as a transport error.
         if not isinstance(params, ElicitRequestFormParams):
-            return ErrorData(
-                code=INVALID_REQUEST, message="This client answers form elicitations only"
-            )
+            return ElicitResult(action="cancel")
         answer = await handler(
             ElicitationRequest(message=params.message, requested_schema=dict(params.requested_schema))
         )
