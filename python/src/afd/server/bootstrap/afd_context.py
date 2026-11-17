@@ -186,7 +186,7 @@ def create_afd_context_list_command(
         mutation=False,
         version="1.0.0",
         input_schema=AfdContextListInput.model_json_schema(),
-        returns=AfdContextListOutput.model_json_schema(),
+        returns=AfdContextListOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )
 
@@ -251,7 +251,7 @@ def create_afd_context_enter_command(
         mutation=True,
         version="1.0.0",
         input_schema=AfdContextEnterInput.model_json_schema(),
-        returns=AfdContextEnterOutput.model_json_schema(),
+        returns=AfdContextEnterOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )
 
@@ -297,6 +297,6 @@ def create_afd_context_exit_command(
         mutation=True,
         version="1.0.0",
         input_schema=AfdContextExitInput.model_json_schema(),
-        returns=AfdContextExitOutput.model_json_schema(),
+        returns=AfdContextExitOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )

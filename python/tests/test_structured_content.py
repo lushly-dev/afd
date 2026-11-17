@@ -188,14 +188,21 @@ def test_envelope_moves_definitions_and_relaxes_nullable_requirements():
     schema = command_result_output_schema(
         {
             "type": "object",
-            "properties": {"a": {"$ref": "#/definitions/A"}, "b": {"type": ["string", "null"]}},
-            "required": ["a", "b"],
+            "properties": {
+                "a": {"$ref": "#/definitions/A"},
+                "b": {"type": ["string", "null"]},
+                "c": {},
+                "d": {"enum": ["x", None]},
+                "e": {"$ref": "#/definitions/Maybe"},
+            },
+            "required": ["a", "b", "c", "d", "e"],
             "definitions": {
                 "A": {
                     "type": "object",
                     "properties": {"n": {"anyOf": [{"type": "integer"}, {"type": "null"}]}},
                     "required": ["n"],
-                }
+                },
+                "Maybe": {"anyOf": [{"type": "string"}, {"type": "null"}]},
             },
         }
     )
