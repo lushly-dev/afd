@@ -5,6 +5,22 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Repairs, ejection details and the units checkout, 2026-11-17
+
+Three faults the second fleet (run-3) found. [#1374](https://github.com/lushly-dev/afd/issues/1374):
+a repair that rebased onto `main` was refused with `GATE_EDIT_IN_REPAIR` for gate files `main` had
+changed, because the guard diffed from the ejected head; it now counts a gate path only when the
+branch's own change to it differs from its own change at the ejected head (`git patch-id
+--verbatim`), or the repair takes back a gate change it had made. Both are measured from a base
+the lane fetches, not the worktree's `origin/HEAD`, which a branch could repoint; renames count
+by both paths; and edits it cannot read refuse with `GATE_CHECK_FAILED`.
+[#1373](https://github.com/lushly-dev/afd/issues/1373): an ejection's detail quoted a passing test
+whose name said "failed"; `first_lines` now leads with the first test a runner marked failed and
+`pnpm verify`'s `FAIL` summary rows, and never takes a line marked passed.
+[#1354](https://github.com/lushly-dev/afd/issues/1354): the `units` command ran in the lane host's
+own checkout; it now runs in a clean `units` slot (`<checkout>.factory-slots/units`) at the new
+base. Fixed by hand, not by a cell, since the change is to the lane that would merge it.
+
 ## A branch that affects every unit is no longer validated again for ever, 2026-11-17 (#1391)
 
 [#1369](https://github.com/lushly-dev/afd/issues/1369): in the second fleet (run-3), the #424

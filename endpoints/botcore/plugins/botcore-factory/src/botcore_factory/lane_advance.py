@@ -8,6 +8,8 @@ branch to the new base without validating it again only when all of these hold:
 - the validated head still merges onto the new base without a conflict (``git merge-tree``);
 - the units main's changes affect and the units the branch's changes affect are disjoint (the
   adapter's ``units`` command names them; without it, a moved base is always validated again).
+  The command runs in a clean checkout of the new base (the ``units`` slot), never in the lane
+  host's own checkout, which may be dirty or at another commit (lushly-dev/afd#1354).
 
 Otherwise the branch is validated again (``rerun``, ``main-moved``, with why in ``detail``). An
 advance is a ``base-advanced`` record.
@@ -43,6 +45,8 @@ from botcore_factory.world import WorldError
 #: More of main's changes than this is validated again rather than mapped to units.
 MAIN_CHANGES_LIMIT = 400
 UNITS_TIMEOUT_SECONDS = 120
+#: The lane slot the units command runs in, checked out at the base being compared.
+UNITS_SLOT = "units"
 #: Main's checks are read as settled only this long after the merge, so a workflow GitHub
 #: registers late is not missed.
 SETTLE_MINUTES = 2.0
@@ -124,12 +128,13 @@ class Advancing(StepBase):
         if not changed:
             return None
         try:
+            checkout = self.world.git.prepare_slot(UNITS_SLOT, "", new)
             if "units" not in entry:
                 # Both sides of a rename, from the base it was validated on (still ``old`` on
                 # the first advance; the units are kept for the next).
                 mine = self.world.git.diff_names(old, entry["validatedHead"])
-                entry["units"] = self.units(mine)
-            theirs = self.units(changed)
+                entry["units"] = self.units(mine, checkout)
+            theirs = self.units(changed, checkout)
         except WorldError as exc:
             return f"the units could not be read: {exc}"
         mine = set(entry["units"])
@@ -140,13 +145,15 @@ class Advancing(StepBase):
             return f"main's changes affect its units: {', '.join(both[:5])}"
         return None
 
-    def units(self, paths: list[str]) -> list[str]:
-        """The units ``paths`` affect, from the adapter's ``units`` command."""
+    def units(self, paths: list[str], checkout: str) -> list[str]:
+        """The units ``paths`` affect, from the adapter's ``units`` command run in ``checkout``,
+        the lane's clean ``units`` slot at the new base, so the mapping is the one the merged
+        code carries."""
         if not paths:
             return []
         done = self.world.processes.run(
             [*(self.config.units or []), *paths],
-            cwd=str(self.factory.target),
+            cwd=checkout,
             timeout=UNITS_TIMEOUT_SECONDS,
             label="units",
         )
