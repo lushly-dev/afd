@@ -1,26 +1,29 @@
 // The C++ todo backend.
 //
-//   todo-server-cpp                      stdio MCP server (default); CONFIRMATIONS=off|enforce|
-//                                        require-human sets confirmation enforcement
+//   todo-server-cpp                      stdio MCP server (default)
 //   todo-server-cpp list-commands        the registered command names
-//   todo-server-cpp <command> [json]     run one command and print its result
+//   todo-server-cpp <command> [json]     run one command, as the person at the terminal, and
+//                                        print its result
 //
-// Exit codes: 0 success, 1 the command failed, 2 usage error.
+// Settings, as the other backends read them: CONFIRMATIONS (off, enforce or require-human),
+// APPROVALS (agents or off) and TODO_APPROVAL_SECRET (at least 32 bytes).
+//
+// Exit codes: 0 success, 1 the command failed, 2 usage or configuration error.
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
 #include <memory>
 #include <optional>
 #include <string>
+#include <utility>
 
-#include "commands.hpp"
+#include "app.hpp"
 #include "store.hpp"
 #include <afd/mcp_stdio.hpp>
 
 namespace {
 
-/// `CONFIRMATIONS`: `off` (the default), `enforce` or `require-human`, as the other backends read
-/// it.
+/// `CONFIRMATIONS`: `off` (the default), `enforce` or `require-human`.
 std::optional<afd::mcp::ConfirmationMode> confirmations_from_environment() {
     const char* value = std::getenv("CONFIRMATIONS");
     const std::string mode = value != nullptr ? value : "off";
@@ -41,11 +44,28 @@ std::optional<afd::mcp::ConfirmationMode> confirmations_from_environment() {
 } // namespace
 
 int main(int argc, char** argv) {
+    const auto approvals = todo::approvals_from(std::getenv("APPROVALS"));
+    if (!approvals) {
+        std::fprintf(stderr, "%s\n", approvals.error().c_str());
+        return 2;
+    }
+    // The key is read only when clears are held, as TypeScript reads it.
+    std::string secret;
+    if (*approvals == todo::Approvals::agents) {
+        auto read = todo::approval_secret(std::getenv("TODO_APPROVAL_SECRET"));
+        if (!read) {
+            std::fprintf(stderr, "%s\n", read.error().c_str());
+            return 2;
+        }
+        secret = std::move(*read);
+    }
+
     auto clock = std::make_shared<afd::SystemClock>();
-    auto store = std::make_shared<todo::TodoStore>(clock, std::make_shared<afd::SystemRandom>());
-    afd::CommandRegistry registry(afd::CommandRegistryOptions{.clock = clock});
-    if (const auto error = todo::register_todo_commands(registry, store)) {
-        std::fprintf(stderr, "failed to register commands: %s\n", error->c_str());
+    auto registry =
+        todo::make_registry(std::make_shared<todo::TodoStore>(),
+                            {.approvals = *approvals, .secret = std::move(secret), .clock = clock});
+    if (!registry) {
+        std::fprintf(stderr, "failed to register commands: %s\n", registry.error().c_str());
         return 2;
     }
 
@@ -55,10 +75,10 @@ int main(int argc, char** argv) {
         if (!confirmations) {
             return 2;
         }
-        auto server = afd::mcp::StdioServer::create(registry, {.name = "afd-todo-cpp",
-                                                               .version = TODO_BACKEND_VERSION,
-                                                               .confirmations = *confirmations,
-                                                               .clock = clock});
+        auto server = afd::mcp::StdioServer::create(**registry, {.name = "afd-todo-cpp",
+                                                                 .version = TODO_BACKEND_VERSION,
+                                                                 .confirmations = *confirmations,
+                                                                 .clock = clock});
         if (!server) {
             std::fprintf(stderr, "failed to start the MCP server: %s\n", server.error().c_str());
             return 2;
@@ -68,7 +88,7 @@ int main(int argc, char** argv) {
         return 0;
     }
     if (mode == "list-commands") {
-        for (const auto& command : registry.list()) {
+        for (const auto& command : (*registry)->list()) {
             std::printf("%s\n", command->definition.name.c_str());
         }
         return 0;
@@ -83,7 +103,10 @@ int main(int argc, char** argv) {
         }
         input = *parsed;
     }
-    const afd::CommandResult result = registry.execute(mode, input);
+    // The command line is the person at the terminal, so todo-clear is not held for them.
+    afd::CommandContext context;
+    context.actor = afd::Actor{.kind = afd::ActorKind::human};
+    const afd::CommandResult result = (*registry)->execute(mode, input, std::move(context));
     if (result.error && result.error->code == afd::error_codes::COMMAND_NOT_FOUND) {
         std::fprintf(stderr, "%s\n", afd::wire::serialize(afd::Json(result)).c_str());
         return 2;

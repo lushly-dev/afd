@@ -16,20 +16,16 @@ set(AFD_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(AFD_BUILD_MCP_STDIO ON CACHE BOOL "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../../../../cpp ${CMAKE_CURRENT_BINARY_DIR}/afd)
 
-# The shared contract, embedded as bytes: the backend validates inputs against
-# spec/commands.schema.json itself rather than a hand-written copy.
-set(TODO_SPEC ${CMAKE_CURRENT_SOURCE_DIR}/../../spec/commands.schema.json)
-set_property(DIRECTORY APPEND PROPERTY CMAKE_CONFIGURE_DEPENDS ${TODO_SPEC})
-file(READ ${TODO_SPEC} todo_spec_hex HEX)
-string(REGEX REPLACE "([0-9a-f][0-9a-f])" "0x\\1," todo_spec_bytes "${todo_spec_hex}")
-configure_file(cmake/spec_schema.cpp.in ${CMAKE_CURRENT_BINARY_DIR}/spec_schema.cpp @ONLY)
-
 add_library(
     todo_backend STATIC
+    src/app.cpp
     src/commands.cpp
-    src/spec.cpp
-    src/store.cpp
-    ${CMAKE_CURRENT_BINARY_DIR}/spec_schema.cpp)
+    src/commands/batch.cpp
+    src/commands/clear.cpp
+    src/commands/history.cpp
+    src/commands/shared.cpp
+    src/commands/single.cpp
+    src/store.cpp)
 target_include_directories(todo_backend PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/src)
 target_link_libraries(todo_backend PUBLIC afd::afd afd::mcp_stdio)
 target_compile_definitions(todo_backend PUBLIC TODO_BACKEND_VERSION="${PROJECT_VERSION}")
@@ -42,11 +38,18 @@ afd_configure_target(todo-server-cpp)
 if(TODO_BUILD_TESTS)
     enable_testing()
     afd_fetch_doctest()
-    add_executable(todo_backend_tests tests/main.cpp tests/commands_test.cpp tests/mcp_stdio_test.cpp
-                                      tests/store_test.cpp)
+    add_executable(
+        todo_backend_tests
+        tests/approvals_test.cpp
+        tests/commands_test.cpp
+        tests/history_test.cpp
+        tests/main.cpp
+        tests/mcp_stdio_test.cpp
+        tests/spec_test.cpp
+        tests/store_test.cpp)
     target_link_libraries(todo_backend_tests PRIVATE todo_backend afd_doctest)
     target_compile_definitions(todo_backend_tests PRIVATE DOCTEST_CONFIG_NO_EXCEPTIONS_BUT_WITH_ALL_ASSERTS
-                                                          TODO_SPEC_PATH="${TODO_SPEC}")
+                                                          TODO_SPEC_PATH="${CMAKE_CURRENT_SOURCE_DIR}/../../spec/commands.schema.json")
     afd_configure_target(todo_backend_tests)
     add_test(NAME todo_backend_tests COMMAND todo_backend_tests)
 endif()
