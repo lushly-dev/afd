@@ -5,7 +5,7 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
-## A branch that affects every unit is no longer validated again for ever, 2026-11-17
+## A branch that affects every unit is no longer validated again for ever, 2026-11-17 (#1391)
 
 [#1369](https://github.com/lushly-dev/afd/issues/1369): in the second fleet (run-3), the #424
 branch adds a workspace package, so it changes `pnpm-lock.yaml` and maps to `*`, and every move
