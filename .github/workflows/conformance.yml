@@ -363,3 +363,30 @@ jobs:
             echo "$changes"
             exit 1
           fi
+
+  # The backend builds with MSVC and warnings as errors, so a call MSVC deprecates (C4996) fails
+  # here rather than on a Windows developer's machine. cpp.yml's MSVC legs build only the library,
+  # and only daily. The conformance suites stay on Linux: they exercise the same stdio protocol.
+  todo-cpp-windows:
+    name: Todo backend (C++, MSVC)
+    needs: scope
+    if: needs.scope.outputs.cpp == 'true'
+    runs-on: windows-latest
+    timeout-minutes: 20
+
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: ./.github/actions/cpp-dependencies
+
+      - name: Build the C++ backend and its tests
+        working-directory: packages/examples/todo/backends/cpp
+        run: |
+          cmake --preset release
+          cmake --build --preset release
+
+      - name: C++ backend tests
+        working-directory: packages/examples/todo/backends/cpp
+        run: ctest --preset release
