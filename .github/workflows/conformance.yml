@@ -349,6 +349,12 @@ jobs:
       - name: Confirmations (C++ backend, MCP 2026-07-28)
         run: pnpm --dir packages/examples/todo test:conformance:cpp --suite confirmations --mode modern
 
+      - name: Approvals (C++ backend)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --suite approvals
+
+      - name: Approvals (C++ backend, MCP 2026-07-28)
+        run: pnpm --dir packages/examples/todo test:conformance:cpp --suite approvals --mode modern
+
       - name: Check the working tree is unchanged
         run: |
           changes=$(git status --porcelain)

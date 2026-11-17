@@ -1,7 +1,7 @@
 {
 	"$schema": "http://json-schema.org/draft-07/schema#",
 	"title": "Todo Example Commands",
-	"description": "JSON Schema for the 13 commands of the Todo example, keyed by kebab-case MCP tool name. Each entry's metadata is the definition every backend declares, which the backends' tests compare; input and output are the shapes. spec/test-cases.json checks their behaviour. A command with implementedBy, or an input property with x-implementedBy, exists so far only in the languages it names: the to-do reference plan adds it to TypeScript in phase 2 and to the others in phase 5, which removes the field.",
+	"description": "JSON Schema for the 13 commands of the Todo example, keyed by kebab-case MCP tool name. Each entry's metadata is the definition every backend declares, which the backends' tests compare; input and output are the shapes. spec/test-cases.json checks their behaviour. Every backend implements all 13. A command with implementedBy, or an input property with x-implementedBy, would exist only in the languages it names, and the backends' tests honour both; none has either now.",
 	"definitions": {
 		"Priority": {
 			"type": "string",
@@ -116,15 +116,14 @@
 				"properties": {
 					"deleted": {
 						"type": "boolean",
-						"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones. TypeScript, Python and Rust also accept sortBy deletedAt",
-						"x-implementedBy": ["typescript", "python", "rust"]
+						"description": "If true, list the deleted todos, which todo-restore brings back, instead of live ones"
 					},
 					"completed": { "type": "boolean" },
 					"priority": { "$ref": "#/definitions/Priority" },
 					"search": { "type": "string" },
 					"sortBy": {
 						"type": "string",
-						"enum": ["createdAt", "updatedAt", "priority", "title"],
+						"enum": ["createdAt", "updatedAt", "priority", "title", "deletedAt"],
 						"default": "createdAt"
 					},
 					"sortOrder": {
@@ -270,12 +269,11 @@
 				"properties": {
 					"all": {
 						"type": "boolean",
-						"description": "If true, clear all todos regardless of status"
+						"description": "If true, remove every todo, live and deleted, regardless of status"
 					},
 					"deleted": {
 						"type": "boolean",
-						"description": "If true, empty the deleted todos instead of removing completed ones",
-						"x-implementedBy": ["typescript", "python", "rust"]
+						"description": "If true, empty the deleted todos instead of removing completed ones"
 					}
 				}
 			},
@@ -476,7 +474,6 @@
 			}
 		},
 		"todo-restore": {
-			"implementedBy": ["typescript", "python", "rust"],
 			"metadata": {
 				"mutation": true,
 				"destructive": false,
@@ -516,7 +513,6 @@
 			}
 		},
 		"todo-history": {
-			"implementedBy": ["typescript", "python", "rust"],
 			"metadata": {
 				"mutation": false,
 				"destructive": false,

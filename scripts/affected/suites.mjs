@@ -439,6 +439,11 @@ export const SUITES = [
 				tools: ['cmake'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:cpp --suite confirmations',
 			},
+			{
+				gate: 'cpp',
+				tools: ['cmake'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:cpp --suite approvals',
+			},
 		],
 	},
 ];
