@@ -311,3 +311,50 @@ export function safeEasing(value: unknown): string | null {
 	}
 	return null;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Text decoration
+// ─────────────────────────────────────────────────────────────────────────────
+
+const DECORATION_LINES = new Set(['underline', 'overline', 'line-through']);
+const DECORATION_STYLES = new Set(['solid', 'double', 'dotted', 'dashed', 'wavy']);
+const DECORATION_THICKNESS_KEYWORDS = new Set(['auto', 'from-font']);
+
+type DecorationSlot = 'line' | 'style' | 'color' | 'thickness';
+
+/** Which slot of a text-decoration a part fills, and its rebuilt text; null when it fills none */
+function decorationPart(part: string): { slot: DecorationSlot; text: string } | null {
+	const keyword = part.toLowerCase();
+	if (DECORATION_LINES.has(keyword)) return { slot: 'line', text: keyword };
+	if (DECORATION_STYLES.has(keyword)) return { slot: 'style', text: keyword };
+	if (DECORATION_THICKNESS_KEYWORDS.has(keyword)) return { slot: 'thickness', text: keyword };
+	const length = safeCssLength(part);
+	if (length !== null) return length.startsWith('-') ? null : { slot: 'thickness', text: length };
+	const color = SHADOW_COLOR_KEYWORDS.has(keyword) ? keyword : safeCssColor(part);
+	return color ? { slot: 'color', text: color } : null;
+}
+
+const DECORATION_ORDER: DecorationSlot[] = ['line', 'style', 'color', 'thickness'];
+
+/**
+ * A text-decoration such as `underline`, `underline dotted 2px #0F6CBD` or
+ * `none`, otherwise `null`: one line keyword (`underline`, `overline`,
+ * `line-through`) with at most one style, one colour and one non-negative
+ * thickness (or `auto` / `from-font`), in any order. It is rebuilt as line,
+ * style, colour, thickness.
+ */
+export function safeTextDecoration(value: unknown): string | null {
+	const trimmed = boundedString(value, 64);
+	if (!trimmed) return null;
+	if (trimmed.toLowerCase() === 'none') return 'none';
+	const parts = splitTopLevel(trimmed, /\s/)?.filter(Boolean);
+	if (!parts || parts.length > DECORATION_ORDER.length) return null;
+	const slots = new Map<DecorationSlot, string>();
+	for (const part of parts) {
+		const found = decorationPart(part);
+		if (!found || slots.has(found.slot)) return null;
+		slots.set(found.slot, found.text);
+	}
+	if (!slots.has('line')) return null;
+	return DECORATION_ORDER.flatMap((slot) => slots.get(slot) ?? []).join(' ');
+}

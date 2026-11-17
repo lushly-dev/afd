@@ -1,6 +1,6 @@
 import {
 	SPECIMEN_COMPONENTS,
-	SPECIMEN_ROLES,
+	specimenComponentHasRole,
 	specimenRoleDeclaration,
 } from '@lushly-dev/violet-core/css';
 import { InheritanceResolutionError, resolveNodeTokenMap } from '@lushly-dev/violet-core/engine';
@@ -9,7 +9,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { ErrorCodes, type Warning, failure, success } from '../../types/command-result.js';
 import type { CommandContext, CommandDefinition } from '../registry.js';
-import { KNOWN_COMPONENTS, KNOWN_ROLES, treeRootOf, treeTokenIds } from './shared.js';
+import { KNOWN_COMPONENTS, treeRootOf, treeTokenIds } from './shared.js';
 
 /**
  * Input schema for specimen.set command
@@ -115,14 +115,20 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 		}
 		const unknownRoles = Object.entries(input.map).flatMap(([component, roles]) =>
 			Object.keys(roles)
-				.filter((role) => !has(SPECIMEN_ROLES, role))
-				.map((role) => `${component}.${role}`),
+				.filter((role) => !specimenComponentHasRole(component, role))
+				.map((role) => ({ component, role })),
 		);
 		if (unknownRoles.length > 0) {
+			const components = [...new Set(unknownRoles.map(({ component }) => component))];
 			return failure({
 				code: ErrorCodes.VALIDATION_ERROR,
-				message: `Unknown role(s): ${unknownRoles.join(', ')}`,
-				suggestion: `Roles are: ${KNOWN_ROLES.join(', ')}`,
+				message: `Unknown role(s): ${unknownRoles.map(({ component, role }) => `${component}.${role}`).join(', ')}`,
+				suggestion: components
+					.map(
+						(component) =>
+							`${component} roles are: ${SPECIMEN_COMPONENTS[component].roles.join(', ')}`,
+					)
+					.join('; '),
 			});
 		}
 
@@ -208,6 +214,13 @@ export const specimenSetCommand: CommandDefinition<typeof InputSchema, Output> =
 			input: {
 				nodeId: 'global',
 				map: { button: { background: 'btn.bg', foreground: 'btn.fg', radius: 'btn.corner' } },
+			},
+		},
+		{
+			description: 'Draw the focus ring from tokens named focus-indicator.*',
+			input: {
+				nodeId: 'global',
+				map: { focus: { ring: 'focus-indicator.color', 'ring.width': 'focus-indicator.width' } },
 			},
 		},
 		{
