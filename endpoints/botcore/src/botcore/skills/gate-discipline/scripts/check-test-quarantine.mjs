@@ -1,0 +1,319 @@
+#!/usr/bin/env node
+/**
+ * No silent test suppression, in any JavaScript or TypeScript test file git tracks.
+ *
+ * Without a quarantine, the answers to a red test are "block everyone" or "skip it and
+ * forget", and agents pick the second. This makes suppression loud and self-retiring:
+ *
+ * - `.only` always fails: a focus left behind shrinks the suite to one case.
+ * - An unconditional `.skip` or `.todo` on `describe`, `it`, `test`, `suite` or `bench`
+ *   needs an entry in the register (default `scripts/policy/test-quarantine.json`) naming
+ *   the file, an owner, a reason of at least 20 characters and a tracking issue.
+ * - Reconciliation runs both ways: an entry whose file has no unconditional skip left
+ *   fails as recovered, so a spent entry is deleted rather than left to cover the next one.
+ * - A scan that finds no test file fails: the scanner stopped seeing the suite it guards.
+ *
+ * Conditional skips are allowed, because they run again whenever their condition stops
+ * holding: `it.skipIf(cond)`, `it.runIf(cond)` and Playwright's `test.skip(cond, reason)`,
+ * whose first argument is an expression rather than a title. `test.skip('title', fn)`,
+ * `test.skip()` and `it.todo(...)` are unconditional.
+ *
+ * Not covered, by design: aliases (`const s = it.skip`), element access (`it['skip']`),
+ * option objects (`{ skip: true }`) and a test's own context (`t.skip()`, `ctx.skip()`).
+ * Python, Rust and other languages' skips are outside this scan.
+ *
+ * Needs only Node and git. Usage:
+ *   node check-test-quarantine.mjs [--root <dir>] [--register <path>] [<path>...]
+ * Paths limit the scan to those directories; the register path is relative to the root.
+ */
+import { execFileSync } from 'node:child_process';
+import { existsSync, readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
+
+export const DEFAULT_REGISTER = 'scripts/policy/test-quarantine.json';
+const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
+const ROOTS = new Set(['describe', 'it', 'test', 'suite', 'bench']);
+
+/** Test files git tracks or would track under `root`, limited to `paths` when given. */
+export function listTestFiles(root, paths = []) {
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+	const output = execFileSync(
+		'git',
+		['ls-files', '-z', '--cached', '--others', '--exclude-standard', '--', ...paths],
+		{ cwd: root, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 }
+	);
+	return output.split('\0').filter((file) => file && TEST_FILE.test(file));
+}
+
+/**
+ * The source with every comment blanked and every string, template and regular expression
+ * literal's contents blanked (delimiters kept), so offsets and lines are unchanged and only
+ * code can match.
+ */
+export function maskSource(text) {
+	const out = text.split('');
+	const blank = (from, to) => {
+		for (let i = from; i < to; i++) if (out[i] !== '\n') out[i] = ' ';
+	};
+	let i = 0;
+	// The last significant code character, to tell a regular expression from a division.
+	let previous = '';
+	const regexMayFollow = () => previous === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(previous);
+
+	function skipString(quote) {
+		const start = i;
+		i++;
+		while (i < text.length && text[i] !== quote && text[i] !== '\n') {
+			if (text[i] === '\\') i++;
+			i++;
+		}
+		blank(start + 1, i);
+		i++;
+	}
+
+	function skipTemplate() {
+		const start = i;
+		i++;
+		while (i < text.length && text[i] !== '`') {
+			if (text[i] === '\\') {
+				i += 2;
+				continue;
+			}
+			if (text[i] === '$' && text[i + 1] === '{') {
+				i += 2;
+				scanCode('}');
+				continue;
+			}
+			i++;
+		}
+		blank(start + 1, i);
+		i++;
+	}
+
+	function skipRegex() {
+		const start = i;
+		i++;
+		let inClass = false;
+		while (i < text.length && text[i] !== '\n') {
+			const c = text[i];
+			if (c === '\\') {
+				i += 2;
+				continue;
+			}
+			if (c === '[') inClass = true;
+			else if (c === ']') inClass = false;
+			else if (c === '/' && !inClass) break;
+			i++;
+		}
+		blank(start + 1, i);
+		i++;
+	}
+
+	/** Scans code until the unmatched `close` (or the end), consuming it. */
+	function scanCode(close) {
+		let depth = 0;
+		while (i < text.length) {
+			const c = text[i];
+			const next = text[i + 1];
+			if (c === '/' && next === '/') {
+				const end = text.indexOf('\n', i);
+				const stop = end === -1 ? text.length : end;
+				blank(i, stop);
+				i = stop;
+			} else if (c === '/' && next === '*') {
+				const end = text.indexOf('*/', i + 2);
+				const stop = end === -1 ? text.length : end + 2;
+				blank(i, stop);
+				i = stop;
+			} else if (c === '"' || c === "'") {
+				skipString(c);
+				previous = 'x';
+			} else if (c === '`') {
+				skipTemplate();
+				previous = 'x';
+			} else if (c === '/' && regexMayFollow()) {
+				skipRegex();
+				previous = 'x';
+			} else {
+				if (c === '{') depth++;
+				if (c === '}') {
+					if (depth === 0 && close === '}') {
+						i++;
+						return;
+					}
+					depth--;
+				}
+				if (!/\s/.test(c)) previous = /[\w$)\]]/.test(c) ? 'x' : c;
+				i++;
+			}
+		}
+	}
+
+	scanCode(null);
+	return out.join('');
+}
+
+/** The trimmed top-level arguments of the call whose `(` is at `open` in masked code. */
+function callArguments(code, open) {
+	const args = [];
+	let depth = 0;
+	let start = open + 1;
+	for (let i = open + 1; i < code.length; i++) {
+		const c = code[i];
+		if (c === '(' || c === '[' || c === '{') depth++;
+		else if (c === ',' && depth === 0) {
+			args.push(code.slice(start, i).trim());
+			start = i + 1;
+		} else if (c === ')' || c === ']' || c === '}') {
+			if (depth > 0) {
+				depth--;
+				continue;
+			}
+			const last = code.slice(start, i).trim();
+			if (last || args.length > 0) args.push(last);
+			break;
+		}
+	}
+	return args;
+}
+
+/** Whether a `.skip(...)` call skips unconditionally (a declaration or a bare runtime skip). */
+function unconditionalSkip(args) {
+	if (args.length === 0) return true;
+	if (/^['"`]/.test(args[0])) return true; // a title: `it.skip('title', fn)`
+	// A variable title still declares a test when a function follows.
+	return args.slice(1).some((arg) => /=>|^(async\s+)?function\b/.test(arg));
+}
+
+/** `{ line, kind }` for each `.only`, and each unconditional `.skip` or `.todo`, in a file. */
+export function findSuppressions(text) {
+	const code = maskSource(text);
+	const found = [];
+	const chain = /(?<![\w$.])([A-Za-z_$][\w$]*)((?:\s*\.\s*[A-Za-z_$][\w$]*)+)/g;
+	const lineAt = (position) => code.slice(0, position).split('\n').length;
+	for (const match of code.matchAll(chain)) {
+		if (!ROOTS.has(match[1])) continue;
+		const base = match.index + match[1].length;
+		const end = match.index + match[0].length;
+		const members = [...match[2].matchAll(/\.\s*([A-Za-z_$][\w$]*)/g)];
+		members.forEach((member, index) => {
+			const kind = member[1];
+			if (kind !== 'only' && kind !== 'skip' && kind !== 'todo') return;
+			const line = lineAt(base + member.index + member[0].indexOf(kind));
+			const last = index === members.length - 1;
+			if (kind !== 'skip' || !last) {
+				// `.only` and `.todo` anywhere; `.skip` inside a chain (`describe.skip.each`).
+				found.push({ line, kind });
+				return;
+			}
+			const call = code.slice(end).match(/^\s*\(/);
+			// A `.skip` that is not called is a reference (`cond ? describe : describe.skip`).
+			if (call && unconditionalSkip(callArguments(code, end + call[0].length - 1)))
+				found.push({ line, kind });
+		});
+	}
+	return found;
+}
+
+export function loadRegister(root, registerPath) {
+	const path = resolve(root, registerPath);
+	if (!existsSync(path)) return { entries: new Map(), issues: [`${registerPath} is missing.`] };
+	const issues = [];
+	const entries = new Map();
+	let parsed;
+	try {
+		parsed = JSON.parse(readFileSync(path, 'utf8'));
+	} catch (cause) {
+		return { entries, issues: [`${registerPath} is not valid JSON: ${cause.message}`] };
+	}
+	for (const entry of parsed.quarantined ?? []) {
+		const { file, owner, reason, issue } = entry ?? {};
+		if (!file || !owner || !reason || reason.length < 20 || !issue) {
+			issues.push(
+				`${registerPath}: malformed entry ${JSON.stringify(entry)}; it needs file, owner, a reason of at least 20 characters and a tracking issue.`
+			);
+			continue;
+		}
+		if (entries.has(file)) issues.push(`${registerPath}: ${file} is listed twice.`);
+		entries.set(file, entry);
+	}
+	return { entries, issues };
+}
+
+export function checkTestQuarantine({
+	root = process.cwd(),
+	register = DEFAULT_REGISTER,
+	paths = [],
+} = {}) {
+	const quarantine = loadRegister(root, register);
+	const issues = [...quarantine.issues];
+	const suppressed = new Set();
+	const files = listTestFiles(root, paths);
+	for (const file of files) {
+		let text;
+		try {
+			text = readFileSync(resolve(root, file), 'utf8');
+		} catch {
+			continue; // listed by git but deleted in the working tree
+		}
+		for (const { line, kind } of findSuppressions(text)) {
+			if (kind === 'only') {
+				issues.push(
+					`${file}:${line} uses .only; remove the focus, which silently shrinks the suite.`
+				);
+				continue;
+			}
+			suppressed.add(file);
+			if (!quarantine.entries.has(file))
+				issues.push(
+					`${file}:${line} uses .${kind} with no quarantine entry. Make it conditional (skipIf, runIf) if it depends on the environment, or add {file, owner, reason, issue} to ${register}.`
+				);
+		}
+	}
+	const scanned = new Set(files);
+	for (const file of quarantine.entries.keys()) {
+		const inScope =
+			paths.length === 0 || paths.some((path) => file.startsWith(path.replace(/\/?$/, '/')));
+		if (inScope && !suppressed.has(file))
+			issues.push(
+				scanned.has(file)
+					? `${register}: ${file} has no unconditional .skip or .todo left; it recovered, so delete the entry (and close its issue if it was the last).`
+					: `${register}: ${file} is not a test file git lists; delete or correct the entry.`
+			);
+	}
+	if (files.length === 0)
+		issues.push('The scan found no test file: it stopped seeing the suite it guards.');
+	return { files: files.length, quarantined: quarantine.entries.size, issues };
+}
+
+function parseArguments(argv) {
+	const options = { paths: [] };
+	for (let i = 0; i < argv.length; i++) {
+		if (argv[i] === '--root') options.root = resolve(argv[++i]);
+		else if (argv[i] === '--register') options.register = argv[++i];
+		else options.paths.push(argv[i]);
+	}
+	return options;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+	try {
+		const { files, quarantined, issues } = checkTestQuarantine(
+			parseArguments(process.argv.slice(2))
+		);
+		if (issues.length > 0) {
+			console.error(`Test quarantine check failed with ${issues.length} issue(s):`);
+			for (const issue of issues) console.error(`- ${issue}`);
+			process.exitCode = 1;
+		} else {
+			console.log(
+				`Test quarantine check passed: ${files} test files, ${quarantined} quarantined, no unexplained suppression.`
+			);
+		}
+	} catch (cause) {
+		console.error(cause instanceof Error ? cause.message : String(cause));
+		process.exitCode = 1;
+	}
+}

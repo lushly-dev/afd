@@ -3,13 +3,15 @@
  * Refuses a test runner that may pass having run no tests.
  *
  * Vitest's `passWithNoTests` turns "no test file matched" into a pass, so a broken `include`,
- * a moved directory or a renamed suffix leaves a package green with nothing run. Every package
- * here has tests, so the flag is never needed: a new package adds its first test with its
- * config. This reads every Vitest or Vite config git tracks or would track, and fails on the
- * option; and every package.json, workflow, hook config and `scripts/affected` module, which
- * start runners, and fails on the CLI flag.
+ * a moved directory or a renamed suffix leaves a package green with nothing run. A package
+ * with no tests yet adds its first test with its config instead. This reads every Vitest or
+ * Vite config git tracks or would track, and fails on the option; and every package.json,
+ * GitHub workflow and Lefthook config, which start runners, and fails on the CLI flag.
  *
- * Run: node scripts/check-test-configs.mjs [--root <dir>]
+ * Needs only Node and git. Usage:
+ *   node check-test-configs.mjs [--root <dir>] [<path>...]
+ * Each path (a file or a directory) adds more files that start runners, such as a repository's
+ * own scripts, to the scan for the flag.
  */
 import { execFileSync } from 'node:child_process';
 import { readFileSync } from 'node:fs';
@@ -18,25 +20,26 @@ import { fileURLToPath } from 'node:url';
 
 const CONFIG =
 	/(^|\/)(vitest|vite)(\.[\w-]+)?\.config(\.[\w-]+)?\.[cm]?[jt]s$|(^|\/)vitest\.(workspace|projects)\.[cm]?[jt]s$/;
-const LAUNCHER =
-	/(^|\/)package\.json$|^\.github\/workflows\/[^/]+\.ya?ml$|^lefthook\.ya?ml$|^scripts\/affected\/[^/]+\.mjs$/;
+const LAUNCHER = /(^|\/)package\.json$|^\.github\/workflows\/[^/]+\.ya?ml$|(^|\/)lefthook\.ya?ml$/;
 // A key, quoted or not, with any value but a literal `false` (`true`, `!0` and a variable may
 // all enable it), or shorthand `{ passWithNoTests }`. A commented line is flagged too: fails safe.
 const OPTION = /\bpassWithNoTests['"]?\s*(:(?!\s*false\b)|[,}])/;
 const FLAG = /--pass-?[Ww]ith-?[Nn]o-?[Tt]ests\b/;
 
-/** Files git tracks, or would track, under `root`. */
-export function candidateFiles(root) {
+/** Files git tracks, or would track, under `root`: configs, launchers and `extra` paths. */
+export function candidateFiles(root, extra = []) {
+	const env = { ...process.env };
+	for (const key of Object.keys(env)) if (key.startsWith('GIT_')) delete env[key];
+	const inExtra = (file) =>
+		extra.some((path) => file === path || file.startsWith(`${path.replace(/\/$/, '')}/`));
 	const out = execFileSync(
 		'git',
 		['ls-files', '-z', '--cached', '--others', '--exclude-standard'],
-		{
-			cwd: root,
-			encoding: 'utf8',
-			maxBuffer: 64 * 1024 * 1024,
-		}
+		{ cwd: root, encoding: 'utf8', env, maxBuffer: 64 * 1024 * 1024 }
 	);
-	return out.split('\0').filter((file) => file && (CONFIG.test(file) || LAUNCHER.test(file)));
+	return out
+		.split('\0')
+		.filter((file) => file && (CONFIG.test(file) || LAUNCHER.test(file) || inExtra(file)));
 }
 
 /** The findings for one file's text: each names the line and what it allows. */
@@ -55,8 +58,8 @@ export function findings(file, text) {
 	return result;
 }
 
-export function check(root) {
-	const files = candidateFiles(root);
+export function check(root, extra = []) {
+	const files = candidateFiles(root, extra);
 	const problems = files.flatMap((file) => {
 		let text;
 		try {
@@ -70,9 +73,14 @@ export function check(root) {
 }
 
 if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-	const rootIndex = process.argv.indexOf('--root');
-	const root = rootIndex > -1 ? resolve(process.argv[rootIndex + 1]) : process.cwd();
-	const { files, problems } = check(root);
+	let root = process.cwd();
+	const extra = [];
+	const argv = process.argv.slice(2);
+	for (let i = 0; i < argv.length; i++) {
+		if (argv[i] === '--root') root = resolve(argv[++i]);
+		else extra.push(argv[i].replaceAll('\\', '/'));
+	}
+	const { files, problems } = check(root, extra);
 	if (problems.length > 0) {
 		console.error(`Test config check failed:\n- ${problems.join('\n- ')}`);
 		console.error(
