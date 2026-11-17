@@ -1,0 +1,65 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The data is
+# invented. Lists are asserted by index ('0'), and an end of list by `'n': { notExists: true }`.
+# mailfixapp stands in for mail's native app: its calls grant names mailfix's draft and send
+# commands (7.5). As the active app its send would show the prompt in the slot at once, which a
+# scenario cannot answer, so the send step runs it inactive, as a background call, and the person
+# answers the confirmation from the inbox; the slot is P5-A6's.
+name: Send my own mail from Loam
+description: >-
+  When I've written a reply in the mail app and press Send, I want Loam to show me what will go
+  and send it once I approve, so that Loam can be my only mail client.
+job: person-sends-mail
+tags: [slice, loam-runner]
+steps:
+  - description: "[caller: mailfixapp] The mail app saves my reply as a draft"
+    command: mailfix-draft-create
+    input: { thread: thr_1, body: See you Thursday. }
+    expect:
+      success: true
+      data: { draft: drf_1 }
+  - description: "[caller: hello] An app without the grant cannot reach the mail engine"
+    command: mailfix-draft-send
+    input: { draft: drf_1 }
+    expect:
+      success: false
+      error:
+        code: CALL_NOT_GRANTED
+        suggestion: { contains: calls }
+  - description: "[caller: mailfixapp, inactive] I press Send; it waits for my approval"
+    command: mailfix-draft-send
+    input: { draft: drf_1 }
+    expect:
+      success: false
+      error:
+        code: CONFIRMATION_PENDING
+        suggestion: { contains: confirmation-get }
+  - description: The approval shows the server's preview of what will be sent
+    command: notification-list
+    input: { kind: confirmation, limit: 1 }
+    expect:
+      success: true
+      data:
+        notifications:
+          '0':
+            confirmation:
+              command: mailfix-draft-send
+              state: pending
+              preview: { command: mailfix-draft-show }
+          '1': { notExists: true }
+  - description: I approve it
+    command: notification-act
+    input: { notification: "${{ steps[3].data.notifications[0].id }}", answer: confirm }
+    expect:
+      success: true
+      data: { state: confirmed }
+  - description: It was sent once
+    command: mailfix-sent-list
+    input: {}
+    expect:
+      success: true
+      data:
+        sent:
+          '0': { recipients: [ada@example.com] }
+          '1': { notExists: true }

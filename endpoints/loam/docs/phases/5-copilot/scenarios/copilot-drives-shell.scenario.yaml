@@ -35,8 +35,8 @@ steps:
         turn:
           state: done
           calls:
-            '0': { command: project-create, mode: act, outcome: ok }
-            '1': { command: document-create, mode: act, outcome: ok }
+            '0': { command: project-create, mode: act, outcome: ok, undo: project-archive }
+            '1': { command: document-create, mode: act, outcome: ok, undo: document-trash }
             '2': { notExists: true }
   - description: The project exists, made by the copilot for me
     command: project-get
