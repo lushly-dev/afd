@@ -1,44 +1,50 @@
 {
 	"schemaVersion": 1,
-	"selectedUnits": ["violet-elements", "violet-npm"],
-	"inventoryHash": "bd4885f7d30d4cd164ca8ca02770f5f834f86e2734a1742d68c0c872bdb97d67",
-	"sourceDigest": "b54248faa54bb10921a426955fca302ee9267460a4badcd1fef8f5198134be14",
+	"selectedUnits": ["specimen", "violet-elements"],
+	"inventoryHash": "0810da3d269887a08bdc4151553bc2b6b1bc5a352ff69b9d9e846dda0fef1533",
+	"sourceDigest": "b5cc3e9af8de2ec8b66475bb99fb1ae3f868a283c82b94f8b34a23377c919132",
 	"distributions": [
 		{
+			"name": "@lushly-dev/specimen",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/package.json",
+			"manifestHash": "d8d77f01a6a6974fe637bd9e9ffcc7bf3f7be19b541f7c512c39a23d01cd6570"
+		},
+		{
+			"name": "@lushly-dev/specimen-host-darwin-arm64",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/packages/host-darwin-arm64/package.json",
+			"manifestHash": "451a1048cb6ee1140641adcffc0a8745517cfdc2cdf004a3042ee2b61284d466"
+		},
+		{
+			"name": "@lushly-dev/specimen-host-darwin-x64",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/packages/host-darwin-x64/package.json",
+			"manifestHash": "0c3883bb538dd04bd8046627ef71b8208717bf721664399bdc7caf0e6dd10c1e"
+		},
+		{
+			"name": "@lushly-dev/specimen-host-linux-arm64-gnu",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/packages/host-linux-arm64-gnu/package.json",
+			"manifestHash": "2d9670a7c43fc4b4ec16abd7fd744657c8293d3a5ae4d0570829f45963a45bc6"
+		},
+		{
+			"name": "@lushly-dev/specimen-host-linux-x64-gnu",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/packages/host-linux-x64-gnu/package.json",
+			"manifestHash": "fc461350a458a7701ea9e1793b793814176d1fb8615382255fa8e7b3acbeaafd"
+		},
+		{
+			"name": "@lushly-dev/specimen-host-win32-x64",
+			"version": "2.2.0-preview.6",
+			"manifest": "foundations/specimen/packages/host-win32-x64/package.json",
+			"manifestHash": "ee2f3dda997ec3ee683826819dfc79ddc07131bcbe87d1136aba44199fdad4e0"
+		},
+		{
 			"name": "@lushly-dev/violet-elements",
-			"version": "0.2.0-preview.0",
+			"version": "0.2.0-preview.1",
 			"manifest": "foundations/fast-af/packages/violet-elements/package.json",
-			"manifestHash": "ba5767616fa1678be41b315893e24f85848d56ff00536d3bf4bd89fe768627f8"
-		},
-		{
-			"name": "@lushly-dev/violet-core",
-			"version": "0.3.0-preview.0",
-			"manifest": "foundations/violet/packages/core/package.json",
-			"manifestHash": "efdfeff9b7d7718554e356c0776e37826dbd2442527fc3f0d65292f9fcf1e604"
-		},
-		{
-			"name": "@lushly-dev/violet-runtime",
-			"version": "0.3.0-preview.0",
-			"manifest": "foundations/violet/packages/runtime/package.json",
-			"manifestHash": "278c27c13f0cbc10d935b2646ffa33937cae8602a55f2bbbe5ef23cc0d074853"
-		},
-		{
-			"name": "@lushly-dev/violet-cli",
-			"version": "0.3.0-preview.0",
-			"manifest": "endpoints/violet-cli/package.json",
-			"manifestHash": "18d23ba198241e0cde6b18b4c1c3bfb2645cdff4eaa72b5b69b8e407d0a6197f"
-		},
-		{
-			"name": "@lushly-dev/violet-server",
-			"version": "0.3.0-preview.0",
-			"manifest": "endpoints/violet-server/package.json",
-			"manifestHash": "29197118babbe35e5aaa97facbca78428a2e482a01cfbb82a0530776ac7f7a96"
-		},
-		{
-			"name": "@lushly-dev/violet-afd",
-			"version": "0.3.0-preview.0",
-			"manifest": "integrations/violet-afd/package.json",
-			"manifestHash": "56e2a41ecdb4c2a2b9512e108859af6cddff75fef5bec259e9fc540e275cb100"
+			"manifestHash": "207c99ce2e85bb02f1c5ae55d28e83be0021ded864e97d0b92435bfe0376b5ac"
 		}
 	]
 }

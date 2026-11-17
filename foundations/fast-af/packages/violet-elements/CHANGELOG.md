@@ -1,5 +1,11 @@
 # @lushly-dev/violet-elements
 
+## 0.2.0-preview.1
+
+### Patch Changes
+
+- [#1340](https://github.com/lushly-dev/afd/pull/1340) [`44ae808`](https://github.com/lushly-dev/afd/commit/44ae808a9796a724c0c91d7fb1e081a635ed30ab) Thanks [@Falkicon](https://github.com/Falkicon)! - `violet-data-grid`'s `selection-label` description fits the pack's 240-character limit, so briefs now carry it ([#1149](https://github.com/lushly-dev/afd/issues/1149)). The radio group's overview story puts the group back after its form check, so the pack observes the group's `required` attribute ([#1150](https://github.com/lushly-dev/afd/issues/1150)).
+
 ## 0.2.0-preview.0
 
 ### Minor Changes
