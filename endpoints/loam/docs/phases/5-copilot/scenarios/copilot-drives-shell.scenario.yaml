@@ -1,0 +1,72 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# Script new-project-note: project-create { name: Garden }, then document-create
+# { type: notes, title: Seed order } in it, then a one-line reply. p5-base sets both to act.
+name: Have the copilot do it with commands
+description: >-
+  When I ask the copilot to set something up, I want it done through the same commands I would
+  use, within my autonomy settings, so that I can see and undo everything it did.
+job: copilot-drives-shell
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: { title: Garden }
+    expect:
+      success: true
+      data:
+        session: { id: { matches: '^cps_[0-9a-f]{16}$' }, provider: test, taint: { length: 0 } }
+  - description: "[agent] An agent cannot drive the copilot"
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:new-project-note" }
+    expect:
+      success: false
+      error: { code: HUMAN_REQUIRED }
+  - description: I ask, and the copilot uses the shell's own commands, within my settings
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:new-project-note" }
+    expect:
+      success: true
+      data:
+        turn:
+          state: done
+          calls:
+            '0': { command: project-create, mode: act, outcome: ok }
+            '1': { command: document-create, mode: act, outcome: ok }
+            '2': { notExists: true }
+  - description: The project exists, made by the copilot for me
+    command: project-get
+    input: { project: garden }
+    expect:
+      success: true
+      data: { name: Garden, status: active }
+  - description: The note is in it
+    command: document-list
+    input: { project: garden }
+    expect:
+      success: true
+      data:
+        documents:
+          '0': { title: Seed order }
+        total: 1
+  - description: The session shows what it did
+    command: copilot-session-get
+    input: { session: "${{ steps[0].data.session.id }}" }
+    expect:
+      success: true
+      data:
+        turns:
+          '0': { seq: 1, state: done, calls: { length: 2 } }
+  - description: I find the session again later
+    command: copilot-session-list
+    input: { limit: 1 }
+    expect:
+      success: true
+      data:
+        sessions:
+          '0': { title: Garden, id: "${{ steps[0].data.session.id }}" }
+          '1': { notExists: true }

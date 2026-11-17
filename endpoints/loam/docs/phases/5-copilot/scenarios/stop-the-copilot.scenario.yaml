@@ -1,0 +1,57 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# Script hang: the test provider holds its answer until the turn is stopped, so the turn is still
+# running when the next steps reach it. wait: false returns as soon as the turn starts.
+name: Stop the copilot
+description: >-
+  When the copilot is doing something I didn't mean, I want to stop it at once and see what it
+  had done, so that nothing more happens.
+job: stop-the-copilot
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: I ask, and the turn starts
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:hang", wait: false }
+    expect:
+      success: true
+      data:
+        turn: { seq: 1, state: running }
+  - description: A second message while it runs is refused, with the way to stop it
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:new-project-note" }
+    expect:
+      success: false
+      error:
+        code: COPILOT_TURN_RUNNING
+        suggestion: { contains: copilot-turn-stop }
+  - description: "[agent] An agent cannot stop my turn"
+    command: copilot-turn-stop
+    input: { session: "${{ steps[0].data.session.id }}", turn: 1 }
+    expect:
+      success: false
+      error: { code: HUMAN_REQUIRED }
+  - description: I stop it
+    command: copilot-turn-stop
+    input: { session: "${{ steps[0].data.session.id }}", turn: 1 }
+    expect:
+      success: true
+      data:
+        turn: { state: stopped, stoppedBy: person, calls: { length: 0 } }
+  - description: The session shows it stopped
+    command: copilot-session-get
+    input: { session: "${{ steps[0].data.session.id }}" }
+    expect:
+      success: true
+      data:
+        turns:
+          '0': { seq: 1, state: stopped }
+          '1': { notExists: true }

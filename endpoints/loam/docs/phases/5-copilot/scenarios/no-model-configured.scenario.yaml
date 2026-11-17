@@ -1,0 +1,29 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner).
+# It runs on the seed p5-no-provider, named by its tag: p5-base with no [copilot] table. The data
+# is invented.
+name: Be told when no model is set up
+description: >-
+  When no model is configured, I want the copilot to say so and how to fix it, so that I am not
+  left with a silent panel.
+job: no-model-configured
+tags: [slice, loam-runner, 'seed:p5-no-provider']
+steps:
+  - description: No provider is configured
+    command: copilot-provider-list
+    input: {}
+    expect:
+      success: true
+      data: { providers: { length: 0 } }
+  - description: A session still starts
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: A message says what is missing and where to set it
+    command: copilot-message-send
+    input: { session: "${{ steps[1].data.session.id }}", text: Hello }
+    expect:
+      success: false
+      error:
+        code: COPILOT_PROVIDER_MISSING
+        suggestion: { contains: loam.deployment.toml }
