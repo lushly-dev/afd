@@ -31,7 +31,9 @@ kind                    required fields                                     writ
                         ``rerun-limit`` it may touch it, but the attempt
                         reached ``lane.maxBaseReruns`` and the PR's
                         required check stands in (detail: why it would
-                        have been validated again)
+                        have been validated again; checkBase when the PR
+                        was already pushed onto an older base, which its
+                        check ran on)
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed); optional head,
@@ -39,7 +41,8 @@ kind                    required fields                                     writ
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
                         withoutCheck, advanced (merged after a
                         base-advanced, without a new validation),
-                        checkStoodIn (after a rerun-limit advance)
+                        checkStoodIn (after a rerun-limit advance, with
+                        checkBase, the base its check ran onto, and base)
 ``dropped``             branch, reason                                      lane-drop
 ``coverage``            main, outcome (passed | failed), minutes;           the lane loop
                         optional logPath, after (the PRs since the last)

@@ -48,6 +48,7 @@ class Merging(Advancing):
                 return
             raise LaneTrouble(f"Pushing {branch} failed: {exc}") from exc
         entry["pushedHead"] = head
+        entry["checkBase"] = entry["base"]  # What the required check's merge ref holds at least.
         if cell:
             cell["pushedHead"] = head
         try:
@@ -163,6 +164,11 @@ class Merging(Advancing):
             withoutCheck=without_check,
             advanced=bool(entry.get("advanced")),
             checkStoodIn=bool(entry.get("checkStandsIn")),
+            **(
+                {"checkBase": entry.get("checkBase"), "base": entry.get("base")}
+                if entry.get("checkStandsIn")
+                else {}
+            ),
         )
         self.watch_unchecked(entry, pr)
         cell = self.cell(branch)

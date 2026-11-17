@@ -54,7 +54,8 @@ validation, a `base-advanced` record, only if main's changes touch no `shared_pa
 adapter's `units` command names them; otherwise it is validated again, `rerun` `main-moved`;
 after `lane.maxBaseReruns` of those, a move that merges cleanly and touches no `gate_paths`
 advances it anyway, a `base-advanced` record with `reason` `rerun-limit`, and the PR's
-`required_check`, run on the pull request's merge ref, stands in), pushes the validated commit
+`required_check`, run on the pull request's merge ref, stands in; a move after the push merges
+on that check of the older main, `checkBase` in the record), pushes the validated commit
 (with a lease on its own last push), opens the PR, waits for `required_check` on that commit and
 squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` merges and at
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
@@ -137,10 +138,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `lane.coverageEvery` 5,
-`lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2, `claims.leaseHours` 24,
-`cells.maxEjections` 3,
-`experience.hold` false, `lane.autostart` true, `logs.keepDays` 30, and the owner's `review.*`
-dials.
+`lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but turns the guard off),
+`claims.leaseHours` 24, `cells.maxEjections` 3, `experience.hold` false, `lane.autostart`
+true, `logs.keepDays` 30, and the owner's `review.*` dials.
 
 ## State and claims
 

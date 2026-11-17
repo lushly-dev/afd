@@ -334,6 +334,11 @@ def test_a_move_while_its_check_runs_past_the_limit_still_merges_and_is_watched(
     actions = run_steps(starving, **GUARDED)
     assert "advanced feat/export-csv to main-4 (2 reruns; its required check stands in)" in actions
     assert "merged feat/export-csv (PR 600)" in actions
+    records = starving.store.read_records()
+    late = [r for r in records if r["kind"] == "base-advanced"][-1]
+    assert (late["base"], late["checkBase"]) == ("main-4", "main-3")  # Its check ran on main-3.
+    [merged] = [r for r in records if r["kind"] == "merged"]
+    assert (merged["checkBase"], merged["base"]) == ("main-3", "main-4")
     starving.change_world(mainChecks={"main@600": {"CI": "failure"}})
     run_steps(starving, **GUARDED)
     [broken] = events(starving, "main-broken")
@@ -364,3 +369,33 @@ def test_the_rerun_limit_is_a_dial(starving):
     assert "advanced feat/export-csv to main-4 (3 reruns; its required check stands in)" in (
         move_to(starving, 4, ["packages/b/y.ts"])
     )
+
+
+@pytest.mark.parametrize(
+    "outcomes",
+    [{"mergeTree": {validated_on("main-2"): "conflict: pnpm-lock.yaml"}}, {}],
+    ids=["conflict", "gate-path"],
+)
+def test_past_the_limit_a_move_while_its_check_runs_is_refused_as_before(starving, outcomes):
+    move_to(starving, 3, ["packages/b/y.ts"])  # Pushed; the check is pending.
+    changes = ["packages/b/y.ts"] if outcomes else ["lefthook.yml"]
+    starving.change_world(
+        main={"head": "main-4", "changes": {"main-4": changes}},
+        outcomes={"checks": {BRANCH: "success"}, **outcomes},
+    )
+    assert "rerun feat/export-csv (main-moved)" in run_steps(starving, **GUARDED)
+    assert "merged" not in kinds(starving) and prs(starving)["600"]["state"] == "OPEN"
+
+
+def test_past_the_limit_changes_that_cannot_be_read_validate_again(starving):
+    actions = move_to(starving, 3, ["packages/b/y.ts"], diff="fail: git diff failed")
+    assert "rerun feat/export-csv (main-moved)" in actions
+    assert "base-advanced" not in kinds(starving)
+
+
+def test_past_the_limit_an_unrelated_move_is_an_ordinary_advance(starving):
+    starving.change_world(units={**UNITS, "pnpm-lock.yaml": ["package:a"]})
+    actions = move_to(starving, 3, ["packages/b/y.ts"])
+    assert "advanced feat/export-csv to main-3" in actions
+    [advanced] = [r for r in starving.store.read_records() if r["kind"] == "base-advanced"]
+    assert "reason" not in advanced and "checkStandsIn" not in entry_of(starving, BRANCH)

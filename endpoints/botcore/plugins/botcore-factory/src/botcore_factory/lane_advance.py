@@ -22,6 +22,11 @@ PR's ``required_check``, which runs on the pull request's merge ref (the branch 
 main), stands in for the local validation. A conflict, a gate path or changes that cannot be read
 are validated again as before.
 
+The check runs on main as it was when the head was pushed (``checkBase``). Past the limit, a move
+of main after the push, while the check runs or after it passed, does not trigger it again: the
+branch merges on that check, as any pull request here does (``main`` does not require an
+up-to-date branch), and the record names ``checkBase``. Only the watch on main covers that move.
+
 A merge after either advance is watched on main (``uncheckedMerges``): when a check the adapter's
 ``main_checks`` selects fails on its merge commit, the lane pauses and raises ``main-broken``
 naming the PRs merged without a local re-check.
@@ -63,6 +68,8 @@ class Advancing(StepBase):
         fields = {"reason": "rerun-limit", "detail": reason} if guarded else {}
         if guarded:
             entry["checkStandsIn"] = True
+            if entry.get("checkBase"):  # Already pushed: its check ran onto an older main.
+                fields["checkBase"] = entry["checkBase"]
         self.record(
             "base-advanced",
             branch=entry["branch"],
