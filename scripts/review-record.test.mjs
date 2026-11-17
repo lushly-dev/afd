@@ -11,6 +11,7 @@ import {
 	buildRecord,
 	checkLanes,
 	DEFAULT_BASES,
+	REFUSED,
 	readRecord,
 	recordPath,
 	run,
@@ -164,7 +165,7 @@ describe('run, against a real repository', () => {
 		const { root, git } = repo();
 		t.after(() => rmSync(root, { recursive: true, force: true }));
 		const head = git(['rev-parse', 'HEAD']).trim();
-		assert.equal(run(['verify', '--head', head], { git, root }).code, 1);
+		assert.equal(run(['verify', '--head', head], { git, root }).code, REFUSED);
 		const written = run(['write', '--lanes', lanes], { git, root, now: NOW });
 		assert.equal(written.code, 0, written.out);
 		assert.equal(git(['status', '--porcelain']).trim(), '', 'the record is not in the tree');
@@ -181,7 +182,7 @@ describe('run, against a real repository', () => {
 		git(['commit', '-q', '-m', 'c']);
 		const next = git(['rev-parse', 'HEAD']).trim();
 		const stale = run(['verify', '--head', next], { git, root });
-		assert.equal(stale.code, 1);
+		assert.equal(stale.code, REFUSED);
 		assert.match(stale.out, /review recorded is of/);
 	});
 
@@ -198,7 +199,7 @@ describe('run, against a real repository', () => {
 		const head = otherGit(['rev-parse', 'HEAD']).trim();
 		assert.equal(head, git(['rev-parse', 'HEAD']).trim(), 'the same commit in both');
 		const there = run(['verify', '--head', head], { git: otherGit, root: other });
-		assert.equal(there.code, 1);
+		assert.equal(there.code, REFUSED);
 		assert.match(there.out, /no review is recorded/);
 	});
 
@@ -220,7 +221,7 @@ describe('run, against a real repository', () => {
 		assert.match(fromLane(root).out, /no review is recorded/);
 		assert.equal(run(['write', '--lanes', lanes], { git, root }).code, 0);
 		assert.equal(fromLane(root).code, 0);
-		assert.equal(fromLane(lane).code, 1, "the lane's own checkout is not the cell's");
+		assert.equal(fromLane(lane).code, REFUSED, "the lane's own checkout is not the cell's");
 		const without = run(['verify', '--head', head, '--worktree', root], { git, root });
 		assert.equal(without.code, 2);
 	});

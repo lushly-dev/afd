@@ -162,7 +162,8 @@ ejected and merged, each with its attempt, plan, route and execution profile.
 `labels` (the label definitions intake reads), `prequeue` (named stages:
 `{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued, `{worktree}`
 for the cell's worktree, which the lane's own run needs: it runs from a clean `review` slot at the
-base, so a change to the verifier binds only once it is on the base and the lane restarts),
+base, so a change to the verifier binds only once it is on the base and the lane restarts; it
+exits 0 to accept and 3 to refuse, and any other exit is the lane's trouble),
 `gate_paths`, and the lane's later keys: `validate`, `coverage`, `install`,
 `required_check`, `base_branch` (default `main`), `units` (an argument list the lane runs with
 changed paths appended; it prints a JSON list of unit names, `"*"` for all), `shared_paths` (globs

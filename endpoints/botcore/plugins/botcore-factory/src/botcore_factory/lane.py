@@ -45,6 +45,8 @@ __all__ = ["LaneTrouble", "Step", "first_lines", "log_path", "step"]
 REVIEW_SLOT = "review"
 #: Seconds; the verifier only reads a record.
 REVIEW_TIMEOUT = 120
+#: The verifier's exit code for a refused review (``scripts/review-record.mjs``'s ``REFUSED``).
+REVIEW_REFUSED = 3
 
 
 class Step(Merging, Coverage):
@@ -134,6 +136,7 @@ class Step(Merging, Coverage):
         }
         free = [str(n) for n in range(1, self.dial("lane.slots") + 1) if str(n) not in busy]
         for entry in [e for e in self.state["queue"] if e.get("state") == "queued"]:
+            reserved = None
             if not free:
                 # A front entry requeued after a base change (or a repaired entry) must
                 # not deadlock behind later entries reserving every completed slot.
@@ -141,6 +144,12 @@ class Step(Merging, Coverage):
                 reserved = next((e for e in reversed(later) if e["state"] == "validated"), None)
                 if reserved is None:
                     return
+            if not self.config.validate_command:
+                raise LaneTrouble("The repository adapter names no validate command")
+            # Checked once a slot is to be had, and before a validated branch gives one up.
+            if not self.review_verified(entry, self.base_head()):
+                continue
+            if reserved is not None:
                 free.append(reserved["slot"])
                 self.requeue(reserved, "slot-needed", front=False)
             slot = free.pop(0)
@@ -149,11 +158,7 @@ class Step(Merging, Coverage):
 
     def start_validation(self, entry: dict, slot: str) -> bool:
         """Start validating ``entry`` in ``slot``; False when it was ejected instead."""
-        if not self.config.validate_command:
-            raise LaneTrouble("The repository adapter names no validate command")
         base, branch = self.base_head(), entry["branch"]
-        if not self.review_verified(entry, base):
-            return False
         log = log_path(branch, entry["attempt"])
         try:
             path = self.world.git.prepare_slot(slot, branch, entry["head"])
@@ -206,8 +211,10 @@ class Step(Merging, Coverage):
         this check binds (lushly-dev/afd#1308). It runs the lane's ``review_evidence`` in the
         ``review`` slot, a clean checkout of ``base``, so the verifier is the copy the merge
         lands on, and ``{worktree}`` names the cell's worktree, where its record is kept. A
-        refusal, or a worktree that is gone, ejects; a verifier that cannot run is the lane's
-        trouble.
+        refusal (exit ``REVIEW_REFUSED``), or a worktree that is gone, ejects; any other failure
+        of the verifier (it cannot start, times out, crashes or is called wrongly) is the lane's
+        trouble, so a verifier broken on the base pauses the lane rather than ejecting every
+        branch.
         """
         command = self.config.review_evidence
         if not command or not any("{worktree}" in part for part in command):
@@ -238,9 +245,15 @@ class Step(Merging, Coverage):
             )
         except WorldError as exc:
             raise LaneTrouble(f"Checking the review of {entry['branch']} failed: {exc}") from exc
-        if done.returncode != 0:
-            self.eject(entry, "review-unverified", done.stderr + "\n" + done.stdout)
+        output = done.stderr + "\n" + done.stdout
+        if done.returncode == REVIEW_REFUSED:
+            self.eject(entry, "review-unverified", output)
             return False
+        if done.returncode != 0:
+            raise LaneTrouble(
+                f"The review verifier failed for {entry['branch']} (exit {done.returncode}): "
+                f"{(first_lines(output) or ['no output'])[0]}"
+            )
         return True
 
 

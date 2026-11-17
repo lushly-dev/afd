@@ -15,7 +15,7 @@
  *   node scripts/review-record.mjs verify --head <sha> --worktree <path>
  *
  * which passes only for a passing review of that exact, checked-out, clean commit in that worktree
- * (without `--worktree`, the checkout this script is in). The lane runs it again before each
+ * (without `--worktree`, the checkout this script is in), and exits `REFUSED` (3) otherwise. The lane runs it again before each
  * validation, from its own checkout of the base, so a branch that edits this script cannot pass
  * its own review (lushly-dev/afd#1308). A commit made
  * after the review (a fix, a base merge) has no record until the review is recorded again. As
@@ -35,6 +35,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SCHEMA = 1;
+/**
+ * `verify`'s exit code for a refused review. Any other non-zero exit (a crash, a usage error,
+ * Node's own exit 1 for a missing or broken script) means the verifier failed, which the lane
+ * treats as its own trouble rather than the branch's (lushly-dev/afd#1308).
+ */
+export const REFUSED = 3;
 /** affected/scope.mjs's DEFAULT_BASES, kept here so the script stands alone (a test pins them). */
 export const DEFAULT_BASES = ['origin/main', 'main'];
 const SHA = /^[0-9a-f]{40}$/;
@@ -205,10 +211,13 @@ export function run(argv, { git, root, gitAt, now = Date.now() }) {
 		try {
 			record = readRecord(path);
 		} catch (error) {
-			return { code: 1, out: `review-record: the record could not be read: ${error.message}` };
+			return {
+				code: REFUSED,
+				out: `review-record: the record could not be read: ${error.message}`,
+			};
 		}
 		const { accepted, reason } = acceptRecord({ record, identity, head: options.head });
-		return { code: accepted ? 0 : 1, out: `review-record: ${reason}` };
+		return { code: accepted ? 0 : REFUSED, out: `review-record: ${reason}` };
 	}
 	if ((options.lanes === undefined) === (options['lanes-file'] === undefined))
 		return { code: 2, out: `review-record: write needs one of --lanes or --lanes-file\n${USAGE}` };

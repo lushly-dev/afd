@@ -754,3 +754,32 @@ def test_review_evidence_without_the_worktree_is_the_lane_s_trouble(lane):
     )
     assert "must name {worktree}" in lane.state()["lane"]["pauseReason"]
     assert not events(lane, "ejected")
+
+
+def test_a_verifier_that_crashes_on_the_base_pauses_the_lane_and_ejects_nothing(lane):
+    """Node exits 1 for a missing or broken script: that is not the branch's refusal (3)."""
+    lane.change_world(outcomes={"review": "exit 1"})
+    run_steps(lane)
+    assert "review verifier failed" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+
+
+def test_a_repair_without_a_review_keeps_a_validated_branch_s_slot(lane):
+    with lane.store.update("a validated branch holds the only slot") as state:
+        state["queue"] = [
+            {"branch": "fix/parser-empty-input", "head": "a1b2c3d"},
+            {
+                "branch": "feat/export-csv",
+                "head": "b2c3d4e",
+                "state": "validated",
+                "slot": "1",
+                "validatedHead": "b2c3d4e+main-0",
+                "base": "main-0",
+            },
+        ]
+        reviewed(lane, state, "fix/parser-empty-input", "a1b2c3d", "wt/parser")
+    lane.change_world(worktrees={"wt/parser": {"review": None}})
+    actions = run_steps(lane)
+    assert "ejected fix/parser-empty-input (review-unverified)" in actions
+    assert entry_of(lane, "feat/export-csv")["state"] == "validated"
+    assert "rerun" not in kinds(lane)
