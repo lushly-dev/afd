@@ -90,6 +90,8 @@ pub(crate) struct Settings {
     /// The weakest basis served, as a rank (see [`basis_rank`]).
     pub(crate) minimum_basis: u8,
     pub(crate) default_library: Option<String>,
+    /// The consumer profile a call that names none uses (amendment A28).
+    pub(crate) default_consumer: Option<String>,
 }
 
 /// A basis as a rank: `verified` is 0, the strongest.
@@ -114,6 +116,10 @@ impl Settings {
             ),
             default_library: config
                 .get("default_library")
+                .and_then(Value::as_str)
+                .map(str::to_owned),
+            default_consumer: config
+                .get("default_consumer")
                 .and_then(Value::as_str)
                 .map(str::to_owned),
         }

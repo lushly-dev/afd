@@ -1,12 +1,19 @@
-//! Deployment-owned consumer rules, outside Specimen's library format.
-use std::collections::{BTreeMap, BTreeSet};
+//! Deployment-owned consumer profiles, outside Specimen's library format: rule exclusions
+//! (amendment A25) and the deployment's own guidance statements (amendment A28).
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use umbel_sdk::{Cx, Outcome, failure};
 
-use crate::pack::patterns;
-use crate::{fail, scan};
+use crate::pack::{patterns, text};
+use crate::{Settings, fail, scan};
+
+/// The most statements one consumer states.
+pub(crate) const MAX_STATEMENTS: usize = 24;
+/// The most UTF-8 bytes of statement text one consumer states. The statements sit in a brief's
+/// floor, so this bounds what they cost every brief.
+pub(crate) const MAX_STATEMENT_BYTES: usize = 4_096;
 
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -15,17 +22,62 @@ struct Consumers {
     consumers: BTreeMap<String, Profile>,
 }
 
+/// Version 1 requires `exclude_rules` and has no `statements`; version 2 makes both optional. A
+/// key that is present is `Some`, and `Some(None)` when it is `null`, which no version accepts.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
-    exclude_rules: Vec<String>,
+    #[serde(default, deserialize_with = "present")]
+    exclude_rules: Option<Option<Vec<String>>>,
+    #[serde(default, deserialize_with = "present")]
+    statements: Option<Option<Vec<Statement>>>,
+}
+
+/// A key's value with `null` kept apart from a missing key, which `#[serde(default)]` gives.
+fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    deserializer: D,
+) -> Result<Option<Option<T>>, D::Error> {
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+impl Profile {
+    fn exclusions(&self) -> &[String] {
+        self.exclude_rules
+            .as_ref()
+            .and_then(Option::as_deref)
+            .unwrap_or_default()
+    }
+
+    fn statements(&self) -> &[Statement] {
+        self.statements
+            .as_ref()
+            .and_then(Option::as_deref)
+            .unwrap_or_default()
+    }
+}
+
+/// One of the deployment's statements, in the pack's statement form without a basis: a
+/// deployment's statement is always `authored`.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub(crate) struct Statement {
+    pub(crate) id: String,
+    pub(crate) text: String,
+}
+
+/// The profile a call uses.
+#[derive(Debug, Default)]
+pub(crate) struct Selected {
+    pub(crate) name: String,
+    pub(crate) excluded: BTreeSet<String>,
+    pub(crate) statements: Vec<Statement>,
 }
 
 fn invalid() -> Outcome {
     failure(
         "CONSUMERS_INVALID",
         "the deployment's consumer map is unreadable or invalid",
-        "Repair data/consumers.json in the space's components/consumers pack; use version 1 and library-qualified rule ids.",
+        "Repair data/consumers.json in the space's components/consumers pack: version 1 or 2, library-qualified rule ids, and at most 24 statements a consumer, each with a unique statement id and one line of 1 to 240 characters, 4096 bytes of ids and text in all; at most 32 consumers and 256 exclusions each, in a file of at most 64 KiB.",
     )
 }
 
@@ -38,6 +90,43 @@ fn qualified(value: &str) -> bool {
     })
 }
 
+/// The pack's rules for a statement: a checked, scanned id, and one line of 1 to 240 code points
+/// with no control or bidirectional character.
+fn statement_ok(statement: &Statement) -> bool {
+    let length = statement.text.chars().count();
+    patterns::ID.accepts(&statement.id)
+        && !scan::identifier_hit(&statement.id)
+        && (1..=text::STATEMENT).contains(&length)
+        && text::allowed(&statement.text, false)
+}
+
+fn statements_ok(statements: &[Statement]) -> bool {
+    let mut ids = HashSet::new();
+    statements.len() <= MAX_STATEMENTS
+        && statements
+            .iter()
+            .map(|s| s.id.len() + s.text.len())
+            .sum::<usize>()
+            <= MAX_STATEMENT_BYTES
+        && statements
+            .iter()
+            .all(|s| statement_ok(s) && ids.insert(s.id.as_str()))
+}
+
+fn profile_ok(version: u8, name: &str, profile: &Profile) -> bool {
+    let null =
+        matches!(profile.exclude_rules, Some(None)) || matches!(profile.statements, Some(None));
+    let shape = version != 1 || (profile.exclude_rules.is_some() && profile.statements.is_none());
+    let exclusions = profile.exclusions();
+    !null
+        && shape
+        && patterns::LIBRARY.accepts(name)
+        && !scan::identifier_hit(name)
+        && exclusions.len() <= 256
+        && exclusions.iter().all(|id| qualified(id))
+        && statements_ok(profile.statements())
+}
+
 fn read(cx: &Cx) -> Result<Consumers, Outcome> {
     let bytes = cx
         .pack_read("consumers", "data/consumers.json")
@@ -46,43 +135,97 @@ fn read(cx: &Cx) -> Result<Consumers, Outcome> {
         return Err(invalid());
     }
     let map: Consumers = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-    if map.version != 1
+    if !matches!(map.version, 1 | 2)
         || map.consumers.len() > 32
-        || map.consumers.iter().any(|(name, profile)| {
-            !patterns::LIBRARY.accepts(name)
-                || scan::identifier_hit(name)
-                || profile.exclude_rules.len() > 256
-                || profile.exclude_rules.iter().any(|id| !qualified(id))
-        })
+        || !map
+            .consumers
+            .iter()
+            .all(|(name, profile)| profile_ok(map.version, name, profile))
     {
         return Err(invalid());
     }
     Ok(map)
 }
 
-pub(crate) fn check(cx: &Cx) -> Outcome {
-    match read(cx) {
-        Ok(_) => umbel_sdk::success(serde_json::json!({})),
-        Err(outcome) => outcome,
+/// `CONSUMER_NOT_FOUND`; for a name the deployment's default chose, the suggestion names the
+/// config key, since the caller named nothing. With a default set, omitting `consumer` gives the
+/// default's profile, not the general brief, so the suggestion says so.
+/// `default` is `None` with no `default_consumer`, otherwise whether the map holds it.
+fn not_found(by_default: bool, default: Option<bool>) -> Outcome {
+    if by_default {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the deployment's default consumer is not configured in this space",
+            "Add the consumer that `default_consumer` in [plugins.components.config] names to the space's components/consumers pack, or set `default_consumer` to a configured consumer; a call can also pass `consumer` to use another configured one.",
+        )
+    } else if default == Some(false) {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the requested consumer is not configured in this space",
+            "Configure the consumer in the space's components/consumers pack. The deployment's `default_consumer` is not configured here either, so omitting consumer fails too: add it to the pack, or change it in [plugins.components.config].",
+        )
+    } else if default == Some(true) {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the requested consumer is not configured in this space",
+            "Configure the consumer in the space's components/consumers pack, or omit consumer to use the deployment's default consumer.",
+        )
+    } else {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the requested consumer is not configured in this space",
+            "Configure the consumer in the space's components/consumers pack, or omit consumer for the library's general guidance.",
+        )
     }
 }
 
-/// No consumer means no file read and the original brief. All profiles are checked before use;
-/// neither a parser error nor deployment text is copied into a refusal.
-pub(crate) fn load(input: &Value, cx: &Cx) -> Result<BTreeSet<String>, Outcome> {
-    let Some(name) = input.get("consumer").and_then(Value::as_str) else {
-        return Ok(BTreeSet::new());
+/// The doctor's check of a `consumers` override: the map as a call reads it, and the deployment's
+/// `default_consumer` in it when one is configured.
+pub(crate) fn check(cx: &Cx) -> Outcome {
+    let map = match read(cx) {
+        Ok(map) => map,
+        Err(outcome) => return outcome,
     };
-    if !patterns::LIBRARY.accepts(name) || scan::identifier_hit(name) {
-        return Err(fail::invalid(
-            "`consumer` must be a checked name of at most 64 characters",
-        ));
+    match Settings::load(cx).default_consumer {
+        Some(name) if !map.consumers.contains_key(&name) => not_found(true, Some(false)),
+        _ => umbel_sdk::success(serde_json::json!({})),
     }
+}
+
+/// The call's `consumer`, else the deployment's `default_consumer`. Neither means no file read and
+/// the original brief. All profiles are checked before use; neither a parser error nor deployment
+/// text is copied into a refusal.
+pub(crate) fn load(
+    input: &Value,
+    default: Option<&str>,
+    cx: &Cx,
+) -> Result<Option<Selected>, Outcome> {
+    let (name, by_default) = match input.get("consumer").and_then(Value::as_str) {
+        Some(name) => {
+            if !patterns::LIBRARY.accepts(name) || scan::identifier_hit(name) {
+                return Err(fail::invalid(
+                    "`consumer` must be a checked name of at most 64 characters",
+                ));
+            }
+            (name, false)
+        }
+        None => match default {
+            Some(name) => (name, true),
+            None => return Ok(None),
+        },
+    };
+    // A default is not checked like a call's name: one the map's rules would refuse cannot be in a
+    // valid map, so it is not found.
     let map = read(cx)?;
-    let profile = map.consumers.get(name).ok_or_else(|| failure(
-        "CONSUMER_NOT_FOUND",
-        "the requested consumer is not configured in this space",
-        "Configure the consumer in the space's components/consumers pack, or omit consumer for the library's general guidance.",
-    ))?;
-    Ok(profile.exclude_rules.iter().cloned().collect())
+    let profile = map.consumers.get(name).ok_or_else(|| {
+        not_found(
+            by_default,
+            default.map(|default| map.consumers.contains_key(default)),
+        )
+    })?;
+    Ok(Some(Selected {
+        name: name.to_owned(),
+        excluded: profile.exclusions().iter().cloned().collect(),
+        statements: profile.statements().to_vec(),
+    }))
 }

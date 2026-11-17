@@ -134,4 +134,25 @@ for limits and failures. Excluded rules and references disappear from the brief,
 with their identifiers recorded under `omitted` (`reason: "consumer"`). Other
 library facts, including `import`, remain documentation; Loam's design record owns
 its deep imports. `components-open` still shows the general library record.
-Without `consumer`, the brief is unchanged; a misspelled name fails explicitly.
+Without `consumer` (and with no `default_consumer`, below), the brief is unchanged; a misspelled
+name fails explicitly.
+
+A deployment can also state its own design guidance (amendment A28 of the
+[specification](../../docs/plugins/components/spec.md#amendment-a28-a-deployments-own-guidance)).
+Version 2 of the file gives a profile `statements`, in the pack's statement form without a basis,
+and makes `exclude_rules` optional:
+
+```json
+{"version":2,"consumers":{"storefront":{"statements":[{"id":"forms.keep.labels-visible","text":"Every field keeps a visible label; a placeholder is not a label."}]}}}
+```
+
+A brief for that consumer carries the statements once, whatever its tags, `detail` or `sections`:
+as `content.guidance` (`consumer`, `basis: "authored"`, `items`), or as a
+`[guidance storefront authored]` block in text. They are scanned and flagged like any pack text, and
+never shed: the components' facts shed around them. A profile holds at most 24 statements, with
+unique ids and at most 4 096 bytes of ids and text together. `default_consumer` in `[plugins.components.config]`
+names the profile a call uses when it names none, and a call that names one overrides it. This
+repository's launcher adds the profiles of the file `UMBEL_COMPONENTS_CONSUMERS` names to its own
+(a name the repository already configures refuses to start) and writes `UMBEL_COMPONENTS_CONSUMER`
+as `default_consumer`; without either it writes what it always has. With no consumer and no
+default, the map is not read and the brief is byte for byte what it was.

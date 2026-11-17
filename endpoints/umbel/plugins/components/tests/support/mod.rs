@@ -316,26 +316,36 @@ impl Pack {
         }
     }
 
-    /// A host serving this pack in space `main`.
+    /// A host serving this pack in space `main`, with `map` as `main`'s consumers.
     pub fn host_with_consumers(&self, map: Value) -> Fx {
+        self.host_with_consumer_maps(&[("main", map)], toml::Table::new())
+    }
+
+    /// A host serving this pack in space `main`, with each `(space, map)` as that space's
+    /// consumers and `config` as the instance's configuration.
+    pub fn host_with_consumer_maps(&self, maps: &[(&str, Value)], config: toml::Table) -> Fx {
         let dir = TempDir::new().unwrap();
         let library = dir.path().join("library");
         self.write(&library);
-        let consumers = dir.path().join("consumers");
-        std::fs::create_dir_all(consumers.join("data")).unwrap();
-        std::fs::write(
-            consumers.join("pack.toml"),
-            include_str!("../../packs/consumers/pack.toml"),
-        )
-        .unwrap();
-        std::fs::write(consumers.join("data/consumers.json"), map.to_string()).unwrap();
-        let host = TestHost::compiled(sdk(umbel_plugin_components::plugin()))
+        let mut host = TestHost::compiled(sdk(umbel_plugin_components::plugin()))
             .spaces(&["main", "beta"])
-            .pack_override("main", "library", &library)
-            .pack_override("main", "consumers", &consumers)
-            .boot()
+            .config(config)
+            .pack_override("main", "library", &library);
+        for (space, map) in maps {
+            let consumers = dir.path().join(format!("consumers-{space}"));
+            std::fs::create_dir_all(consumers.join("data")).unwrap();
+            std::fs::write(
+                consumers.join("pack.toml"),
+                include_str!("../../packs/consumers/pack.toml"),
+            )
             .unwrap();
-        Fx { _dir: dir, host }
+            std::fs::write(consumers.join("data/consumers.json"), map.to_string()).unwrap();
+            host = host.pack_override(space, "consumers", &consumers);
+        }
+        Fx {
+            _dir: dir,
+            host: host.boot().unwrap(),
+        }
     }
 
     pub fn host(&self) -> Fx {

@@ -194,16 +194,26 @@ pub(crate) fn too_many_tags(count: usize) -> Outcome {
     .with_error_details(json!({ "count": count }))
 }
 
-/// `OUTPUT_BUDGET_EXCEEDED` for a brief whose floors do not fit (section 6.4).
-pub(crate) fn brief_budget_exceeded(fits: usize) -> Outcome {
-    failure(
-        "OUTPUT_BUDGET_EXCEEDED",
-        &format!(
-            "the brief does not fit in the call's output budget even with every section left out; the first {fits} requested tag(s) would"
-        ),
-        "Brief fewer tags at a time (details.fits says how many fit), or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000; `maxBytes` only lowers it.",
-    )
-    .with_error_details(json!({ "fits": fits }))
+/// `OUTPUT_BUDGET_EXCEEDED` for a brief whose floors do not fit (section 6.4). `guidance` counts the
+/// deployment's statements, which every brief carries (amendment A28): when none of the tags fit
+/// beside them, briefing fewer tags cannot help, so the suggestion says to raise the budget.
+pub(crate) fn brief_budget_exceeded(fits: usize, guidance: usize) -> Outcome {
+    let mut message = format!(
+        "the brief does not fit in the call's output budget even with every section left out; the first {fits} requested tag(s) would"
+    );
+    let suggestion = if guidance > 0 && fits == 0 {
+        "The deployment's guidance (details.guidance statements) is part of every brief and leaves no room for one tag: raise `maxBytes` if you set it, or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000."
+    } else {
+        "Brief fewer tags at a time (details.fits says how many fit), or ask for a larger budget per call with `_meta[\"dev.afd/outputBudget\"]`, up to the command's 96 000; `maxBytes` only lowers it."
+    };
+    let mut details = json!({ "fits": fits });
+    if guidance > 0 {
+        message.push_str(&format!(
+            ", beside the deployment's {guidance} guidance statement(s), which every brief carries"
+        ));
+        details["guidance"] = Value::from(guidance);
+    }
+    failure("OUTPUT_BUDGET_EXCEEDED", &message, suggestion).with_error_details(details)
 }
 
 /// Adds `LIBRARY_VERSION_MISMATCH` for one library (section 6.5). Every value is a checked
