@@ -54,6 +54,18 @@ Example:
 The legacy `defer-hydration` and `needs-hydration` attributes are no longer
 required.
 
+## HTML Comments
+
+Bindings and FAST directive markup inside HTML comments are unsupported. This
+includes double-brace and triple-brace bindings, client-only bindings, and
+commented-out elements containing bindings or directives.
+
+The declarative parsers scan template strings and do not reliably exclude
+comments. A comment such as `<!-- {{greeting}} -->` can still contribute a binding,
+leading to unexpected evaluation, rendering errors, or hydration mismatches.
+Remove unused bound markup rather than commenting it out, and keep explanatory
+comments free of binding syntax and FAST directive tags.
+
 ## Non-browser HTML Rendering
 
 One of the benefits of FAST declarative HTML templates is that the server can
@@ -96,6 +108,19 @@ enableHydration({
 
 When `StopHydration.never` is used, `enableHydration().whenHydrated()`
 intentionally remains pending because hydration has no global completion point.
+
+FAST Element 3.x data-free hydration markers are selected by default. Existing
+server output that uses FAST Element 2.x indexed markers can be hydrated by
+selecting the v2 marker reader:
+
+```typescript
+import { enableHydration, markers_v2 } from "@lushly-dev/fast-element/hydration.js";
+
+enableHydration({ markers: markers_v2 });
+```
+
+Set `"markers_v2": true` in the matching `@microsoft/fast-build`
+configuration so the generated HTML uses the same marker format.
 
 ## `observerMap`
 
@@ -336,6 +361,8 @@ Attribute directives include:
     Example:
     ```html
     <ul f-children="{listItems}"><f-repeat value="{{item in list}}"><li>{{item}}</li></f-repeat></ul>
+    <ul f-children="{listItems filter elements()}"><f-repeat value="{{item in list}}"><li>{{item}}</li></f-repeat></ul>
+    <ul f-children="{listItems filter elements(li)}"><f-repeat value="{{item in list}}"><li>{{item}}</li></f-repeat></ul>
     ```
 
 - **ref**

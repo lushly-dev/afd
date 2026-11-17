@@ -277,8 +277,13 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * member and the sponsor's read before the handler) and the kernel alone 115,379 (+180) are within their rows.
  */
 export const CEILINGS = Object.freeze({
-	jsMinified: 300_000,
-	jsGzip: 93_000,
+	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
+	// fast-element: measured against `main` at `38d883d9` on the same machine, first paint 299,415 to 303,018
+	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
+	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
+	// `switcher` (+100) and `tooltip` (+5) are within their rows.
+	jsMinified: 304_000,
+	jsGzip: 95_500,
 	cssMinified: 8_496,
 	kernelMinified: 115_500,
 	lateMinified: 78_500,

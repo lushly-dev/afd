@@ -37,7 +37,7 @@ Only what a failing gate will not explain.
   - Botcore: `endpoints/botcore/scripts/record_provenance.py`.
   - Health: `endpoints/health/provenance/provenance.json` and its pinned digest; any added file needs a row.
   - A `package.json` change to dependency ranges alone, as Dependabot makes, is not an adaptation in the three npm families (Specimen, FAST-AF, Violet): their records also hold the manifest's digest with its ranges blanked.
-- **FAST-AF:** do not run the upstream `check:v3` scopes or sync from upstream.
+- **FAST-AF:** do not run the upstream `check:v3` scopes or sync from lushly-dev/fast-af, which is frozen. Microsoft FAST releases of `fast-element` come in as a three-way merge from the last release taken, never as copied files: the [FAST-AF README](../../../../foundations/fast-af/README.md#microsoft-fast) has the steps.
 - **Violet** lints with its own Biome configuration (`foundations/violet/biome.json`). The root Biome config skips its directories, so `pnpm lint` says nothing about them.
 - **Health:** its source repository is private. Never import private Health inventories, reports, history or configuration.
 - **Health dashboard:** its committed fixtures must equal the Health CLI's output, so a schema or CLI change in `endpoints/health/` that breaks one fails `fixtures:check` and the browser suite.

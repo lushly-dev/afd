@@ -1,4 +1,6 @@
+import { installAttributeObservation } from "../hydration/attribute-observation.js";
 import { installHydrationDiagnostic } from "../hydration/diagnostics.js";
+import { installHydrationMarkers } from "../hydration/markers.js";
 import { ensureHydrationRuntime } from "../hydration/runtime.js";
 import type { Mutable } from "../interfaces.js";
 import { SourceLifetime } from "../observation/observable.js";
@@ -31,6 +33,9 @@ let hookInstalled = false;
  * Call this before any FAST elements connect to the DOM. Hydration
  * logic is not active unless this function is called, keeping
  * `FASTElement` lightweight for client-side-only applications.
+ * Call before platform registration to also enable the pointer-only native
+ * marker cleanup optimization. Earlier registrations remain mutation-safe
+ * through conservative traversal.
  *
  * Safe to call multiple times — the hydration hook is installed once
  * and subsequent calls merge their options into the shared tracker.
@@ -50,6 +55,16 @@ let hookInstalled = false;
  * `expected`/`received` fields on `HydrationBindingError` /
  * `HydrationTargetElementError`. The debugger module is tree-shaken
  * out of production hydration bundles unless explicitly imported.
+ *
+ * The default marker reader only recognizes FAST Element 3.x data-free
+ * markers. Server-rendered output that still emits the legacy FAST Element
+ * 2.x indexed marker format will fail to hydrate unless `markers: markers_v2`
+ * is passed, using the `markers_v2` strategy exported from
+ * `@lushly-dev/fast-element/hydration.js`. This opt-in is an interoperability
+ * path for backend systems that have not yet adopted the data-free marker
+ * format; because it's only referenced when explicitly imported, the legacy
+ * parsing logic is tree-shaken out of production hydration bundles for
+ * consumers who don't use it.
  *
  * @example
  * ```ts
@@ -77,17 +92,29 @@ let hookInstalled = false;
  * enableHydration({ debugger: hydrationDebugger() });
  * ```
  *
+ * @example FAST Element 2.x hydration markers
+ * ```ts
+ * import { enableHydration, markers_v2 } from "@lushly-dev/fast-element/hydration.js";
+ *
+ * enableHydration({ markers: markers_v2 });
+ * ```
+ *
  * @param options - Optional hydration behavior.
  * @public
  */
 export function enableHydration(options?: HydrationOptions): HydrationController {
     ensureHydrationRuntime();
 
+    if (options?.markers) {
+        installHydrationMarkers(options.markers);
+    }
+
     if (options?.debugger) {
         installHydrationDiagnostic(options.debugger.diagnostic);
     }
 
     if (!hookInstalled) {
+        installAttributeObservation();
         tracker = new HydrationTracker(options ?? {});
         hookInstalled = true;
         const activeTracker = tracker;

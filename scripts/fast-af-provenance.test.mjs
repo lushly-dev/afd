@@ -118,6 +118,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// generated theme, the Specimen preview and the grid's sizing spec, and the bounded bug fixes
 	// (#1158, #1160-#1167) adapted 13 component and spec files, the cross-root ARIA references
 	// (#1159) six more, the preview prerelease (#1192) changed fast-element's README install line,
-	// and the type alias values (#1147) changed the manifest: 613 together.
-	assert(checked > 612, `only ${checked} unchanged upstream files`);
+	// and the type alias values (#1147) changed the manifest: 613 together. Microsoft FAST Element
+	// 3.0.2-3.1.4, taken into fast-element, changed 85 more: 528.
+	assert(checked > 527, `only ${checked} unchanged upstream files`);
 });

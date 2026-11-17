@@ -4,6 +4,7 @@ import type { TypeDefinition, TypeRegistry } from "../platform.js";
 import { type ComposableStyles, ElementStyles } from "../styles/element-styles.js";
 import type { ElementViewTemplate } from "../templating/template.js";
 import { type AttributeConfiguration, AttributeDefinition } from "./attributes.js";
+import { ElementRegistration } from "./element-registration.js";
 import { fastElementRegistry } from "./fast-element-registry.js";
 import type { Schema } from "./schema.js";
 
@@ -573,8 +574,15 @@ export class FASTElementDefinition<
                     .then(() => resolveFASTElementTemplate(this))
                     .then(template => {
                         if (template !== void 0 && !registry.get(this.name)) {
+                            const wasDefined = this.platformDefined;
                             this.platformDefined = true;
-                            registry.define(this.name, type as any, this.elementOptions);
+                            ElementRegistration.define(
+                                this.name,
+                                type,
+                                this.elementOptions,
+                                registry,
+                                wasDefined,
+                            );
                         }
                     })
                     .catch(error => {
@@ -584,8 +592,15 @@ export class FASTElementDefinition<
 
                 return this;
             }
+            const wasDefined = this.platformDefined;
             this.platformDefined = true;
-            registry.define(this.name, type as any, this.elementOptions);
+            ElementRegistration.define(
+                this.name,
+                type,
+                this.elementOptions,
+                registry,
+                wasDefined,
+            );
         }
 
         return this;

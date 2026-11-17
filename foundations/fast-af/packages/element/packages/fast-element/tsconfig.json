@@ -17,7 +17,7 @@
         "module": "ESNext",
         "moduleResolution": "bundler",
         "types": [],
-        "lib": ["DOM", "ES2015", "ES2016.Array.Include"]
+        "lib": ["DOM", "ES2015", "ES2016.Array.Include", "ES2021.WeakRef"]
     },
     "include": ["src"],
     "exclude": ["src/**/*.spec.ts", "src/**/*.pw.spec.ts"]

@@ -1,6 +1,91 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("The repeat", () => {
+    for (const operation of ["reverse", "sort"]) {
+        test(`preserves numeric view order and identity after ${operation} with 16 items`, async ({
+            page,
+        }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async operation => {
+                // @ts-expect-error: Client module.
+                const { html, repeat, Updates } = await import("/main.js");
+                const items = Array.from({ length: 16 }, (_, index) => index);
+                const parent = document.createElement("div");
+                document.body.appendChild(parent);
+                const view = html`
+                    ${repeat(() => items, html`<span>${x => x}</span>`)}
+                `.render({}, parent);
+                const originalNodes = Array.from(parent.querySelectorAll("span"));
+
+                if (operation === "reverse") {
+                    items.reverse();
+                } else {
+                    items.sort((a, b) => b - a);
+                }
+
+                await Updates.next();
+
+                const nodes = Array.from(parent.querySelectorAll("span"));
+                const result = {
+                    actual: nodes.map(node => Number(node.textContent)),
+                    expected: items.slice(),
+                    preserved: nodes.every(
+                        (node, index) => node === originalNodes[items[index]],
+                    ),
+                };
+                view.dispose();
+                parent.remove();
+                return result;
+            }, operation);
+
+            expect(result.actual).toEqual(result.expected);
+            expect(result.preserved).toBe(true);
+        });
+    }
+
+    for (const order of ["splice-sort", "sort-splice"]) {
+        test(`renders all items after a mixed ${order} batch`, async ({ page }) => {
+            await page.goto("/");
+
+            const result = await page.evaluate(async order => {
+                // @ts-expect-error: Client module.
+                const { html, repeat, Updates } = await import("/main.js");
+                const items = ["b", "a", "b"];
+                const parent = document.createElement("div");
+                document.body.appendChild(parent);
+                const view = html`
+                    ${repeat(() => items, html`<span>${x => x}</span>`)}
+                `.render({}, parent);
+
+                if (order === "sort-splice") {
+                    items.sort();
+                }
+
+                items.splice(1, 1, "c", "d");
+
+                if (order === "splice-sort") {
+                    items.sort();
+                }
+
+                await Updates.next();
+
+                const result = {
+                    actual: Array.from(
+                        parent.querySelectorAll("span"),
+                        node => node.textContent,
+                    ),
+                    expected: items.slice(),
+                };
+                view.dispose();
+                parent.remove();
+                return result;
+            }, order);
+
+            expect(result.actual).toEqual(result.expected);
+        });
+    }
+
     test.describe("template function", () => {
         test("returns a RepeatDirective", async ({ page }) => {
             await page.goto("/");
@@ -279,6 +364,106 @@ test.describe("The repeat", () => {
 
             expect(result).toBe(true);
         });
+    });
+
+    test.describe("HydrationRepeatError diagnostics", () => {
+        for (const operation of ["refresh", "unbind"] as const) {
+            for (const missingView of ["null", "undefined"] as const) {
+                test(`reports a ${missingView} view during ${operation}`, async ({
+                    page,
+                }) => {
+                    await page.goto("/");
+
+                    const result = await page.evaluate(
+                        async ({ operation, missingView }) => {
+                            // @ts-expect-error: Client module.
+                            const { repeat, html, Fake, HydrationRepeatError } =
+                                await import("/main.js");
+                            const host = document.createElement("repeat-error-host");
+                            const root = host.attachShadow({ mode: "open" });
+                            const location = document.createComment("repeat");
+                            root.appendChild(location);
+                            document.body.appendChild(host);
+
+                            const template = html`<span data-repeat-item>${x => x.name}</span>`;
+                            const directive = repeat(x => x.items, template);
+                            directive.targetNodeId = "r";
+                            const behavior = directive.createBehavior();
+                            const controller = Fake.viewController(
+                                { r: location },
+                                behavior,
+                            );
+                            controller.hydrationStage = "hydrated";
+                            controller.bind({
+                                items: [{ name: "first" }, { name: "second" }],
+                            });
+
+                            const views = behavior.views.slice();
+                            const rootContent = new XMLSerializer().serializeToString(
+                                root,
+                            );
+                            const initiallyBound = views.every(view => view.isBound);
+                            // Simulate an incomplete view list without changing the DOM snapshot.
+                            behavior.views[1] = missingView === "null" ? null : undefined;
+
+                            let diagnostic;
+                            try {
+                                if (operation === "refresh") {
+                                    behavior.bind(controller);
+                                } else {
+                                    controller.unbind();
+                                }
+                            } catch (error) {
+                                if (!(error instanceof HydrationRepeatError)) {
+                                    throw error;
+                                }
+                                diagnostic = {
+                                    message: error.message,
+                                    ...error.propertyBag,
+                                };
+                            } finally {
+                                behavior.views[1] = views[1];
+                                controller.unbind();
+                                views.forEach(view => view.dispose());
+                                host.remove();
+                            }
+
+                            return {
+                                diagnostic,
+                                rootContent,
+                                initiallyBound,
+                                allUnbound: views.every(view => !view.isBound),
+                            };
+                        },
+                        { operation, missingView },
+                    );
+
+                    expect(result.initiallyBound).toBe(true);
+                    expect(result.allUnbound).toBe(true);
+                    expect(result.diagnostic).toMatchObject({
+                        message: 'View is null or undefined inside "REPEAT-ERROR-HOST".',
+                        index: 1,
+                        hydrationStage: "hydrated",
+                        viewsState: ["hydrated", "empty"],
+                        rootNodeContent: result.rootContent,
+                    });
+                    expect(result.diagnostic.rootNodeContent).toContain("first");
+                    expect(result.diagnostic.rootNodeContent).toContain("second");
+
+                    if (operation === "refresh") {
+                        expect(result.diagnostic.itemsLength).toBe(2);
+                        expect(result.diagnostic.viewTemplateString).toContain(
+                            "data-repeat-item",
+                        );
+                    } else {
+                        expect(result.diagnostic).not.toHaveProperty("itemsLength");
+                        expect(result.diagnostic).not.toHaveProperty(
+                            "viewTemplateString",
+                        );
+                    }
+                });
+            }
+        }
     });
 
     test.describe("behavior", () => {
@@ -574,7 +759,7 @@ test.describe("The repeat", () => {
                     behavior.bind(controller);
 
                     const before =
-                        removeWhitespace(toHTML(parent)) ===
+                        removeWhitespace(toHTML(parent)).replaceAll("<!---->", "") ===
                         createOutput(
                             s,
                             undefined,
@@ -593,7 +778,7 @@ test.describe("The repeat", () => {
                     await Updates.next();
 
                     const after =
-                        removeWhitespace(toHTML(parent)) ===
+                        removeWhitespace(toHTML(parent)).replaceAll("<!---->", "") ===
                         createOutput(
                             s,
                             undefined,

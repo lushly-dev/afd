@@ -1,5 +1,46 @@
 # Migrating from previous versions
 
+## Default DOM sink guards (v3)
+
+ESM root, development, focused, and declarative imports now use the same default
+sink guards as the CDN bundles. Previously, ESM consumers needed to install a
+guarded policy explicitly.
+
+### Changed behavior
+
+- Guarded URL attributes and properties, such as anchor `href`, reject unsafe
+  protocols by writing an empty string. Non-nullish values, including arrays
+  and objects, are coerced to strings once before validation; the validated
+  string is written to the sink. Null and undefined retain their existing
+  attribute/property behavior.
+- Known dangerous bindings, including `:innerHTML`, inline event-handler
+  attributes/properties, and `iframe[srcdoc]`, throw a DOM policy error.
+- Ordinary text bindings and `@click` event listeners are unchanged.
+- Bundles no longer consume the application's one-time `DOM.setPolicy()` call
+  or create a second built-in Trusted Types policy.
+
+### Migration steps
+
+1. Remove redundant `DOM.setPolicy(DOMPolicy.create())` calls if you only need
+   the built-in guards.
+2. Replace inline handler bindings such as `onclick` with FAST event listeners
+   such as `@click`.
+3. Replace raw HTML bindings with text bindings where possible. If rich HTML is
+   necessary, provide a template-specific, binding-specific, or application
+   policy that sanitizes it before writing. Do not disable guards globally just
+   to restore the previous unguarded behavior.
+4. Keep custom global policy configuration at application startup, before
+   templates compile or render. `DOM.setPolicy()` remains a one-time override;
+   it does not change policies already captured by compiled templates.
+5. If your CSP restricts Trusted Types policy names, allow `fast-html` and your
+   application's policy name. Pass the application Trusted Types policy to
+   `DOMPolicy.create({ trustedType })` rather than creating another `fast-html`
+   policy.
+
+See the [DOMPolicy and Trusted Types guide](https://www.fast.design/docs/3.x/advanced/dom-policy-and-trusted-types/)
+for custom guard and sanitized rich-text examples. The baseline is not a general
+HTML sanitizer and does not make untrusted template source safe.
+
 ## FASTGlobal version tracking (v2 → v3)
 
 ### Removed API
@@ -93,6 +134,33 @@ Core FAST Element helpers are available from the root package export:
    `observable` from `@microsoft/fast-element`.
 4. Call `enableHydration()` from `@microsoft/fast-element/hydration.js` when
    prerendered content should be hydrated.
+
+## `deepMerge` array replacement
+
+When an array's contents change, `deepMerge` replaces the owning property's
+array rather than mutating the existing array in place. This affects both
+`observerMap()`-managed data and direct consumers of the exported helper.
+Previously captured array references retain the old data; mutating them no
+longer updates the owning object. Deeply equal arrays are left unchanged.
+
+Re-read the array from its owner after merging:
+
+```ts
+import { deepMerge } from "@microsoft/fast-element/declarative-utilities.js";
+
+const user = { orders: [{ id: 101 }] };
+const oldOrders = user.orders;
+
+deepMerge(user, { orders: [{ id: 103 }] });
+
+// oldOrders still contains order 101 and is disconnected from user.orders.
+user.orders.push({ id: 104 });
+```
+
+For `observerMap()`-managed properties, the owning property's notification
+causes `f-repeat` bindings to observe the replacement array automatically.
+Direct `deepMerge` consumers must still arrange their own change notifications;
+the helper does not make plain objects observable.
 
 ## Optional helper and removed path exports (v2 → v3)
 
@@ -383,17 +451,17 @@ This is a **breaking change** for SSR output format. Any system that produces or
 
 | Removed | Replacement |
 |---|---|
-| `FASTElement.defineAsync()` | Subclass `define()` calls (now return `Promise<TType>`) |
+| `FASTElement.defineAsync()` | Subclass `define()` calls |
 | `FASTElement.compose()` and subclass `compose()` calls | Subclass `define()` calls |
 | `FASTElementDefinition.composeAsync()` | Subclass `define()` calls |
 | `FASTElementDefinition.registerAsync()` | `FASTElementDefinition.register()` (same `Promise<Function>` return type) |
 
 ### Changed behavior
 
-- Subclass **`define()`** calls now return `Promise<TType>`. When a concrete
-  template is provided at definition time, the Promise resolves immediately.
-  When `template: declarativeTemplate()` is used, the Promise resolves after
-  the matching `<f-template>` supplies the concrete template.
+- Subclass **`define()`** calls return `Promise<TType>` only for code that
+  explicitly needs to observe registration completion. When
+  `template: declarativeTemplate()` is used, that Promise resolves after the
+  matching `<f-template>` supplies the concrete template.
 - Subclass compose helpers are no longer part of the public authoring surface; use subclass `define()` for registration.
 - **`@customElement` decorator** calls `define()` internally but does not return the Promise (fire-and-forget). For complete definitions with a template, the element is registered via a microtask.
 
@@ -409,7 +477,7 @@ This is a **breaking change** for SSR output format. Any system that produces or
     });
 
     // After
-    await MyElement.define({
+    MyElement.define({
         name: "my-element",
         template: declarativeTemplate(),
     });
@@ -427,7 +495,7 @@ This is a **breaking change** for SSR output format. Any system that produces or
     }).define();
 
     // After
-    await MyElement.define({
+    MyElement.define({
         name: "my-element",
         template,
         styles,
@@ -446,7 +514,7 @@ This is a **breaking change** for SSR output format. Any system that produces or
    })).define();
 
    // After
-   await MyElement.define({
+   MyElement.define({
        name: "my-element",
        template,
        styles,
@@ -471,7 +539,7 @@ This is a **breaking change** for SSR output format. Any system that produces or
     FASTElementDefinition.compose(MyElement, options).define();
 
     // After
-    await MyElement.define(options);
+    MyElement.define(options);
    ```
 
 ## Dynamic stylesheet behaviors (v3)

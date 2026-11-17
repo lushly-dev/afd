@@ -4,6 +4,11 @@ This document is a contributor-oriented guide to the architecture of `@lushly-de
 
 For deep dives into specific areas, see the linked detailed documents.
 
+**Dependency policy:** FAST packages must always be dependency-free. Do not
+declare regular npm `dependencies` that would be installed with the package.
+This restriction applies only to the `dependencies` field; `devDependencies`,
+`peerDependencies`, and `optionalDependencies` are explicitly excluded.
+
 ---
 
 ## Table of Contents
@@ -108,13 +113,86 @@ The previous `FAST.getById()` slot registry, `FASTGlobal` type, and `KernelServi
 - During hydration, server-rendered markup is treated as an optimisation over the
   client template rather than as a source of blank output. If a `render()`
   directive has an expected binding target but no SSR view boundaries, it creates
-  and binds the client view at the hydrated location. `repeat()` hydrates the
-  overlapping SSR/client item ranges, creates client views for missing SSR
-  ranges, and removes extra SSR ranges when the client item count is smaller.
+  and binds the client view at the hydrated location. A content binding removes
+  an SSR structural range when its initial client value has no template, preventing
+  later updates from composing beside stale DOM. `repeat()` hydrates the overlapping
+  SSR/client item ranges, creates client views for missing SSR ranges, and removes
+  extra SSR ranges when the client item count is smaller.
   Malformed or untargetable markers still surface structured hydration errors —
   see [Hydration mismatch diagnostics](#hydration-mismatch-diagnostics) below.
 
+### Hydration traversal
+
+The implementation separates DOM navigation (`src/hydration/traversal.ts`),
+factory-to-node mapping (`src/hydration/target-builder.ts`), and bounded repeat
+range discovery (`src/hydration/repeat-ranges.ts`). `RepeatBehavior` retains marker
+cleanup and view lifecycle reconciliation. Traversal exposes a small internal
+move/update/mutation-preparation tuple, without adding per-marker allocations.
+The native fast path remains inline in target discovery rather than routing
+through generic resolution objects. Opt-in timing workloads live separately in
+`src/hydration/hydration-benchmark.pw.spec.ts`.
+
+Target discovery uses pointer DFS for ordered endpoints with a shared, non-null
+parent, including descendants of both endpoints when they are the same node.
+Sibling movement stops at the inclusive last endpoint; content and custom-element
+markers use balanced sibling scans without visiting their nested views.
+The node mask remains elements, text, and comments.
+
+Non-sibling, reversed, and separate-root endpoints retain the live
+`Range`/`TreeWalker` traversal. Before potentially mutating native marker cleanup
+(unknown custom elements, observed markers, customized built-ins, or overridden
+attribute methods), the pointer traversal captures a live Range at its current
+position. Generic marker strategies use this fallback from the outset because
+their resolvers and cleanup
+callbacks can execute application code. The fallback preserves live endpoint
+movement, reparenting, and original end offsets during synchronous DOM mutation.
+When the live endpoints and offsets are unchanged, their own nodes are already
+known to intersect the range; the fallback avoids a redundant DOM position query
+for those nodes.
+
+Core keeps only the small `components/element-registration.ts` strategy.
+`enableHydration()` installs `hydration/attribute-observation.ts`, keeping the
+observation checks out of client-only bundles. At actual platform registration,
+after extensions and asynchronous template resolution, it records a private
+boolean proving that `data-fe` is unobserved. The proof is available before
+synchronous upgrades and restored if registration throws; no attribute sets
+are allocated. Earlier untracked registrations remain conservative, including
+when their definition is later registered in another registry. Repeated
+enablement does not reset the proof or reread mutable constructor properties.
+The export-size build checks the core bundle dependency graph to prevent
+observation tracking from leaking back into `FASTElement`.
+
+Native `data-fe` removal stays on pointers when that proof is available and
+attribute methods are native. Unknown registration wrappers, lifecycle/observation
+accessors, custom iterators, and other uncertain metadata retain the conservative
+fallback. Method descriptors are checked without invoking getters before live
+boundaries have been captured. Cleanup remains immediate; callbacks and target
+discovery are not reordered.
+
+Native `data-fe` counts consume factories directly after leading host bindings,
+without resolution objects, cleanup closures, or factory-index arrays. Native
+content and element markers use direct string comparisons. The existing native
+count parser and invalid-array-length resolver preserve malformed-marker errors;
+`markers_v2` continues through the generic strategy.
+
+Repeats scan forward only through their own `bindingViewBoundaries`, pairing
+top-level ranges in order with a stack. Nested markers remain available to child
+views, and top-level markers are cleared only after discovery succeeds. Starting
+at the binding boundary rather than the parent's first child avoids rescanning
+or consuming an earlier adjacent repeat. Unmatched starts and ends throw;
+overlapping, missing, excess, and empty item reconciliation is unchanged.
+
+See [hydration CPU regression coverage](./docs/template-bindings.md#hydration-cpu-regression-coverage)
+for deterministic allocation/visit assertions and opt-in same-machine workloads.
+No marker format, public API, registration, scheduling, or timer batching changes
+are required.
+
 ### Hydration mismatch diagnostics
+
+Nullable attribute SSR coverage lives in the declarative attribute fixture.
+It checks absence with JavaScript disabled, preservation of explicit empty
+strings, and observable updates after hydrating slots for omitted attributes.
+Server omission must not reduce hydration binding counts.
 
 When SSR markup cannot be reconciled with the client template (a recovery path
 above does not apply), hydration throws either `HydrationBindingError`
@@ -171,7 +249,7 @@ and call `installHydrationDiagnostic` (or, more commonly, wrap your
 formatter in a custom `HydrationDebugger` and pass it through
 `enableHydration({ debugger })`) if you want to route diagnostics into
 logging, telemetry, or a devtools panel.
-- **Hydration tracking**: Hydration is opt-in via `enableHydration()` from `@lushly-dev/fast-element/hydration.js`, which creates a `HydrationTracker` and installs a pluggable hydration hook on `ElementController` via `ElementController.installHydrationHook()`. Until this is called, `renderTemplate()` always uses the client-side path — even if the element has a pre-existing shadow root. `HydrationTracker` manages a `Set<HTMLElement>` of pending elements and resolves the returned controller's `whenHydrated()` promise via a debounced `setTimeout(0)` after the last element finishes binding — ensuring all async template batches settle first. It also resolves tag-specific `whenHydrated(tagName)` promises when work for that FAST element tag completes. By default, the hook no-ops for later prerendered batches after hydration completes; `enableHydration({ stopHydration: StopHydration.never })` keeps the hook active for streamed Declarative Shadow DOM so new elements continue checking for an existing shadow root and hydrate instead of re-rendering it. In that mode, the global `whenHydrated()` promise intentionally remains pending.
+- **Hydration tracking**: Hydration is opt-in via `enableHydration()` from `@lushly-dev/fast-element/hydration.js`, which creates a `HydrationTracker` and installs a pluggable hydration hook on `ElementController` via `ElementController.installHydrationHook()`. Until this is called, `renderTemplate()` always uses the client-side path — even if the element has a pre-existing shadow root. `HydrationTracker` manages a `Set<HTMLElement>` of pending elements and resolves the returned controller's `whenHydrated()` promise via a debounced `setTimeout(0)` after the last element finishes binding — ensuring all async template batches settle first. It also resolves tag-specific `whenHydrated(tagName)` promises when work for that FAST element tag completes. Hydration target discovery uses the 3.x data-free marker reader by default and does not recognize any other marker format; SSR output that still emits the legacy 2.x indexed markers will fail to hydrate unless `enableHydration({ markers: markers_v2 })` is used. `markers_v2`, exported from `@lushly-dev/fast-element/hydration.js`, installs the last major version's default markers on this opt-in export path — an interoperability enhancement for backend systems that have not yet adopted the data-free format. Because `markers_v2` is only referenced when explicitly imported, its legacy parsing logic is tree-shaken out of the bundle for consumers who don't use it. By default, the hook no-ops for later prerendered batches after hydration completes; `enableHydration({ stopHydration: StopHydration.never })` keeps the hook active for streamed Declarative Shadow DOM so new elements continue checking for an existing shadow root and hydrate instead of re-rendering it. In that mode, the global `whenHydrated()` promise intentionally remains pending.
 - On `disconnect()`: calls `disconnectedCallback` on behaviors, unbinds the view.
 - `onAttributeChangedCallback()` is the standard handler that processes attribute changes. During the prerendered bind, it is temporarily swapped to a no-op (see above) to avoid redundant processing of server-rendered attribute values.
 - Exposes `addBehavior` / `removeBehavior` for dynamic `HostBehavior` management (used by `ElementStyles`).
@@ -219,6 +297,15 @@ Backing slots are internal implementation details. Lifecycle rebinding treats pu
 
 `SubscriberSet` is an optimised set that stores the first two subscribers inline (avoiding heap allocations for the common 1–2 subscriber case) and falls back to an array. `PropertyChangeNotifier` extends `SubscriberSet` to support per-property subscriptions.
 
+#### Array observation
+
+`repeat()` enables array observation automatically. Sort-only batches deliver
+permutation records, and repeat reconciles their view indices in numeric order.
+If a batch also contains splices or an explicit reset, the observer delivers a
+reset instead: permutation records alone cannot describe the structural edits.
+Repeat then refreshes its views against the final array state. Splice-only
+normalization and the default diff algorithm are unchanged.
+
 #### ExpressionNotifier (binding observer)
 
 `Observable.binding(expression, subscriber)` creates an `ExpressionNotifier`. When `observe(source, context)` is called it:
@@ -250,12 +337,39 @@ This gives FAST automatic, fine-grained dependency tracking without explicit dec
 
 ### DOM Policy
 
-**Files**: `src/dom.ts`, `src/dom-policy.ts`
+**Files**: `src/dom.ts`, `src/dom-aspect.ts`, `src/dom-policy.ts`,
+`src/dom-policy-defaults.ts`
 
 `DOM.policy` is the templating system's DOM write policy. `DOMPolicy.create()` builds a
-policy from Trusted Types integration plus default guard maps for element-specific and
-aspect-wide sinks. User guard configuration is merged with those defaults so partial
-overrides preserve unspecified built-in guards.
+policy from Trusted Types integration plus element-specific and aspect-wide sink guards.
+It snapshots only user-supplied guard maps and resolves unspecified guards through the
+shared built-in selectors. Partial overrides, null removals, and element-before-global
+precedence retain their existing behavior.
+
+The initial `DOM.policy` uses those same guards for ESM, focused, declarative,
+and Rollup entrypoints. It reuses the existing `fast-html` Trusted Types policy.
+No entrypoint calls `DOM.setPolicy()` to initialize the baseline: the application
+can still install its own global policy once, before compiling or rendering
+templates. Template-specific and binding-specific policies retain their existing
+precedence.
+
+`dom-policy-defaults.ts` owns the compact, aspect-aware element rules, global guard
+selection, URL validation, and sink protection. Both the internal default and
+`DOMPolicy.create()` use that implementation, but `dom.ts` does not import the
+custom-policy factory or its configuration-snapshot helpers. Focused core and
+template imports therefore include baseline protection without retaining
+customization code.
+
+`DOMAspect` lives in a dependency-neutral module and is re-exported from `dom.ts`.
+Aspect-only consumers, including the attached directive helpers, import it
+directly so they do not initialize DOM policies. Policy interfaces and `DOMSink`
+are imported only as types where possible, avoiding circular runtime dependencies.
+The focused-entrypoint dependency regressions enforce these import boundaries.
+Binding behaviors cache their protected sink; ordinary sinks are returned
+unchanged, while guarded URL sinks validate values on each write.
+Non-nullish URL values are coerced to strings once before validation, and the
+validated string is passed to the sink so objects cannot bypass checks through
+DOM coercion. Null and undefined retain their existing sink behavior.
 
 The default guards block known dangerous sinks such as inline event handlers,
 `innerHTML`, script text/source writes, and executable object/link/embed sources. URL
@@ -313,6 +427,17 @@ See [docs/architecture/html-tagged-template-literal.md](./docs/architecture/html
 
 `CompilationContext.createView(hostBindingTarget?)` clones the compiled `DocumentFragment`, instantiates behaviors from factories, and returns an `HTMLView`.
 
+HTML content bindings target comment anchors rather than empty text nodes, which
+would participate in default-slot assignment and suppress fallback content.
+Nonempty primitive values use a cached text node before the anchor; empty values
+remove that text node, and templates compose their views before the same anchor.
+A leading binding receives a stable first node so removing or disposing the
+owning view also removes inserted content. Hydration reuses the cleared content
+end marker as the anchor and records all existing content as view boundaries,
+including a single text node. The content sink retains that server text node for
+primitive bindings or hydrates it as a text-only child template. The same rules
+apply to native and opt-in legacy markers without changing either SSR format.
+
 ---
 
 ### Views & Behaviors
@@ -366,6 +491,11 @@ See [docs/template-bindings.md](./docs/template-bindings.md) for the full bindin
 
 In async mode, the first `enqueue` call schedules a `requestAnimationFrame` callback that drains up to 1024 tasks per frame. Errors in tasks are deferred via `setTimeout` so they don't abort the remaining tasks.
 
+Async error tests await `Updates.next()` and then a zero-delay timer scheduled
+after the flush. This lets the already queued error timers finish before restoring
+the test's timer interceptor, without assuming that a frame arrives within a
+fixed wall-clock delay.
+
 Observable setters and `attributeChangedCallback` enqueue their DOM mutations through `Updates`, ensuring that multiple synchronous property changes result in only one DOM update per frame.
 
 See [docs/architecture/updates.md](./docs/architecture/updates.md) for more detail.
@@ -408,6 +538,39 @@ FAST ships a full hierarchical DI container inspired by Aurelia. Key types:
 Containers are typically attached to DOM elements and walk the DOM hierarchy. DI keys are classes, interfaces, or `Context`-like tokens. Constructor parameters are annotated with the `@inject(key)` decorator (or use `@singleton` / `@transient` to declare the class's own registration).
 
 See `docs/di/api-report.api.md` for the full public API surface.
+
+#### Shared decorator metadata
+
+Context and DI both import `src/metadata.ts`. This module calls the internal
+`initializeMetadataReflection()` from `src/metadata-reflection.ts` and keeps
+FAST's `design:paramtypes` and `annotation:paramtypes` helpers on the shared
+reflection store. The independently authored shim has no external dependency
+or vendored implementation. It preserves automatic TypeScript constructor
+metadata and annotation arrays without adding a separate setup step.
+
+Do not install a partial metadata API on the global `Reflect` object. A later
+complete implementation can treat an existing API as a compatible provider and
+require operations such as own-key enumeration and deletion. The shim supplies
+all ten legacy metadata methods, including decorator application. A `WeakMap`
+holds targets, with separate maps for each property and metadata key. Prototype
+traversal supports both modern classes and legacy constructor inheritance.
+Native property-key coercion preserves symbols and conversion errors.
+
+Initialization reuses an existing complete API without overwriting its methods
+or metadata. It throws `TypeError` for an incomplete existing API because private
+stores cannot be safely merged. Metadata decorators forward writes through the
+current shared `defineMetadata` method, including when a compatible implementation
+is loaded after a decorator was created. API input validation also throws
+`TypeError` as required by the legacy metadata contract.
+
+Metadata initialization stays confined to the optional Context/DI import graph,
+not the root, focused `FASTElement`, or declarative entrypoints. Unused Context/DI
+imports remain tree-shakeable under the existing package configuration. A used
+Context/DI API retains the complete shared metadata implementation; omitting it
+would change legacy decorator behavior. Importing both entrypoints does not
+duplicate it. The isolated metadata compatibility tests cover initialization
+order, independently evaluated copies, and bundled entrypoint boundaries.
+`scripts/measure-sizes.js` reports Context and DI sizes separately in `SIZES.md`.
 
 ---
 
@@ -460,7 +623,9 @@ the imperative `html` API:
   publisher supplies the definition template and later duplicates do not
   reassign it.
 - `TemplateParser` lowers declarative syntax to the same `strings` / `values`
-  shape used by `ViewTemplate.create()`.
+  shape used by `ViewTemplate.create()`. Its string scanning does not reliably
+  exclude HTML comments; bindings and FAST directive markup inside comments are
+  unsupported. Authors must remove unused bound markup rather than comment it out.
 - `attributeMap()` and `observerMap()` are `FASTElementExtension` factories
   exported from `@lushly-dev/fast-element/attribute-map.js` and
   `@lushly-dev/fast-element/observer-map.js`. With `declarativeTemplate()` they
@@ -626,6 +791,10 @@ Below is a conceptual map of the major subsystems and their relationships:
 2. `MyElement.define` registers the element with the Custom Element Registry.
 3. When the browser upgrades the element, `ElementController.forCustomElement(element)` is called in the constructor.
 4. On `connectedCallback`, the controller renders the template into the shadow root. If the element already has a shadow root from SSR (prerendered content) and hydration has been enabled via `enableHydration()`, the installed hydration hook uses `template.hydrate()` to map existing DOM nodes to binding targets instead of cloning new DOM. If no template is available yet, the element connects without rendering until a later `definition.template` update recreates the controller. Compilation is lazy: the first render call triggers `Compiler.compile()`, subsequent calls clone the already-compiled `DocumentFragment`.
+
+   > **Avoiding retention through the definition**: `FASTElementDefinition.template` only ever transitions `undefined → defined`, exactly once, so `ElementController.forCustomElement` only tracks and subscribes while a definition's template is still pending — a definition that's already resolved never tracks new instances at all. Elements are tracked with `WeakRef`s in a `Set` shared by a single subscriber per definition (not one per element), so a pending definition doesn't strongly retain every instance created before it resolves. Once the template resolves, the subscriber unsubscribes itself and the definition's tracked-elements `Set` is discarded, so tracking never outlives the (typically brief) pending window — unlike a page-lifetime registry, there's no need for `FinalizationRegistry`-based eager pruning; dead refs are simply skipped via `deref()` during that one-time enumeration.
+
+
 5. `HTMLView.bind(source)` wires up each `ViewBehavior`. `oneWay` bindings create `ExpressionNotifier`s that track observable dependencies automatically.
 6. When an observed property changes, its notifier fans out to all subscribers. Each binding enqueues a DOM update via `Updates`. In the supported browser `Window` runtime, the next animation frame drains the queue and applies the mutations.
 7. On `disconnectedCallback`, `HTMLView.unbind()` tears down all bindings; behaviors disconnect; styles are removed.

@@ -25,6 +25,8 @@ const hydrationImportPath = "@lushly-dev/fast-element/hydration.js";
 const arrayObserverImportPath = "@lushly-dev/fast-element/arrays.js";
 const observerMapImportPath = "@lushly-dev/fast-element/observer-map.js";
 const attributeMapImportPath = "@lushly-dev/fast-element/attribute-map.js";
+const contextImportPath = "@lushly-dev/fast-element/context.js";
+const diImportPath = "@lushly-dev/fast-element/di.js";
 
 const namedExports = [{ name: "FASTElement", importPath: fastElementImportPath }];
 
@@ -114,6 +116,16 @@ const measuredExports = [
         export: "attributeMap",
         importPath: attributeMapImportPath,
     },
+    {
+        name: "Context",
+        export: "Context",
+        importPath: contextImportPath,
+    },
+    {
+        name: "DI",
+        export: "DI",
+        importPath: diImportPath,
+    },
 ];
 
 function formatExportLabel(name, importPath) {
@@ -151,7 +163,17 @@ export { ${exportName} };
         format: "esm",
         write: false,
         treeShaking: true,
+        metafile: importPath === fastElementImportPath,
     });
+
+    if (
+        importPath === fastElementImportPath &&
+        Object.keys(result.metafile.inputs).some(input =>
+            input.endsWith("/attribute-observation.js"),
+        )
+    ) {
+        throw new Error("FASTElement must not bundle hydration observation tracking.");
+    }
 
     const code = Buffer.from(result.outputFiles[0].contents);
     return measureBuffer(code);
@@ -195,6 +217,10 @@ async function main() {
         "# Export Sizes",
         "",
         "Bundle sizes for `@lushly-dev/fast-element` exports.",
+        "",
+        "Context and DI include a dependency-free, FAST-owned legacy metadata shim.",
+        "The shim is excluded from core and declarative bundles when Context/DI",
+        "are not used. Importing both shares a single metadata implementation.",
         "",
         "| Export | Minified | Gzip | Brotli |",
         "|--------|----------|------|--------|",
