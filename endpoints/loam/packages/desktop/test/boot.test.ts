@@ -210,11 +210,13 @@ describe('P6-D1: the same build on the desktop', () => {
 			`${JSON.stringify(record, null, '\t')}\n`
 		);
 		process.stderr.write(
-			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000); cold start ${desktop.coldStartMs.toFixed(0)} ms (ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
+			`D52 on ${process.platform}: S1 p95 ${result.s1.p95Ms.toFixed(2)} ms over ${result.s1.runs} lists of ${result.s1.listed} records (ceiling 50, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); S2 ${result.s2.totalMs.toFixed(0)} ms for ${result.s2.writes} writes (ceiling 2,000); cold start ${desktop.coldStartMs.toFixed(0)} ms (ceiling 2,500, ${process.platform === 'win32' ? 'enforced' : 'recorded only'}); ${result.userAgent}\n`
 		);
 		expect(result).toMatchObject({ documents: 2_000, links: 20_000 });
 		expect(result.s1.listed).toBe(result.s1.expected);
-		expect(result.s1.p95Ms).toBeLessThanOrEqual(50);
+		// S1's ceiling is enforced on Windows alone until a real Linux desktop measures it (the
+		// coordinator, 2026-11-17); S2's holds everywhere.
+		if (process.platform === 'win32') expect(result.s1.p95Ms).toBeLessThanOrEqual(50);
 		expect(result.s2.totalMs).toBeLessThanOrEqual(2_000);
 		// Section 14's cold-start row is enforced on Windows alone until step 12 measures
 		// each platform (the coordinator, 2026-11-16); elsewhere the line above records it.
