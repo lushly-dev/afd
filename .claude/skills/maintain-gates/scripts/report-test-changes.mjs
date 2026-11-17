@@ -498,7 +498,7 @@ export function formatReport(report) {
 	out.push(`Against ${report.base} (merge base ${short}), ${report.head}.`, '');
 	if (report.findings.length === 0) {
 		out.push(
-			`Nothing found: no test file deleted, no test, assertion or skip count worse and no assertion line changed (${report.testFiles} test files compared). The counts are lexical; read the test diffs too.`
+			`Nothing found: no test file deleted, no test, assertion or skip count worse and no assertion line changed (${report.testFiles} test ${report.testFiles === 1 ? 'file' : 'files'} compared). The counts are lexical; read the test diffs too.`
 		);
 		return out.join('\n');
 	}

@@ -572,7 +572,7 @@ test('test changes: says so when nothing was lost, and fails clearly on a missin
 	);
 	const clean = run('report-test-changes.mjs', root, '--base', 'main');
 	assert.equal(clean.status, 0, clean.stderr);
-	assert.match(clean.stdout, /Nothing found: no test file deleted, .* \(1 test files compared\)/);
+	assert.match(clean.stdout, /Nothing found: no test file deleted, .* \(1 test file compared\)/);
 	const missing = run('report-test-changes.mjs', root, '--base', 'origin/nowhere');
 	assert.equal(missing.status, 2);
 	assert.match(missing.stderr, /Cannot find a merge base .* Fetch the base/);
