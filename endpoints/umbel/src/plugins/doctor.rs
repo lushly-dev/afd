@@ -472,6 +472,25 @@ pub(crate) fn fits(
     {
         return Err(bad("limits", "applies only to a component plugin"));
     }
+    if let Some(journal) = &instance.journal {
+        if kind != PluginKind::Component {
+            return Err(bad(
+                "journal",
+                "applies only to a component plugin: a compiled plugin's manifest declares its journal modes, and a mounted tool's are not configurable",
+            ));
+        }
+        if let Some(name) = journal.commands.keys().find(|name| {
+            !manifest
+                .commands
+                .iter()
+                .any(|command| &command.name == *name)
+        }) {
+            return Err(bad(
+                &format!("journal.commands.{name}"),
+                &format!("names `{name}`, which is not a command of the plugin"),
+            ));
+        }
+    }
     let Some(mount) = &manifest.mount else {
         for (key, set) in [
             ("prefix", instance.prefix.is_some()),
@@ -515,6 +534,22 @@ pub(crate) fn fits(
         }
     }
     Ok(())
+}
+
+/// Write the deployer's `[plugins.<id>.journal]` into a component instance's manifest commands
+/// (the component journal specification, section 2, D197), after [`fits`] passed. A component
+/// manifest declares no `journal` (D191), so nothing is overridden. An explicit `plain` stays a
+/// declaration, so `plugin-show` can tell it from nothing set.
+pub(crate) fn apply_journal(instance: &PluginInstance, manifest: &mut Manifest) {
+    let Some(journal) = &instance.journal else {
+        return;
+    };
+    if manifest.plugin.kind != PluginKind::Component {
+        return;
+    }
+    for command in &mut manifest.commands {
+        command.journal = journal.for_command(&command.name);
+    }
 }
 
 /// `fail` for a problem in a required instance, else `warn`; `skip` when only the catalog was

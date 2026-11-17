@@ -4,7 +4,8 @@ A cell calls it once, naming only its worktree, and ends its turn. Everything th
 checked before anything is written, in this order: the worktree and its branch, the cell
 (``NOT_FOUND``), the lane host (``NOT_LANE_HOST``), uncommitted files (``DIRTY_WORKTREE``), the
 review recorded for the exact head (``REVIEW_MISSING``, from the adapter's ``review_evidence``,
-never from the caller), a repair's gate edits (``GATE_EDIT_IN_REPAIR``) and the cheap checks
+never from the caller), a repair's gate edits (``GATE_EDIT_IN_REPAIR``, or ``GATE_CHECK_FAILED``
+when they cannot be read) and the cheap checks
 (``PREQUEUE_FAILED``). Then the head is pushed to ``refs/factory/queue/<branch>`` on origin, the
 branch is queued (a repair at the front) or held when the queue holds ``lane.queueMax``
 branches, the ejection it repairs is answered and an ``enqueued`` record is written.
@@ -114,11 +115,21 @@ def _check_gate(factory: Factory, worktree: str, branch: str, cell: dict, state:
     if cause not in records.FAILING_CHECK_CAUSES or cell.get("gateAllowed"):
         return
     since = ejection.get("head") if ejection else None
-    edits = [
-        path
-        for path in factory.world.git.changed_files(worktree, since)
-        if matches(path, factory.config.gate_paths)
-    ]
+    # Only the branch's own change counts: a repair that rebases onto main, or merges it, brings
+    # in main's gate edits too, and those are not the repair's (lushly-dev/afd#1374).
+    # The base is the lane's own fetch, never a ref in the cell's worktree it could repoint.
+    try:
+        base = factory.world.git.fetch_base(factory.config.base_branch)
+        edits = factory.world.git.repair_edits(
+            worktree, base, since, lambda path: matches(path, factory.config.gate_paths)
+        )
+    except WorldError as exc:  # Unread is not clean: the repair waits.
+        raise Refusal(
+            "GATE_CHECK_FAILED",
+            f"{branch} was ejected ({cause}) and its gate edits could not be read: {exc}",
+            "Try lane-enqueue again; if it fails again, check the network and origin, and that "
+            "the worktree still holds the ejected head's history",
+        ) from exc
     if not edits:
         return
     issues = [factory.world.github.get_issue(number) for number in cell.get("issues", [])]

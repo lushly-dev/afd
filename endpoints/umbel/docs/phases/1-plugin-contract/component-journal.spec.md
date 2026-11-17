@@ -16,9 +16,10 @@ Code paths are relative to `endpoints/umbel/` unless they start with `packages/`
   `plain` must stay visible to `plugin-show`, and a refused pipeline of a required instance stops the host; both
   fixed in sections 2 and 3; the improvements taken). D196 and D197 are decided under the owner's delegation for #1382; the trust-model
   choice itself (who chooses) is the owner's, D195, and nothing here widens what a component may do.
-- **Last verified:** 2026-11-17 against `origin/main` at `80d53bdd`, by reading the files cited at each claim.
-  **No code was built or run.**
-- **Not done:** everything; step 2 implements it. **Follow-ups:** the [table at the end](#follow-ups).
+- **Last verified:** 2026-11-17 against `origin/main` at `80d53bdd`, by reading the files cited at each claim; step 2
+  then built and passed `pnpm verify` (every `umbel.yml` leg, the workspace tests and the store tests).
+- **Step 2 implemented** 2026-11-17 in its pull request, with the test plan of section 6 as amended there (the
+  `behaviors` fixture carries the call tests; `setBy: "manifest"` is a unit test). **Not done:** step 3, D2 (#1155). **Follow-ups:** the [table at the end](#follow-ups).
 
 ## What this specification serves
 
@@ -186,15 +187,16 @@ no `journal`.
 | Test | Proves |
 | --- | --- |
 | `tests/config_v7.rs` | The key parses as section 1 prints it; each configuration rule of section 1 is refused with `WORKSPACE_CONFIG_INVALID` naming its key, `journal` in version 6 with "needs config_version = 7", and `show` as an unknown key; the schema and the host agree on the example |
-| `tests/schemas.rs` | `workspace-config.v7.json` validates the new example and refuses `keep` over 16, an unknown key in a command entry and a command entry without `mode` |
-| `tests/component_journal.rs` (new, `component` feature) | With the `budget` fixture and `mode = "digest"`, `keep = ["space"]`: the journal entry of a call holds `dev.umbel/journal: "digest"`, `dev.umbel/replay: "recorded"`, the kept `space` and the input's byte count, and neither a canary in the input nor the result's data; `TestHost::replay` skips it and names it; a `commands` entry `plain` for the same command journals it in full; with no `journal` the call is journaled in full, as today; a canary in the input of a batch item and an `afd-pipe` step is absent too |
+| `tests/config_v7.rs` (schema) | `workspace-config.v7.json` validates the new example and refuses `keep` over 16, `show` in a command entry, a command entry without `mode`, `keep` with `plain` and a name that is not a command name, each of which the host refuses too; `tests/schemas.rs` finds the example by its stem |
+| `tests/component_journal.rs` (new, `component` feature) | With the `behaviors` fixture's `probe-echo`, which echoes its input, and `mode = "digest"`, `keep = ["tag"]`: the journal entry of a call holds `dev.umbel/journal: "digest"`, `dev.umbel/replay: "recorded"`, the kept `tag` and the input's byte count, and neither a canary in the input nor the result's data; `TestHost::replay` skips it and names it; a `commands` entry `plain` for the same command journals it in full; with no `journal` the call is journaled in full, as today; a canary in the input of a batch item and an `afd-pipe` step is absent too |
 | `tests/component_journal.rs` (results and failures) | With the `behaviors` fixture made digest: `probe-echo`'s canary, echoed into the result, is absent from the journal, and `probe-bad`'s failure (a result that is not JSON) keeps only its code, with `message` `"(digest)"` and no suggestion |
-| `tests/component_journal.rs` (pipelines) | A component manifest whose pipeline has the digest command as a step is journaled digest and `plugin-show` reports `setBy: "steps"`; one that passes that step's output to a plain step fails with `PLUGIN_MANIFEST_INVALID` naming the step, and its message ends "(digest by plugins.<id>.journal)"; making the second step digest too loads it |
-| `tests/component_journal.rs` (refusals) | `journal` on a compiled instance is `PLUGIN_CONFIG_INVALID` naming `journal`; a `commands` entry naming no command is `PLUGIN_CONFIG_INVALID` naming it; the doctor's `plugins.sources` fails for each on a required instance, and `plugins.config` fails for `journal` in version 6 |
-| `tests/component_journal.rs` (`plugin-show`) | Each command's `journal` with `setBy` `deployer` (a digest entry and a `plain` entry) and `default`; a compiled digest command (the memory plugin's) reports `manifest` |
+| `tests/component_journal.rs` (pipelines) | Within one instance (the test kit enables one; another instance's pipeline reads the same `Known`, whose `digest_by` names the component's instance, untested across instances): a component manifest whose pipeline has the digest command as a step is journaled digest and `plugin-show` reports `setBy: "steps"`; one that passes that step's output to a plain step fails with `PLUGIN_MANIFEST_INVALID` naming the step, and its message ends "(digest by plugins.<id>.journal)"; making the second step digest too loads it |
+| `tests/component_journal.rs` (refusals) | `journal` on a compiled instance is `PLUGIN_CONFIG_INVALID` naming `journal`; a `commands` entry naming no command is `PLUGIN_CONFIG_INVALID` naming it; the doctor's `plugins.sources` fails for the undeclared command on a required instance (the compiled case is the same `fits` path, which a doctor without the binary's catalog reports as `skip`), and `plugins.config` fails for `journal` in version 6 |
+| `tests/component_journal.rs` (`plugin-show`) | Each command's `journal` with `setBy` `deployer` (a digest entry and a `plain` entry) and `default` |
+| `src/commands/plugin_show.rs` unit test | A compiled plugin's digest declaration reports `setBy: "manifest"`, a component's `deployer`, and none `default` |
 | `tests/manifest_v3.rs` | `journal` on a component command is refused with the message of section 1, naming `[plugins.<id>.journal]` |
 
-The tests use the existing `budget` and `behaviors` fixtures, whose manifests the tests write, so no plugin crate and no
+The tests use the existing `behaviors` fixture, whose manifests the tests write, so no plugin crate and no
 fixture build changes. A test of a compiled instance writes its version 7 `umbel.toml` itself.
 
 ## 7. Implementation plan

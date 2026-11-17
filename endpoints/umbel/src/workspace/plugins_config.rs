@@ -20,7 +20,10 @@ use super::access::AccessToken;
 use super::config::{ConfigFile, Reader};
 use super::error::WorkspaceError;
 use super::space::SpaceId;
-use crate::plugins::{SourceSpec, domain_problem, is_kebab_id, is_known_grant, to_json};
+use crate::plugins::{
+    JournalDecl, JournalMode, MAX_JOURNAL_KEEP, SourceSpec, domain_problem, is_kebab_id,
+    is_known_grant, to_json,
+};
 
 /// The instance keys.
 pub(super) const INSTANCE_KEYS: &[&str] = &[
@@ -55,6 +58,29 @@ pub(super) const INSTANCE_KEYS_V3: &[&str] = &[
     "env",
     "grants",
 ];
+/// The instance keys of configuration version 7, which adds `journal` (the component journal
+/// specification, D196).
+pub(super) const INSTANCE_KEYS_V7: &[&str] = &[
+    "source",
+    "required",
+    "spaces",
+    "deny",
+    "config",
+    "limits",
+    "prefix",
+    "url",
+    "bearer_env",
+    "connect_timeout_ms",
+    "timeout_ms",
+    "max_result_bytes",
+    "env",
+    "grants",
+    "journal",
+];
+/// The keys of `[plugins.<id>.journal]`.
+pub(super) const INSTANCE_JOURNAL_KEYS: &[&str] = &["mode", "keep", "commands"];
+/// The keys of one `[plugins.<id>.journal.commands.<name>]` entry.
+pub(super) const INSTANCE_JOURNAL_ENTRY_KEYS: &[&str] = &["mode", "keep"];
 /// `grants.<grant>.allow`: the per-instance allow-list of the write grants (D42). Named in
 /// versions 1 and 2, where it is accepted and reported but means nothing; configuration version 3
 /// reads it.
@@ -174,6 +200,35 @@ impl Default for MemoryWritePolicy {
     }
 }
 
+/// `[plugins.<id>.journal]`, configuration version 7 (the component journal specification,
+/// section 1, D196): how the journal records a component instance's calls, chosen by the
+/// deployer (D195). The plugin's kind is checked where the manifest is read.
+#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[non_exhaustive]
+pub struct InstanceJournal {
+    /// The mode of every command `commands` does not name; `None` is `plain`.
+    pub mode: Option<JournalMode>,
+    /// With `mode = "digest"`: the input keys the journal keeps.
+    pub keep: Vec<String>,
+    /// One command's mode and kept keys, replacing the instance's whole.
+    pub commands: BTreeMap<String, JournalDecl>,
+}
+
+impl InstanceJournal {
+    /// The journal declaration the deployer gives `command`: its entry, else the instance's
+    /// mode; `None` when neither is set.
+    pub fn for_command(&self, command: &str) -> Option<JournalDecl> {
+        if let Some(entry) = self.commands.get(command) {
+            return Some(entry.clone());
+        }
+        self.mode.map(|mode| JournalDecl {
+            mode,
+            keep: self.keep.clone(),
+            show: Vec::new(),
+        })
+    }
+}
+
 /// One entry of `plugins.enabled`: a plugin, its source, its configuration and its spaces.
 #[derive(Debug, Clone, PartialEq)]
 #[non_exhaustive]
@@ -203,6 +258,9 @@ pub struct PluginInstance {
     pub config: Json,
     /// A component's limits.
     pub limits: Limits,
+    /// `[plugins.<id>.journal]`, configuration version 7: a component instance's journal modes,
+    /// set by the deployer; `None` when the instance has no such table.
+    pub journal: Option<InstanceJournal>,
     /// A mounted instance's prefix, replacing the plugin's domain.
     pub prefix: Option<String>,
     /// An HTTP mount's URL: https, or http on a loopback address.
@@ -301,7 +359,12 @@ impl ConfigFile {
             .into_iter()
             .find(|key| key.starts_with("plugins."))
         {
-            return Err(WorkspaceError::config_invalid(&key, "is not a known key"));
+            let problem = if self.version() < 7 && super::person::is_v7_key(&key) {
+                "needs config_version = 7"
+            } else {
+                "is not a known key"
+            };
+            return Err(WorkspaceError::config_invalid(&key, problem));
         }
         let instances = enabled
             .iter()
@@ -400,6 +463,11 @@ fn instance(
         Some(_) => return Err(invalid("config", "must be a table")),
     };
     let limits = limits(&reader, &prefix_key)?;
+    let journal = if version >= 7 {
+        journal(&reader, &prefix_key)?
+    } else {
+        None
+    };
     let prefix = reader.string("prefix")?;
     if let Some(problem) = prefix.as_deref().and_then(domain_problem) {
         return Err(invalid("prefix", &problem));
@@ -445,6 +513,7 @@ fn instance(
         records_default_access,
         config,
         limits,
+        journal,
         prefix,
         url,
         bearer_env,
@@ -695,6 +764,112 @@ fn limits(instance: &Reader<'_>, prefix_key: &str) -> Result<Limits, WorkspaceEr
         memory_bytes: reader.integer("memory_bytes", 65_536, to_i64(caps::MEMORY_BYTES))?,
         table_elements: reader.integer("table_elements", 1, to_i64(caps::TABLE_ELEMENTS))?,
     })
+}
+
+/// `[plugins.<id>.journal]` (the component journal specification, section 1).
+fn journal(
+    instance: &Reader<'_>,
+    prefix_key: &str,
+) -> Result<Option<InstanceJournal>, WorkspaceError> {
+    let key = format!("{prefix_key}.journal");
+    let table = match instance.table_value("journal") {
+        None => return Ok(None),
+        Some(Value::Table(table)) => table,
+        Some(_) => return Err(WorkspaceError::config_invalid(&key, "must be a table")),
+    };
+    let (mode, keep) = journal_mode(table, &key, false)?;
+    let mut commands = BTreeMap::new();
+    match table.get("commands") {
+        None => {}
+        Some(Value::Table(entries)) => {
+            for (name, value) in entries {
+                let entry_key = format!("{key}.commands.{name}");
+                afd::validate_command_name(name).map_err(|problem| {
+                    WorkspaceError::config_invalid(
+                        &entry_key,
+                        format!("is not a command name: {problem}"),
+                    )
+                })?;
+                let Value::Table(entry) = value else {
+                    return Err(WorkspaceError::config_invalid(
+                        &entry_key,
+                        "must be a table: { mode, keep }",
+                    ));
+                };
+                let (mode, keep) = journal_mode(entry, &entry_key, true)?;
+                let mode = mode.unwrap_or(JournalMode::Plain);
+                commands.insert(
+                    name.clone(),
+                    JournalDecl {
+                        mode,
+                        keep,
+                        show: Vec::new(),
+                    },
+                );
+            }
+        }
+        Some(_) => {
+            return Err(WorkspaceError::config_invalid(
+                &format!("{key}.commands"),
+                "must be a table from a command name to { mode, keep }",
+            ));
+        }
+    }
+    Ok(Some(InstanceJournal {
+        mode,
+        keep,
+        commands,
+    }))
+}
+
+/// `mode` and `keep` of the journal table or one command entry, `required` for an entry.
+fn journal_mode(
+    table: &Table,
+    key: &str,
+    required: bool,
+) -> Result<(Option<JournalMode>, Vec<String>), WorkspaceError> {
+    let reader = Reader::new(Some(table), key);
+    let mode = match reader.string("mode")?.as_deref() {
+        Some("digest") => Some(JournalMode::Digest),
+        Some("plain") => Some(JournalMode::Plain),
+        Some(_) => {
+            return Err(WorkspaceError::config_invalid(
+                &format!("{key}.mode"),
+                "must be \"digest\" or \"plain\"",
+            ));
+        }
+        None if required => {
+            return Err(WorkspaceError::config_invalid(
+                &format!("{key}.mode"),
+                "is required: \"digest\" or \"plain\"",
+            ));
+        }
+        None => None,
+    };
+    let keep = reader.string_array("keep")?;
+    let keep_key = format!("{key}.keep");
+    if keep.is_some() && mode != Some(JournalMode::Digest) {
+        return Err(WorkspaceError::config_invalid(
+            &keep_key,
+            "goes with mode = \"digest\" only: a plain entry keeps its whole input",
+        ));
+    }
+    let keep = keep.unwrap_or_default();
+    if keep.len() > MAX_JOURNAL_KEEP {
+        return Err(WorkspaceError::config_invalid(
+            &keep_key,
+            format!("names {} keys; the limit is {MAX_JOURNAL_KEEP}", keep.len()),
+        ));
+    }
+    for (index, name) in keep.iter().enumerate() {
+        if keep[..index].contains(name) {
+            return Err(WorkspaceError::config_invalid(
+                &keep_key,
+                format!("names `{name}` twice"),
+            ));
+        }
+    }
+    Ok((mode, keep))
 }
 
 pub(super) fn is_env_name(name: &str) -> bool {

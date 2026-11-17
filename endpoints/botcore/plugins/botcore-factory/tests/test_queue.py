@@ -129,6 +129,19 @@ async def test_gate_allow_lets_the_diagnosed_gate_repair_in(make_run):
     assert missing.error.code == "NOT_FOUND"
 
 
+async def test_a_repair_whose_gate_edits_cannot_be_read_waits(make_run):
+    """The base the gate check compares against is the lane's own fetch; failing it refuses."""
+    run = make_run("ejected")
+    data = run.world_data()
+    data.setdefault("outcomes", {})["fetch"] = "fail: Could not resolve host: github.com"
+    run.world_path.write_text(json.dumps(data))
+    before = run.snapshot()
+    result = await run.call("lane_enqueue", worktree="wt/loosened")
+    assert result.error.code == "GATE_CHECK_FAILED", result.error
+    assert "Could not resolve host" in result.error.message
+    assert run.snapshot() == before
+
+
 async def test_an_area_ci_issue_may_repair_its_gate(make_run):
     run = make_run("ejected")
     data = run.world_data()

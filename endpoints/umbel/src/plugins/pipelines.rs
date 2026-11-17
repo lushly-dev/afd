@@ -80,6 +80,10 @@ pub(crate) struct Known {
     pub pipeline: bool,
     /// Whether the command is journaled as digest (phase 3 section 7.1).
     pub digest: bool,
+    /// The component instance whose deployer made the command digest with
+    /// `[plugins.<id>.journal]` (the component journal specification, section 3), for the
+    /// flow refusal's message.
+    pub digest_by: Option<String>,
     /// The command's `authority_prompt` (phase 3 section 3.3).
     pub authority_prompt: Option<String>,
     /// The interfaces the command is exposed to (phase 4 section 2.2).
@@ -274,8 +278,14 @@ fn check_digest_flow(
                     &manifest.file,
                     &format!("pipelines[{index}].steps[{at}].input"),
                     format!(
-                        "passes `{text}`, the output of the digest step `{}`, to `{name}`, which is not digest: its input would be journaled with that text",
-                        steps[source].0
+                        "passes `{text}`, the output of the digest step `{}`, to `{name}`, which is not digest: its input would be journaled with that text{}",
+                        steps[source].0,
+                        steps[source]
+                            .1
+                            .digest_by
+                            .as_ref()
+                            .map(|id| format!(" (digest by plugins.{id}.journal)"))
+                            .unwrap_or_default()
                     ),
                 ));
             }

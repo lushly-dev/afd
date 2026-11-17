@@ -17,6 +17,7 @@ import pytest
 
 from botcore_factory.real_system import find_node_bin, node_roots
 from botcore_factory.real_world import (
+    _PLAIN_DIFF,
     CliGit,
     GhGitHub,
     LocalMachine,
@@ -196,8 +197,8 @@ def test_git_diffs_and_pushes_the_queue_ref_as_argument_lists():
     git.changed_files("wt")
     git.push_queue_ref("wt", "fix/a", "abc123")
     assert [args for args, _ in run.calls] == [
-        ["git", "-C", "wt", "diff", "--name-only", "abc123...HEAD"],
-        ["git", "-C", "wt", "diff", "--name-only", "origin/HEAD...HEAD"],
+        ["git", "-C", "wt", *_PLAIN_DIFF, "--name-only", "abc123...HEAD"],
+        ["git", "-C", "wt", *_PLAIN_DIFF, "--name-only", "origin/HEAD...HEAD"],
         [
             "git",
             "-C",
@@ -521,7 +522,14 @@ def test_runner_failure_diagnostics_are_bounded_and_keep_the_tail(tmp_path):
 def test_the_base_is_fetched_by_the_adapter_s_branch_name():
     run = FakeRun({"git rev-parse refs/remotes/origin/develop": "base1\n"})
     assert CliGit(run).fetch_base("develop") == "base1"
-    assert run.calls[0][0] == ["git", "fetch", "--quiet", "--no-tags", "origin"]
+    assert run.calls[0][0] == [
+        "git",
+        "fetch",
+        "--quiet",
+        "--no-tags",
+        "origin",
+        "+refs/heads/develop:refs/remotes/origin/develop",
+    ]
 
 
 def test_a_merge_that_did_not_happen_is_an_error_not_a_clean_merge():

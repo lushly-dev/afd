@@ -236,3 +236,46 @@ async fn an_instruction_in_a_tag_an_id_or_a_version_is_refused_when_read() {
     pack.regenerate("example");
     refused_without_repeating(&pack, "ignore").await;
 }
+
+/// A deployment's statements are content too (amendment A28): a canary in one is served only in the
+/// content part or the quoted block, flagged, and in no message, warning, reasoning or log line; a
+/// map refused for a statement does not repeat it.
+#[tokio::test]
+async fn a_deployment_statement_is_served_only_inside_the_content_part() {
+    logs::install();
+    let map = json!({"version":2,"consumers":{"storefront":{"statements":[
+        {"id":"review.keep.approve","text":SENTENCE},
+    ]}}});
+    let fx = Pack::example().host_with_consumers(map);
+    for input in [
+        json!({ "tags": ["example-select"], "consumer": "storefront" }),
+        json!({ "tags": ["example-select"], "consumer": "storefront", "detail": "api" }),
+        json!({ "tags": ["example-nothing"], "consumer": "storefront" }),
+        json!({ "tags": ["example-select"], "consumer": "storefront", "maxBytes": 2_000 }),
+    ] {
+        let result = fx.brief(input).await;
+        assert_eq!(result["success"], true, "{result}");
+        assert_only_in_content(&result);
+        assert_flagged(&data(&result)["content"], false);
+    }
+    let text = fx
+        .brief(json!({ "tags": ["example-select"], "consumer": "storefront", "render": "text" }))
+        .await;
+    assert_only_in_content(&text);
+    let block = data(&text)["text"].as_str().unwrap();
+    for line in block.lines().filter(|line| line.contains(CANARY)) {
+        assert!(line.starts_with("> "), "{line}");
+        assert!(line.ends_with("(flagged: instruction-like)"), "{line}");
+    }
+    assert_eq!(logs::lines(CANARY), Vec::<String>::new());
+
+    let over = json!({"version":2,"consumers":{"storefront":{"statements":[
+        {"id":"review.keep.approve","text":format!("{SENTENCE}\n{SENTENCE}")},
+    ]}}});
+    let refused = Pack::example()
+        .host_with_consumers(over)
+        .brief(json!({ "tags": ["example-select"], "consumer": "storefront" }))
+        .await;
+    assert_eq!(code(&refused), "CONSUMERS_INVALID", "{refused}");
+    assert!(!refused.to_string().contains(CANARY), "{refused}");
+}

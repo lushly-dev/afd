@@ -8,8 +8,8 @@
 use super::plugin_list::summary;
 use super::{Builtin, expose_everywhere_but_the_palette, returns_object, validation_error};
 use crate::plugins::{
-    GrantReport, InstanceReport, LoadedPlugins, Manifest, MountReport, PipelineState, PluginKind,
-    TRUST_NOTE, Transport,
+    GrantReport, InstanceReport, JournalDecl, LoadedPlugins, Manifest, MountReport, PipelineState,
+    PluginKind, TRUST_NOTE, Transport,
 };
 use crate::workspace::Workspace;
 use afd::{CommandContext, CommandDefinition, CommandHandler, CommandResult, failure, success};
@@ -102,6 +102,24 @@ fn packs(instance: &InstanceReport, manifest: &Manifest, shown: &dyn Fn(&str) ->
     )
 }
 
+/// A command's or pipeline's `journal` when nothing sets it: `plain`.
+fn default_journal() -> Value {
+    json!({ "mode": "plain", "keep": [], "setBy": "default" })
+}
+
+/// A command's `journal` (the component journal specification, section 4): its mode, kept keys,
+/// and who set them. A component's declaration is only ever the deployer's (D191, D197).
+fn command_journal(kind: PluginKind, journal: Option<&JournalDecl>) -> Value {
+    let Some(journal) = journal else {
+        return default_journal();
+    };
+    json!({
+        "mode": journal.mode.as_str(),
+        "keep": journal.keep,
+        "setBy": if kind == PluginKind::Component { "deployer" } else { "manifest" },
+    })
+}
+
 /// Each pipeline and whether it was registered; a pipeline that was not names the reason.
 fn pipelines(instance: &InstanceReport, manifest: &Manifest) -> Value {
     Value::Array(
@@ -110,18 +128,27 @@ fn pipelines(instance: &InstanceReport, manifest: &Manifest) -> Value {
             .iter()
             .map(|pipeline| {
                 let effects: Vec<&str> = pipeline.effects.iter().map(|e| e.as_str()).collect();
+                let plan = instance
+                    .pipelines
+                    .iter()
+                    .find(|plan| plan.name == pipeline.name);
+                // A pipeline's mode is its steps' (phase 3 section 2.3); its own declaration
+                // never sets it, so it is `steps` or `default`, never `manifest`.
+                let digest = plan.is_some_and(|plan| {
+                    plan.state == PipelineState::Registered && plan.digest
+                });
                 let mut item = json!({
                     "name": pipeline.name,
                     "description": pipeline.description,
                     "effects": effects,
                     "steps": pipeline.steps.iter().map(|step| step.command.clone()).collect::<Vec<_>>(),
+                    "journal": if digest {
+                        json!({ "mode": "digest", "keep": [], "setBy": "steps" })
+                    } else {
+                        default_journal()
+                    },
                 });
-                match instance
-                    .pipelines
-                    .iter()
-                    .find(|plan| plan.name == pipeline.name)
-                    .map(|plan| &plan.state)
-                {
+                match plan.map(|plan| &plan.state) {
                     Some(PipelineState::Registered) => item["state"] = json!("registered"),
                     Some(PipelineState::Skipped(reason)) => {
                         item["state"] = json!("not-registered");
@@ -154,6 +181,7 @@ fn mount_commands(
                 "mutation": tool.mutation,
                 "firstClass": tool.first_class,
                 "bindSpace": tool.bind_space,
+                "journal": default_journal(),
                 "expose": { "mcp": true, "agent": true, "cli": true, "palette": false },
                 "origin": {
                     "plugin": instance.id,
@@ -250,6 +278,7 @@ fn show(instance: &InstanceReport, listed: Option<&[String]>, hosted: bool) -> V
                 "effects": effects,
                 "mutation": command.mutation(),
                 "firstClass": command.first_class,
+                "journal": command_journal(info.kind, command.journal.as_ref()),
                 "expose": {
                     "mcp": crate::plugins::loader::mcp_registered(command, hosted),
                     "agent": command.expose.agent,
@@ -386,5 +415,27 @@ mod tests {
         let hosted = grant_item(&grant, true);
         assert!(hosted.get("note").is_none(), "{hosted}");
         assert_eq!(hosted["status"], json!("withheld"));
+    }
+
+    #[test]
+    fn a_commands_journal_names_who_set_it() {
+        use crate::plugins::JournalMode;
+        let digest = JournalDecl {
+            mode: JournalMode::Digest,
+            keep: vec!["space".into()],
+            show: Vec::new(),
+        };
+        assert_eq!(
+            command_journal(PluginKind::Compiled, Some(&digest)),
+            json!({ "mode": "digest", "keep": ["space"], "setBy": "manifest" })
+        );
+        assert_eq!(
+            command_journal(PluginKind::Component, Some(&digest)),
+            json!({ "mode": "digest", "keep": ["space"], "setBy": "deployer" })
+        );
+        assert_eq!(
+            command_journal(PluginKind::Compiled, None),
+            json!({ "mode": "plain", "keep": [], "setBy": "default" })
+        );
     }
 }

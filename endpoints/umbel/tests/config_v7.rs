@@ -502,3 +502,193 @@ fn the_version_7_examples_validate_and_open() {
     lifted["config_version"] = json!(7);
     validator.validate(&lifted).unwrap();
 }
+
+// ── The deployer's journal mode for a component (the component journal specification, D196) ──
+
+/// A version `version` workspace enabling the instance `components` with `journal`.
+fn journaled(version: u32, journal: &str) -> String {
+    format!(
+        "config_version = {version}\n\n[spaces.main]\n\n[plugins]\nenabled = [\"components\"]\n\n[plugins.components]\nsource = \"plugins/components\"\n\n{journal}"
+    )
+}
+
+const D2_JOURNAL: &str = r#"[plugins.components.journal]
+mode = "digest"
+keep = ["space", "library"]
+
+[plugins.components.journal.commands]
+components-brief = { mode = "digest", keep = ["space", "library", "detail", "render", "consumer"] }
+components-show = { mode = "plain" }
+"#;
+
+#[test]
+fn a_component_instances_journal_parses_as_the_specification_prints_it() {
+    use umbel::plugins::JournalMode;
+    let workspace = open(&journaled(7, D2_JOURNAL)).unwrap();
+    let instance = &workspace.config().plugins.instances[0];
+    let journal = instance.journal.as_ref().unwrap();
+    assert_eq!(journal.mode, Some(JournalMode::Digest));
+    assert_eq!(journal.keep, ["space", "library"]);
+    let brief = journal.for_command("components-brief").unwrap();
+    assert_eq!(brief.mode, JournalMode::Digest);
+    assert_eq!(
+        brief.keep,
+        ["space", "library", "detail", "render", "consumer"]
+    );
+    // An entry replaces the instance's mode and keep whole; an explicit plain stays declared.
+    let show = journal.for_command("components-show").unwrap();
+    assert_eq!(show.mode, JournalMode::Plain);
+    assert!(show.keep.is_empty());
+    let list = journal.for_command("components-list").unwrap();
+    assert_eq!(list.keep, ["space", "library"]);
+    // Only commands named, with no instance mode: the rest are not reached.
+    let only = open(&journaled(
+        7,
+        "[plugins.components.journal.commands]\ncomponents-brief = { mode = \"digest\" }\n",
+    ))
+    .unwrap();
+    let only = only.config().plugins.instances[0].journal.clone().unwrap();
+    assert_eq!(only.mode, None);
+    assert!(only.for_command("components-list").is_none());
+    // No table: no journal.
+    let none = open(&journaled(7, "")).unwrap();
+    assert!(none.config().plugins.instances[0].journal.is_none());
+}
+
+#[test]
+fn the_journal_rules_are_refused_naming_the_key() {
+    let k = "plugins.components.journal";
+    for (journal, key, says) in [
+        (
+            "[plugins.components.journal]\nmode = \"full\"\n",
+            format!("{k}.mode"),
+            "\"digest\" or \"plain\"",
+        ),
+        (
+            "[plugins.components.journal]\nmode = \"plain\"\nkeep = [\"space\"]\n",
+            format!("{k}.keep"),
+            "digest",
+        ),
+        (
+            "[plugins.components.journal]\nkeep = [\"space\"]\n",
+            format!("{k}.keep"),
+            "digest",
+        ),
+        (
+            "[plugins.components.journal]\nmode = \"digest\"\nkeep = [\"a\", \"a\"]\n",
+            format!("{k}.keep"),
+            "twice",
+        ),
+        (
+            "[plugins.components.journal.commands]\ncomponents-brief = { keep = [\"space\"] }\n",
+            format!("{k}.commands.components-brief.mode"),
+            "required",
+        ),
+        (
+            "[plugins.components.journal.commands]\ncomponents-brief = \"digest\"\n",
+            format!("{k}.commands.components-brief"),
+            "table",
+        ),
+        (
+            "[plugins.components.journal.commands]\n\"Not A Name\" = { mode = \"plain\" }\n",
+            format!("{k}.commands.Not A Name"),
+            "command name",
+        ),
+        (
+            "[plugins.components.journal]\nmode = \"digest\"\nshow = [\"reason\"]\n",
+            format!("{k}.show"),
+            "not a known key",
+        ),
+        (
+            "[plugins.components.journal.commands]\ncomponents-brief = { mode = \"digest\", show = [\"reason\"] }\n",
+            format!("{k}.commands.components-brief.show"),
+            "not a known key",
+        ),
+        (
+            "[plugins.components.journal]\nmode = \"digest\"\nwhen = \"always\"\n",
+            format!("{k}.when"),
+            "not a known key",
+        ),
+    ] {
+        let error = invalid(&journaled(7, journal), &key);
+        assert!(error.message().contains(says), "{journal}: {error}");
+    }
+    let many: Vec<String> = (0..17).map(|n| format!("\"k{n}\"")).collect();
+    let error = invalid(
+        &journaled(
+            7,
+            &format!(
+                "[plugins.components.journal]\nmode = \"digest\"\nkeep = [{}]\n",
+                many.join(", ")
+            ),
+        ),
+        &format!("{k}.keep"),
+    );
+    assert!(error.message().contains("limit is 16"), "{error}");
+}
+
+#[test]
+fn the_journal_before_version_7_needs_version_7_on_both_paths() {
+    for version in [3, 6] {
+        let text = journaled(version, "[plugins.components.journal]\nmode = \"digest\"\n");
+        let error = invalid(&text, "plugins.components.journal");
+        assert!(
+            error.message().contains("needs config_version = 7"),
+            "{error}"
+        );
+        // The doctor reads `[plugins]` on its own path, with the same message.
+        let (_dir, root) = workspace_with(&text);
+        let report = doctor::run(&root);
+        let config = report
+            .checks
+            .iter()
+            .find(|check| check.id == "plugins.config")
+            .unwrap();
+        assert_eq!(config.status, CheckStatus::Fail, "{}", config.message);
+        assert!(
+            config.message.contains("needs config_version = 7"),
+            "{}",
+            config.message
+        );
+    }
+}
+
+#[test]
+fn the_schema_and_the_host_agree_on_the_journal() {
+    let validator = validator(7);
+    let journal = example("workspace-config.v7.journal.json");
+    validator.validate(&journal).unwrap();
+    opens(&journal).unwrap();
+    let path = |c: &mut Value| -> Value { c["plugins"]["components"]["journal"].take() };
+    let refused = [
+        edited(&journal, |c| {
+            let mut j = path(c);
+            j["keep"] = json!((0..17).map(|n| format!("k{n}")).collect::<Vec<_>>());
+            c["plugins"]["components"]["journal"] = j;
+        }),
+        edited(&journal, |c| {
+            c["plugins"]["components"]["journal"]["commands"]["components-brief"]["show"] =
+                json!(["reason"]);
+        }),
+        edited(&journal, |c| {
+            c["plugins"]["components"]["journal"]["commands"]["components-list"] =
+                json!({ "keep": ["space"] });
+        }),
+        edited(&journal, |c| {
+            c["plugins"]["components"]["journal"]["commands"]["components-list"] =
+                json!({ "mode": "plain", "keep": ["space"] });
+        }),
+        edited(&journal, |c| {
+            c["plugins"]["components"]["journal"]["mode"] = json!("plain");
+        }),
+        edited(&journal, |c| {
+            c["plugins"]["components"]["journal"]["commands"]["Not A Name"] =
+                json!({ "mode": "plain" });
+        }),
+    ];
+    for instance in refused {
+        assert!(!validator.is_valid(&instance), "{instance}");
+        assert!(opens(&instance).is_err(), "{instance}");
+    }
+    assert!(!self::validator(6).is_valid(&journal));
+}

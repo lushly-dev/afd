@@ -20,6 +20,19 @@ from botcore_factory.world import WorldError
 
 FIRST_LINES = 10
 _FAILURE = re.compile(r"(FAIL|Error|ERR!|error|✗|×|failed|Failed)")
+#: ``pnpm -r``'s prefix on a package's output: its directory, then the script (``packages/x
+#: test: ``).
+_PREFIX = r"^(?:\S*/\S* [\w:.-]+: )?"
+#: A runner's own mark that one test failed: the line a reader looks for first.
+_FAILED_MARK = re.compile(_PREFIX + r"\s*(?:[✖✗×]|FAIL\b|not ok\b|FAILED\b)|\bAssertionError\b")
+#: Other failure marks, read after the summary: an exception line, pytest's ``E`` lines.
+_ERROR_MARK = re.compile(_PREFIX + r"\s*(?:\S*Error\b[^:]*:|E\s{2,})")
+#: ``pnpm verify``'s summary row for a suite that failed: ``  FAIL  612s  hosted-fixtures``.
+_SUMMARY_FAIL = re.compile(r"^\s*FAIL\s+\d+s\s+\S")
+#: A runner's mark that a test passed. Its name may say "failed" ("a failed restart remains a
+#: failure"), so it is never taken for the failure (lushly-dev/afd#1373).
+_PASSED_MARK = re.compile(_PREFIX + r"\s*(?:[✔✓√]|ok\b|PASS\b|pass\b|PASSED\b)")
+_ANSI = re.compile(r"\x1b\[[0-9;?]*[A-Za-z]")
 NON_FAST_FORWARD = re.compile(r"rejected|non-fast-forward|stale info|fetch first", re.I)
 HEAD_MISMATCH = re.compile(r"head branch was modified|head commit|match-head|expected head", re.I)
 PR_REFUSED = re.compile(r"No commits between|Validation Failed|\b422\b", re.I)
@@ -58,10 +71,32 @@ class LaneTrouble(Exception):
 
 
 def first_lines(text: str) -> list[str]:
-    """The lines a reader needs first: those that look like failures, else the last ones."""
-    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
-    failing = [line for line in lines if _FAILURE.search(line)]
-    return (failing or lines[-FIRST_LINES:])[:FIRST_LINES]
+    """The lines a reader needs first, most telling first, else the last ones.
+
+    In order: the first test a runner marked failed (``✖``, ``FAIL``, ``not ok``, an
+    ``AssertionError``), ``pnpm verify``'s summary rows that name the failed suites, the runner's
+    other failed tests, exception lines (``Error:``, pytest's ``E``), then any other line that
+    mentions a failure. A line a runner marked passed is never one of them, whatever its test is
+    called.
+    """
+    lines = [_ANSI.sub("", line).rstrip() for line in text.splitlines() if line.strip()]
+    lines = [line for line in lines if line.strip()]
+    candidates = [
+        line
+        for line in lines
+        if not _PASSED_MARK.match(line) or _FAILED_MARK.search(line) or _ERROR_MARK.match(line)
+    ]
+    summary = [line for line in candidates if _SUMMARY_FAIL.match(line)]
+    marked = [line for line in candidates if _FAILED_MARK.search(line) and line not in summary]
+    errors = [
+        line
+        for line in candidates
+        if _ERROR_MARK.search(line) and line not in summary and line not in marked
+    ]
+    taken = {*summary, *marked, *errors}
+    loose = [line for line in candidates if _FAILURE.search(line) and line not in taken]
+    ordered = [*marked[:1], *summary, *marked[1:], *errors, *loose]
+    return (ordered or lines[-FIRST_LINES:])[:FIRST_LINES]
 
 
 def log_path(branch: str, attempt: int, kind: str = "") -> str:

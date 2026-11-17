@@ -4,7 +4,6 @@ export default defineConfig({
 	test: {
 		globals: false,
 		include: ['src/**/*.test.ts'],
-		passWithNoTests: true, // Allow passing when no tests exist yet
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],

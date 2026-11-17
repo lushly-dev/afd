@@ -12,12 +12,23 @@ const HOUR: i64 = 60 * 60 * 1000;
 /// Where the made-up floods start: well after the mail [`header`] dates.
 const FLOOD: i64 = BASE + 500 * DAY;
 
+/// When an account first synced just after the floods is first listed: its
+/// junk and trash hold what the provider kept, and the engine watched
+/// nothing before. [`Mail::with_history`] is listed at [`NOW`], a hundred
+/// days before the floods, as an account the engine has watched since.
+const SYNCED: i64 = FLOOD + 2 * DAY;
+
 impl Mail {
     /// Mail with a history: one message from a list four months before the
     /// floods, so that the days before them are known to be quiet. A flood
     /// in an account's first month is not read as one (7.4).
     fn with_history() -> Self {
-        let mut mail = Self::new();
+        Self::with_history_listed_at(NOW)
+    }
+
+    /// As [`Mail::with_history`], its mailboxes first listed at `at`.
+    fn with_history_listed_at(at: i64) -> Self {
+        let mut mail = Self::listed_at(at);
         let archive = mail.archive;
         mail.add_at(
             archive,
@@ -210,11 +221,11 @@ fn a_few_new_senders_busy_first_day_is_no_burst() {
 
 #[test]
 fn kept_first_contacts_are_judged_on_their_own_senders() {
-    let mut mail = Mail::with_history();
+    let mut mail = Mail::with_history_listed_at(SYNCED);
     let inbox = mail.inbox;
-    // Junk's history starts ten days before the flood, too short a
-    // history to judge all first contacts on.
-    let junk = mail.mailbox("Junk", Role::Junk);
+    // First synced after the flood, junk's history starts ten days before
+    // it, too short a history to judge all first contacts on.
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, SYNCED);
     mail.add_at(junk, "spam@example.biz", &[], FLOOD - 10 * DAY);
     // Forty kept from five new senders, and ten more senders in junk.
     mail.flood_from(inbox, "s", &[], 40, 5, FLOOD);
@@ -333,8 +344,8 @@ fn a_flood_in_junk_is_a_burst_with_no_story() {
 
 #[test]
 fn a_junk_flood_is_a_burst_once_junk_covers_a_month() {
-    let mut mail = Mail::with_history();
-    let junk = mail.mailbox("Junk", Role::Junk);
+    let mut mail = Mail::with_history_listed_at(SYNCED);
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, SYNCED);
     // The first sync of an account whose provider empties junk monthly:
     // the oldest junk it holds is from twenty days before the flood, so
     // those twenty days are all the junk history there is.
@@ -367,10 +378,12 @@ fn junk_the_provider_emptied_after_it_was_seen_still_covers_its_days() {
 
 #[test]
 fn a_kept_first_contact_stays_kept_after_it_is_deleted() {
-    let mut mail = Mail::with_history();
-    let (inbox, junk) = (mail.inbox, mail.mailbox("Junk", Role::Junk));
-    // Junk from five days before: all first contacts cover too little, so
-    // the flood is a burst on its kept ones alone.
+    let mut mail = Mail::with_history_listed_at(SYNCED);
+    let inbox = mail.inbox;
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, SYNCED);
+    // First synced after the flood, with junk from five days before: all
+    // first contacts cover too little, so the flood is a burst on its kept
+    // ones alone.
     mail.add_at(junk, "spam@example.biz", &[], FLOOD - 5 * DAY);
     let flood = mail.flood_seen(inbox, "s", &[], 35, FLOOD);
     assert_eq!(mail.bursts().len(), 1);
@@ -385,10 +398,54 @@ fn a_kept_first_contact_stays_kept_after_it_is_deleted() {
 }
 
 #[test]
-fn a_junk_flood_moved_out_of_junk_is_judged_as_kept() {
+fn junk_and_trash_hold_history_from_when_they_were_first_listed() {
     let mut mail = Mail::with_history();
-    let (inbox, junk) = (mail.inbox, mail.mailbox("Junk", Role::Junk));
-    // Junk that holds only the flood: no burst on all first contacts.
+    let junk = mail.mailbox("Junk", Role::Junk);
+    let trash = mail.mailbox("Deleted", Role::Trash);
+    // Watched since a hundred days before the flood, junk has seen its
+    // first contact of all only now, and trash five days before: what came
+    // there between was seen too, so those days were quiet.
+    mail.add_at(trash, "deleted@example.biz", &[], FLOOD - 5 * DAY);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn an_empty_trash_first_listed_after_a_flood_covers_nothing_before() {
+    let mut mail = Mail::with_history_listed_at(SYNCED);
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, SYNCED);
+    let trash = mail.mailbox_listed_at("Deleted", Role::Trash, SYNCED);
+    // Junk covers sixty days, but an empty trash says nothing of what the
+    // provider emptied from it before the first sync.
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 60 * DAY);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert!(mail.bursts().is_empty());
+    mail.assert_as_from_nothing();
+    // Trash that holds a first contact from forty days before covers them.
+    mail.add_at(trash, "deleted@example.biz", &[], FLOOD - 40 * DAY);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_junk_mailbox_that_appears_later_sets_no_start() {
+    let mut mail = Mail::with_history();
+    // Ten days before the flood, after the account was first listed, a junk
+    // mailbox appears: it held nothing before it did.
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, FLOOD - 10 * DAY);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    mail.assert_as_from_nothing();
+}
+
+#[test]
+fn a_junk_flood_moved_out_of_junk_is_judged_as_kept() {
+    let mut mail = Mail::with_history_listed_at(SYNCED);
+    let inbox = mail.inbox;
+    let junk = mail.mailbox_listed_at("Junk", Role::Junk, SYNCED);
+    // First synced after the flood, junk holds only the flood: no burst on
+    // all first contacts.
     let flood = mail.flood_seen(junk, "s", &[], 40, FLOOD);
     assert!(mail.bursts().is_empty());
     let move_out = |mail: &mut Mail, moved: &[(MessageId, HeaderSeen)]| {
@@ -593,6 +650,114 @@ fn a_store_whose_bursts_another_rule_found_finds_them_again_when_opened() {
 }
 
 #[test]
+fn a_store_from_before_bursts_waits_for_an_account_it_never_listed() {
+    let directory = tempfile::tempdir().unwrap();
+    let home = Home::at(directory.path().join("data"));
+    {
+        // Version 9 wrote these: an account with no mailbox yet, and one
+        // whose mailbox was listed at 500 and whose mail was first seen at
+        // 100.
+        let store = Store::open_with(&home, &schema::MIGRATIONS[..9]).unwrap();
+        store
+            .connection
+            .execute_batch(
+                "INSERT INTO account (id, provider, address, created_at)
+                     VALUES (1, 'icloud', 'person@example.com', 0),
+                            (2, 'icloud', 'other@example.com', 0);
+                 INSERT INTO mailbox (id, account_id, provider_key, name, role, header_only,
+                                      cursor, last_pass_at)
+                     VALUES (1, 2, 'Junk', 'Junk', 'junk', 1, 'listed', 500);
+                 INSERT INTO message (id, header_hash, reported_size, first_seen_at)
+                     VALUES (1, zeroblob(32), 10, 100);
+                 INSERT INTO observation (message_id, mailbox_id, validity, provider_id, flags,
+                                          seen_at)
+                     VALUES (1, 1, '', '1', '[]', 100);",
+            )
+            .unwrap();
+    }
+    let store = Store::open(&home).unwrap();
+    assert_eq!(
+        table(&store, "SELECT id, listed_at FROM account ORDER BY id"),
+        [
+            vec![Value::Integer(1), Value::Null],
+            vec![Value::Integer(2), Value::Integer(500)]
+        ],
+        "an account with no mailbox listed waits"
+    );
+    assert_eq!(
+        table(&store, "SELECT first_listed_at FROM mailbox"),
+        [vec![Value::Integer(100)]],
+        "watched since its account's mail was first seen"
+    );
+    assert_eq!(
+        table(
+            &store,
+            "SELECT value FROM engine_state WHERE key = 'burst-rule'"
+        ),
+        [vec![Value::Integer(bursts::RULE)]]
+    );
+}
+
+#[test]
+fn an_account_whose_mailboxes_all_went_unlisted_waits() {
+    let mut mail = Mail::new();
+    let other = mail
+        .store
+        .add_account("icloud", "other@example.com", 1)
+        .unwrap();
+    let only = mail
+        .store
+        .upsert_mailbox(
+            other,
+            &MailboxSeen {
+                provider_key: "INBOX",
+                name: "INBOX",
+                role: Role::Inbox,
+            },
+            NOW,
+        )
+        .unwrap();
+    mail.store.retire_mailbox(only, NOW).unwrap();
+    let waiting = table(
+        &mail.store,
+        &format!("SELECT listed_at FROM account WHERE id = {}", other.0),
+    );
+    assert_eq!(waiting, [vec![Value::Null]]);
+}
+
+#[test]
+fn a_store_whose_mailboxes_migration_10_listed_late_counts_them_from_its_first_sync() {
+    let mut mail = Mail::with_history();
+    let junk = mail.mailbox("Junk", Role::Junk);
+    mail.mailbox("Deleted", Role::Trash);
+    // Synced from a hundred days before the flood, by a build from before
+    // bursts; junk's first first contact came five days before it.
+    mail.add_at(junk, "spam@example.biz", &[], FLOOD - 5 * DAY);
+    mail.flood(junk, "s", &[], 35, FLOOD);
+    assert_eq!(mail.bursts().len(), 1);
+    // Migration 10 then took each mailbox's first listing from its last
+    // pass, after the flood, and the second rule found its bursts.
+    let upgraded = FLOOD + 3 * DAY;
+    mail.store
+        .connection
+        .execute_batch(&format!(
+            "UPDATE mailbox SET first_listed_at = {upgraded};
+             UPDATE account SET listed_at = {upgraded};
+             UPDATE engine_state SET value = 2 WHERE key = 'burst-rule';
+             PRAGMA user_version = 10;"
+        ))
+        .unwrap();
+    let mut mail = mail.reopen();
+    assert_eq!(
+        table(&mail.store, "SELECT DISTINCT first_listed_at FROM mailbox"),
+        [vec![Value::Integer(NOW)]],
+        "listed from when its account's mail was first seen"
+    );
+    assert_eq!(mail.bursts().len(), 1, "the empty trash covers its days");
+    mail.assert_as_from_nothing();
+}
+
+#[test]
 fn the_rule_is_raised_when_a_threshold_changes() {
     // A threshold changed here without raising the rule leaves the bursts
     // that stores found by the old thresholds: raise [`bursts::RULE`], then
@@ -607,7 +772,7 @@ fn the_rule_is_raised_when_a_threshold_changes() {
             MEDIAN_DAYS,
             COVERED_LEAST
         ),
-        (2, 30, 10, 10, 24 * HOUR, 90, 30)
+        (3, 30, 10, 10, 24 * HOUR, 90, 30)
     );
 }
 
@@ -997,23 +1162,29 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
                     appeared += 1;
                     let key: &'static str =
                         Box::leak(format!("Appeared{appeared}").into_boxed_str());
+                    // Some are junk or trash, first listed after the
+                    // account was, so they set no start.
+                    let role = [Role::None, Role::Junk, Role::Trash][steps.below(3) as usize];
+                    let later = NOW + i64::from(step) * HOUR;
                     let new = mail
                         .store
-                        .upsert_mailbox(account, &seen_as(key, Role::None), NOW)
+                        .upsert_mailbox(account, &seen_as(key, role), NOW)
                         .unwrap();
                     mail.assert_as_from_nothing();
                     if steps.below(2) == 0 {
-                        mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+                        mail.store.set_cursor(new, Some("listed"), later).unwrap();
                     } else {
                         mail.store.retire_mailbox(new, NOW).unwrap();
                         mail.assert_as_from_nothing();
                         // And comes back, listed once before it went or not.
                         mail.store
-                            .upsert_mailbox(account, &seen_as(key, Role::None), NOW)
+                            .upsert_mailbox(account, &seen_as(key, role), NOW)
                             .unwrap();
                         mail.assert_as_from_nothing();
-                        mail.store.set_cursor(new, Some("listed"), NOW).unwrap();
+                        mail.store.set_cursor(new, Some("listed"), later).unwrap();
                     }
+                    mail.assert_as_from_nothing();
+                    mail.flood(new, &format!("a{step}x"), &[], 5, FLOOD + DAY);
                 }
                 9 => {
                     // A mailbox's ids start again.
@@ -1037,9 +1208,10 @@ fn bursts_stay_what_finding_them_from_nothing_gives_through_any_sequence() {
 
 #[test]
 fn a_flood_after_trash_history_starts_is_judged_on_what_trash_covers() {
-    let mut mail = Mail::with_history();
+    let mut mail = Mail::with_history_listed_at(SYNCED);
     let (inbox, archive) = (mail.inbox, mail.archive);
-    let trash = mail.mailbox("Deleted", Role::Trash);
+    // First synced after the flood.
+    let trash = mail.mailbox_listed_at("Deleted", Role::Trash, SYNCED);
     let oct = FLOOD - 31 * DAY;
     // Eight a day in the inbox for the three months before October.
     for day in 1..=90 {

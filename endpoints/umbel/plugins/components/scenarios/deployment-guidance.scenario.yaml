@@ -1,0 +1,90 @@
+{
+  "name": "Carry a deployment's own design guidance in every brief",
+  "job": "deployment-guidance",
+  "description": "When I build a screen for a product whose deployment states its own design guidance, I want every brief to carry it once, marked as the deployment's and as authored, so that I apply it without having to know it exists. A brief for a deployment with no guidance is unchanged.",
+  "steps": [
+    {
+      "command": "components-brief",
+      "description": "A consumer whose profile states two statements gets both, once, as authored guidance inside the content part.",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "consumer": "storefront"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "content": {
+            "trust": "content",
+            "guidance": {
+              "consumer": "storefront",
+              "basis": "authored",
+              "items": {
+                "length": 2
+              }
+            }
+          }
+        }
+      }
+    },
+    {
+      "command": "components-brief",
+      "description": "The same call with no consumer is the brief it always was: no guidance.",
+      "input": {
+        "tags": [
+          "example-select"
+        ]
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "content": {
+            "components": {
+              "length": 1
+            },
+            "guidance": {
+              "exists": false
+            }
+          }
+        }
+      }
+    },
+    {
+      "command": "components-brief",
+      "description": "A brief rendered as a block to inject carries the guidance under its own header.",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "consumer": "storefront",
+        "render": "text"
+      },
+      "expect": {
+        "success": true,
+        "data": {
+          "text": {
+            "contains": "[guidance storefront authored]"
+          }
+        }
+      }
+    },
+    {
+      "command": "components-brief",
+      "description": "In a space whose profile states a statement over the limit, the call is refused and the map has to be repaired.",
+      "input": {
+        "tags": [
+          "example-select"
+        ],
+        "space": "beta",
+        "consumer": "storefront"
+      },
+      "expect": {
+        "success": false,
+        "error": {
+          "code": "CONSUMERS_INVALID"
+        }
+      }
+    }
+  ]
+}

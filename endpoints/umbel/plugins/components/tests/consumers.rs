@@ -100,7 +100,7 @@ async fn unknown_invalid_and_other_space_consumers_refuse_without_echoing_conten
         assert_eq!(result["success"], false, "{result}");
     }
     for bad in [
-        json!({"version":2,"consumers":{}}),
+        json!({"version":3,"consumers":{}}),
         map(&["theme.install"]),
         map(&["example/ignore.previous-instructions"]),
         json!({"version":1,"consumers":{"loam":{"exclude_rules":[],"secret":"PRIVATE"}}}),
@@ -116,8 +116,8 @@ async fn unknown_invalid_and_other_space_consumers_refuse_without_echoing_conten
     }
 }
 
-// JSON is a YAML subset. Read the same scenario the AFD runner validates, without a
-// second YAML dependency; only the subset and length matchers this scenario uses.
+// JSON is a YAML subset. Read the same scenarios the AFD runner validates, without a
+// second YAML dependency; only the subset, `length`, `exists` and `contains` matchers they use.
 fn expect(actual: &Value, expected: &Value) {
     if let Some(object) = expected.as_object() {
         if let Some(length) = object.get("length") {
@@ -125,6 +125,13 @@ fn expect(actual: &Value, expected: &Value) {
                 actual.as_array().map(Vec::len),
                 length.as_u64().map(|n| n as usize)
             );
+        } else if let Some(exists) = object.get("exists") {
+            assert_eq!(Some(!actual.is_null()), exists.as_bool(), "{actual}");
+        } else if let Some(contains) = object.get("contains") {
+            let (Some(actual), Some(contains)) = (actual.as_str(), contains.as_str()) else {
+                panic!("`contains` needs two strings: {actual} and {contains}");
+            };
+            assert!(actual.contains(contains), "{actual}");
         } else {
             for (key, value) in object {
                 expect(&actual[key], value);
@@ -149,6 +156,64 @@ async fn consumer_guidance_scenario() {
         let result = fx.brief(step["input"].clone()).await;
         expect(&result, &step["expect"]);
     }
+}
+
+/// The deployment-guidance job's fixture: space `main` states two statements for `storefront`;
+/// space `beta` states one over the length limit.
+fn guidance_fixture() -> support::Fx {
+    let statements = guidance_fixture_statements();
+    let over = json!([{"id":"forms.keep.too-long","text":"x".repeat(241)}]);
+    Pack::example().host_with_consumer_maps(
+        &[
+            (
+                "main",
+                json!({"version":2,"consumers":{"storefront":{"statements":statements}}}),
+            ),
+            (
+                "beta",
+                json!({"version":2,"consumers":{"storefront":{"statements":over}}}),
+            ),
+        ],
+        toml::Table::new(),
+    )
+}
+
+#[tokio::test]
+async fn deployment_guidance_scenario() {
+    let fx = guidance_fixture();
+    let scenario: Value = serde_json::from_str(include_str!(
+        "../scenarios/deployment-guidance.scenario.yaml"
+    ))
+    .unwrap();
+    for step in scenario["steps"].as_array().unwrap() {
+        assert_eq!(step["command"], "components-brief");
+        let result = fx.brief(step["input"].clone()).await;
+        expect(&result, &step["expect"]);
+    }
+    // The fifth step, which needs the instance's configuration: a deployment default applies to a
+    // call that names no consumer.
+    let mut config = toml::Table::new();
+    config.insert("default_consumer".into(), "storefront".into());
+    let statements = guidance_fixture_statements();
+    let fx = Pack::example().host_with_consumer_maps(
+        &[(
+            "main",
+            json!({"version":2,"consumers":{"storefront":{"statements":statements}}}),
+        )],
+        config,
+    );
+    let result = fx.brief(json!({"tags":["example-select"]})).await;
+    expect(
+        &result,
+        &json!({"success":true,"data":{"content":{"guidance":{"consumer":"storefront","items":{"length":2}}}}}),
+    );
+}
+
+fn guidance_fixture_statements() -> Value {
+    json!([
+        {"id":"error-recovery.keep.suggestion-shown","text":"A failed command's suggestion is shown beside its message."},
+        {"id":"forms.keep.labels-visible","text":"Every field keeps a visible label; a placeholder is not a label."},
+    ])
 }
 
 #[tokio::test]
