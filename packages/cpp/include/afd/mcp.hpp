@@ -40,7 +40,8 @@ Json command_to_mcp_tool(const CommandDefinition& command);
 
 /// The top-level MCP `outputSchema` of a command tool (spec/command-metadata.md, "Structured
 /// results"): the CommandResult envelope, with `data` typed by `data_schema`. `$schema` is
-/// dropped, and `$defs` moves to the envelope so `#/$defs/...` references still resolve.
+/// dropped, and `$defs` and `definitions` move to the envelope so `#/$defs/...` and
+/// `#/definitions/...` references still resolve.
 Json command_result_output_schema(const Json& data_schema);
 
 /// The MCP tools of the commands exposed to MCP, in the given order.

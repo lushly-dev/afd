@@ -6,7 +6,7 @@ client, which validates ``structuredContent`` against ``outputSchema``."""
 import json
 
 import pytest
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict, Field, computed_field
 
 pytest.importorskip("mcp")
 
@@ -37,6 +37,21 @@ class TaggedTodo(BaseModel):
     tags: list[Tag]
 
 
+class Note(BaseModel):
+    """Output whose wire form differs from its input form."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    id: str
+    text: str | None  # required, but omitted from the wire when None
+    created_at: int = Field(serialization_alias="createdAt")
+
+    @computed_field
+    @property
+    def label(self) -> str:
+        return f"note {self.id}"
+
+
 def _server(**options):
     server = create_server("surface", **options)
 
@@ -62,6 +77,10 @@ def _server(**options):
     )
     async def tagged(input):
         return success(TaggedTodo(id="t1", tags=[Tag(name="home")]))
+
+    @server.command(name="note-get", description="Get a note", output_schema=Note, expose=MCP)
+    async def note(input):
+        return success(Note(id="n1", text=None, created_at=1))
 
     @server.command(name="todo-purge", description="Delete every todo", mutation=True, expose=MCP)
     async def purge(input):
@@ -106,6 +125,24 @@ async def test_nested_models_resolve_against_the_envelope():
         assert result.structured_content["data"] == {"id": "t1", "tags": [{"name": "home"}]}
 
 
+async def test_the_schema_describes_the_data_as_sent():
+    # Serialization aliases, computed fields and omitted None fields all validate.
+    async with Client(_server()._create_mcp_server()) as client:
+        data = (await _tools(client))["note-get"].output_schema["properties"]["data"]
+        assert set(data["required"]) == {"id", "createdAt", "label"}
+        result = await client.call_tool("note-get", {})
+        assert result.is_error is False
+        assert result.structured_content["data"] == {"id": "n1", "createdAt": 1, "label": "note n1"}
+
+
+@pytest.mark.parametrize("strategy", ["grouped", "lazy"])
+async def test_grouped_and_lazy_tools_carry_no_output_schema(strategy):
+    async with Client(_server(tool_strategy=strategy)._create_mcp_server()) as client:
+        assert all(tool.output_schema is None for tool in (await _tools(client)).values())
+        called = await client.call_tool("afd-call", {"command": "todo-get", "input": {"id": "t3"}})
+        assert called.structured_content["data"]["id"] == "t3"
+
+
 async def test_sends_structured_content_from_every_tool():
     async with Client(_server()._create_mcp_server()) as client:
         purged = await client.call_tool("todo-purge", {})
@@ -145,3 +182,23 @@ def test_envelope_keeps_a_schema_without_defs_unchanged():
     )
     assert schema["properties"]["data"] == {"type": "object"}
     assert "$defs" not in schema
+
+
+def test_envelope_moves_definitions_and_relaxes_nullable_requirements():
+    schema = command_result_output_schema(
+        {
+            "type": "object",
+            "properties": {"a": {"$ref": "#/definitions/A"}, "b": {"type": ["string", "null"]}},
+            "required": ["a", "b"],
+            "definitions": {
+                "A": {
+                    "type": "object",
+                    "properties": {"n": {"anyOf": [{"type": "integer"}, {"type": "null"}]}},
+                    "required": ["n"],
+                }
+            },
+        }
+    )
+    assert schema["properties"]["data"]["required"] == ["a"]
+    assert "required" not in schema["definitions"]["A"]
+    assert "definitions" not in schema["properties"]["data"]

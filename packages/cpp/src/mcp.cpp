@@ -98,9 +98,11 @@ Json command_result_output_schema(const Json& data_schema) {
     Json envelope{{"type", "object"}};
     if (data.is_object()) {
         data.erase("$schema");
-        if (const auto defs = data.find("$defs"); defs != data.end()) {
-            envelope["$defs"] = std::move(*defs);
-            data.erase("$defs");
+        for (const char* key : {"$defs", "definitions"}) {
+            if (const auto defs = data.find(key); defs != data.end()) {
+                envelope[key] = std::move(*defs);
+                data.erase(key);
+            }
         }
     }
     envelope["properties"] = Json{{"success", {{"type", "boolean"}}},

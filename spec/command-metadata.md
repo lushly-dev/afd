@@ -612,8 +612,11 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
   ```
 
   Clients validate `structuredContent` against it, so a handler whose `data` does not match its
-  declared output schema fails on the client. A server MAY switch the top-level `outputSchema` off;
-  `_meta.outputSchema` (the schema of `data` alone) is always reported.
+  declared output schema fails on the client. `#/$defs/...` and `#/definitions/...` references
+  resolve against the envelope, so an output schema's `$defs` or `definitions` belongs at the
+  envelope's root, not inside `data` (Python and C++ move them; TypeScript and Rust do not yet,
+  [#1416](https://github.com/lushly-dev/afd/issues/1416)). A server MAY switch the top-level
+  `outputSchema` off; `_meta.outputSchema` (the schema of `data` alone) is always reported.
 
 ### Implementation status
 

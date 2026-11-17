@@ -580,9 +580,15 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
     ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
 
-    Pydantic puts nested models in ``$defs`` and points at them with ``#/$defs/...``, which
-    resolves against the document root, so ``$defs`` moves from ``data`` to the envelope."""
-    data = {key: value for key, value in data_schema.items() if key not in ("$schema", "$defs")}
+    ``$defs`` and ``definitions`` move from ``data`` to the envelope, because ``#/$defs/...``
+    references resolve against the document root. The wire format omits a model field set to
+    ``None``, so a property that accepts ``null`` is not listed as required."""
+    data_schema = _optional_nullable_properties(data_schema)
+    data = {
+        key: value
+        for key, value in data_schema.items()
+        if key not in ("$schema", "$defs", "definitions")
+    }
     envelope: Dict[str, Any] = {
         "type": "object",
         "properties": {
@@ -593,9 +599,40 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "required": ["success"],
     }
-    if "$defs" in data_schema:
-        envelope["$defs"] = data_schema["$defs"]
+    for key in ("$defs", "definitions"):
+        if key in data_schema:
+            envelope[key] = data_schema[key]
     return envelope
+
+
+def _accepts_null(schema: Any) -> bool:
+    if not isinstance(schema, dict):
+        return False
+    kind = schema.get("type")
+    if kind == "null" or (isinstance(kind, list) and "null" in kind):
+        return True
+    return any(
+        _accepts_null(branch)
+        for keyword in ("anyOf", "oneOf")
+        for branch in schema.get(keyword) or []
+    )
+
+
+def _optional_nullable_properties(node: Any) -> Any:
+    """A copy of a schema whose objects no longer require a property that accepts ``null``."""
+    if isinstance(node, list):
+        return [_optional_nullable_properties(item) for item in node]
+    if not isinstance(node, dict):
+        return node
+    out = {key: _optional_nullable_properties(value) for key, value in node.items()}
+    properties, required = node.get("properties"), node.get("required")
+    if isinstance(properties, dict) and isinstance(required, list):
+        out["required"] = [
+            name for name in required if not _accepts_null(properties.get(name))
+        ]
+        if not out["required"]:
+            del out["required"]
+    return out
 
 
 def serialize_command_examples(examples: List[CommandExample]) -> List[Dict[str, Any]]:
