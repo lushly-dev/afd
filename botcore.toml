@@ -85,6 +85,34 @@ coverage = ["pnpm", "check:all"]
 # lane-enqueue accepts only a passing review of that commit (scripts/review-record.mjs).
 review_evidence = ["node", "scripts/review-record.mjs", "verify", "--head", "{head}"]
 required_check = "ci-ok"
+# When main moves under a validated branch, the lane advances it without validating it again only
+# if main's changes touch none of shared_paths or gate_paths, merge cleanly, and share no unit with
+# the branch's (scripts/factory-units.mjs: packages with their dependents, workflows, directories).
+units = ["node", "scripts/factory-units.mjs"]
+shared_paths = [
+    "pnpm-lock.yaml",
+    "pnpm-workspace.yaml",
+    "package.json",
+    ".npmrc",
+    ".nvmrc",
+    "tsconfig.json",
+    "tsconfig.*.json",
+    "biome.json",
+    "lefthook.yml",
+    ".github/workflows/**",
+    ".github/actions/**",
+    "scripts/affected*",
+    "scripts/factory-units.mjs",
+    "scripts/pre-push.mjs",
+    "scripts/verify-record.mjs",
+    "architecture.json",
+    "botcore.toml",
+    "**/uv.lock",
+    "**/Cargo.lock",
+]
+# ci-ok runs on pull requests only: after a merge that was not validated again, main is red when a
+# check run on its merge commit fails, apart from publishing and deploying.
+main_checks = ["!Version or Publish", "!deploy", "!Reconcile held npm publication", "!Publish to *"]
 ignore_branches = ["changeset-release/*"]
 # The cheap stages of pnpm check, run before a branch joins the queue.
 prequeue = [

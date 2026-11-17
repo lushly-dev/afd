@@ -107,7 +107,8 @@ class Coverage(StepBase):
 
     def queue_empty(self) -> None:
         idle = not self.state["queue"] and not self.state["held"] and not seated(self.state)
-        if not idle or self.coverage_owed() or self.lane.get("coverage"):
+        owed = self.coverage_owed() or self.lane.get("uncheckedMerges")
+        if not idle or owed or self.lane.get("coverage"):
             return
         if any(e.get("type") == "queue-empty" and is_open(e) for e in self.state["events"]):
             return

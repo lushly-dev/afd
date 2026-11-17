@@ -22,7 +22,7 @@ ENQUEUE = {
 def test_a_record_carries_schema_kind_time_and_run():
     record = rec("dropped", "t", branch="b", reason="gone")
     assert record == {
-        "schema": 1,
+        "schema": 2,
         "kind": "dropped",
         "at": "t",
         "runId": "run-1",

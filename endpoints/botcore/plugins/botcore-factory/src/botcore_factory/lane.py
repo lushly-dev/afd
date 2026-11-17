@@ -3,10 +3,12 @@
 ``step`` does everything that can be done now and returns: it never waits, so tests drive it with
 a fixture world and a fake clock. Each step, in order:
 
-1. polls running validations and the coverage run, recording what finished;
+1. polls running validations, the coverage run and main's checks after a merge that advanced
+   past a moved base without a new validation (``lane_advance``), recording what finished;
 2. queues held branches while the queue has room (``lane.queueMax``);
 3. moves the front of the queue towards a merge (``lane_merge``): serial, in queue order, bound
-   to the validated head, after reading the base again;
+   to the validated head, after reading the base again (a move main's changes cannot touch
+   advances the branch; any other validates it again);
 4. starts validations in free slots (``lane.slots``): each slot checks the queued head out,
    merges the base's head in (a conflict ejects; it is never resolved), then runs one background
    job: the adapter's ``install`` (with a timeout) and ``validate``;
@@ -41,6 +43,7 @@ class Step(Merging, Coverage):
         try:
             self.poll_validations()
             self.poll_coverage()
+            self.poll_unchecked()
             if not self.lane.get("paused"):
                 self.queue_held()
                 self.advance_front()

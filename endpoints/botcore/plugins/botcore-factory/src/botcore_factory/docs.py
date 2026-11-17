@@ -33,8 +33,10 @@ re-enqueue or `lane_drop`), `ejection-limit` (at `cells.maxEjections`; the same)
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
-`merged`, `merged-without-check`, `main-broken` (coverage on main failed; `suspects` are the PRs
-since the last green run; the lane paused), `queue-empty` (a drained move happens here) and
+`merged`, `merged-without-check`, `main-broken` (coverage on main failed, `suspects` the PRs
+since the last green run; or, with `reason` `unchecked-merge`, a check on main's merge commit
+failed after a merge that advanced past a moved base without a new validation, `suspects` the
+PRs merged so; the lane paused), `queue-empty` (a drained move happens here) and
 `lane-stopped` (the lane process is gone; `lane_start`). Any open event can be answered with
 `event_resolve(id, note)`. `openEvents` in `lane_status` lists what is open.
 
@@ -45,11 +47,16 @@ since the last green run; the lane paused), `queue-empty` (a drained move happen
 queues held branches when there is room, validates in `lane.slots` slots (reserved until pushed;
 `slots.busy` includes those waiting to push; each merges the
 base branch's origin head in, then runs the adapter's `install`, bounded by a timeout, and
-`validate` in the background), merges serially in queue order (re-validating when the base moved
-since the validation started, checked again just before the merge), pushes the validated commit
+`validate` in the background), merges serially in queue order (the base is read again before
+the push and just before the merge; when it moved, the branch advances to it without a new
+validation, a `base-advanced` record, only if main's changes touch no `shared_paths` or
+`gate_paths`, merge cleanly with the validated head, and share no unit with the branch's, as the
+adapter's `units` command names them; otherwise it is validated again), pushes the validated commit
 (with a lease on its own last push), opens the PR, waits for `required_check` on that commit and
 squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` merges and at
-once after a merge touching `gate_paths`, which the front of the queue waits for. The lane never
+once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
+that advanced without a new validation the lane watches the check runs `main_checks` selects on
+its merge commit; one failing is `main-broken`. The lane never
 edits code, and nothing is killed unless its pid and start time both match.
 
 ## Commands
@@ -141,6 +148,9 @@ ejected and merged, each with its attempt, plan, route and execution profile.
 `labels` (the label definitions intake reads), `prequeue` (named stages:
 `{ name, run }`), `review_evidence` (`{head}` stands for the head being enqueued),
 `gate_paths`, and the lane's later keys: `validate`, `coverage`, `install`,
-`required_check`, `base_branch` (default `main`), `receipt`, `ui_paths`, `screens`, `preview`,
+`required_check`, `base_branch` (default `main`), `units` (an argument list the lane runs with
+changed paths appended; it prints a JSON list of unit names, `"*"` for all), `shared_paths` (globs
+every unit reads), `main_checks` (check-run names on main, globs, `!` excludes; empty: all),
+`receipt`, `ui_paths`, `screens`, `preview`,
 `ignore_branches`, `measure_paths`, `trend_issue`. Commands are argument lists, never shell strings.
 """

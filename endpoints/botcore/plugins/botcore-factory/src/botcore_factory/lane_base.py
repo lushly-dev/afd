@@ -45,6 +45,8 @@ VALIDATION_FIELDS = (
     "path",
     "changed",
     "checkSince",
+    "units",
+    "advanced",
 )
 
 
@@ -130,7 +132,9 @@ class StepBase:
         run_id = self.lane.get("runId")
         return next((run for run in self.state["runs"] if run.get("id") == run_id), None)
 
-    def requeue(self, entry: dict, reason: str, *, front: bool = True) -> None:
+    def requeue(
+        self, entry: dict, reason: str, *, front: bool = True, detail: str | None = None
+    ) -> None:
         """Validate it again: its validation was lost, or the base moved since it started.
 
         It keeps its open PR and goes to the front, behind any branch already merging.
@@ -139,7 +143,9 @@ class StepBase:
         if entry.get("run"):
             with contextlib.suppress(WorldError):
                 self.world.processes.kill(entry["run"])
-        self.record("rerun", branch=entry["branch"], attempt=entry["attempt"], reason=reason)
+        self.record(
+            "rerun", branch=entry["branch"], attempt=entry["attempt"], reason=reason, detail=detail
+        )
         for key in VALIDATION_FIELDS:
             entry.pop(key, None)
         entry["state"] = "queued"

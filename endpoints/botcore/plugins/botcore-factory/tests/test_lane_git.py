@@ -140,3 +140,39 @@ def test_afd_s_review_evidence_accepts_only_the_recorded_head(tmp_path, monkeypa
     with pytest.raises(Refusal, match="no-such-verifier-xyz is not on PATH") as cannot:
         _check_review(unrunnable, str(repo), moved)
     assert cannot.value.code == "REVIEW_MISSING"
+
+
+def test_merge_tree_and_diff_names_read_a_moved_base_without_a_checkout(tmp_path, monkeypatch):
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+
+    def commit(files: dict[str, str], message: str) -> str:
+        for name, text in files.items():
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text(text, encoding="utf-8")
+        run(["git", "add", "-A"])
+        run(["git", "commit", "-q", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    base = commit({"a.txt": "a\n", "b.txt": "b\n"}, "base")
+    head = commit({"a.txt": "a from the branch\n"}, "branch")
+    run(["git", "checkout", "-q", "--detach", base])
+    unrelated = commit({"b.txt": "b from main\n", "docs/c.md": "c\n"}, "main")
+    conflicting = commit({"a.txt": "a from main\n"}, "main again")
+    git = CliGit(run, str(repo))
+    assert git.diff_names(base, unrelated) == ["b.txt", "docs/c.md"]
+    clean = git.merges_cleanly(head, unrelated)
+    assert clean.clean and len(clean.head) == 40
+    conflict = git.merges_cleanly(head, conflicting)
+    assert not conflict.clean and conflict.conflicts == ("a.txt",)
+    with pytest.raises(WorldError):
+        git.merges_cleanly(head, "0" * 40)

@@ -2,37 +2,36 @@
 
 A validated branch at the front is pushed (its validated head, by commit, not whatever its slot
 holds now; with a lease on the head the lane last pushed there, since the lane owns the branch),
-its PR opened, and the adapter's ``required_check`` awaited on that head. Before the merge the
-base is read again: if it moved since the validation started, the branch is validated again
-first. The merge is bound to the validated head (``--match-head-commit``). Nothing advances while
-coverage a gate-path merge owes has not passed.
+its PR opened, and the adapter's ``required_check`` awaited on that head. Before the push and
+again before the merge the base is read again: if it moved since the validation started, the
+branch advances to it when main's move cannot touch what it validated, and is validated again
+otherwise (``lane_advance``). The merge is bound to the validated head (``--match-head-commit``).
+Nothing advances while coverage a gate-path merge owes has not passed.
 """
 
 from __future__ import annotations
 
 from botcore_factory.adapter import matches
 from botcore_factory.cells import seated
+from botcore_factory.lane_advance import Advancing
 from botcore_factory.lane_base import (
     HEAD_MISMATCH,
     NON_FAST_FORWARD,
     NOT_MERGEABLE,
     PR_REFUSED,
     LaneTrouble,
-    StepBase,
 )
 from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
 
 
-class Merging(StepBase):
+class Merging(Advancing):
     def advance_front(self) -> None:
         if not self.state["queue"] or self.lane.get("gateOwed"):
             return  # A gate-path merge's coverage comes first.
         entry = self.state["queue"][0]
         if entry.get("state") == "validated":
-            if self.base_head(fresh=True) != entry["base"]:
-                self.requeue(entry, "main-moved")
-                return
-            self.push_and_open(entry)
+            if self.follow_base(entry):
+                self.push_and_open(entry)
         elif entry.get("state") == "merging":
             self.await_check(entry)
 
@@ -110,9 +109,8 @@ class Merging(StepBase):
 
     def merge(self, entry: dict) -> None:
         pr, head = entry["pr"], entry["pushedHead"]
-        if self.base_head(fresh=True) != entry["base"]:
-            self.requeue(entry, "main-moved")  # Never merge what was not validated on this base.
-            return
+        if not self.follow_base(entry):
+            return  # Never merge what main's move may have touched without validating it.
         host, me = self.world.github.get_variable(LANE_HOST_VARIABLE), self.world.machine.id()
         if host != me:
             self.lane["stopRequested"] = "not-host"
@@ -129,10 +127,10 @@ class Merging(StepBase):
             elif HEAD_MISMATCH.search(str(exc)):
                 self.eject(entry, "merge-failed", str(exc))
             elif NOT_MERGEABLE.search(str(exc)):
-                if self.base_head(fresh=True) != entry["base"]:
-                    self.requeue(entry, "main-moved")
-                else:
+                if self.base_head(fresh=True) == entry["base"]:
                     self.eject(entry, "merge-failed", str(exc))
+                else:  # Advanced, it merges again next step; otherwise it was requeued.
+                    self.follow_base(entry)
             else:
                 raise LaneTrouble(f"Merging PR {pr} failed: {exc}") from exc
             return
@@ -144,8 +142,14 @@ class Merging(StepBase):
         full = len(seated(self.state)) >= self.dial("cells.max")
         self.state["queue"].remove(entry)
         self.record(
-            "merged", branch=branch, attempt=entry["attempt"], pr=pr, withoutCheck=without_check
+            "merged",
+            branch=branch,
+            attempt=entry["attempt"],
+            pr=pr,
+            withoutCheck=without_check,
+            advanced=bool(entry.get("advanced")),
         )
+        self.watch_unchecked(entry, pr)
         cell = self.cell(branch)
         if cell is not None:
             self.state["cells"].remove(cell)

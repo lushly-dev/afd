@@ -5,6 +5,24 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## A moved `main` no longer always means validating again, 2026-11-16
+
+[#1350](https://github.com/lushly-dev/afd/issues/1350): in the first fleet, every move of `main`
+before a merge sent the validated branch back to be validated again (`requeue(entry,
+"main-moved")` in `lane_merge.py`), which tripled the validations per merge. The lane now reads
+what `main` changed since the branch's validated base and advances the branch to the new base,
+with no new validation, when `main`'s changes touch none of the adapter's `shared_paths` or
+`gate_paths`, the validated head merges onto the new base without a conflict (`git merge-tree`),
+and the units `main`'s changes affect share none with the branch's. The adapter's `units` command
+names them; AFD's is `scripts/factory-units.mjs` (packages with their dependents, workflows a path
+triggers, directories, or `*` for a global input). Otherwise it validates again as before; the
+`rerun` record's `detail` says why. An advance is a `base-advanced` record, and `lane-report`
+counts `baseAdvances`. A merge after one is watched on `main`: a check run `main_checks` selects
+failing on its merge commit raises `main-broken` (`reason` `unchecked-merge`, `suspects` the PRs
+merged without a re-check) and pauses the lane. `ci-ok` runs on pull requests only, so AFD's
+`main_checks` takes every check run on the merge commit except publishing and deploying. Not yet
+seen in a fleet run.
+
 ## The first fleet, 2026-11-16
 
 The first fleet runs on the MacBook Air: one slot, one cell (`cells.max` 1; `host.minFreeGb`

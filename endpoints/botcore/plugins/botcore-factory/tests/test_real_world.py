@@ -754,3 +754,47 @@ def test_this_machine_s_programs_symlinks_and_versions():
     assert isinstance(machine.symlinks(), bool)
     assert machine.tool_version(sys.executable).count(".") == 2
     assert machine.tool_version("botcore-factory-no-such-program") is None
+
+
+def test_main_s_checks_on_a_merge_commit_are_read_by_name():
+    runs = [
+        check_run("failure", name="CI"),
+        check_run("success", "2030-01-01T10:00:00Z", name="CI"),  # A re-run: the latest wins.
+        check_run(None, name="Botcore"),
+        check_run("skipped", name="deploy"),
+        check_run("timed_out", name="Specimen"),
+    ]
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/commits/m1/check-runs?per_page=100": json.dumps(
+                {"total_count": len(runs), "check_runs": runs}
+            ),
+            "gh api repos/o/r/commits/m1/status": json.dumps(
+                {"statuses": [{"context": "legacy", "state": "error"}]}
+            ),
+            "gh pr view": json.dumps({"mergeCommit": {"oid": "m1"}}),
+        }
+    )
+    github = GhGitHub(run)
+    assert github.merge_commit(612) == "m1"
+    assert github.commit_checks("m1") == {
+        "CI": "success",
+        "Botcore": "pending",
+        "deploy": "skipped",
+        "Specimen": "failure",
+        "legacy": "failure",
+    }
+
+
+def test_a_truncated_read_of_main_s_checks_raises():
+    run = FakeRun(
+        {
+            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+            "gh api repos/o/r/commits/m1/check-runs?per_page=100": json.dumps(
+                {"total_count": 101, "check_runs": [check_run("success")]}
+            ),
+        }
+    )
+    with pytest.raises(WorldError, match="more check runs"):
+        GhGitHub(run).commit_checks("m1")
