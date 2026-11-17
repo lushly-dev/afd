@@ -5,10 +5,12 @@
  * line reaches the projection.
  */
 
+import { execFile } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { existsSync } from 'node:fs';
 import { mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { basename, dirname, join, resolve } from 'node:path';
+import { promisify } from 'node:util';
 import type {
 	DeploymentV1,
 	DeploymentV2,
@@ -29,6 +31,7 @@ import {
 	type DeploymentNotice,
 	type InstanceEffect,
 	type MountAccess,
+	type StdioMountAccess,
 	secretPaths,
 } from './deployment-analysis.js';
 import { copyListed, isWithin, listCopy, OUTPUT_MARKER, realish, replaceable } from './tree.js';
@@ -39,7 +42,9 @@ export {
 	type DeploymentAnalysis,
 	type DeploymentFinding,
 	type DeploymentNotice,
+	desktopOrigins,
 	type MountAccess,
+	type StdioMountAccess,
 } from './deployment-analysis.js';
 
 export interface WriteDeploymentOptions {
@@ -57,6 +62,8 @@ export interface WriteDeploymentOptions {
 	 * another (`DEPLOYMENT_HOST_MISMATCH`). The hosted server writes its site with `hosted`.
 	 */
 	host?: HostKindV1;
+	/** The platform a desktop deployment is written for (its origins, `mounts.json`'s ACL). Default: this one. */
+	platform?: NodeJS.Platform;
 }
 
 export type WriteDeploymentResult =
@@ -178,7 +185,11 @@ export function projectionOf(
 			...(mounted && prefix !== undefined ? { prefix } : {}),
 			...(entry.audience !== undefined ? { audience: entry.audience } : {}),
 			...(mounted && transport !== undefined ? { transport } : {}),
-			...(mounted && transport === 'http' ? { route: `mounts/${id}/mcp` } : {}),
+			// On the desktop a `stdio` instance has a route too: it only names the instance, which the Rust host
+			// reaches by name, so the kernel discovers it as it does any other (10.4).
+			...(mounted && (transport === 'http' || (kind === 'desktop' && transport === 'stdio'))
+				? { route: `mounts/${id}/mcp` }
+				: {}),
 			...(entry.projects !== undefined ? { projects: entry.projects } : {}),
 			...(entry.space !== undefined ? { space: entry.space } : {}),
 			...(entry.expose !== undefined ? { expose: entry.expose } : {}),
@@ -238,6 +249,51 @@ export function withBasePath(html: string, basePath: string): string {
 		/(\s(?:src|href)=["'])\.\/assets\//g,
 		(_all, lead: string) => `${lead}${basePath}assets/`
 	);
+}
+
+/** Tauri's IPC: the `ipc:` scheme on macOS and Linux, `http://ipc.localhost` on Windows (S92). */
+export const DESKTOP_IPC_SOURCES = 'ipc: http://ipc.localhost';
+
+/**
+ * The desktop's `connect-src` (phase 6 specification, 10.2): `'self'` plus the IPC sources Tauri's own example
+ * uses, and nothing else. `undefined` when the page has no policy, or a `connect-src` other than exactly
+ * `'self'`, the phase 0 policy's.
+ */
+export function withDesktopConnectSrc(html: string): string | undefined {
+	const meta = /<meta\b(?=[^>]*http-equiv=["']Content-Security-Policy["'])[^>]*>/i.exec(html);
+	const content = meta && /\bcontent="([^"]*)"/.exec(meta[0]);
+	if (!meta || !content) return undefined;
+	const policy = content[1] as string;
+	const directive = /(^|;\s*)connect-src\s+'self'\s*(?=;|$)/;
+	if (!directive.test(policy)) return undefined;
+	const next = policy.replace(
+		directive,
+		(_all, lead: string) => `${lead}connect-src 'self' ${DESKTOP_IPC_SOURCES}`
+	);
+	const tag = meta[0].replace(content[0], () => `content="${next}"`);
+	return `${html.slice(0, meta.index)}${tag}${html.slice(meta.index + meta[0].length)}`;
+}
+
+const run = promisify(execFile);
+
+/**
+ * `mounts.json` on Windows, where mode 0600 means nothing: inheritance removed and one entry, full control for
+ * this user, the only ACL the desktop's host accepts (10.3).
+ */
+async function restrictToOwner(path: string): Promise<void> {
+	// System32's tools by path: another `whoami` on `PATH` (Git's) takes other arguments.
+	const root = process.env.SystemRoot ?? process.env.windir;
+	if (!root)
+		throw new Error('No SystemRoot: the Windows tools that restrict mounts.json cannot be found');
+	const system = join(root, 'System32');
+	const { stdout } = await run(join(system, 'whoami.exe'), ['/user', '/fo', 'csv', '/nh'], {
+		windowsHide: true,
+	});
+	const sid = /"(S-1-[0-9-]+)"\s*$/.exec(stdout.trim())?.[1];
+	if (!sid) throw new Error('whoami named no security identifier for this user');
+	await run(join(system, 'icacls.exe'), [path, '/inheritance:r', '/grant:r', `*${sid}:F`], {
+		windowsHide: true,
+	});
 }
 
 /** `frame-src` becomes the sandbox origin or `'none'`, and nothing else in the CSP changes. */
@@ -376,6 +432,7 @@ export async function writeDeployment(
 	const analysis = await analyzeDeployment(options.config, {
 		...(options.sandboxOrigin === undefined ? {} : { sandboxOrigin: options.sandboxOrigin }),
 		...(options.host === undefined ? {} : { host: options.host }),
+		desktop: options.platform === undefined ? {} : { platform: options.platform },
 	});
 	const warnings = [...analysis.instanceRefusals, ...analysis.warnings];
 	const stop = (refusals: DeploymentFinding[]): WriteDeploymentResult => ({
@@ -384,19 +441,7 @@ export async function writeDeployment(
 		warnings,
 	});
 	if (analysis.refusals.length > 0 || !analysis.deployment) return stop(analysis.refusals);
-	// The desktop's sources in the `<meta>` policy and its `stdio` mounts come with phase 6's step 11 (10.2,
-	// 10.4); until then a desktop deployment is not written, rather than written with a browser's policy.
-	if (analysis.host === 'desktop') {
-		return stop([
-			{
-				code: 'DEPLOYMENT_HOST_UNAVAILABLE',
-				key: 'host.kind',
-				message:
-					"The desktop's deployment is written once the desktop lane exists (phase 6, step 11).",
-				suggestion: 'Write it for `static` or `hosted` until then.',
-			},
-		]);
-	}
+	const desktop = analysis.host === 'desktop';
 	const dist = await realish(options.dist);
 	const out = await realish(options.out);
 	const paths = await pathRefusals(options, dist, out, analysis.deployment, analysis.instances);
@@ -417,7 +462,18 @@ export async function writeDeployment(
 	if (changed) warnings.push(changed);
 	const anyView = analysis.instances.some(({ rawKind }) => rawKind === 'view');
 	const frameSrc = anyView && projection.sandbox_origin ? projection.sandbox_origin : "'none'";
-	const framed = withFrameSrc(await readFile(join(dist, 'index.html'), 'utf8'), frameSrc);
+	const source = await readFile(join(dist, 'index.html'), 'utf8');
+	const connected = desktop ? withDesktopConnectSrc(source) : source;
+	if (connected === undefined) {
+		return stop([
+			pathRefusal(
+				'--dist',
+				"`--dist`'s `index.html` has no `connect-src 'self'` for the desktop's IPC sources.",
+				"Run the web host's `vite build`."
+			),
+		]);
+	}
+	const framed = withFrameSrc(connected, frameSrc);
 	if (framed === undefined) {
 		return stop([
 			pathRefusal(
@@ -454,14 +510,18 @@ export async function writeDeployment(
 		await mkdir(dirname(resolve(options.mountsOut)), { recursive: true });
 		// Removed first, since a mode applies only when a file is created.
 		await rm(options.mountsOut, { force: true });
-		await writeFile(
-			options.mountsOut,
-			`${JSON.stringify({ mounts: analysis.mounts }, null, '\t')}\n`,
-			{
-				mode: 0o600,
-				flag: 'wx',
-			}
-		);
+		// A desktop deployment adds its `stdio` entries (10.4); every other kind has none.
+		const mounts: Array<MountAccess | StdioMountAccess> = [
+			...analysis.mounts,
+			...analysis.stdioMounts,
+		];
+		const text = `${JSON.stringify({ mounts }, null, '\t')}\n`;
+		if (desktop && (options.platform ?? process.platform) === 'win32') {
+			// Created empty and restricted before anything is written into it.
+			await writeFile(options.mountsOut, '', { mode: 0o600, flag: 'wx' });
+			await restrictToOwner(options.mountsOut);
+			await writeFile(options.mountsOut, text, { flag: 'r+' });
+		} else await writeFile(options.mountsOut, text, { mode: 0o600, flag: 'wx' });
 	}
 	return {
 		ok: true,

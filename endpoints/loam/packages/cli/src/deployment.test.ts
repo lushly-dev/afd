@@ -1274,16 +1274,118 @@ describe('P6-E1: deployment write --host, and the version 4 projection (phase 6 
 		);
 	});
 
-	it('P6-E1: a provider deployment for the desktop is DEPLOYMENT_DESKTOP_PROVIDER, and a desktop one waits for step 11', async () => {
+	it('P6-E1: a provider deployment for the desktop is DEPLOYMENT_DESKTOP_PROVIDER, and nothing is written', async () => {
 		const provider = await layout(
 			'deployment_version = 4\n\n[workspace]\nid = "acme"\n\n[identity]\nmode = "provider"\norganization = "acme"\n\n[apps]\n'
 		);
 		const refused = await writeDeployment({ ...provider, host: 'desktop' });
 		expect(refused.ok === false && refused.refusals[0]?.code).toBe('DEPLOYMENT_DESKTOP_PROVIDER');
-		const desktop = await layout(withHost('desktop'));
-		const waits = await write_(desktop);
-		expect(waits.ok === false && waits.refusals[0]?.code).toBe('DEPLOYMENT_HOST_UNAVAILABLE');
-		expect(existsSync(desktop.out)).toBe(false);
+		expect(existsSync(provider.out)).toBe(false);
+	});
+
+	const policyOf = (out: string) =>
+		/content="([^"]*)"/.exec(readFileSync(join(out, 'index.html'), 'utf8'))?.[1];
+
+	it("P6-E1: --host desktop writes the IPC sources into connect-src and the sandbox scheme's origin into frame-src, and nothing else", async () => {
+		const board = () =>
+			layout(`${withHost('desktop')}\n[apps.board]\napp = "board"\npackage = "board"\n`, {
+				board: viewPackage('board'),
+			});
+		const linux = await board();
+		const linuxWritten = await writeDeployment({ ...linux, platform: 'linux' });
+		expect(linuxWritten.ok ? [] : linuxWritten.refusals).toEqual([]);
+		const desktopPolicy = (frame: string) =>
+			CSP.replace("connect-src 'self'", "connect-src 'self' ipc: http://ipc.localhost").replace(
+				"; object-src 'none'",
+				`; frame-src ${frame}; object-src 'none'`
+			);
+		expect(policyOf(linux.out)).toBe(desktopPolicy('loam-sandbox://localhost'));
+		const projection = projectionOf(linux.out);
+		expect(projection.sandbox_origin).toBe('loam-sandbox://localhost');
+		expect(projection.host).toEqual({ kind: 'desktop' });
+		expect(readProjection(projection).ok).toBe(true);
+
+		const windows = await board();
+		expect(await writeDeployment({ ...windows, platform: 'win32' })).toMatchObject({ ok: true });
+		expect(policyOf(windows.out)).toBe(desktopPolicy('http://loam-sandbox.localhost'));
+
+		// No view app, no frame; a static deployment's policy is unchanged.
+		const bare = await layout(withHost('desktop'));
+		expect(await writeDeployment({ ...bare, platform: 'linux' })).toMatchObject({ ok: true });
+		expect(policyOf(bare.out)).toBe(desktopPolicy("'none'"));
+		const statics = await layout(withHost('static'));
+		await write_(statics);
+		expect(policyOf(statics.out)).toBe(
+			CSP.replace("; object-src 'none'", "; frame-src 'none'; object-src 'none'")
+		);
+	});
+
+	it('P6-E1: the sandbox scheme is a desktop origin only: refused in a static or hosted file', () => {
+		for (const kind of ['static', 'hosted'] as const) {
+			const read = readDeployment({
+				deployment_version: 4,
+				host: { kind },
+				sandbox: { origin: 'loam-sandbox://localhost' },
+				apps: {},
+			});
+			expect(read.ok, kind).toBe(false);
+		}
+		expect(
+			readDeployment({
+				deployment_version: 4,
+				host: { kind: 'desktop' },
+				sandbox: { origin: 'loam-sandbox://localhost' },
+				apps: {},
+			}).ok
+		).toBe(true);
+	});
+
+	it("P6-D2: P6-E1: MountAccess's stdio entries are written to mounts.json for --host desktop only, resolved against the file, and never served", async () => {
+		const file = (kind: string) =>
+			`${withHost(kind)}\n[apps.home]\napp = "umbel"\npackage = "umbel"\nprefix = "home"\naudience = "person"\ntransport = "stdio"\ncommand = ["./bin/umbel", "--workspace", "${COMMAND_SECRET}"]\ncwd = "work"\n\n[apps.work]\napp = "umbel"\npackage = "umbel"\nprefix = "work"\naudience = "person"\ntransport = "http"\nurl = "${URL_SECRET}"\nbearer_env = "LOAM_TEST_TOKEN"\n`;
+		const desktop = await layout(file('desktop'), { umbel: mountedPackage('umbel') });
+		const mountsOut = join(desktop.root, 'private/mounts.json');
+		const written = await writeDeployment({ ...desktop, mountsOut, platform: process.platform });
+		expect(written.ok).toBe(true);
+		const { mounts } = JSON.parse(readFileSync(mountsOut, 'utf8'));
+		expect(mounts).toEqual([
+			{ instance: 'work', url: URL_SECRET, bearer: TOKEN },
+			{
+				instance: 'home',
+				transport: 'stdio',
+				command: [join(desktop.root, 'deploy/bin/umbel'), '--workspace', COMMAND_SECRET],
+				cwd: join(desktop.root, 'deploy/work'),
+			},
+		]);
+		// In memory, as phase 1's: only what a relay can reach.
+		expect(written.ok && written.mounts).toEqual([
+			{ instance: 'work', url: URL_SECRET, bearer: TOKEN },
+		]);
+		// Each mounted instance is discovered by its route, which on the desktop names it and nothing else.
+		const apps = projectionOf(desktop.out).apps as { instance: string; route?: string }[];
+		expect(apps.map(({ instance, route }) => [instance, route])).toEqual([
+			['home', 'mounts/home/mcp'],
+			['work', 'mounts/work/mcp'],
+		]);
+		const served = readdirSync(desktop.out, { recursive: true })
+			.map((name) => join(desktop.out, String(name)))
+			.filter((path) => statSync(path).isFile())
+			.map((path) => readFileSync(path, 'utf8'))
+			.join('\n');
+		for (const secret of [COMMAND_SECRET, URL_SECRET, TOKEN, 'bin/umbel'])
+			expect(served).not.toContain(secret);
+
+		const statics = await layout(file('static'), { umbel: mountedPackage('umbel') });
+		const staticMounts = join(statics.root, 'private/mounts.json');
+		expect((await write_(statics, staticMounts)).ok).toBe(true);
+		expect(JSON.parse(readFileSync(staticMounts, 'utf8')).mounts).toEqual([
+			{ instance: 'work', url: URL_SECRET, bearer: TOKEN },
+		]);
+		expect(
+			(projectionOf(statics.out).apps as { instance: string; route?: string }[]).map(
+				({ route }) => route
+			)
+		).toEqual([undefined, 'mounts/work/mcp']);
 	});
 
 	it("P6-E1: the generation takes a version 4 projection's host, so a change of kind is applied; an earlier one's is unchanged", async () => {
