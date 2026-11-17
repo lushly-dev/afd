@@ -37,8 +37,10 @@ pub const ORIGIN_REFUSED: &str = "DESKTOP_ORIGIN_REFUSED";
 /// sandbox's included, and on WebView2 its IPC script is in every frame, so neither the capability nor the
 /// label tells the proxy frame from the shell. On the IPC fetch the browser sets `Origin`, which a page cannot
 /// forge, and Tauri's own ACL reads the same header. On Tauri's message fallback the headers are the caller's,
-/// so there this check proves nothing: that path is guarded by its reaching the host from the main frame alone
-/// (wry hears only the top-level document's messages, and on WebKitGTK no frame has the IPC script). A missing
+/// so there this check proves nothing. That path is guarded per engine, as P6-D4 measures with a forged
+/// `Origin`: on WebView2 wry hears only the top-level document's messages, though every frame has Tauri's IPC
+/// script and its invoke key; on WebKitGTK a frame can post to wry's `ipc` handler, which gives the message the
+/// top-level URL, but Tauri gives its script and key to the main frame alone, so the key check drops it. A missing
 /// `Origin` is refused; the shell's fetch is allowed by its policy, so it does not fall back, but after a
 /// failed fetch Tauri keeps using the fallback for the page's life, and the shell's calls are refused until a
 /// reload.
