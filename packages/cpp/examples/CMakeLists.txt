@@ -9,3 +9,13 @@ if(EMSCRIPTEN)
     # Node loads .js as an ES module under the repository's "type": "module"; emit CommonJS.
     set_target_properties(afd_quickstart PROPERTIES SUFFIX ".cjs")
 endif()
+
+# The MCP stdio server example, with a self-test that drives it as a scripted client.
+if(TARGET afd::mcp_stdio)
+    add_executable(afd_mcp_stdio_server mcp_stdio_server.cpp)
+    target_link_libraries(afd_mcp_stdio_server PRIVATE afd::mcp_stdio)
+    afd_configure_target(afd_mcp_stdio_server)
+    if(AFD_BUILD_TESTS)
+        add_test(NAME afd_mcp_stdio_server COMMAND afd_mcp_stdio_server --self-test)
+    endif()
+endif()

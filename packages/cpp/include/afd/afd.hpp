@@ -14,6 +14,7 @@
 #include "afd/handoff.hpp"
 #include "afd/journal.hpp"
 #include "afd/json.hpp"
+#include "afd/mcp.hpp"
 #include "afd/metadata.hpp"
 #include "afd/middleware.hpp"
 #include "afd/pipeline.hpp"

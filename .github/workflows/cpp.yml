@@ -171,7 +171,7 @@ jobs:
       # as an outside project twice: once through find_package, once through FetchContent.
       - name: Build and install
         run: |
-          cmake -S . -B "$RUNNER_TEMP/afd-build" -DCMAKE_BUILD_TYPE=Release -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON
+          cmake -S . -B "$RUNNER_TEMP/afd-build" -DCMAKE_BUILD_TYPE=Release -DAFD_BUILD_TESTS=OFF -DAFD_WARNINGS_AS_ERRORS=ON -DAFD_BUILD_MCP_STDIO=ON
           cmake --build "$RUNNER_TEMP/afd-build" --config Release
           cmake --install "$RUNNER_TEMP/afd-build" --config Release --prefix "$RUNNER_TEMP/afd-prefix"
 

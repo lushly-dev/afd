@@ -1,255 +1,66 @@
-// The stdio MCP protocol the conformance runner (MCP SDK client) speaks.
-#include <sstream>
-
+// The todo commands over the library's MCP stdio server (afd::mcp_stdio). The protocol itself is
+// tested in packages/cpp/tests/mcp_stdio_test.cpp.
 #include "fixture.hpp"
-#include "mcp_stdio.hpp"
+#include <afd/mcp_stdio.hpp>
 
 using todo::testing::Fixture;
 
 namespace {
 
-afd::Json reply(Fixture& fixture, const char* line) {
-    const auto out = todo::handle_message(*fixture.registry, line);
+afd::Json reply(afd::mcp::StdioServer& server, const char* line) {
+    const auto out = server.handle_message(line);
     REQUIRE(out.has_value());
     return afd::Json::parse(*out);
 }
 
+std::unique_ptr<afd::mcp::StdioServer> make_server(Fixture& fixture) {
+    auto server = afd::mcp::StdioServer::create(*fixture.registry, {.name = "afd-todo-cpp"});
+    REQUIRE(server);
+    return std::move(*server);
+}
+
 } // namespace
 
-TEST_CASE("initialize echoes a supported protocol version, else the newest") {
+TEST_CASE("tools/list lists every todo command with its annotations and _meta") {
     Fixture fixture;
-    const auto known = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":0,"method":"initialize","params":{"protocolVersion":"2025-03-26"}})");
-    CHECK(known["result"]["protocolVersion"] == "2025-03-26");
-    CHECK(known["result"]["capabilities"] == afd::Json{{"tools", {{"listChanged", false}}}});
-    CHECK(known["result"]["serverInfo"]["name"] == "afd-todo-cpp");
-    const auto newest = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-11-25"}})");
-    CHECK(newest["result"]["protocolVersion"] == "2025-11-25");
-    const auto unknown = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":2,"method":"initialize","params":{"protocolVersion":"1999-01-01"}})");
-    CHECK(unknown["result"]["protocolVersion"] == "2025-11-25");
-    // Legacy results carry no resultType.
-    CHECK_FALSE(
-        reply(fixture, R"({"jsonrpc":"2.0","id":3,"method":"tools/list"})")["result"].contains(
-            "resultType"));
-}
-
-TEST_CASE("MCP 2026-07-28 requests are served statelessly from their _meta") {
-    Fixture fixture;
-    const auto discover = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":"d","method":"server/discover","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
-    CHECK(discover["result"]["resultType"] == "complete");
-    CHECK(discover["result"]["supportedVersions"] == afd::Json::array({"2026-07-28"}));
-    CHECK(discover["result"]["_meta"]["io.modelcontextprotocol/serverInfo"]["name"] ==
-          "afd-todo-cpp");
-
-    const auto tools = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":1,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
-    CHECK(tools["result"]["resultType"] == "complete");
-    CHECK(tools["result"]["ttlMs"] == 300000);
-    CHECK(tools["result"]["cacheScope"] == "public");
-    CHECK(tools["result"]["tools"].size() == 11);
-
-    const auto created = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":"Modern"},"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
-    CHECK(created["result"]["resultType"] == "complete");
-    CHECK(created["result"]["isError"] == false);
-
-    const auto unsupported = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":3,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2099-01-01","io.modelcontextprotocol/clientCapabilities":{}}}})");
-    CHECK(unsupported["error"]["code"] == -32022);
-    CHECK(unsupported["error"]["data"]["supported"] == afd::Json::array({"2026-07-28"}));
-
-    const auto no_capabilities = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":4,"method":"tools/list","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28"}}})");
-    CHECK(no_capabilities["error"]["code"] == -32602);
-
-    const auto ping = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":5,"method":"ping","params":{"_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
-    CHECK(ping["error"]["code"] == -32601);
-}
-
-TEST_CASE("notifications get no reply; ping and tools/list do") {
-    Fixture fixture;
-    CHECK_FALSE(todo::handle_message(*fixture.registry,
-                                     R"({"jsonrpc":"2.0","method":"notifications/initialized"})"));
-    CHECK(reply(fixture, R"({"jsonrpc":"2.0","id":"p","method":"ping"})")["result"] ==
-          afd::Json::object());
+    auto server = make_server(fixture);
     const auto tools =
-        reply(fixture, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
+        reply(*server, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
     CHECK(tools.size() == 11);
-    CHECK(tools[0].contains("inputSchema"));
     for (const auto& tool : tools) {
+        CHECK(tool.contains("inputSchema"));
         // No todo command sets a title, and none is derived from the name.
         CHECK_FALSE(tool.contains("title"));
+        CHECK(tool["_meta"]["category"] == "todo");
         if (tool["name"] == "todo-list") {
             CHECK_FALSE(tool.contains("annotations"));
+            CHECK_FALSE(tool["_meta"].contains("mutation"));
         }
         if (tool["name"] == "todo-create") {
             CHECK(tool["annotations"] ==
                   afd::Json{{"readOnlyHint", false}, {"destructiveHint", false}});
+            CHECK(tool["_meta"]["mutation"] == true);
+        }
+        if (tool["name"] == "todo-delete") {
+            CHECK(tool["annotations"]["destructiveHint"] == true);
         }
     }
 }
 
-TEST_CASE("tools/call returns the CommandResult as text, with isError = !success") {
+TEST_CASE("tools/call runs a todo command and returns its CommandResult") {
     Fixture fixture;
+    auto server = make_server(fixture);
     const auto ok = reply(
-        fixture,
+        *server,
         R"({"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":"From MCP"}}})");
     CHECK(ok["result"]["isError"] == false);
     const auto body = afd::Json::parse(ok["result"]["content"][0]["text"].get<std::string>());
     CHECK(body["data"]["title"] == "From MCP");
-    CHECK(body["metadata"]["traceId"].get<std::string>().rfind("trace-", 0) == 0);
+    CHECK(body["metadata"]["actorKind"] == "agent");
 
-    // Invalid arguments and unknown tools are CommandResults, never JSON-RPC errors.
-    const auto invalid = reply(
-        fixture,
-        R"({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"todo-create","arguments":{"title":123}}})");
-    CHECK(invalid["result"]["isError"] == true);
-    CHECK(afd::Json::parse(
-              invalid["result"]["content"][0]["text"].get<std::string>())["error"]["code"] ==
-          "VALIDATION_ERROR");
-    const auto unknown =
-        reply(fixture,
-              R"({"jsonrpc":"2.0","id":5,"method":"tools/call","params":{"name":"todo-crate"}})");
-    CHECK(unknown["result"]["isError"] == true);
-    CHECK(afd::Json::parse(
-              unknown["result"]["content"][0]["text"].get<std::string>())["error"]["code"] ==
-          "COMMAND_NOT_FOUND");
-}
-
-TEST_CASE("protocol errors") {
-    Fixture fixture;
-    CHECK(reply(fixture, "{not json")["error"]["code"] == -32700);
-    CHECK(reply(fixture, "[]")["error"]["code"] == -32600);
-    CHECK(reply(fixture, R"({"jsonrpc":"2.0","id":6})")["error"]["code"] == -32600);
-    CHECK(
-        reply(fixture, R"({"jsonrpc":"2.0","id":7,"method":"resources/list"})")["error"]["code"] ==
-        -32601);
-}
-
-TEST_CASE("serve answers each request line and stops at EOF") {
-    Fixture fixture;
-    std::istringstream in("{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"ping\"}\n"
-                          "{\"jsonrpc\":\"2.0\",\"method\":\"notifications/initialized\"}\r\n"
-                          "\n"
-                          "{\"jsonrpc\":\"2.0\",\"id\":2,\"method\":\"tools/"
-                          "call\",\"params\":{\"name\":\"todo-stats\"}}");
-    std::ostringstream out;
-    todo::serve(*fixture.registry, in, out);
-    std::istringstream lines(out.str());
-    std::string first;
-    std::string second;
-    std::string third;
-    std::getline(lines, first);
-    std::getline(lines, second);
-    CHECK_FALSE(std::getline(lines, third));
-    CHECK(afd::Json::parse(first)["id"] == 1);
-    CHECK(afd::Json::parse(second)["id"] == 2);
-}
-
-TEST_CASE("an oversized line is rejected without buffering it") {
-    Fixture fixture;
-    std::istringstream in(std::string(2048, 'x') +
-                          "\n{\"jsonrpc\":\"2.0\",\"id\":9,\"method\":\"ping\"}\n");
-    std::ostringstream out;
-    todo::serve(*fixture.registry, in, out, {.max_line_bytes = 1024});
-    std::istringstream lines(out.str());
-    std::string first;
-    std::string second;
-    std::getline(lines, first);
-    std::getline(lines, second);
-    CHECK(afd::Json::parse(first)["error"]["message"] == "Message too large");
-    CHECK(afd::Json::parse(second)["id"] == 9);
-}
-
-TEST_CASE("tools/list reports _meta.approval; tools/call never takes approval from the call") {
-    auto runs = std::make_shared<int>(0);
-    const afd::CommandDefinition gated{
-        .name = "vault-open",
-        .description = "Open the vault",
-        .handler =
-            [runs](const afd::Json&, afd::CommandContext&) {
-                ++*runs;
-                return afd::success(nullptr);
-            },
-        .expose = {.mcp = true},
-        .approval = afd::ApprovalDecision::required,
-    };
-    auto approval =
-        afd::create_approval_middleware({.secrets = {std::string(32, 'k')}, .commands = {gated}});
-    REQUIRE(approval);
-    afd::CommandRegistry registry({.middleware = {*approval}});
-    REQUIRE(!registry.register_command(gated));
-
-    const auto tools = afd::Json::parse(*todo::handle_message(
-        registry, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})"))["result"]["tools"];
-    REQUIRE(tools.size() == 1);
-    CHECK(tools[0]["_meta"] == afd::Json{{"approval", "required"}});
-
-    const auto held = afd::Json::parse(*todo::handle_message(
-        registry,
-        R"({"jsonrpc":"2.0","id":2,"method":"tools/call","params":{"name":"vault-open","arguments":{}}})"));
-    const auto token =
-        afd::Json::parse(held["result"]["content"][0]["text"]
-                             .get<std::string>())["error"]["details"]["approvalToken"]
-            .get<std::string>();
-    // The token in the arguments or in the request's _meta is ignored: the call is held again.
-    const afd::Json call{{"jsonrpc", "2.0"},
-                         {"id", 3},
-                         {"method", "tools/call"},
-                         {"params",
-                          {{"name", "vault-open"},
-                           {"arguments", {{"approval", token}}},
-                           {"_meta", {{"approval", token}}}}}};
-    const auto again =
-        afd::Json::parse(*todo::handle_message(registry, afd::wire::serialize(call)));
-    CHECK(again["result"]["isError"] == true);
-    const auto error =
-        afd::Json::parse(again["result"]["content"][0]["text"].get<std::string>())["error"];
-    CHECK(error["code"] == "APPROVAL_REQUIRED");
-    // No `reason`: the call carried no evidence at all, not a rejected token.
-    CHECK_FALSE(error["details"].contains("reason"));
-    CHECK(*runs == 0);
-}
-
-TEST_CASE("tools/list reports a command's title at the top level, only when set") {
-    const auto ok = [](const afd::Json&, afd::CommandContext&) { return afd::success(nullptr); };
-    afd::CommandRegistry registry;
-    REQUIRE(!registry.register_command({.name = "note-create",
-                                        .description = "Create a note",
-                                        .title = "Create a note",
-                                        .handler = ok,
-                                        .mutation = true,
-                                        .expose = {.mcp = true}}));
-    REQUIRE(!registry.register_command({.name = "note-list",
-                                        .description = "List notes",
-                                        .handler = ok,
-                                        .expose = {.mcp = true}}));
-
-    const auto tools = afd::Json::parse(*todo::handle_message(
-        registry, R"({"jsonrpc":"2.0","id":1,"method":"tools/list"})"))["result"]["tools"];
-    REQUIRE(tools.size() == 2);
-    for (const auto& tool : tools) {
-        if (tool["name"] == "note-create") {
-            CHECK(tool["title"] == "Create a note");
-            // Not in annotations (the top-level title takes precedence) and not in _meta.
-            CHECK_FALSE(tool["annotations"].contains("title"));
-            CHECK_FALSE(tool.contains("_meta"));
-        } else {
-            CHECK(tool["name"] == "note-list");
-            CHECK_FALSE(tool.contains("title"));
-        }
-    }
+    const auto modern = reply(
+        *server,
+        R"({"jsonrpc":"2.0","id":4,"method":"tools/call","params":{"name":"todo-stats","_meta":{"io.modelcontextprotocol/protocolVersion":"2026-07-28","io.modelcontextprotocol/clientCapabilities":{}}}})");
+    CHECK(modern["result"]["resultType"] == "complete");
+    CHECK(modern["result"]["isError"] == false);
 }
