@@ -342,7 +342,7 @@
       "path": "endpoints/violet-server/src/api.ts",
       "upstream_path": "packages/server/src/api.ts",
       "upstream_sha256": "3a53c8cee60c1abb0750f4094077482a161b900859cec961c9fd9fd04f0d755f",
-      "current_import_sha256": "48089e24fdf807209f4016c9b074d9bca8fda37e9f87f80d9b9712e7408d054b",
+      "current_import_sha256": "a19cd88e607c1c1d223017c5e3f761f85890bc7bbd5bd02392150debcf62adc5",
       "classification": "adapted",
       "reason": "Package specifier @lushly-dev/violet-afd instead of @lushly-dev/violet-core; code otherwise unchanged; #500: compare.nodes deprecated in favour of tokens.compare",
       "candidate": {

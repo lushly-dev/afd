@@ -215,5 +215,5 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 		);
 		checked++;
 	}
-	assert(checked > 75, `only ${checked} unchanged upstream files`);
+	assert(checked > 79, `only ${checked} unchanged upstream files`);
 });

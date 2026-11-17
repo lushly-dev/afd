@@ -343,11 +343,13 @@ export async function createApiServer(
 
 				const context = createContext(db);
 				const result = await registry.execute(command, input, context);
-				// RFC 9745: a deprecated command is still served, flagged for the caller.
+				// RFC 9745: a deprecated command is still served, flagged for the caller. The successor
+				// link is the hosted OpenAPI path (`tokens.compare` -> /api/v1/tokens/compare); here the
+				// replacement runs through this same route by name.
 				const deprecation: Record<string, string> = cmd.deprecated
 					? {
 							Deprecation: 'true',
-							Link: `</api/v1/${cmd.deprecated.replacement.replace('.', '/')}>; rel="successor-version"`,
+							Link: `</api/v1/${cmd.deprecated.replacement.replaceAll('.', '/')}>; rel="successor-version"`,
 						}
 					: {};
 				send(res, result, 200, { ...corsHeaders, ...deprecation });
