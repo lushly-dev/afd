@@ -808,7 +808,7 @@
       "path": "packages/botcore-agents/src/botcore_agents/commands.py",
       "upstream_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
       "staged_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
-      "current_import_sha256": "747c8a045c8f4db1ab284823b754ad8fbe2a435a4e452c095de2d7e80e2e494b",
+      "current_import_sha256": "e44e9d688f006f06455261228be2b6c1e4074d196d70bb1ed99543cfafcc1c5b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -931,7 +931,7 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "da6a4b2c2089c1f6483fe364d82d116fa5201909e4dcba612f1911185726c9ed",
+      "current_import_sha256": "14f01af38e20a4f4766050306470020706c7bfd17753a6a92cd6fbe9c649da70",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
       "import_reason": "Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780)"

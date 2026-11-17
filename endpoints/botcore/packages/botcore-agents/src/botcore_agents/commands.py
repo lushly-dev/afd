@@ -12,6 +12,7 @@ from collections.abc import AsyncIterator
 from afd import CommandResult
 from afd.core.streaming import StreamChunk
 
+from . import orchestrator as orchestrator_mod
 from .config import AgentsPluginConfig, get_agents_config
 from .orchestrator import get_orchestrator, reset_orchestrator
 from .state import JsonStateBackend, OrchestratorStateBackend
@@ -40,6 +41,13 @@ def set_config(config: AgentsPluginConfig | None) -> None:
     global _backend, _config
     if config is not None and config == _config:
         return
+    live = orchestrator_mod._orchestrator
+    if config is not None and live is not None and live.agents:
+        logger.info(
+            "A changed agents configuration drops %d agent(s): %s",
+            len(live.agents),
+            ", ".join(sorted(live.agents)),
+        )
     _config = config
     _backend = None
     reset_orchestrator()
