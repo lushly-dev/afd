@@ -2170,7 +2170,7 @@
       "upstream_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
       "staged_path": "packages/element/packages/fast-element/src/scoped/mixin.ts",
       "staged_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
-      "current_import_sha256": "ff0fb991b874d99d183fa97439ebdc13062b51918fb10c2a81fcb759d202d841",
+      "current_import_sha256": "19205556322e41498130968ef97e1f4be1932db6f89348a046b06d4fb9a039e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",

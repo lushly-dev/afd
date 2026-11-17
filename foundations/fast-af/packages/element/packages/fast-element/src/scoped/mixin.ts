@@ -99,7 +99,8 @@ export interface ScopedRegistryHostConstructor {
  * then leaves the root without a registry, and the host gives it the scoped one
  * when it upgrades, which upgrades the server-rendered children and scopes every
  * view hydrated or created in it later. A declarative shadow root without that
- * attribute is bound to the global registry, and its children stay global.
+ * attribute is bound to the global registry: its children, and every view created
+ * in it later, stay global.
  *
  * @param Base - The FASTElement base class to extend
  * @returns A class that supports scoped element definitions
