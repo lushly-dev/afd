@@ -338,12 +338,12 @@ endpoint = "http://127.0.0.1:11434/v1"  # https, or http to 127.0.0.1 or ::1 onl
 
 **On the desktop:**
 
-- **The key** is put in the OS keychain by **`loam copilot key set <provider>`**, a command of Loam's CLI run at a terminal, never a kernel command. It reads the key without echo, as the mail engine's `mail-account-add` reads a password, and stores it under the service and account `[copilot.providers]` names. It then makes one small request to check the key. A provider with `key = { file = … }` reads an owner-only file instead, refused otherwise.
+- **The key** is put in the OS keychain by **`loam copilot key set <provider>`**, a command of Loam's CLI run at a terminal, never a kernel command. **This is the development path:** by the owner's condition on Q2, a person never has to run a command, so the amendment required before step 9 gives the key a path with no terminal that keeps it out of the webview. It reads the key without echo, as the mail engine's `mail-account-add` reads a password, and stores it under the service and account `[copilot.providers]` names. It then makes one small request to check the key. A provider with `key = { file = … }` reads an owner-only file instead, refused otherwise.
 - **`models.json`.** `deployment write --host desktop` writes `<app data>/models.json`, beside `mounts.json` and under the same rule:
   - it is created owner-only (0600 on POSIX; on Windows a protected DACL for the user's SID), read only by the Rust host when it starts, and refused otherwise with `DESKTOP_MODELS_PERMISSIONS`;
   - it holds each provider's kind, model, endpoint and key reference, never a key;
   - nothing in the webview can write it, and a change takes effect when Loam restarts.
-- **Two IPC commands** join phase 6's four (10.4's three and 10.8's `inbound_reply`, D137). They are granted in the same capability file and checked by the same `from_shell` origin rule [#1337](https://github.com/lushly-dev/afd/pull/1337) added:
+- **Two IPC commands** join phase 6's four (10.4's three and 10.8's `inbound_reply`). They are granted in the same capability file and checked by the same `from_shell` origin rule [#1337](https://github.com/lushly-dev/afd/pull/1337) added:
 
   | Command | Input | Does |
   | --- | --- | --- |
@@ -354,7 +354,7 @@ endpoint = "http://127.0.0.1:11434/v1"  # https, or http to 127.0.0.1 or ::1 onl
 - **What comes back.** Chunks arrive as the DOM event `loam:model`: `{ stream, chunk }`, then `{ stream, done, status }`. The Rust host dispatches them to the main frame by `Webview::eval`, under the serialization rule [#1337](https://github.com/lushly-dev/afd/pull/1337) set for a mount's notifications.
   - A provider's error body is passed as data. A key never appears in it, since the Rust host never echoes a request header.
   - A stream is bounded at 16 MiB and 10 minutes, then ended with `MODEL_STREAM_LIMIT`.
-- **The amendment.** If approved, phase 6's 10.2, 10.4, section 17, P6-D4 and D106 read "six commands". Step 2 applies it, not before.
+- **The amendment.** Phase 6's 10.2, 10.4, section 17, P6-D4 and D106 read "six commands". Step 2 applies it, not before.
 
 **On the hosted lane** (milestone C): keys are the server's secrets (D108), and `api/copilot/model` serves the same `{ provider, body }` contract, with the same allow-list, over the person's session, rate-limited per person.
 
@@ -401,7 +401,7 @@ Settings of the `copilot` section (phase 4's 3.1), at workspace level, an owner'
 - **Descriptions.**
   - Shell and native commands: their own.
   - A `labels = "per-part"` instance: the server's descriptions, wrapped as its claims (5.2).
-  - **A `labels = "whole"` instance: only the deployer's text** (the manifest's or entry's title and description). Its input schema is given with **only structural keywords kept**: `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`, the numeric and length bounds, and `$ref` and `$defs`, under the identifier rule below. Every other keyword is dropped, `title`, `description`, `examples`, `default`, `const`, `pattern`, `format`, `$id`, `$comment` and unknown `x-` keys included. **A tool the deployer does not name under `commands` is not listed** when its name, a property name or an `enum` value falls outside `^[A-Za-z0-9_.-]{1,64}$`. With no deployer text, the tool's name alone is given. An unvetted server so puts no prose of its own before the model.
+  - **A `labels = "whole"` instance: only the deployer's text** (the manifest's or entry's title and description). Its input schema is given with **only structural keywords kept**: `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`, the numeric and length bounds, and `$defs`, with `$ref` kept only as a local `#/$defs/<identifier>`. Every other keyword is dropped, `title`, `description`, `examples`, `default`, `const`, `pattern`, `format`, `$id`, `$comment`, a remote `$ref` and unknown `x-` keys included. **The identifier rule:** every string the server supplies that is kept, at any depth, matches `^[A-Za-z0-9_.-]{1,64}$`: the tool's name, each property name, each `required` entry, each `$defs` key and `$ref` target, and each `enum` value, where an `enum` holds only strings, numbers, booleans and `null`. **This holds for named tools too.** A tool the deployer does not name under `commands` is not listed when any kept string fails the rule; a tool the deployer names keeps its listing, but its schema is cut to `{"type":"object"}` and its input is described by the deployer's text alone. With no deployer text, the tool's name alone is given. An unvetted server so puts no prose of its own before the model.
 
 ## 5. Labels and taint (L1, L2, D144)
 
@@ -492,11 +492,11 @@ Phase 4's `resolveAutonomy` runs before every call the copilot or the agent inte
 - **Destructive and approval-held commands** are at most `ask` for the copilot and the agent interface, in every session. An owner's `act` row does not raise them.
 - **Mounted reads of a vouched server.** Phase 4's default for a mounted tool is `ask` (its 4.2), which would stop every read of mail at five pending (its 7.2). **For an instance whose entry says `labels = "per-part"`, phase 5 makes the default `act` for a command that is not a mutation** by phase 1's 7.4 precedence. Mutations stay `ask` by default.
 - **Grouping.** A turn's confirmations carry `group: <session>/<turn>`, a field phase 4's R16 left to phase 5. Answering a whole group is milestone B's.
-- **The inbound agent** (10.8's `loam-inbound`, D137) is an agent-interface caller, so 6.1 governs it. Step 3 amends 10.8 so that:
+- **The inbound agent** (10.8's `loam-inbound`) is an agent-interface caller, so 6.1 governs it. Step 3 amends 10.8 so that:
   - its dispatcher no longer refuses a `confirmPrompt` command with `CONFIRMATION_REQUIRED` before the kernel; the call returns 6.1's `CONFIRMATION_PENDING` like any `ask`;
   - `DESKTOP_MCP_COMMANDS` gains `confirmation-get` and `confirmation-withdraw`, for confirmations that agent raised. This widens D138's served list, the owner's answer to 10.8's Q4, by two reads; [Q7](#q7-delegation-may-this-specification-decide-913-and-883) asks the owner to confirm it.
 
-  Every inbound client shares the one actor (D137), so they share its five pending confirmations and its decline windows. A per-client actor is a follow-up.
+  Every inbound client shares the one actor (10.8), so they share its five pending confirmations and its decline windows. A per-client actor is a follow-up.
 - **Until phase 4's steps 6 and 8 merge,** step 1's copilot runs reads in `act` and refuses every mutation with `AUTONOMY_UNAVAILABLE`, failing closed.
 
 ### 6.2 The resolved action shown
@@ -596,7 +596,7 @@ Its stronger form, the engine's own page with a passkey, is Q1's option (b).
   - The confirmation shows 6.2's resolved action and **the preview's result**, which the kernel calls as the person before showing the confirmation, its parts labelled as in 5.1.
   - On the person's confirm:
     1. the kernel re-checks access (phase 4's re-check);
-    2. **it holds the instance:** until this confirmation's outcome is stored, every other call to the instance waits, from the agent interface or carrying a copilot trace, an app's `calls` included. This confirmation's own run and its preview calls do not wait. Nothing the copilot runs can then change what was previewed;
+    2. **it holds the instance:** until this confirmation's outcome is stored, every other call to the instance waits, from the agent interface or carrying a copilot trace, an app's `calls` included. This confirmation's own run and its preview calls do not wait; the kernel knows them by the confirmation's id, never by a trace. Nothing the copilot runs can then change what was previewed;
     3. it calls the preview again; **if its canonical digest differs from the one shown, the confirmation is shown again, marked "Changed since you looked"**, and nothing runs;
     4. it sends the call with exactly the input confirmed;
     5. if the server answers `APPROVAL_REQUIRED` with a token, the kernel retries once with the same message and `_meta["dev.afd/approval"]`. **This retry is covered by the person's confirm, since the token is bound to the input the person confirmed;**
@@ -664,7 +664,7 @@ The owner directed on 2026-11-10 that a plugin can bring its engine, and that en
 
     Each mutation the person wants reachable is named under `commands` too, as phase 1's 7.4 requires.
   - Phase 6's 10.4 serves that today, and milestone A's mail step needs nothing more.
-- **Step 9 adds `loam plugin install <folder>`,** a command of Loam's CLI run at a terminal, never a kernel command.
+- **Step 9 adds `loam plugin install <folder>`,** a command of Loam's CLI run at a terminal, never a kernel command. **The terminal is the development path:** by the owner's condition on Q2, a person never has to run a command, so the amendment required before step 9 gives the install, and the approver token of its fourth item, a path with no terminal in the trusted host, such as Loam's desktop installer installing mail's engine.
   - **The plugin's manifest** (`loam-plugin.toml`, profile version 1, an amendment to phase 1's section 2) names its apps and its engine: an artifact path inside the folder, its SHA-256, and `kind = "http-service"`. **It holds no command line, environment or location.** An `http-service` engine is started as `<artifact> serve --port <port>`, with a loopback port the install chooses and writes into the instance entry's `url`.
   - **The install:**
     1. shows what will run: the artifact, its hash, the service it registers and the instance entry it writes;
@@ -676,10 +676,10 @@ The owner directed on 2026-11-10 that a plugin can bring its engine, and that en
     7. runs `deployment write`.
   - **A new binary is a new install.** The service names the hashed path, and the engine is started from it. A program running as the person can still replace the file in place, since the directory is the person's (T15); the install therefore proves what was approved at install time, not afterwards.
   - **`loam plugin uninstall <name>`** reverses each step.
-- **The rules this amends, if approved:**
+- **The rules this amends:**
   - phase 1's manifest profile gains the plugin manifest;
   - **D63** reads "no kernel command writes an entry; the deployer's CLI may";
-  - **D56** gains "an engine is installed only by the desktop's owner at a terminal, or by the deployer's configuration on a hosted server";
+  - **D56** gains "an engine is installed only by the desktop's owner, through the trusted host and never a kernel command, or by the deployer's configuration on a hosted server";
   - **D95** holds: a shared `provider` workspace refuses a plugin engine unless its deployer installs it;
   - **D106** is unchanged, since the webview still writes no command line.
 
@@ -750,7 +750,7 @@ Approvals carried through the hosted relay (7.2), a server-side loop over docume
 ## 11. WebMCP (#885, D149)
 
 - **D39 stands,** in the browser only: commands exposed to MCP are registered with `document.modelContext.registerTool` behind `'modelContext' in document`, never `navigator`.
-- **Never on the desktop.** A webview has no browser agent to call it, and a custom scheme cannot hold an origin trial token. The desktop's outward projection is phase 6's inbound MCP (10.8, D137).
+- **Never on the desktop.** A webview has no browser agent to call it, and a custom scheme cannot hold an origin trial token. The desktop's outward projection is phase 6's inbound MCP (10.8, D137 to D140).
 - **Outward only.** The copilot never reads tools through `getTools` or calls them through `executeTool`; its tools are the registry (D24).
 - **Lifetime:** each registration's `AbortSignal` is tied to the command's exposure, the app's load and the person's session.
 - **Annotations:** a query sets `readOnlyHint`; a mutation with an approval policy or a destructive one, `consequentialHint`; a mounted tool, or any command that returns content parts, `untrustedContentHint`. The output schema is projected as `outputSchema`.
@@ -870,7 +870,7 @@ The copilot is never in first paint, so phase 0's first-paint ceiling is unchang
 | P5-A3 | **The model transport** | Desktop | `model_send` from the main frame streams a scripted local provider; from the sandbox proxy, a view and the runtime's frame it is refused (`DESKTOP_ORIGIN_REFUSED`); an id not in `models.json` is refused; a body's `model` is replaced; a provider-side tool, `mcp_servers` and an unlisted key are refused (`MODEL_BODY_REFUSED`); a missing key gives `COPILOT_KEY_MISSING`; `models.json` not owner-only refuses; the key appears in no DOM, store, journal entry, log or error; a stream past 16 MiB ends with `MODEL_STREAM_LIMIT`; `model_cancel` stops it; `loam copilot key set` reads without echo and checks the key |
 | P5-A4 | **Labels and taint** | Kernel units, Chromium | `whole` taints on any mounted result, `per-part` only on content parts; a server's `trusted` label stays `server`; text duplicates never reach the model; a whole server's descriptions and schema words are not given; a content block cannot close its tag; under taint, a mutation elsewhere (the shell included) is `ask`, a `whole` source's own mutations are `ask`, a `per-part` source's non-destructive ones keep their mode, and a read of another mounted instance or of an `http` app is `ask`; a confirmation's stored outcome read back taints with its sources; a native app returning its mount's text unlabelled taints through the trace; a `calls`-grant call under a tainted turn is lowered; two sessions never share a confirmation |
 | P5-A5 | **Enforcement** | Kernel units | `act`, `ask` and `suggest` as 6.1, with the order; human, owner and person-session commands never asked or suggested; destructive and approval-held commands at most `ask` under any row; `per-part` reads default to `act`; "Run it" opens the prompt from the record, and a suggestion expires; a waiting turn continues once its confirmations end; a confirmation's 10 minutes, with the clock moved; `AUTONOMY_UNAVAILABLE` before phase 4's steps land; approval health's counters, rates and the flag over policy asks only; `loam-inbound` gets `CONFIRMATION_PENDING` and reads it with `confirmation-get` (10.8 amended) |
-| P5-A6 | **Mounted approvals** | Kernel units and the desktop suite, on `mailfix` | No `approvalToken` reaches the copilot, the console, a view, an app, the store, the journal or a log; one confirmation, with the preview; `deployment check` refuses `approvals = "shell"` with a held command lacking a preview, and such a command gives `MOUNT_APPROVAL_UNAVAILABLE`; the hold refuses a copilot call to the instance until the outcome; a changed preview shows again and runs nothing; the retry carries the key once; the person's own send from a native app takes the same path; an instance without `approvals = "shell"` gives `MOUNT_APPROVAL_UNAVAILABLE`; a `dev.afd/approval` key in any input is refused; AFD's conformance cases for step 0c pass |
+| P5-A6 | **Mounted approvals** | Kernel units and the desktop suite, on `mailfix` | No `approvalToken` reaches the copilot, the console, a view, an app, the store, the journal or a log; one confirmation, with the preview; `deployment check` refuses `approvals = "shell"` with a held command lacking a preview, and such a command gives `MOUNT_APPROVAL_UNAVAILABLE`; the hold makes a copilot call to the instance, and an app's `calls` call, wait until the outcome, while the confirmation's own run and its preview calls pass it; a changed preview shows again and runs nothing; the retry carries the key once; the person's own send from a native app takes the same path; an instance without `approvals = "shell"` gives `MOUNT_APPROVAL_UNAVAILABLE`; a `dev.afd/approval` key in any input is refused; AFD's conformance cases for step 0c pass |
 | P5-A7 | **Units** | Kernel units | Only a `per-part` instance's unit is composed; the parent never receives a unit's parts or its submit's result; the composer's context holds only the unit (the test provider records what it was given); no tools; a destructive or approval-held submit, or one of another instance, gives `UNIT_INVALID`; nothing of the unit is stored or put in a confirmation; composer rounds count toward `units`, not `iterations` |
 | P5-A8 | **The panel** | Chromium and the desktop suite, with axe | The panel streams, stops within 250 ms, draws approval cards from the kernel's records whose buttons are human gestures, marks a tainted session's replies, and passes axe in light, dark and high contrast |
 | P5-A9 | **Mail** | The desktop suite with `loam-mail` and its scripted IMAP server | The slice's mail jobs pass against the real engine: a stranger's instruction to act elsewhere raises a confirmation naming Mail; a send the copilot asks for, and one the person makes in the mail app, are each approved once in the shell and run once; a reply set's units are composed apart |
@@ -1012,7 +1012,7 @@ The slice ranks nine jobs ([Jobs and scenarios](#jobs-and-scenarios)), and miles
 
 - **Recommendation:** keep the ranking. It puts the mail safety jobs (2 to 4) and your own send (9) before convenience.
 - Cut, add or reorder as you see fit; the ranking decides what is built first.
-- Not ranked, because they are terminal steps rather than commands: setting a model's key (4.2) and installing a plugin (7.4).
+- Not ranked, because they were terminal steps rather than commands: setting a model's key (4.2) and installing a plugin (7.4). The owner's condition on Q2 changes that; the amendment before step 9 adds their jobs.
 
 ### Q7. Delegation: may this specification decide #913 and #883?
 
@@ -1035,14 +1035,14 @@ Proposed by this specification on 2026-11-16 and **decided 2026-11-17**: D142, D
 
 | ID | Decision | Amends or annotates |
 | --- | --- | --- |
-| D141 | Phase 5 has three milestones: A, the desktop copilot, which needs nothing hosted; B, the rest of the local criterion; C, the hosted criterion, which needs M1 and phase 3's step 10. It exits when all three pass | Annotates D100 and D129; the architecture's phase 5 row, and its gate in STATUS |
+| D141 | Phase 5 has three milestones: A, the desktop copilot, which needs nothing hosted; B, the rest of the local criterion; C, the hosted criterion, which needs M1 and phase 3's step 10. It exits when all three pass, and phase 7 waits for that exit | Annotates D100 and D129; the architecture's phase 5 row, and its gate in STATUS |
 | D142 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913; confirmed by the owner (Q7) | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
-| D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal until the amendment that Q2's condition requires gives the desktop a path with no terminal, before step 9. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
+| D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal until the amendment that Q2's condition requires gives the desktop a path with no terminal, before step 9. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with 10.8's `inbound_reply`) and phase 6's 10.2, 10.4 and 17 |
 | D144 | A mounted result is content as a whole unless its instance entry says `labels = "per-part"`, and a whole server's own words never reach the model. Content taints a session, through stored outcomes and nested calls too. A tainted session's mutations outside a vouched source, and its calls to other servers or `http` apps, are at most `ask`, through `calls` grants as well. Answers L1 and L2 | Annotates D41 and D65 |
 | D145 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D138's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
 | D146 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1; the owner's Q1 | Annotates D65; needs AFD's step 0c |
 | D147 | A vouched server's result marked as a unit is composed in a fresh context with no history and no tools, and neither its payload nor its submit's result reaches the parent. Isolation is guaranteed on that path only. Answers L6 | None |
-| D148 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5; the owner's Q2, on the condition that a person never has to run a command, so an amendment before step 9 gives the install a path with no terminal | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
+| D148 | A plugin brings its engine through an install in the trusted host, never a kernel command, and the install registers the engine to start when the person signs in, so it runs whether Loam is open or not; uninstalling removes it. A person never has to run a command for it: until the amendment that gives installing a path with no terminal, required before step 9, `loam plugin install` at a terminal is the development path. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5; the owner's Q2, on the condition that a person never has to run a command, so an amendment before step 9 gives the install a path with no terminal | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
 | D149 | The WebMCP projection is the browser's only, outward only, never on the desktop, and in no exit criterion while WebMCP has no shipping milestone. Answers #885 | Annotates D39 |
 | D150 | Of Lushly's copilot code: the approval display rules go to AFD with step 0c, and the approval link store to AFD when milestone C needs it; the runtime interfaces, tool bridge and transport handshake go to `@lushly-dev/loam-copilot`; the execution origin stays in Lushly. Answers #883; confirmed by the owner (Q7) | None |
 | D151 | The copilot's records are sessions and turns in the person's store, kept for a person's retention setting. Its commands are human commands, served to no agent. There is no memory across sessions in phase 5 | Annotates D24 |
@@ -1141,11 +1141,22 @@ Its improvements were taken too:
 **Declined or deferred, with reasons:**
 
 - **Answering a confirmation group in milestone A.** It stays in milestone B. Vouched reads no longer ask, which removes most of the volume the walk measured, and group answers need L4's batch review to be safe at 30 items.
-- **A per-client inbound actor.** It is a follow-up: 10.8 is decided (D137), and the shared actor is its choice.
+- **A per-client inbound actor.** It is a follow-up: 10.8 is decided (D137 to D140), and the shared actor is its choice.
 - **Taint per mail account.** It is a follow-up for mail's step F, stated as a residual risk (5.3).
-- **Jobs for setting a model's key and installing a plugin.** These are terminal steps, not commands, so they are tested in P5-A3 and step 9 (Q6).
+- **Jobs for setting a model's key and installing a plugin.** Declined while they were terminal steps, tested in P5-A3 and step 9 (Q6). The owner's condition on Q2 reopens them: the no-terminal amendment adds both jobs.
 - **Rewriting milestone B's features as jobs.** That is done by B0's amendment, which drafts their commands.
 - **A daily spend budget.** Not added: the turn's token limits bound a turn, and a daily budget belongs with the provider configuration when a deployment asks for it.
+
+## Re-check 2026-11-17
+
+After the owner's answers and the coordinator's approval, a fresh reviewer (Claude Opus 5.5) re-checked everything no reviewer had seen: the two one-line fixes of the final verify, the renumbering to D141, the D138 citation fix and the approval edits. Its verdict was "approve once fixed", with four blockers, all fixed:
+
+- **The schema rule** still let a named tool's property names, `required` entries, `$defs` keys and a `$ref` carry a server's text. The identifier rule now covers every kept string at any depth, named tools included, whose schema is cut to `{"type":"object"}` when it fails; `$ref` is local only (4.5).
+- **P5-A6** said the hold refuses a call, where 7.2 says it waits, and did not test the exemption. It now tests both.
+- **Four D137 citations** were 10.8's own text after #1378 split the answers; they now cite 10.8.
+- **The owner's Q2 condition** was not carried into D148, 4.2 and 7.4, and 7.4's D56 wording said "at a terminal". D148 now states the sign-in registration and the condition, 4.2 and 7.4 call the terminal the development path, and D56's wording names the trusted host.
+
+Its improvements were taken: two stale "if approved" phrases, the jobs for the key and the install reopened by the condition, D141 recording that phase 7 waits, the hold's exemption keyed by the confirmation's id, and STATUS's decision-log row.
 
 ## Follow-ups
 
@@ -1158,4 +1169,4 @@ Its improvements were taken too:
 | 2026-11-16 | Re-check WebMCP (W20) when Chrome 162 nears or an Intent to Ship appears | Open |
 | 2026-11-16 | An actor per client of the desktop's inbound endpoint, so clients do not share confirmations and decline windows (6.1) | Open |
 | 2026-11-16 | Taint per mail account, so a personal message cannot steer the work account (5.3) | Open; mail's step F |
-| 2026-11-17 | The owner's condition on Q2: a person never has to run a command. An amendment gives the plugin install and its approver token (7.4), and the model key (4.2), a path with no terminal, such as Loam's desktop installer registering mail's engine; the terminal paths stay for development | Open; before step 9 |
+| 2026-11-17 | The owner's condition on Q2: a person never has to run a command. An amendment gives the plugin install and its approver token (7.4), and the model key (4.2), a path with no terminal, such as Loam's desktop installer registering mail's engine, and adds jobs for both; the terminal paths stay for development | Open; before step 9 |
