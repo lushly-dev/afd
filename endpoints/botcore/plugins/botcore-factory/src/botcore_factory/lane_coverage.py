@@ -11,7 +11,7 @@ from __future__ import annotations
 from botcore_factory.cells import seated
 from botcore_factory.events import is_open
 from botcore_factory.lane_base import LaneTrouble, StepBase, first_lines
-from botcore_factory.world import LANE_HOST_VARIABLE
+from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 
 INSTALL_TIMEOUT_SECONDS = 1800
 
@@ -39,6 +39,11 @@ class Coverage(StepBase):
         spec = (self.world.git.read_file(cwd, ".nvmrc") or "").strip()
         if not spec:
             return None
+        if nvmrc_version(spec) is None:
+            raise LaneTrouble(
+                f".nvmrc in {cwd} names {spec!r}, an alias the lane does not resolve: pin a "
+                "version number there (such as 26), then lane-resume"
+            )
         found = self.world.machine.node_bin(spec)
         if found is None:
             raise LaneTrouble(

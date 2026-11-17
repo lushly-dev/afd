@@ -523,6 +523,13 @@ def test_a_node_the_host_lacks_pauses_the_lane_and_validates_nothing(lane):
     assert "Node 26" in detail and "fnm install 26" in detail
 
 
+def test_an_nvmrc_alias_pauses_the_lane_with_the_way_forward(lane):
+    lane.change_world(slotFiles={".nvmrc": "lts/*"})
+    run_steps(lane)
+    assert "validation-started" not in kinds(lane)
+    assert "pin a version number" in lane.state()["lane"]["pauseReason"]
+
+
 # S6, S7, S8: never validated against a base it lacks, never merged unguarded or as a non-host.
 
 

@@ -96,6 +96,16 @@ async def test_lane_start_starts_when_the_nvmrc_node_is_installed(make_run, tmp_
     assert result.data["running"] is True
 
 
+async def test_lane_start_refuses_an_nvmrc_alias_it_cannot_resolve(
+    make_run, tmp_path, example_repo
+):
+    target = _target_with_nvmrc(tmp_path, example_repo, "lts/*")
+    run = make_run(laneHost="workstation", nodes={"26": "/fnm/v26.13.0/bin"})
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.error.code == "NODE_UNPINNED"
+    assert "version number" in result.error.suggestion
+
+
 def test_run_loop_refuses_when_the_nvmrc_node_is_not_installed(make_run, tmp_path, example_repo):
     from botcore_factory.runtime import Refusal
 

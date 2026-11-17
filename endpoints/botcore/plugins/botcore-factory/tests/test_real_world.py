@@ -779,6 +779,9 @@ def test_the_newest_installed_node_matching_the_nvmrc_is_found(tmp_path):
     assert find_node_bin(" v26.1.0\n", roots) == str(old)
     assert find_node_bin("22", roots) is None
     assert find_node_bin("lts/*", roots) is None
+    twin = _install_node(tmp_path / "later", "v26.13.0", "bin")
+    assert find_node_bin("26", [nvm, tmp_path / "later"]) == str(new)  # A tie: the earlier root.
+    assert find_node_bin("26", [tmp_path / "later", nvm]) == str(twin)
 
 
 def test_node_roots_cover_fnm_and_nvm(tmp_path):

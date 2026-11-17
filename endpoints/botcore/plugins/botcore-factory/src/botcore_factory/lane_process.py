@@ -32,7 +32,7 @@ from botcore_factory.records import make
 from botcore_factory.report import summarize
 from botcore_factory.runtime import Factory, Refusal
 from botcore_factory.state import StateLocked
-from botcore_factory.world import LANE_HOST_VARIABLE, WorldError
+from botcore_factory.world import LANE_HOST_VARIABLE, WorldError, nvmrc_version
 
 POLL_SECONDS = 5.0
 LANE_MODULE = "botcore_factory.lane_main"
@@ -126,6 +126,13 @@ def require_node(factory: Factory, then: str) -> None:
         spec = (factory.target / ".nvmrc").read_text(encoding="utf-8").strip()
     except OSError:
         return
+    if spec and nvmrc_version(spec) is None:
+        raise Refusal(
+            "NODE_UNPINNED",
+            f"The repository's .nvmrc names {spec!r}, an alias the lane does not resolve",
+            f"Pin a version number in .nvmrc (such as 26), then {then}",
+            nvmrc=spec,
+        )
     if spec and factory.world.machine.node_bin(spec) is None:
         raise Refusal(
             "NODE_MISSING",

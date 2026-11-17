@@ -17,7 +17,7 @@ from pathlib import Path
 
 from botcore_factory.claims import parse_time
 from botcore_factory.real_run import Run, make_runner, resolve_program, run_process
-from botcore_factory.world import Completed, Plan, WorldError
+from botcore_factory.world import Completed, Plan, WorldError, nvmrc_version
 
 GIB = 1024**3
 _VERSION = re.compile(r"\d+\.\d+\.\d+")
@@ -121,13 +121,13 @@ def node_roots(environ, home: Path) -> list[Path]:
 def find_node_bin(spec: str, roots: Sequence[Path]) -> str | None:
     """The bin directory of the newest installed Node whose version starts with ``spec``'s
     numbers (``26`` matches ``v26.13.0``, not ``v260.0.0``). An alias (``lts/*``) matches none."""
-    wanted = spec.strip().removeprefix("v")
-    if not re.fullmatch(r"\d+(\.\d+){0,2}", wanted):
+    wanted = nvmrc_version(spec)
+    if wanted is None:
         return None
     prefix = tuple(int(part) for part in wanted.split("."))
     executable = "node.exe" if sys.platform == "win32" else "node"
-    found: list[tuple[tuple[int, ...], str]] = []
-    for root in roots:
+    found: list[tuple[tuple[int, ...], int, str]] = []
+    for rank, root in enumerate(roots):
         with contextlib.suppress(OSError):
             for entry in root.iterdir():
                 match = re.fullmatch(r"v?(\d+)\.(\d+)\.(\d+)", entry.name)
@@ -143,9 +143,9 @@ def find_node_bin(spec: str, roots: Sequence[Path]) -> str | None:
                     entry / "bin",
                 ):
                     if (candidate / executable).is_file():
-                        found.append((version, str(candidate)))
+                        found.append((version, -rank, str(candidate)))
                         break
-    return max(found)[1] if found else None
+    return max(found)[2] if found else None  # Newest; a tie goes to the earlier root.
 
 
 def _windows_memory() -> tuple[int, int]:

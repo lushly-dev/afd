@@ -11,6 +11,7 @@ A failed outside read or write raises ``WorldError``. Commands turn it into ``RE
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -278,6 +279,13 @@ class Git(Protocol):
         pushed there), a forced push that refuses if origin moved from it; without, a fast
         forward. A refusal's message says ``rejected``."""
         ...
+
+
+def nvmrc_version(spec: str) -> str | None:
+    """An ``.nvmrc``'s version numbers (``26``, ``26.13``, ``26.13.0``, without a ``v``), or
+    None for an alias (``lts/*``, ``node``) the lane does not resolve."""
+    wanted = spec.strip().removeprefix("v")
+    return wanted if re.fullmatch(r"\d+(\.\d+){0,2}", wanted) else None
 
 
 @runtime_checkable
