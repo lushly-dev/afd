@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "69e39b818631c5cbfba918457a3f3dc80abcd0a3451b8ea4d705f07f1b99ee15",
+      "current_import_sha256": "b876f43046c3def90deadf34d507245dc72edcbcfe6cf5e9789d774dcab4b62f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432)"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; The Factory lane checks each review with the base's verifier (lushly-dev/afd#1308); Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780); Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares.; The Factory lane merges provenance records and holds one foreman per lane (lushly-dev/afd#1410, #1432)"
     },
     {
       "path": "LICENSE",
@@ -1510,11 +1510,11 @@
       "path": "scripts/package_smoke.py",
       "upstream_sha256": null,
       "staged_sha256": null,
-      "current_import_sha256": "0ecc1ba8320c63ce4262239e3c99328ede0f015f5d9c0e87240dd4078cef3f85",
+      "current_import_sha256": "7524345b1f2be63831e2b26f867463d36026e5a024c0af39efe767cd710b505e",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills"
+      "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills; Add the gate-discipline skill and its scripts; list all eleven skills; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
       "path": "scripts/package_tests.py",
@@ -2798,11 +2798,11 @@
       "path": "src/botcore/skills/code-reviewer/SKILL.md",
       "upstream_sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
       "staged_sha256": "3813666b152b84308385b64514bddffc80fdfaef3eb48124c97bffecc74c1465",
-      "current_import_sha256": "402e738d7bb2c8ebb0dcbd4225819d8bdb6d1d52211d4f45a42f8774cb5d2037",
+      "current_import_sha256": "984910d88d82c4bb1876d00f23fb31ed7e2c26caa0486ad99a076d9ec7fc2ebf",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite for current models and merge the review skill into it"
+      "import_reason": "Rewrite for current models and merge the review skill into it; code-reviewer 2.1.0: a test deleted, skipped or loosened with no stated reason is a blocker, and a bug fix with no test seen failing is an improvement; reads the test-change report (lushly-dev/afd#1387, step 4)."
     },
     {
       "path": "src/botcore/skills/code-reviewer/references/feedback-format.md",
@@ -3770,10 +3770,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "9f893c1c98c36d702751f4b38b4406b36262066ed4480cfcec305928245bbb0b",
+      "current_import_sha256": "bf3e39d3126cba174e78725a9283023141bb60672c52f82c91a103c61d35aea6",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken"
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs",
@@ -3781,10 +3781,10 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "665caf7707e3e9fa5c24664a976f46aa5192d06f123607d95b8f146d4ee8719a",
+      "current_import_sha256": "1802e7fe9c69fc45eaf43f2c94b6c3efbb73fb7334e923180a1785a782e0858e",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories"
+      "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
       "path": "src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs",
@@ -3792,10 +3792,21 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "0ccfa988e381bea450b750049a03376f9af0264bc013e165e7b0e6d8e9a1edd8",
+      "current_import_sha256": "8644e9ea393df046aa223788ee9c674036f0a6c230f50b0ce7b7976237dd21f7",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken"
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken; Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
+    },
+    {
+      "path": "src/botcore/skills/gate-discipline/scripts/report-test-changes.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "5e4b4126197f3f0962bb70dedeac5be5da3a3d69fe72782c6d015cbb383a5987",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Added the test-change report, scripts/report-test-changes.mjs, to the gate-discipline skill (lushly-dev/afd#1387, step 4). Written in AFD, not derived from Lushly; the two checks export the patterns it shares."
     },
     {
       "path": "src/botcore/skills/git-manager/SKILL.md",
