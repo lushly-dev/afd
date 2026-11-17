@@ -140,6 +140,43 @@ describe('surface commands from a real server', () => {
 		expect(misattributed(set.commands)).toEqual([]);
 	});
 
+	it('lazy: reads requires and examples from afd-detail, so the prerequisite rules see them', async () => {
+		const update = (name: string, requires: string[]) =>
+			defineCommand({
+				name,
+				description: `Update a todo item, checked by the ${name} command`,
+				category: 'todo',
+				input: z.object({ id: z.string() }),
+				requires,
+				examples: [{ title: 'Update one', input: { id: '1' } }],
+				expose: { mcp: true },
+				async handler(input) {
+					return success({ id: input.id });
+				},
+			});
+		const set = await collect({
+			toolStrategy: 'lazy',
+			commands: [
+				...quickstartCommands,
+				update('todo-update', ['todo-get']),
+				// Requires a command the server does not have.
+				update('todo-rename', ['todo-missing']),
+			],
+		});
+
+		expect(set.discovered).toBe(true);
+		expect(set.commands.find((command) => command.name === 'todo-update')).toMatchObject({
+			requires: ['todo-get'],
+			examples: [{ title: 'Update one', input: { id: '1' } }],
+		});
+		const findings = validateCommandSurface(set.commands).findings;
+		expect(
+			findings
+				.filter((finding) => finding.rule === 'unresolved-prerequisite')
+				.map((finding) => [...finding.commands, finding.evidence?.missingCommand])
+		).toEqual([['todo-rename', 'todo-missing']]);
+	});
+
 	it('hybrid: validates the first-class tools and the commands behind afd-discover', async () => {
 		const set = await collect({ toolStrategy: 'hybrid', firstClassTools: ['todo-get'] });
 

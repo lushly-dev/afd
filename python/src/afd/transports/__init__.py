@@ -34,7 +34,12 @@ from afd.transports.fastmcp import FastMCPTransport
 from afd.transports.mock import MockTransport
 from afd.transports.http import HttpTransport
 from afd.transports.sse import SseTransport
-from afd.transports.streamable_http import StreamableHttpTransport
+from afd.transports.streamable_http import (
+    ElicitationHandler,
+    ElicitationRequest,
+    ElicitationResponse,
+    StreamableHttpTransport,
+)
 
 
 def create_transport(
@@ -80,5 +85,8 @@ __all__ = [
     "HttpTransport",
     "SseTransport",
     "StreamableHttpTransport",
+    "ElicitationHandler",
+    "ElicitationRequest",
+    "ElicitationResponse",
     "create_transport",
 ]

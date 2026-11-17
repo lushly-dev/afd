@@ -227,7 +227,7 @@ handler ran.
 
 | Code | Meaning | Retryable | Layers |
 | --- | --- | --- | --- |
-| `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. Retry the same call with the token once a human approved | No | Middleware |
+| `APPROVAL_REQUIRED` | The command's approval policy requires a human's approval and the call carried no valid approval token. `details` holds `approvalToken` (unless the server delivers it elsewhere, the default on MCP), `expiresAt`, `summary` and, for a rejected token or a declined MCP approval, `reason`. An `afd-pipe` refused up front because a gated step's input comes from an earlier step has `reason: "input-not-known"`, `step` and `command` instead, and nothing ran: split the pipeline before that step. An `afd-batch` or `afd-pipe` with more than `limit` (20) gated steps has `reason: "too-many-approvals"` and `limit`, and nothing ran: split it. Retry the same call with the token once a human approved | No | Middleware |
 
 ### Output budgets
 
@@ -307,7 +307,7 @@ does not define them.
 | `STREAM_TRUNCATED` | The connection closed before a complete or error chunk. The command may have run | No | TypeScript |
 | `STREAM_EVENT_TOO_LARGE` | An SSE event exceeded `maxStreamEventSize` | No | TypeScript |
 | `TRANSPORT_ERROR`, `CLIENT_ERROR`, `INVALID_RESULT` | The transport failed, the client failed, or the server's result could not be parsed | No | Python |
-| `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | TypeScript (`streamable-http`); Python planned |
+| `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | TypeScript, Python (`streamable-http`) |
 
 ### Middleware and telemetry
 

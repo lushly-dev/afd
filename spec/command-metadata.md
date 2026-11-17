@@ -23,7 +23,7 @@ an unset field stays distinguishable from an explicit `false`.
 | `errors` | string[] of error codes | None | afd-detail |
 | `version` | string | None | afd-detail; results carry it as `metadata.commandVersion` |
 | `tags` | string[] | None | afd-detail, afd-help (full), afd-docs; afd-discover filters on it |
-| `requires` | string[] of command names | None | `_meta`, afd-help (brief and full). Metadata only: not enforced at runtime. On an authorized server, only the commands that exist for the caller ([hidden commands](./authorization.md#hidden-commands)) |
+| `requires` | string[] of command names | None | `_meta`, afd-detail, afd-help (brief and full). Metadata only: not enforced at runtime. On an authorized server, only the commands that exist for the caller ([hidden commands](./authorization.md#hidden-commands)) |
 | `mutation` | boolean | `false` | `_meta`, afd-detail, afd-discover (`includeMutation`), afd-help (full), afd-docs |
 | `destructive` | boolean | `false` | `_meta`, afd-detail, afd-help (full), afd-docs, `DirectRegistry.listCommands()`, `afd tools`. `afd validate --execute` never calls it |
 | `confirmPrompt` | string | None; a frontend MAY show a generic prompt | afd-detail, afd-docs |
@@ -33,8 +33,8 @@ an unset field stays distinguishable from an explicit `false`.
 | `handoff` | boolean | `false` | afd-detail; adds the `handoff` tag |
 | `handoffProtocol` | `websocket`, `webrtc`, `sse`, `http-stream` or another string | None | afd-detail; adds the `handoff:<protocol>` tag |
 | `expose` | `palette`, `agent`, `mcp`, `cli` booleans | `palette` and `agent` true, `mcp` and `cli` false, per flag | Not reported. It decides which surfaces list and run the command; afd-detail reports the result as `callable` |
-| `examples` | `{ title, input }[]` | None | `_meta`, afd-help (full). Each `input` must pass the input schema when the command is defined |
-| `contexts` | string[] | None: the command is visible in every context | `_meta`; calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
+| `examples` | `{ title, input }[]` | None | `_meta`, afd-detail, afd-help (full). Each `input` must pass the input schema when the command is defined |
+| `contexts` | string[] | None: the command is visible in every context | `_meta`, afd-detail. Calls, afd-discover, afd-detail, the context tools and the individual and grouped tools/list scope on it; the hybrid tools/list does not ([H4](./tool-strategies.md#h4-contexts-a-fixed-list-scoped-calls)) |
 | `toolMeta` | object: `_meta` key to JSON value | None | Merged into the command tool's `_meta`, a grouped action entry and afd-detail (`toolMeta`). Keys follow the [key rule](./mcp-resources.md#t2-the-key-rule): reverse-DNS prefixed keys outside `dev.afd/`, or the MCP Apps key `ui`; anything else is refused at registration ([T1](./mcp-resources.md#t1-extra-entries-on-a-commands-tool)) |
 | `scopes` | string[] of OAuth scope names | None: the command needs no scope of its own | `_meta`, afd-detail. Enforced only on authorized HTTP: the scopes a caller's token needs, beside the server's `requiredScopes`. A host `ScopeResolver` may decide each call instead ([Scopes](#scopes)) |
 | `confirmationMode` | `host-verified` | None: the server's `confirmations` option applies | `_meta`, afd-detail. Only the host's `HumanRelay` may confirm the command over MCP ([Host-verified confirmation](#host-verified-confirmation)) |
@@ -53,7 +53,7 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` omits empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
+- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -70,7 +70,7 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
 | --- | --- |
 | tools/list `_meta` | `category`, `requires`, `mutation`, `destructive`, `undoable`, `approval`, `examples`, `outputSchema`, `contexts`, `scopes`, `confirmationMode`, `task`, `dev.afd/outputBudget` ([B1](./output-budgets.md#b1-the-declaration)), and the command's `toolMeta` entries |
 | tools/list `title` | `title`, on a command's own tool (individual, and first-class under hybrid); the meta-tools carry fixed titles |
-| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `toolMeta`, `outputBudget`, `scopes`, `confirmationMode`, `task` |
+| afd-detail | `name`, `title`, `description`, `category`, `tags`, `mutation`, `executionTime`, `errors`, `inputSchema` (the advertised schema), `outputSchema`, `destructive`, `confirmPrompt`, `undoable`, `approval`, `handoff`, `handoffProtocol`, `version`, `callable`, `requires`, `examples`, `contexts`, `toolMeta`, `outputBudget`, `scopes`, `confirmationMode`, `task` |
 | afd-discover | `name`, `description`, `category`, and `mutation` with `includeMutation` |
 | afd-help | `name`, `description`, `requires`; the `full` format adds `title`, `category`, `tags`, `mutation`, `destructive`, `undoable`, `examples`. On a hybrid server, `firstClass: true` for a first-class command, in both formats; next to `commands`, the server's `toolStrategy` and, on a hybrid server, `firstClassTools` ([H8](./tool-strategies.md#h8-what-afd-help-serverdiscover-and-afd-detail-report)) |
 | afd-docs | `category`, `name`, `description`, `tags`, `mutation`, `destructive`, `confirmPrompt`, `undoable`, `approval`, parameters |
@@ -367,10 +367,57 @@ Some calls fall back to `APPROVAL_REQUIRED` without a token:
 
 - a request that cannot elicit: no form elicitation capability, or a 2025-era request over
   stateless HTTP;
-- a step of `afd-batch` or `afd-pipe`. A policy is evaluated on the validated input when the step
-  runs, and asking mid-run would run the earlier steps again on the retry;
 - a command run by another command in the same tool call. Only the command the tool call routes to
   may ask, and only once.
+
+#### One approval up front for `afd-batch` and `afd-pipe`
+
+Asking mid-run would run the earlier steps again on the retry, so a batch or pipeline that can
+elicit is approved up front, as a whole, or not at all (#459). Before any step's handler runs, the
+server works out every step's validated input (a pipeline step's `$input` references resolved) and
+evaluates each step's policy on it:
+
+1. **A gated step whose input is not known.** A pipeline step whose input references an earlier
+   step (`$prev`, `$first` or `$steps`, by the grammar of
+   [pipeline variables](./pipeline-variables.md)) and whose command has an approval policy other
+   than `not-required` (a policy function cannot be evaluated on an input that does not exist yet)
+   cannot be shown to the human. Nothing runs, and the call fails with `APPROVAL_REQUIRED`,
+   `details.reason: "input-not-known"`, `details.step` (its 0-based index) and `details.command`,
+   and a suggestion to split the pipeline before that step. A step that references an earlier step
+   but whose command has no such policy does not stop the pipeline, and a step naming a command
+   the caller cannot run is never named here: it fails as a missing name.
+2. **No gated step.** The call runs as usual.
+3. **Ask once.** Otherwise the server answers with one form elicitation under the key `approval`.
+   Its message says each listed step runs once, exactly as shown, and nothing runs without
+   approval (and, for a pipeline with `when` conditions, that a condition may skip a step), then
+   lists each gated step's position (1-based), summary, command and canonical validated input
+   (truncated, as for one command). The `requestState` carries one question per gated step, each
+   as for a single command but with its own binding: a keyed digest of the whole request as sent
+   (the tool, its steps or commands, their inputs, conditions and options), the command, the input
+   and the actor. So an approval covers this exact request: never another batch or pipeline, the
+   same steps reordered or with other options, or a call to the command on its own. One answer
+   covers them all. More than 20 gated steps are not asked about: nothing runs, and the call fails
+   with `APPROVAL_REQUIRED`, `details.reason: "too-many-approvals"` and `details.limit`.
+4. **The retry runs** only when, for every gated step, the request carries a distinct accepted
+   question whose binding is that step's, whose MAC verifies and which has not expired. Two
+   identical steps need two questions. Every nonce is spent before any step runs, so a replay of
+   the retry runs nothing and is asked again. Each gated step then runs on one unused approval of
+   its own binding, once; a gated step without one (a policy that changed its mind, or a schema
+   whose defaults differ between validations, such as a random or time-based default) fails with
+   `APPROVAL_REQUIRED` and runs nothing, though earlier steps may have run. A step whose batch or
+   pipeline already timed out or was cancelled never starts.
+5. **Anything else is asked again**, saying why when the request carried approvals that did not
+   hold: an expired, spent or mismatched approval, or one for a changed batch.
+
+A declined, cancelled or unchecked answer to any gated step fails the whole call with
+`APPROVAL_REQUIRED`, `details.reason: "declined"`, `retryable: false`, and nothing runs. A refusal
+or decline is the call's whole result: a batch result with no item results and the error, or a
+pipeline with one synthetic step at index -1, as for a refused confirmation. A request that cannot
+elicit keeps the fallback above, step by step. A step's handler never sees the up-front approval,
+so a command it runs falls back as a nested command does. The approval middleware removes it from
+the step's context before the step runs, so a server has one approval middleware with the relay,
+and a retry middleware placed before it retries a step as a single command, which is held again. Confirmations are checked first, so a
+batch that needs both asks for each in turn.
 
 An accepted approval that has expired or was already used is asked again, and the question says
 so.
@@ -384,6 +431,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Planned | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
+| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Planned (with the relay) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | N/A: `afd::mcp_stdio` serves no meta-tools |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence
@@ -612,8 +660,11 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
   ```
 
   Clients validate `structuredContent` against it, so a handler whose `data` does not match its
-  declared output schema fails on the client. A server MAY switch the top-level `outputSchema` off;
-  `_meta.outputSchema` (the schema of `data` alone) is always reported.
+  declared output schema fails on the client. `#/$defs/...` and `#/definitions/...` references
+  resolve against the envelope, so an output schema's `$defs` or `definitions` belongs at the
+  envelope's root, not inside `data` (Python and C++ move them; TypeScript and Rust do not yet,
+  [#1416](https://github.com/lushly-dev/afd/issues/1416)). A server MAY switch the top-level
+  `outputSchema` off; `_meta.outputSchema` (the schema of `data` alone) is always reported.
 
 ### Implementation status
 
@@ -626,8 +677,8 @@ follows `destructive`, `false` when it is unset.
 | Tool `title` | Yes | Yes | Yes | Yes (`title` on the definition; todo backend tool lists) |
 | Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
 | Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
-| `structuredContent` | Yes | Planned | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Planned |
-| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Planned |
+| `structuredContent` | Yes | Yes (every tool result of every route, meta-tools, batch and pipeline included) | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Yes (`afd::mcp_stdio`, every tool result; the todo backend runs on it) |
+| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None` | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Yes, for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`) |
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |

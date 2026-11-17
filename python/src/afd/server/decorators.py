@@ -324,8 +324,9 @@ def command_to_definition(func: Callable) -> Optional[CommandDefinition]:
                 schema=prop_schema,
             ))
 
+    # The output side of the model (serialization aliases, computed fields): what `data` holds.
     returns_schema = (
-        metadata.output_schema.model_json_schema()
+        metadata.output_schema.model_json_schema(mode="serialization")
         if metadata.output_schema is not None
         else None
     )

@@ -34,7 +34,11 @@ use std::collections::HashMap;
 use std::fmt;
 use std::sync::{Arc, Mutex, PoisonError};
 
-use super::relay::{ApprovalHold, RelayAnswer, RelayEvidence, RELAY_DECISION_TTL_MS};
+use super::relay::{
+    ApprovalHold, ApprovalQuestion, RelayAnswer, RelayEvidence, RELAY_DECISION_TTL_MS,
+};
+
+mod up_front;
 use super::token::{
     actor_json, base64url_decode, base64url_encode, canonical_json, digest, hmac_sha256, safe_equal,
 };
@@ -76,9 +80,11 @@ pub enum ApprovalRelay {
     /// A call to a single command (its tool, individual or first-class, `afd-call` or a grouped
     /// tool) from an MCP client that can carry a form elicitation is answered with one form
     /// elicitation showing the summary, the command and its validated input, and runs once the
-    /// human accepts with `approve: true`. No token is issued on that path. Calls that cannot
-    /// elicit (no form capability, a 2025 request over Streamable HTTP, an `afd-batch` or
-    /// `afd-pipe` step, a command run by another command's handler) still fail with
+    /// human accepts with `approve: true`. No token is issued on that path. An `afd-batch` or
+    /// `afd-pipe` from such a client is asked about once, before any step runs, listing every
+    /// gated step; a pipeline whose gated step takes its input from an earlier step runs nothing.
+    /// Calls that cannot elicit (no form capability, a 2025 request over Streamable HTTP, a
+    /// command run by another command's handler) still fail with
     /// `APPROVAL_REQUIRED`, never with a token on MCP, whatever
     /// [`ApprovalMiddlewareOptions::with_include_token`] says. A host-verified command is never
     /// asked this way.
@@ -387,6 +393,14 @@ impl Gate {
             ApprovalRelay::Off => None,
         };
         let relay = bound.as_ref().filter(|relay| relay.claim(&name));
+        // A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
+        if let (ApprovalRelay::McpElicitation, Some(up_front)) =
+            (self.options.relay, context.up_front_approval.clone())
+        {
+            return self
+                .run_up_front(&up_front, name, input, context, next)
+                .await;
+        }
         if !self.requires_approval(&name, &input, &context).await {
             return next().await;
         }
@@ -435,19 +449,7 @@ impl Gate {
             }
         }
 
-        let command = self.options.commands.get(&name);
-        let summary = self
-            .options
-            .summarize
-            .as_ref()
-            .and_then(|summarize| summarize(&name, &input, &context))
-            .filter(|summary| !summary.is_empty())
-            .or_else(|| {
-                command
-                    .and_then(|command| command.confirm_prompt.clone())
-                    .filter(|prompt| !prompt.is_empty())
-            })
-            .unwrap_or_else(|| format!("Run {name}"));
+        let summary = self.summary(&name, &input, &context);
 
         if let (Some(relay), None) = (relay, &context.relay_evidence) {
             return match self
@@ -545,6 +547,40 @@ impl Gate {
             .with_retryable(false)
             .with_details(details),
         )
+    }
+
+    /// The text shown to the human who approves: `summarize`'s, else the command's
+    /// `confirm_prompt`, else `Run <command>`.
+    fn summary(&self, name: &str, input: &Value, context: &CommandContext) -> String {
+        self.options
+            .summarize
+            .as_ref()
+            .and_then(|summarize| summarize(name, input, context))
+            .filter(|summary| !summary.is_empty())
+            .or_else(|| {
+                self.options
+                    .commands
+                    .get(name)
+                    .and_then(|command| command.confirm_prompt.clone())
+                    .filter(|prompt| !prompt.is_empty())
+            })
+            .unwrap_or_else(|| format!("Run {name}"))
+    }
+
+    /// A fresh question for `bindings`: a random nonce, an expiry `ttl_ms` from `now`, and their
+    /// MAC under the signing key.
+    fn question(&self, bindings: Vec<String>, now: i64) -> Result<ApprovalQuestion, String> {
+        let nonce = random_nonce()?;
+        let expires_at = now.saturating_add(self.options.ttl_ms as i64);
+        let binding = bindings[0].clone();
+        let mac = hold_mac(&self.options.secrets[0], &binding, &nonce, expires_at);
+        Ok(ApprovalQuestion {
+            binding,
+            bindings,
+            nonce,
+            expires_at,
+            mac,
+        })
     }
 
     /// Relay evidence bound to this call (rule 3), checked in order: the command, the digest of
@@ -658,8 +694,8 @@ impl Gate {
             RelayAnswer::Missing => false,
         };
         // An expired, spent or invalid approval is asked again, saying why.
-        let nonce = match random_nonce() {
-            Ok(nonce) => nonce,
+        let question = match self.question(bindings, now) {
+            Ok(question) => question,
             Err(message) => {
                 return Some(failure(
                     CommandError::new(error_codes::COMMAND_EXECUTION_ERROR, message)
@@ -667,15 +703,9 @@ impl Gate {
                 ))
             }
         };
-        let expires_at = now.saturating_add(self.options.ttl_ms as i64);
-        let binding = bindings[0].clone();
-        let mac = hold_mac(&self.options.secrets[0], &binding, &nonce, expires_at);
+        let expires_at = question.expires_at;
         relay.hold(ApprovalHold {
-            binding,
-            bindings,
-            nonce,
-            expires_at,
-            mac,
+            questions: vec![question],
             message: relay_message(
                 summary,
                 name,
@@ -729,6 +759,31 @@ impl Gate {
         mac: &str,
         now: i64,
     ) -> bool {
+        if !self.genuine(bindings, binding, nonce, expires_at, mac, now) {
+            return false;
+        }
+        self.consume(
+            &Accepted {
+                nonce: nonce.to_owned(),
+                expires_at,
+            },
+            now,
+        )
+        .await
+    }
+
+    /// Whether an accepted relayed approval was issued by this middleware for one of `bindings`
+    /// (its nonce and expiry MAC verify under the key of its binding), is unexpired on the
+    /// middleware's clock and is no longer than the configured lifetime.
+    fn genuine(
+        &self,
+        bindings: &[String],
+        binding: &str,
+        nonce: &str,
+        expires_at: i64,
+        mac: &str,
+        now: i64,
+    ) -> bool {
         let Some(key) = bindings
             .iter()
             .position(|candidate| candidate == binding)
@@ -740,17 +795,7 @@ impl Gate {
             return false;
         }
         let expected = hold_mac(key, binding, nonce, expires_at);
-        if !safe_equal(mac.as_bytes(), expected.as_bytes()) {
-            return false;
-        }
-        self.consume(
-            &Accepted {
-                nonce: nonce.to_owned(),
-                expires_at,
-            },
-            now,
-        )
-        .await
+        safe_equal(mac.as_bytes(), expected.as_bytes())
     }
 
     fn verify(
@@ -886,24 +931,28 @@ fn hold_mac(key: &[u8], binding: &str, nonce: &str, expires_at: i64) -> String {
 /// Longest input shown in an approval elicitation, in characters.
 const MAX_SHOWN_INPUT: usize = 1000;
 
-/// The question of a relayed approval: an optional note, the summary, then what exactly would run.
-fn relay_message(summary: &str, command: &str, input: &str, note: Option<&str>) -> String {
+/// `input` as an approval question shows it: cut after [`MAX_SHOWN_INPUT`] characters.
+fn shown_input(input: &str) -> String {
     // TypeScript counts UTF-16 units; characters keep a cut on a character boundary.
-    let shown = if input.chars().count() > MAX_SHOWN_INPUT {
+    if input.chars().count() > MAX_SHOWN_INPUT {
         format!(
             "{}…",
             input.chars().take(MAX_SHOWN_INPUT).collect::<String>()
         )
     } else {
         input.to_owned()
-    };
+    }
+}
+
+/// The question of a relayed approval: an optional note, the summary, then what exactly would run.
+fn relay_message(summary: &str, command: &str, input: &str, note: Option<&str>) -> String {
     note.into_iter()
         .map(str::to_owned)
         .chain([
             summary.to_owned(),
             String::new(),
             format!("Command: {command}"),
-            format!("Input: {shown}"),
+            format!("Input: {}", shown_input(input)),
         ])
         .collect::<Vec<_>>()
         .join("\n")

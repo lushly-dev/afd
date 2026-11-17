@@ -17,6 +17,7 @@ packages:
   - "packages/examples/todo-directclient/backend"
   - "packages/examples/todo-directclient/frontend"
   - "packages/examples/seed-library"
+  - "packages/examples/pond"
   - "packages/examples/showcase/backend"
 
 # Dependabot resolves with a 3-day minimum release age and fails every update while the lockfile

@@ -95,7 +95,8 @@ async fn grouped_actions_and_afd_detail_report_scopes_and_nothing_is_enforced() 
         detail["data"][0]["scopes"],
         json!(["todo:write", "todo:admin"])
     );
-    assert_eq!(detail["data"][1]["scopes"], json!([]));
+    // As in `_meta`, an empty array is omitted.
+    assert!(detail["data"][1].get("scopes").is_none(), "{detail}");
     // Without authorization, scopes are metadata only.
     let ran = modern_post(
         &server,

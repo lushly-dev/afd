@@ -175,6 +175,6 @@ def create_afd_docs_command(
             )
         ],
         input_schema=AfdDocsInput.model_json_schema(),
-        returns=AfdDocsOutput.model_json_schema(),
+        returns=AfdDocsOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )

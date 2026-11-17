@@ -247,6 +247,31 @@ describe('afd-detail', () => {
 		}
 	});
 
+	it('reports requires, examples and contexts when a command declares them', () => {
+		const cmd = defineCommand({
+			name: 'todo-update',
+			description: 'Updates a todo item',
+			input: z.object({ id: z.string() }),
+			requires: ['todo-list'],
+			examples: [{ title: 'Rename one', input: { id: 't-1' } }],
+			contexts: ['planning'],
+			handler: async () => ({ success: true as const, data: null }),
+		});
+		const commands = [...createTestCommands(), cmd];
+		const result = executeDetail(commands, new Set(commands.map((c) => c.name)), {
+			command: ['todo-update', 'todo-list'],
+		});
+		expect(result.data?.[0]).toMatchObject({
+			requires: ['todo-list'],
+			examples: [{ title: 'Rename one', input: { id: 't-1' } }],
+			contexts: ['planning'],
+		});
+		// Unset or empty, they are omitted.
+		expect(result.data?.[1]).not.toHaveProperty('requires');
+		expect(result.data?.[1]).not.toHaveProperty('examples');
+		expect(result.data?.[1]).not.toHaveProperty('contexts');
+	});
+
 	it('omits outputSchema when command has no output', () => {
 		const commands = createTestCommands();
 		const exposedNames = new Set(commands.map((c) => c.name));

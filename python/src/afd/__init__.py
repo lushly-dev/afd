@@ -317,6 +317,11 @@ if TYPE_CHECKING:
         McpClientConfig,
         create_client,
     )
+    from afd.transports.streamable_http import (
+        ElicitationHandler,
+        ElicitationRequest,
+        ElicitationResponse,
+    )
 
 # The MCP client needs the optional ``client`` extra (httpx, mcp), so its
 # exports are imported on first access instead of when ``afd`` is imported.
@@ -325,6 +330,9 @@ _LAZY_EXPORTS = {
     "McpClientConfig": "afd.client",
     "ClientStatus": "afd.client",
     "create_client": "afd.client",
+    "ElicitationHandler": "afd.client",
+    "ElicitationRequest": "afd.client",
+    "ElicitationResponse": "afd.client",
 }
 
 
@@ -560,6 +568,9 @@ __all__ = [
     "McpClientConfig",
     "ClientStatus",
     "create_client",
+    "ElicitationHandler",
+    "ElicitationRequest",
+    "ElicitationResponse",
     # Platform utilities
     "ExecErrorCode",
     "ExecOptions",

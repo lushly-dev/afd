@@ -229,6 +229,7 @@ Engine and framework adapters (Unreal, Unity, Godot, Qt, …) are **not** part o
   - Commands need `expose = {.mcp = true}`.
   - Set the caller's identity in `StdioServerOptions::context_hook`, never `approval`.
   - Approval elicitation needs the middleware's `relay = ApprovalRelay::mcp_elicitation`.
+  - A command's `output_schema` becomes the tool's top-level `outputSchema`, which clients check `structuredContent` against, so `data` must match it; `advertise_output_schema = false` drops it.
   - For another transport, wrap `CommandRegistry::execute` and use `command_to_mcp_tool` (`afd/mcp.hpp`) for the tool list.
 
 ## Testing

@@ -167,6 +167,9 @@ class ServerConfig:
     first_class_tools: list[str] | None = None
     """``tool_strategy="hybrid"`` only: the commands listed as tools after the meta-tools, in
     order (1 to 8 names). Checked against the registered commands before the first request."""
+    advertise_output_schema: bool = True
+    """Advertise the CommandResult envelope as a command tool's top-level ``outputSchema``
+    (``spec/command-metadata.md``, "Structured results"). ``_meta.outputSchema`` stays either way."""
     context_fields: list[ContextField] = field(default_factory=list)
     """Request values the host declares (``spec/context-fields.md``), checked at construction.
     MCP ``tools/call`` reads them from ``params._meta``; ``server/discover`` and ``afd-help``
@@ -1112,6 +1115,7 @@ class MCPServer:
             active_context=self._context_state.get_active(),
             confirmations=self.config.confirmations,
             first_class_tools=self.config.first_class_tools,
+            output_schema=self.config.advertise_output_schema,
         )
 
     def get_mcp_tools(self) -> list[dict[str, Any]]:
@@ -1138,6 +1142,7 @@ class MCPServer:
             active_context=None,
             confirmations=self.config.confirmations,
             first_class_tools=self.config.first_class_tools,
+            output_schema=self.config.advertise_output_schema,
         )
         for tool_definition in definitions:
             tool = self._create_fastmcp_tool(tool_definition)
@@ -1529,11 +1534,15 @@ class _SdkConfirmationChannel:
 
 
 def _tool_call_result(result: Any) -> Any:
-    """Wrap a routed result in an MCP CallToolResult in the AFD wire format."""
+    """Wrap a routed result in an MCP CallToolResult in the AFD wire format: the whole result
+    as ``structuredContent`` and the same JSON as text (``spec/command-metadata.md``,
+    "Structured results")."""
     from mcp.types import CallToolResult, TextContent
 
+    wire = to_wire(result)
     return CallToolResult(
-        content=[TextContent(type="text", text=json.dumps(to_wire(result)))],
+        content=[TextContent(type="text", text=json.dumps(wire))],
+        structuredContent=wire if isinstance(wire, dict) else None,
         isError=_is_error_result(result),
     )
 
@@ -1588,6 +1597,7 @@ def create_server(
     confirmation_key: bytes | str | None = None,
     first_class_tools: Sequence[str] | None = None,
     context_fields: Sequence[ContextField | dict[str, Any]] | None = None,
+    advertise_output_schema: bool = True,
 ) -> MCPServer:
     """Create a new AFD MCP server.
 
@@ -1657,6 +1667,13 @@ def create_server(
             Default: a random key per process. The state is bound to the call's
             principal binding (``afd.server.principal``, #532): ``actor`` and the
             issuer, subject and client of the access token the SDK verified.
+        advertise_output_schema: Advertise a top-level MCP ``outputSchema`` (the
+            CommandResult envelope, with ``data`` typed by ``output_schema``) on each command
+            listed as its own tool. MCP clients validate a result's ``structuredContent``
+            against it, so a handler whose ``data`` does not match its declared output schema
+            fails on the client; set False to switch it off. Every tool result carries the
+            whole CommandResult as ``structuredContent`` either way, and ``_meta.outputSchema``
+            is always reported. Mirrors TypeScript's ``advertiseOutputSchema``.
     """
     if confirmations not in CONFIRMATION_MODES:
         raise ValueError("confirmations must be 'off', 'enforce' or 'require-human'")
@@ -1694,6 +1711,7 @@ def create_server(
         confirmations=confirmations,
         confirmation_key=confirmation_key,
         first_class_tools=first_class_tools,  # type: ignore[arg-type]  # MCPServer checks it
+        advertise_output_schema=advertise_output_schema,
         # MCPServer checks the declarations and converts mappings.
         context_fields=[] if context_fields is None else context_fields,  # type: ignore[arg-type]
     )

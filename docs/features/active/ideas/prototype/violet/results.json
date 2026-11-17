@@ -126,15 +126,10 @@
 			"check": 9,
 			"name": "compare two framings",
 			"outcome": "works as is",
-			"note": "tokens.compare (onlyDifferent) and compare.nodes both run; composite values compare whole, so a tags-only change counts the same as a reworded statement (4 differing rows)",
+			"note": "tokens.compare (onlyDifferent) runs; composite values compare whole, so a tags-only change counts the same as a reworded statement (4 differing rows)",
 			"evidence": {
 				"tokensCompare": {
 					"baseline": "public"
-				},
-				"compareNodes": {
-					"nodeA": "public",
-					"nodeB": "book",
-					"similarity": 99
 				},
 				"diffCount": 4,
 				"sample": "{\"nodes\":[{\"id\":\"public\",\"name\":\"public\",\"type\":\"custom\",\"depth\":1},{\"id\":\"book\",\"name\":\"book\",\"type\":\"custom\",\"depth\":1}],\"baseline\":\"public\",\"tokens\":[{\"id\":\"idea.i0004\",\"category\":\"custom\",\"tier\":\"semantic\",\"differs\":true,\"cells\":{\"public\":{\"state\":\"inherited\",\"value\":{\"statement\":\"root rewording\",\"type\":\"method\",\"tags\":[\"harvest\",\"tools\"]},\"resolvedValue\":\"{\\\"statement\\\":\\\"root rewording\\\",\\\"type\\\":\\\"method\\\",\\\"tags\\\":[\\\"harvest\\\",\\\"tools\\\"]}\",\"source\":\"core\",\"differs\":false},\"book\":{\"state\":\"override\",\"value\":{\"statement\":\"book wording\",\"type\":\"method\",\"tags\":[\"harvest\",\"tools\"]},\"resolve"

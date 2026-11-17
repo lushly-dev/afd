@@ -93,6 +93,26 @@ Json command_to_mcp_tool(const CommandDefinition& command) {
     return tool;
 }
 
+Json command_result_output_schema(const Json& data_schema) {
+    Json data = data_schema;
+    Json envelope{{"type", "object"}};
+    if (data.is_object()) {
+        data.erase("$schema");
+        for (const char* key : {"$defs", "definitions"}) {
+            if (const auto defs = data.find(key); defs != data.end()) {
+                envelope[key] = std::move(*defs);
+                data.erase(key);
+            }
+        }
+    }
+    envelope["properties"] = Json{{"success", {{"type", "boolean"}}},
+                                  {"data", std::move(data)},
+                                  {"error", {{"type", "object"}}},
+                                  {"metadata", {{"type", "object"}}}};
+    envelope["required"] = Json::array({"success"});
+    return envelope;
+}
+
 std::vector<Json> commands_to_mcp_tools(const std::vector<CommandDefinition>& commands) {
     std::vector<Json> tools;
     for (const auto& command : commands) {

@@ -60,7 +60,11 @@ use super::meta_tools;
 use super::strategy::{command_action, command_group, ToolStrategy};
 use super::tasks;
 use super::McpServer;
-use crate::approval::relay::{ApprovalRelayChannel, Asked, RoundAnswers, APPROVAL_INPUT_KEY};
+use crate::approval::relay::{ApprovalRelayChannel, RoundAnswers};
+
+mod up_front;
+
+use up_front::{UpFrontCall, UpFrontOutcome};
 
 static TRACE_COUNTER: AtomicU64 = AtomicU64::new(0);
 
@@ -539,19 +543,16 @@ impl Call<'_> {
                 return command_result(&result);
             };
             let answer = serde_json::to_value(answer).unwrap_or(Value::Null);
-            let asked = Asked {
-                k: APPROVAL_INPUT_KEY.to_owned(),
-                b: hold.binding,
-                t: i64::MAX,
-                n: Some(hold.nonce),
-                x: Some(hold.expires_at),
-                m: Some(hold.mac),
-            };
+            let accept =
+                answer["action"] == "accept" && answer["content"]["approve"] == Value::Bool(true);
             answers = RoundAnswers::default();
-            if answer["action"] == "accept" && answer["content"]["approve"] == Value::Bool(true) {
-                answers.accepted.push(asked);
-            } else {
-                answers.declined.push(asked);
+            for question in &hold.questions {
+                let asked = question.asked(i64::MAX);
+                if accept {
+                    answers.accepted.push(asked);
+                } else {
+                    answers.declined.push(asked);
+                }
             }
         }
         let carried = Arc::new(answers);
@@ -666,7 +667,7 @@ impl Call<'_> {
                         (command, tool)
                     })
                     .collect();
-                command_result(&meta_tools::detail(&commands, &args))
+                command_result(&meta_tools::detail(&commands, &args, self.known.as_ref()))
             }
             Err(error) => refused(*error),
         }
@@ -732,13 +733,26 @@ impl Call<'_> {
             Decision::Ask(response) => return Ok(response),
             Decision::Internal => return Err(confirmation_internal()),
         }
-        let result = self
-            .server
-            .inner
-            .registry
-            .execute_batch_with_context(request, self.step_context())
+        let registry = &self.server.inner.registry;
+        let Some(steps) = self.batch_up_front(&request) else {
+            let result = registry
+                .execute_batch_with_context(request, self.step_context())
+                .await;
+            return tool_result(&result, !result.success);
+        };
+        // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
+        let call = UpFrontCall::new("afd-batch", &request, false);
+        let outcome = self
+            .run_up_front(call, steps, &round, |context| {
+                registry.execute_batch_with_context(request.clone(), context)
+            })
             .await;
-        tool_result(&result, !result.success)
+        match outcome {
+            UpFrontOutcome::Ran(result) => tool_result(&result, !result.success),
+            UpFrontOutcome::Refused(error) => batch_failure(error),
+            UpFrontOutcome::Ask(response) => Ok(response),
+            UpFrontOutcome::Internal => Err(confirmation_internal()),
+        }
     }
 
     async fn afd_pipe(&self, args: Map<String, Value>) -> Result<CallToolResponse, ErrorData> {
@@ -796,17 +810,43 @@ impl Call<'_> {
             Decision::Ask(response) => return Ok(response),
             Decision::Internal => return Err(confirmation_internal()),
         }
-        let registry = Arc::clone(&self.server.inner.registry);
-        let base = self.step_context();
-        let executor: CommandExecutor = Arc::new(move |command, input, step| {
-            let registry = Arc::clone(&registry);
-            let mut context = base.clone();
-            if let Some(trace) = step.get("traceId").and_then(Value::as_str) {
-                context.trace_id = Some(trace.to_owned());
-            }
-            Box::pin(async move { registry.execute(&command, input, Some(context)).await })
-        });
-        let result = execute_pipeline(&request, &executor, None).await;
+        let run = |base: CommandContext| {
+            let registry = Arc::clone(&self.server.inner.registry);
+            let executor: CommandExecutor = Arc::new(move |command, input, step| {
+                let registry = Arc::clone(&registry);
+                let mut context = base.clone();
+                if let Some(trace) = step.get("traceId").and_then(Value::as_str) {
+                    context.trace_id = Some(trace.to_owned());
+                }
+                Box::pin(async move { registry.execute(&command, input, Some(context)).await })
+            });
+            let request = &request;
+            async move { execute_pipeline(request, &executor, None).await }
+        };
+        let result = match self.pipeline_up_front(&request) {
+            None => run(self.step_context()).await,
+            // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs.
+            Some(steps) => match self
+                .run_up_front(
+                    UpFrontCall::new(
+                        "afd-pipe",
+                        &request,
+                        request.steps.iter().any(|step| step.when.is_some()),
+                    ),
+                    steps,
+                    &round,
+                    run,
+                )
+                .await
+            {
+                UpFrontOutcome::Ran(result) => result,
+                UpFrontOutcome::Refused(error) => {
+                    return tool_result(&pipeline_failure(&error), true)
+                }
+                UpFrontOutcome::Ask(response) => return Ok(response),
+                UpFrontOutcome::Internal => return Err(confirmation_internal()),
+            },
+        };
         let failed = result
             .steps
             .iter()

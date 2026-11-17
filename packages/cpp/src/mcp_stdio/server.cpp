@@ -212,8 +212,12 @@ CommandResult unanswered(std::string_view key, std::string_view command, std::st
     });
 }
 
+/// A `tools/call` result: the CommandResult as `structuredContent` and the same JSON as text.
 Json tool_result(const CommandResult& result) {
-    return {{"content", {{{"type", "text"}, {"text", wire::serialize(Json(result))}}}},
+    Json structured(result);
+    std::string text = wire::serialize(structured);
+    return {{"content", {{{"type", "text"}, {"text", std::move(text)}}}},
+            {"structuredContent", std::move(structured)},
             {"isError", !result.success}};
 }
 
@@ -329,6 +333,10 @@ struct StdioServer::State {
                     schema = Json{{"type", "object"}};
                 }
                 schema["properties"]["confirm"] = confirm_property();
+            }
+            if (options.advertise_output_schema && command->definition.output_schema) {
+                tool["outputSchema"] =
+                    command_result_output_schema(*command->definition.output_schema);
             }
             tools.push_back(std::move(tool));
         }

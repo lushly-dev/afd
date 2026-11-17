@@ -68,6 +68,12 @@ const styles = css`
         line-height: 0;
     }
 
+    /*
+     * The native input is transparent but fills the whole control shell, so it is
+     * the element a pointer (or a role-based click) lands on: the decorative track
+     * does not take pointer events, and a clipped box would have no hit area. It
+     * has no z-index, so it never competes with page content outside the control.
+     */
     .input {
         position: absolute;
         inset: 0;
@@ -75,17 +81,17 @@ const styles = css`
         block-size: 100%;
         margin: 0;
         padding: 0;
+        appearance: none;
         opacity: 0;
-        overflow: hidden;
         border: 0;
-        clip: rect(0 0 0 0);
-        white-space: nowrap;
+        cursor: inherit;
     }
 
     .track {
         box-sizing: border-box;
         position: relative;
         display: inline-block;
+        pointer-events: none;
         inline-size: var(--_track-inline-size);
         block-size: var(--_track-block-size);
         border: var(--_track-border-width) solid var(--_border-strong);

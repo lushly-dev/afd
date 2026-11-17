@@ -209,7 +209,7 @@ class TestCommandToDefinition:
         assert definition.category == "documents"
         assert definition.tags == ["test"]
         assert definition.mutation is True
-        assert definition.returns == GreetOutput.model_json_schema()
+        assert definition.returns == GreetOutput.model_json_schema(mode="serialization")
         assert definition.requires == ["setup-run"]
         assert definition.contexts == ["workspace"]
 

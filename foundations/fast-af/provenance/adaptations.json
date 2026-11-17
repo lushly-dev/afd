@@ -9117,11 +9117,11 @@
       "upstream_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.spec.ts",
       "staged_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
-      "current_import_sha256": "a786868e249c4374a4b0b0ef85e78d3797fd139817a7c4a4ff320fd2146d0dd1",
+      "current_import_sha256": "b2c5f0ed11828e3aff5dba1ca36da84f3dd81750bc0d9fa7bce39e666b6e39cc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501); violet-switch: the native input fills the control shell and receives pointer events, so role-based clicks toggle it; real-browser hit-area specs (#501)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.stories.ts",
@@ -9129,11 +9129,11 @@
       "upstream_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.stories.ts",
       "staged_sha256": "b2ad27fecd306498559fee101687767586446e1720681e1c9868e1c7eb000131",
-      "current_import_sha256": "2e56566bcaec39f0b05866ee43d8d5c7d9218c4c8c8bcb0614af5b3e72ab2fd9",
+      "current_import_sha256": "90239f40946fd6d74756cc9c97f1eacbadb23412e68b5c8f0cf3856cf234fd2c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check"
+      "import_reason": "Imported exact staged bytes; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Component Briefs B4: name each story file's component in its CSF meta, so Specimen asks the FAST-AF plugin about it and a component pack takes its examples and accessibility counts from its own stories; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; violet-switch: the native input fills the control shell and receives pointer events, so role-based clicks toggle it; the story clicks it by role; real-browser hit-area specs (#501)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/switch/violet-switch.ts",
@@ -9141,11 +9141,11 @@
       "upstream_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.ts",
       "staged_sha256": "61cba1d71b9f92865cf511087eff6a72fb762284b351d6d9d9abc7a0e602061a",
-      "current_import_sha256": "335ac3ea0828db8bebfd26614ff1458b2482bf697626fdc057eac2903c834e4c",
+      "current_import_sha256": "8917edbadb47b23e4c0e6a3f353124662f8b6b7703dbbde49f272158f7058486",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); violet-switch: the native input covers the control and receives pointer events, so role-based clicks toggle it (#501); violet-switch: the native input fills the control shell and receives pointer events, so role-based clicks toggle it; real-browser hit-area specs (#501)"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/tab-panel/violet-tab-panel.spec.ts",

@@ -13,6 +13,14 @@ import { type JsonSchema, toJsonSchema } from './json-schema.js';
  * - z.input<TSchema>: What callers provide (with optional fields)
  * - z.output<TSchema>: What handlers receive (after defaults applied)
  */
+/** What a deprecated command points to and when it goes away. */
+export interface CommandDeprecation {
+	/** The command that replaces it (e.g., 'tokens.compare') */
+	replacement: string;
+	/** The release that removes it, as a sentence fragment (e.g., '@lushly-dev/violet-afd 0.5.0') */
+	removal: string;
+}
+
 export interface CommandDefinition<TSchema extends z.ZodType, TOutput> {
 	/** Unique command name (e.g., 'node.create') */
 	name: string;
@@ -32,6 +40,12 @@ export interface CommandDefinition<TSchema extends z.ZodType, TOutput> {
 		| 'webhook'
 		| 'audit'
 		| 'specimen';
+
+	/**
+	 * Marks the command as superseded. Surfaces that list or run it (the docs, the
+	 * HTTP API's `Deprecation` header) read it; the command's own result carries the note.
+	 */
+	deprecated?: CommandDeprecation;
 
 	/** Zod schema for input validation */
 	inputSchema: TSchema;
