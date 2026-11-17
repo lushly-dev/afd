@@ -25,9 +25,9 @@
   that name none.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-16 for amendment A28: `cargo test --locked -p umbel-plugin-components`, the
-  scenario validated with `afd scenario validate`, `node --test scripts/umbel-components.test.mjs` and the
-  Umbel gate (Umbel's STATUS.md). Before that, 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-17 for amendment A28, on `0f625e26`: `cargo test --locked -p umbel-plugin-components`
+  (144 tests), both scenarios validated with `afd scenario validate`, `node --test scripts/umbel-components.test.mjs`
+  and `pnpm verify --keep-going` (Umbel's STATUS.md). Before that, 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
