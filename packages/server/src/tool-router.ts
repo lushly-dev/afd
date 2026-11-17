@@ -25,7 +25,13 @@ import {
 	truncateName,
 } from '@lushly-dev/afd-core';
 import { commandNotAllowed } from '@lushly-dev/afd-core/internal/direct-allow';
-import { approvalRelay, withoutApprovalRelay } from './approval-relay.js';
+import {
+	approvalRelay,
+	bindUpFrontApproval,
+	type UpFrontApproval,
+	type UpFrontStep,
+	withoutApprovalRelay,
+} from './approval-relay.js';
 import type { ContextState } from './bootstrap/afd-context.js';
 import { filterAllowed, isCommandAllowed } from './command-allow.js';
 import {
@@ -58,6 +64,7 @@ import {
 import type { ZodCommandDefinition } from './schema.js';
 import { knownOnly, listedCommands, scopeViewOf, shownOnly } from './scope-view.js';
 import type { ToolStrategy } from './server-types.js';
+import { batchSteps, pipelineSteps } from './up-front-steps.js';
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // TYPES
@@ -225,6 +232,33 @@ export function createToolRouter(deps: ToolRouterDeps) {
 			...callContext,
 			traceId: `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2)}`,
 		});
+		/**
+		 * The context of a batch's or pipeline's steps. Steps cannot ask for approval mid-run (the
+		 * retry would run the earlier steps again), so a call that can ask is approved up front, as
+		 * a whole, before any step runs (#459); its steps are worked out only if the approval
+		 * middleware asks for them.
+		 */
+		const stepsContext = (
+			tool: UpFrontApproval['tool'],
+			prefix: string,
+			steps: () => UpFrontStep[]
+		): { context: CommandContext; upFront?: UpFrontApproval } => {
+			const relay = approvalRelay(callContext);
+			if (!relay) return { context: traced(prefix) };
+			let known: UpFrontStep[] | undefined;
+			const upFront: UpFrontApproval = {
+				tool,
+				relay,
+				steps: () => {
+					known ??= steps();
+					return known;
+				},
+			};
+			return {
+				context: bindUpFrontApproval(withoutApprovalRelay(traced(prefix)), upFront),
+				upFront,
+			};
+		};
 
 		// MCP authorization (spec/authorization.md, M6). After routing and before the confirmation
 		// gate, every call is decided again: a missing scope fails it, a batch or pipeline as a
@@ -368,11 +402,12 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				(outcome) => resultContent(createFailedBatchResult(outcome.error, {}), true)
 			);
 			if (unconfirmed) return unconfirmed;
-			// Steps cannot ask for approval mid-run: the retry would run the earlier steps again.
-			const result = await executeBatch(
-				withoutConfirm(args),
-				withoutApprovalRelay(traced('batch'))
-			);
+			const request = withoutConfirm(args);
+			const steps = stepsContext('afd-batch', 'batch', () => batchSteps(request, commands));
+			const result = await executeBatch(request, steps.context);
+			// Nothing ran: the whole batch was refused, or waits for the user's approval.
+			const refusal = steps.upFront?.refusal;
+			if (refusal) return resultContent(createFailedBatchResult(refusal, {}), true);
 			return resultContent(result, !result.success);
 		}
 
@@ -413,10 +448,11 @@ export function createToolRouter(deps: ToolRouterDeps) {
 				(outcome) => resultContent(failedPipeline(outcome.error), true)
 			);
 			if (unconfirmed) return unconfirmed;
-			const result = await executePipeline(
-				withoutConfirm(args),
-				withoutApprovalRelay(traced('pipeline'))
-			);
+			const request = withoutConfirm(args);
+			const steps = stepsContext('afd-pipe', 'pipeline', () => pipelineSteps(request, commands));
+			const result = await executePipeline(request, steps.context);
+			const refusal = steps.upFront?.refusal;
+			if (refusal) return resultContent(failedPipeline(refusal), true);
 			const hasFailed = result.steps.some((s) => s.status === 'failure');
 			return resultContent(result, hasFailed);
 		}

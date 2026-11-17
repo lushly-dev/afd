@@ -66,6 +66,8 @@ mod resolve;
 
 use resolve::exceeds_depth;
 
+#[cfg(feature = "server")]
+pub(crate) use resolve::reads_step_data;
 pub use resolve::{
     evaluate_condition, get_nested_value, resolve_reference, resolve_variable, resolve_variables,
 };

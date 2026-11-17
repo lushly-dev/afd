@@ -1689,3 +1689,83 @@ async fn a_relayed_approval_counts_only_within_this_middlewares_lifetime() {
         assert_eq!(channel.held().is_some(), !runs, "{expires_at}");
     }
 }
+
+// ─── The up-front approval of afd-batch and afd-pipe (#459) ─────────────────────────────────────
+
+#[tokio::test]
+async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options.with_relay(ApprovalRelay::McpElicitation)
+    });
+    let answers = Arc::new(relay::RoundAnswers {
+        accepted: vec![accepted_answer(START + 4 * 60_000)],
+        declined: Vec::new(),
+    });
+    let channel = Arc::new(relay::ApprovalRelayChannel::up_front(Box::new(move || {
+        Some(Arc::clone(&answers))
+    })));
+    let step = relay::UpFrontStep {
+        index: 0,
+        command: "todo-delete".into(),
+        dynamic: false,
+        input: Some(validated(1)),
+    };
+    let up_front = Arc::new(relay::UpFrontApproval::new(
+        "afd-batch",
+        vec![step],
+        Arc::clone(&channel),
+    ));
+    let mut context = CommandContext::new().with_actor(agent());
+    context.up_front_approval = Some(up_front);
+    // Another input (say, a nested call's) does not take the step's approval.
+    let other = harness
+        .call("todo-delete", json!({ "id": 2 }), context.clone())
+        .await;
+    assert_eq!(
+        other.error.map(|error| error.code),
+        Some(error_codes::APPROVAL_REQUIRED.to_owned())
+    );
+    let own = harness
+        .call("todo-delete", json!({ "id": 1 }), context.clone())
+        .await;
+    assert!(own.success, "{own:?}");
+    let again = harness
+        .call("todo-delete", json!({ "id": 1 }), context)
+        .await;
+    assert!(!again.success);
+    assert_eq!(harness.handled.load(Ordering::SeqCst), 1);
+    assert!(channel.held().is_none());
+}
+
+#[tokio::test]
+async fn the_handler_never_sees_the_up_front_approval() {
+    struct Sees(Arc<Mutex<Vec<bool>>>);
+    #[async_trait]
+    impl CommandHandler for Sees {
+        async fn execute(&self, _: Value, context: CommandContext) -> CommandResult<Value> {
+            self.0
+                .lock()
+                .unwrap()
+                .push(context.up_front_approval.is_some());
+            success(json!(null))
+        }
+    }
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let registry = CommandRegistry::new();
+    registry
+        .register(CommandDefinition::new(
+            "peek-run",
+            "Peek",
+            vec![],
+            Sees(Arc::clone(&seen)),
+        ))
+        .unwrap();
+    let mut context = CommandContext::new();
+    context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
+        "afd-batch",
+        Vec::new(),
+        Arc::new(relay::ApprovalRelayChannel::never_asks()),
+    )));
+    registry.execute("peek-run", json!({}), Some(context)).await;
+    assert_eq!(*seen.lock().unwrap(), vec![false]);
+}

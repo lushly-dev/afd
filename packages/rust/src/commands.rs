@@ -1791,6 +1791,7 @@ fn middleware_chain(
             // Relay evidence and the approval relay serve the call that reached the middleware,
             // never a command the handler runs in process with this context.
             context.relay_evidence = None;
+            context.up_front_approval = None;
             if context.approval_relay.is_some() {
                 context.approval_relay = Some(Arc::new(
                     crate::approval::relay::ApprovalRelayChannel::never_asks(),

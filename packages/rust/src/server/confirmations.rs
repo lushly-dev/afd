@@ -259,32 +259,35 @@ impl Round {
         Some(Arc::new(answers))
     }
 
-    /// The `input_required` result asking `question` with one form elicitation. The state carries
-    /// the answers accepted so far, except earlier answers to the same question (`replaces`, the
-    /// question's bindings under every key). `None` when the call's credentials cannot be bound:
-    /// no state is minted for it.
+    /// The `input_required` result asking `questions` with one form elicitation under their
+    /// shared input key: one answer covers them all. The state carries the answers accepted so
+    /// far, except earlier answers to the same questions (`replaces`, their bindings under every
+    /// key). `None` when the call's credentials cannot be bound: no state is minted for it.
     fn ask(
         &self,
-        question: Asked,
+        questions: Vec<Asked>,
         message: String,
         requested_schema: Value,
         replaces: &[String],
     ) -> Option<CallToolResponse> {
         let binding = self.binding.as_ref()?;
         let answers = self.answers()?;
+        let key = questions.first()?.k.clone();
         let kept: Vec<Asked> = answers
             .accepted
             .iter()
-            .filter(|item| item.k != question.k || !replaces.contains(&item.b))
+            .filter(|item| item.k != key || !replaces.contains(&item.b))
             .cloned()
             .collect();
-        let key = question.k.clone();
-        let asked = Asked {
-            t: now_ms().saturating_add(STATE_TTL.as_millis() as i64),
-            ..question
-        };
+        let deadline = now_ms().saturating_add(STATE_TTL.as_millis() as i64);
         let payload = serde_json::to_vec(&RoundState {
-            p: vec![asked],
+            p: questions
+                .into_iter()
+                .map(|question| Asked {
+                    t: deadline,
+                    ..question
+                })
+                .collect(),
             a: kept,
         })
         .ok()?;
@@ -306,20 +309,17 @@ impl Round {
         Some(CallToolResponse::InputRequired(result))
     }
 
-    /// The `input_required` result asking for the approval the middleware held.
+    /// The `input_required` result asking for the approval the middleware held: one command's,
+    /// or every gated step's of an up-front batch or pipeline.
     pub(crate) fn ask_approval(&self, hold: &ApprovalHold) -> Option<CallToolResponse> {
         self.ask(
-            Asked {
-                k: APPROVAL_INPUT_KEY.to_owned(),
-                b: hold.binding.clone(),
-                t: 0,
-                n: Some(hold.nonce.clone()),
-                x: Some(hold.expires_at),
-                m: Some(hold.mac.clone()),
-            },
+            hold.questions
+                .iter()
+                .map(|question| question.asked(0))
+                .collect(),
             hold.message.clone(),
             approval_requested_schema(),
-            &hold.bindings,
+            &hold.bindings(),
         )
     }
 }
@@ -540,7 +540,12 @@ pub(crate) async fn check(
                 x: None,
                 m: None,
             };
-            return match round.ask(asked, message, confirm_requested_schema(), &[question]) {
+            return match round.ask(
+                vec![asked],
+                message,
+                confirm_requested_schema(),
+                &[question],
+            ) {
                 Some(response) => Decision::Ask(response),
                 None => Decision::Internal,
             };

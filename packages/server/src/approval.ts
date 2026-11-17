@@ -58,7 +58,13 @@ import {
 	safeEqualText,
 	toKeys,
 } from './approval-crypto.js';
-import { type ApprovalAnswer, approvalRelay, relayMessage } from './approval-relay.js';
+import {
+	type AcceptedApproval,
+	approvalRelay,
+	relayMessage,
+	upFrontApproval,
+} from './approval-relay.js';
+import { createUpFrontGate } from './approval-up-front.js';
 
 export { type ApprovalSecret, canonicalJson };
 
@@ -166,8 +172,10 @@ export interface ApprovalMiddlewareOptions {
 	 * the application obtains the approval out of band. `'mcp-elicitation'`: a call to a single
 	 * command from an MCP client that declares form elicitation is answered with a form
 	 * elicitation showing the summary, and runs once the human accepts. No token is issued on that
-	 * path. Calls that cannot elicit (no capability, a 2025-era HTTP request, an `afd-batch` or
-	 * `afd-pipe` step) still fail with `APPROVAL_REQUIRED`.
+	 * path. An `afd-batch` or `afd-pipe` from such a client is asked about once, before any step
+	 * runs, listing every gated step; a pipeline whose gated step takes its input from an earlier
+	 * step runs nothing and fails with `APPROVAL_REQUIRED`. Calls that cannot elicit (no
+	 * capability, a 2025-era HTTP request) still fail with `APPROVAL_REQUIRED`.
 	 *
 	 * This trusts the MCP client application to show the question to a human: the server cannot
 	 * tell a person's answer from client code that accepts on its own. Leave it off when the
@@ -353,9 +361,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		return base64url(await hmac(key, `relay-hold\0${canonicalJson([binding, nonce, expiresAt])}`));
 	}
 
-	/** Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent. */
-	async function relayedApprovalHolds(
-		answer: Extract<ApprovalAnswer, { kind: 'accept' }>,
+	/** Whether an accepted relayed approval was issued by this middleware and is unexpired. */
+	async function genuine(
+		answer: AcceptedApproval,
 		bindings: readonly string[],
 		now: number
 	): Promise<boolean> {
@@ -363,7 +371,16 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		if (!key) return false;
 		const expected = await holdMac(key, answer.binding, answer.nonce, answer.expiresAt);
 		if (!safeEqualText(answer.mac, expected)) return false;
-		if (now >= answer.expiresAt || answer.expiresAt > now + ttlMs) return false;
+		return now < answer.expiresAt && answer.expiresAt <= now + ttlMs;
+	}
+
+	/** Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent. */
+	async function relayedApprovalHolds(
+		answer: AcceptedApproval,
+		bindings: readonly string[],
+		now: number
+	): Promise<boolean> {
+		if (!(await genuine(answer, bindings, now))) return false;
 		return spend(answer.nonce, answer.expiresAt, now);
 	}
 
@@ -376,6 +393,35 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			: (await options.nonceStore?.consume(nonce, expiresAt)) === true;
 	}
 
+	function summarize(commandName: string, input: unknown, context: CommandContext): string {
+		return (
+			options.summarize?.(commandName, input, context) ||
+			commands.get(commandName)?.confirmPrompt ||
+			`Run ${commandName}`
+		);
+	}
+
+	const upFrontGate = createUpFrontGate({
+		clock,
+		requiresApproval: (commandName, input, context) =>
+			requiresApproval(commands.get(commandName), input, context),
+		mayRequireApproval: (commandName) => {
+			const policy = commands.get(commandName)?.approval;
+			return policy !== undefined && policy !== 'not-required';
+		},
+		bindings: relayBindings,
+		genuine,
+		spend,
+		question: async (bindings, now) => {
+			const binding = bindings[0] as string;
+			const nonce = base64url(randomBytes(16));
+			const expiresAt = now + ttlMs;
+			const mac = await holdMac(keys[0] as ApprovalKey, binding, nonce, expiresAt);
+			return { binding, bindings, nonce, expiresAt, mac };
+		},
+		summarize,
+	});
+
 	async function sign(payload: TokenPayload): Promise<string> {
 		const signingInput = `${TOKEN_PREFIX}.${base64urlText(JSON.stringify(payload))}`;
 		return `${signingInput}.${base64url(await hmac(keys[0] as ApprovalKey, signingInput))}`;
@@ -386,6 +432,9 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 		// that runs inside another (or after it) cannot turn the tool call into an elicitation.
 		const bound = relayMode === 'mcp-elicitation' ? approvalRelay(context) : undefined;
 		const relay = bound?.claim(commandName) ? bound : undefined;
+		// A step of an afd-batch or afd-pipe that can ask: the whole call is approved up front.
+		const upFront = relayMode === 'mcp-elicitation' ? upFrontApproval(context) : undefined;
+		if (upFront) return upFrontGate(upFront, commandName, input, context, next);
 		const command = commands.get(commandName);
 		if (!(await requiresApproval(command, input, context))) return next();
 
@@ -406,10 +455,7 @@ export function createApprovalMiddleware(options: ApprovalMiddlewareOptions): Co
 			}
 		}
 
-		const summary =
-			options.summarize?.(commandName, input, context) ||
-			command?.confirmPrompt ||
-			`Run ${commandName}`;
+		const summary = summarize(commandName, input, context);
 
 		if (relay) {
 			const bindings = await relayBindings(commandName, inputBinding, actorBinding);
