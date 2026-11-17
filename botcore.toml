@@ -109,10 +109,21 @@ shared_paths = [
     "botcore.toml",
     "**/uv.lock",
     "**/Cargo.lock",
+    ".cargo/**",
 ]
 # ci-ok runs on pull requests only: after a merge that was not validated again, main is red when a
 # check run on its merge commit fails, apart from publishing and deploying.
-main_checks = ["!Version or Publish", "!deploy", "!Reconcile held npm publication", "!Publish to *"]
+main_checks = [
+    "!Version or Publish",
+    "!Reconcile held npm publication",
+    "!Select prebuilt hosts",
+    "!Specimen host (*",
+    "!deploy",
+    "!Publish to *",
+    "!workflow: Release",
+    "!workflow: Deploy site to GitHub Pages",
+    "!workflow: Publish *",
+]
 ignore_branches = ["changeset-release/*"]
 # The cheap stages of pnpm check, run before a branch joins the queue.
 prequeue = [

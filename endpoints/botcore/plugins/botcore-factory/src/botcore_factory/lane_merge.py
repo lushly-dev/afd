@@ -69,8 +69,13 @@ class Merging(Advancing):
         closes = "\n".join(f"Closes #{n}" for n in entry.get("issues", []))
         verified = (
             f"`{' '.join(self.config.validate_command or [])}` passed on {entry['validatedHead']} "
-            f"(base {entry['base']}, tree {entry.get('tree')})."
+            f"(base {entry.get('validatedBase', entry['base'])}, tree {entry.get('tree')})."
         )
+        if entry.get("validatedBase"):
+            verified += (
+                f" Advanced to base {entry['base']} without a new validation: main's changes "
+                "touched none of its units or shared inputs."
+            )
         return f"{text.strip()}\n\n{closes}\n\n## Verification\n\n{verified}\n".lstrip()
 
     def await_check(self, entry: dict) -> None:

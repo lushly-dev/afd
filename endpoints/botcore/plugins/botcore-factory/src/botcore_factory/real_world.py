@@ -268,40 +268,74 @@ class GhGitHub:
         return (data.get("mergeCommit") or {}).get("oid") or None
 
     def commit_checks(self, commit: str) -> dict[str, str]:
+        """Each check run name's worst state across the workflows (check suites) that ran it,
+        the latest run of each within a suite; then each workflow run, as ``workflow: <name>``,
+        so a job GitHub has not created yet still holds the answer at ``pending``."""
         repository = self.repository()
-        found = parse_json(
-            self.run(["gh", "api", f"repos/{repository}/commits/{commit}/check-runs?per_page=100"]),
-            "gh api check-runs",
-        )
-        runs = found.get("check_runs", [])
-        if found.get("total_count", len(runs)) > len(runs):
-            raise WorldError(f"{commit} has more check runs than one read returns")
-        latest: dict[str, dict] = {}
+        runs = self._pages(f"repos/{repository}/commits/{commit}/check-runs", "check_runs")
+        latest: dict[tuple, dict] = {}
         for run in runs:
-            name = run.get("name", "")
-            if (run.get("started_at") or "") >= (latest.get(name, {}).get("started_at") or ""):
-                latest[name] = run
-        checks = {}
-        for name, run in latest.items():
-            conclusion = run.get("conclusion")
-            if run.get("status") != "completed":
-                checks[name] = "pending"
-            elif conclusion in ("success", "neutral"):
-                checks[name] = "success"
-            elif conclusion in ("cancelled", "stale", "skipped"):
-                checks[name] = "skipped" if conclusion == "skipped" else "cancelled"
-            else:
-                checks[name] = "failure"
+            key = ((run.get("check_suite") or {}).get("id"), run.get("name", ""))
+            if (run.get("started_at") or "") >= (latest.get(key, {}).get("started_at") or ""):
+                latest[key] = run
+        checks: dict[str, str] = {}
+        for (_, name), run in latest.items():
+            _worst(checks, name, _run_state(run))
         statuses = parse_json(
             self.run(["gh", "api", f"repos/{repository}/commits/{commit}/status"]),
             "gh api status",
         ).get("statuses", [])
+        seen = set()
         for status in statuses:  # Newest first: the first of each context is its state.
             name = status.get("context", "")
-            if name not in checks:
-                state = status.get("state")
-                checks[name] = {"success": "success", "pending": "pending"}.get(state, "failure")
+            if name not in seen:
+                seen.add(name)
+                state = {"success": "success", "pending": "pending"}.get(status.get("state"))
+                _worst(checks, name, state or "failure")
+        workflows = self._pages(
+            f"repos/{repository}/actions/runs?head_sha={commit}", "workflow_runs"
+        )
+        for run in workflows:
+            _worst(checks, f"workflow: {run.get('name', '')}", _run_state(run))
         return checks
+
+    def _pages(self, path: str, key: str) -> list[dict]:
+        """Every item of a paged list; a read that stops short raises."""
+        items: list[dict] = []
+        separator = "&" if "?" in path else "?"
+        for page in range(1, 11):
+            found = parse_json(
+                self.run(["gh", "api", f"{path}{separator}per_page=100&page={page}"]),
+                f"gh api {key}",
+            )
+            batch = found.get(key, [])
+            items += batch
+            if len(items) >= found.get("total_count", len(items)) or not batch:
+                break
+        if len(items) < found.get("total_count", len(items)):
+            raise WorldError(f"{path} lists more {key} than were read")
+        return items
+
+
+#: A state's weight: the worst of several runs of one name is what that name is.
+_WEIGHT = {"success": 0, "skipped": 1, "cancelled": 2, "pending": 3, "failure": 4}
+
+
+def _worst(checks: dict[str, str], name: str, state: str) -> None:
+    if _WEIGHT[state] >= _WEIGHT.get(checks.get(name, "success"), 0):
+        checks[name] = state
+
+
+def _run_state(run: dict) -> str:
+    """A check run's or workflow run's state."""
+    if run.get("status") != "completed":
+        return "pending"
+    conclusion = run.get("conclusion")
+    if conclusion in ("success", "neutral"):
+        return "success"
+    if conclusion == "skipped":
+        return "skipped"
+    return "cancelled" if conclusion in ("cancelled", "stale") else "failure"
 
 
 class CliGit:

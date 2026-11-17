@@ -15,11 +15,12 @@ with no new validation, when `main`'s changes touch none of the adapter's `share
 `gate_paths`, the validated head merges onto the new base without a conflict (`git merge-tree`),
 and the units `main`'s changes affect share none with the branch's. The adapter's `units` command
 names them; AFD's is `scripts/factory-units.mjs` (packages with their dependents, workflows a path
-triggers, directories, or `*` for a global input). Otherwise it validates again as before; the
+triggers, directories, or `*` for a global input, a manifest or the lockfile). Otherwise it validates again as before; the
 `rerun` record's `detail` says why. An advance is a `base-advanced` record, and `lane-report`
 counts `baseAdvances`. A merge after one is watched on `main`: a check run `main_checks` selects
 failing on its merge commit raises `main-broken` (`reason` `unchecked-merge`, `suspects` the PRs
-merged without a re-check) and pauses the lane. `ci-ok` runs on pull requests only, so AFD's
+merged without a re-check) and pauses the lane; checks still unfinished after
+`lane.checkTimeoutMinutes` are one `lane-error`, and that merge is no longer watched. `ci-ok` runs on pull requests only, so AFD's
 `main_checks` takes every check run on the merge commit except publishing and deploying. Not yet
 seen in a fleet run.
 

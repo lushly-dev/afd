@@ -43,6 +43,7 @@ class Advancing(StepBase):
         if reason is not None:
             self.requeue(entry, "main-moved", detail=reason)
             return False
+        entry.setdefault("validatedBase", old)
         entry["base"] = new
         entry["advanced"] = int(entry.get("advanced", 0)) + 1
         self.record(
@@ -83,7 +84,10 @@ class Advancing(StepBase):
             return None
         try:
             if "units" not in entry:
-                entry["units"] = self.units(entry.get("changed", []))
+                # Both sides of a rename, from the base it was validated on (still ``old`` on
+                # the first advance; the units are kept for the next).
+                mine = self.world.git.diff_names(old, entry["validatedHead"])
+                entry["units"] = self.units(mine)
             theirs = self.units(changed)
         except WorldError as exc:
             return f"the units could not be read: {exc}"
@@ -123,8 +127,13 @@ class Advancing(StepBase):
             )
 
     def poll_unchecked(self) -> None:
-        """Read main's checks on each unchecked merge's commit: a failure pauses the lane."""
+        """Read main's checks on each unchecked merge's commit: a failure pauses the lane.
+
+        While the lane is paused nothing here raises its own trouble, so a paused lane is not
+        filled with ``lane-error`` events; a failure on main is still found and reported.
+        """
         github = self.world.github
+        paused = bool(self.lane.get("paused"))
         for item in list(self.lane.get("uncheckedMerges", [])):
             pr = item["pr"]
             try:
@@ -132,6 +141,8 @@ class Advancing(StepBase):
                     item["commit"] = github.merge_commit(pr)
                 checks = github.commit_checks(item["commit"]) if item.get("commit") else {}
             except WorldError as exc:
+                if paused:
+                    return
                 raise LaneTrouble(f"Reading main's checks after PR {pr} failed: {exc}") from exc
             selected = {
                 name: state
@@ -148,11 +159,13 @@ class Advancing(StepBase):
                 self.actions.append(f"main green after PR {pr}")
                 continue
             limit = self.dial("lane.checkTimeoutMinutes")
-            if self.minutes(item.get("since")) > limit:
-                item["since"] = self.at  # A fresh wait after lane-resume.
+            if self.minutes(item.get("since")) > limit and not paused:
+                # Given up, never watched forever: whoever resumes the lane checks it.
+                self.lane["uncheckedMerges"].remove(item)
                 raise LaneTrouble(
                     f"main's checks on {item.get('commit') or 'the merge'} of PR {pr} (merged "
-                    f"without a re-check) have not finished in {limit} minutes"
+                    f"without a re-check) have not finished in {limit} minutes; the lane no "
+                    "longer watches them: check them, then lane-resume"
                 )
 
     def main_red(self, item: dict, failed: list[str]) -> None:

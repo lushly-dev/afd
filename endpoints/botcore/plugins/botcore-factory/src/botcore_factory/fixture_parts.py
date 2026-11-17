@@ -284,7 +284,8 @@ class FixtureGit:
         return f"tree-{self._slot(path)['head']}"
 
     def diff_names(self, old: str, new: str) -> list[str]:
-        """``main.changes[new]``: what main's move to ``new`` changed (since any ``old``)."""
+        """``main.changes[new]``: what changed up to ``new`` (since any ``old``): main's move, or,
+        keyed by a validated head, the branch's changes."""
         _fail(self.store, "diff")
         return list(self.store.data.get("main", {}).get("changes", {}).get(new, []))
 

@@ -756,22 +756,36 @@ def test_this_machine_s_programs_symlinks_and_versions():
     assert machine.tool_version("botcore-factory-no-such-program") is None
 
 
+def suite_run(conclusion, name, suite, started="2030-01-01T09:00:00Z"):
+    return {**check_run(conclusion, started, name), "check_suite": {"id": suite}}
+
+
 def test_main_s_checks_on_a_merge_commit_are_read_by_name():
     runs = [
-        check_run("failure", name="CI"),
-        check_run("success", "2030-01-01T10:00:00Z", name="CI"),  # A re-run: the latest wins.
-        check_run(None, name="Botcore"),
-        check_run("skipped", name="deploy"),
-        check_run("timed_out", name="Specimen"),
+        suite_run("failure", "CI", 1),
+        suite_run("success", "CI", 1, "2030-01-01T10:00:00Z"),  # A re-run: the latest wins.
+        suite_run(None, "Botcore", 2),
+        suite_run("skipped", "deploy", 3),
+        suite_run("timed_out", "Specimen", 4),
+        # One name in two workflows: a later success elsewhere never hides a failure.
+        suite_run("failure", "Affected units", 5),
+        suite_run("success", "Affected units", 6, "2030-01-01T11:00:00Z"),
+    ]
+    workflows = [
+        {"name": "CI", "status": "completed", "conclusion": "success"},
+        {"name": "Loam", "status": "queued", "conclusion": None},
     ]
     run = FakeRun(
         {
             "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
-            "gh api repos/o/r/commits/m1/check-runs?per_page=100": json.dumps(
+            "gh api repos/o/r/commits/m1/check-runs?per_page=100&page=1": json.dumps(
                 {"total_count": len(runs), "check_runs": runs}
             ),
             "gh api repos/o/r/commits/m1/status": json.dumps(
                 {"statuses": [{"context": "legacy", "state": "error"}]}
+            ),
+            "gh api repos/o/r/actions/runs?head_sha=m1&per_page=100&page=1": json.dumps(
+                {"total_count": 2, "workflow_runs": workflows}
             ),
             "gh pr view": json.dumps({"mergeCommit": {"oid": "m1"}}),
         }
@@ -783,18 +797,31 @@ def test_main_s_checks_on_a_merge_commit_are_read_by_name():
         "Botcore": "pending",
         "deploy": "skipped",
         "Specimen": "failure",
+        "Affected units": "failure",
         "legacy": "failure",
+        "workflow: CI": "success",
+        "workflow: Loam": "pending",
     }
 
 
-def test_a_truncated_read_of_main_s_checks_raises():
-    run = FakeRun(
-        {
-            "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
-            "gh api repos/o/r/commits/m1/check-runs?per_page=100": json.dumps(
-                {"total_count": 101, "check_runs": [check_run("success")]}
-            ),
-        }
+def test_main_s_checks_are_read_across_pages_and_a_short_read_raises():
+    page = [suite_run("success", f"job {n}", n) for n in range(100)]
+    answers = {
+        "gh repo view": json.dumps({"nameWithOwner": "o/r"}),
+        "gh api repos/o/r/commits/m1/check-runs?per_page=100&page=1": json.dumps(
+            {"total_count": 101, "check_runs": page}
+        ),
+        "gh api repos/o/r/commits/m1/check-runs?per_page=100&page=2": json.dumps(
+            {"total_count": 101, "check_runs": [suite_run("failure", "last", 200)]}
+        ),
+        "gh api repos/o/r/commits/m1/status": json.dumps({"statuses": []}),
+        "gh api repos/o/r/actions/runs?head_sha=m1&per_page=100&page=1": json.dumps(
+            {"total_count": 0, "workflow_runs": []}
+        ),
+    }
+    assert GhGitHub(FakeRun(answers)).commit_checks("m1")["last"] == "failure"
+    answers["gh api repos/o/r/commits/m1/check-runs?per_page=100&page=2"] = json.dumps(
+        {"total_count": 101, "check_runs": []}
     )
-    with pytest.raises(WorldError, match="more check runs"):
-        GhGitHub(run).commit_checks("m1")
+    with pytest.raises(WorldError, match="more check_runs"):
+        GhGitHub(FakeRun(answers)).commit_checks("m1")

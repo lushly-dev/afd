@@ -14,7 +14,9 @@
  *     `Affected units` gate the change opens (scripts/affected/suites.mjs, as `pnpm verify` plans);
  *   - `dir:<directory>`: the directory of each changed path, so two changes to one directory, which
  *     the repository-wide checks read together, never pass as unrelated;
- *   - `*`: the change selects the whole workspace (a global input), which overlaps everything.
+ *   - `*`: the change selects the whole workspace (a global input), or changes a manifest or the
+ *     lockfile, whose new dependencies the workspace graph read here would not yet show; it overlaps
+ *     everything.
  */
 import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join, posix, resolve } from 'node:path';
@@ -41,6 +43,8 @@ export function workflowTriggers(directory = root) {
 /** The units `files` affect, sorted. */
 export function factoryUnits(files, { directory = root, scope, triggers, plan } = {}) {
 	if (files.length === 0) return [];
+	if (files.some((file) => file === 'pnpm-lock.yaml' || posix.basename(file) === 'package.json'))
+		return ['*'];
 	const resolved = scope ?? resolveScope({ root: directory, files });
 	if (resolved.mode === 'all') return ['*'];
 	const units = new Set(resolved.affected.map((name) => `package:${name}`));

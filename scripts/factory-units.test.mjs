@@ -28,6 +28,11 @@ test('a change that selects the whole workspace overlaps everything', () => {
 	]);
 });
 
+test('a manifest or the lockfile overlaps everything', () => {
+	assert.deepEqual(factoryUnits(['packages/core/package.json']), ['*']);
+	assert.deepEqual(factoryUnits(['pnpm-lock.yaml']), ['*']);
+});
+
 test('no change has no unit', () => {
 	assert.deepEqual(factoryUnits([]), []);
 });

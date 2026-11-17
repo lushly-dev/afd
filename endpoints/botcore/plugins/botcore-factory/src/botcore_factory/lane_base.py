@@ -47,6 +47,7 @@ VALIDATION_FIELDS = (
     "checkSince",
     "units",
     "advanced",
+    "validatedBase",
 )
 
 

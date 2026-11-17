@@ -20,6 +20,7 @@ def lane(make_run):
     run = make_run("running")
     run.change_world(
         units=UNITS,
+        main={"changes": {HEAD: ["packages/a/x.ts"]}},  # The branch's own changes.
         outcomes={
             "checks": {BRANCH: "pending"},
             "changed": {BRANCH: ["packages/a/x.ts"]},
@@ -68,7 +69,7 @@ def test_a_move_that_touches_none_of_its_units_advances_and_merges(lane):
 
 def test_a_move_before_the_push_advances_too(make_run):
     run = make_run("running")
-    run.change_world(units=UNITS, outcomes={"changed": {BRANCH: ["packages/a/x.ts"]}})
+    run.change_world(units=UNITS, main={"changes": {HEAD: ["packages/a/x.ts"]}})
     run_steps(run, **ADAPTER)  # Validating on main-0.
     run.change_world(main={"head": "main-human", "changes": {"main-human": ["docs/a.md"]}})
     actions = run_steps(run, **ADAPTER)
@@ -77,6 +78,8 @@ def test_a_move_before_the_push_advances_too(make_run):
         f"opened PR 600 for feat/export-csv at {HEAD}",
     ]
     assert entry_of(run, BRANCH)["base"] == "main-human"
+    body = prs(run)["600"]["body"]
+    assert "(base main-0," in body and "Advanced to base main-human" in body
 
 
 def test_a_move_that_touches_one_of_its_units_validates_again(lane):
@@ -166,12 +169,92 @@ def test_main_checks_the_adapter_excludes_do_not_stop_the_lane(lane):
     assert not events(lane, "main-broken") and lane.state()["lane"]["uncheckedMerges"] == []
 
 
-def test_main_checks_that_never_finish_are_the_lane_s_trouble(lane):
+def test_main_checks_that_never_finish_are_given_up_once_as_the_lane_s_trouble(lane):
     move_main(lane, ["packages/b/y.ts"])
     lane.change_world(now="2030-01-01T05:00:00Z", mainChecks={"main@600": {"CI": "pending"}})
     run_steps(lane, **ADAPTER)
     [error] = events(lane, "lane-error")
     assert "merged without a re-check" in error["detail"] and "PR 600" in error["detail"]
+    assert lane.state()["lane"]["uncheckedMerges"] == []  # Never a watch that wedges the lane.
+
+
+def test_a_paused_lane_raises_no_trouble_of_its_own_but_still_sees_main_red(lane):
+    move_main(lane, ["packages/b/y.ts"])
+    with lane.store.update("pause") as state:
+        state["lane"]["paused"] = True
+    lane.change_world(outcomes={"mainChecks": "fail: HTTP 502"})
+    run_steps(lane, 3, **ADAPTER)
+    assert not events(lane, "lane-error")
+    lane.change_world(outcomes={"mainChecks": "ok"}, mainChecks={"main@600": {"CI": "failure"}})
+    run_steps(lane, **ADAPTER)
+    assert [e["suspects"] for e in events(lane, "main-broken")] == [[600]]
+
+
+def test_a_branch_that_renames_a_file_out_of_a_unit_keeps_that_unit(lane):
+    lane.change_world(main={"changes": {HEAD: ["packages/a/old.ts", "packages/b/new.ts"]}})
+    move_main(lane, ["packages/a/caller.ts"])
+    assert "package:a" in rerun_detail(lane)
+
+
+def test_a_branch_advances_twice_with_its_units_read_once(make_run):
+    run = make_run("running")
+    run.change_world(
+        units=UNITS,
+        main={"changes": {HEAD: ["packages/a/x.ts"]}},
+        outcomes={"checks": {BRANCH: "pending"}, "validate": {"fix/retry-backoff": "running"}},
+    )
+    run_steps(run, **ADAPTER)  # Validating on main-0.
+    run.change_world(main={"head": "main-human", "changes": {"main-human": ["docs/a.md"]}})
+    assert "advanced feat/export-csv to main-human" in run_steps(run, **ADAPTER)  # Pushed.
+    run.change_world(
+        main={"head": "main-two", "changes": {"main-two": ["packages/b/y.ts"]}},
+        units={"packages/a/": ["package:b"]},  # Read again, the branch would now overlap.
+        outcomes={"checks": {BRANCH: "success"}},
+    )
+    assert "merged feat/export-csv (PR 600)" in run_steps(run, **ADAPTER)
+    advanced = [r for r in run.store.read_records() if r["kind"] == "base-advanced"]
+    assert [(r["previous"], r["base"]) for r in advanced] == [
+        ("main-0", "main-human"),
+        ("main-human", "main-two"),
+    ]
+
+
+def test_a_merge_refused_after_main_moved_advances_then_merges_next_step(lane):
+    lane.change_world(outcomes={"checks": {BRANCH: "success"}})
+
+    from dataclasses import replace
+
+    from botcore_factory.lane import step
+    from botcore_factory.world import WorldError
+
+    factory = lane.factory()
+    factory.config = factory.config.model_copy(update=ADAPTER)
+    github = factory.world.github
+
+    class RacingGitHub:
+        def __getattr__(self, name):
+            return getattr(github, name)
+
+        def merge_pr(self, pr, head):
+            lane.change_world(main={"head": "main-race", "changes": {"main-race": ["docs/r.md"]}})
+            raise WorldError("Pull request is not mergeable: the base branch was modified")
+
+    git = factory.world.git
+
+    class FreshGit:
+        def __getattr__(self, name):
+            return getattr(git, name)
+
+        def fetch_base(self, base):
+            return lane.factory().world.git.fetch_base(base)
+
+        def diff_names(self, old, new):
+            return lane.factory().world.git.diff_names(old, new)
+
+    factory.world = replace(factory.world, github=RacingGitHub(), git=FreshGit())
+    assert "advanced feat/export-csv to main-race" in step(factory)
+    assert entry_of(lane, BRANCH)["state"] == "merging"
+    assert "merged feat/export-csv (PR 600)" in run_steps(lane, **ADAPTER)
 
 
 def test_check_selection_includes_and_excludes():
