@@ -2,11 +2,14 @@
  * @fileoverview Content checks for the workflows `violet cicd setup` generates
  */
 
+import { spawnSync } from 'node:child_process';
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { buildOpenApiSpec } from '@lushly-dev/violet-afd';
 import { describe, expect, it } from 'vitest';
+import { parse as parseYaml } from 'yaml';
 import {
 	ACTION_PINS,
 	CICD_TEMPLATES,
@@ -25,7 +28,7 @@ const fixtures = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../
 describe('cicd setup workflow templates', () => {
 	it.each(CICD_TEMPLATES)('%s pins every action to a commit SHA', (template) => {
 		const uses = workflows[template].match(/uses: .+/g) ?? [];
-		expect(uses.length).toBeGreaterThan(0);
+		if (template !== 'snapshot') expect(uses.length).toBeGreaterThan(0);
 		for (const line of uses) {
 			expect(line).toMatch(/^uses: [\w-]+\/[\w-]+@[0-9a-f]{40} # v\d/);
 		}
@@ -66,6 +69,79 @@ describe('cicd setup workflow templates', () => {
 
 	it('validate runs on changes to the tokens directory', () => {
 		expect(workflows.validate).toContain("- 'design/tokens/**'");
+	});
+
+	it('snapshot runs daily and manually against a persistent runner database', () => {
+		const workflow = parseYaml(workflows.snapshot);
+		expect(workflow.on).toEqual({
+			schedule: [{ cron: '17 3 * * *' }],
+			workflow_dispatch: null,
+		});
+		expect(workflow.permissions).toEqual({});
+		expect(workflow.concurrency).toEqual({ group: 'violet-snapshot', 'cancel-in-progress': false });
+		const job = workflow.jobs.snapshot;
+		expect(job['runs-on']).toEqual(['self-hosted', 'linux', 'violet']);
+		expect(job.env.VIOLET_NODE).toBe('brand-dark');
+		// biome-ignore lint/suspicious/noTemplateCurlyInString: a GitHub Actions expression
+		expect(job.env.VIOLET_DB_PATH).toBe('${{ vars.VIOLET_DB_PATH }}');
+		expect(job.steps).toHaveLength(1);
+		expect(job.steps[0].run).toContain(
+			'violet --db "$VIOLET_DB_PATH" --json snapshot --root "$VIOLET_NODE"',
+		);
+		expect(workflows.snapshot).not.toContain('uses:');
+		expect(job.steps[0].run).not.toContain('--from');
+		expect(workflows.snapshot).toContain('indefinitely');
+	});
+
+	it('snapshot refuses a missing or relative database before running Violet', () => {
+		const script = parseYaml(workflows.snapshot).jobs.snapshot.steps[0].run;
+		for (const db of ['', 'relative.db', '/nonexistent-violet-497/database.db']) {
+			const result = spawnSync('bash', ['-e', '-c', script], {
+				env: { ...process.env, VIOLET_DB_PATH: db, VIOLET_NODE: 'brand-dark' },
+				encoding: 'utf-8',
+			});
+			expect(result.status).toBe(1);
+			expect(result.stdout).toContain('::error::Set VIOLET_DB_PATH');
+		}
+	});
+
+	it.each(['null', 'true', '001'])(
+		'snapshot preserves the literal node ID %s through YAML parsing',
+		(node) => {
+			const workflow = parseYaml(getWorkflowTemplate('snapshot', { ...options, node }));
+			expect(workflow.jobs.snapshot.env.VIOLET_NODE).toBe(node);
+		},
+	);
+
+	it('snapshot preserves database paths and propagates CLI failure', () => {
+		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'violet-snapshot-'));
+		try {
+			const db = path.join(dir, 'live history.db');
+			fs.writeFileSync(db, 'existing database');
+			// A stand-in checks shell argument boundaries and the runner job's exit status.
+			fs.writeFileSync(path.join(dir, 'violet'), '#!/bin/bash\nprintf "[%s]\\n" "$@"\nexit 7\n', {
+				mode: 0o755,
+			});
+			const result = spawnSync(
+				'/bin/bash',
+				['-e', '-c', parseYaml(workflows.snapshot).jobs.snapshot.steps[0].run],
+				{
+					env: { ...process.env, PATH: dir, VIOLET_DB_PATH: db, VIOLET_NODE: 'brand-dark' },
+					encoding: 'utf-8',
+				},
+			);
+			expect(result.status).toBe(7);
+			expect(result.stdout.trim().split('\n')).toEqual([
+				'[--db]',
+				`[${db}]`,
+				'[--json]',
+				'[snapshot]',
+				'[--root]',
+				'[brand-dark]',
+			]);
+		} finally {
+			fs.rmSync(dir, { recursive: true, force: true });
+		}
 	});
 
 	it('sync fetches a hosted export with curl --fail, a required URL and a secret key', () => {

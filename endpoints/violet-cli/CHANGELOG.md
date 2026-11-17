@@ -1,5 +1,9 @@
 # @lushly-dev/violet-cli
 
+## Unreleased
+
+- Add an opt-in daily `cicd setup --templates snapshot` workflow for an existing SQLite database on a self-hosted runner. File-driven snapshot calls now fail with recovery instructions instead of losing history; snapshots remain retained indefinitely (#497).
+
 ## 0.3.0-preview.0
 
 ### Minor Changes
