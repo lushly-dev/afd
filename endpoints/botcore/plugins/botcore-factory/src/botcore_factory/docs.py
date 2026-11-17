@@ -57,8 +57,8 @@ squash-merges bound to it. Coverage runs on the base every `lane.coverageEvery` 
 once after a merge touching `gate_paths`, which the front of the queue waits for. After a merge
 that advanced without a new validation the lane watches the check runs and workflow runs
 (`workflow: <name>`) `main_checks` selects on its merge commit; one failing is `main-broken`, and
-checks still unfinished after `lane.checkTimeoutMinutes` are one `lane-error`, the watch dropped. The lane never
-edits code, and nothing is killed unless its pid and start time both match.
+checks still unfinished after `lane.checkTimeoutMinutes` are one `lane-error`, the watch dropped.
+The lane never edits code, and nothing is killed unless its pid and start time both match.
 
 ## Commands
 
