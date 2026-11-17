@@ -1517,14 +1517,14 @@ fn command(
         },
     )?;
     // Refused on a component command (D191): `authority_prompt` is for memory writes, which a
-    // component cannot make; whether a component's author may choose how the deployer's journal
-    // records its calls is the owner's open question (the world 1.1.0 specification, section 8).
+    // component cannot make; a component's journal mode is the deployer's, set in umbel.toml
+    // (D195, the component journal specification).
     if plugin.kind == PluginKind::Component {
         for (key, problem) in [
             (
                 "journal",
                 journal.is_some().then_some(
-                    "is not available to a component plugin: whether a sandboxed component may choose how the journal records its calls is not decided",
+                    "is not available to a component plugin: the deployer sets a component's journal mode in umbel.toml, [plugins.<id>.journal]",
                 ),
             ),
             (

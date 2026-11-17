@@ -42,7 +42,7 @@ pub use person::{
     LocalPageConfig, PERSON_DECISION_TTL_MAX_S, PERSON_DECISION_TTL_MIN_S, PersonConfig,
 };
 pub use plugins_config::{
-    DefaultAccess, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
+    DefaultAccess, InstanceJournal, Limits, MemoryWritePolicy, PluginInstance, PluginsConfig, caps,
 };
 pub use records::{
     DEFAULT_MEANING_K, DEFAULT_MEANING_WEIGHT, DEFAULT_MODEL_MAX_LENGTH, DEFAULT_MODEL_TIMEOUT_MS,
