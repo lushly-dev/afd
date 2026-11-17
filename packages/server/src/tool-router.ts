@@ -155,7 +155,6 @@ function namedAcknowledgement(value: unknown): Acknowledgement {
 		: undefined;
 }
 
-/** The arguments without a top-level `confirm`, which the executors do not know. */
 /** The request an up-front approval is bound to, as canonical JSON (the wire sends plain JSON). */
 function requestJson(tool: string, request: BatchRequest | PipelineRequest): string {
 	try {
@@ -165,6 +164,7 @@ function requestJson(tool: string, request: BatchRequest | PipelineRequest): str
 	}
 }
 
+/** The arguments without a top-level `confirm`, which the executors do not know. */
 function withoutConfirm<T>(args: T): T {
 	if (!isRecord(args) || !('confirm' in args)) return args;
 	const { confirm: _confirm, ...rest } = args;

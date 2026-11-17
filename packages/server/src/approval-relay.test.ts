@@ -991,6 +991,22 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 		expect(calls).toEqual(['list', 'delete:1', 'strict:2']);
 	});
 
+	it('says when a pipeline has conditions that may skip a step', async () => {
+		const { url } = await serve();
+		const call = rawCaller(url);
+		const pipe = {
+			steps: [
+				{ command: 'todo-list', as: 'listed' },
+				{ command: 'todo-delete', input: { id: 1 }, when: { $exists: '$steps.listed' } },
+			],
+		};
+		const question = asked(await call('afd-pipe', pipe)).inputRequests?.approval?.params?.message;
+		expect(question?.split('\n').slice(0, 2)).toEqual([
+			'This pipeline includes a step that needs your approval. Approving lets each run once, exactly as shown; if you do not approve, nothing in the pipeline runs.',
+			'Some steps run only when their conditions hold, so one step may run while another is skipped.',
+		]);
+	});
+
 	it('starts no approved step once its batch has timed out', async () => {
 		const slow = {
 			consume: async () => {
@@ -1022,7 +1038,10 @@ describe('one up-front approval for afd-batch and afd-pipe (#459)', () => {
 			input: z.object({ id: z.unknown() }),
 			handler: async () => success({}),
 		});
-		const { url, calls } = await serve({ middleware: { commands: [...commands([]), hidden] } });
+		// Registered on the server and gated, but not exposed over MCP.
+		const calls: string[] = [];
+		const all = [...commands(calls), hidden];
+		const { url } = await serve({ middleware: { commands: all }, server: { commands: all } });
 		const client = await connect(url, 'accept');
 		const pipe = await client.callTool({
 			name: 'afd-pipe',
