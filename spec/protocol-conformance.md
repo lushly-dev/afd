@@ -66,7 +66,7 @@ Each criterion names the tests that exercise it over a real transport. "Runner" 
 | Tasks: `-32021` for `task: "required"` without the extension; the record durable before `CreateTaskResult`; another principal's `tasks/get` answers as an unknown id | Planned | Planned | `server_tasks.rs` (step 0e: Streamable HTTP with and without the bearer layer, and stdio) | N/A |
 | `tools/list` and `server/discover` cache hints (`ttlMs`, `cacheScope`) | `mcp-modern.test.ts` | `test_mcp_modern_live.py` | `server_http.rs`, `server_hybrid.rs` | `mcp_stdio_test.cpp` |
 | MCP annotations from command metadata | `tool-surface.test.ts` | `tests/test_tool_annotations.py` | `tests/tool_annotations.rs` | `mcp_stdio_test.cpp` |
-| `structuredContent` validated against the CommandResult `outputSchema` | `tool-surface.test.ts`; runner (todo `output` schemas) | Planned | Planned | Planned |
+| `structuredContent` validated against the CommandResult `outputSchema` | `tool-surface.test.ts`; runner (todo `output` schemas) | `tests/test_structured_content.py` (the SDK client, success and failure) | `tests/server_structured.rs` (#523) | `mcp_stdio_test.cpp` (`CompiledSchema`, success and failure) |
 | AFD client negotiates each mode against an AFD server | `mcp-modern-client.test.ts` (call, batch, pipe, stream) | `test_mcp_modern_live.py` | N/A (no Rust client) | N/A (no C++ client) |
 
 ## Limits

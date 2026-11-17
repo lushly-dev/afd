@@ -257,6 +257,88 @@ TEST_CASE("tools/call returns the CommandResult as text, with isError = !success
     CHECK(body(unknown)["error"]["code"] == "COMMAND_NOT_FOUND");
 }
 
+TEST_CASE("tool results carry structuredContent that satisfies the advertised outputSchema") {
+    // A command with an output schema whose nested type sits in $defs.
+    afd::CommandRegistry registry;
+    REQUIRE_FALSE(registry.register_command(
+        {.name = "note-get",
+         .description = "Get a note",
+         .input_schema = Json{{"type", "object"},
+                              {"properties", {{"id", {{"type", "string"}}}}},
+                              {"required", {"id"}}},
+         .output_schema =
+             Json{{"type", "object"},
+                  {"properties",
+                   {{"id", {{"type", "string"}}},
+                    {"tags", {{"type", "array"}, {"items", {{"$ref", "#/$defs/Tag"}}}}}}},
+                  {"required", {"id", "tags"}},
+                  {"$defs", {{"Tag", {{"type", "string"}}}}}},
+         .handler =
+             [](const Json& input, afd::CommandContext&) {
+                 if (input["id"] == "missing") {
+                     return afd::failure(afd::CommandError{.code = "NOT_FOUND",
+                                                           .message = "No such note",
+                                                           .suggestion = "List notes first",
+                                                           .retryable = false,
+                                                           .details = std::nullopt,
+                                                           .cause = nullptr});
+                 }
+                 return afd::success(Json{{"id", input["id"]}, {"tags", {"home"}}});
+             },
+         .expose = {.mcp = true}}));
+    REQUIRE_FALSE(registry.register_command(
+        {.name = "note-list",
+         .description = "List notes",
+         .handler = [](const Json&, afd::CommandContext&) { return afd::success(Json::array()); },
+         .expose = {.mcp = true}}));
+    auto server = make_server(registry);
+    const auto tools = send(*server, request(1, "tools/list"))["result"]["tools"];
+    REQUIRE(tools.size() == 2);
+    const Json& get = tools[0]["name"] == "note-get" ? tools[0] : tools[1];
+    const Json& list = tools[0]["name"] == "note-get" ? tools[1] : tools[0];
+    CHECK(get["outputSchema"] == afd::command_result_output_schema(get["_meta"]["outputSchema"]));
+    CHECK_FALSE(list.contains("outputSchema"));
+
+    // The advertised schema accepts a success and a failure, as an MCP client checks it.
+    const auto schema = afd::CompiledSchema::compile(get["outputSchema"]);
+    REQUIRE(schema);
+    const auto call = [&](std::string id) {
+        return send(*server,
+                    request(2, "tools/call",
+                            {{"name", "note-get"}, {"arguments", {{"id", id}}}}))["result"];
+    };
+    const auto found = call("n-1");
+    CHECK(found["isError"] == false);
+    CHECK(found["structuredContent"] == body(found));
+    CHECK(found["structuredContent"]["data"] == Json{{"id", "n-1"}, {"tags", {"home"}}});
+    CHECK(schema->validate(found["structuredContent"]));
+    const auto missing = call("missing");
+    CHECK(missing["isError"] == true);
+    CHECK(missing["structuredContent"]["error"]["code"] == "NOT_FOUND");
+    CHECK(schema->validate(missing["structuredContent"]));
+    // Data that breaks the declared schema is what a client would refuse.
+    Json wrong = found["structuredContent"];
+    wrong["data"]["tags"] = Json::array({1});
+    CHECK_FALSE(schema->validate(wrong));
+
+    // Every result carries structuredContent, with or without an outputSchema.
+    const auto listed = send(*server, request(3, "tools/call", {{"name", "note-list"}}))["result"];
+    CHECK(listed["structuredContent"] == body(listed));
+    const auto unknown = send(*server, request(4, "tools/call", {{"name", "note-gte"}}))["result"];
+    CHECK(unknown["structuredContent"]["error"]["code"] == "COMMAND_NOT_FOUND");
+
+    // The top-level outputSchema can be switched off; _meta.outputSchema stays.
+    auto quiet = make_server(registry, {.advertise_output_schema = false});
+    const auto quiet_tools = send(*quiet, request(5, "tools/list"))["result"]["tools"];
+    REQUIRE(quiet_tools.size() == 2);
+    for (const auto& tool : quiet_tools) {
+        CHECK_FALSE(tool.contains("outputSchema"));
+        if (tool["name"] == "note-get") {
+            CHECK(tool["_meta"]["outputSchema"]["required"] == Json::array({"id", "tags"}));
+        }
+    }
+}
+
 TEST_CASE("protocol errors") {
     Notes notes;
     auto server = make_server(*notes.registry);

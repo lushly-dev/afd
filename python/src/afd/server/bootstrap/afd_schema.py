@@ -201,6 +201,6 @@ def create_afd_schema_command(
             )
         ],
         input_schema=AfdSchemaInput.model_json_schema(),
-        returns=AfdSchemaOutput.model_json_schema(),
+        returns=AfdSchemaOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )

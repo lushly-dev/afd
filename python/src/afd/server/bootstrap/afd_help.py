@@ -191,6 +191,6 @@ def create_afd_help_command(
             ),
         ],
         input_schema=AfdHelpInput.model_json_schema(),
-        returns=AfdHelpOutput.model_json_schema(),
+        returns=AfdHelpOutput.model_json_schema(mode="serialization"),
         expose=BOOTSTRAP_EXPOSE,
     )
