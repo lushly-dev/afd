@@ -55,6 +55,8 @@ struct CommandExample {
 
 /// What a handler and its middleware know about the call. Middleware and the handler share one
 /// mutable context, as in TypeScript.
+struct ContextScope; // contexts.hpp
+
 struct CommandContext {
     std::optional<std::string> trace_id;
     /// A per-call timeout, in milliseconds (`DirectClient` enforces it).
@@ -63,6 +65,10 @@ struct CommandContext {
     std::optional<Interface> surface;
     /// The active command context (see `CommandDefinition::contexts`), if any.
     std::optional<std::string> active_context;
+    /// What `afd-context-enter` and `afd-context-exit` act on: a session's stack or one
+    /// request's context (contexts.hpp). Only the MCP server sets it, with `active_context` to
+    /// match; leave it unset.
+    std::shared_ptr<const ContextScope> context_scope;
     /// Who is calling. `DirectClient` sets `human` unless told otherwise; an MCP host should set
     /// `agent`. The registry reports the kind as `metadata.actorKind`.
     std::optional<Actor> actor;

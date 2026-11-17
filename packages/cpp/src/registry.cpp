@@ -61,9 +61,12 @@ std::string not_found_suggestion(std::string_view name,
     return "Did you mean '" + matches.front() + "'?" + also_close + " " + list;
 }
 
-// COMMAND_NOT_IN_CONTEXT's suggestion. C++ has no afd-context-* tools, so it names the contexts
-// the command belongs to; the host decides how the caller switches.
-std::string contexts_suggestion(const CommandDefinition& command) {
+// COMMAND_NOT_IN_CONTEXT's suggestion. It names the afd-context-* tools when the caller can call
+// them (contexts.hpp), and otherwise the contexts the command belongs to, as Rust does.
+std::string contexts_suggestion(const CommandDefinition& command, bool context_tools) {
+    if (context_tools) {
+        return "Use afd-context-list to see available contexts, or afd-context-enter to switch.";
+    }
     std::string contexts;
     for (const auto& context : command.contexts) {
         contexts += (contexts.empty() ? "'" : ", '") + context + "'";
@@ -338,11 +341,15 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
 
     // 3. Context.
     if (!is_accessible_in_context(definition, context.active_context)) {
-        return failure(create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
-                                    "Command '" + definition.name +
-                                        "' is not available in context '" +
-                                        *context.active_context + "'",
-                                    {.suggestion = contexts_suggestion(definition)}));
+        // The afd-context-* tools, when this caller can call them (the lock is released above).
+        const auto list = get("afd-context-list");
+        const bool context_tools =
+            list && (!context.surface || is_exposed_to(list->definition.expose, *context.surface));
+        return failure(
+            create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
+                         "Command '" + definition.name + "' is not available in context '" +
+                             *context.active_context + "'",
+                         {.suggestion = contexts_suggestion(definition, context_tools)}));
     }
 
     // 4. Validation.

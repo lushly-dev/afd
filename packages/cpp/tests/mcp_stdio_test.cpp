@@ -977,3 +977,148 @@ TEST_CASE("notifications/cancelled cancels the call it names, which gets no repl
     CHECK(out.str().find(R"("id":7)") == std::string::npos);
     CHECK(out.str().find(R"("id":8)") != std::string::npos);
 }
+
+// --- Contexts (spec/tool-strategies.md, "Contexts") ---------------------------------------------
+
+namespace {
+
+/// Notes with two contexts: `note-clear` only while editing.
+struct ScopedNotes {
+    std::shared_ptr<afd::CommandRegistry> registry = std::make_shared<afd::CommandRegistry>();
+    std::vector<afd::ContextConfig> contexts{{.name = "reading"}, {.name = "editing"}};
+
+    ScopedNotes() {
+        REQUIRE_FALSE(afd::register_context_commands(*registry, contexts));
+        const auto ok = [](const Json&, afd::CommandContext&) { return afd::success(nullptr); };
+        REQUIRE_FALSE(registry->register_command({.name = "note-list",
+                                                  .description = "List notes",
+                                                  .handler = ok,
+                                                  .contexts = {"reading", "editing"},
+                                                  .expose = {.mcp = true}}));
+        REQUIRE_FALSE(registry->register_command({.name = "note-clear",
+                                                  .description = "Delete every note",
+                                                  .handler = ok,
+                                                  .contexts = {"editing"},
+                                                  .mutation = true,
+                                                  .confirm_prompt = "Delete every note?",
+                                                  .expose = {.mcp = true}}));
+    }
+};
+
+std::vector<std::string> names(const Json& tools) {
+    std::vector<std::string> out;
+    for (const auto& tool : tools) {
+        out.push_back(tool["name"].get<std::string>());
+    }
+    return out;
+}
+
+Json context_meta(std::string_view name) {
+    Json meta = modern_meta();
+    meta["dev.afd/context"] = std::string(name);
+    return meta;
+}
+
+} // namespace
+
+TEST_CASE("create refuses contexts whose commands are not registered") {
+    Notes notes;
+    auto refused = StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}}});
+    REQUIRE_FALSE(refused);
+    CHECK(refused.error().find("register_context_commands") != std::string::npos);
+    CHECK_FALSE(StdioServer::create(*notes.registry, {.tools_list_ttl_ms = -1}));
+}
+
+TEST_CASE("2025: the connection keeps a context stack that scopes tools/list and tools/call") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,
+                                                .contexts = notes.contexts});
+    send(*server, request(0, "initialize", {{"protocolVersion", "2025-11-25"}}));
+    const std::vector<std::string> every{"afd-context-list", "afd-context-enter",
+                                         "afd-context-exit", "note-list", "note-clear"};
+    CHECK(names(send(*server, request(1, "tools/list"))["result"]["tools"]) == every);
+
+    const auto entered = send(
+        *server, request(2, "tools/call",
+                         {{"name", "afd-context-enter"}, {"arguments", {{"context", "reading"}}}}));
+    CHECK(body(entered["result"])["data"]["entered"] == "reading");
+    CHECK(names(send(*server, request(3, "tools/list"))["result"]["tools"]) ==
+          std::vector<std::string>{"afd-context-list", "afd-context-enter", "afd-context-exit",
+                                   "note-list"});
+
+    // Refused before anyone is asked to confirm it.
+    bool asked = false;
+    const auto refused = send(
+        *server, request(4, "tools/call", {{"name", "note-clear"}, {"arguments", Json::object()}}),
+        [&](const Json&) -> std::optional<Json> {
+            asked = true;
+            return accept("confirm");
+        });
+    CHECK_FALSE(asked);
+    CHECK(body(refused["result"])["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+    CHECK(body(refused["result"])["error"]["suggestion"] ==
+          "Use afd-context-list to see available contexts, or afd-context-enter to switch.");
+
+    send(*server,
+         request(5, "tools/call", {{"name", "afd-context-exit"}, {"arguments", Json::object()}}));
+    CHECK(names(send(*server, request(6, "tools/list"))["result"]["tools"]) == every);
+}
+
+TEST_CASE("2026-07-28: each request names its context in _meta, and nothing persists") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.name = "notes", .contexts = notes.contexts});
+    const auto discover =
+        send(*server, request("d", "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["ttlMs"] == 0);
+    CHECK(discover["result"]["instructions"].get<std::string>().find(
+              "Commands are scoped by context (afd-context-list lists them). Send "
+              "_meta[\"dev.afd/context\"] with a context name on tools/list and tools/call to "
+              "work in that context.") != std::string::npos);
+
+    const auto reading =
+        send(*server, request(1, "tools/list", {{"_meta", context_meta("reading")}}));
+    CHECK(reading["result"]["ttlMs"] == 0);
+    CHECK(names(reading["result"]["tools"]).back() == "note-list");
+
+    const auto refused = modern_call(*server, "note-clear", Json::object(), {}, Json::object(),
+                                     {{"dev.afd/context", "reading"}});
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+
+    const auto entered = modern_call(*server, "afd-context-enter", {{"context", "editing"}}, {},
+                                     Json::object(), {{"dev.afd/context", "reading"}});
+    CHECK(body(entered)["data"] ==
+          Json{{"entered", "editing"}, {"previous", "reading"}, {"persisted", false}});
+    // Still five tools with no context named: nothing was stored.
+    CHECK(send(*server, request(2, "tools/list", {{"_meta", modern_meta()}}))["result"]["tools"]
+              .size() == 5);
+
+    const auto listed = modern_call(*server, "afd-context-list", Json::object(), {}, Json::object(),
+                                    {{"dev.afd/context", "editing"}});
+    CHECK(body(listed)["data"]["activeContext"] == "editing");
+}
+
+TEST_CASE("2026-07-28: an unknown context in _meta is invalid params") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.contexts = notes.contexts});
+    for (const Json& name : {Json("nowhere"), Json(7)}) {
+        Json meta = modern_meta();
+        meta["dev.afd/context"] = name;
+        const auto list = send(*server, request(1, "tools/list", {{"_meta", meta}}));
+        CHECK(list["error"]["code"] == -32602);
+        CHECK(list["error"]["message"] == "Unknown context in _meta[\"dev.afd/context\"]");
+        CHECK(list["error"]["data"]["suggestion"] == "Use one of: reading, editing");
+        const auto call =
+            send(*server,
+                 request(2, "tools/call",
+                         {{"name", "note-list"}, {"arguments", Json::object()}, {"_meta", meta}}));
+        CHECK(call["error"]["code"] == -32602);
+    }
+}
+
+TEST_CASE("a set tools_list_ttl_ms wins over the contexts default") {
+    ScopedNotes notes;
+    auto server =
+        make_server(*notes.registry, {.contexts = notes.contexts, .tools_list_ttl_ms = 1234});
+    CHECK(send(*server, request(1, "tools/list", {{"_meta", modern_meta()}}))["result"]["ttlMs"] ==
+          1234);
+}
