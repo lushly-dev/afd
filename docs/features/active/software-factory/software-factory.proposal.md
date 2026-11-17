@@ -218,7 +218,7 @@ so each repository states its own contract:
 | `coverage` | `pnpm check:all` | `pnpm validate:coverage` |
 | `install` | `pnpm install --frozen-lockfile` | Same |
 | `required_check` | A new aggregate check (see [AFD prerequisites](#afd-prerequisites)) | `ci-ok` |
-| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
+| `gate_paths` | `lefthook.yml`, `.github/workflows/**`, `.github/labels.json`, `scripts/check-*.mjs`, `scripts/policy/**`, the `maintain-gates` skill's scripts (its AFD projection and Botcore's canonical copy), `scripts/issue-labels.mjs`, `scripts/affected*`, the pre-push, verify-record and review-record scripts, `biome.json`, root `package.json`, and the adapter configuration itself | Lushly's list, plus the adapter configuration |
 | `review_evidence` | The record `prepare-pr` writes for the reviewed head | `pnpm review:lanes --verify-handoff` |
 | `receipt` | Optional. Confirms an existing validation of this head, so it is reused | `validate:final --verify` |
 | `ui_paths` | `endpoints/loam/**`, `foundations/specimen/**`, `foundations/fast-af/**`, `site/**` | Lushly's app paths |

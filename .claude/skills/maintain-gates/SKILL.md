@@ -108,9 +108,10 @@ Both need only Node and git, read what `git ls-files` lists (so ignored director
 out), and print each finding with its file and line. Wire them into the gate CI runs.
 
 **`scripts/check-test-quarantine.mjs`: no silent test suppression.** `.only` always
-fails. An unconditional `.skip` or `.todo` on `describe`, `it`, `test`, `suite` or
-`bench` in a JavaScript or TypeScript test file needs an entry in the register,
-`scripts/policy/test-quarantine.json` by default (`--register <path>` for another):
+fails. An unconditional `.skip`, `.todo` or Playwright `.fixme` on `describe`, `it`,
+`test`, `suite` or `bench` in a JavaScript or TypeScript test file needs an entry in the
+register, `scripts/policy/test-quarantine.json` by default (`--register <path>` for
+another). A missing register fails, so start one as `{"quarantined": []}`:
 
 ```json
 {
@@ -129,12 +130,21 @@ Reconciliation runs both ways: an entry whose file has no unconditional skip lef
 as recovered, so the spent entry is deleted. A skip that depends on the environment is
 written as a condition instead and needs no entry, because it runs again whenever the
 condition stops holding: `it.skipIf(...)`, `it.runIf(...)` and Playwright's
-`test.skip(condition, reason)`. Not seen, by design: aliases, element access
-(`it['skip']`), option objects (`{ skip: true }`), a test's own context (`t.skip()`) and
-other languages' skips. Paths after the options limit the scan to those directories.
+`test.skip(condition, reason)`; a condition that always holds (`true`, `!0`) counts as
+none. An entry covers its whole file, so a second skip added to a quarantined file needs
+no new entry: review it as you would the first. Not seen, by design: aliases, element
+access (`it['skip']`), option objects (`{ skip: true }`), a test's own context
+(`t.skip()`), a variable title with its body passed by name (`test.skip(title, run)`)
+and other languages' skips. The scan masks comments, strings and regular expressions
+rather than parsing, so a backtick in JSX text can hide what follows it in that file.
+Paths after the options limit the scan to those directories.
 
 **`scripts/check-test-configs.mjs`: no runner may pass having run no tests.** It refuses
 `passWithNoTests` in any Vitest or Vite configuration, and the `--passWithNoTests` flag in
 any `package.json`, GitHub workflow or Lefthook configuration. Paths after the options add
-a repository's own scripts that start runners. A package with no tests yet adds its first
-test with its configuration instead.
+a repository's own scripts that start runners; a path with no file in it fails. A package
+with no tests yet adds its first test with its configuration instead.
+
+If a software factory or another agent loop may repair a failing branch, list both
+scripts and the register among the paths a repair may not edit, or the repair can pass
+by registering a skip.

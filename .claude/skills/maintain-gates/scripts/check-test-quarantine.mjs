@@ -27,13 +27,20 @@
  * Paths limit the scan to those directories; the register path is relative to the root.
  */
 import { execFileSync } from 'node:child_process';
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, realpathSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const DEFAULT_REGISTER = 'scripts/policy/test-quarantine.json';
 const TEST_FILE = /\.(?:test|spec)\.[cm]?[jt]sx?$/;
 const ROOTS = new Set(['describe', 'it', 'test', 'suite', 'bench']);
+const SUPPRESSIONS = new Set(['only', 'skip', 'todo', 'fixme']);
+/** A path as git prints it: forward slashes, no leading `./`, no trailing slash. */
+const gitPath = (path) =>
+	path
+		.replaceAll('\\', '/')
+		.replace(/^(\.\/)+/, '')
+		.replace(/\/+$/, '');
 
 /** Test files git tracks or would track under `root`, limited to `paths` when given. */
 export function listTestFiles(root, paths = []) {
@@ -58,9 +65,27 @@ export function maskSource(text) {
 		for (let i = from; i < to; i++) if (out[i] !== '\n') out[i] = ' ';
 	};
 	let i = 0;
-	// The last significant code character, to tell a regular expression from a division.
+	// The last significant code token, to tell a regular expression from a division: a word,
+	// `)`, `]` or a closing literal ends an operand (`x`), unless the word is a keyword after
+	// which an expression starts; postfix `++` and `--` end one too.
 	let previous = '';
-	const regexMayFollow = () => previous === '' || /[(,=:[!&|?{};+\-*%<>~^]/.test(previous);
+	const regexMayFollow = () => previous !== 'x' && previous !== '++' && previous !== '--';
+	const EXPRESSION_KEYWORDS = new Set([
+		'return',
+		'typeof',
+		'instanceof',
+		'in',
+		'of',
+		'new',
+		'delete',
+		'void',
+		'throw',
+		'case',
+		'do',
+		'else',
+		'yield',
+		'await',
+	]);
 
 	function skipString(quote) {
 		const start = i;
@@ -145,6 +170,17 @@ export function maskSource(text) {
 					}
 					depth--;
 				}
+				if (/[A-Za-z_$]/.test(c)) {
+					const word = /^[\w$]+/.exec(text.slice(i, i + 64))[0];
+					previous = EXPRESSION_KEYWORDS.has(word) ? word : 'x';
+					i += word.length;
+					continue;
+				}
+				if ((c === '+' || c === '-') && next === c) {
+					previous = previous === 'x' ? `${c}${c}` : c; // postfix ends an operand
+					i += 2;
+					continue;
+				}
 				if (!/\s/.test(c)) previous = /[\w$)\]]/.test(c) ? 'x' : c;
 				i++;
 			}
@@ -183,6 +219,7 @@ function callArguments(code, open) {
 function unconditionalSkip(args) {
 	if (args.length === 0) return true;
 	if (/^['"`]/.test(args[0])) return true; // a title: `it.skip('title', fn)`
+	if (/^(true|1|!0|!false)$/.test(args[0])) return true; // a condition that always holds
 	// A variable title still declares a test when a function follows.
 	return args.slice(1).some((arg) => /=>|^(async\s+)?function\b/.test(arg));
 }
@@ -200,16 +237,18 @@ export function findSuppressions(text) {
 		const members = [...match[2].matchAll(/\.\s*([A-Za-z_$][\w$]*)/g)];
 		members.forEach((member, index) => {
 			const kind = member[1];
-			if (kind !== 'only' && kind !== 'skip' && kind !== 'todo') return;
+			if (!SUPPRESSIONS.has(kind)) return;
 			const line = lineAt(base + member.index + member[0].indexOf(kind));
 			const last = index === members.length - 1;
-			if (kind !== 'skip' || !last) {
-				// `.only` and `.todo` anywhere; `.skip` inside a chain (`describe.skip.each`).
+			const skipLike = kind === 'skip' || kind === 'fixme'; // Playwright's fixme skips too
+			if (!skipLike || !last) {
+				// `.only` and `.todo` anywhere; a skip inside a chain (`describe.skip.each`).
 				found.push({ line, kind });
 				return;
 			}
-			const call = code.slice(end).match(/^\s*\(/);
-			// A `.skip` that is not called is a reference (`cond ? describe : describe.skip`).
+			// A call, possibly with type arguments: `test.skip<Fixtures>(...)`.
+			const call = code.slice(end).match(/^\s*(?:<[^()]*?>\s*)?\(/);
+			// A skip that is not called is a reference (`cond ? describe : describe.skip`).
 			if (call && unconditionalSkip(callArguments(code, end + call[0].length - 1)))
 				found.push({ line, kind });
 		});
@@ -230,14 +269,16 @@ export function loadRegister(root, registerPath) {
 	}
 	for (const entry of parsed.quarantined ?? []) {
 		const { file, owner, reason, issue } = entry ?? {};
-		if (!file || !owner || !reason || reason.length < 20 || !issue) {
+		const text = (value) => typeof value === 'string' && value.trim() !== '';
+		if (!text(file) || !text(owner) || !text(reason) || reason.trim().length < 20 || !text(issue)) {
 			issues.push(
 				`${registerPath}: malformed entry ${JSON.stringify(entry)}; it needs file, owner, a reason of at least 20 characters and a tracking issue.`
 			);
 			continue;
 		}
-		if (entries.has(file)) issues.push(`${registerPath}: ${file} is listed twice.`);
-		entries.set(file, entry);
+		const key = gitPath(file);
+		if (entries.has(key)) issues.push(`${registerPath}: ${file} is listed twice.`);
+		entries.set(key, entry);
 	}
 	return { entries, issues };
 }
@@ -245,8 +286,9 @@ export function loadRegister(root, registerPath) {
 export function checkTestQuarantine({
 	root = process.cwd(),
 	register = DEFAULT_REGISTER,
-	paths = [],
+	paths: given = [],
 } = {}) {
+	const paths = given.map(gitPath);
 	const quarantine = loadRegister(root, register);
 	const issues = [...quarantine.issues];
 	const suppressed = new Set();
@@ -275,7 +317,7 @@ export function checkTestQuarantine({
 	const scanned = new Set(files);
 	for (const file of quarantine.entries.keys()) {
 		const inScope =
-			paths.length === 0 || paths.some((path) => file.startsWith(path.replace(/\/?$/, '/')));
+			paths.length === 0 || paths.some((path) => file === path || file.startsWith(`${path}/`));
 		if (inScope && !suppressed.has(file))
 			issues.push(
 				scanned.has(file)
@@ -298,7 +340,12 @@ function parseArguments(argv) {
 	return options;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+// Compare real paths: run through a symlinked skills folder, argv names the link while
+// import.meta.url names the target, and a plain comparison would skip the check and exit 0.
+if (
+	process.argv[1] &&
+	realpathSync(process.argv[1]) === realpathSync(fileURLToPath(import.meta.url))
+) {
 	try {
 		const { files, quarantined, issues } = checkTestQuarantine(
 			parseArguments(process.argv.slice(2))

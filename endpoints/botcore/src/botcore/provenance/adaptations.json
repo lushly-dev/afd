@@ -17,7 +17,7 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "d6f7e8a56691f75df53dca706cd002a020a6e9f0b9818a819c318f8998f9b399",
+      "current_import_sha256": "cfe62d5da66c2793016a6f6701d0dfddb64637c5d2c3715958a9a70470602f6c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
@@ -3741,6 +3741,39 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "deleted-after-staging",
       "import_reason": "Explicitly excluded during reviewed import"
+    },
+    {
+      "path": "src/botcore/skills/gate-discipline/SKILL.md",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "9f893c1c98c36d702751f4b38b4406b36262066ed4480cfcec305928245bbb0b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken"
+    },
+    {
+      "path": "src/botcore/skills/gate-discipline/scripts/check-test-configs.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "a0326b430d6db93ae5799fcc03d70f026dc819d114857c527dbded92268f7e42",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Moved from AFD's scripts/check-test-configs.mjs (lushly-dev/afd#1405) and generalised for seeded repositories"
+    },
+    {
+      "path": "src/botcore/skills/gate-discipline/scripts/check-test-quarantine.mjs",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "ce24db82d72ee93020b26c232ffcb4557a99b4307d4849e39b1f0e04bf8ff66b",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Re-derived, generic parts only, from the private lushly-dev/lushly at c9bc7d097bdf38a8cd8e81491d9a481715db8c11: .claude/skills/lushly-gate-discipline/SKILL.md (sha256 30284f69d10ace5a462ab22cd6b1b08e12d52f6f96bcbf66a9ec0fb4501dc53f) and scripts/check-test-quarantine.mjs (sha256 6682b73bf602a6926daaa4403944d0d0dbfe8d980da1e85a952bf510eb3a87c4), under MIT by the owner's authorization (lushly-dev/afd#1387); no Lushly data, history or product configuration taken"
     },
     {
       "path": "src/botcore/skills/git-manager/SKILL.md",

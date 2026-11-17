@@ -1,7 +1,7 @@
 /** The gate-discipline skill's scripts, which Botcore ships to every repository that seeds the skill. */
 import assert from 'node:assert/strict';
 import { execFileSync, spawnSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { cpSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import test, { after } from 'node:test';
@@ -86,6 +86,29 @@ test('test configs: reads the flag in a path the caller adds, and only there', (
 	const result = run('check-test-configs.mjs', fixture(files), 'tools/');
 	assert.equal(result.status, 1);
 	assert.match(result.stderr, /tools\/run-suites\.mjs:1: --passWithNoTests/);
+	// Normalised as git prints paths, and a path that lists nothing fails rather than scanning less.
+	assert.equal(run('check-test-configs.mjs', fixture(files), './tools').status, 1);
+	const typo = run('check-test-configs.mjs', fixture(files), 'tool/');
+	assert.equal(typo.status, 1);
+	assert.match(typo.stderr, /tool: git lists no file there/);
+});
+
+test('both scripts run their check when started through a symlinked folder', () => {
+	const root = fixture({
+		'scripts/policy/test-quarantine.json': register([]),
+		'src/a.test.ts': "it.only('a', () => {});\n",
+		'vitest.config.ts': config('\t\tpassWithNoTests: true,'),
+	});
+	const copy = join(root, 'skill-scripts');
+	cpSync(scripts, copy, { recursive: true });
+	const link = join(root, 'linked-scripts');
+	symlinkSync(copy, link, 'junction');
+	for (const script of ['check-test-quarantine.mjs', 'check-test-configs.mjs']) {
+		const result = spawnSync(process.execPath, [join(link, script), '--root', root], {
+			encoding: 'utf8',
+		});
+		assert.equal(result.status, 1, `${script} passed through the link: ${result.stdout}`);
+	}
 });
 
 test('test configs: ignores files git ignores', () => {
@@ -144,6 +167,15 @@ test('quarantine: finds .only and unconditional skips, and allows conditional on
 	// Playwright: `test.skip()` skips the running test whatever happens.
 	assert.deepEqual(kinds('test("a", () => {\n\ttest.skip();\n});'), ['2:skip']);
 	assert.deepEqual(kinds("it\n\t.skip('a', () => {});"), ['2:skip']);
+	// Playwright's fixme skips as surely as skip does.
+	assert.deepEqual(kinds("test.fixme('a', async () => {});"), ['1:fixme']);
+	assert.deepEqual(kinds("test.describe.fixme('a', () => {});"), ['1:fixme']);
+	assert.deepEqual(kinds('test("a", () => {\n\ttest.fixme();\n});'), ['2:fixme']);
+	// A condition that always holds is no condition; type arguments still make a call.
+	assert.deepEqual(kinds("test.skip(true, 'flaky');"), ['1:skip']);
+	assert.deepEqual(kinds('test.skip(true);'), ['1:skip']);
+	assert.deepEqual(kinds('test.skip(!0, "x");'), ['1:skip']);
+	assert.deepEqual(kinds("test.skip<Fixtures>('a', async () => {});"), ['1:skip']);
 
 	assert.deepEqual(kinds("it.skipIf(process.platform === 'win32')('a', () => {});"), []);
 	assert.deepEqual(kinds("describe.runIf(url)('a', () => {});"), []);
@@ -163,6 +195,10 @@ test('quarantine: never reads a comment, a string, a template or a regular expre
 		'2:only',
 	]);
 	assert.deepEqual(kinds('const ratio = a / b; it.todo("x"); const c = d / e;'), ['1:todo']);
+	// A regular expression after a keyword, and a division after a postfix operator.
+	assert.deepEqual(kinds("function f(s) { return /x'/.test(s); } it.only('a', fn);"), ['1:only']);
+	assert.deepEqual(kinds("const k = typeof /`/;\nit.only('a', fn);"), ['2:only']);
+	assert.deepEqual(kinds("let n = a++ / b; it.only('a', fn);"), ['1:only']);
 	const masked = maskSource('const a = "x"; // c\nit.only(`y`);');
 	assert.equal(masked.length, 'const a = "x"; // c\nit.only(`y`);'.length);
 	assert.equal(masked.split('\n')[1], 'it.only(` `);');
@@ -213,6 +249,28 @@ test('quarantine: a registered skip passes, a recovered entry fails, and a malfo
 	);
 	assert.equal(malformed.status, 1);
 	assert.match(malformed.stderr, /malformed entry/);
+
+	const notText = run(
+		'check-test-quarantine.mjs',
+		fixture({
+			'scripts/policy/test-quarantine.json': register([{ ...ENTRY, reason: { length: 30 } }]),
+			'src/a.test.ts': "it.skip('a', () => {});\n",
+		})
+	);
+	assert.equal(notText.status, 1);
+	assert.match(notText.stderr, /malformed entry/);
+});
+
+test('quarantine: reads paths as git prints them, so a scoped run still reports a recovered entry', () => {
+	const root = fixture({
+		'scripts/policy/test-quarantine.json': register([ENTRY]),
+		'src/a.test.ts': "it('a', () => {});\n",
+	});
+	for (const path of ['src', './src', 'src/', 'src\\']) {
+		const result = run('check-test-quarantine.mjs', root, path);
+		assert.equal(result.status, 1, path);
+		assert.match(result.stderr, /it recovered/, path);
+	}
 });
 
 test('quarantine: fails with no register, with no test file, and takes another register path', () => {

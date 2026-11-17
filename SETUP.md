@@ -166,7 +166,7 @@ The `maintain-gates` skill (Botcore's `gate-discipline`, `.claude/skills/maintai
 | Script | What it checks |
 |--------|---------------|
 | `check-test-configs.mjs` | No Vitest or Vite config sets `passWithNoTests`, and no `package.json` script, workflow, `lefthook.yml` or `scripts/affected` module passes `--passWithNoTests`: a runner that finds no test file must fail, not pass. A new package adds its first test with its config |
-| `check-test-quarantine.mjs` | No `.only` in any JavaScript or TypeScript test, and each unconditional `.skip` or `.todo` registered with an owner, reason and issue in `scripts/policy/test-quarantine.json`; an entry whose test recovered fails. Conditional skips (`skipIf`, `runIf`, Playwright's `test.skip(condition, reason)`) need no entry |
+| `check-test-quarantine.mjs` | No `.only` in any JavaScript or TypeScript test, and each unconditional `.skip`, `.todo` or Playwright `.fixme` registered with an owner, reason and issue in `scripts/policy/test-quarantine.json`; an entry whose test recovered fails. Conditional skips (`skipIf`, `runIf`, Playwright's `test.skip(condition, reason)`) need no entry |
 
 Skip hooks: `git commit --no-verify` / `git push --no-verify`
 

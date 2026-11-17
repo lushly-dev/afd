@@ -25,10 +25,12 @@ listing_budget = 6800
 # Skip every bundled canonical ID: seed must not rename or replace this profile.
 skip = [
     "agent-config",
+    "bloat-sweeper",
     "botcore-config",
     "browser-automation",
     "code-reviewer",
     "docs-manager",
+    "gate-discipline",
     "mcp-builder",
     "plugin-builder",
     "security-auditor",
@@ -138,6 +140,9 @@ gate_paths = [
     ".github/workflows/**",
     ".github/labels.json",
     "scripts/check-*.mjs",
+    "scripts/policy/**",
+    ".claude/skills/maintain-gates/scripts/**",
+    "endpoints/botcore/src/botcore/skills/gate-discipline/scripts/**",
     "scripts/issue-labels.mjs",
     "scripts/affected*",
     "scripts/pre-push.mjs",
