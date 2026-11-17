@@ -21,7 +21,7 @@ pub(crate) struct Session {
     tokenizers: TokenizerManager,
     /// The revision the index reflects, read under the lock and moved by this session's commit.
     applied: Rev,
-    /// Keeps this process's readers of `meta.json` apart from the commit that replaces it.
+    /// Keeps readers of `meta.json` apart from the commit that replaces it.
     meta: MetaGuard,
 }
 
@@ -34,7 +34,7 @@ impl Session {
         meta: MetaGuard,
     ) -> Result<Self, StoreError> {
         let applied = {
-            let _meta = meta.reading();
+            let _meta = meta.reading()?;
             read_applied(index)?
         };
         Ok(Self {
@@ -113,7 +113,7 @@ impl IndexWriterSession for Session {
         let mut prepared = writer.prepare_commit().map_err(|e| map_tantivy(&e))?;
         prepared.set_payload(&payload);
         // The commit, and the merges waited for below, replace `meta.json`.
-        let _meta = meta.writing();
+        let _meta = meta.writing()?;
         prepared.commit().map_err(|e| map_tantivy(&e))?;
         self.applied = applied;
         // Let the merges this commit made eligible finish while the lock is still held, so no
