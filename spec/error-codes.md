@@ -307,7 +307,7 @@ does not define them.
 | `STREAM_TRUNCATED` | The connection closed before a complete or error chunk. The command may have run | No | TypeScript |
 | `STREAM_EVENT_TOO_LARGE` | An SSE event exceeded `maxStreamEventSize` | No | TypeScript |
 | `TRANSPORT_ERROR`, `CLIENT_ERROR`, `INVALID_RESULT` | The transport failed, the client failed, or the server's result could not be parsed | No | Python |
-| `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | TypeScript (`streamable-http`); Python planned |
+| `INPUT_REQUIRED` | The server answered `input_required` and no elicitation handler was registered. `data.inputRequests` holds what the server asked for | No | TypeScript, Python (`streamable-http`) |
 
 ### Middleware and telemetry
 
