@@ -565,6 +565,10 @@ state/spaces/<space>/
 
 ### 3.3 Grants and host services (D54)
 
+> **Amended 2026-11-16 (D189 to D191, the [world 1.1.0 specification](../1-plugin-contract/world-1.1.spec.md)).** World 1.1.0 carries the four `host-error` cases
+> and the output budget (3.4), not store grants: those stay refused to components, now naming no world version, until
+> the owner decides them for a later minor version of world 1.
+
 The phase 1 catalog (config, log, packs, events, clock, random) gains ten
 grants. Each is scoped to the instance's spaces (D44) and refused to
 components and mounted plugins in protocol 1 with `PLUGIN_GRANT_UNAVAILABLE`

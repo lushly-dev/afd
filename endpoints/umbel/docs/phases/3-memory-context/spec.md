@@ -1011,6 +1011,10 @@ sections 5.4 and 7.4.
 
 ### 6.1 Grants
 
+> **Amended 2026-11-16 (D189, the [world 1.1.0 specification](../1-plugin-contract/world-1.1.spec.md)).** World 1.1.0 gives components no
+> memory grant, and decides no masking (6.2 item 4): both wait for a later minor version of world 1, the owner's
+> decision. A component command may now declare `journal` (2.3), which no longer depends on a memory grant.
+
 The reserved grant `memory` becomes two, per D42's rule. Compiled plugins only;
 components and mounts get `PLUGIN_GRANT_UNAVAILABLE`, naming world 1.1.0.
 
