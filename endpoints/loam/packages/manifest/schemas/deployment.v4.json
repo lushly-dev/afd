@@ -87,7 +87,7 @@
 			"properties": {
 				"origin": {
 					"type": "string",
-					"pattern": "^https?://[^/?#\\s]+$"
+					"pattern": "^(https?://[^/?#\\s]+|loam-sandbox://localhost)$"
 				}
 			},
 			"required": ["origin"],

@@ -1,18 +1,44 @@
 // The C++ todo backend.
 //
-//   todo-server-cpp                      stdio MCP server (default)
+//   todo-server-cpp                      stdio MCP server (default); CONFIRMATIONS=off|enforce|
+//                                        require-human sets confirmation enforcement
 //   todo-server-cpp list-commands        the registered command names
 //   todo-server-cpp <command> [json]     run one command and print its result
 //
 // Exit codes: 0 success, 1 the command failed, 2 usage error.
 #include <cstdio>
+#include <cstdlib>
 #include <iostream>
 #include <memory>
+#include <optional>
 #include <string>
 
 #include "commands.hpp"
-#include "mcp_stdio.hpp"
 #include "store.hpp"
+#include <afd/mcp_stdio.hpp>
+
+namespace {
+
+/// `CONFIRMATIONS`: `off` (the default), `enforce` or `require-human`, as the other backends read
+/// it.
+std::optional<afd::mcp::ConfirmationMode> confirmations_from_environment() {
+    const char* value = std::getenv("CONFIRMATIONS");
+    const std::string mode = value != nullptr ? value : "off";
+    if (mode == "off") {
+        return afd::mcp::ConfirmationMode::off;
+    }
+    if (mode == "enforce") {
+        return afd::mcp::ConfirmationMode::enforce;
+    }
+    if (mode == "require-human") {
+        return afd::mcp::ConfirmationMode::require_human;
+    }
+    std::fprintf(stderr, "CONFIRMATIONS must be off, enforce or require-human, got \"%s\"\n",
+                 mode.c_str());
+    return std::nullopt;
+}
+
+} // namespace
 
 int main(int argc, char** argv) {
     auto clock = std::make_shared<afd::SystemClock>();
@@ -25,9 +51,20 @@ int main(int argc, char** argv) {
 
     const std::string mode = argc > 1 ? argv[1] : "server";
     if (mode == "server") {
+        const auto confirmations = confirmations_from_environment();
+        if (!confirmations) {
+            return 2;
+        }
+        auto server = afd::mcp::StdioServer::create(registry, {.name = "afd-todo-cpp",
+                                                               .version = TODO_BACKEND_VERSION,
+                                                               .confirmations = *confirmations,
+                                                               .clock = clock});
+        if (!server) {
+            std::fprintf(stderr, "failed to start the MCP server: %s\n", server.error().c_str());
+            return 2;
+        }
         std::ios::sync_with_stdio(false);
-        todo::serve(registry, std::cin, std::cout,
-                    {.name = "afd-todo-cpp", .version = TODO_BACKEND_VERSION});
+        (*server)->serve(std::cin, std::cout);
         return 0;
     }
     if (mode == "list-commands") {

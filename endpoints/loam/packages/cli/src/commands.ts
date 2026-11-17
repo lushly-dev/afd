@@ -102,8 +102,10 @@ export const deploymentCheckCommand = defineCommand({
 	mutation: false,
 	expose: EXPOSE,
 	async handler({ file }) {
-		const { refusals, instanceRefusals, warnings, notices, instances } =
-			await analyzeDeployment(file);
+		const { refusals, instanceRefusals, warnings, notices, instances } = await analyzeDeployment(
+			file,
+			{ desktop: {} }
+		);
 		const all = [...refusals, ...instanceRefusals];
 		if (all.length > 0) return refused(all, { warnings, notices });
 		return success(

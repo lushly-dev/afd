@@ -1,0 +1,19 @@
+# P6-D2's `stdio` fixture app: its commands come from the instance (`test/fixtures/notify-server.ts`).
+manifest_version = 1
+protocol = 1
+afd_contract = "1.0"
+
+[plugin]
+id = "fixture"
+title = "Fixture"
+version = "0.1.0"
+description = "A test server that writes notifications before it answers."
+kind = "mounted"
+domains = ["fixture"]
+
+[mount]
+prefix = "fixture"
+transport = "stdio"
+
+[app]
+scope_levels = ["workspace", "project"]

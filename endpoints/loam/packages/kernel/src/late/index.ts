@@ -405,6 +405,8 @@ export async function createLateParts(
 	await declare();
 	/** Whether the store holds the booted projection's entries, so a new workspace row may claim it. */
 	let applied = false;
+	/** Whether the applied projection's host is the desktop, as `shell-info-get` says (phase 6 specification, 10.1). */
+	let desktop = false;
 	const stores = createShellStores(deps.store, deps.scope);
 	const scoped = createScopeCommands({
 		...deps,
@@ -419,6 +421,7 @@ export async function createLateParts(
 				...deps,
 				editorOwner: editor.owner,
 				documentRows: rows,
+				desktop: () => desktop,
 				// A signed-out `provider` page lists only the signed-out commands, filtered before the search ranks (2.1, I4).
 				paletteOnly: () =>
 					deps.identity?.mode === 'provider' && deps.auth.getSession().status !== 'authenticated'
@@ -597,6 +600,7 @@ export async function createLateParts(
 		}),
 		hidden: (apps) => new Set(apps.filter((app) => !app.available).map((app) => app.instance)),
 		async apply(projection, run, settle) {
+			desktop = projection.host?.kind === 'desktop';
 			// A replay's entries are what ran (10): it reads its own `internals`, so first paint passes nothing.
 			const replaying = deps.internals?.replaying === true;
 			// A replay applies through its entries; an empty projection there holds nothing to apply. A

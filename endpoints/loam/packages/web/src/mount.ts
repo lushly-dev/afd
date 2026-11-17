@@ -11,6 +11,8 @@ import {
 } from '@lushly-dev/afd-client/streamable-http';
 import type { McpTool, McpToolCallResult, MountTransportV2 } from '@lushly-dev/loam-kernel';
 
+export { createDesktopMountTransport } from './mount-desktop.js';
+
 /** More than a `CommandResult` needs, and the journal keeps 256 KiB of one (7.6). */
 export const RESPONSE_MAX_BYTES = 4 * 1024 * 1024;
 

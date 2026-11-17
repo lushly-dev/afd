@@ -207,6 +207,26 @@ describe('P6-E1: the projection, version 4', () => {
 		}
 	});
 
+	it("P6-E1: the desktop's sandbox scheme is an origin of a desktop projection alone, as projection.v4.json has it", () => {
+		const validate = schemaAjv().getSchema(readSchema('projection', 4).$id);
+		if (!validate) throw new Error('projection.v4.json is not compiled');
+		const scheme = { ...PROJECTION, sandbox_origin: 'loam-sandbox://localhost' };
+		expect(readProjection({ ...scheme, host: { kind: 'desktop' } }).ok).toBe(true);
+		for (const host of [undefined, { kind: 'static' }, { kind: 'hosted', kernel: 'api/kernel' }]) {
+			const json = host === undefined ? scheme : { ...scheme, host };
+			expect(readProjection(json).ok, JSON.stringify(host)).toBe(false);
+		}
+		for (const version of [2, 3])
+			expect(readProjection({ ...scheme, deployment_version: version }).ok).toBe(false);
+		for (const origin of ['loam-sandbox://other', 'loam://localhost', 'loam-sandbox://localhost/'])
+			expect(
+				readProjection({ ...PROJECTION, host: { kind: 'desktop' }, sandbox_origin: origin }).ok,
+				origin
+			).toBe(false);
+		// The page's reader admits no more than the schema does.
+		expect(validate({ ...scheme, host: { kind: 'desktop' } })).toBe(true);
+	});
+
 	it('P6-E1: stage A boots a version 4 projection and reads no `host`', () => {
 		const boot = readBoot({ ...PROJECTION, host: { kind: 'hosted', kernel: 'api/kernel' } });
 		expect(boot).toBeDefined();

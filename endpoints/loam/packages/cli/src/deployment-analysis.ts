@@ -5,7 +5,7 @@
  */
 
 import { readFile } from 'node:fs/promises';
-import { dirname, join, resolve } from 'node:path';
+import { dirname, isAbsolute, join, resolve } from 'node:path';
 import {
 	type DeploymentV1,
 	type DeploymentV2,
@@ -42,6 +42,31 @@ export interface MountAccess {
 	instance: string;
 	url: string;
 	bearer?: string;
+}
+
+/**
+ * How the desktop's Rust host starts a `stdio` instance (phase 6 specification, 10.4): written only into a
+ * desktop deployment's `mounts.json`, beside phase 1's entries. `command[0]` and `cwd`, when relative paths,
+ * are resolved against the deployment file's directory.
+ */
+export interface StdioMountAccess {
+	instance: string;
+	transport: 'stdio';
+	command: string[];
+	cwd?: string;
+}
+
+/**
+ * The desktop's origins on this platform (phase 6 specification, 10.2): Tauri serves a custom protocol at
+ * `<scheme>://localhost` on macOS and Linux and at `http://<scheme>.localhost` on Windows.
+ */
+export function desktopOrigins(platform: NodeJS.Platform = process.platform): {
+	shell: string;
+	sandbox: string;
+} {
+	return platform === 'win32'
+		? { shell: 'http://loam.localhost', sandbox: 'http://loam-sandbox.localhost' }
+		: { shell: 'loam://localhost', sandbox: 'loam-sandbox://localhost' };
 }
 
 interface PackageState {
@@ -83,6 +108,8 @@ export interface DeploymentAnalysis {
 	basePath?: string;
 	instances: InstanceEffect[];
 	mounts: MountAccess[];
+	/** A desktop deployment's `stdio` instances (10.4); empty for every other kind. */
+	stdioMounts: StdioMountAccess[];
 }
 
 /** What `deployment check` says of a `local` deployment (phase 3 specification, 2.1). */
@@ -403,6 +430,12 @@ export interface AnalyzeDeploymentOptions {
 	 * only `static` matches it.
 	 */
 	host?: HostKindV1;
+	/**
+	 * Read a desktop file with its sandbox on the desktop's own scheme for `platform` (default: this one),
+	 * whatever its `[sandbox]` says (phase 6 specification, 10.2), as `deployment write` and `deployment check`
+	 * do. The hosted server reads a file as written.
+	 */
+	desktop?: { platform?: NodeJS.Platform };
 }
 
 /** `--host` against the file's own kind (3.3): a finding, or the file with the kind set, or as it was. */
@@ -440,7 +473,14 @@ export async function analyzeDeployment(
 	config: string,
 	options: AnalyzeDeploymentOptions = {}
 ): Promise<DeploymentAnalysis> {
-	const empty = { instanceRefusals: [], warnings: [], notices: [], instances: [], mounts: [] };
+	const empty = {
+		instanceRefusals: [],
+		warnings: [],
+		notices: [],
+		instances: [],
+		mounts: [],
+		stdioMounts: [],
+	};
 	const unreadable = (message: string, suggestion: string): DeploymentAnalysis => ({
 		...empty,
 		refusals: [{ code: 'DEPLOYMENT_INVALID', key: config, message, suggestion }],
@@ -466,6 +506,11 @@ export async function analyzeDeployment(
 		(parsed as Record<string, unknown>).sandbox = { origin: options.sandboxOrigin };
 	const mismatch = withHost(parsed, options.host);
 	if (mismatch) return { ...empty, refusals: [mismatch] };
+	// The desktop's sandbox is its own scheme on this platform, whatever the file names (10.2).
+	if (options.desktop && desktopFile(parsed))
+		(parsed as Record<string, unknown>).sandbox = {
+			origin: desktopOrigins(options.desktop.platform).sandbox,
+		};
 	const read = readDeployment(parsed);
 	if (!read.ok) return { ...empty, refusals: read.refusals };
 	const { deployment } = read;
@@ -477,6 +522,9 @@ export async function analyzeDeployment(
 	const warnings: DeploymentFinding[] = [...read.warnings];
 	const instances: InstanceEffect[] = [];
 	const mounts: MountAccess[] = [];
+	const stdioMounts: StdioMountAccess[] = [];
+	const desktop = read.host === 'desktop';
+	const fromBase = (path: string) => (isAbsolute(path) ? path : resolve(base, path));
 	for (const [id, entry] of Object.entries(deployment.apps)) {
 		const directory = resolve(base, entry.package);
 		const { state, found } = await readPackage(directory);
@@ -543,6 +591,15 @@ export async function analyzeDeployment(
 				instanceRefusals.push(...transportFindings(id, entry, effect.transport));
 			}
 		}
+		if (desktop && mounted && effect.transport === 'stdio' && entry.command !== undefined) {
+			const [program, ...args] = entry.command as [string, ...string[]];
+			stdioMounts.push({
+				instance: id,
+				transport: 'stdio',
+				command: [/[\\/]/.test(program) ? fromBase(program) : program, ...args],
+				...(entry.cwd !== undefined ? { cwd: fromBase(entry.cwd) } : {}),
+			});
+		}
 		if (mounted && effect.transport !== 'stdio') {
 			const credential = await readCredential(id, entry, base);
 			if (credential.finding) refusals.push(credential.finding);
@@ -575,5 +632,18 @@ export async function analyzeDeployment(
 		basePath: read.basePath,
 		instances,
 		mounts,
+		stdioMounts,
 	};
+}
+
+/** A file this reader will read as a desktop deployment, once `--host` is applied. */
+function desktopFile(parsed: unknown): boolean {
+	if (typeof parsed !== 'object' || parsed === null) return false;
+	const file = parsed as { deployment_version?: unknown; host?: unknown };
+	return (
+		file.deployment_version === 4 &&
+		typeof file.host === 'object' &&
+		file.host !== null &&
+		(file.host as { kind?: unknown }).kind === 'desktop'
+	);
 }
