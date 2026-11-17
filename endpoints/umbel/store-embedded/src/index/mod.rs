@@ -44,21 +44,18 @@ const LOCK_POLL: Duration = Duration::from_millis(50);
 /// The file in the index directory whose lock keeps reading `meta.json` apart from replacing it.
 #[cfg(windows)]
 const META_GUARD_FILE: &str = ".umbel-meta.lock";
-/// How often a wait for [`MetaGuard`] retries.
-#[cfg(windows)]
-const META_POLL: Duration = Duration::from_millis(2);
 
-/// Keeps reading an index's `meta.json` apart from replacing it, on Windows, across threads,
+/// Keeps reading an index's metadata apart from replacing it, on Windows, across threads,
 /// handles and processes: an open file can make replacement fail with "access denied". Reads
-/// share a lock on a file in the index directory; a commit holds it alone while it replaces the
-/// metadata. A wait past the lock timeout is `Busy`. Elsewhere this does nothing: replacement
-/// never conflicts with an open file there.
+/// share a lock on a file in the index directory; a commit holds it alone from preparing until
+/// its merges are done, since both replace `meta.json` and `.managed.json`. A wait lasts as long
+/// as the holder, as the in-process lock it replaces did: reads hold it briefly, and a commit
+/// already holds the writer lock. Elsewhere this does nothing: replacement never conflicts with
+/// an open file there.
 #[derive(Clone)]
 pub(crate) struct MetaGuard {
     #[cfg(windows)]
     path: std::sync::Arc<PathBuf>,
-    #[cfg(windows)]
-    timeout: Duration,
 }
 
 /// A hold on [`MetaGuard`], released when dropped.
@@ -70,28 +67,25 @@ pub(crate) struct MetaHold(
 
 impl MetaGuard {
     #[cfg_attr(not(windows), allow(unused_variables))]
-    fn new(dir: &Path, timeout: Duration) -> Self {
+    fn new(dir: &Path) -> Self {
         Self {
             #[cfg(windows)]
             path: std::sync::Arc::new(dir.join(META_GUARD_FILE)),
-            #[cfg(windows)]
-            timeout,
         }
     }
 
-    /// Held while `meta.json` is read.
+    /// Held while the metadata is read.
     pub(crate) fn reading(&self) -> Result<MetaHold, StoreError> {
         self.hold(false)
     }
 
-    /// Held while `meta.json` is replaced.
+    /// Held while the metadata is replaced.
     pub(crate) fn writing(&self) -> Result<MetaHold, StoreError> {
         self.hold(true)
     }
 
     #[cfg(windows)]
     fn hold(&self, exclusive: bool) -> Result<MetaHold, StoreError> {
-        use std::fs::TryLockError;
         let io = |e: std::io::Error| StoreError::Io(format!("{}: {e}", self.path.display()));
         let file = std::fs::OpenOptions::new()
             .read(true)
@@ -100,26 +94,15 @@ impl MetaGuard {
             .truncate(false)
             .open(&*self.path)
             .map_err(io)?;
-        let deadline = Instant::now() + self.timeout;
-        loop {
-            let taken = if exclusive {
-                file.try_lock()
-            } else {
-                file.try_lock_shared()
-            };
-            match taken {
-                Ok(()) => return Ok(MetaHold(file)),
-                Err(TryLockError::WouldBlock) if Instant::now() < deadline => {
-                    std::thread::sleep(META_POLL);
-                }
-                Err(TryLockError::WouldBlock) => return Err(StoreError::Busy),
-                Err(TryLockError::Error(e)) => return Err(io(e)),
-            }
+        if exclusive {
+            file.lock().map_err(io)?;
+        } else {
+            file.lock_shared().map_err(io)?;
         }
+        Ok(MetaHold(file))
     }
 
     #[cfg(not(windows))]
-    #[allow(clippy::unnecessary_wraps, clippy::unused_self)]
     fn hold(&self, _exclusive: bool) -> Result<MetaHold, StoreError> {
         Ok(MetaHold())
     }
@@ -226,7 +209,7 @@ impl TantivyIndex {
         let directory = MmapDirectory::open(&dir)
             .map_err(|e| StoreError::Io(format!("{}: {e}", dir.display())))?;
         let lock_timeout = Duration::from_millis(options.lock_timeout_ms);
-        let meta = MetaGuard::new(&dir, lock_timeout);
+        let meta = MetaGuard::new(&dir);
         let (tantivy_schema, fields) = schema::build();
         let build = || {
             IndexBuilder::new()
