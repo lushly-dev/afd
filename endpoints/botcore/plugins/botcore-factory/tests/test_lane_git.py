@@ -142,6 +142,69 @@ def test_afd_s_review_evidence_accepts_only_the_recorded_head(tmp_path, monkeypa
     assert cannot.value.code == "REVIEW_MISSING"
 
 
+def test_a_branch_that_rewrites_the_verifier_still_needs_its_review(tmp_path, monkeypatch):
+    """lushly-dev/afd#1308: enqueue runs the branch's own verifier, which the branch can make
+    always pass; the lane runs the base's copy from its review slot, which still refuses."""
+    from types import SimpleNamespace
+
+    from botcore.config import load_config
+
+    from botcore_factory import FactoryPlugin
+    from botcore_factory.lane import Step
+    from botcore_factory.queue import _check_review
+    from botcore_factory.real_system import OsProcesses
+
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    adapter = load_config(workspace=ROOT, discovered_plugins={"factory": FactoryPlugin()}).plugins[
+        "factory"
+    ]
+    repo, cell = tmp_path / "repo", tmp_path / "cell"
+    script = "scripts/review-record.mjs"
+    (repo / "scripts").mkdir(parents=True)
+    (repo / script).write_bytes((ROOT / script).read_bytes())
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "add", "."])
+    run(["git", "commit", "-m", "base"])
+    base = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "update-ref", "refs/remotes/origin/main", base])
+    run(["git", "worktree", "add", "-b", "feat/cell", str(cell)])
+    in_cell = make_runner(str(cell))
+    in_cell(["git", "commit", "--allow-empty", "-m", "reviewed"])
+    reviewed = in_cell(["git", "rev-parse", "HEAD"]).strip()
+    lanes = [{"lane": "general", "model": "fixture", "effort": "high", "verdict": "pass"}]
+    in_cell(["node", script, "write", "--lanes", json.dumps(lanes)])
+
+    ejected: list[tuple[str, str]] = []
+    world = SimpleNamespace(git=CliGit(run), processes=OsProcesses())
+    lane = SimpleNamespace(
+        config=adapter,
+        world=world,
+        cell=lambda branch: {"worktree": str(cell)},
+        eject=lambda entry, cause, text, log=None: ejected.append((cause, text)),
+    )
+    assert Step.review_verified(lane, {"branch": "feat/cell", "head": reviewed}, base)
+    assert not ejected
+
+    (cell / script).write_text("process.exit(0);\n", encoding="utf-8")
+    in_cell(["git", "commit", "-am", "a verifier that always passes"])
+    head = in_cell(["git", "rev-parse", "HEAD"]).strip()
+    cell_factory = SimpleNamespace(config=adapter, world=world)
+    _check_review(cell_factory, str(cell), head)  # The branch's copy lets enqueue through.
+
+    assert not Step.review_verified(lane, {"branch": "feat/cell", "head": head}, base)
+    assert ejected[0][0] == "review-unverified"
+    assert f"review recorded is of {reviewed}, not {head}" in ejected[0][1]
+    slot = Path(CliGit(run)._slot_path("review"))
+    assert (slot / script).read_bytes() == (ROOT / script).read_bytes()  # The base's copy ran.
+
+
 def test_merge_tree_and_diff_names_read_a_moved_base_without_a_checkout(tmp_path, monkeypatch):
     for key in list(os.environ):
         if key.startswith("GIT_"):

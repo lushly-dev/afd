@@ -4,11 +4,12 @@ A cell calls it once, naming only its worktree, and ends its turn. Everything th
 checked before anything is written, in this order: the worktree and its branch, the cell
 (``NOT_FOUND``), the lane host (``NOT_LANE_HOST``), uncommitted files (``DIRTY_WORKTREE``), the
 review recorded for the exact head (``REVIEW_MISSING``, from the adapter's ``review_evidence``,
-never from the caller), a repair's gate edits (``GATE_EDIT_IN_REPAIR``, or ``GATE_CHECK_FAILED``
-when they cannot be read) and the cheap checks
-(``PREQUEUE_FAILED``). Then the head is pushed to ``refs/factory/queue/<branch>`` on origin, the
-branch is queued (a repair at the front) or held when the queue holds ``lane.queueMax``
-branches, the ejection it repairs is answered and an ``enqueued`` record is written.
+never from the caller; fast feedback only, since it runs the branch's own verifier: the lane's
+check at validation binds, lushly-dev/afd#1308), a repair's gate edits (``GATE_EDIT_IN_REPAIR``,
+or ``GATE_CHECK_FAILED`` when they cannot be read) and the cheap checks (``PREQUEUE_FAILED``).
+Then the head is pushed to ``refs/factory/queue/<branch>`` on origin, the branch is queued (a
+repair at the front) or held when the queue holds ``lane.queueMax`` branches, the ejection it
+repairs is answered and an ``enqueued`` record is written.
 """
 
 from __future__ import annotations
@@ -86,7 +87,7 @@ def _check_review(factory: Factory, worktree: str, head: str) -> None:
             "Set review_evidence under [plugins.factory]: the command that confirms the review "
             "recorded for {head}",
         )
-    argv = [part.replace("{head}", head) for part in command]
+    argv = [part.replace("{head}", head).replace("{worktree}", worktree) for part in command]
     try:
         done = factory.world.processes.run(
             argv, cwd=worktree, timeout=REVIEW_TIMEOUT, label="review-evidence"

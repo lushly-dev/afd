@@ -12,9 +12,12 @@
  * The record lives in the worktree's own git directory, where it cannot be committed, and is bound
  * to the commit and tree reviewed. `lane-enqueue` runs the adapter's `review_evidence`,
  *
- *   node scripts/review-record.mjs verify --head <sha>
+ *   node scripts/review-record.mjs verify --head <sha> --worktree <path>
  *
- * which passes only for a passing review of that exact, checked-out, clean commit. A commit made
+ * which passes only for a passing review of that exact, checked-out, clean commit in that worktree
+ * (without `--worktree`, the checkout this script is in), and exits `REFUSED` (3) otherwise. The lane runs it again before each
+ * validation, from its own checkout of the base, so a branch that edits this script cannot pass
+ * its own review (lushly-dev/afd#1308). A commit made
  * after the review (a fix, a base merge) has no record until the review is recorded again. As
  * with the gateway, the verdicts are the cell's own report of its reviewers: typed and bound to
  * the head, not proven.
@@ -32,6 +35,12 @@ import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const SCHEMA = 1;
+/**
+ * `verify`'s exit code for a refused review. Any other non-zero exit (a crash, a usage error,
+ * Node's own exit 1 for a missing or broken script) means the verifier failed, which the lane
+ * treats as its own trouble rather than the branch's (lushly-dev/afd#1308).
+ */
+export const REFUSED = 3;
 /** affected/scope.mjs's DEFAULT_BASES, kept here so the script stands alone (a test pins them). */
 export const DEFAULT_BASES = ['origin/main', 'main'];
 const SHA = /^[0-9a-f]{40}$/;
@@ -157,11 +166,14 @@ export function readRecord(path) {
 const USAGE = `Usage:
   node scripts/review-record.mjs write --lanes '<JSON array of {lane, model, effort, verdict, fixed?, deferred?}>'
   node scripts/review-record.mjs write --lanes-file <path to that JSON>   (portable to Windows shells)
-  node scripts/review-record.mjs verify --head <40-character commit id>
+  node scripts/review-record.mjs verify --head <40-character commit id> [--worktree <path>]
   node scripts/review-record.mjs show`;
 
-/** Runs one command; returns `{ code, out }` so tests need no process. */
-export function run(argv, { git, root, now = Date.now() }) {
+/**
+ * Runs one command; returns `{ code, out }` so tests need no process. `gitAt(dir)` gives the git
+ * runner for another checkout, which `verify --worktree` reads instead of `root`.
+ */
+export function run(argv, { git, root, gitAt, now = Date.now() }) {
 	const [command, ...rest] = argv;
 	const options = {};
 	for (let i = 0; i < rest.length; i += 2) {
@@ -170,12 +182,17 @@ export function run(argv, { git, root, now = Date.now() }) {
 			return { code: 2, out: `review-record: expected --name value pairs\n${USAGE}` };
 		options[key.slice(2)] = value;
 	}
-	const commands = { write: ['lanes', 'lanes-file'], verify: ['head'], show: [] };
+	const commands = { write: ['lanes', 'lanes-file'], verify: ['head', 'worktree'], show: [] };
 	if (!Object.hasOwn(commands, command)) return { code: 2, out: USAGE };
 	const allowed = commands[command];
 	const unknown = Object.keys(options).filter((key) => !allowed.includes(key));
 	if (unknown.length)
 		return { code: 2, out: `review-record: unknown option --${unknown[0]}\n${USAGE}` };
+	if (options.worktree !== undefined) {
+		if (!gitAt) return { code: 2, out: 'review-record: --worktree cannot be read here' };
+		root = resolve(root, options.worktree);
+		git = gitAt(root);
+	}
 	const path = recordPath(git, root);
 	if (command === 'show') {
 		let record = null;
@@ -194,10 +211,13 @@ export function run(argv, { git, root, now = Date.now() }) {
 		try {
 			record = readRecord(path);
 		} catch (error) {
-			return { code: 1, out: `review-record: the record could not be read: ${error.message}` };
+			return {
+				code: REFUSED,
+				out: `review-record: the record could not be read: ${error.message}`,
+			};
 		}
 		const { accepted, reason } = acceptRecord({ record, identity, head: options.head });
-		return { code: accepted ? 0 : 1, out: `review-record: ${reason}` };
+		return { code: accepted ? 0 : REFUSED, out: `review-record: ${reason}` };
 	}
 	if ((options.lanes === undefined) === (options['lanes-file'] === undefined))
 		return { code: 2, out: `review-record: write needs one of --lanes or --lanes-file\n${USAGE}` };
@@ -230,10 +250,10 @@ function isEntry() {
 
 if (process.argv[1] && isEntry()) {
 	const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-	const git = (args) =>
-		execFileSync('git', args, { cwd: root, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
+	const gitAt = (cwd) => (args) =>
+		execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 	try {
-		const { code, out } = run(process.argv.slice(2), { git, root });
+		const { code, out } = run(process.argv.slice(2), { git: gitAt(root), root, gitAt });
 		(code === 0 ? console.log : console.error)(out);
 		process.exitCode = code;
 	} catch (error) {

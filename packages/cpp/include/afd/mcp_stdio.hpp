@@ -16,7 +16,13 @@
 // CommandResult envelope as its top-level `outputSchema` (spec/command-metadata.md, "Structured
 // results"). Command failures are CommandResults with `isError: true`, never JSON-RPC errors.
 // `notifications/cancelled` cancels the call in flight through `CommandContext::cancellation`. It
-// has no meta-tools, context tools or HTTP transport.
+// has no meta-tools or HTTP transport.
+//
+// Contexts (spec/tool-strategies.md, "Contexts"): with `StdioServerOptions::contexts`, a 2025
+// connection keeps one context stack, which `afd-context-enter` and `afd-context-exit` change,
+// and a 2026-07-28 request names its context in `_meta["dev.afd/context"]`. `tools/list` lists
+// only the commands available in the active context, and a call outside it fails with
+// COMMAND_NOT_IN_CONTEXT.
 //
 // Confirmations (spec/command-metadata.md, "Confirmations"): with `confirmations` on, a command
 // with `confirm_prompt` runs only after an accepted form elicitation or, under `enforce`, an
@@ -26,6 +32,7 @@
 #pragma once
 
 #include "afd/command.hpp"
+#include "afd/contexts.hpp"
 #include "afd/expected.hpp"
 #include "afd/json.hpp"
 #include "afd/registry.hpp"
@@ -64,6 +71,8 @@ struct RequestInfo {
     bool modern = false;
     /// The client's declared capabilities: from `initialize`, or the request's `_meta`.
     Json client_capabilities = Json::object();
+    /// The active context, when the server configures contexts.
+    std::optional<std::string> active_context;
     /// The request's `_meta`, or an empty object.
     Json meta = Json::object();
 };
@@ -78,6 +87,14 @@ struct StdioServerOptions {
     /// Lines longer than this are rejected, bounding memory for a hostile client.
     std::size_t max_line_bytes = std::size_t{1} << 20;
     ConfirmationMode confirmations = ConfirmationMode::off;
+    /// The contexts the server serves (contexts.hpp). Register their commands first with
+    /// `afd::register_context_commands(registry, contexts)`; `create` fails when they are
+    /// missing. Empty (the default): no contexts.
+    std::vector<ContextConfig> contexts;
+    /// The `ttlMs` of `tools/list` and `server/discover` on 2026-07-28. Default: 300000, or 0
+    /// with contexts, since the list varies by `_meta["dev.afd/context"]`, which clients leave
+    /// out of their cache key.
+    std::optional<std::int64_t> tools_list_ttl_ms;
     /// Advertise the CommandResult envelope (`command_result_output_schema`) as the top-level
     /// `outputSchema` of each tool whose command has an `output_schema`. Clients validate
     /// `structuredContent` against it, so a handler whose `data` does not match fails on the
@@ -106,8 +123,9 @@ using ClientRequester = std::function<std::optional<Json>(const Json& request)>;
 /// The server for one stdio connection. Not thread-safe: `serve` handles one message at a time.
 class StdioServer {
 public:
-    /// Fails when `state_secret` is set but shorter than 32 bytes. `registry` must outlive the
-    /// server.
+    /// Fails when `state_secret` is set but shorter than 32 bytes, when `contexts` are set but
+    /// their commands are not registered and exposed to MCP, or when `tools_list_ttl_ms` is
+    /// negative. `registry` must outlive the server.
     static Expected<std::unique_ptr<StdioServer>> create(const CommandRegistry& registry,
                                                          StdioServerOptions options = {});
 
@@ -127,7 +145,7 @@ public:
     /// thread watches for `notifications/cancelled` and elicitation responses while a call runs.
     void serve(std::istream& in, std::ostream& out);
 
-    /// The tools `tools/list` returns.
+    /// The tools `tools/list` returns with no active context.
     [[nodiscard]] Json tools() const;
 
 private:
