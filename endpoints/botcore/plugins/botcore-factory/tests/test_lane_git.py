@@ -15,7 +15,7 @@ from pathlib import Path
 import pytest
 
 from botcore_factory.real_world import CliGit, make_runner
-from botcore_factory.world import WorldError
+from botcore_factory.world import MergeOutcome, WorldError
 
 ROOT = Path(__file__).resolve().parents[5]
 
@@ -341,3 +341,57 @@ def test_a_repair_s_gate_edits_are_its_own_not_main_s_brought_in_by_a_rebase(tmp
     run(["git", "checkout", "--quiet", "-B", "fix/merged", ejected])
     run(["git", "merge", "--quiet", "--no-edit", moved])
     assert git.repair_edits(str(repo), moved, ejected, gate) == []
+
+
+def test_a_merge_left_open_for_generated_files_is_finished_or_aborted(tmp_path, monkeypatch):
+    """lushly-dev/afd#1410: the slot's merge stays open only when ``keep_open`` accepts every
+    conflict; it commits once nothing is unmerged, and aborts when something still is."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+
+    def commit(files: dict[str, str], message: str) -> str:
+        for name, text in files.items():
+            (repo / name).parent.mkdir(parents=True, exist_ok=True)
+            (repo / name).write_text(text, encoding="utf-8")
+        run(["git", "add", "-A"])
+        run(["git", "commit", "-q", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    commit({"records/r.json": "base\n", "src/a.ts": "a\n"}, "base")
+    run(["git", "checkout", "-q", "-b", "feat"])
+    branch = commit({"records/r.json": "branch\n"}, "branch")
+    run(["git", "checkout", "-q", "main"])
+    main = commit({"records/r.json": "main\n"}, "main")
+    git = CliGit(run)
+    slot = git.prepare_slot("1", "", branch)
+    records_only = lambda files: all(f.startswith("records/") for f in files)  # noqa: E731
+
+    assert git.merge_main(slot, main) == MergeOutcome(False, conflicts=("records/r.json",))
+    opened = git.merge_main(slot, main, keep_open=records_only)
+    assert (opened.open, opened.conflicts) == (True, ("records/r.json",))
+    finished = git.finish_merge(slot)  # Nothing regenerated it: still unmerged, so aborted.
+    assert (finished.clean, finished.conflicts) == (False, ("records/r.json",))
+    assert git.head(slot) == branch
+
+    # The repository's hooks would check every file main brought in: the merge runs none.
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    (hooks / "pre-commit").write_text("#!/bin/sh\nexit 1\n", encoding="utf-8")
+    (hooks / "pre-commit").chmod(0o755)
+    run(["git", "config", "core.hooksPath", str(hooks)])
+    git.merge_main(slot, main, keep_open=records_only)
+    (Path(slot) / "records/r.json").write_text("both\n", encoding="utf-8")
+    run(["git", "-C", slot, "add", "records/r.json"])
+    finished = git.finish_merge(slot)
+    assert finished.clean
+    parents = run(["git", "-C", slot, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
+    assert parents[1:] == [branch, main]

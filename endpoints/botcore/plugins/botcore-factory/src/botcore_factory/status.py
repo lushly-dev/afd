@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import difflib
 
-from botcore_factory import dials
+from botcore_factory import dials, foreman
 from botcore_factory.cells import choose_plan, describe_plan, read_plans, seated
 from botcore_factory.events import open_events, view
 from botcore_factory.intake import dispatchable, read_backlog
@@ -95,6 +95,7 @@ def lane_status(factory: Factory, limit: int | None, cursor: str | None) -> dict
         "running": bool(lane.get("running")),
         "paused": bool(lane.get("paused")),
         "pauseReason": lane.get("pauseReason"),
+        "foreman": lane.get("foreman"),
         "draining": bool(lane.get("draining")),
         "slots": {
             "total": dials.value(state["dials"], "lane.slots"),
@@ -162,7 +163,8 @@ def dial_get(factory: Factory, key: str | None) -> dict:
     return dial.describe(dials.value(overrides, key))
 
 
-def dial_set(factory: Factory, key: str, value) -> dict:
+def dial_set(factory: Factory, key: str, value, session: str | None = None) -> dict:
+    foreman.hold(factory, session, "dial-set", owner_may=True)
     dial = find_dial(key)
     if dial.owner_only:
         raise Refusal(

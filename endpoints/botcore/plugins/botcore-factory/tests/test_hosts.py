@@ -19,6 +19,7 @@ EVERY = sorted(
         "dial_get",
         "dial_set",
         "event_resolve",
+        "foreman_handoff",
         "gate_allow",
         "issue_check",
         "lane_drop",

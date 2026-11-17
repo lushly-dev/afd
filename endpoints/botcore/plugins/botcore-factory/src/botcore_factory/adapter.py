@@ -53,6 +53,31 @@ class Stage(BaseModel):
         return _argv(value, "run")
 
 
+class Regenerate(BaseModel):
+    """Files the lane writes again, rather than eject, when they are a merge's only conflicts."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    name: str = Field(pattern=r"^[a-z0-9][a-z0-9-]*$", description="Named in the records")
+    paths: list[str] = Field(min_length=1, description="Globs of the generated files")
+    run: Argv = Field(
+        description=(
+            "Run in the validation checkout while the merge of the base is open: it writes the"
+            " conflicting files and stages them, or exits non-zero"
+        )
+    )
+
+    @field_validator("run")
+    @classmethod
+    def _run(cls, value: list[str]) -> list[str]:
+        return _argv(value, "run")
+
+    @field_validator("paths")
+    @classmethod
+    def _paths(cls, value: list[str]) -> list[str]:
+        return [_relative(glob, "paths") for glob in value]
+
+
 @lru_cache(maxsize=256)
 def _pattern(glob: str) -> re.Pattern:
     """``**`` crosses directories, ``*`` and ``?`` stay within one."""
@@ -104,6 +129,13 @@ class FactoryConfig(BaseModel):
         description="The branch the lane merges into, validates against and runs coverage on",
     )
     gate_paths: list[str] = Field(default_factory=list, description="Globs of gate files")
+    regenerate: list[Regenerate] = Field(
+        default_factory=list,
+        description=(
+            "Generated files, such as provenance records, the lane writes again when a merge's"
+            " only conflicts are in them (lushly-dev/afd#1410)"
+        ),
+    )
     units: Argv | None = Field(
         default=None,
         description=(

@@ -14,12 +14,17 @@ and `catalog` for the inputs. They have no time limit, and exit 1 on a refusal.
 
 ## Order of calls (foreman)
 
+One foreman per lane. Pass your own `session` (your T3 Code thread id) to `cell_register`,
+`lane_wait(consumer="foreman")` and `dial_set`: the first takes the lane's lease and each renews
+it for `foreman.leaseMinutes` (waiting renews it too). Another session is refused
+`FOREMAN_BUSY` (naming the holder and when its lease runs out): stop, and leave the lane to it.
+
 1. `lane_status()`: when `canStartCell`, it names the `plan` and `nextIssue`; otherwise `reason`
    (and `nextReset` when every plan is at its ceiling).
-2. `cell_register(issues=[nextIssue], branch, route)`: claims the issue on GitHub
+2. `cell_register(issues=[nextIssue], branch, route, session)`: claims the issue on GitHub
    (`status:in-progress` plus a claim comment with the lease) and assigns the plan. Call it
    before starting the cell, so a refusal costs nothing; then `cell_attach(branch, thread)`.
-3. `lane_wait(consumer="foreman")`: the events not yet given to you, each with a compact
+3. `lane_wait(consumer="foreman", session)`: the events not yet given to you, each with a compact
    `status`. Answer each one; reading resolves nothing.
 4. `issue_check()` when triage has run or a claim may have expired.
 
@@ -73,10 +78,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   until related issues are computed), `staleClaims[] {number, branch, machine, leaseUntil}`
   (expired leases, or a claim label with no claim comment), `held[] {number, reasons}`.
   Refuses `READ_FAILED`: a failed GitHub read is never an empty answer.
-- `cell_register(issues, branch, route, thread?)` -> `cell {branch, issues, route, thread,
-  plan, state, ejections, registeredAt, leaseUntil, machine}`. Refusals, checked in this order:
-  `VALIDATION_ERROR`, `TOO_MANY_ISSUES` (over `cells.issuesMax`, or unrelated issues),
-  `ALREADY_EXISTS` (the branch has a cell), `ALREADY_CLAIMED` (names the holding branch),
+- `cell_register(issues, branch, route, thread?, session?)` -> `cell {branch, issues, route,
+  thread, plan, state, ejections, registeredAt, leaseUntil, machine}`. Refusals, checked in this
+  order: `VALIDATION_ERROR` for an empty `session`, `FOREMAN_BUSY` (another session holds the
+  lane; the lease is taken before the checks below), `VALIDATION_ERROR`,
+  `TOO_MANY_ISSUES` (over `cells.issuesMax`, or unrelated issues), `ALREADY_EXISTS` (the branch
+  has a cell), `ALREADY_CLAIMED` (names the holding branch),
   `NOT_DISPATCHABLE` (triage has not planned it, or a rule holds it), `CELLS_FULL`
   (`cells.max`), `PLAN_ABOVE_CEILING` (every plan at or above `plans.ceiling`; names the next
   reset), `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`),
@@ -100,9 +107,14 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   `GATE_CHECK_FAILED` (those edits could not be read; the repair waits), `PREQUEUE_FAILED`
   (names the stage, with its first lines), `HEAD_MOVED` (the worktree changed while the checks
   ran; they run outside the state lock), `WRITE_FAILED`. A refusal writes nothing.
-- `lane_wait(consumer, timeout_ms?)` -> `events[] {id, type, branch?, reason?, detail?,
-  logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`; over MCP
-  pass at most 300000.
+- `lane_wait(consumer, timeout_ms?, session?)` -> `events[] {id, type, branch?, reason?,
+  detail?, logPath?, status}` or `{events: [], timedOut: true}`. No limit without `timeout_ms`;
+  over MCP pass at most 300000. As `foreman`, refuses `FOREMAN_BUSY` while another session holds
+  the lane; with `session` it takes the lease, and keeps it while waiting when `timeout_ms` is
+  given.
+- `foreman_handoff(session)` -> `released` (the lease, or null when none was held): frees the
+  lane for another foreman; the owner's call when a session has ended. It names the holder's
+  session, or any once the lease ran out; otherwise `NOT_FOREMAN`.
 - `event_resolve(id, note)` -> `resolved`. Refuses `NOT_FOUND`.
 - `lane_pause(reason?)`, `lane_resume(reason?)` -> `paused`; resuming answers `lane-error`.
 - `cell_attach(branch, thread)` -> `cell`. Refuses `NOT_FOUND`.
@@ -135,7 +147,9 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   required check stood in), `foreman {wakes, wakesPerMerge}`, `byPlan[]`,
   `byRoute[]`, `prs[]`, `experiences[]`, `digest`; with `compare`, `delta`. Refuses `NOT_FOUND`.
 - `dial_get(key?)` -> `key`, `value`, `default`, or `dials[]`. Refuses `NOT_FOUND`.
-- `dial_set(key, value)` -> `key`, `value`, `previous`, `default`. Refuses `NOT_FOUND`,
+- `dial_set(key, value, session?)` -> `key`, `value`, `previous`, `default`. A foreman names
+  its `session` (the owner, setting a dial by hand, names none). Refuses `FOREMAN_BUSY`,
+  `NOT_FOUND`,
   `DIAL_OUT_OF_RANGE` (`lane.slots` up to the lane host's `suggestedSlots`) and
   `CONFIRMATION_REQUIRED` for the owner's `review.*` dials.
 
@@ -144,8 +158,8 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 `lane.slots` 1, `cells.max` 3, `cells.issuesMax` 1, `host.minFreeGb` 8, `lane.queueTarget` 2,
 `lane.queueMax` 10, `plans.ceiling` 85, `fable.ceiling` 50, `lane.coverageEvery` 5,
 `lane.checkTimeoutMinutes` 90, `lane.maxBaseReruns` 2 (100 all but turns the guard off),
-`claims.leaseHours` 24, `cells.maxEjections` 3, `experience.hold` false, `lane.autostart`
-true, `logs.keepDays` 30, and the owner's `review.*` dials.
+`claims.leaseHours` 24, `foreman.leaseMinutes` 30, `cells.maxEjections` 3, `experience.hold`
+false, `lane.autostart` true, `logs.keepDays` 30, and the owner's `review.*` dials.
 
 ## State and claims
 
@@ -164,7 +178,11 @@ ejected and merged, each with its attempt, plan, route and execution profile.
 for the cell's worktree, which the lane's own run needs: it runs from a clean `review` slot at the
 base, so a change to the verifier binds only once it is on the base and the lane restarts; it
 exits 0 to accept and 3 to refuse, and any other exit is the lane's trouble),
-`gate_paths`, and the lane's later keys: `validate`, `coverage`, `install`,
+`gate_paths`, `regenerate` (`[[plugins.factory.regenerate]]`: `name`, `paths` globs and
+`run`; when a merge of the base conflicts only in those paths, the lane runs `run` in the slot
+while the merge is open, and it writes and stages them, then the lane commits the merge; a `run`
+that exits non-zero ejects as `conflict`, one that cannot run is the lane's trouble), and the
+lane's later keys: `validate`, `coverage`, `install`,
 `required_check`, `base_branch` (default `main`), `units` (an argument list the lane runs with
 changed paths appended; it prints a JSON list of unit names, `"*"` for all), `shared_paths` (globs
 every unit reads), `main_checks` (check-run names on main, globs, `!` excludes; empty: all),

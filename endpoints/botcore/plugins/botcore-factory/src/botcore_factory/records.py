@@ -16,7 +16,9 @@ kind                    required fields                                     writ
 ``enqueued``            branch, attempt, head, issues, plan, route,         lane-enqueue
                         profile, state (queued | held), firstEnqueuedAt
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
-``validation-started``  branch, attempt, head, base, slot                   the lane loop
+``validation-started``  branch, attempt, head, base, slot; optional         the lane loop
+                        regenerated (the ``regenerate`` entries that wrote
+                        a merge's conflicting generated files again)
 ``validated``           branch, attempt, outcome (passed | failed), head,   the lane loop
                         base, tree, command, minutes: the lane's own record
                         of a validation, for every repository; optional

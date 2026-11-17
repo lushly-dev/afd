@@ -783,3 +783,91 @@ def test_a_repair_without_a_review_keeps_a_validated_branch_s_slot(lane):
     assert "ejected fix/parser-empty-input (review-unverified)" in actions
     assert entry_of(lane, "feat/export-csv")["state"] == "validated"
     assert "rerun" not in kinds(lane)
+
+
+# lushly-dev/afd#1410: a merge whose only conflicts are generated records is written again.
+
+RECORDS = (
+    "endpoints/botcore/provenance/provenance.json, endpoints/botcore/provenance/adaptations.json"
+)
+REGENERATE = {
+    "regenerate": [
+        {
+            "name": "provenance",
+            "paths": ["endpoints/*/provenance/*.json"],
+            "run": ["node", "scripts/provenance-merge.mjs"],
+        }
+    ]
+}
+
+
+def regenerating(run_, steps: int = 1) -> list[str]:
+    from botcore_factory.adapter import Regenerate
+
+    specs = [Regenerate(**spec) for spec in REGENERATE["regenerate"]]
+    return run_steps(run_, steps, regenerate=specs)
+
+
+def test_conflicts_only_in_generated_records_are_written_again_and_validated(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
+    actions = regenerating(lane)
+    assert actions[:2] == [
+        "regenerated provenance for feat/export-csv",
+        "validating feat/export-csv in slot 1",
+    ]
+    assert entry_of(lane, "feat/export-csv")["validatedHead"] == "b2c3d4e+main-0"
+    started = next(r for r in lane.store.read_records() if r["kind"] == "validation-started")
+    assert started["regenerated"] == ["provenance"]
+    assert not events(lane, "ejected")
+
+
+def test_a_conflict_outside_the_generated_files_still_ejects(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}, src/a.ts"}})
+    assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+    assert (
+        "checkouts" not in lane.world_data()
+        or "merging" not in (lane.world_data()["checkouts"]["1"])
+    )
+
+
+def test_a_regenerate_command_that_refuses_ejects_as_a_conflict(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "regenerate": {
+                "provenance": "fail: both sides changed $.files[a.py].import_classification"
+            },
+        }
+    )
+    actions = regenerating(lane)
+    assert "ejected feat/export-csv (conflict)" in actions
+    detail = events(lane, "ejected")[0]["detail"]
+    assert "provenance could not merge them: both sides changed" in detail
+    assert "merging" not in lane.world_data()["checkouts"]["1"]
+
+
+def test_a_regenerate_command_that_cannot_run_pauses_the_lane(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "regenerate": {"provenance": "error: node is not on PATH"},
+        }
+    )
+    regenerating(lane)
+    assert "could not run: node is not on PATH" in lane.state()["lane"]["pauseReason"]
+    assert not events(lane, "ejected")
+
+
+def test_paths_left_unmerged_after_regenerating_eject(lane):
+    lane.change_world(
+        outcomes={
+            "merge": {"feat/export-csv": f"conflict: {RECORDS}"},
+            "finish": {"feat/export-csv": "conflict: endpoints/botcore/provenance/provenance.json"},
+        }
+    )
+    assert "ejected feat/export-csv (conflict)" in regenerating(lane)
+
+
+def test_without_regenerate_a_records_conflict_ejects_as_before(lane):
+    lane.change_world(outcomes={"merge": {"feat/export-csv": f"conflict: {RECORDS}"}})
+    assert "ejected feat/export-csv (conflict)" in run_steps(lane)
