@@ -285,6 +285,14 @@ describe('P2-E9: the projects section', () => {
 		// The region is busy while it reads: the slow summary holds the read for its two seconds.
 		expect(await region(page).getAttribute('aria-busy')).toBe('true');
 		expect(await section(page).locator('.cards').getAttribute('aria-busy')).toBeNull();
+		// Meanwhile an indeterminate `violet-progress` shows and names the read in text (#863).
+		const progress = region(page).locator('violet-progress');
+		expect(await progress.getAttribute('value')).toBe('');
+		expect(await progress.locator('.label').textContent()).toBe('Loading the summaries…');
+		expect(await progress.locator('progress').getAttribute('aria-label')).toBe(
+			'Loading the summaries…'
+		);
+		expect(await axe(page), 'home while loading').toEqual([]);
 		await heading(page).focus();
 		const cards = section(page).locator('.card');
 		// In the rail's order; the slow one's deadline is two seconds.
@@ -292,6 +300,7 @@ describe('P2-E9: the projects section', () => {
 			.poll(() => cards.locator('h2').allTextContents(), { timeout: 10_000 })
 			.toEqual(['Tasks', 'Slow', 'Boom', 'Wide'].map((title) => expect.stringContaining(title)));
 		await expect.poll(() => region(page).getAttribute('aria-busy')).toBe('false');
+		expect(await progress.count()).toBe(0);
 		// The read ended with focus in the section, so the status line says what it found.
 		await expect.poll(() => section(page).locator('.said').textContent()).toBe('4 summaries');
 		const card = (title: string) => cards.filter({ has: page.locator('h2', { hasText: title }) });
