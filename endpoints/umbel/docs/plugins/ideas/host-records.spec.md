@@ -2712,7 +2712,7 @@ labels (Ideas status, Q5). So B6 records the rates and does not gate on a number
 | The graph | P4 | D157 leaves the graph to that change. The lane writes no node or edge |
 | Sharing a standing record | Later | `default_access` gives `space`. Narrower sharing, and whose decision counts where several people share a space, wait for D157's open point |
 | The PostgreSQL backend | Phase 6, after this | The eleven methods and three groups are a follow-up there. Scoring, normalisation and extraction are in `umbel-store` so that it computes the same numbers; terms would be found by lookup value, as phase 6 plans for memory |
-| Components | WIT world 1.1.0 | A component cannot declare a kind (D159). Whether one ever may is that world's question, and D162's reason stands against it |
+| Components | WIT world 1.1.0 | A component cannot declare a kind (D159). Whether one ever may is that world's question, and D162's reason stands against it. (2026-11-16: world 1.1.0 does not take it up, D189; a later minor version of world 1 may) |
 | Knowledge search by meaning | O4, still open | `VectorIndex` stays reserved. `umbel-embed`'s providers are reusable as they are |
 | A vector index | When B6's timings ask for one | `record_vectors` is keyed by model; an index would sit beside it |
 

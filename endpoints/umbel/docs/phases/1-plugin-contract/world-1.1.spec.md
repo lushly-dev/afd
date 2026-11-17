@@ -12,8 +12,10 @@ Code paths are relative to `endpoints/umbel/` unless they start with `packages/`
 
 ## Status
 
-- **State:** written 2026-11-16. D189 to D191 are decided under the owner's delegation for #1364, which keeps
-  every change to the trust model with the owner (section 8). Nothing is implemented.
+- **State:** written 2026-11-16 and revised the same day after an independent review (one blocker, the manifest
+  schemas, fixed in section 4; the component `journal` moved to the owner's questions; the rest taken). D189 to D191
+  are decided under the owner's delegation for #1364, which keeps every change to the trust model with the owner
+  (section 8). Nothing is implemented.
 - **Last verified:** 2026-11-16 against `origin/main` at `959a08e7`, by reading the files cited at each claim and
   wasmtime 48.0.8's `Linker` and `NameMap` (`wasmtime-environ` `src/component/names.rs`). **No code was built or run.**
 - **Not done:** everything (section 10). **Follow-ups:** the [table at the end](#follow-ups).
@@ -32,23 +34,32 @@ Four features name world 1.1.0 as their prerequisite today:
 The first two give a component nothing it could not already reach. The last two change what a sandboxed component may
 read and write, which is the trust model (architecture principles 3 and 9; D42), and stay with the owner.
 
-D2 also needs one thing no specification put under 1.1.0: the `components` manifest declares
-`journal = { mode = "digest", ... }` on each of its three commands (`plugins/components/umbel-plugin.toml`), and a
-component command may not declare `journal` (phase 3, 2.3; `src/plugins/manifest.rs`, the refusal naming world 1.1.0).
+D2 needs two more things that are not the world's (section 7): the `components` manifest declares
+`journal = { mode = "digest", ... }` on each of its three commands (`plugins/components/umbel-plugin.toml`), which a
+component command may not (phase 3, 2.3); and the plugin uses `HashMap`, whose seed is a `wasi:random` import a
+component holds only with the `random` grant (phase 1, section 4).
 
 ## 1. Scope (D189)
 
-**World 1.1.0 carries the output budget and the four `host-error` cases. A component command may also declare
-`journal`. Store grants and the masking of component writes wait for a later minor version of world 1, which the
-owner decides (section 8).**
+**World 1.1.0 carries the output budget and the four `host-error` cases. Store grants, the masking of component
+writes and `journal` on a component command wait for the owner (section 8); store grants and masking would then come
+in a later minor version of world 1.**
 
-- The budget and the error cases are additions within plugin protocol 1: a new interface the world may import, and a
-  new minor version of an existing one (phase 1, section 3's table). Plugin protocol stays 1; the manifest versions
-  stay as they are.
-- `journal` is host behaviour, not part of the world. The refusal on a component command exists because a component
-  holds no memory grant (phase 3, 2.3), not because the world lacks anything. A `digest` journal records less of a
-  call than the default, and a `plain` one records what the default records, so admitting either gives a component
-  nothing. It is admitted for any component, whichever world it targets.
+- **Plugin protocol stays 1, and no manifest version is added.** The budget is a new interface the world may import,
+  which phase 1 section 3's table makes a minor version. No manifest key is new: `output_budget` exists from
+  manifest version 2, and only the kind rule relaxes (sections 4 and 6), so the table's "new manifest version" row
+  does not apply.
+- **An exception to phase 1 section 3, stated.** The four new cases change `host-error`, so `packs.list`,
+  `packs.read` and `events.list` change signature, which that table classes as a major version: wasmtime checks a
+  variant by its case count and names (`typecheck_variant`), so a 1.0.0 component could not bind to 1.1.0's `packs`.
+  The table's purpose is that a component built against an older 1.y keeps loading. Section 3 keeps that by linking
+  both worlds, each import binding to its own version, instead of only the newest as phase 1 section 4 says. A
+  variant may therefore gain cases in a minor version only while the host links every earlier minor version beside
+  it.
+- **`journal` is not admitted.** Its refusal on a component command was justified by memory (phase 3, 2.3), but
+  admitting it is a trust-model choice of its own: a `digest` journal drops a call's result data from the deployer's
+  journal and makes its replay `recorded` (phase 3, 7.1), so the author of a sandboxed component would choose how
+  much of its own behaviour the deployer can audit. It stays refused, and is the owner's question.
 - Every refusal message that names world 1.1.0 for something 1.1.0 does not carry is reworded (section 6).
 
 Why not store grants now: no component needs one yet. D2's plugin holds only `config`, `packs` and `log` (D151). A
@@ -174,12 +185,15 @@ and a compiled plugin already reads (`CallContext::output_budget`). It names no 
    `bindings_1_0`, and adds `bindings_1_1` from `wit/umbel-plugin-1.1.0`. `CallState` implements both sets of host
    traits. The 1.0.0 implementations do not change, including `wit_error`'s mapping of any other `HostError` to
    `invalid(<text>)` (phase 2 review D8).
-2. **Both linked, exact names first.** `add_world_to_linker` adds the 1.0.0 world and the 1.1.0 world to the one
-   linker. wasmtime 48 resolves an import by its exact name first and only then by a semver-compatible alternate
-   (`NameMap::get`; the alternate for the `@1` track is the highest version defined). So a 1.0.0 component's
-   `umbel:plugin/packs@1.0.0` binds to the frozen 1.0.0 implementation and its `host-error` of four cases; a 1.1.0
-   component's `packs@1.1.0` binds to the new one. `config`, `log`, `clock` and `random` are identical in both and are
-   served by one implementation each through both names.
+2. **Both linked, exact names first.** `add_world_to_linker` adds the whole 1.0.0 world, then from 1.1.0 only the
+   interfaces that differ: `types`, `packs`, `events` and the new `call`, each through its own generated
+   `add_to_linker`. `CallState` implements the 1.0.0 traits and those four 1.1.0 traits; the 1.1.0 `config`, `log`,
+   `clock` and `random` traits are generated and unused. wasmtime 48 resolves an import by its exact name first and
+   only then by a semver-compatible alternate (`NameMap::get`; the alternate for the `@1` track is the highest version
+   defined). So a 1.0.0 component's `umbel:plugin/packs@1.0.0` binds to the frozen 1.0.0 implementation and its
+   four-case `host-error`; a 1.1.0 component's `packs@1.1.0` binds to the new one; and a 1.1.0 component's
+   `config@1.1.0`, identical in both worlds, resolves through the alternate to `config@1.0.0`. One edge: an import
+   at `packs@1.0.x` with x > 0 would resolve to 1.1.0 and fail its type check; no such version exists or will.
 3. **The export.** `call.rs` calls `command.execute` dynamically through the export the analysis found. Its
    parameter types are the same in both worlds (`call-context` is unchanged), so one typed function serves
    `umbel:plugin/command@1.0.0` and `@1.1.0`.
@@ -208,6 +222,11 @@ and a compiled plugin already reads (`CallContext::output_budget`). It names no 
   `PLUGIN_PROTOCOL_UNSUPPORTED`: the message names the export and says a command declares `output_budget`, which
   needs world 1.1.0; the suggestion is to rebuild with `umbel-sdk` (which targets 1.1.0) or remove `output_budget`.
   Both callers pass it: `component::check` (`plugin-check`) and `ComponentRuntime::load` (`seal`).
+- **The schemas.** The rule in each of `schemas/plugin-manifest.v2.json` to `v6.json` that refuses `output_budget`
+  on a component command is removed in place, and the `output_budget` description says a component's needs world
+  1.1.0. The schemas mirror the host's rules (`tests/schemas.rs` holds each to refuse what the host refuses), the
+  change only admits more, and the unit is unpublished; a new manifest version for one relaxed kind rule would copy a
+  schema to say nothing new. A schema cannot see the component's world, so that check stays the loader's.
 - **Not required to import `call`.** A 1.1.0 component that never reads its budget still loads. AFD's backstop still
   refuses a result over the budget (phase 2, 8.6), as it does for a compiled command that ignores its budget.
 - **Mounted tools** still declare no budget: they have no manifest command entries.
@@ -230,28 +249,34 @@ and a compiled plugin already reads (`CallContext::output_budget`). It names no 
 | Key or grant on a component | Before | After |
 | --- | --- | --- |
 | `output_budget` | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 | Admitted; the component must export world 1.1.0 (section 4) |
-| `journal` (`plain` or `digest`) | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 | Admitted, for any world; the journal treats the call as it treats a compiled command's (phase 3, 7.1) |
+| `journal` (`plain` or `digest`) | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 | Still refused (section 1). The message says whether a sandboxed component may choose how the journal records its calls is not decided, naming no world. The schemas keep their rule |
 | `authority_prompt` | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 | Still refused: it is for memory writes, which a component cannot make. The message says a component holds no memory grant, naming no world |
-| `confirm_preview` | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 because a preview declares a journal | Still refused: a preview is a host path specified for compiled plugins only (phase 4, 2.2), and no component needs one. The message says so, naming no world |
+| `confirm_preview` | `PLUGIN_MANIFEST_INVALID`, naming world 1.1.0 because a preview declares a journal | Still refused, for the same reason; the message names no world |
 | Store grants, `memory`, `memory_write` | `PLUGIN_GRANT_UNAVAILABLE` naming world 1.1.0 (loader and doctor) | Still refused. The message says components hold no store grant in plugin protocol 1 yet, and that a later minor version of world 1 decides it; it names no version |
 
 `src/plugins/manifest.rs`, `src/plugins/manifest/v4.rs`, `src/plugins/loader.rs` and `src/plugins/doctor.rs` carry these
 messages; the tests that assert "1.1.0" in them (`tests/manifest_v2.rs`, `tests/doctor_plugins.rs`,
-`src/plugins/loader.rs`'s own test) are updated to the new wording. The schemas do not change: they admit both keys on
-any command today, and the kind rule is the loader's.
+`src/plugins/loader.rs`'s own test) are updated to the new wording. The schemas change only for `output_budget`
+(section 4).
 
-## 7. What journaling a component call means
+## 7. What D2 needs that is not the world's
 
-A component command with `journal = { mode = "digest" }` is journaled as phase 3, 7.1 says for any command: the
-redact step keeps the `keep` keys of the input and a digest of the result, stamps `dev.umbel/journal: "digest"` and
-`dev.umbel/replay: "recorded"`, and replay reports the entry recorded rather than `same`. Nothing in the component
-path changes; the redact step runs on the result after `command.execute` returns. A `plain` component command is
-journaled and replayed as today (`component_replay.rs`).
+The `components` plugin's component build (#1155) is the plugin's own change and needs no host change beyond this
+world, but its manifest and source do:
+
+- **`random`.** `src/brief.rs`, `src/select.rs` and `src/pack/mod.rs` use `HashMap` and `HashSet`, whose
+  `RandomState` makes the component import `wasi:random/insecure-seed`, which needs the `random` grant (phase 1,
+  section 4; `analyze.rs`'s `wasi_grant`). D2 either declares `random` in the component manifest (amending D151's
+  grant list) or uses `BTreeMap` and `BTreeSet`.
+- **`journal`.** Until the owner answers (section 8, question 4), a component manifest beside the compiled one, as
+  hello keeps `manifests/component.toml`, declares no `journal`, so the journal records its calls as it records any
+  plain command, input and result included.
+- **Pack checks.** The doctor's `plugins.pack_checks` reaches compiled plugins only (components specification, A23).
 
 ## 8. What stays with the owner
 
-Store grants for components and the masking of their writes stay refused, as today, until the owner decides them (#1364's thread
-carries the questions). Each would let a sandboxed, untrusted component read or write
+Store grants for components, the masking of their writes and a component's `journal` stay refused, as today, until
+the owner decides them (#1364's thread carries the questions). Each would let a sandboxed, untrusted component read or write
 what today only trusted, compiled code may (D42). When decided, they become a further minor version of world 1 with
 its own specification, and these questions frame it:
 
@@ -259,23 +284,30 @@ its own specification, and these questions frame it:
    caller's reader filter as compiled plugins do.
 2. Whether a component may hold any write grant, and `memory_write` in particular.
 3. If `memory_write`: how the host, not the component, masks the text before it is stored (phase 3, 6.2 item 4).
+4. Whether a component's manifest may choose `journal = { mode = "digest" }`, so that the deployer's journal keeps
+   no result data of its calls, or whether the deployer should choose it in `umbel.toml`.
 
 ## 9. Tests
 
 | Test | Proves |
 | --- | --- |
-| `tests/schemas.rs` | `wit/umbel-plugin-1.1.0/world.wit` starts with `package umbel:plugin@1.1.0;`; `WIT_WORLD` is 1.1.0; `wit/umbel-plugin-1.0.0/world.wit` is byte-identical to its 1.0.0 content (a pinned SHA-256) |
-| `tests/plugin_component.rs` | hello, built with `umbel-sdk`, exports `command@1.1.0` and its pinned import list gains `umbel:plugin/call@1.1.0` and moves to `@1.1.0`; the 1.0.0 fixtures (`behaviors`, `imports`, `sockets`) still load and run unchanged; the `future` fixture (2.0.0) is still refused |
-| `tests/plugin_component.rs` (budget) | A new fixture `tests/fixtures/components/budget/`, built with `umbel-sdk` and `export_component!`, answers `cx.call().output_budget` as data; declared with `output_budget = { default_bytes = 100, max_bytes = 200 }`, it reads 100 with no ask, the caller's ask of 150, and 200 for an ask of 500 |
-| `tests/plugin_component.rs` (world check) | A 1.0.0 fixture with a budgeted command is refused at seal and by `plugin-check` with `PLUGIN_PROTOCOL_UNSUPPORTED` naming `output_budget` |
+| `tests/schemas.rs` | `wit/umbel-plugin-1.1.0/world.wit` starts with `package umbel:plugin@1.1.0;` and is the file section 2 prints; `WIT_WORLD` is 1.1.0; `wit/umbel-plugin-1.0.0/world.wit` is byte-identical to its 1.0.0 content (a pinned SHA-256); the version 2 schema now admits `output_budget` on a component command |
+| `tests/plugin_component.rs` | hello, built with `umbel-sdk`, exports `command@1.1.0`, and its pinned import list moves to `@1.1.0` and gains `umbel:plugin/call@1.1.0`; the 1.0.0 fixtures (`behaviors`, `imports`, `sockets`) load and run unchanged; the `future` fixture (2.0.0) is still refused |
+| `tests/plugin_component.rs` (budget) | A new fixture `tests/fixtures/components/budget/`, built with `umbel-sdk` and `export_component!`, answers `cx.call().output_budget` as data; declared with `output_budget = { default_bytes = 100, max_bytes = 200 }`, it reads 100 with no ask, the caller's ask of 150, and 200 for an ask of 500; without a declaration it reads none |
+| `tests/plugin_component.rs` (world check) | The `imports` fixture (world 1.0.0) with a budgeted command is refused at seal with `PLUGIN_PROTOCOL_UNSUPPORTED` naming `output_budget`, the command and its `command@1.0.0` export. `plugin-check` runs the same `analyze::check` |
+| `tests/plugin_commands.rs` | `workspace-show`'s `versions.wit` is 1.1.0 |
 | `src/plugins/component/state.rs` unit tests | `wit_error_1_1` maps the eight cases by name and the memory variants to `invalid`; `wit_error` (1.0.0) still maps all four new ones to `invalid` |
-| `src/plugins/component/analyze.rs` unit tests | `call` needs no grant; an export or import at `1.2` is refused |
-| `tests/manifest_v2.rs`, `tests/manifest_v3.rs` | A component command admits `output_budget` and `journal`; `authority_prompt` and `confirm_preview` are still refused, with the new messages |
-| `tests/component_replay.rs` | A digest-journaled component call is stamped recorded; a plain one replays `same` as before |
-| `sdk` unit test | The SDK's `host_error` maps the four new cases |
+| `src/plugins/component/analyze.rs` unit tests | `call` needs no grant |
+| `tests/manifest_v2.rs` | A component command admits `output_budget`, with the same key checks as a compiled one |
+| `tests/manifest_v3.rs`, `tests/manifest_v4.rs`, `tests/schemas/phase4.rs` | `journal`, `authority_prompt` and `confirm_preview` are still refused on a component command, and the messages name no world |
+| `tests/doctor_plugins.rs`, `src/plugins/loader.rs` | A store grant on a component is still `PLUGIN_GRANT_UNAVAILABLE`, naming a later minor version of world 1 and no version |
 
 The budget fixture is a host test file under `tests/`, not a plugin crate, so the plugin-isolation gate is not
-crossed; it joins the fixture build list in `tests/support/components.rs` and `umbel.yml`.
+crossed. Like hello, it builds the component only with its own `component` feature, so a workspace build does not
+unify the SDK's `component` feature into the host's. It joins the fixture build and clippy lists in
+`tests/support/components.rs`, `umbel.yml` (both legs) and `scripts/affected/suites.mjs`, and `Cargo.lock`. The
+`plugin new` component template (`src/templates/component/lib.rs.tmpl`), the README and the architecture name world
+1.1.0 where they named 1.0.0 for what the SDK builds.
 
 ## 10. Implementation plan
 
@@ -285,7 +317,7 @@ crossed; it joins the fixture build list in `tests/support/components.rs` and `u
 2. **The world, the host and the SDK**, sections 2 to 7 and 9, in one pull request that touches `wit/`, `src/`,
    `sdk/` and `tests/`, and no plugin crate (the plugin-isolation gate). Unblocks #1155.
 3. **D2 itself** (#1155) is the components plugin's own pull request: it builds the plugin with
-   `export_component!` and needs no host change.
+   `export_component!` and needs no host change, with section 7's `random` and `journal` points settled in it.
 
 ## Follow-ups
 
