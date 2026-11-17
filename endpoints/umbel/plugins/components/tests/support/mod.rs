@@ -82,7 +82,7 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
     // `packCatalog` writes `PACK_FORMAT_VERSION`; every file of a pack the reader accepts carries
     // that same version, so the rules file's is it.
     let format = serde_json::from_slice::<Value>(rules).unwrap()["format"].clone();
-    let mut catalog = json!({
+    let catalog = json!({
         "format": format,
         "library": library,
         "title": stamp["title"],
