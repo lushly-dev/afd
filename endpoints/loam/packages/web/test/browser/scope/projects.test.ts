@@ -293,6 +293,8 @@ describe('P2-E9: the projects section', () => {
 			'Loading the summaries…'
 		);
 		expect(await axe(page), 'home while loading').toEqual([]);
+		// Still loading once axe ends, so it checked the bar rather than the loaded home.
+		expect(await region(page).getAttribute('aria-busy')).toBe('true');
 		await heading(page).focus();
 		const cards = section(page).locator('.card');
 		// In the rail's order; the slow one's deadline is two seconds.
