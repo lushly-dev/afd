@@ -293,6 +293,7 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
 
             if (shadowRoot) {
                 this.hasExistingShadowRoot = true;
+                initializeDeclarativeScope(shadowRoot, value);
             } else {
                 shadowRoot = this.source.attachShadow(value);
 
@@ -916,6 +917,12 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
                     notifier.unsubscribe(subscriber, "template");
                     trackedFASTElementInstances(definition, tracked => {
                         const trackedElement = tracked as FASTElement;
+
+                        // The replaced controller may already be connected, with its
+                        // host behaviors (such as registered commands) live. Tear it
+                        // down first so that nothing it connected outlives it: no
+                        // one can reach it to disconnect it once it is replaced.
+                        trackedElement.$fastController?.disconnect();
                         ElementController.forCustomElement(trackedElement, true);
 
                         // Only run connect() for elements actually in the
@@ -980,6 +987,31 @@ export class ElementController<TElement extends HTMLElement = HTMLElement>
 }
 
 makeSerializationNoop(ElementController);
+
+/**
+ * Gives a declarative shadow root that was server-rendered with
+ * `shadowrootcustomelementregistry` (and so has no registry yet) the host's scoped
+ * registry. Initializing it upgrades the server-rendered children in place, and
+ * views created in it later resolve their elements against the same registry.
+ */
+function initializeDeclarativeScope(
+    shadowRoot: ShadowRoot,
+    options: ShadowRootOptions,
+): void {
+    const registry = options.customElementRegistry as
+        | (CustomElementRegistry & { initialize?(root: Node): void })
+        | undefined;
+
+    if (
+        registry !== void 0 &&
+        registry !== null &&
+        (shadowRoot as { customElementRegistry?: unknown }).customElementRegistry ===
+            null &&
+        typeof registry.initialize === "function"
+    ) {
+        registry.initialize(shadowRoot);
+    }
+}
 
 // Set default strategy for ElementController
 ElementController.setStrategy(ElementController);

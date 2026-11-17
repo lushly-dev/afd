@@ -19,7 +19,7 @@ import {
 } from "./html-directive.js";
 import { HydrationStage } from "./hydration-view.js";
 import { Markup } from "./markup.js";
-import { createChildView, removeNodeSequence } from "./view.js";
+import { createChildView, hydrateChildView, removeNodeSequence } from "./view.js";
 
 type UpdateTarget = (
     this: HTMLBindingDirective,
@@ -156,7 +156,12 @@ function updateContent(
                 controller.hydrationStage !== HydrationStage.hydrated
             ) {
                 const viewNodes = controller.bindingViewBoundaries[this.targetNodeId];
-                view = value.hydrate(viewNodes.first, viewNodes.last);
+                view = hydrateChildView(
+                    value,
+                    viewNodes.first,
+                    viewNodes.last,
+                    controller,
+                );
             } else {
                 view = createChildView(value, controller);
             }

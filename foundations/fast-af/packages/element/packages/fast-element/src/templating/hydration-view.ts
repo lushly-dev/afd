@@ -132,6 +132,12 @@ export class HydrationView<TSource = any, TParent = any>
         public readonly lastChild: Node,
         private sourceTemplate: ViewTemplate,
         private hostBindingTarget?: Element,
+        /**
+         * The shadow root whose scoped custom element registry this view's
+         * elements belong to, if any. Child views inherit it.
+         * @internal
+         */
+        public readonly _scope?: ShadowRoot,
     ) {
         super();
         this.factories = sourceTemplate.compile().factories;

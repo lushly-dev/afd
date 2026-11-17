@@ -33,11 +33,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "74467fe69b05c497e437b67c43747ddbe8131870fd01c73aab1f378a70e042e0",
+      "current_import_sha256": "2372e68f202343707ff60f29ade7a664ffedbdb88137e90350f9a9d13b953151",
       "stage_classification": "not-in-staging",
       "stage_reason": "AFD-authored",
       "import_classification": "added-after-staging",
-      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Describe the imported layout, scope, gates, license copies and quarantine in the AFD tree; T08: run this package's stories on Specimen (native helpers and types, configuration, preview, gate), and fix the calendar's disabled state in its story and component; Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Admitted for the preview prerelease (owner approval 2026-11-04): fast-element's preview seed version and its repository, homepage and bugs URLs now name lushly-dev/afd, which publishes it; the consumer check reads the runtime version from its manifest; Install line for the published preview; Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Admitted for the preview prerelease on 2026-11-14 (#1192): violet-elements public at seed 0.2.0-preview, AFD repository fields, fast-element peer workspace:^; Review of #1196 (#1192): install with @preview, since latest stays on the placeholder once the maintainer's retag is done; Merge with the 2026-11-14 feature closeout: the Violet handoff link follows platform-monorepo to complete/ (#1192); Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/biome.json",
@@ -994,11 +994,11 @@
       "upstream_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
       "staged_path": "packages/element/packages/fast-element/src/command/command.pw.spec.ts",
       "staged_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
-      "current_import_sha256": "b66cfd18d86c47a1394df8972f6e81a601c1f06ccd8c14aa1f3b9747897e3e03",
+      "current_import_sha256": "e7611a3b132d45c087ea7db04786c2c6bb4031e2523c4e2e0cd147d637e178cd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/command/command.ts",
@@ -1174,11 +1174,11 @@
       "upstream_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
       "staged_path": "packages/element/packages/fast-element/src/components/element-controller.ts",
       "staged_sha256": "88c35fada289047d3412d3f4205d416ba0bb891b59774cdf3f8dca7e9c1d1eaf",
-      "current_import_sha256": "75e3d558222f89824199cdebc48883a80c1cbdd74868ea8ec7c01e010be3167e",
+      "current_import_sha256": "8fa37ea3d7454d3ca08307922447d1f8761f061fe3ad75764a3d2eee4a750540",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-hydration.ts",
@@ -1198,11 +1198,11 @@
       "upstream_sha256": "c9045ec7d64e8d80d8c7fff6b3d79d48bcbbb9870a81f6226429e887a11a3c08",
       "staged_path": "packages/element/packages/fast-element/src/components/enable-hydration.ts",
       "staged_sha256": "c9045ec7d64e8d80d8c7fff6b3d79d48bcbbb9870a81f6226429e887a11a3c08",
-      "current_import_sha256": "15d62a531e52266089acf11e04383afaecbb51a9dc42ac50ceb61acf3344bc3c",
+      "current_import_sha256": "1960f18fec072b6091825bb50746a5bb743f986882670017b66bf0496f01eba7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/fast-definitions.pw.spec.ts",
@@ -1870,11 +1870,11 @@
       "upstream_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
       "staged_path": "packages/element/packages/fast-element/src/hydration/runtime.ts",
       "staged_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
-      "current_import_sha256": "257a378d34b5a2e12386b773b36740a90fcbbe7f77fe5ec4e85bfebc8436fcf1",
+      "current_import_sha256": "b940d2302c9f735fbc79ce798f5b39a499b4f8b1ac91de9ece6b4b8c1c5ee031",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/hydration/target-builder.ts",
@@ -2170,11 +2170,11 @@
       "upstream_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
       "staged_path": "packages/element/packages/fast-element/src/scoped/mixin.ts",
       "staged_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
-      "current_import_sha256": "05140e6eeca40543285e6f293cc84044dc12e123da9b0e933fe7b72a6fd4fb41",
+      "current_import_sha256": "19205556322e41498130968ef97e1f4be1932db6f89348a046b06d4fb9a039e4",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/registry.ts",
@@ -2446,11 +2446,11 @@
       "upstream_sha256": "499b23171373e77328739a4149ea1ee20790cd711193597b76d7e3ddf1abf259",
       "staged_path": "packages/element/packages/fast-element/src/templating/html-binding-directive.ts",
       "staged_sha256": "499b23171373e77328739a4149ea1ee20790cd711193597b76d7e3ddf1abf259",
-      "current_import_sha256": "ace20ec4d9bdcf159dfb4d60a4a281a58a402d2b18ee974a2373771288553af9",
+      "current_import_sha256": "5323700a4b8a4241b1eee5b7fd19feddb9df8eb1e57a1afe78950a576f813362",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/html-directive.ts",
@@ -2482,11 +2482,11 @@
       "upstream_sha256": "1e0459c993f46d153edfeca201c956ac65dbf2a0bed67fa34fb294457889497e",
       "staged_path": "packages/element/packages/fast-element/src/templating/hydration-view.ts",
       "staged_sha256": "1e0459c993f46d153edfeca201c956ac65dbf2a0bed67fa34fb294457889497e",
-      "current_import_sha256": "e9170543e53901873139546258f833cbf9b02c587a6f0a95088b522e71e95a3a",
+      "current_import_sha256": "35f0ca194460953eba4df67e3865de2984d5d72f3792f35a94c102ee6e7a6ead",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/markup.ts",
@@ -2578,11 +2578,11 @@
       "upstream_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
       "staged_path": "packages/element/packages/fast-element/src/templating/render.ts",
       "staged_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
-      "current_import_sha256": "b0e260294431c539de497f12672e2d1de16acbdf2b80774d61f83840c959a471",
+      "current_import_sha256": "057d6a95881091bcc28e2e4be5580c7bbc709f62d871f73a437111d98a676b5f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/repeat-lifecycle.pw.spec.ts",
@@ -2614,11 +2614,11 @@
       "upstream_sha256": "d0e45b04d1bbeacb641a34871d7a2291e4acd11bd9b7a10d716cc3acb639ced3",
       "staged_path": "packages/element/packages/fast-element/src/templating/repeat.ts",
       "staged_sha256": "d0e45b04d1bbeacb641a34871d7a2291e4acd11bd9b7a10d716cc3acb639ced3",
-      "current_import_sha256": "68b9b8b8c46bd9d68557f3199e7315b78a38cd24cc6132d5addcf3ec341456be",
+      "current_import_sha256": "f44daf24ad052da15a8f0b24444bf4bc445cd1d5b38bae34a97492e6e6753bce",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView"
+      "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/slotted.pw.spec.ts",
@@ -2686,11 +2686,11 @@
       "upstream_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
       "staged_path": "packages/element/packages/fast-element/src/templating/view.ts",
       "staged_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
-      "current_import_sha256": "160c0668d407fbaa0309a6fb414cbcbef94e07c9dad1a231339e8ab63ff593c5",
+      "current_import_sha256": "e214578f0bdfbfbe149140180d3d5638268146c31c12a5e2032b78999e2c0f95",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact staged bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/templating/when.pw.spec.ts",
@@ -11644,6 +11644,18 @@
       "stage_reason": "Added upstream by Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast d26aa135); FAST-AF never selected it",
       "import_classification": "added-after-import",
       "import_reason": "Took Microsoft FAST Element 3.0.2-3.1.4 (microsoft/fast 1b389e82..d26aa135) by three-way merge, renaming @microsoft/fast-element to @lushly-dev/fast-element and keeping createChildView; compiles its decorator-metadata fixture with this package's TypeScript 7 tsc, which has no JavaScript compiler API, instead of ts.transpileModule"
+    },
+    {
+      "path": "foundations/fast-af/packages/element/packages/fast-element/src/scoped/scoped-hydration.pw.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "1d5d0733b19f2d56804b981112d48b1ce3aa8c409b567831d870050111f968e9",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Hydrated views keep a scoped host's registry, and a controller replaced by a late template is disconnected first"
     }
   ]
 }

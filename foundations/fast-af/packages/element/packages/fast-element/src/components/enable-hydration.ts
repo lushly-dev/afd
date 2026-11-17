@@ -6,6 +6,7 @@ import type { Mutable } from "../interfaces.js";
 import { SourceLifetime } from "../observation/observable.js";
 import type { ViewController } from "../templating/html-directive.js";
 import type { HydratableElementViewTemplate } from "../templating/template.js";
+import type { ElementView } from "../templating/view.js";
 import { ElementController } from "./element-controller.js";
 import { isHydratable } from "./hydration.js";
 import {
@@ -130,11 +131,24 @@ export function enableHydration(options?: HydrationOptions): HydrationController
                 const firstChild = host.firstChild!;
                 const lastChild = host.lastChild!;
 
-                const view = (template as HydratableElementViewTemplate).hydrate(
-                    firstChild,
-                    lastChild,
-                    element,
-                );
+                // A host given a scoped custom element registry hydrates with its
+                // shadow root as the scope, as ElementController renders it, so the
+                // views it creates later use that registry. The argument is internal,
+                // so the public hydrate signature leaves it out.
+                const scope =
+                    controller.shadowOptions?.customElementRegistry !== void 0
+                        ? (host as ShadowRoot)
+                        : void 0;
+                const view = (
+                    template as HydratableElementViewTemplate & {
+                        hydrate(
+                            firstChild: Node,
+                            lastChild: Node,
+                            hostBindingTarget?: Element,
+                            scope?: ShadowRoot,
+                        ): ElementView;
+                    }
+                ).hydrate(firstChild, lastChild, element, scope);
 
                 (controller as any).view = view;
 

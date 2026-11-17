@@ -8,6 +8,7 @@ type HydratableTemplate = ViewTemplate & {
         firstChild: Node,
         lastChild: Node,
         hostBindingTarget?: Element,
+        scope?: ShadowRoot,
     ) => HydrationView;
 };
 
@@ -39,12 +40,14 @@ export function ensureHydrationRuntime(): void {
                     firstChild: Node,
                     lastChild: Node,
                     hostBindingTarget?: Element,
+                    scope?: ShadowRoot,
                 ): HydrationView {
                     return new HydrationView(
                         firstChild,
                         lastChild,
                         this,
                         hostBindingTarget,
+                        scope,
                     );
                 },
                 enumerable: true,

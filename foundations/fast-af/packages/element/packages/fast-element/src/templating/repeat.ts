@@ -26,7 +26,12 @@ import type {
     SyntheticViewTemplate,
     ViewTemplate,
 } from "./template.js";
-import { createChildView, HTMLView, type SyntheticView } from "./view.js";
+import {
+    createChildView,
+    HTMLView,
+    hydrateChildView,
+    type SyntheticView,
+} from "./view.js";
 
 /**
  * Options for configuring repeat behavior.
@@ -454,7 +459,7 @@ export class RepeatBehavior<TSource = any> implements ViewBehavior, Subscriber {
 
         for (let i = 0; i < hydrationCount; i++) {
             const { start, end } = itemRanges[i];
-            const view = template.hydrate(start, end);
+            const view = hydrateChildView(template, start, end, this.controller);
             views[i] = view;
             this.bindView(view, items, i, this.controller);
         }
