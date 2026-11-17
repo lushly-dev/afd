@@ -46,6 +46,13 @@ export const WORKFLOWS = {
 			'Hosted development profile',
 		],
 	},
+	// Phase 6's step 11: the desktop suite (its specification, 10.7). Read only under `--phase 6` without
+	// `--milestone` (section 19); step 12 adds `Desktop on Windows` and `Desktop on macOS`.
+	desktop: {
+		name: 'Loam desktop',
+		file: 'loam-desktop.yml',
+		jobs: ['Affected units', 'Desktop on Linux'],
+	},
 	// A manual run's matrix (ci.yml): Node 22, 24 and 26.
 	ci: {
 		name: 'CI',

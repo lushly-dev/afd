@@ -298,9 +298,18 @@ function identityOf(deployment: AnyDeployment): IdentityV1 {
 	};
 }
 
+/**
+ * The desktop's sandbox scheme on macOS and Linux: a custom protocol's origin, which no URL parser outside a
+ * webview reads as one (phase 6 specification, 10.2). Only a desktop deployment may name it.
+ */
+const DESKTOP_SANDBOX_SCHEME_ORIGIN = 'loam-sandbox://localhost';
+
 /** The origin reaches the shell's CSP and a frame's address, so it must be one origin and no more. */
-function sandboxRefusals({ sandbox }: AnyDeployment): DeploymentRefusal[] {
+function sandboxRefusals(deployment: AnyDeployment): DeploymentRefusal[] {
+	const { sandbox } = deployment;
 	if (sandbox === undefined || canonicalOrigin(sandbox.origin)) return [];
+	if (sandbox.origin === DESKTOP_SANDBOX_SCHEME_ORIGIN && hostKindOf(deployment) === 'desktop')
+		return [];
 	return [
 		{
 			code: 'DEPLOYMENT_INVALID',

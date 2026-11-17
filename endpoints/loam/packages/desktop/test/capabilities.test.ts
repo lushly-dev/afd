@@ -1,0 +1,188 @@
+/**
+ * P6-D4 (phase 6 specification, section 19, as amended 2026-11-16): the capabilities. No `core:*` and no
+ * plugin JavaScript permission; the IPC allow-list is Loam's three commands; `invoke` of any other command an
+ * app or plugin can register is refused from the main webview; Tauri's framework transport, the ACL-exempt
+ * channel fetch pinned in `src-tauri/tests/acl.rs`, hands out nothing, since Loam uses no `Channel`; neither
+ * frame's `invoke` runs a command; and the `loam` protocol answers 404 for a path reaching `mounts.json`.
+ */
+import { readFileSync, symlinkSync } from 'node:fs';
+import { join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { enterFrames, fixtureTable, leaveFrames, openView, viewDeployment } from './frames';
+import { type Desktop, openDesktop, untilInstance } from './harness';
+
+const SRC_TAURI = fileURLToPath(new URL('../src-tauri/', import.meta.url));
+/** What `__TAURI_INTERNALS__.invoke` answered: `ok` and its value, or the rejection's text. */
+type Invoked = { ok: boolean; value: string };
+
+let desktop: Desktop;
+let linked = false;
+beforeAll(async () => {
+	desktop = await openDesktop({
+		deployment: await viewDeployment(await fixtureTable()),
+		async prepare(data) {
+			try {
+				symlinkSync(join(data, 'mounts.json'), join(data, 'site', 'innocent.json'));
+				linked = true;
+			} catch {
+				// Windows without Developer Mode cannot make one; the Rust unit covers the rule there.
+			}
+		},
+	});
+	await untilInstance(desktop, 'fixture', 'ready');
+}, 180_000);
+afterAll(async () => {
+	await desktop?.close();
+});
+
+/** `invoke` in the current frame, answered within `timeoutMs` or reported as unanswered. */
+function invoke(
+	command: string,
+	args: Record<string, unknown> = {},
+	timeoutMs = 10_000
+): Promise<Invoked> {
+	return desktop.browser.execute(
+		async (command, args, timeoutMs) => {
+			const internals = (
+				window as unknown as {
+					__TAURI_INTERNALS__?: { invoke?(command: string, args: unknown): Promise<unknown> };
+				}
+			).__TAURI_INTERNALS__;
+			if (typeof internals?.invoke !== 'function') return { ok: false, value: 'no invoke' };
+			try {
+				const answer = await Promise.race([
+					internals.invoke(command, args),
+					new Promise((_, reject) => setTimeout(() => reject(new Error('unanswered')), timeoutMs)),
+				]);
+				return { ok: true, value: JSON.stringify(answer ?? null) };
+			} catch (error) {
+				return { ok: false, value: String(error) };
+			}
+		},
+		command,
+		args,
+		timeoutMs
+	) as Promise<Invoked>;
+}
+
+describe('P6-D4: the capabilities', () => {
+	it("P6-D4: grants no core or plugin permission, and Loam's three commands to the main webview alone", () => {
+		const file = JSON.parse(readFileSync(join(SRC_TAURI, 'capabilities/main.json'), 'utf8'));
+		expect(file).toEqual({
+			identifier: 'main',
+			description: expect.any(String),
+			local: true,
+			webviews: ['main'],
+			permissions: ['allow-mount-open', 'allow-mount-send', 'allow-mount-close'],
+		});
+		const config = JSON.parse(readFileSync(join(SRC_TAURI, 'tauri.conf.json'), 'utf8'));
+		expect(config.app.security.capabilities).toEqual(['main']);
+		expect(config.app.withGlobalTauri).toBe(false);
+		const cargo = readFileSync(join(SRC_TAURI, 'Cargo.toml'), 'utf8');
+		// No plugin but single instance, which has no JavaScript permission; no devtools in the build.
+		expect(cargo.match(/^tauri-plugin-[a-z-]+/gm)).toEqual(['tauri-plugin-single-instance']);
+		expect(cargo).toMatch(/^tauri = \{ version = "=2\.12\.5", features = \[\] \}$/m);
+	});
+
+	it('P6-D4: refuses invoke of every other command from the main webview, and the framework transport hands out nothing', async () => {
+		expect(await invoke('mount_open', { instance: 'missing' })).toEqual({
+			ok: false,
+			value: 'INSTANCE_UNKNOWN',
+		});
+		for (const command of [
+			'plugin:event|listen',
+			'plugin:event|emit',
+			'plugin:app|version',
+			'plugin:window|close',
+			'plugin:webview|print',
+			'plugin:menu|new',
+			'plugin:path|resolve_directory',
+			'plugin:single-instance|anything',
+			'plugin:updater|check',
+			'not_a_command',
+		]) {
+			const answer = await invoke(command, {});
+			expect(answer.ok, command).toBe(false);
+			expect(answer.value, command).toMatch(/not allowed|not found|denied/i);
+		}
+		// Tauri's ACL-exempt channel fetch, framework transport: with no queued identifier it has nothing to give.
+		const fetched = await invoke('plugin:__TAURI_CHANNEL__|fetch', {});
+		expect(fetched.ok).toBe(false);
+		expect(fetched.value).toMatch(/missing channel id header|data not found/);
+	});
+
+	it('P6-D4: an invoke from the loam-sandbox proxy frame or the opaque view frame inside it runs no command', async () => {
+		await openView(desktop);
+		// The handle counter: every `mount_open` that runs takes the next one.
+		const first = await invoke('mount_open', { instance: 'fixture' });
+		expect(first.ok).toBe(true);
+		const seen: Record<string, unknown> = {};
+		for (const inner of [false, true]) {
+			await enterFrames(desktop, inner);
+			const frame = inner ? 'view' : 'proxy';
+			seen[frame] = {
+				internals: await desktop.browser.execute(
+					() => typeof (window as { __TAURI_INTERNALS__?: unknown }).__TAURI_INTERNALS__
+				),
+				invoke: await invoke('mount_open', { instance: 'fixture' }, 4_000),
+				fetch: await desktop.browser.execute(async () => {
+					const found: Record<string, string> = {};
+					for (const url of ['http://ipc.localhost/mount_open', 'ipc://localhost/mount_open']) {
+						try {
+							const response = await fetch(url, {
+								method: 'POST',
+								body: JSON.stringify({ instance: 'fixture' }),
+							});
+							found[url] = `answered ${response.status}`;
+						} catch (error) {
+							found[url] = `refused: ${(error as Error).name}`;
+						}
+					}
+					return found;
+				}),
+			};
+			await leaveFrames(desktop);
+		}
+		process.stderr.write(`P6-D4 frames on ${process.platform}: ${JSON.stringify(seen)}\n`);
+		for (const frame of ['proxy', 'view']) {
+			const reached = seen[frame] as { invoke: Invoked; fetch: Record<string, string> };
+			expect(reached.invoke.ok, frame).toBe(false);
+			for (const answer of Object.values(reached.fetch)) expect(answer, frame).toMatch(/^refused/);
+		}
+		const second = await invoke('mount_open', { instance: 'fixture' });
+		expect(second.ok).toBe(true);
+		expect(Number(second.value)).toBe(Number(first.value) + 1);
+		for (const handle of [first.value, second.value])
+			await invoke('mount_close', { handle: Number(handle) });
+	});
+
+	it('P6-D4: the loam protocol answers 404 for a path reaching mounts.json, encoded or through a symbolic link', async () => {
+		const answers = await desktop.browser.execute(async () => {
+			const paths = [
+				'/../mounts.json',
+				'/%2e%2e/mounts.json',
+				'/%2E%2E/mounts.json',
+				'/..%2fmounts.json',
+				'/%2e%2e%2fmounts.json',
+				'/..%5cmounts.json',
+				'/%2e%2e%5cmounts.json',
+				'/assets/%2e%2e/%2e%2e/mounts.json',
+				'/mounts.json',
+				'/innocent.json',
+			];
+			const out: Record<string, string> = {};
+			for (const path of paths) {
+				const response = await fetch(path);
+				const body = await response.text();
+				out[path] = `${response.status}${body.includes('"mounts"') ? ' LEAKED' : ''}`;
+			}
+			return out;
+		});
+		for (const [path, answer] of Object.entries(answers)) expect(answer, path).toBe('404');
+		if (!linked)
+			process.stderr.write(
+				`P6-D4: no symbolic link could be made on ${process.platform}; the Rust unit covers it.\n`
+			);
+	});
+});
