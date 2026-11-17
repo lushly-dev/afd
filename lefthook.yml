@@ -85,6 +85,9 @@ pre-push-checks:
     versions:
       run: node scripts/check-versions.mjs
 
+    test-configs:
+      run: node scripts/check-test-configs.mjs
+
     boundaries:
       run: pnpm check:boundaries
 
@@ -126,6 +129,9 @@ check:
 
     versions:
       run: node scripts/check-versions.mjs
+
+    test-configs:
+      run: node scripts/check-test-configs.mjs
 
     boundaries:
       run: pnpm check:boundaries

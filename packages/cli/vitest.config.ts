@@ -8,7 +8,6 @@ export default defineConfig({
 		globalSetup: ['./vitest.global-setup.ts'],
 		// Output assertions check for escape sequences; keep chalk's colors out of them.
 		env: { FORCE_COLOR: '0' },
-		passWithNoTests: true, // Allow passing when no tests exist yet
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json', 'html'],
