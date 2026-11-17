@@ -4,7 +4,12 @@ from __future__ import annotations
 
 from unittest.mock import patch
 
-from botcore_agents.orchestrator import resolve_connector_commands
+import pytest
+
+from botcore_agents.capabilities import (
+    ConnectorIntegrationUnavailable,
+    resolve_connector_commands,
+)
 
 # Fake namespace simulating registered connector commands
 FAKE_NAMESPACE = {
@@ -70,14 +75,16 @@ class TestResolveConnectorCommands:
         ]
 
     def test_wildcard_without_connectors_package(self):
-        """Wildcard gracefully returns empty when botcore_connectors is not installed."""
-        with patch.dict(
-            "sys.modules",
-            {"botcore_connectors": None, "botcore_connectors.config": None},
+        """Wildcard refuses when botcore_connectors is not installed; start_agent maps the
+        refusal to INTEGRATION_UNAVAILABLE."""
+        with (
+            patch.dict(
+                "sys.modules",
+                {"botcore_connectors": None, "botcore_connectors.config": None},
+            ),
+            pytest.raises(ConnectorIntegrationUnavailable, match="botcore-connectors"),
         ):
-            result = resolve_connector_commands(["*"], [], FAKE_NAMESPACE)
-
-        assert result == []
+            resolve_connector_commands(["*"], [], FAKE_NAMESPACE)
 
     def test_connector_commands_overrides_connectors(self):
         """Explicit connector_commands list takes precedence over prefix filtering."""

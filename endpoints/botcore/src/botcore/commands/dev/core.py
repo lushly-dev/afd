@@ -9,7 +9,7 @@ from afd import CommandResult, error, success
 
 from botcore.config import BotCoreConfig, load_config
 from botcore.utils.runner import run_command, run_python_module
-from botcore.utils.workspace import find_workspace, resolve_language
+from botcore.utils.workspace import find_workspace, resolve_language, resolve_path
 
 
 def _infrastructure_failure(result: dict) -> CommandResult | None:
@@ -262,7 +262,7 @@ async def dev_lint(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,
@@ -304,7 +304,7 @@ async def dev_test(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,
@@ -344,7 +344,7 @@ async def dev_build(
 
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            resolve_path(path, ws) if path else None,
             config,
             ws,
             language_override=language,

@@ -9,7 +9,7 @@ from pathlib import Path
 from afd import CommandResult, error, success
 
 from botcore.config import load_config
-from botcore.utils.workspace import find_workspace
+from botcore.utils.workspace import display_path, find_workspace, resolve_path
 
 # Cross-platform path patterns
 PATH_PATTERNS = {
@@ -119,7 +119,7 @@ async def dev_check_paths(
         include_warnings: Include warning-level issues (localhost URLs)
     """
     ws = find_workspace()
-    check_path = Path(path) if path else (ws / "src" if ws else Path("src"))
+    check_path = resolve_path(path, ws)
 
     if not check_path.exists():
         return error(
@@ -163,7 +163,7 @@ async def dev_check_paths(
             continue
 
         results["files_checked"] += 1
-        relative_path = str(file_path.relative_to(ws) if ws else file_path)
+        relative_path = display_path(file_path, ws)
 
         for line_num, line in enumerate(content.splitlines(), 1):
             stripped = line.strip()
