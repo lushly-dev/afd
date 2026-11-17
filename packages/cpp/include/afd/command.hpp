@@ -66,8 +66,8 @@ struct CommandContext {
     /// The active command context (see `CommandDefinition::contexts`), if any.
     std::optional<std::string> active_context;
     /// What `afd-context-enter` and `afd-context-exit` act on: a session's stack or one
-    /// request's context (contexts.hpp). Only the MCP server sets it, with `active_context` to
-    /// match; leave it unset.
+    /// request's context (contexts.hpp). When set, the registry runs the call in its active
+    /// context, whatever `active_context` says. Only the MCP server sets it; leave it unset.
     std::shared_ptr<const ContextScope> context_scope;
     /// Who is calling. `DirectClient` sets `human` unless told otherwise; an MCP host should set
     /// `agent`. The registry reports the kind as `metadata.actorKind`.

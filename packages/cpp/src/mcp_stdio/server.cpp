@@ -16,6 +16,7 @@
 #include <mutex>
 #include <ostream>
 #include <random>
+#include <set>
 #include <thread>
 #include <utility>
 
@@ -295,8 +296,9 @@ struct StdioServer::State {
 
     [[nodiscard]] std::string default_instructions() const {
         std::string text = options.name +
-                           " is an AFD server. Every tool returns a CommandResult as JSON text; "
-                           "follow error.suggestion to recover.";
+                           " is an AFD server. Every tool returns a CommandResult as JSON text: "
+                           "{ success, data, error: { code, message, suggestion } }; follow "
+                           "error.suggestion to recover.";
         if (!options.contexts.empty()) {
             text += " Commands are scoped by context (afd-context-list lists them). Send _meta[\"" +
                     std::string(context_meta_key) +
@@ -516,9 +518,9 @@ struct StdioServer::State {
         }
         context.approval.reset();
         context.mcp_approval_relay.reset();
-        // The server's: what the request named, or the connection's stack.
+        // The server's: what the request named, or the connection's stack. The registry runs the
+        // call in the scope's active context.
         context.context_scope = scope;
-        context.active_context = info.active_context;
         return context;
     }
 
@@ -828,6 +830,15 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
         return unexpected(std::string("tools_list_ttl_ms must not be negative"));
     }
     if (!options.contexts.empty()) {
+        std::set<std::string> configured;
+        for (const auto& config : options.contexts) {
+            if (config.name.find_first_not_of(" \t\r\n") == std::string::npos) {
+                return unexpected(std::string("Context names must not be blank"));
+            }
+            if (!configured.insert(config.name).second) {
+                return unexpected("Context '" + config.name + "' is configured twice");
+            }
+        }
         for (const auto name : afd_context_command_names) {
             const auto command = registry.get(name);
             if (!command || !is_exposed_to(command->definition.expose, Interface::mcp)) {
@@ -835,6 +846,23 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
                                   " is not registered and exposed to MCP: call "
                                   "afd::register_context_commands(registry, contexts) first");
             }
+        }
+        // The server and the context tools must serve the same contexts.
+        CommandContext probe;
+        const Json listed(
+            registry.get("afd-context-list")->definition.handler(Json::object(), probe));
+        std::set<std::string> registered;
+        if (listed.contains("data") && listed["data"].contains("contexts")) {
+            for (const auto& entry : listed["data"]["contexts"]) {
+                if (entry.contains("name") && entry["name"].is_string()) {
+                    registered.insert(entry["name"].get<std::string>());
+                }
+            }
+        }
+        if (registered != configured) {
+            return unexpected(std::string(
+                "contexts differ from those passed to afd::register_context_commands: pass the "
+                "same list to both"));
         }
     }
     if (!options.clock) {

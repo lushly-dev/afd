@@ -1,5 +1,6 @@
 #include "afd/registry.hpp"
 
+#include "afd/contexts.hpp"
 #include "afd/similarity.hpp"
 
 #include <algorithm>
@@ -289,6 +290,11 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     context = with_context_defaults(
         std::move(context),
         {.clock = options_.clock, .random = options_.random, .actor = options_.actor});
+    // A call with a context scope (contexts.hpp) runs in the scope's active context, so the two
+    // never disagree.
+    if (context.context_scope) {
+        context.active_context = context.context_scope->active();
+    }
     std::shared_ptr<const RegisteredCommand> command;
     std::vector<std::string> candidates;
     std::vector<std::string> exposed_names;

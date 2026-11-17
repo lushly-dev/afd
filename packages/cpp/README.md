@@ -148,7 +148,7 @@ if (!server) { /* server.error() says why */ }
   - 2025 clients use `initialize` and `ping`.
 - **One tool per command** whose `expose.mcp` is true. There are no meta-tools, bootstrap commands or tool strategies yet ([#1451](https://github.com/lushly-dev/afd/issues/1451)), and no HTTP transport.
 - **Contexts** ([spec](../../spec/tool-strategies.md#contexts)).
-  - Register `afd-context-list`, `afd-context-enter` and `afd-context-exit` with `afd::register_context_commands(registry, contexts)` (`afd/contexts.hpp`), then pass the same `contexts` in `StdioServerOptions::contexts`; `create` fails when they are missing.
+  - Register `afd-context-list`, `afd-context-enter` and `afd-context-exit` with `afd::register_context_commands(registry, contexts)` (`afd/contexts.hpp`), then pass the same `contexts` in `StdioServerOptions::contexts`; `create` fails when the commands are missing or the two lists differ.
   - A 2025 connection keeps one context stack, which enter and exit change. A 2026-07-28 request names its context in `_meta["dev.afd/context"]`; the tools validate it and answer `persisted: false`, and an unknown name is invalid params (`-32602`).
   - `tools/list` lists only the commands available in the active context, and a call outside it fails with `COMMAND_NOT_IN_CONTEXT` before anyone is asked to confirm it. `ttlMs` is 0 with contexts unless `tools_list_ttl_ms` says otherwise, and `server/discover` says how to send a context.
 - **Errors.** A command failure is a `CommandResult` with `isError: true`, never a JSON-RPC error.

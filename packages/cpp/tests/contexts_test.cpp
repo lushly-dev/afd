@@ -185,3 +185,15 @@ TEST_CASE("without context tools, COMMAND_NOT_IN_CONTEXT names the command's con
           "Switch to a context this command belongs to ('editing'), or call it with no active "
           "context.");
 }
+
+TEST_CASE("a call with a context scope runs in the scope's context, whatever active_context says") {
+    const auto owned = with_contexts();
+    auto session = std::make_shared<afd::ContextStack>();
+    session->enter("reading");
+    afd::CommandContext context;
+    context.active_context = "editing";
+    context.context_scope =
+        std::make_shared<const afd::ContextScope>(afd::ContextScope{.session = session});
+    const Json result(owned->execute("note-delete", Json::object(), std::move(context)));
+    CHECK(result["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+}

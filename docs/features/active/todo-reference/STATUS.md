@@ -567,9 +567,13 @@ commands and strategies be split out; they are [#1451](https://github.com/lushly
 - **The backend.** `todo_contexts()` is `src/contexts.ts`; `todo-reading` shows list, get, stats
   and history. The spec tests compare the thirteen todo commands, leaving the context tools out.
 
-Verified locally on 2026-11-17 with Apple clang: the library's tests (8 new context cases and 5
-new server cases in both eras), the backend's 38 cases with warnings as errors, C++ conformance
-41/41 in legacy, modern and auto modes, confirmations 5/5 and approvals 4/4 in both eras.
+Verified locally on 2026-11-17 with Apple clang: the library's tests (278 cases, 9 new context
+cases and 10 new server cases in both eras) in the dev and no-exceptions/no-RTTI builds, the
+backend's 38 cases with warnings as errors, C++ conformance 41/41 in legacy, modern and auto modes,
+confirmations 5/5 and approvals 4/4 in both eras, and the full `pnpm verify` on Node 26. An
+independent review found no blocker; its improvements are in: the server refuses contexts that
+differ from the registered ones, the registry takes the active context from the scope, three stale
+spec rows, and tests for each check's order.
 
 ## Open questions
 

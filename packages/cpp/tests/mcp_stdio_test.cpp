@@ -1122,3 +1122,67 @@ TEST_CASE("a set tools_list_ttl_ms wins over the contexts default") {
     CHECK(send(*server, request(1, "tools/list", {{"_meta", modern_meta()}}))["result"]["ttlMs"] ==
           1234);
 }
+
+TEST_CASE("create refuses server contexts that differ from the registered ones") {
+    ScopedNotes notes;
+    CHECK_FALSE(StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}}}));
+    CHECK_FALSE(
+        StdioServer::create(*notes.registry, {.contexts = {{.name = "reading"}, {.name = ""}}}));
+    CHECK_FALSE(StdioServer::create(
+        *notes.registry,
+        {.contexts = {{.name = "reading"}, {.name = "editing"}, {.name = "reading"}}}));
+    CHECK(StdioServer::create(*notes.registry, {.contexts = notes.contexts}));
+}
+
+TEST_CASE("2026-07-28: a confirm-gated command outside the context is refused, not asked") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.confirmations = ConfirmationMode::require_human,
+                                                .contexts = notes.contexts});
+    const auto refused = modern_call(*server, "note-clear", Json::object(), form_elicitation,
+                                     Json::object(), {{"dev.afd/context", "reading"}});
+    CHECK(refused["resultType"] == "complete");
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+}
+
+TEST_CASE("2025: _meta[\"dev.afd/context\"] is ignored; the connection's stack decides") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.contexts = notes.contexts});
+    send(*server, request(0, "initialize", {{"protocolVersion", "2025-11-25"}}));
+    const auto listed =
+        send(*server, request(1, "tools/list", {{"_meta", {{"dev.afd/context", "nowhere"}}}}));
+    CHECK(listed["result"]["tools"].size() == 5);
+}
+
+TEST_CASE("the context hook sees the active context but cannot change the scope") {
+    ScopedNotes notes;
+    std::optional<std::string> seen;
+    auto server = make_server(
+        *notes.registry,
+        {.contexts = notes.contexts,
+         .context_hook = [&](afd::CommandContext& context, const afd::mcp::RequestInfo& info) {
+             seen = info.active_context;
+             context.active_context.reset();
+             context.context_scope.reset();
+         }});
+    const auto refused = modern_call(*server, "note-clear", Json::object(), {}, Json::object(),
+                                     {{"dev.afd/context", "reading"}});
+    CHECK(seen == "reading");
+    CHECK(body(refused)["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+}
+
+TEST_CASE("server/discover never reads a context; without contexts nothing changes") {
+    ScopedNotes notes;
+    auto server = make_server(*notes.registry, {.contexts = notes.contexts});
+    Json meta = modern_meta();
+    meta["dev.afd/context"] = "nowhere";
+    CHECK(send(*server, request(1, "server/discover", {{"_meta", meta}}))["result"]["resultType"] ==
+          "complete");
+
+    Notes plain;
+    auto without = make_server(*plain.registry, {.name = "notes"});
+    const auto discover = send(*without, request(2, "server/discover", {{"_meta", modern_meta()}}));
+    CHECK(discover["result"]["ttlMs"] == 300000);
+    CHECK(discover["result"]["instructions"] ==
+          "notes is an AFD server. Every tool returns a CommandResult as JSON text: { success, "
+          "data, error: { code, message, suggestion } }; follow error.suggestion to recover.");
+}
