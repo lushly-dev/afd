@@ -401,7 +401,7 @@ Settings of the `copilot` section (phase 4's 3.1), at workspace level, an owner'
 - **Descriptions.**
   - Shell and native commands: their own.
   - A `labels = "per-part"` instance: the server's descriptions, wrapped as its claims (5.2).
-  - **A `labels = "whole"` instance: only the deployer's text** (the manifest's or entry's title and description). Its input schema is given with every `title`, `description`, `examples`, `default`, `const` and `$comment` keyword removed. **A tool the deployer does not name under `commands` is not listed** when its name, a property name or an `enum` value falls outside `^[A-Za-z0-9_.-]{1,64}$`. With no deployer text, the tool's name alone is given. An unvetted server so puts no prose of its own before the model.
+  - **A `labels = "whole"` instance: only the deployer's text** (the manifest's or entry's title and description). Its input schema is given with **only structural keywords kept**: `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`, the numeric and length bounds, and `$ref` and `$defs`, under the identifier rule below. Every other keyword is dropped, `title`, `description`, `examples`, `default`, `const`, `pattern`, `format`, `$id`, `$comment` and unknown `x-` keys included. **A tool the deployer does not name under `commands` is not listed** when its name, a property name or an `enum` value falls outside `^[A-Za-z0-9_.-]{1,64}$`. With no deployer text, the tool's name alone is given. An unvetted server so puts no prose of its own before the model.
 
 ## 5. Labels and taint (L1, L2, D141)
 
@@ -596,7 +596,7 @@ Its stronger form, the engine's own page with a passkey, is Q1's option (b).
   - The confirmation shows 6.2's resolved action and **the preview's result**, which the kernel calls as the person before showing the confirmation, its parts labelled as in 5.1.
   - On the person's confirm:
     1. the kernel re-checks access (phase 4's re-check);
-    2. **it holds the instance:** until this confirmation's outcome is stored, every agent-interface call to the instance, and every call carrying a copilot trace, an app's `calls` included, waits. Nothing the copilot runs can then change what was previewed;
+    2. **it holds the instance:** until this confirmation's outcome is stored, every other call to the instance waits, from the agent interface or carrying a copilot trace, an app's `calls` included. This confirmation's own run and its preview calls do not wait. Nothing the copilot runs can then change what was previewed;
     3. it calls the preview again; **if its canonical digest differs from the one shown, the confirmation is shown again, marked "Changed since you looked"**, and nothing runs;
     4. it sends the call with exactly the input confirmed;
     5. if the server answers `APPROVAL_REQUIRED` with a token, the kernel retries once with the same message and `_meta["dev.afd/approval"]`. **This retry is covered by the person's confirm, since the token is bound to the input the person confirmed;**
@@ -1057,7 +1057,7 @@ Each finding is answered below.
 
 - **WebRTC:** the worker is mandatory and holds every third-party module. The frame is a bootstrap only. S1, S2, T8 and P5-A2 test it, and a failed worker withholds the copilot in that engine.
 - **R-B5:** a confirmation stores the trace; the confirmed run carries it, and the outcome's labels come from that run.
-- **R-B3:** a `whole` server's schema also loses `default`, `const` and `$comment`. A tool whose name, property names or enum values are not plain identifiers is not listed unless the deployer names it.
+- **R-B3:** a `whole` server's schema keeps only an allow-list of structural keywords. A tool whose name, property names or enum values are not plain identifiers is not listed unless the deployer names it.
 
 Its improvements were taken too:
 
@@ -1067,6 +1067,8 @@ Its improvements were taken too:
 - the unit submit resolves with `act` as its default, not as an exception;
 - the port's `call` refuses `confirmation-*`;
 - D137's widened list goes to the owner in Q7.
+
+**The same reviewer then verified those fixes at `5c9baa3b`.** WebRTC and the confirm path were closed. The schema rule was partly closed: it was still a list of banned keywords. One new blocker appeared: read literally, the hold made the confirmed send wait on itself. Both were fixed: the schema rule became an allow-list, and the hold now exempts the confirmation's own run and preview. Its verdict was "approvable once those two one-line fixes are in".
 
 ### Blockers
 
