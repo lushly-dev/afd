@@ -114,11 +114,15 @@ export function deployment(
 		if (
 			![1, 2].includes(added?.version) ||
 			!isMap ||
-			(added.version === 1 && Object.values(profiles).some((profile) => profile?.statements))
+			(added.version === 1 &&
+				Object.values(profiles).some(
+					(profile) =>
+						!Array.isArray(profile?.exclude_rules) || Object.hasOwn(profile, 'statements')
+				))
 		)
 			return refused(
 				'CONSUMERS_INVALID',
-				`${file} is not a consumers map of version 1 or 2 (version 1 has no statements)`,
+				`${file} is not a consumers map of version 1 or 2 (a version 1 profile has exclude_rules and no statements)`,
 				shape
 			);
 		const clash = Object.keys(profiles).filter((name) => Object.hasOwn(CONSUMERS.consumers, name));
@@ -143,7 +147,9 @@ export function deployment(
 			return refused(
 				'CONSUMER_NOT_FOUND',
 				`UMBEL_COMPONENTS_CONSUMER names ${name}, which no consumers map configures`,
-				`Set UMBEL_COMPONENTS_CONSUMER to one of ${Object.keys(consumers.consumers).join(', ')}, or add the profile to the file UMBEL_COMPONENTS_CONSUMERS names.`
+				`Set UMBEL_COMPONENTS_CONSUMER to one of ${Object.keys(consumers.consumers)
+					.filter((key) => CONSUMER_NAME.test(key))
+					.join(', ')}, or add the profile to the file UMBEL_COMPONENTS_CONSUMERS names.`
 			);
 		umbelToml = `${UMBEL_TOML}\n[plugins.components.config]\ndefault_consumer = "${name}"\n`;
 	}

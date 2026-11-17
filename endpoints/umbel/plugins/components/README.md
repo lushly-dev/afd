@@ -134,7 +134,8 @@ for limits and failures. Excluded rules and references disappear from the brief,
 with their identifiers recorded under `omitted` (`reason: "consumer"`). Other
 library facts, including `import`, remain documentation; Loam's design record owns
 its deep imports. `components-open` still shows the general library record.
-Without `consumer`, the brief is unchanged; a misspelled name fails explicitly.
+Without `consumer` (and with no `default_consumer`, below), the brief is unchanged; a misspelled
+name fails explicitly.
 
 A deployment can also state its own design guidance (amendment A28 of the
 [specification](../../docs/plugins/components/spec.md#amendment-a28-a-deployments-own-guidance)).

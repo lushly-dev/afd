@@ -252,6 +252,18 @@ async fn the_default_consumer_applies_when_a_call_names_none_and_a_named_one_ove
         .await;
     assert_eq!(guidance(&named)["consumer"], "back-office", "{named}");
     assert_eq!(guidance(&named)["items"][0]["id"], "tables.keep.sortable");
+    // With a default set, omitting `consumer` gives the default, and the refusal says so.
+    let mistyped = fx
+        .brief(json!({"tags":["example-select"],"consumer":"kiosk"}))
+        .await;
+    assert_eq!(code(&mistyped), "CONSUMER_NOT_FOUND", "{mistyped}");
+    assert!(
+        mistyped["error"]["suggestion"]
+            .as_str()
+            .unwrap()
+            .contains("the deployment's default consumer"),
+        "{mistyped}"
+    );
     let rendered = fx
         .brief(json!({"tags":["example-select"],"render":"text"}))
         .await;
@@ -371,6 +383,7 @@ async fn the_floors_and_the_guidance_over_the_target_fail_with_fits_counting_the
     let fx = pack.host_with_consumers(profile("storefront", json!({"statements":statements})));
     for render in ["none", "text"] {
         let mut checked = false;
+        let mut saw_none_fit = false;
         for target in (1_024..24_000).step_by(256) {
             let input =
                 json!({"tags":tags,"sections":ALL_BUT_DETAIL,"maxBytes":target,"render":render});
@@ -384,9 +397,18 @@ async fn the_floors_and_the_guidance_over_the_target_fail_with_fits_counting_the
             assert_eq!(code(&guided), "OUTPUT_BUDGET_EXCEEDED", "{guided}");
             let fits = guided["error"]["details"]["fits"].as_u64().unwrap() as usize;
             let without = general["error"]["details"]["fits"].as_u64().unwrap() as usize;
+            // The refusal counts the guidance; with none it is as it was.
+            assert_eq!(guided["error"]["details"]["guidance"], 8, "{guided}");
+            assert!(general["error"]["details"].get("guidance").is_none());
+            let suggestion = guided["error"]["suggestion"].as_str().unwrap();
             if fits == 0 {
+                // Fewer tags cannot help when the guidance alone leaves no room.
+                assert!(suggestion.contains("guidance"), "{suggestion}");
+                assert!(!suggestion.contains("fewer tags"), "{suggestion}");
+                saw_none_fit = true;
                 continue;
             }
+            assert!(suggestion.contains("fewer tags"), "{suggestion}");
             assert!(fits < without, "{fits} not below {without} at {target}");
             let first = |count: usize| {
                 merged(
@@ -405,6 +427,7 @@ async fn the_floors_and_the_guidance_over_the_target_fail_with_fits_counting_the
             checked = true;
         }
         assert!(checked, "no target separated the two ({render})");
+        assert!(saw_none_fit, "no target left room for no tag ({render})");
     }
 }
 
@@ -504,6 +527,18 @@ async fn each_limit_refuses_on_the_call_and_in_the_doctor_without_echoing_the_te
         (
             "version 1 without exclusions",
             json!({"version":1,"consumers":{"storefront":{}}}),
+        ),
+        (
+            "null exclusions in version 1",
+            json!({"version":1,"consumers":{"storefront":{"exclude_rules":null}}}),
+        ),
+        (
+            "null statements",
+            profile("storefront", json!({"statements":null})),
+        ),
+        (
+            "null exclusions",
+            profile("storefront", json!({"exclude_rules":null})),
         ),
         (
             "an unknown key",

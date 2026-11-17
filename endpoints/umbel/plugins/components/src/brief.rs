@@ -937,7 +937,7 @@ pub(crate) fn run(input: &Value, cx: &mut Cx) -> Outcome {
             let fitting = fit_count(total, target, |count| {
                 brief.build(ORDER.len(), count, &brief.effects(count))
             });
-            return fail::brief_budget_exceeded(fitting);
+            return fail::brief_budget_exceeded(fitting, brief.guidance.statements());
         }
         steps += 1;
         // A step that takes nothing away leaves the answer as it was, except the rule-text step,

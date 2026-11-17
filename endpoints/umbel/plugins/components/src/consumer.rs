@@ -2,7 +2,7 @@
 //! (amendment A25) and the deployment's own guidance statements (amendment A28).
 use std::collections::{BTreeMap, BTreeSet, HashSet};
 
-use serde::Deserialize;
+use serde::{Deserialize, Deserializer};
 use serde_json::Value;
 use umbel_sdk::{Cx, Outcome, failure};
 
@@ -22,12 +22,37 @@ struct Consumers {
     consumers: BTreeMap<String, Profile>,
 }
 
-/// Version 1 requires `exclude_rules` and has no `statements`; version 2 makes both optional.
+/// Version 1 requires `exclude_rules` and has no `statements`; version 2 makes both optional. A
+/// key that is present is `Some`, and `Some(None)` when it is `null`, which no version accepts.
 #[derive(Deserialize)]
 #[serde(deny_unknown_fields)]
 struct Profile {
-    exclude_rules: Option<Vec<String>>,
-    statements: Option<Vec<Statement>>,
+    #[serde(default, deserialize_with = "present")]
+    exclude_rules: Option<Option<Vec<String>>>,
+    #[serde(default, deserialize_with = "present")]
+    statements: Option<Option<Vec<Statement>>>,
+}
+
+fn present<'de, D: Deserializer<'de>, T: Deserialize<'de>>(
+    deserializer: D,
+) -> Result<Option<Option<T>>, D::Error> {
+    Option::<T>::deserialize(deserializer).map(Some)
+}
+
+impl Profile {
+    fn exclusions(&self) -> &[String] {
+        self.exclude_rules
+            .as_ref()
+            .and_then(Option::as_deref)
+            .unwrap_or_default()
+    }
+
+    fn statements(&self) -> &[Statement] {
+        self.statements
+            .as_ref()
+            .and_then(Option::as_deref)
+            .unwrap_or_default()
+    }
 }
 
 /// One of the deployment's statements, in the pack's statement form without a basis: a
@@ -84,14 +109,17 @@ fn statements_ok(statements: &[Statement]) -> bool {
 }
 
 fn profile_ok(version: u8, name: &str, profile: &Profile) -> bool {
+    let null =
+        matches!(profile.exclude_rules, Some(None)) || matches!(profile.statements, Some(None));
     let shape = version != 1 || (profile.exclude_rules.is_some() && profile.statements.is_none());
-    let exclusions = profile.exclude_rules.as_deref().unwrap_or_default();
-    shape
+    let exclusions = profile.exclusions();
+    !null
+        && shape
         && patterns::LIBRARY.accepts(name)
         && !scan::identifier_hit(name)
         && exclusions.len() <= 256
         && exclusions.iter().all(|id| qualified(id))
-        && statements_ok(profile.statements.as_deref().unwrap_or_default())
+        && statements_ok(profile.statements())
 }
 
 fn read(cx: &Cx) -> Result<Consumers, Outcome> {
@@ -115,13 +143,20 @@ fn read(cx: &Cx) -> Result<Consumers, Outcome> {
 }
 
 /// `CONSUMER_NOT_FOUND`; for a name the deployment's default chose, the suggestion names the
-/// config key, since the caller named nothing.
-fn not_found(by_default: bool) -> Outcome {
+/// config key, since the caller named nothing. With a default set, omitting `consumer` gives the
+/// default's profile, not the general brief, so the suggestion says so.
+fn not_found(by_default: bool, default_set: bool) -> Outcome {
     if by_default {
         failure(
             "CONSUMER_NOT_FOUND",
             "the deployment's default consumer is not configured in this space",
             "Add the consumer that `default_consumer` in [plugins.components.config] names to the space's components/consumers pack, or set `default_consumer` to a configured consumer; a call can also pass `consumer` to use another configured one.",
+        )
+    } else if default_set {
+        failure(
+            "CONSUMER_NOT_FOUND",
+            "the requested consumer is not configured in this space",
+            "Configure the consumer in the space's components/consumers pack, or omit consumer to use the deployment's default consumer.",
         )
     } else {
         failure(
@@ -140,7 +175,7 @@ pub(crate) fn check(cx: &Cx) -> Outcome {
         Err(outcome) => return outcome,
     };
     match Settings::load(cx).default_consumer {
-        Some(name) if !map.consumers.contains_key(&name) => not_found(true),
+        Some(name) if !map.consumers.contains_key(&name) => not_found(true, true),
         _ => umbel_sdk::success(serde_json::json!({})),
     }
 }
@@ -173,10 +208,10 @@ pub(crate) fn load(
     let profile = map
         .consumers
         .get(name)
-        .ok_or_else(|| not_found(by_default))?;
+        .ok_or_else(|| not_found(by_default, default.is_some()))?;
     Ok(Some(Selected {
         name: name.to_owned(),
-        excluded: profile.exclude_rules.iter().flatten().cloned().collect(),
-        statements: profile.statements.clone().unwrap_or_default(),
+        excluded: profile.exclusions().iter().cloned().collect(),
+        statements: profile.statements().to_vec(),
     }))
 }
