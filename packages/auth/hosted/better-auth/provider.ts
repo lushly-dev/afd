@@ -237,6 +237,8 @@ export async function startFixture(config: FixtureConfig) {
 				json({
 					instanceId,
 					providerVersion,
+					// This process's own runtime, read where it runs: never the runner's or a manifest's.
+					nodeVersion: process.versions.node,
 					providerId: config.providerId,
 					revision: config.revision,
 					expiresIn: config.expiresIn,
@@ -310,7 +312,7 @@ export async function startFixture(config: FixtureConfig) {
 				response
 					.writeHead(200, { 'content-type': 'text/html' })
 					.end(
-						'<!doctype html><html lang="en"><title>Disposable AFD Better Auth harness</title><h1>Disposable authentication test</h1><button id="oauth">Continue with configured OAuth provider</button><button id="refresh">Refresh session</button><button id="sign-out">Sign out</button><button id="probe-capture">Capture current session for replay</button><button id="probe-verify">Verify captured session</button><output id="probe-status" aria-live="polite"></output><div id="root"></div><script type="module" src="/fixture.js"></script></html>'
+						'<!doctype html><html lang="en"><title>Disposable AFD Better Auth harness</title><h1>Disposable authentication test</h1><button id="oauth">Continue with configured OAuth provider</button><button id="refresh">Refresh session</button><button id="sign-out">Sign out</button><button id="probe-capture">Capture current session for replay</button><button id="probe-verify">Verify captured session</button><output id="probe-status" aria-live="polite"></output><pre id="runtime"></pre><div id="root"></div><script type="module" src="/fixture.js"></script></html>'
 					);
 				return;
 			}

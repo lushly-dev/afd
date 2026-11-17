@@ -173,6 +173,22 @@ parser and dry-run checks passed: one scenario, three steps, 100% coverage of th
 revision's command and its unknown-consumer refusal. The scenario covers tailoring and refusal; native regressions additionally assert
 `omitted` metadata and the host space boundary.
 
+### Amendment A26: a name with no hyphen (#1151)
+
+Step C5 saw an agent pass `breadcrumb` and `tree`. Both were refused with `COMPONENTS_INVALID` and
+a generic suggestion, and the session recovered only by calling `components-list`. Section 6.1 does
+not change: a tag is still a custom element name, and the refusal stays `COMPONENTS_INVALID`. When
+every refused entry of `tags` is a name that only lacks its hyphen (`[a-z][a-z0-9._]*`), and the
+space's pack can be read, the refusal names the served tags those names most likely meant:
+- first each tag that ends in `-<name>`;
+- otherwise the nearest tags to each library's prefix plus the name, as `unknown` finds them.
+
+The tags go in `details.matches` and in the suggestion, and each library's prefix goes in
+`details.prefixes`. When nothing matches, the suggestion names the prefixes instead. Only catalog
+tags and prefixes appear in the refusal, never the caller's names, and at most the first eight names
+are matched. Any other refused name, or a pack that cannot be read, keeps the general refusal.
+`tests/sections.rs` (`a_bare_name_is_refused_with_the_tags_it_matches`) covers all three cases.
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -920,7 +936,7 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | `LIBRARY_NOT_FOUND` | `library` or a needed `default_library` names no library in the pack | No | `library`, `libraries` | Pass one of the libraries listed, or call `components-list` |
 | `TAG_NOT_FOUND` | `components-open` on a tag no touched library has | No | `tag`, `nearest` | Check the name, or call `components-list` |
 | `TAG_AMBIGUOUS` | `components-open` on a tag in several libraries, undecided | No | `tag`, `libraries` | Pass `library` |
-| `COMPONENTS_INVALID` | An input the schema subset cannot check: an identifier outside the format's patterns, or `skip` without one list section | No | none | Fix the field the message names and run the command again |
+| `COMPONENTS_INVALID` | An input the schema subset cannot check: an identifier outside the format's patterns, or `skip` without one list section | No | none, or `matches` and `prefixes` for names with no hyphen (A26) | Fix the field the message names and run the command again; for a name with no hyphen, the served tags it matches (A26) |
 | `TOO_MANY_TAGS` | More than 128 tags requested (6.2) | No | `count` | Brief part of the page at a time |
 | `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it |
 
@@ -1071,6 +1087,6 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays. Measured 2026-11-11 in step C4 (`fast_af.rs`): a twenty-component brief on FAST-AF's 77 records beside the example took 365 to 865 ms, median 613 ms of five, in a debug build under a load of about 17, so load more than size; still no cache |
 | 2026-11-10 | This specification | A new override needs a restart, and a changed one is served unchecked against the pack limits (D46). Stated in the README; the host change is the proposal's step D4 | Proposal step D4 |
 | 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |
-| 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Open; a change to section 6.1, the owner's |
+| 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Done 2026-11-16 by amendment A26 ([#1151](https://github.com/lushly-dev/afd/issues/1151)): the refusal names the matching served tags, or the prefixes |
 | 2026-11-12 | Step C5 | Claude Code defers MCP tools, so `components-brief` as a first-class suggestion is out of sight until a task names it; two Loam sessions told only by the design record and a skill never called it | The Component Briefs status, the owner's |
 | 2026-11-11 | A23 | The doctor's `plugins.pack_checks` reaches compiled plugins only: a component (WIT world 1.0.0) and a mounted server offer no check, so once this plugin is built as a component (step D2) its overrides are checked for layout only unless the world gains an export for it | Proposal step D2 |

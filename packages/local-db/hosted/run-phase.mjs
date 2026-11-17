@@ -12,6 +12,7 @@ import {
 	HarnessError,
 	handler,
 	idsFor,
+	providerNode,
 	storeIdentity,
 } from './harness-support.mjs';
 
@@ -68,6 +69,15 @@ async function assertAuthentication(config, primary, secondary, ids) {
 	return ['unauthenticated-rejection', 'two-principal-isolation'];
 }
 
+/** The serving process's Node from health; the repository's own fixture must report it. */
+function serviceNode(config, health) {
+	const node = providerNode(health);
+	if (config.expectFixtureAuth) {
+		check(node !== 'not-reported', 'Fixture health did not report its Node version');
+	}
+	return node;
+}
+
 async function writePhase(config, ids) {
 	const writer = adapterFor(config);
 	const reader = adapterFor(config);
@@ -79,6 +89,7 @@ async function writePhase(config, ids) {
 	const health = await writer.health();
 	check(health.status === 'ok', 'Health did not report ok');
 	const identity = storeIdentity(config, health);
+	const node = serviceNode(config, health);
 	await writer.create(config.table, {
 		id: ids.marker,
 		kind: 'run-marker',
@@ -173,6 +184,7 @@ async function writePhase(config, ids) {
 	const authChecks = secondary ? await assertAuthentication(config, writer, secondary, ids) : [];
 	return {
 		storeIdentity: identity,
+		providerNode: node,
 		checks: [
 			'health',
 			'crud',
@@ -193,6 +205,7 @@ async function readPhase(config, ids) {
 	const reader = adapterFor(config);
 	const health = await reader.health();
 	const identity = storeIdentity(config, health);
+	const node = serviceNode(config, health);
 	const marker = await reader.get(config.table, ids.marker);
 	check(marker?.runId === config.runId, 'Durable run marker was not restored after restart');
 	check(marker.storeIdentity === identity, 'Durable store identity changed across restart');
@@ -286,6 +299,7 @@ async function readPhase(config, ids) {
 	}
 	return {
 		storeIdentity: identity,
+		providerNode: node,
 		restartEvidence: {
 			beforeRevision: marker.applicationRevision,
 			afterRevision: config.appRevision,

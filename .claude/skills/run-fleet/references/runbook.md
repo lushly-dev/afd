@@ -18,7 +18,8 @@ and repairs. Then run prepare-pr in lane mode: it records the review with
 scripts/review-record.mjs and enqueues with a title and body through factory-cell. End your
 turn once the branch is queued (or held); you are resumed only if it is ejected.
 Run the tests you changed, not whole suites or reproduction loops: the lane's validation shares
-this host. A flake you cannot reproduce in one run becomes a needs:repro issue.
+this host. A new or rebased worktree needs `pnpm install` and a build of the packages your tests
+and the pre-queue typecheck import before they pass. A flake you cannot reproduce in one run becomes a needs:repro issue.
 Under needs:approach, post your approach on the issue and proceed; needs:ux gets screenshots.
 Others share the repository; never revert their work.
 Read .claude/skills/start-session/SKILL.md and .claude/skills/prepare-pr/SKILL.md (a skill

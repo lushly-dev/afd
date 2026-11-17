@@ -25,6 +25,8 @@ What a plugin served through the managed host needs: its own command policies, a
 - **Wrong arguments are refused with the way forward.** On the CLI, MCP and DirectClient surfaces alike, an argument the handler does not take, or a missing required one, is refused before binding with `VALIDATION_ERROR` (was `INVALID_TARGET_OR_INPUT`). Its details list `expectedFields`, `unexpectedFields` and `missingFields`, and its `suggestedFields` and suggestion name the input a wrong key most likely meant: the same name in another case convention (`timeoutMs` for `timeout_ms`), else the closest name.
 - **Either spelling of a command name calls it, and a wrong one is answered with the closest.** A host still serves the names it registers; a call may use the other spelling (`issue_claim` for `issue-claim`). Registering both spellings of one name is refused as a duplicate (was an ambiguous raw-Python alias at MCP server construction). `COMMAND_NOT_FOUND` names the closest served command in its message, suggestion and `details.suggestedCommand`.
 - **Inputs are type-checked.** After the names, each input is validated against its type hint with Pydantic's lax mode: a model-typed input arrives as the model, and a value that fails is `VALIDATION_ERROR` with `details.invalidFields` (each field's path and problem). Values that used to pass through unchanged are now coerced or refused: `dev_lint` with `fix: "false"` now means no fix (the string was truthy, so it computed `source-write`), a number sent to a `str` input such as `path` or `package` is refused before confinement, and `true` sent to an `int` input arrives as `1`.
+- **The Factory lane's report counts merges by plan.** A merge now records the cell's plan with its route, so `lane-report`'s `byPlan` is filled (it was always empty).
+- **The Factory lane validates beside the checkout, not inside `.git`.** Its slots are `<checkout>.factory-slots/<n>` (were `.git/factory/slots/<n>`): TypeScript refuses some declarations in a project whose path has a `.git` segment (TS2883), so AFD's typecheck failed in the slot and ejected branches that pass everywhere else.
 - **The Factory plugin's `REVIEW_MISSING` says why.** `lane-enqueue` adds the first line the adapter's `review_evidence` command printed, such as which commit the recorded review covers, and a verifier that cannot run or exceeds 120 seconds is `REVIEW_MISSING` with its reason (was `READ_FAILED`, or no limit). AFD's adapter now names `scripts/review-record.mjs verify --head {head}`, which `prepare-pr`'s lane mode feeds, so AFD branches can be enqueued.
 - The MCP `call` tool calls as an agent (`Actor(kind="agent")`) unless the host names its actor.
 - Effects a call computes beyond its policy's declared set are `EFFECT_DENIED` (was `INVALID_TARGET_OR_INPUT`).
@@ -32,6 +34,11 @@ What a plugin served through the managed host needs: its own command policies, a
 
 ### Fixed
 
+- **Windows HTTP token stores are private and coordinated across processes.** New
+  files and directories receive ACLs for the operator, SYSTEM and Administrators
+  at creation; unsafe owners, ACLs and reparse points refuse access. Readers and
+  writers share a native lock, preserving tokens issued by concurrent operator
+  commands and avoiding read/replace races. Unix modes and `flock` remain intact.
 - The Factory plugin's lane loop pushes the exact validated commit from its validation
   checkout, retaining the worktree's pre-push verification record until the push. Completed
   slots stay reserved; an earlier repair or revalidation can release a later reservation

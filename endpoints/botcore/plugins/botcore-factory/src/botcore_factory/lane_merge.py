@@ -161,7 +161,12 @@ class Merging(StepBase):
         run = self.current_run()
         if run is not None:
             run.setdefault("prs", []).append(
-                {"number": pr, "branch": branch, "route": (cell or {}).get("route")}
+                {
+                    "number": pr,
+                    "branch": branch,
+                    "route": (cell or {}).get("route"),
+                    "plan": (cell or {}).get("plan"),
+                }
             )
         self.lane.setdefault("mergedSinceCoverage", []).append(pr)
         if any(matches(path, self.config.gate_paths) for path in entry.get("changed", [])):

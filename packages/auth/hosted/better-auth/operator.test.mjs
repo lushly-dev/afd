@@ -12,6 +12,23 @@ import { buildFixture } from './build.mjs';
 const authDirectory = fileURLToPath(new URL('../..', import.meta.url));
 const revision = '718d7830ab813b0975429a74b3f1c9d473c30b98';
 
+/** Starts provider processes that report a sentinel Node, so a match proves whose report it is. */
+async function asProviderNode(version, start) {
+	const previous = process.env.NODE_OPTIONS;
+	const preload = `--import=data:text/javascript,Object.defineProperty(process.versions,'node',{value:'${version}'})`;
+	process.env.NODE_OPTIONS = previous ? `${previous} ${preload}` : preload;
+	try {
+		return await start();
+	} finally {
+		if (previous === undefined) delete process.env.NODE_OPTIONS;
+		else process.env.NODE_OPTIONS = previous;
+	}
+}
+const readRuntime = async (page) => {
+	await page.locator('#runtime').getByText('"providerNode"').waitFor();
+	return JSON.parse(await page.locator('#runtime').textContent());
+};
+
 test('operator UI and one-use replay probe use a real local OAuth session', {
 	timeout: 90_000,
 }, async () => {
@@ -33,7 +50,9 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 			logLevel: 'silent',
 		});
 		const { startLocal } = await import(pathToFileURL(resolve(output, 'local.mjs')).href);
-		local = await startLocal(output, revision, 80_000, controller.signal);
+		local = await asProviderNode('99.1.2', () =>
+			startLocal(output, revision, 80_000, controller.signal)
+		);
 		browser = await chromium.launch({ headless: true });
 		const context = await browser.newContext({ ignoreHTTPSErrors: true });
 		const first = await context.newPage();
@@ -51,6 +70,12 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 		};
 		await Promise.all([first.goto(origin), second.goto(origin)]);
 		await first.locator('#session[data-status="unauthenticated"]').waitFor({ state: 'attached' });
+		// The runtime the operator saves comes from the forked provider process and this browser.
+		const runtime = await readRuntime(first);
+		assert.equal(runtime.revision, revision);
+		assert.equal(runtime.providerNode, '99.1.2');
+		assert.match(runtime.betterAuth, /^\d+\.\d+\.\d+/);
+		assert.ok(runtime.browser.includes(browser.version()), runtime.browser);
 		assert.equal((await post('/harness/probe/capture', '')).status(), 403);
 		await signIn();
 		await first.locator('#evidence').getByText('"expectedIdentityMatch":true').waitFor();
@@ -143,7 +168,10 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 		await signIn();
 		await first.locator('#probe-capture').click();
 		await first.locator('#probe-status').getByText('Captured one session').waitFor();
-		await new Promise((resolveWait) => setTimeout(resolveWait, 13_000));
+		// Past the configured idle lifetime, without refreshing.
+		await new Promise((resolveWait) =>
+			setTimeout(resolveWait, local.config.sessionExpiresIn * 1000 + 1_000)
+		);
 		await first.locator('#probe-verify').click();
 		await first.locator('#probe-status').getByText('Replay rejected: true').waitFor();
 		await first.locator('#refresh').click();
@@ -199,6 +227,13 @@ test('operator UI and one-use replay probe use a real local OAuth session', {
 				assert.equal((await post('/harness/probe/verify', { handle: saved.handle })).status(), 404);
 			}
 		}
+
+		// After a restart, a reload shows the replacement process's own report.
+		await asProviderNode('99.1.3', () => local.restart());
+		await first.reload();
+		const replaced = await readRuntime(first);
+		assert.equal(replaced.providerNode, '99.1.3');
+		assert.notEqual(replaced.instanceId, runtime.instanceId);
 
 		await local.close();
 		local = await startLocal(output, revision, 80_000, controller.signal, 'different@example.test');

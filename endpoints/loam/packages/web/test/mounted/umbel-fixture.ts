@@ -69,8 +69,9 @@ export interface UmbelInstance {
 
 const LISTENING = /umbel listening on http:\/\/127\.0\.0\.1:(\d+)\/mcp/;
 const STARTUP_MS = 30_000;
+const STOP_MS = 5_000;
 
-function startProcess(
+export function startProcess(
 	directory: string,
 	bind: string
 ): Promise<{ child: ChildProcess; port: number }> {
@@ -84,32 +85,71 @@ function startProcess(
 			bind,
 		]);
 		let stderr = '';
-		const timer = setTimeout(() => {
-			child.kill('SIGKILL');
-			fail(new Error(`umbel did not start in ${STARTUP_MS} ms: ${stderr.slice(-400)}`));
-		}, STARTUP_MS);
-		child.stdout?.resume();
-		child.stderr?.setEncoding('utf8');
-		child.stderr?.on('data', (chunk: string) => {
+		const cleanup = () => {
+			clearTimeout(timer);
+			child.removeListener('error', onError);
+			child.removeListener('exit', onExit);
+			child.stderr?.removeListener('data', onData);
+		};
+		const onError = (error: Error) => {
+			cleanup();
+			fail(error);
+		};
+		const onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			cleanup();
+			fail(new Error(`umbel exited with ${signal ?? code}: ${stderr}`));
+		};
+		const onData = (chunk: string) => {
 			stderr += chunk;
 			const port = LISTENING.exec(stderr)?.[1];
 			if (port) {
-				clearTimeout(timer);
+				cleanup();
 				done({ child, port: Number(port) });
 			}
-		});
-		child.once('exit', (code) => {
-			clearTimeout(timer);
-			fail(new Error(`umbel exited with ${code}: ${stderr.slice(-400)}`));
-		});
+			stderr = stderr.slice(-400);
+		};
+		const timer = setTimeout(() => {
+			cleanup();
+			const error = new Error(`umbel did not start in ${STARTUP_MS} ms: ${stderr}`);
+			void stopProcess(child).then(
+				() => fail(error),
+				(stopError) => fail(new AggregateError([error, stopError], error.message))
+			);
+		}, STARTUP_MS);
+		child.stdout?.resume();
+		child.stderr?.setEncoding('utf8');
+		child.stderr?.on('data', onData);
+		child.once('error', onError);
+		child.once('exit', onExit);
 	});
 }
 
-/** SIGTERM, and wait until it has really gone. */
-function stopProcess(child: ChildProcess): Promise<void> {
-	if (child.exitCode !== null) return Promise.resolve();
-	return new Promise((done) => {
-		child.once('exit', () => done());
+/** Wait for exit, escalating SIGTERM to SIGKILL, with a bound on both waits. */
+export function stopProcess(child: ChildProcess): Promise<void> {
+	if (child.exitCode !== null || child.signalCode !== null) return Promise.resolve();
+	return new Promise((done, fail) => {
+		const cleanup = () => {
+			clearTimeout(timer);
+			child.removeListener('exit', onExit);
+			child.removeListener('error', onError);
+		};
+		const onExit = () => {
+			cleanup();
+			done();
+		};
+		const onError = (error: Error) => {
+			cleanup();
+			fail(error);
+		};
+		let timer = setTimeout(() => {
+			timer = setTimeout(() => {
+				cleanup();
+				fail(new Error(`umbel did not exit within ${STOP_MS} ms of SIGKILL`));
+			}, STOP_MS);
+			child.kill('SIGKILL');
+		}, STOP_MS);
+		child.once('exit', onExit);
+		child.once('error', onError);
 		child.kill('SIGTERM');
 	});
 }

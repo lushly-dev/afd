@@ -358,7 +358,8 @@ export const SUITES = [
 	{
 		workflow: 'conformance.yml',
 		tools: ['uv', 'cargo', 'cmake'],
-		remote: 'the Rust backend clippy and the C++ backend unit tests',
+		remote:
+			"every backend's MCP 2026-07-28 runs (--mode modern), the TypeScript and Python confirmation suites, the Rust backend's fmt and clippy, and the C++ backend unit tests",
 		steps: [
 			{ gate: 'todo', tools: [], run: 'pnpm build' },
 			{
@@ -417,6 +418,16 @@ export const SUITES = [
 				gate: 'rust',
 				tools: ['cargo'],
 				run: 'pnpm --dir packages/examples/todo test:conformance:rs',
+			},
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite approvals',
+			},
+			{
+				gate: 'rust',
+				tools: ['cargo'],
+				run: 'pnpm --dir packages/examples/todo test:conformance:rs --suite confirmations',
 			},
 			{
 				gate: 'cpp',

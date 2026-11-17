@@ -394,8 +394,21 @@ class CliGit:
         return self.run(["git", "rev-parse", f"refs/remotes/origin/{base}"]).strip()
 
     def _slot_path(self, slot: str) -> str:
-        common = self.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"])
-        return str(Path(common.strip()) / "factory" / "slots" / slot)
+        """``<checkout>.factory-slots/<slot>``, beside the repository and never inside it.
+
+        Not under ``.git``: TypeScript refuses some declarations in a project whose path has a
+        ``.git`` segment (TS2883), so a slot there fails checks that pass everywhere else.
+        """
+        common = Path(
+            self.run(["git", "rev-parse", "--path-format=absolute", "--git-common-dir"]).strip()
+        )
+        repository = common.parent if common.name == ".git" else common
+        if not repository.name or ".git" in repository.parts:
+            raise WorldError(
+                f"Lane slots cannot go beside {repository}: a repository at a filesystem root or"
+                " inside a .git directory (a submodule) has no place for them outside .git"
+            )
+        return str(repository.with_name(f"{repository.name}.factory-slots") / slot)
 
     def prepare_slot(self, slot: str, branch: str, head: str) -> str:
         path = self._slot_path(slot)

@@ -1,18 +1,18 @@
 {
 	"properties": {
 		"description": {
-			"description": "Optional details",
+			"description": "Optional description",
 			"maxLength": 1000,
 			"type": "string"
 		},
 		"priority": {
 			"default": "medium",
-			"description": "Priority (default: medium)",
+			"description": "Priority: low, medium or high",
 			"enum": ["low", "medium", "high"],
 			"type": "string"
 		},
 		"title": {
-			"description": "Todo title",
+			"description": "Todo title (1-200 characters)",
 			"maxLength": 200,
 			"minLength": 1,
 			"type": "string"

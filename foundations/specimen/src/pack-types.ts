@@ -90,7 +90,10 @@ export interface PackBuildRun {
 	library: string;
 	/** The committed form, by path relative to the pack's root. */
 	files: Record<string, string>;
-	/** What `checkPack` finds in them; none when the build is sound. */
+	/**
+	 * What `checkPack` finds in them, and each guide error (a guide with one is left out of every
+	 * record); none when the build is sound.
+	 */
 	problems: { code: string; path: string; at?: string; message: string }[];
 	/** Each component's gaps: what its record is missing. */
 	components: { tag: string; gaps: { kind: string; section?: string; name?: string }[] }[];

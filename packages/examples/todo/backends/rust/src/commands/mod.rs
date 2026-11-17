@@ -1,9 +1,17 @@
-//! The eleven todo commands of `spec/commands.schema.json`.
+//! The thirteen todo commands of `spec/commands.schema.json`, mirroring the TypeScript backend's
+//! `src/commands`: the same metadata, inputs, limits, error codes, suggestions, result shapes
+//! and undo.
 //!
-//! Each command declares its input as a JSON Schema. [`Validated`] checks the
-//! input against it (see `validation.rs`) before the typed handler runs, and
-//! the server advertises the same schema in `tools/list`, so the advertised
-//! and enforced contracts cannot drift apart.
+//! Each command declares its input as a whole JSON Schema, which the registry validates
+//! (`CommandRegistry::register_with_schema`) and the MCP server advertises, so the advertised
+//! and enforced contracts cannot drift apart. The handler gets the validated input, with
+//! defaults filled and undeclared keys dropped, as a typed value.
+//!
+//! Every successful change is recorded in the store's history from its result (who, when,
+//! which todos, the undo), by the handler wrapper rather than by middleware, so a host that
+//! registers [`definitions`] in a registry of its own (Umbel's todo plugin) keeps the history
+//! too. The registry's approval middleware runs before the handler, so a held call is never
+//! recorded.
 
 mod clear;
 mod create;
@@ -11,7 +19,9 @@ mod create_batch;
 mod delete;
 mod delete_batch;
 mod get;
+mod history;
 mod list;
+mod restore;
 mod stats;
 mod toggle;
 mod toggle_batch;
@@ -20,71 +30,198 @@ mod update;
 #[cfg(test)]
 mod tests;
 
-use crate::store::TodoStore;
-use crate::validation::validate;
+pub use clear::summarize_clear;
+
+use crate::store::{Change, ChangeActor, TodoStore};
+use crate::types::iso;
 use afd::{
-    failure, success_with, CommandContext, CommandDefinition, CommandError, CommandHandler,
-    CommandParameter, CommandRegistry, CommandResult, ExposeOptions, JsonSchemaType, ResultOptions,
-    Warning, WarningSeverity,
+    failure, success_with, Alternative, ApprovalPolicy, CommandContext, CommandDefinition,
+    CommandError, CommandExample, CommandHandler, CommandRegistry, CommandResult, ExposeOptions,
+    JsonSchema, RandomSource, ResultOptions, Warning, WarningSeverity,
 };
 use async_trait::async_trait;
+use chrono::{DateTime, Utc};
 use serde::de::DeserializeOwned;
 use serde::Serialize;
 use serde_json::Value;
 use std::sync::Arc;
 
-/// A command with a typed input and a JSON Schema describing it.
+/// Commands that only read: visible in both contexts.
+pub const READ_CONTEXTS: [&str; 2] = ["todo-reading", "todo-editing"];
+/// Commands that change todos: hidden while reading.
+pub const EDIT_CONTEXTS: [&str; 1] = ["todo-editing"];
+
+/// The ids the examples use.
+const EXAMPLE_ID: &str = "todo-1700000000000-abc1234";
+const OTHER_ID: &str = "todo-1700000000000-def5678";
+
+/// A command with a typed input, a JSON Schema describing it and the shape of its data.
 pub trait Command: Send + Sync + 'static {
     type Input: DeserializeOwned + Send;
     const NAME: &'static str;
+    /// A short label, the MCP tool `title`.
+    const TITLE: &'static str;
     const DESCRIPTION: &'static str;
+    const TAGS: &'static [&'static str];
     const MUTATION: bool;
     /// Whether the command deletes data, sent to MCP clients as `destructiveHint`.
     const DESTRUCTIVE: bool = false;
+    /// Whether its result names an undo.
+    const UNDOABLE: bool = false;
+    /// Commands to call first (metadata only).
+    const REQUIRES: &'static [&'static str] = &[];
     /// The confirmation question, enforced when the server runs with `CONFIRMATIONS`.
     const CONFIRM_PROMPT: Option<&'static str> = None;
 
     /// JSON Schema of the input object.
     fn schema() -> Value;
 
-    fn run(&self, input: Self::Input) -> CommandResult<Value>;
+    /// JSON Schema of the result's `data`.
+    fn output() -> Value;
+
+    /// Inputs that show how to call it.
+    fn examples() -> Vec<CommandExample>;
+
+    /// The approval policy: every change declares one, `not-required` unless it says otherwise.
+    fn approval() -> Option<ApprovalPolicy> {
+        Self::MUTATION.then_some(ApprovalPolicy::NotRequired)
+    }
+
+    /// The todos a successful change touched, read from its result's data. Reads touch none,
+    /// and a change that touched none is not recorded.
+    fn changed(_data: &Value) -> Vec<String> {
+        Vec::new()
+    }
+
+    fn run(&self, input: Self::Input, context: &CommandContext) -> CommandResult<Value>;
 }
 
-/// Runs a [`Command`] after validating its input against its schema.
-struct Validated<C> {
-    schema: Value,
+/// Runs a [`Command`] on the validated input and records a successful change in the history.
+struct Handler<C> {
     command: C,
+    store: Arc<TodoStore>,
 }
 
 #[async_trait]
-impl<C: Command> CommandHandler for Validated<C> {
-    async fn execute(&self, input: Value, _context: CommandContext) -> CommandResult<Value> {
-        let input = match validate(&self.schema, input) {
+impl<C: Command> CommandHandler for Handler<C> {
+    async fn execute(&self, input: Value, context: CommandContext) -> CommandResult<Value> {
+        let input = match serde_json::from_value::<C::Input>(input) {
             Ok(input) => input,
-            Err(error) => return failure(*error),
-        };
-        match serde_json::from_value::<C::Input>(Value::Object(input)) {
-            Ok(input) => self.command.run(input),
             // The schema and the input type disagree: a bug in this backend.
-            Err(error) => failure(
-                CommandError::internal(&format!("{}: {error}", C::NAME))
-                    .with_suggestion("Report this bug; the command's schema and input type differ"),
-            ),
+            Err(error) => {
+                return failure(
+                    CommandError::internal(&format!("{}: {error}", C::NAME)).with_suggestion(
+                        "Report this bug; the command's schema and input type differ",
+                    ),
+                )
+            }
+        };
+        if !C::MUTATION {
+            return self.command.run(input, &context);
         }
+        // The change and its history entry under one lock, so entries keep the changes' order.
+        let _changing = self.store.changing();
+        let result = self.command.run(input, &context);
+        if result.success {
+            record::<C>(&self.store, &result, &context);
+        }
+        result
     }
 }
 
-/// A command as advertised by `tools/list`.
-#[derive(Debug, Clone, Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct Tool {
-    pub name: String,
-    pub description: String,
-    pub input_schema: Value,
+/// Add a successful change to the history: who (the context's actor), when (the context's
+/// clock), which todos, and the undo the result named.
+fn record<C: Command>(store: &TodoStore, result: &CommandResult<Value>, context: &CommandContext) {
+    let Some(data) = result.data.as_ref() else {
+        return;
+    };
+    let ids = C::changed(data);
+    if ids.is_empty() {
+        return;
+    }
+    let undo_args = result
+        .undo_args
+        .as_ref()
+        .map(|args| args.iter().map(|(k, v)| (k.clone(), v.clone())).collect());
+    store.record(Change {
+        seq: 0,
+        at: iso(&time(context.clock().now())),
+        actor: actor(context),
+        command: C::NAME.to_string(),
+        ids,
+        undo_command: result.undo_command.clone(),
+        undo_args,
+        superseded: None,
+    });
 }
 
-/// The todo commands are meant for remote agents and the command line, so
-/// each opts in to `mcp` and `cli`; the defaults keep both closed.
+/// Who is calling, from `context.actor`; `unknown` when the surface set none.
+fn actor(context: &CommandContext) -> ChangeActor {
+    match &context.actor {
+        Some(actor) => ChangeActor {
+            kind: serde_json::to_value(actor.kind)
+                .ok()
+                .and_then(|kind| kind.as_str().map(str::to_string))
+                .unwrap_or_else(|| "unknown".to_string()),
+            id: actor.id.clone(),
+        },
+        None => ChangeActor {
+            kind: "unknown".to_string(),
+            id: None,
+        },
+    }
+}
+
+/// Epoch milliseconds as a time; out-of-range clocks fall back to the epoch.
+fn time(ms: i64) -> DateTime<Utc> {
+    DateTime::from_timestamp_millis(ms).unwrap_or_default()
+}
+
+/// The time and id source for one change, from the context's clock and random (the system's
+/// when a caller sets neither), so tests and replays control both.
+struct Stamp<'a> {
+    at: i64,
+    now: DateTime<Utc>,
+    random: &'a dyn RandomSource,
+}
+
+impl Stamp<'_> {
+    /// A new todo id, `todo-<ms>-<7 base-36 digits>`, as TypeScript makes them, so a seeded
+    /// random gives the same ids in every language.
+    fn new_id(&self) -> String {
+        const DIGITS: &[u8; 36] = b"0123456789abcdefghijklmnopqrstuvwxyz";
+        let mut value = (self.random.next() * 36f64.powi(7)).floor() as u64;
+        let mut digits = Vec::new();
+        loop {
+            digits.push(DIGITS[(value % 36) as usize]);
+            value /= 36;
+            if value == 0 {
+                break;
+            }
+        }
+        while digits.len() < 7 {
+            digits.push(b'0');
+        }
+        digits.reverse();
+        format!(
+            "todo-{}-{}",
+            self.at,
+            String::from_utf8(digits).unwrap_or_default()
+        )
+    }
+}
+
+fn stamp(context: &CommandContext) -> Stamp<'_> {
+    let at = context.clock().now();
+    Stamp {
+        at,
+        now: time(at),
+        random: context.random(),
+    }
+}
+
+/// The todo commands are meant for remote agents and the command line, so each opts in to
+/// `mcp` and `cli`; the defaults keep both closed.
 fn exposure() -> ExposeOptions {
     ExposeOptions {
         mcp: true,
@@ -93,169 +230,223 @@ fn exposure() -> ExposeOptions {
     }
 }
 
-/// Registry metadata for each top-level property, derived from the schema so
-/// that `required` and the defaults cannot disagree with validation.
-fn parameters(schema: &Value) -> Vec<CommandParameter> {
-    let required: Vec<&str> = schema
-        .get("required")
-        .and_then(Value::as_array)
-        .map(|names| names.iter().filter_map(Value::as_str).collect())
-        .unwrap_or_default();
-    let Some(properties) = schema.get("properties").and_then(Value::as_object) else {
-        return Vec::new();
-    };
-    properties
-        .iter()
-        .map(|(name, property)| CommandParameter {
-            name: name.clone(),
-            param_type: match property.get("type").and_then(Value::as_str) {
-                Some("integer") => JsonSchemaType::Integer,
-                Some("number") => JsonSchemaType::Number,
-                Some("boolean") => JsonSchemaType::Boolean,
-                Some("array") => JsonSchemaType::Array,
-                Some("object") => JsonSchemaType::Object,
-                _ => JsonSchemaType::String,
-            },
-            description: property
-                .get("description")
-                .and_then(Value::as_str)
-                .unwrap_or(name)
-                .to_string(),
-            required: required.contains(&name.as_str()),
-            default: property.get("default").cloned(),
-            enum_values: property.get("enum").and_then(Value::as_array).cloned(),
-            schema: None,
-        })
-        .collect()
-}
-
 /// One command's definition and the JSON Schema of its input.
-fn definition<C: Command>(command: C) -> (CommandDefinition, Value) {
-    let schema = C::schema();
+fn definition<C: Command>(command: C, store: &Arc<TodoStore>) -> (CommandDefinition, Value) {
+    let returns = serde_json::from_value::<JsonSchema>(C::output())
+        .unwrap_or_else(|error| panic!("{}: the output schema does not parse: {error}", C::NAME));
+    let contexts: &[&str] = if C::MUTATION {
+        &EDIT_CONTEXTS
+    } else {
+        &READ_CONTEXTS
+    };
     let mut definition = CommandDefinition::new(
         C::NAME,
         C::DESCRIPTION,
-        parameters(&schema),
-        Validated {
-            schema: schema.clone(),
+        Vec::new(),
+        Handler {
             command,
+            store: Arc::clone(store),
         },
     )
+    .with_title(C::TITLE)
     .with_category("todo")
     .with_version("1.0.0")
-    .with_expose(exposure());
+    .with_tags(C::TAGS.iter().map(|tag| tag.to_string()).collect())
+    .with_contexts(contexts.iter().copied())
+    .with_expose(exposure())
+    .with_examples(C::examples())
+    .with_returns(returns);
     if C::MUTATION {
         definition = definition.as_mutation();
     }
     if C::DESTRUCTIVE {
         definition = definition.with_destructive(true);
     }
+    if C::UNDOABLE {
+        definition = definition.with_undoable(true);
+    }
+    if !C::REQUIRES.is_empty() {
+        definition = definition.with_requires(C::REQUIRES.iter().copied());
+    }
     if let Some(prompt) = C::CONFIRM_PROMPT {
         definition = definition.with_confirm_prompt(prompt);
     }
-    (definition, schema)
+    if let Some(approval) = C::approval() {
+        definition = definition.with_approval(approval);
+    }
+    (definition, C::schema())
 }
 
-/// The eleven todo commands over `store`, each with the JSON Schema of its input, in
-/// registration order. Nothing is registered: the caller decides where they go.
+/// The thirteen todo commands over `store`, each with the JSON Schema of its input, in the
+/// TypeScript backend's order. Nothing is registered: the caller decides where they go.
 pub fn definitions(store: &Arc<TodoStore>) -> Vec<(CommandDefinition, Value)> {
-    let store = || Arc::clone(store);
+    let s = || Arc::clone(store);
     vec![
-        definition(create::Create(store())),
-        definition(list::List(store())),
-        definition(get::Get(store())),
-        definition(update::Update(store())),
-        definition(toggle::Toggle(store())),
-        definition(delete::Delete(store())),
-        definition(clear::Clear(store())),
-        definition(stats::Stats(store())),
-        definition(create_batch::CreateBatch(store())),
-        definition(delete_batch::DeleteBatch(store())),
-        definition(toggle_batch::ToggleBatch(store())),
+        definition(create::Create(s()), store),
+        definition(list::List(s()), store),
+        definition(get::Get(s()), store),
+        definition(update::Update(s()), store),
+        definition(toggle::Toggle(s()), store),
+        definition(delete::Delete(s()), store),
+        definition(clear::Clear(s()), store),
+        definition(stats::Stats(s()), store),
+        definition(create_batch::CreateBatch(s()), store),
+        definition(delete_batch::DeleteBatch(s()), store),
+        definition(toggle_batch::ToggleBatch(s()), store),
+        definition(restore::Restore(s()), store),
+        definition(history::History(s()), store),
     ]
 }
 
-/// Register every todo command against `store`. Returns the tool descriptions
-/// in registration order.
-pub fn register_commands(
-    registry: &mut CommandRegistry,
-    store: &Arc<TodoStore>,
-) -> Result<Vec<Tool>, String> {
-    definitions(store)
-        .into_iter()
-        .map(|(definition, schema)| {
-            let tool = Tool {
-                name: definition.name.clone(),
-                description: definition.description.clone(),
-                input_schema: schema,
-            };
-            registry.register(definition)?;
-            Ok(tool)
-        })
-        .collect()
+/// Register every todo command against `store`, each validated by its whole input schema.
+pub fn register_commands(registry: &CommandRegistry, store: &Arc<TodoStore>) -> Result<(), String> {
+    for (definition, schema) in definitions(store) {
+        registry.register_with_schema(definition, schema)?;
+    }
+    Ok(())
 }
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // Shared helpers
 // ═══════════════════════════════════════════════════════════════════════════════
 
-/// A successful result with reasoning, confidence and optional warnings.
-fn ok<T: Serialize>(
-    data: &T,
+/// What a successful result says besides its data.
+struct Reply {
     reasoning: String,
     confidence: f64,
     warnings: Vec<Warning>,
-) -> CommandResult<Value> {
-    match serde_json::to_value(data) {
-        Ok(data) => success_with(
-            data,
-            ResultOptions {
-                reasoning: Some(reasoning),
-                confidence: Some(confidence),
-                warnings: (!warnings.is_empty()).then_some(warnings),
-                ..ResultOptions::default()
-            },
-        ),
-        Err(error) => failure(
-            CommandError::internal(&format!("Could not serialize the result: {error}"))
-                .with_suggestion("Retry the command; report this bug if it persists"),
-        ),
+    /// The command that undoes this change, and its input.
+    undo: Option<(&'static str, Value)>,
+    alternatives: Vec<Alternative<Value>>,
+}
+
+impl Reply {
+    fn new(reasoning: String, confidence: f64) -> Self {
+        Self {
+            reasoning,
+            confidence,
+            warnings: Vec::new(),
+            undo: None,
+            alternatives: Vec::new(),
+        }
+    }
+
+    fn warn(mut self, warning: Warning) -> Self {
+        self.warnings.push(warning);
+        self
+    }
+
+    fn undo(mut self, command: &'static str, args: Value) -> Self {
+        self.undo = Some((command, args));
+        self
     }
 }
 
-fn warning(code: &str, message: String, severity: WarningSeverity) -> Warning {
-    Warning::new(code, message).with_severity(severity)
+/// A successful result with `data` and what `reply` says.
+fn ok<T: Serialize>(data: &T, reply: Reply) -> CommandResult<Value> {
+    let data = match serde_json::to_value(data) {
+        Ok(data) => data,
+        Err(error) => {
+            return failure(
+                CommandError::internal(&format!("Could not serialize the result: {error}"))
+                    .with_suggestion("Retry the command; report this bug if it persists"),
+            )
+        }
+    };
+    let (undo_command, undo_args) = match reply.undo {
+        Some((command, Value::Object(args))) => {
+            (Some(command.to_string()), Some(args.into_iter().collect()))
+        }
+        _ => (None, None),
+    };
+    success_with(
+        data,
+        ResultOptions {
+            reasoning: Some(reply.reasoning),
+            confidence: Some(reply.confidence),
+            warnings: (!reply.warnings.is_empty()).then_some(reply.warnings),
+            alternatives: (!reply.alternatives.is_empty()).then_some(reply.alternatives),
+            undo_command,
+            undo_args,
+            ..ResultOptions::default()
+        },
+    )
 }
 
-/// `NOT_FOUND` with the same message and suggestion as the TypeScript backend.
+fn warning(code: &str, message: impl Into<String>, severity: WarningSeverity) -> Warning {
+    Warning::new(code, message.into()).with_severity(severity)
+}
+
+/// How to find a todo that is not live: the list, or the deleted list and todo-restore.
+const NOT_FOUND_SUGGESTION: &str = "Use todo-list to see available todos. If it was deleted, \
+     find it with todo-list { deleted: true } and bring it back with todo-restore.";
+
+/// `NOT_FOUND` for an id with no live todo, with the same message and suggestion as the
+/// TypeScript backend.
 fn not_found(id: &str) -> CommandError {
     CommandError::new("NOT_FOUND", format!("Todo with ID \"{id}\" not found"))
-        .with_suggestion("Use todo-list to see available todos")
+        .with_suggestion(NOT_FOUND_SUGGESTION)
         .with_retryable(false)
+}
+
+/// The string ids in `value`, an array.
+fn ids_in(value: &Value) -> Vec<String> {
+    value
+        .as_array()
+        .map(|ids| {
+            ids.iter()
+                .filter_map(Value::as_str)
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The ids of the todos in `value`, an array of todos.
+fn todo_ids_in(value: &Value) -> Vec<String> {
+    value
+        .as_array()
+        .map(|todos| {
+            todos
+                .iter()
+                .filter_map(|todo| todo["id"].as_str())
+                .map(str::to_string)
+                .collect()
+        })
+        .unwrap_or_default()
+}
+
+/// The id of the todo in `data`.
+fn todo_id_in(data: &Value) -> Vec<String> {
+    data["id"]
+        .as_str()
+        .map(str::to_string)
+        .into_iter()
+        .collect()
 }
 
 /// JSON Schema pieces shared by several commands.
 mod schema {
     use serde_json::{json, Value};
 
-    pub fn title() -> Value {
-        json!({ "type": "string", "minLength": 1, "maxLength": 200, "description": "Todo title" })
+    pub fn title(description: &str) -> Value {
+        json!({ "type": "string", "minLength": 1, "maxLength": 200, "description": description })
     }
 
-    pub fn description() -> Value {
-        json!({ "type": "string", "maxLength": 1000, "description": "Optional details" })
+    pub fn description(description: &str) -> Value {
+        json!({ "type": "string", "maxLength": 1000, "description": description })
     }
 
     pub fn priority(description: &str) -> Value {
         json!({ "type": "string", "enum": ["low", "medium", "high"], "description": description })
     }
 
-    pub fn priority_with_default(description: &str) -> Value {
+    pub fn priority_with_default() -> Value {
         json!({
             "type": "string",
             "enum": ["low", "medium", "high"],
             "default": "medium",
-            "description": description
+            "description": "Priority: low, medium or high"
         })
     }
 
@@ -269,7 +460,97 @@ mod schema {
             "items": { "type": "string", "minLength": 1 },
             "minItems": 1,
             "maxItems": 100,
-            "description": "Todo IDs (1 to 100)"
+            "description": "Todo IDs (1-100)"
+        })
+    }
+
+    pub fn ids_input() -> Value {
+        json!({
+            "type": "object",
+            "properties": { "ids": ids() },
+            "required": ["ids"]
+        })
+    }
+
+    pub fn id_input() -> Value {
+        json!({
+            "type": "object",
+            "properties": { "id": id() },
+            "required": ["id"]
+        })
+    }
+
+    // ─── Outputs (the `data` of each result) ──────────────────────────────────
+
+    pub fn todo() -> Value {
+        json!({
+            "type": "object",
+            "description": "A todo",
+            "properties": {
+                "id": { "type": "string" },
+                "title": { "type": "string" },
+                "description": { "type": "string" },
+                "priority": { "type": "string", "enum": ["low", "medium", "high"] },
+                "completed": { "type": "boolean" },
+                "createdAt": { "type": "string" },
+                "updatedAt": { "type": "string" },
+                "completedAt": { "type": "string" },
+                "deletedAt": {
+                    "type": "string",
+                    "description": "When it was deleted; set only on a deleted todo"
+                }
+            },
+            "required": ["id", "title", "priority", "completed", "createdAt", "updatedAt"]
+        })
+    }
+
+    pub fn todos() -> Value {
+        json!({ "type": "array", "items": todo() })
+    }
+
+    pub fn strings() -> Value {
+        json!({ "type": "array", "items": { "type": "string" } })
+    }
+
+    fn item_error() -> Value {
+        json!({
+            "type": "object",
+            "description": "What failed and how to recover",
+            "properties": {
+                "code": { "type": "string" },
+                "message": { "type": "string" },
+                "suggestion": { "type": "string" }
+            },
+            "required": ["code", "message"]
+        })
+    }
+
+    /// Batch items that failed: by index, with the id (or, for creates, the input).
+    pub fn failed() -> Value {
+        json!({
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": { "type": "integer" },
+                    "id": { "type": "string" },
+                    "input": { "type": "object" },
+                    "error": item_error()
+                },
+                "required": ["index", "error"]
+            }
+        })
+    }
+
+    pub fn summary() -> Value {
+        json!({
+            "type": "object",
+            "properties": {
+                "total": { "type": "integer" },
+                "successCount": { "type": "integer" },
+                "failureCount": { "type": "integer" }
+            },
+            "required": ["total", "successCount", "failureCount"]
         })
     }
 }
@@ -281,6 +562,16 @@ struct Summary {
     total: usize,
     success_count: usize,
     failure_count: usize,
+}
+
+impl Summary {
+    fn new(total: usize, succeeded: usize, failed: usize) -> Self {
+        Self {
+            total,
+            success_count: succeeded,
+            failure_count: failed,
+        }
+    }
 }
 
 /// A batch item that failed, reported by index (spec `FailedItem`).
@@ -295,11 +586,31 @@ struct FailedItem {
     error: CommandError,
 }
 
+impl FailedItem {
+    fn by_id(index: usize, id: String, error: CommandError) -> Self {
+        Self {
+            index,
+            id: Some(id),
+            input: None,
+            error,
+        }
+    }
+}
+
 /// Confidence of a batch: the share of items that succeeded.
 fn batch_confidence(succeeded: usize, total: usize) -> f64 {
     if total == 0 {
         0.0
     } else {
         succeeded as f64 / total as f64
+    }
+}
+
+/// `"s"` unless `count` is one.
+fn plural(count: usize) -> &'static str {
+    if count == 1 {
+        ""
+    } else {
+        "s"
     }
 }

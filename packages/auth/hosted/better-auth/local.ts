@@ -118,9 +118,11 @@ export async function startLocal(
 			controlKey: randomBytes(32).toString('hex'),
 			restartCommand: [],
 			deadlineMs,
-			operationTimeoutMs: 5_000,
+			// 8 s per operation absorbs a loaded shared host. The 15 s session keeps the restart margin
+			// (restart + operation + 1 s skew = 12 s) 3 s under the session lifetime, as before.
+			operationTimeoutMs: 8_000,
 			restartTimeoutMs: 3_000,
-			sessionExpiresIn: 12,
+			sessionExpiresIn: 15,
 			sessionUpdateAge: 1,
 		};
 		oauth.registerCallback(config.callbackURL);

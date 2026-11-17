@@ -423,6 +423,9 @@ impl<'a> Plan<'a> {
         if let Some(prompt) = over.and_then(|entry| entry.confirm_prompt.as_ref()) {
             definition = definition.with_confirm_prompt(prompt);
         }
+        if over.is_some_and(|entry| entry.destructive) {
+            definition = definition.with_destructive(true);
+        }
         if over.is_some_and(|entry| entry.approval_required) {
             definition = definition.with_approval(ApprovalPolicy::Required);
         }

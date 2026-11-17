@@ -18,7 +18,43 @@ const { useSession, useUser } = createAuthHooks(adapter);
 const subscription = sync.onSessionChanged(() => {
 	void client.useSession.get().refetch();
 });
-const info = (await (await fetch('/harness/info')).json()) as { providerId: string };
+const info = (await (await fetch('/harness/info')).json()) as {
+	providerId: string;
+	revision: string;
+	instanceId: string;
+	providerVersion: string;
+	nodeVersion?: unknown;
+};
+type UserAgentData = {
+	getHighEntropyValues(hints: string[]): Promise<{
+		fullVersionList?: { brand: string; version: string }[];
+	}>;
+};
+/** This browser's full version as it reports it, or `not-reported`: never read from the UA string. */
+async function browserVersion(): Promise<string> {
+	const data = (navigator as Navigator & { userAgentData?: UserAgentData }).userAgentData;
+	try {
+		const brands = (await data?.getHighEntropyValues(['fullVersionList']))?.fullVersionList ?? [];
+		const named = brands.filter((brand) => !/not.?a.?brand/i.test(brand.brand));
+		return named.map((brand) => `${brand.brand} ${brand.version}`).join(', ') || 'not-reported';
+	} catch {
+		return 'not-reported';
+	}
+}
+// Runtime evidence for the operator to save before teardown: the provider process's own report and
+// this browser's. A reload after a restart shows the replacement process.
+// Filled without blocking the application's first render.
+const runtime = document.getElementById('runtime');
+void browserVersion().then((browser) => {
+	if (runtime)
+		runtime.textContent = JSON.stringify({
+			revision: info.revision,
+			instanceId: info.instanceId,
+			providerNode: typeof info.nodeVersion === 'string' ? info.nodeVersion : 'not-reported',
+			betterAuth: info.providerVersion,
+			browser,
+		});
+});
 function View() {
 	const session = useSession();
 	const user = useUser();

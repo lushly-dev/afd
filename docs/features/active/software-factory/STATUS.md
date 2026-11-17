@@ -19,6 +19,26 @@ for a background reviewer reads to the foreman as finished, so the brief now has
 its turn and the runbook checks for a run in progress before dropping one; and `delegate_task`'s
 worktree isolation worked.
 
+Queued, the branch was ejected at the lane's final validation: Loam's kernel failed its typecheck
+(TS2883 on zod's types) and Loam's CLI and apps failed their tests, in code the branch never
+touched.
+The cause was the slot's place, `.git/factory/slots/1`: TypeScript refuses those declarations in a
+project whose path has a `.git` segment (the same checkout, copied elsewhere, passed). The lane's
+slots are now `<checkout>.factory-slots/<n>`, beside the repository; a slot left at the old place
+is removed with `git worktree remove --force .git/factory/slots/<n>` while the lane is stopped.
+
+The second attempt passed `pnpm verify`, then `main` moved (#1338) and the lane validated again,
+as it should; that run failed the Better Auth hosted harness's second sign-in with no message. A
+diagnosis on Fable `medium` found a harness flake under load, not the branch. The cell hardened
+the harness on its branch (a redacted reason line on failure, a stable signed-out read before each
+sign-in, 8-second local operations) and fixed #1334 on the way. The third attempt merged:
+[#1343](https://github.com/lushly-dev/afd/pull/1343), closing #386 and #1334. `lane-report` for
+`run-2`: 1 merged in 2.0 hours, 3 validations per merge, a productive share of 0.32, 2 foreman
+wakes. Its `byPlan` was empty, because a merge recorded the cell's route but not its plan; it now
+records both. The cell brief now says a new or rebased worktree needs an install and a build before
+its checks pass. Open from the run: #1341 (the lane validates on the host's default Node, 24.21,
+not `.nvmrc`'s 26) and #1330. The run was stopped after the one cell, as the owner asked.
+
 ## The fleet's command lines and `run-fleet`, 2026-11-15
 
 `factory` and `factory-cell`, the plugin's command lines (`botcore_factory.cli`), serve the two

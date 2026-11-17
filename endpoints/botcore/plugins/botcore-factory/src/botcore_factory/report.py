@@ -66,7 +66,7 @@ def numbers(summary: dict) -> dict:
         "foreman": {"wakes": wakes, "wakesPerMerge": _ratio(wakes, merged)},
         "byPlan": _count(prs, "plan"),
         "byRoute": _count(prs, "route"),
-        "prs": [{key: pr.get(key) for key in ("number", "branch", "route")} for pr in prs],
+        "prs": [{key: pr.get(key) for key in ("number", "branch", "route", "plan")} for pr in prs],
         "experiences": summary.get("experiences", []),
         "digest": summary.get("digest"),
     }
