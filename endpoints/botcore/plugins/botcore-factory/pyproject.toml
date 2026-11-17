@@ -16,7 +16,8 @@ classifiers = [
     "Programming Language :: Python :: 3.12",
 ]
 
-# PluginRegistry.add_policy, catalog input schemas and named refusals land after botcore 0.7.0;
+# PluginRegistry.add_policy, catalog input schemas, named refusals and the Windows file checks
+# (botcore._windows_security) land after botcore 0.7.0;
 # the floor rises with the release that ships them.
 dependencies = [
     "lushly-botcore>=0.7.0",
