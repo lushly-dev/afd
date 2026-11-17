@@ -65,6 +65,58 @@ async def test_lane_start_refuses_a_toolchain_off_the_repository_s_pins(
     assert pins(target) == {"pnpm": "==10.30.1", "node": ">=22.12.0"}
 
 
+def _target_with_nvmrc(tmp_path, example_repo, spec: str):
+    target = tmp_path / "nvmrc"
+    (target / ".github").mkdir(parents=True)
+    (target / "botcore.toml").write_bytes((example_repo / "botcore.toml").read_bytes())
+    labels = (example_repo / ".github" / "labels.json").read_bytes()
+    (target / ".github" / "labels.json").write_bytes(labels)
+    (target / ".nvmrc").write_text(spec + "\n")
+    return target
+
+
+async def test_lane_start_refuses_when_the_nvmrc_node_is_not_installed(
+    make_run, tmp_path, example_repo
+):
+    target = _target_with_nvmrc(tmp_path, example_repo, "26")
+    run = make_run(laneHost="workstation", toolchains={"node": "24.21.0"})
+    before = run.snapshot()
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.error.code == "NODE_MISSING"
+    assert "fnm install 26" in result.error.suggestion
+    assert result.error.details["nvmrc"] == "26"
+    assert run.snapshot() == before
+    assert "detached" not in run.world_data().get("processes", {})
+
+
+async def test_lane_start_starts_when_the_nvmrc_node_is_installed(make_run, tmp_path, example_repo):
+    target = _target_with_nvmrc(tmp_path, example_repo, "v26")
+    run = make_run(laneHost="workstation", nodes={"26": "/fnm/v26.13.0/bin"})
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.data["running"] is True
+
+
+async def test_lane_start_refuses_an_nvmrc_alias_it_cannot_resolve(
+    make_run, tmp_path, example_repo
+):
+    target = _target_with_nvmrc(tmp_path, example_repo, "lts/*")
+    run = make_run(laneHost="workstation", nodes={"26": "/fnm/v26.13.0/bin"})
+    result = await run.call("lane_start", run.host(target=target))
+    assert result.error.code == "NODE_UNPINNED"
+    assert "version number" in result.error.suggestion
+
+
+def test_run_loop_refuses_when_the_nvmrc_node_is_not_installed(make_run, tmp_path, example_repo):
+    from botcore_factory.runtime import Refusal
+
+    target = _target_with_nvmrc(tmp_path, example_repo, "26")
+    run = make_run("running", lane={"running": False})
+    lock_of(run).release(FIXTURE_LANE_PID)
+    with pytest.raises(Refusal) as refused:
+        run_loop(run.factory(target), steps=1, sleep=lambda _: None)
+    assert refused.value.code == "NODE_MISSING"
+
+
 async def test_lane_start_starts_the_lane_detached_and_hands_it_the_lock(make_run):
     run = make_run(laneHost="workstation")
     data = (await run.call("lane_start")).data

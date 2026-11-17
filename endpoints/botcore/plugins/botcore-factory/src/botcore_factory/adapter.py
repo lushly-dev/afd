@@ -4,13 +4,16 @@ Botcore validates ``[tool.botcore.plugins.factory]`` in ``pyproject.toml`` or
 ``[plugins.factory]`` in ``botcore.toml`` against ``FactoryConfig`` and hands the result to the
 plugin. Commands are argument lists, never shell strings. Intake reads ``labels``; enqueue reads
 ``prequeue`` (named stages), ``review_evidence`` (``{head}`` stands for the head being enqueued)
-and ``gate_paths``. The other keys are parsed and validated now so the lane's later commands find
-them checked.
+and ``gate_paths``. When the base moves under a validated branch, the lane reads ``units``,
+``shared_paths`` and ``gate_paths`` to decide whether it may advance the branch without validating
+it again, and ``main_checks`` to watch main after such a merge. The other keys are parsed and
+validated now so the lane's later commands find them checked.
 """
 
 from __future__ import annotations
 
 import re
+from fnmatch import fnmatchcase
 from functools import lru_cache
 from pathlib import PurePosixPath
 
@@ -67,6 +70,16 @@ def matches(path: str, globs: list[str]) -> bool:
     return any(_pattern(glob).fullmatch(candidate) for glob in globs for candidate in candidates)
 
 
+def check_selected(name: str, globs: list[str]) -> bool:
+    """Whether the check run ``name`` counts: it matches an include glob (every name when there
+    is none) and no ``!`` exclusion."""
+    include = [glob for glob in globs if not glob.startswith("!")] or ["*"]
+    exclude = [glob[1:] for glob in globs if glob.startswith("!")]
+    return any(fnmatchcase(name, glob) for glob in include) and not any(
+        fnmatchcase(name, glob) for glob in exclude
+    )
+
+
 class FactoryConfig(BaseModel):
     """``[plugins.factory]``: one repository's contract with the lane."""
 
@@ -89,6 +102,25 @@ class FactoryConfig(BaseModel):
         description="The branch the lane merges into, validates against and runs coverage on",
     )
     gate_paths: list[str] = Field(default_factory=list, description="Globs of gate files")
+    units: Argv | None = Field(
+        default=None,
+        description=(
+            "Names the units changed paths affect: run in the checkout with the paths appended, it"
+            ' prints a JSON list of unit names ("*" for all). Without it, a moved base always'
+            " means validating again"
+        ),
+    )
+    shared_paths: list[str] = Field(
+        default_factory=list,
+        description="Globs of inputs every unit reads; main changing one means validating again",
+    )
+    main_checks: list[str] = Field(
+        default_factory=list,
+        description=(
+            "Check-run names (globs; a leading ! excludes) whose result on main's merge commit"
+            " confirms a merge that was not validated again; empty: every check run"
+        ),
+    )
     review_evidence: Argv | None = Field(default=None, description="Verifies a head's review")
     receipt: Argv | None = Field(default=None, description="Confirms an earlier validation")
     ui_paths: list[str] = Field(default_factory=list, description="Globs of UI source")
@@ -105,6 +137,7 @@ class FactoryConfig(BaseModel):
 
     @field_validator(
         "validate_command",
+        "units",
         "coverage",
         "install",
         "review_evidence",
@@ -124,7 +157,14 @@ class FactoryConfig(BaseModel):
             raise ValueError("prequeue stage names must be unique")
         return value
 
-    @field_validator("gate_paths", "ui_paths", "measure_paths", "ignore_branches")
+    @field_validator(
+        "gate_paths",
+        "shared_paths",
+        "main_checks",
+        "ui_paths",
+        "measure_paths",
+        "ignore_branches",
+    )
     @classmethod
     def _patterns(cls, value: list[str], info) -> list[str]:
         if any(not isinstance(item, str) or not item.strip() for item in value):

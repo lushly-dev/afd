@@ -3,6 +3,7 @@ each answering from the fixture's data and writing back to it (``FixtureWorld.sa
 
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Sequence
 from datetime import datetime
@@ -155,6 +156,7 @@ class FixtureGitHub:
             raise WorldError(f"Head branch was modified: PR {pr}'s head is {found['head']}")
         found["state"] = "MERGED"
         found["mergedHead"] = head
+        found["mergeCommit"] = f"main@{pr}"
         self.store.data.setdefault("main", {})["head"] = f"main@{pr}"
         self.store.save()
         if result.startswith("lands-then-fail"):
@@ -162,6 +164,14 @@ class FixtureGitHub:
 
     def pr_state(self, pr: int) -> str:
         return self._prs()[str(pr)]["state"]
+
+    def merge_commit(self, pr: int) -> str | None:
+        return self._prs()[str(pr)].get("mergeCommit")
+
+    def commit_checks(self, commit: str) -> dict[str, str]:
+        """``mainChecks[commit]``: each check run's state on a commit of main."""
+        _fail(self.store, "mainChecks")
+        return dict(self.store.data.get("mainChecks", {}).get(commit, {}))
 
     def set_variable(self, name: str, value: str) -> None:
         if name == LANE_HOST_VARIABLE:
@@ -239,6 +249,8 @@ class FixtureGit:
         return "origin" not in self.store.this_machine().get("missing", [])
 
     def read_file(self, worktree: str, path: str) -> str | None:
+        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``.
+            return self.store.data.get("slotFiles", {}).get(path)
         return self._worktree(worktree).get("files", {}).get(path)
 
     def fetch_base(self, base: str) -> str:
@@ -272,6 +284,23 @@ class FixtureGit:
 
     def tree(self, path: str) -> str:
         return f"tree-{self._slot(path)['head']}"
+
+    def diff_names(self, old: str, new: str) -> list[str]:
+        """``main.changes[new]``: what changed up to ``new`` (since any ``old``): main's move, or,
+        keyed by a validated head, the branch's changes."""
+        _fail(self.store, "diff")
+        return list(self.store.data.get("main", {}).get("changes", {}).get(new, []))
+
+    def merges_cleanly(self, head: str, base: str) -> MergeOutcome:
+        """``outcomes.mergeTree[head]``: ``clean`` (the default), ``conflict: a, b`` or
+        ``fail: ...``."""
+        result = _outcome(self.store, "mergeTree", head, "clean")
+        if result.startswith("conflict"):
+            files = result.split(":", 1)[1] if ":" in result else ""
+            return MergeOutcome(False, conflicts=tuple(f.strip() for f in files.split(",") if f))
+        if result.startswith("fail"):
+            raise WorldError(result.removeprefix("fail").lstrip(": ") or "merge-tree failed")
+        return MergeOutcome(True, head=f"tree-{head}+{base}")
 
     def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
         """origin's branches (``pushed``): a lease must match origin's head; without one, a
@@ -334,6 +363,10 @@ class FixtureMachine:
 
     def tool_version(self, tool: str) -> str | None:
         return self.store.data.get("toolchains", {}).get(tool)
+
+    def node_bin(self, spec: str) -> str | None:
+        """``nodes.<spec>``: the installed Node's bin directory, or absent when it is not."""
+        return self.store.data.get("nodes", {}).get(spec.strip().removeprefix("v"))
 
 
 class FixturePlans:
@@ -444,6 +477,8 @@ class FixtureProcesses:
         *,
         label: str | None = None,
     ) -> Completed:
+        if label == "units":
+            return _units_run(self.store, tuple(args))
         worktree = self.store.data.get("worktrees", {}).get(cwd)
         if worktree is not None and label:
             return _worktree_run(tuple(args), worktree, label)
@@ -472,6 +507,22 @@ def _fail(store: FixtureWorld, kind: str, key: str | None = None) -> None:
     result = _outcome(store, kind, key, "ok")
     if result.startswith("fail"):
         raise WorldError(result.removeprefix("fail").lstrip(": ") or f"{kind} failed")
+
+
+def _units_run(store: FixtureWorld, args: tuple[str, ...]) -> Completed:
+    """The adapter's ``units`` command: ``units`` maps a path prefix to the units it affects;
+    each argument takes those of its longest matching prefix (``fail`` makes the run fail)."""
+    table = store.data.get("units")
+    if table is None:
+        raise WorldError("The fixture has no units table")
+    if table == "fail":
+        return Completed(args, 1, "", "units failed")
+    found: list[str] = []
+    for arg in args:
+        prefixes = [prefix for prefix in table if arg.startswith(prefix)]
+        if prefixes:
+            found += table[max(prefixes, key=len)]
+    return Completed(args, 0, json.dumps(sorted(set(found))), "")
 
 
 def _worktree_run(args: tuple[str, ...], worktree: dict, label: str) -> Completed:

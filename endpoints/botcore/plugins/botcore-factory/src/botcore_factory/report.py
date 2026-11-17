@@ -10,7 +10,14 @@ from botcore_factory.claims import parse_time
 from botcore_factory.records import attempts
 from botcore_factory.runtime import Factory, Refusal
 
-NUMBERS = ("mergedPerHour", "validationsPerMerge", "productiveShare", "staleRuns", "reruns")
+NUMBERS = (
+    "mergedPerHour",
+    "validationsPerMerge",
+    "productiveShare",
+    "staleRuns",
+    "reruns",
+    "baseAdvances",
+)
 
 
 def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_at: str) -> dict:
@@ -34,6 +41,8 @@ def summarize(history: list[dict], run_id: str, started_at: str | None, stopped_
         "productiveShare": round(productive / total, 2) if total else None,
         "reruns": sum(1 for r in mine if r.get("kind") == "rerun" and r["reason"] == "main-moved"),
         "staleRuns": sum(1 for r in mine if r.get("kind") == "rerun" and r["reason"] == "restart"),
+        # Moves of main a validated branch advanced past without validating again.
+        "baseAdvances": sum(1 for r in mine if r.get("kind") == "base-advanced"),
         "foremanWakes": sum(1 for r in mine if r.get("kind") == "wake"),
         "prs": [
             {
@@ -63,6 +72,7 @@ def numbers(summary: dict) -> dict:
         "productiveShare": summary.get("productiveShare"),
         "staleRuns": summary.get("staleRuns", 0),
         "reruns": summary.get("reruns", 0),
+        "baseAdvances": summary.get("baseAdvances", 0),
         "foreman": {"wakes": wakes, "wakesPerMerge": _ratio(wakes, merged)},
         "byPlan": _count(prs, "plan"),
         "byRoute": _count(prs, "route"),

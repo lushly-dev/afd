@@ -3,13 +3,16 @@
 ``step`` does everything that can be done now and returns: it never waits, so tests drive it with
 a fixture world and a fake clock. Each step, in order:
 
-1. polls running validations and the coverage run, recording what finished;
+1. polls running validations, the coverage run and main's checks after a merge that advanced
+   past a moved base without a new validation (``lane_advance``), recording what finished;
 2. queues held branches while the queue has room (``lane.queueMax``);
 3. moves the front of the queue towards a merge (``lane_merge``): serial, in queue order, bound
-   to the validated head, after reading the base again;
+   to the validated head, after reading the base again (a move main's changes cannot touch
+   advances the branch; any other validates it again);
 4. starts validations in free slots (``lane.slots``): each slot checks the queued head out,
    merges the base's head in (a conflict ejects; it is never resolved), then runs one background
-   job: the adapter's ``install`` (with a timeout) and ``validate``;
+   job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
+   ``.nvmrc`` names (missing, it is the lane's trouble);
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -41,6 +44,7 @@ class Step(Merging, Coverage):
         try:
             self.poll_validations()
             self.poll_coverage()
+            self.poll_unchecked()
             if not self.lane.get("paused"):
                 self.queue_held()
                 self.advance_front()
@@ -153,7 +157,7 @@ class Step(Merging, Coverage):
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return
         handle = self.world.processes.start_job(
-            self.job_steps("validate", self.config.validate_command),
+            self.job_steps("validate", self.config.validate_command, path),
             cwd=path,
             log=self.absolute(log),
             label="validate",

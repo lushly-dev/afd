@@ -22,13 +22,19 @@ kind                    required fields                                     writ
                         of a validation, for every repository; optional
                         checksRun, testsRun (when the adapter reports
                         them), flaky, logPath
-``rerun``               branch, attempt, reason (main-moved | restart)      the lane loop
+``rerun``               branch, attempt, reason (main-moved | restart |     the lane loop
+                        slot-needed); optional detail (why main's move
+                        needs a new validation)
+``base-advanced``       branch, attempt, previous, base: main moved under   the lane loop
+                        a validated branch and nothing it changed can touch
+                        what was validated; optional head
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed); optional head,
                         logPath
 ``merged``              branch, attempt, pr; optional checksRun,            the lane loop
-                        withoutCheck
+                        withoutCheck, advanced (merged after a
+                        base-advanced, without a new validation)
 ``dropped``             branch, reason                                      lane-drop
 ``coverage``            main, outcome (passed | failed), minutes;           the lane loop
                         optional logPath, after (the PRs since the last)
@@ -46,7 +52,7 @@ from __future__ import annotations
 
 from typing import Any
 
-SCHEMA = 1
+SCHEMA = 2
 REQUIRED: dict[str, tuple[str, ...]] = {
     "cell-registered": ("branch", "issues", "plan", "route", "profile"),
     "enqueued": (
@@ -73,6 +79,7 @@ REQUIRED: dict[str, tuple[str, ...]] = {
         "minutes",
     ),
     "rerun": ("branch", "attempt", "reason"),
+    "base-advanced": ("branch", "attempt", "previous", "base"),
     "ejected": ("branch", "attempt", "cause"),
     "merged": ("branch", "attempt", "pr"),
     "dropped": ("branch", "reason"),
@@ -95,6 +102,8 @@ EJECT_CAUSES = (
 )
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})
+#: Kinds an attempt row counts, as the field it counts them in.
+_COUNTS = {"rerun": "reruns", "base-advanced": "advances"}
 #: When each kind happened, as the field an attempt row carries it in.
 _TIMES = {
     "enqueued": "enqueuedAt",
@@ -155,9 +164,9 @@ def attempts(records: list[dict]) -> list[dict]:
             row.setdefault("outcome", "dropped")
             row["droppedAt"] = record["at"]
             continue
-        if kind == "rerun" and (branch, record.get("attempt")) in rows:
+        if kind in _COUNTS and (branch, record.get("attempt")) in rows:
             row = rows[(branch, record["attempt"])]
-            row["reruns"] = row.get("reruns", 0) + 1
+            row[_COUNTS[kind]] = row.get(_COUNTS[kind], 0) + 1
             continue
         if kind not in _TIMES or "attempt" not in record:
             continue
@@ -195,6 +204,7 @@ def _fold(row: dict, kind: str, record: dict) -> None:
         else:
             row["pr"] = record["pr"]
             row["withoutCheck"] = bool(record.get("withoutCheck"))
+            row["advanced"] = bool(record.get("advanced"))
     row.setdefault("state", None)
 
 
