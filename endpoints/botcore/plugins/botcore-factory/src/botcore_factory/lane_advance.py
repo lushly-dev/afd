@@ -22,9 +22,9 @@ PR's ``required_check``, which runs on the pull request's merge ref (the branch 
 main), stands in for the local validation. A conflict, a gate path or changes that cannot be read
 are validated again as before.
 
-The check runs on main as it was when the head was pushed (``checkBase``). Past the limit, a move
-of main after the push, while the check runs or after it passed, does not trigger it again: the
-branch merges on that check, as any pull request here does (``main`` does not require an
+The check runs on a main no older than the one at the push (``checkBase``). Past the limit, a
+move of main after the push, while the check runs or after it passed, does not trigger it again:
+the branch merges on that check, as any pull request here does (``main`` does not require an
 up-to-date branch), and the record names ``checkBase``. Only the watch on main covers that move.
 
 A merge after either advance is watched on main (``uncheckedMerges``): when a check the adapter's

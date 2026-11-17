@@ -22,12 +22,13 @@ watched on `main` like any advance, so a red `main` afterwards pauses the lane a
 conflict or a gate path still validates again (a `gate_paths` change on `main` keeps the
 coverage rules as they were). `lane-report` counts `rerunLimitAdvances` (part of
 `baseAdvances`), and the merged record carries `checkStoodIn`. The PR body says the check stood
-in when the lane opens the PR; an already open PR keeps its body. The check runs on `main` as it
-was at the push (`checkBase`): past the limit, a move of `main` after the push (while `ci-ok` runs
+in when the lane opens the PR; an already open PR keeps its body. The check runs on a `main` no
+older than the one at the push (`checkBase`): past the limit, a move of `main` after the push (while `ci-ok` runs
 or after it passed) that merges cleanly and touches no gate path does not trigger it again, so
 the branch merges on that check of the older `main`, as any pull request here does (`main`'s
 protection does not require an up-to-date branch). Only the watch on `main` covers that move, and
-the `base-advanced` and `merged` records name `checkBase`. Not yet seen in a fleet run.
+the `base-advanced` and `merged` records name `checkBase`; a fresh check on such a move is
+[#1390](https://github.com/lushly-dev/afd/issues/1390). Not yet seen in a fleet run.
 
 ## A moved `main` no longer always means validating again, 2026-11-16
 
