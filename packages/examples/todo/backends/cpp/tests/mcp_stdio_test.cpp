@@ -15,7 +15,8 @@ afd::Json reply(afd::mcp::StdioServer& server, const std::string& line) {
 }
 
 std::unique_ptr<afd::mcp::StdioServer> make_server(Fixture& fixture) {
-    auto server = afd::mcp::StdioServer::create(*fixture.registry, {.name = "afd-todo-cpp"});
+    auto server = afd::mcp::StdioServer::create(
+        *fixture.registry, {.name = "afd-todo-cpp", .contexts = todo::todo_contexts()});
     REQUIRE(server);
     return std::move(*server);
 }
@@ -36,9 +37,14 @@ TEST_CASE("tools/list lists every todo command with its title, annotations and _
     auto server = make_server(fixture);
     const auto tools =
         reply(*server, R"({"jsonrpc":"2.0","id":2,"method":"tools/list"})")["result"]["tools"];
-    CHECK(tools.size() == 13);
+    // The thirteen todo commands, then the three context tools.
+    CHECK(tools.size() == 16);
     for (const auto& tool : tools) {
         CAPTURE(tool["name"].get<std::string>());
+        if (tool["name"].get<std::string>().rfind("afd-context-", 0) == 0) {
+            CHECK(tool["_meta"]["category"] == "bootstrap");
+            continue;
+        }
         CHECK(tool.contains("inputSchema"));
         CHECK(tool.contains("title"));
         CHECK(tool["_meta"]["category"] == "todo");
@@ -136,4 +142,41 @@ TEST_CASE("a clear the person approves over MCP runs once and is recorded; a dec
     CHECK(history["data"]["total"] == 3);
     CHECK(history["data"]["entries"][0]["command"] == "todo-clear");
     CHECK(history["data"]["entries"][0]["actor"]["kind"] == "agent");
+}
+
+TEST_CASE("todo-reading hides the changes, over both MCP eras") {
+    Fixture fixture;
+    auto server = make_server(fixture);
+    const auto names = [](const afd::Json& tools) {
+        std::vector<std::string> out;
+        for (const auto& tool : tools) {
+            if (tool["_meta"]["category"] == "todo") {
+                out.push_back(tool["name"].get<std::string>());
+            }
+        }
+        return out;
+    };
+    const std::vector<std::string> reading{"todo-list", "todo-get", "todo-stats", "todo-history"};
+
+    // 2026-07-28: the request names its context.
+    const afd::Json meta{{"io.modelcontextprotocol/protocolVersion", "2026-07-28"},
+                         {"io.modelcontextprotocol/clientCapabilities", afd::Json::object()},
+                         {"dev.afd/context", "todo-reading"}};
+    const auto listed = reply(*server, afd::Json{{"jsonrpc", "2.0"},
+                                                 {"id", 3},
+                                                 {"method", "tools/list"},
+                                                 {"params", {{"_meta", meta}}}}
+                                           .dump())["result"];
+    CHECK(names(listed["tools"]) == reading);
+    CHECK(listed["ttlMs"] == 0);
+
+    // 2025: the connection enters it.
+    CHECK(call(*server, "afd-context-enter", {{"context", "todo-reading"}})["success"] == true);
+    CHECK(names(reply(*server,
+                      R"({"jsonrpc":"2.0","id":4,"method":"tools/list"})")["result"]["tools"]) ==
+          reading);
+    const auto refused = call(*server, "todo-create", {{"title", "Not while reading"}});
+    CHECK(refused["error"]["code"] == "COMMAND_NOT_IN_CONTEXT");
+    CHECK(call(*server, "afd-context-exit", afd::Json::object())["success"] == true);
+    CHECK(call(*server, "todo-create", {{"title", "Now"}})["success"] == true);
 }

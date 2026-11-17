@@ -13,7 +13,7 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
-use tantivy::collector::TopDocs;
+use tantivy::collector::{DocSetCollector, TopDocs};
 use tantivy::query::QueryParser;
 use tantivy::schema::{FAST, Field, INDEXED, STORED, STRING, Schema, TEXT, Value};
 use tantivy::{IndexReader, IndexWriter, TantivyDocument, Term, doc};
@@ -279,6 +279,43 @@ impl Index {
             }
         }
         Ok(messages)
+    }
+
+    /// Every message whose subject or text holds every word of `query`, in
+    /// no order: what a selection freezes (the specification's 9.1),
+    /// however many there are. `None` when the query cannot be read in full:
+    /// a selection a change acts on never searches for less than it was
+    /// given, as a ranked search may. Read from the message's fast field, not
+    /// each document's stored copy.
+    ///
+    /// # Errors
+    /// When the index cannot be read.
+    pub fn matching(&self, query: &str) -> Result<Option<Vec<i64>>, IndexError> {
+        let mut parser =
+            QueryParser::for_index(&self.index, vec![self.fields.subject, self.fields.text]);
+        parser.set_conjunction_by_default();
+        let Ok(query) = parser.parse_query(query) else {
+            return Ok(None);
+        };
+        let searcher = self.reader.searcher();
+        let addresses = searcher.search(&query, &DocSetCollector)?;
+        let mut columns = std::collections::HashMap::new();
+        let mut messages = Vec::with_capacity(addresses.len());
+        for address in addresses {
+            let column = match columns.entry(address.segment_ord) {
+                std::collections::hash_map::Entry::Occupied(entry) => entry.into_mut(),
+                std::collections::hash_map::Entry::Vacant(entry) => entry.insert(
+                    searcher
+                        .segment_reader(address.segment_ord)
+                        .fast_fields()
+                        .i64("message")?,
+                ),
+            };
+            if let Some(message) = column.first(address.doc_id) {
+                messages.push(message);
+            }
+        }
+        Ok(Some(messages))
     }
 
     /// How many documents the index holds on the disk.

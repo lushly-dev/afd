@@ -63,14 +63,22 @@ pnpm test:conformance:cpp --suite approvals       # APPROVALS=agents, every clie
 
 Add `--mode modern` for MCP 2026-07-28.
 
+## Contexts
+
+The server serves TypeScript's two contexts (`todo_contexts()` in `src/app.cpp`, after
+`src/contexts.ts`) with `afd-context-list`, `afd-context-enter` and `afd-context-exit`.
+`todo-reading` shows the commands that read (list, get, stats and history); `todo-editing`, and no
+context at all, show every command. A 2025 client enters a context for its connection; a
+2026-07-28 client names it on each request in `_meta["dev.afd/context"]`. A call outside the
+active context fails with `COMMAND_NOT_IN_CONTEXT`.
+
 ## Known differences from the TypeScript backend
 
 - **Title sort order** compares case-insensitively and then by code unit. TypeScript's `localeCompare` is locale-aware. The two agree for ASCII titles that differ in more than case.
 - **`todo-list` search** lowercases ASCII only.
-- **The tool list** has one tool per command and nothing else. The library's `afd::mcp_stdio`
-  has no meta-tools (`afd-call`, `afd-batch`, `afd-pipe`), bootstrap commands, grouped tool
-  strategy or context tools yet, so the `todo-reading` and `todo-editing` contexts are declared
-  on each command but not served ([#1425](https://github.com/lushly-dev/afd/issues/1425)).
+- **The tool list** has one tool per command, the context tools among them. The library's
+  `afd::mcp_stdio` has no meta-tools (`afd-call`, `afd-batch`, `afd-pipe`), bootstrap commands
+  or grouped tool strategy yet ([#1451](https://github.com/lushly-dev/afd/issues/1451)).
 - **Validation messages** come from the library's validator, not TypeScript's custom zod texts
   (`"Too small: expected string to have >=1 characters"` where TypeScript says `"Todo ID is
   required"`), and `expectedFields` is in alphabetical order. An `offset` beyond 2^53 - 1 is

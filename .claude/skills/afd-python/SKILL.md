@@ -137,6 +137,7 @@ Two vector suites hold Python to these rules: `tests/test_pipeline_vectors.py` a
 - **Approval policy.** Declare `approval="required"`, `"not-required"`, or a function of the input and context, on `define_command` or `@server.command`.
 - **Approval middleware.** Install `create_approval_middleware(secret=os.environ["AFD_APPROVAL_SECRET"], commands=[...])` from `afd.server`, after any middleware that sets `context.actor`. It gates only the commands in `commands`, so pass the same decorated functions you register.
 - **The approval flow.** A held call returns `APPROVAL_REQUIRED` with `details.approvalToken`. Once a human approves, trusted surface code retries the same call with `CommandContext(approval=token)`. The token never comes from tool arguments.
+- **Asking over MCP.** `relay="mcp-elicitation"` asks the person behind an MCP client that declares form elicitation instead of returning a token; `afd-batch` and `afd-pipe` are asked about once, up front, and a pipeline whose gated step reads an earlier step runs nothing (`reason: "input-not-known"`). Leave it off where the agent's own code is the MCP client. The relay works through the server's MCP handler only; `route_tool_call` and `execute` never ask.
 - **Tokens** are single-use by default (`replay="within-ttl"` to allow repeats) and expire after five minutes on the middleware's `clock`. They verify across TypeScript, Python and Rust servers that share the secret. See [spec/command-metadata.md](../../../spec/command-metadata.md), "Approvals".
 
 ## DirectClient

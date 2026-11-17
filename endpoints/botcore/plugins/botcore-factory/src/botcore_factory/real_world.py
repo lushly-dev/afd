@@ -567,19 +567,43 @@ class CliGit:
         self.run(["git", "-C", path, "clean", "-fd", "--quiet"])
         return path
 
-    def merge_main(self, path: str, main: str) -> MergeOutcome:
-        identity = ["-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost"]
+    _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
+
+    def _unmerged(self, path: str) -> tuple[str, ...]:
+        found = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
+        return tuple(line for line in found.splitlines() if line.strip())
+
+    def merge_main(
+        self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
+    ) -> MergeOutcome:
+        identity = list(self._IDENTITY)
         # A conflict exits nonzero; the unmerged paths say so, and the merge is aborted.
         self.run(["git", "-C", path, *identity, "merge", "--no-edit", "--quiet", main], None, False)
-        conflicts = self.run(["git", "-C", path, "diff", "--name-only", "--diff-filter=U"])
-        files = tuple(line for line in conflicts.splitlines() if line.strip())
+        files = self._unmerged(path)
         if files:
+            if keep_open is not None and keep_open(files):
+                return MergeOutcome(False, conflicts=files, open=True)
             self.run(["git", "-C", path, "merge", "--abort"])
             return MergeOutcome(False, conflicts=files)
         # No conflict is not a merge: the base must now be in the head's history.
         if not self._ancestor(path, main):
             raise WorldError(f"Merging {main} into the slot did not happen")
         return MergeOutcome(True, head=self.head(path))
+
+    def finish_merge(self, path: str) -> MergeOutcome:
+        files = self._unmerged(path)
+        if files:
+            self.abort_merge(path)
+            return MergeOutcome(False, conflicts=files)
+        # A commit runs pre-commit, which a clean ``git merge`` never does: the repository's
+        # hooks would check every file main brought in, before the slot is even installed.
+        self.run(
+            ["git", "-C", path, *self._IDENTITY, "commit", "--no-edit", "--no-verify", "--quiet"]
+        )
+        return MergeOutcome(True, head=self.head(path))
+
+    def abort_merge(self, path: str) -> None:
+        self.run(["git", "-C", path, "merge", "--abort"], None, False)
 
     def _ancestor(self, path: str, commit: str) -> bool:
         try:

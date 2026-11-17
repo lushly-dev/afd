@@ -16,6 +16,7 @@
 #include <mutex>
 #include <ostream>
 #include <random>
+#include <set>
 #include <thread>
 #include <utility>
 
@@ -268,6 +269,8 @@ struct StdioServer::State {
     Json legacy_capabilities = Json::object();
     // Trace ids. Only the thread that handles messages uses it.
     SystemRandom random;
+    // The 2025 connection's context stack (contexts configured).
+    std::shared_ptr<ContextStack> session = std::make_shared<ContextStack>();
 
     State(const CommandRegistry& source, StdioServerOptions settings, std::string secret)
         : registry(source), options(std::move(settings)), key(std::move(secret)) {}
@@ -287,17 +290,64 @@ struct StdioServer::State {
         return result;
     }
 
+    [[nodiscard]] std::int64_t ttl_ms() const {
+        return options.tools_list_ttl_ms.value_or(options.contexts.empty() ? tools_list_ttl_ms : 0);
+    }
+
+    [[nodiscard]] std::string default_instructions() const {
+        std::string text = options.name +
+                           " is an AFD server. Every tool returns a CommandResult as JSON text: "
+                           "{ success, data, error: { code, message, suggestion } }; follow "
+                           "error.suggestion to recover.";
+        if (!options.contexts.empty()) {
+            text += " Commands are scoped by context (afd-context-list lists them). Send _meta[\"" +
+                    std::string(context_meta_key) +
+                    "\"] with a context name on tools/list and tools/call to work in that context.";
+        }
+        return text;
+    }
+
+    /// The context scope of one request: a 2025 connection's stack, or the context a 2026-07-28
+    /// request names in `_meta`. Unset without contexts; an error message for a context the
+    /// server does not configure.
+    [[nodiscard]] Expected<std::shared_ptr<const ContextScope>>
+    request_scope(const RequestInfo& info) const {
+        if (options.contexts.empty()) {
+            return std::shared_ptr<const ContextScope>();
+        }
+        if (!info.modern) {
+            return std::make_shared<const ContextScope>(ContextScope{.session = session});
+        }
+        const auto requested = info.meta.find(std::string(context_meta_key));
+        if (requested == info.meta.end()) {
+            return std::make_shared<const ContextScope>();
+        }
+        if (requested->is_string()) {
+            const auto& name = requested->get_ref<const std::string&>();
+            for (const auto& config : options.contexts) {
+                if (config.name == name) {
+                    return std::make_shared<const ContextScope>(ContextScope{.request = name});
+                }
+            }
+        }
+        return unexpected("Unknown context in _meta[\"" + std::string(context_meta_key) + "\"]");
+    }
+
+    [[nodiscard]] std::string known_contexts() const {
+        std::string names;
+        for (const auto& config : options.contexts) {
+            names += (names.empty() ? "" : ", ") + config.name;
+        }
+        return names;
+    }
+
     [[nodiscard]] Json discover_result() const {
         return {{"resultType", "complete"},
                 {"supportedVersions", Json::array({std::string(modern_version)})},
                 {"capabilities", {{"tools", {{"listChanged", false}}}}},
                 {"_meta", {{std::string(server_info_key), server_info()}}},
-                {"instructions",
-                 options.instructions.value_or(
-                     options.name +
-                     " is an AFD server. Every tool returns a CommandResult as JSON text; follow "
-                     "error.suggestion to recover.")},
-                {"ttlMs", tools_list_ttl_ms},
+                {"instructions", options.instructions.value_or(default_instructions())},
+                {"ttlMs", ttl_ms()},
                 {"cacheScope", "public"}};
     }
 
@@ -321,9 +371,20 @@ struct StdioServer::State {
                 {"serverInfo", server_info()}};
     }
 
-    [[nodiscard]] Json tools() const {
+    /// Whether `command` is available in `active` (every command is with none active).
+    static bool in_context(const CommandDefinition& command,
+                           const std::optional<std::string>& active) {
+        return !active || command.contexts.empty() ||
+               std::find(command.contexts.begin(), command.contexts.end(), *active) !=
+                   command.contexts.end();
+    }
+
+    [[nodiscard]] Json tools(const std::optional<std::string>& active = std::nullopt) const {
         Json tools = Json::array();
         for (const auto& command : registry.list_by_exposure(Interface::mcp)) {
+            if (!in_context(command->definition, active)) {
+                continue;
+            }
             Json tool = command_to_mcp_tool(command->definition);
             if (options.confirmations == ConfirmationMode::enforce &&
                 command->definition.confirm_prompt &&
@@ -442,7 +503,8 @@ struct StdioServer::State {
 
     // --- tools/call ---------------------------------------------------------------------------
 
-    CommandContext call_context(const RequestInfo& info, const CancellationToken& cancellation) {
+    CommandContext call_context(const RequestInfo& info, const CancellationToken& cancellation,
+                                const std::shared_ptr<const ContextScope>& scope) {
         CommandContext context;
         context.surface = Interface::mcp;
         context.actor = Actor{.kind = ActorKind::agent};
@@ -456,6 +518,9 @@ struct StdioServer::State {
         }
         context.approval.reset();
         context.mcp_approval_relay.reset();
+        // The server's: what the request named, or the connection's stack. The registry runs the
+        // call in the scope's active context.
+        context.context_scope = scope;
         return context;
     }
 
@@ -556,7 +621,8 @@ struct StdioServer::State {
     }
 
     Json call_tool(const Json& params, const RequestInfo& info, const ClientRequester& ask,
-                   const CancellationToken& cancellation) {
+                   const CancellationToken& cancellation,
+                   const std::shared_ptr<const ContextScope>& scope) {
         const std::string name =
             params.is_object() && params.contains("name") && params["name"].is_string()
                 ? params["name"].get<std::string>()
@@ -572,7 +638,9 @@ struct StdioServer::State {
         const auto command = registry.get(name);
         const bool exposed =
             command != nullptr && is_exposed_to(command->definition.expose, Interface::mcp);
-        const bool gated = exposed && options.confirmations != ConfirmationMode::off &&
+        // A command outside the active context is refused before anyone is asked.
+        const bool gated = exposed && in_context(command->definition, info.active_context) &&
+                           options.confirmations != ConfirmationMode::off &&
                            command->definition.confirm_prompt.has_value();
         bool acknowledged = false;
         if (gated) {
@@ -589,7 +657,7 @@ struct StdioServer::State {
                            (confirm_argument || is_true(info.meta, confirm_meta_key));
         }
 
-        const CommandContext context = call_context(info, cancellation);
+        const CommandContext context = call_context(info, cancellation, scope);
         // Questions and their state bind the validated input, as the person decides on exactly
         // what will run: defaults filled in and undeclared members removed.
         Json bound = arguments;
@@ -710,17 +778,30 @@ struct StdioServer::State {
         if (method == "ping" && !modern) {
             return response(id, Json::object()); // removed in 2026-07-28
         }
+        std::shared_ptr<const ContextScope> scope;
+        if (method == "tools/list" || method == "tools/call") {
+            auto requested = request_scope(info);
+            if (!requested) {
+                return error_response(id, -32602, requested.error(),
+                                      {{"suggestion", "Use one of: " + known_contexts()}});
+            }
+            scope = std::move(*requested);
+            if (scope) {
+                info.active_context = scope->active();
+            }
+        }
         if (method == "tools/list") {
-            Json result{{"tools", tools()}};
+            Json result{{"tools", tools(info.active_context)}};
             if (!modern) {
                 return response(id, std::move(result));
             }
-            result["ttlMs"] = tools_list_ttl_ms;
+            result["ttlMs"] = ttl_ms();
             result["cacheScope"] = "public";
             return response(id, modern_result(std::move(result)));
         }
         if (method == "tools/call") {
-            Json result = call_tool(params, info, modern ? ClientRequester{} : ask, cancellation);
+            Json result =
+                call_tool(params, info, modern ? ClientRequester{} : ask, cancellation, scope);
             return response(id, modern ? modern_result(std::move(result)) : std::move(result));
         }
         return error_response(id, -32601, "Method not found: " + method);
@@ -743,6 +824,45 @@ Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry
                 secret.push_back(static_cast<char>(word & 0xFFU));
                 word >>= 8;
             }
+        }
+    }
+    if (options.tools_list_ttl_ms && *options.tools_list_ttl_ms < 0) {
+        return unexpected(std::string("tools_list_ttl_ms must not be negative"));
+    }
+    if (!options.contexts.empty()) {
+        std::set<std::string> configured;
+        for (const auto& config : options.contexts) {
+            if (config.name.find_first_not_of(" \t\r\n") == std::string::npos) {
+                return unexpected(std::string("Context names must not be blank"));
+            }
+            if (!configured.insert(config.name).second) {
+                return unexpected("Context '" + config.name + "' is configured twice");
+            }
+        }
+        for (const auto name : afd_context_command_names) {
+            const auto command = registry.get(name);
+            if (!command || !is_exposed_to(command->definition.expose, Interface::mcp)) {
+                return unexpected("contexts are set but " + std::string(name) +
+                                  " is not registered and exposed to MCP: call "
+                                  "afd::register_context_commands(registry, contexts) first");
+            }
+        }
+        // The server and the context tools must serve the same contexts.
+        CommandContext probe;
+        const Json listed(
+            registry.get("afd-context-list")->definition.handler(Json::object(), probe));
+        std::set<std::string> registered;
+        if (listed.contains("data") && listed["data"].contains("contexts")) {
+            for (const auto& entry : listed["data"]["contexts"]) {
+                if (entry.contains("name") && entry["name"].is_string()) {
+                    registered.insert(entry["name"].get<std::string>());
+                }
+            }
+        }
+        if (registered != configured) {
+            return unexpected(std::string(
+                "contexts differ from those passed to afd::register_context_commands: pass the "
+                "same list to both"));
         }
     }
     if (!options.clock) {
