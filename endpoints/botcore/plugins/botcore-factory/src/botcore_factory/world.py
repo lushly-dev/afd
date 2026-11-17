@@ -209,6 +209,16 @@ class GitHub(Protocol):
         """``OPEN``, ``MERGED`` or ``CLOSED``."""
         ...
 
+    def merge_commit(self, pr: int) -> str | None:
+        """The commit a merged PR made on its base, or None while GitHub does not name one."""
+        ...
+
+    def commit_checks(self, commit: str) -> dict[str, str]:
+        """Every check run (and commit status) on ``commit`` by name, the latest of each:
+        ``success``, ``failure``, ``cancelled``, ``skipped`` or ``pending``. Raises WorldError
+        on a failed or possibly truncated read."""
+        ...
+
 
 @runtime_checkable
 class Git(Protocol):
@@ -272,6 +282,16 @@ class Git(Protocol):
         ...
 
     def tree(self, path: str) -> str: ...
+
+    def diff_names(self, old: str, new: str) -> list[str]:
+        """The paths that differ between commits ``old`` and ``new`` (both sides of a rename)."""
+        ...
+
+    def merges_cleanly(self, head: str, base: str) -> MergeOutcome:
+        """Whether ``head`` merges onto ``base`` without a conflict, computed without a checkout
+        (``git merge-tree``); ``head`` of the outcome is the merged tree. Raises WorldError when
+        git cannot say."""
+        ...
 
     def push_head(self, path: str, branch: str, head: str, lease: str | None) -> None:
         """Push commit ``head`` from its validated checkout ``path`` to ``branch`` on origin.
