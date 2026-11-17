@@ -6,7 +6,7 @@ import { HTTP_EXCLUDED_COMMANDS, createApiServer, isLoopbackHost } from './api.j
 interface ReplyJson {
 	success: boolean;
 	error: { code: string; message: string };
-	data: { commands: Array<{ name: string }> };
+	data: { commands: Array<{ name: string; deprecated?: boolean; replacement?: string }> };
 }
 
 interface Reply {
@@ -222,6 +222,28 @@ describe('REST API server', () => {
 			const server = await start();
 			expect((await post(server, {})).status).toBe(400);
 			expect((await post(server, { command: 5 })).status).toBe(400);
+		});
+
+		it('marks a deprecated command with a Deprecation header and a successor link (#500)', async () => {
+			const server = await start();
+			await post(server, { command: 'node.create', input: { name: 'a', parentId: null } });
+			await post(server, { command: 'node.create', input: { name: 'b', parentId: null } });
+			const old = await post(server, {
+				command: 'compare.nodes',
+				input: { nodeA: 'a', nodeB: 'b' },
+			});
+			expect(old.headers.deprecation).toBe('true');
+			expect(old.headers.link).toBe('</api/v1/tokens/compare>; rel="successor-version"');
+
+			const current = await post(server, {
+				command: 'tokens.compare',
+				input: { nodeIds: ['a', 'b'] },
+			});
+			expect(current.headers.deprecation).toBeUndefined();
+
+			const list = await call(server, 'GET', '/api/commands');
+			const entry = list.json().data.commands.find((c) => c.name === 'compare.nodes');
+			expect(entry).toMatchObject({ deprecated: true, replacement: 'tokens.compare' });
 		});
 
 		it('returns 404 for unknown commands', async () => {

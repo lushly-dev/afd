@@ -302,7 +302,6 @@ const I = (k) => ideas[k].id;
 // 9 compare two framings
 {
 	const cmp = await run('tokens.compare', { nodeIds: ['public', 'book'], onlyDifferent: true });
-	const cn = await run('compare.nodes', { nodeA: 'public', nodeB: 'book' });
 	const summarize = (r) =>
 		r.success
 			? Object.fromEntries(
@@ -315,11 +314,10 @@ const I = (k) => ideas[k].id;
 	record(
 		9,
 		'compare two framings',
-		cmp.success && cn.success ? 'works as is' : 'works awkwardly',
-		`tokens.compare (onlyDifferent) and compare.nodes both run; composite values compare whole, so a tags-only change counts the same as a reworded statement (${diffCount} differing rows)`,
+		cmp.success ? 'works as is' : 'works awkwardly',
+		`tokens.compare (onlyDifferent) runs; composite values compare whole, so a tags-only change counts the same as a reworded statement (${diffCount} differing rows)`,
 		{
 			tokensCompare: summarize(cmp),
-			compareNodes: summarize(cn),
 			diffCount,
 			sample: cmp.success ? JSON.stringify(cmp.data).slice(0, 600) : null,
 		}

@@ -1,7 +1,7 @@
 import { matchesGlob } from '@lushly-dev/violet-core/engine';
 import { z } from 'zod';
 import type { CommandResult } from '../../types/command-result.js';
-import type { CommandContext, CommandDefinition } from '../registry.js';
+import type { CommandContext, CommandDefinition, CommandDeprecation } from '../registry.js';
 import { tokensResolveCommand } from '../token/resolve.js';
 
 // =============================================================================
@@ -37,6 +37,18 @@ const OutputSchema = z.object({
 
 type Input = z.input<typeof InputSchema>;
 type Output = z.infer<typeof OutputSchema>;
+
+// =============================================================================
+// Deprecation
+// =============================================================================
+
+/** compare.nodes is superseded by tokens.compare; removal is a later change (#500). */
+export const compareNodesDeprecation: CommandDeprecation = {
+	replacement: 'tokens.compare',
+	removal: '@lushly-dev/violet-afd 0.5.0',
+};
+
+const DEPRECATION_MESSAGE = `compare.nodes is deprecated: use ${compareNodesDeprecation.replacement} (two to four nodes, also counts absent and subtracted tokens). It will be removed in ${compareNodesDeprecation.removal}.`;
 
 // =============================================================================
 // Handler
@@ -181,10 +193,17 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 			},
 			similarity,
 		},
-		reasoning:
+		reasoning: `${
 			similarity === 100
 				? `Nodes are identical (${total} tokens)`
-				: `${similarity}% similar: ${changed} changed, ${added} added to B, ${removed} removed from A`,
+				: `${similarity}% similar: ${changed} changed, ${added} added to B, ${removed} removed from A`
+		}. ${DEPRECATION_MESSAGE}`,
+		warnings: [{ code: 'DEPRECATED_COMMAND', message: DEPRECATION_MESSAGE, severity: 'warning' }],
+		metadata: {
+			deprecated: true,
+			replacement: compareNodesDeprecation.replacement,
+			removal: compareNodesDeprecation.removal,
+		},
 	};
 }
 
@@ -194,7 +213,8 @@ async function handler(rawInput: Input, context: CommandContext): Promise<Comman
 
 export const compareNodesCommand: CommandDefinition<typeof InputSchema, Output> = {
 	name: 'compare.nodes',
-	description: 'Side-by-side diff of two nodes',
+	description: `Deprecated: use ${compareNodesDeprecation.replacement}, which compares two to four nodes. Side-by-side diff of two nodes; removed in ${compareNodesDeprecation.removal}.`,
+	deprecated: compareNodesDeprecation,
 	category: 'analyze',
 	inputSchema: InputSchema,
 	outputSchema: OutputSchema,
