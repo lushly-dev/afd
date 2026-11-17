@@ -1256,3 +1256,37 @@ fn test_reference_limit_counts_utf16_units_at_the_boundary() {
         );
     }
 }
+
+#[cfg(feature = "server")]
+#[test]
+fn reads_step_data_only_for_references_to_earlier_steps() {
+    use super::reads_step_data;
+    for reference in [
+        "$prev",
+        "$prev.id",
+        "$first",
+        "$first.items[0]",
+        "$steps[1]",
+        "$steps.list.id",
+        "$steps.input",
+    ] {
+        assert!(
+            reads_step_data(&json!({ "nested": [{ "id": reference }] })),
+            "{reference}"
+        );
+    }
+    let long = format!("$prev.{}", "a".repeat(1100));
+    for literal in [
+        "$input",
+        "$input.id",
+        "$$prev",
+        "$prevx",
+        "$prev.a b",
+        "$steps[0][1]",
+        "$9.99",
+        "prev",
+        long.as_str(),
+    ] {
+        assert!(!reads_step_data(&json!({ "value": literal })), "{literal}");
+    }
+}

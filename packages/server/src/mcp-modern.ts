@@ -40,10 +40,11 @@ import { serveStdio } from '@modelcontextprotocol/server/stdio';
 import {
 	APPROVAL_INPUT_KEY,
 	APPROVAL_REQUESTED_SCHEMA,
-	type ApprovalHold,
 	type ApprovalRelay,
 	bindApprovalRelay,
+	type StepsHold,
 } from './approval-relay.js';
+import { createUpFrontApproval } from './approval-up-front.js';
 import {
 	AFD_CONTEXT_META_KEY,
 	type ContextState,
@@ -324,25 +325,38 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			})();
 			return answers;
 		};
-		const ask = async (
+		/**
+		 * Ask `questions` with one form elicitation under their shared input key: one answer
+		 * covers them all. Earlier answers to the same questions (`replaces`, their bindings under
+		 * every key: an expired or spent approval) are dropped, so the new answer is the only one.
+		 */
+		const askAll = async (
+			questions: ReadonlyArray<Omit<Asked, 't'>>,
+			message: string,
+			requestedSchema: unknown,
+			replaces: readonly string[]
+		) => {
+			const { accepted } = await read();
+			const key = (questions[0] as Omit<Asked, 't'>).k;
+			const kept = accepted.filter((item) => item.k !== key || !replaces.includes(item.b));
+			const t = Date.now() + ANSWER_TTL_SECONDS * 1000;
+			return inputRequired({
+				inputRequests: {
+					[key]: inputRequired.elicit({ message, requestedSchema: requestedSchema as never }),
+				},
+				requestState: await stateCodec.mint(
+					{ p: questions.map((question) => ({ ...question, t })), a: kept },
+					ctx
+				),
+			});
+		};
+		const ask = (
 			question: Omit<Asked, 't'>,
 			message: string,
 			requestedSchema: unknown,
 			replaces: readonly string[] = [question.b]
-		) => {
-			const { accepted } = await read();
-			// Earlier answers to the same question (an expired or spent approval, under any key)
-			// are dropped, so the new answer is the only one.
-			const kept = accepted.filter((item) => item.k !== question.k || !replaces.includes(item.b));
-			const asked: Asked = { ...question, t: Date.now() + ANSWER_TTL_SECONDS * 1000 };
-			return inputRequired({
-				inputRequests: {
-					[asked.k]: inputRequired.elicit({ message, requestedSchema: requestedSchema as never }),
-				},
-				requestState: await stateCodec.mint({ p: [asked], a: kept }, ctx),
-			});
-		};
-		return { read, ask };
+		) => askAll([question], message, requestedSchema, replaces);
+		return { read, ask, askAll };
 	}
 
 	/**
@@ -382,11 +396,14 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 		};
 	}
 
-	/** The approval relay of one `tools/call` that can elicit, and the hold recorded on it. */
+	/**
+	 * The approval relay of one `tools/call` that can elicit, and the hold recorded on it: one
+	 * command's, or every gated step's of an `afd-batch` or `afd-pipe` asked up front.
+	 */
 	function approvalRelayFor(round: ReturnType<typeof elicitationRound>) {
 		let routed: string | undefined;
 		let claimed = false;
-		let held: ApprovalHold | undefined;
+		let held: StepsHold | undefined;
 		const relay: ApprovalRelay = {
 			route(command) {
 				routed ??= command;
@@ -406,9 +423,27 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 					? { kind: 'accept', binding: match.b, nonce: match.n, expiresAt: match.x, mac: match.m }
 					: { kind: 'missing' };
 			},
-			hold(hold) {
-				held ??= hold;
+			hold({ message, ...question }) {
+				held ??= { questions: [question], message };
 			},
+			async answers() {
+				const { accepted, declined } = await round.read();
+				const approval = (item: Asked) => item.k === APPROVAL_INPUT_KEY;
+				return {
+					accepted: accepted
+						.filter(approval)
+						.flatMap((item) =>
+							item.n !== undefined && item.x !== undefined && item.m !== undefined
+								? [{ binding: item.b, nonce: item.n, expiresAt: item.x, mac: item.m }]
+								: []
+						),
+					declined: declined.filter(approval).map((item) => item.b),
+				};
+			},
+			holdSteps(hold) {
+				if (hold.questions.length > 0) held ??= hold;
+			},
+			upFront: (tool, request, commands) => createUpFrontApproval(relay, tool, request, commands),
 		};
 		return { relay, held: () => held };
 	}
@@ -519,17 +554,17 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				// the held result.
 				const held = relay?.held();
 				if (held) {
-					return (await round.ask(
-						{
+					return (await round.askAll(
+						held.questions.map((question) => ({
 							k: APPROVAL_INPUT_KEY,
-							b: held.binding,
-							n: held.nonce,
-							x: held.expiresAt,
-							m: held.mac,
-						},
+							b: question.binding,
+							n: question.nonce,
+							x: question.expiresAt,
+							m: question.mac,
+						})),
 						held.message,
 						APPROVAL_REQUESTED_SCHEMA,
-						held.bindings
+						held.questions.flatMap((question) => question.bindings)
 					)) as never;
 				}
 				return { ...result } as never;

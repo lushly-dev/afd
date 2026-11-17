@@ -95,6 +95,39 @@ fn resolve_string<'s, 'c>(value: &'s str, context: &'c PipelineContext) -> Resol
     resolved.map_or(Resolution::Absent, Resolution::Value)
 }
 
+/// Whether `value` holds a reference to an earlier step's data (`$prev`, `$first`, `$steps`),
+/// so it is not known until the pipeline runs (#459). `$input` references and literals are known
+/// up front. Iterative; containers nested deeper than [`MAX_INPUT_DEPTH`] count as reading step
+/// data (the pipeline rejects them before any step runs).
+#[cfg_attr(not(feature = "server"), allow(dead_code))]
+pub(crate) fn reads_step_data(value: &serde_json::Value) -> bool {
+    let mut pending = vec![(value, 1usize)];
+    while let Some((value, depth)) = pending.pop() {
+        match value {
+            serde_json::Value::String(text) => {
+                if text.starts_with("$$") || exceeds_reference_length(text) {
+                    continue;
+                }
+                let reads = reference_pattern().captures(text).is_some_and(|captures| {
+                    captures.get(1).map(|name| name.as_str()) != Some("input")
+                });
+                if reads {
+                    return true;
+                }
+            }
+            serde_json::Value::Array(items) if depth <= MAX_INPUT_DEPTH => {
+                pending.extend(items.iter().map(|item| (item, depth + 1)));
+            }
+            serde_json::Value::Object(map) if depth <= MAX_INPUT_DEPTH => {
+                pending.extend(map.values().map(|item| (item, depth + 1)));
+            }
+            serde_json::Value::Array(_) | serde_json::Value::Object(_) => return true,
+            _ => {}
+        }
+    }
+    false
+}
+
 /// Follow one key: an own key of an object, or a numeric index into an array.
 fn lookup_key<'v>(current: &'v serde_json::Value, key: &str) -> Option<&'v serde_json::Value> {
     if is_reserved(key) {
