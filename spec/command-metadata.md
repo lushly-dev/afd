@@ -414,7 +414,9 @@ A declined, cancelled or unchecked answer to any gated step fails the whole call
 or decline is the call's whole result: a batch result with no item results and the error, or a
 pipeline with one synthetic step at index -1, as for a refused confirmation. A request that cannot
 elicit keeps the fallback above, step by step. A step's handler never sees the up-front approval,
-so a command it runs falls back as a nested command does. Confirmations are checked first, so a
+so a command it runs falls back as a nested command does. The approval middleware removes it from
+the step's context before the step runs, so a server has one approval middleware with the relay,
+and a retry middleware placed before it retries a step as a single command, which is held again. Confirmations are checked first, so a
 batch that needs both asks for each in turn.
 
 An accepted approval that has expired or was already used is asked again, and the question says

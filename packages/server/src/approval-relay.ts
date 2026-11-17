@@ -260,7 +260,11 @@ export function upFrontApproval(context: CommandContext | undefined): UpFrontApp
 
 /**
  * Remove the up-front approval from a step's own context before its handler runs, so a command
- * the handler runs never takes a step's approval. Each step runs with a context of its own.
+ * the handler runs never takes a step's approval. Each step runs with a context of its own. The
+ * approval middleware does this (not the engine, which keeps the gate out of `/direct` hosts), so
+ * only a handler behind an `mcp-elicitation` approval middleware is covered, which is the only
+ * reader of the approval; a retry middleware placed before it retries the step on the ordinary
+ * single-command path, which holds it again.
  */
 export function releaseUpFrontApproval(context: CommandContext): void {
 	delete (context as RelayContext)[UP_FRONT];
