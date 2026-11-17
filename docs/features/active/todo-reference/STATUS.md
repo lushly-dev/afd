@@ -32,7 +32,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
   [#1303](https://github.com/lushly-dev/afd/pull/1303), both 2026-11-15.
 - **In progress:** phase 5. Python is merged in [#1319](https://github.com/lushly-dev/afd/pull/1319) on 2026-11-16: Python at parity with
   TypeScript, and both backends on one SQLite database by default (D4). Rust is merged in
-  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; the C++ parity pull request is in review (see [C++](#c)). After it, what stands of phase 5 is the C++ contexts and tool list, which wait on the library ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) and the wider suite.
+  [#1335](https://github.com/lushly-dev/afd/pull/1335) on 2026-11-16: Rust and both Umbel modes at parity, every approval case included. C++: the library's `afd::mcp_stdio` target that it waited on ([#341](https://github.com/lushly-dev/afd/issues/341)) merged in [#1379](https://github.com/lushly-dev/afd/pull/1379) on 2026-11-17, with the backend on it and confirmations enforced; the C++ parity pull request is in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) (see [C++](#c)). After it, what stands of phase 5 is the C++ contexts and tool list, which wait on the library ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's approval relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)) and the wider suite.
 
 ## Plan
 
@@ -42,7 +42,7 @@ of the [Umbel status](../../../../endpoints/umbel/docs/STATUS.md).
 | 2. The TypeScript reference | Done; job 6 runs on the page in phase 3 and through the copilot in phase 4: #1248, #1251, #1256, #1260 and #1263 | See [phase 2](#phase-2-the-typescript-reference) | None |
 | 3. The Violet frontend | Done: the FAST-AF page in [#1275](https://github.com/lushly-dev/afd/pull/1275), the React page in [#1276](https://github.com/lushly-dev/afd/pull/1276) | See [phase 3](#phase-3-the-violet-frontend) | None |
 | 4. DirectClient | Done: the copilot on the main commands, the tool surface and `allow` (job 10) in [#1281](https://github.com/lushly-dev/afd/pull/1281); the page, with approvals through `onApprovalNeeded` and the page-hosted view (job 6), in [#1303](https://github.com/lushly-dev/afd/pull/1303) | See [phase 4](#phase-4-directclient) | None |
-| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in review | See [phase 5](#phase-5-the-other-languages) | C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)), the wider suite |
+| 5. The other languages | In progress: Python in [#1319](https://github.com/lushly-dev/afd/pull/1319); Rust in [#1335](https://github.com/lushly-dev/afd/pull/1335); C++'s MCP target in [#1379](https://github.com/lushly-dev/afd/pull/1379); C++ parity in review in [#1426](https://github.com/lushly-dev/afd/pull/1426) | See [phase 5](#phase-5-the-other-languages) | C++ contexts ([#1425](https://github.com/lushly-dev/afd/issues/1425)), Python's relay ([#1312](https://github.com/lushly-dev/afd/issues/1312)), the wider suite |
 
 ## Findings
 
@@ -462,7 +462,7 @@ were checked suite by suite; see the session log.
 
 ### C++
 
-In review on branch `t3/cpp-todo-parity`, on the library's `afd::mcp_stdio`
+In review in [#1426](https://github.com/lushly-dev/afd/pull/1426), on the library's `afd::mcp_stdio`
 ([#1379](https://github.com/lushly-dev/afd/pull/1379), merged 2026-11-17):
 
 - **Commands at parity (D2, D3, D7).**
@@ -566,4 +566,4 @@ app is a reference first: where a choice is close it leans toward making the sys
 | 2026-11-15 | Phase 4 page | The copilot page on the FAST-AF element and violet conversation elements, streamed turns, approvals through `onApprovalNeeded`, the page-hosted view (job 6); the vanilla page and `/execute` removed; in #1303 |
 | 2026-11-16 | Phase 5 Python | Python at parity with TypeScript (restore, history, approvals, titles, outputs, undo), the shared SQLite store and the default moved to it in both languages, the interop run, `afd.testing` in the tests, ruff in CI; in #1319 |
 | 2026-11-16 | Phase 5 Rust | Rust at parity on the library (`register_with_schema`, its tool list, stdio, bootstrap, contexts, the approval relay): restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties; the Umbel plugin regenerated and `destructive` on mounted tools; all approval cases in both eras. In #1335 |
-| 2026-11-17 | Phase 5 C++ | C++ at parity on the library (restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties, the clear held for agents through the MCP relay); the spec's `implementedBy` markers removed; all approval cases in both eras. In review |
+| 2026-11-17 | Phase 5 C++ | C++ at parity on the library (restore, history, undo, titles, outputs, alternatives, TypeScript's ids and ties, the clear held for agents through the MCP relay); the spec's `implementedBy` markers removed; all approval cases in both eras. In #1426 |
