@@ -32743,6 +32743,13 @@
             },
             {
               "kind": "field",
+              "name": "#optionsObserver",
+              "privacy": "private",
+              "readonly": true,
+              "default": "new MutationObserver(records => { if (records.some(record => record.target !== this)) { this.handleSlotChange(); } })"
+            },
+            {
+              "kind": "field",
               "name": "#panel",
               "privacy": "private",
               "type": {
@@ -33272,6 +33279,7 @@
                 "text": "string"
               },
               "privacy": "public",
+              "description": "The chosen option's label. It is read from the slotted options, which\nare not observable, so bindings re-read it when the options change.",
               "readonly": true
             },
             {

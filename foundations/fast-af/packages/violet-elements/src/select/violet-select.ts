@@ -1,4 +1,4 @@
-import { attr, css, FASTElement, html, observable, when } from "@lushly-dev/fast-element";
+import { attr, css, FASTElement, html, Observable, observable, when } from "@lushly-dev/fast-element";
 
 import "../option/violet-option";
 import {
@@ -301,6 +301,15 @@ export class VioletSelect extends FASTElement {
         this.handleControlFocusOut(event);
     };
 
+    // The slot's slotchange misses options nested in groups and edits to an
+    // option's label, so watch the light DOM for both (#499).
+    // The host's own attributes are left to their change callbacks.
+    readonly #optionsObserver = new MutationObserver(records => {
+        if (records.some(record => record.target !== this)) {
+            this.handleSlotChange();
+        }
+    });
+
     @observable
     declare public open: boolean;
 
@@ -373,6 +382,13 @@ export class VioletSelect extends FASTElement {
         this.ownerDocument.addEventListener("pointerdown", this.#handleDocumentPointerDown, true);
         window.addEventListener("resize", this.#handleViewportChange);
         window.addEventListener("scroll", this.#handleViewportChange, true);
+        this.#optionsObserver.observe(this, {
+            childList: true,
+            subtree: true,
+            characterData: true,
+            attributes: true,
+            attributeFilter: ["value", "label", "disabled"],
+        });
         this.handleSlotChange();
         this.#defaultValue = this.value;
         this.#syncFormState();
@@ -380,6 +396,7 @@ export class VioletSelect extends FASTElement {
     }
 
     public disconnectedCallback(): void {
+        this.#optionsObserver.disconnect();
         this.removeEventListener("request-select", this.handleRequestSelect as EventListener);
         this.removeEventListener("focusout", this.#handleFocusOut);
         this.ownerDocument.removeEventListener("pointerdown", this.#handleDocumentPointerDown, true);
@@ -416,7 +433,12 @@ export class VioletSelect extends FASTElement {
         return this.#internals.reportValidity();
     }
 
+    /**
+     * The chosen option's label. It is read from the slotted options, which
+     * are not observable, so bindings re-read it when the options change.
+     */
     public get selectedLabel(): string {
+        Observable.track(this, "selectedLabel");
         return this.options.find(option => option.value === this.value)?.labelText ?? "";
     }
 
@@ -461,6 +483,7 @@ export class VioletSelect extends FASTElement {
 
         this.#syncOptions();
         this.#syncFormState();
+        Observable.notify(this, "selectedLabel");
     }
 
     public handleTriggerClick(): void {
