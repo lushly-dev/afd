@@ -3,14 +3,15 @@
  * plugin JavaScript permission; the IPC allow-list is Loam's three commands; `invoke` of any other command an
  * app or plugin can register is refused from the main webview; Tauri's framework transport, the ACL-exempt
  * channel fetch pinned in `src-tauri/tests/acl.rs`, hands out nothing, since Loam uses no `Channel`; neither
- * frame's `invoke` runs a command; and the `loam` protocol answers 404 for a path reaching `mounts.json`.
+ * frame's `invoke` runs a command, nor does one with a forged `Origin` on Tauri's message fallback or a raw IPC
+ * message; and the `loam` protocol answers 404 for a path reaching `mounts.json`.
  */
 import { readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { enterFrames, fixtureTable, leaveFrames, openView, viewDeployment } from './frames';
-import { type Desktop, openDesktop, untilInstance } from './harness';
+import { type Desktop, ORIGINS, openDesktop, untilInstance } from './harness';
 
 const SRC_TAURI = fileURLToPath(new URL('../src-tauri/', import.meta.url));
 /** What `__TAURI_INTERNALS__.invoke` answered: `ok` and its value, or the rejection's text. */
@@ -150,6 +151,92 @@ describe('P6-D4: the capabilities', () => {
 			expect(reached.invoke.ok, frame).toBe(false);
 			for (const answer of Object.values(reached.fetch)) expect(answer, frame).toMatch(/^refused/);
 		}
+		const second = await invoke('mount_open', { instance: 'fixture' });
+		expect(second.ok).toBe(true);
+		expect(Number(second.value)).toBe(Number(first.value) + 1);
+		for (const handle of [first.value, second.value])
+			await invoke('mount_close', { handle: Number(handle) });
+	});
+
+	it("P6-D4: a frame's invoke with a forged Origin, through Tauri's postMessage fallback, and its raw IPC messages run no command", async () => {
+		// On Tauri's postMessage fallback the request's headers are the caller's, so `from_shell`'s `Origin` check
+		// is no barrier there; the barriers are what each engine delivers from a frame and Tauri's invoke key.
+		// On WebView2 a frame has Tauri's IPC script, so once its IPC fetch is refused (the test above) its
+		// `invoke` falls back with the real key and the forged `Origin` below, and would pass `from_shell` if it
+		// arrived. The raw messages carry a forged `Origin` and no valid key, so on their own they show only that
+		// the key holds.
+		await openView(desktop);
+		const first = await invoke('mount_open', { instance: 'fixture' });
+		expect(first.ok).toBe(true);
+		const seen: Record<string, Record<string, string>> = {};
+		for (const inner of [false, true]) {
+			await enterFrames(desktop, inner);
+			seen[inner ? 'view' : 'proxy'] = (await desktop.browser.execute(async (shell) => {
+				const page = window as unknown as {
+					__TAURI_INTERNALS__?: {
+						invoke?(command: string, args: unknown, options: unknown): Promise<unknown>;
+					};
+					ipc?: { postMessage?(message: string): void };
+					chrome?: { webview?: { postMessage?(message: string): void } };
+					webkit?: { messageHandlers?: { ipc?: { postMessage?(message: string): void } } };
+				};
+				const found: Record<string, string> = {};
+				const headers = { Origin: shell };
+				const internals = page.__TAURI_INTERNALS__;
+				if (typeof internals?.invoke === 'function') {
+					try {
+						await Promise.race([
+							internals.invoke('mount_open', { instance: 'fixture' }, { headers }),
+							new Promise((_, reject) => setTimeout(() => reject(new Error('unanswered')), 4_000)),
+						]);
+						found.invoke = 'answered';
+					} catch (error) {
+						found.invoke = String(error);
+					}
+				} else found.invoke = 'no invoke';
+				const message = JSON.stringify({
+					cmd: 'mount_open',
+					callback: 1,
+					error: 2,
+					payload: { instance: 'fixture' },
+					options: { headers },
+					__TAURI_INVOKE_KEY__: 'forged',
+				});
+				const posts: Array<[string, (() => void) | undefined]> = [
+					['window.ipc', page.ipc?.postMessage && (() => page.ipc?.postMessage?.(message))],
+					[
+						'chrome.webview',
+						page.chrome?.webview?.postMessage &&
+							(() => page.chrome?.webview?.postMessage?.(message)),
+					],
+					[
+						'webkit.messageHandlers.ipc',
+						page.webkit?.messageHandlers?.ipc?.postMessage &&
+							(() => page.webkit?.messageHandlers?.ipc?.postMessage?.(message)),
+					],
+				];
+				for (const [name, post] of posts) {
+					if (!post) {
+						found[name] = 'absent';
+						continue;
+					}
+					try {
+						post();
+						found[name] = 'posted';
+					} catch (error) {
+						found[name] = `threw ${(error as Error).name}`;
+					}
+				}
+				// Time for a delivered message to run before the count below.
+				await new Promise((resolve) => setTimeout(resolve, 1_000));
+				return found;
+			}, ORIGINS.shell)) as Record<string, string>;
+			await leaveFrames(desktop);
+		}
+		process.stderr.write(`P6-D4 forged frames on ${process.platform}: ${JSON.stringify(seen)}\n`);
+		// A frame's own answer proves nothing: the fallback answers by `eval` in the top-level document, so a
+		// frame's promise never settles either way. The handle counter is the oracle: no message from either
+		// frame ran `mount_open`.
 		const second = await invoke('mount_open', { instance: 'fixture' });
 		expect(second.ok).toBe(true);
 		expect(Number(second.value)).toBe(Number(first.value) + 1);
