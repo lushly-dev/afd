@@ -1,7 +1,5 @@
 import {
 	SPECIMEN_COMPONENTS,
-	SPECIMEN_REQUIRED_ROLE,
-	SPECIMEN_ROLE_NAMES,
 	conventionToken,
 	specimenRoleDeclaration,
 } from '@lushly-dev/violet-core/css';
@@ -50,7 +48,9 @@ const OutputSchema = z.object({
 		z.object({
 			component: z.string(),
 			label: z.string(),
-			/** Drawn on this node: its background role resolves to a valid colour */
+			/** The role the specimen cannot be drawn without */
+			required: z.string(),
+			/** Drawn on this node: its required role resolves to a valid value */
 			drawn: z.boolean(),
 			roles: z.array(RoleSchema),
 		}),
@@ -101,8 +101,9 @@ export const specimenGetCommand: CommandDefinition<typeof InputSchema, Output> =
 
 		const record = await db.getSpecimenMap(tree.rootId);
 		const map = record?.map ?? {};
-		const components = Object.entries(SPECIMEN_COMPONENTS).map(([component, { label }]) => {
-			const roles = SPECIMEN_ROLE_NAMES.map((role) => {
+		const components = Object.entries(SPECIMEN_COMPONENTS).map(([component, specimen]) => {
+			const { label, required } = specimen;
+			const roles = specimen.roles.map((role) => {
 				const mapped = map[component]?.[role];
 				const tokenId = mapped ?? conventionToken(component, role);
 				const token = tokens.get(tokenId);
@@ -116,8 +117,8 @@ export const specimenGetCommand: CommandDefinition<typeof InputSchema, Output> =
 					...(value !== undefined ? { value } : {}),
 				};
 			});
-			const drawn = roles.some((entry) => entry.role === SPECIMEN_REQUIRED_ROLE && entry.valid);
-			return { component, label, drawn, roles };
+			const drawn = roles.some((entry) => entry.role === required && entry.valid);
+			return { component, label, required, drawn, roles };
 		});
 
 		const drawn = components.filter((entry) => entry.drawn).map((entry) => entry.component);

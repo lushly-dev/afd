@@ -311,7 +311,7 @@ function baseSpec(options: OpenApiSpecOptions) {
 					tags: ['tokens'],
 					summary: "The specimen role map of a node's tree, and which roles draw on the node",
 					description:
-						"Runs `specimen.get`. The map (`{ component: { role: tokenId } }`) is stored once per tree, on its root; `stored` is false when there is none and the naming convention `<component>.<role>` applies. For each component the Specimens view draws (button, input, card), every role lists the token that draws it on this node, whether it comes from the `map` or the `convention`, whether it `resolves` here and whether its value passes the role's CSS validator (`valid`). Needs the `tokens:read` scope.",
+						"Runs `specimen.get`. The map (`{ component: { role: tokenId } }`) is stored once per tree, on its root; `stored` is false when there is none and the naming convention `<component>.<role>` applies. For each component the Specimens view draws (button, input, card, text, link, checkbox, focus), each of its roles lists the token that draws it on this node, whether it comes from the `map` or the `convention`, whether it `resolves` here and whether its value passes the role's CSS validator (`valid`). Needs the `tokens:read` scope.",
 					parameters: [{ name: 'id', in: 'path', required: true, schema: { type: 'string' } }],
 					responses: {
 						'200': { description: 'The map and each component role on the node' },

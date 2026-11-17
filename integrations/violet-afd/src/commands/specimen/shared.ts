@@ -1,4 +1,4 @@
-import { SPECIMEN_COMPONENTS, SPECIMEN_ROLE_NAMES } from '@lushly-dev/violet-core/css';
+import { SPECIMEN_COMPONENTS } from '@lushly-dev/violet-core/css';
 import type { Node, OperationRecord } from '@lushly-dev/violet-core/types';
 import { selectSubtree } from '../node/scope.js';
 import type { Database } from '../registry.js';
@@ -27,6 +27,5 @@ export async function treeTokenIds(db: Database, rootId: string): Promise<Set<st
 	return new Set(collectDefinitions(ids, opsByNode).keys());
 }
 
-/** Known components and roles, for error suggestions */
+/** Known components, for error suggestions */
 export const KNOWN_COMPONENTS = Object.keys(SPECIMEN_COMPONENTS);
-export const KNOWN_ROLES = SPECIMEN_ROLE_NAMES;

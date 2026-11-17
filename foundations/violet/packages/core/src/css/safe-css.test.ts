@@ -9,6 +9,7 @@ import {
 	safeEasing,
 	safeFontFamily,
 	safeShadow,
+	safeTextDecoration,
 } from './safe-css.js';
 
 /**
@@ -53,6 +54,7 @@ const VALIDATORS = {
 	safeShadow,
 	safeDuration,
 	safeEasing,
+	safeTextDecoration,
 	safeCssNumber: (value: unknown) => safeCssNumber(value),
 };
 
@@ -217,5 +219,38 @@ describe('safeEasing', () => {
 		expect(safeEasing('steps(0)')).toBeNull();
 		expect(safeEasing('linear(0, 1)')).toBeNull();
 		expect(safeEasing('spring(1)')).toBeNull();
+	});
+});
+
+describe('safeTextDecoration', () => {
+	it('accepts a line with an optional style, colour and thickness, rebuilt in order', () => {
+		expect(safeTextDecoration('underline')).toBe('underline');
+		expect(safeTextDecoration('None')).toBe('none');
+		expect(safeTextDecoration('Underline Dotted')).toBe('underline dotted');
+		expect(safeTextDecoration('2px #0F6CBD wavy line-through')).toBe(
+			'line-through wavy #0F6CBD 2px',
+		);
+		expect(safeTextDecoration('underline rgba(0, 0, 0, 0.5) from-font')).toBe(
+			'underline rgba(0, 0, 0, 0.5) from-font',
+		);
+		expect(safeTextDecoration('overline currentColor auto')).toBe('overline currentcolor auto');
+	});
+
+	it('rejects values without one line, repeated parts and anything else', () => {
+		expect(safeTextDecoration('dotted')).toBeNull();
+		expect(safeTextDecoration('#0F6CBD 2px')).toBeNull();
+		expect(safeTextDecoration('underline overline')).toBeNull();
+		expect(safeTextDecoration('underline dotted dashed')).toBeNull();
+		expect(safeTextDecoration('underline 1px 2px')).toBeNull();
+		expect(safeTextDecoration('underline #000 #fff')).toBeNull();
+		expect(safeTextDecoration('underline -1px')).toBeNull();
+		expect(safeTextDecoration('underline blink')).toBeNull();
+		expect(safeTextDecoration('underline url(x)')).toBeNull();
+		expect(safeTextDecoration('underline;color:red')).toBeNull();
+		expect(safeTextDecoration('underline var(--x)')).toBeNull();
+		expect(safeTextDecoration('underline solid #000 1px auto')).toBeNull();
+		expect(safeTextDecoration('')).toBeNull();
+		expect(safeTextDecoration(1)).toBeNull();
+		expect(safeTextDecoration(`underline ${' '.repeat(80)}`)).toBeNull();
 	});
 });
