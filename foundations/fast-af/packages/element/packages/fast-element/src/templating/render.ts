@@ -31,7 +31,7 @@ import {
     type TemplateValue,
     ViewTemplate,
 } from "./template.js";
-import { createChildView } from "./view.js";
+import { createChildView, hydrateChildView } from "./view.js";
 
 type ComposableView = ContentView & {
     isComposed?: boolean;
@@ -85,7 +85,12 @@ export class RenderBehavior<TSource = any> implements ViewBehavior, Subscriber {
                 controller.bindingViewBoundaries[this.directive.targetNodeId];
 
             if (viewNodes) {
-                this.view = this.template.hydrate(viewNodes.first, viewNodes.last);
+                this.view = hydrateChildView(
+                    this.template,
+                    viewNodes.first,
+                    viewNodes.last,
+                    controller,
+                );
                 this.bindView(this.view);
                 return;
             }
