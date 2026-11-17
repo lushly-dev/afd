@@ -304,6 +304,47 @@ default, the budget and `fits`, each limit on the call and in the doctor, `minim
 `tests/consumers.rs` (the scenario), `tests/content_stays_content.rs` (a canary in a statement)
 and `scripts/umbel-components.test.mjs` (the launcher).
 
+### Amendment A29: the component build (step D2, #1155)
+
+Proposal step D2, once WIT world 1.1.0 carried the output budget (D189 to D191) and the deployer could choose a
+component's journal mode (D195 to D197). The same source builds as a WebAssembly component for the stock `umbel` (D198):
+
+- **Build.** `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-components --features component`.
+  The `component` feature turns on `umbel-sdk/component`, and `export_component!` exports world 1.1.0. As in hello,
+  `unsafe_code` is `deny` rather than `forbid` under the feature, for wit-bindgen's glue only. The crate is a
+  `cdylib` and an `rlib`, so `umbel-first-party` still links the compiled build.
+- **Manifest.** `manifests/component.toml` is `umbel-plugin.toml` with four differences, which
+  `tests/component_manifest.rs` holds:
+  - `kind = "component"`;
+  - `[component] path = "components.wasm"`;
+  - no command `journal`, which a component may not declare (D191);
+  - the grants `clock` and `random`.
+- **Why `clock` and `random`.** The loader refuses the component without both (`PLUGIN_IMPORT_DENIED`), and no
+  command reads either:
+  - `clock`: Rust's standard library for `wasm32-wasip2` imports `wasi:clocks/monotonic-clock`. Hello, the budget
+    fixture and the fixtures built with wit-bindgen import it too.
+  - `random`: `wasi:random/insecure-seed` seeds `RandomState`, which the crate's own `HashMap`s and `HashSet`s use,
+    and so does `regex-automata`'s map of capture names (`util/captures.rs`, reached through `regex`).
+    World 1.1.0's specification (section 7) offered `BTreeMap` in place of `random`. A build with the crate's maps
+    swapped for `BTreeMap` still imported the seed through `regex`, so the source keeps its maps.
+
+  Neither grant reaches a store, the network or a write.
+- **Journal.** The deployer sets the compiled build's digest modes in `umbel.toml` under
+  `[plugins.components.journal]` (the README gives the block). Without it, the component's calls are journaled in full.
+- **Pack checks.** Still compiled only (A23): a space override of the component build is checked for its layout in
+  the doctor, and refused on the call.
+
+Tests: the host's `tests/component_components.rs` boots the component beside the compiled build:
+- It holds eleven calls' answers equal, each with its expected success: briefs by tags, by source as text, with an
+  unknown tag, with `known`, shed to a small `maxBytes`, and with an unknown consumer or library; two lists; an
+  open of a known and of an unknown tag.
+- It checks that a brief with no `maxBytes` sheds to the output budget the call carries, which the component reads
+  through world 1.1.0's `call` interface, and that both builds shed the same way.
+- It checks the deployer's digest journal, set from the compiled manifest's `journal` declarations, together with
+  `plugin-show`'s `setBy`.
+- It holds the README's `[plugins.components.journal]` block equal to those declarations. CI builds the `.wasm` with hello and the
+fixtures, and lints it for the target with the feature.
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -334,7 +375,7 @@ already depends on. Checked 2026-11-10 against the watchlist rows, with no sourc
 | Row | Bears on | Effect |
 | --- | --- | --- |
 | W9, W16 | The `components-guide` skill, served as phases 1 and 2 serve skills | None: the skill uses the delivery paths that exist |
-| W17 | The component build (step D2) | None now: D2 waits for WIT world 1.1.0, which this plugin does not ask for. World 1.1.0 is specified 2026-11-16 ([its specification](../../phases/1-plugin-contract/world-1.1.spec.md), D189 to D191): the budget through the `call` interface, and `journal` admitted on component commands |
+| W17 | The component build (step D2) | Done 2026-11-17 (A29, D198): world 1.1.0 carries the budget through the `call` interface ([its specification](../../phases/1-plugin-contract/world-1.1.spec.md), D189 to D191); a component declares no `journal` (D191), and the deployer sets it (D195 to D197) |
 | W18 | `render: "text"`, the block a harness injects | The block is capped by the call's budget, and Claude Code's `additionalContext` cap is 10 000 characters (W18's refresh of 2026-11-01); the skill tells a harness to pass `maxBytes` when it injects |
 
 The custom-element name rule a tag must follow is Specimen's pattern, not re-derived here from the HTML standard.
@@ -1179,6 +1220,8 @@ The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm3
 and build lists; those build `.wasm` components with a `component` feature, which this crate does not have until step
 D2, so it gets a clippy check for the target and no `.wasm` build. If the SDK's compiled surface does not build for that target, step C1 records
 why and checks the crate's own modules for the target instead, and the follow-ups table gains the gap for step D2.
+Since step D2 (A29) the crate has the feature: CI lints it for the target with `--features component` and builds
+`umbel_plugin_components.wasm` beside hello and the fixtures.
 
 ## 12. Implementation plan
 
@@ -1235,7 +1278,7 @@ lives (D150), reading whole libraries on every call (D152), the shedding order's
 | 2026-11-10 | This specification | Specimen's `specimen-pack-export` swaps the pack directory; it must carry the deployer's `pack.toml` across, or the host loses the override | Specimen's T12, step B3 |
 | 2026-11-10 | This specification | Reading every record on every call is measured in C2 (`scale.rs`); a cache keyed by the catalog's digest, re-checking each record's digest, is the answer if it is too slow, and a component build cannot keep one | Measured 2026-11-11 in step C2: a 20-tag brief on a 990-record library (992 files, 3.0 MB) took 0.29 to 0.38 s a call in a debug build on the shared 10-core Mac with the load under 20 (0.9 to 3.3 s under a load of 25 to 33), and `components-list` 0.28 s, so the read and check dominate. Read time grows with the library, so FAST-AF's 77 components should cost about a tenth of that; not measured. No cache yet: C4 measures B4's real pack, and C5 records what a session pays. Measured 2026-11-11 in step C4 (`fast_af.rs`): a twenty-component brief on FAST-AF's 77 records beside the example took 365 to 865 ms, median 613 ms of five, in a debug build under a load of about 17, so load more than size; still no cache |
 | 2026-11-10 | This specification | A new override needs a restart, and a changed one is served unchecked against the pack limits (D46). Stated in the README; the host change is the proposal's step D4 | Proposal step D4 |
-| 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Proposal step D2 |
+| 2026-11-10 | This specification | The component build needs WIT world 1.1.0 to carry the output budget | Done 2026-11-17: world 1.1.0 (D189 to D191), the deployer's journal mode (D195 to D197), and the build itself (A29, D198) |
 | 2026-11-12 | Step C5 | A tag that is not a custom element name (`breadcrumb`) is refused with `COMPONENTS_INVALID` and a generic suggestion; a rerun session recovered with `components-list`. The refusal could name each library's prefix, or answer such a name as `unknown` with `nearest` | Done 2026-11-16 by amendment A26 ([#1151](https://github.com/lushly-dev/afd/issues/1151)): the refusal names the matching served tags, or the prefixes |
 | 2026-11-12 | Step C5 | Claude Code defers MCP tools, so `components-brief` as a first-class suggestion is out of sight until a task names it; two Loam sessions told only by the design record and a skill never called it | The Component Briefs status, the owner's |
 | 2026-11-11 | A23 | The doctor's `plugins.pack_checks` reaches compiled plugins only: a component (WIT world 1.0.0) and a mounted server offer no check, so once this plugin is built as a component (step D2) its overrides are checked for layout only unless the world gains an export for it | Proposal step D2 |

@@ -25,7 +25,7 @@ pub fn wasm(name: &str) -> PathBuf {
         .join(format!("{name}.wasm"));
     assert!(
         path.is_file(),
-        "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget --features umbel-plugin-hello/component,umbel-fixture-budget/component`",
+        "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello -p umbel-plugin-components -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component`",
         path.display()
     );
     path
@@ -77,6 +77,29 @@ pub fn hello_dir(parent: &Path) -> PathBuf {
     );
     for tree in ["packs", "skills", "schemas"] {
         copy_tree(&hello_crate().join(tree), &root.join(tree));
+    }
+    root
+}
+
+pub fn components_crate() -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR")).join("plugins/components")
+}
+
+/// The components plugin as a component (Component Briefs step D2): its committed
+/// `manifests/component.toml`, the component as `components.wasm`, and the crate's packs, skills
+/// and schemas.
+pub fn components_dir(parent: &Path) -> PathBuf {
+    let manifest =
+        std::fs::read_to_string(components_crate().join("manifests/component.toml")).unwrap();
+    let root = component_dir(
+        parent,
+        "components",
+        &manifest,
+        "umbel_plugin_components",
+        "components.wasm",
+    );
+    for tree in ["packs", "skills", "schemas"] {
+        copy_tree(&components_crate().join(tree), &root.join(tree));
     }
     root
 }

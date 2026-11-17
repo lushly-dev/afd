@@ -3997,6 +3997,7 @@ dependencies = [
  "tracing",
  "tracing-subscriber",
  "umbel",
+ "umbel-plugin-components",
  "umbel-plugin-hello",
  "umbel-scan",
  "umbel-sdk",

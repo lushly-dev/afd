@@ -13,7 +13,10 @@
 //! Everything read from a pack that is not a checked identifier sits in one part of an answer
 //! labelled `trust: "content"`, and never in a message, warning, reasoning or log line (D67,
 //! D153). No code here uses a filesystem, clock, thread or network.
-#![forbid(unsafe_code)]
+//!
+//! The same source builds as a WebAssembly component (`--features component`, target
+//! `wasm32-wasip2`), served with `manifests/component.toml` (Component Briefs step D2).
+#![cfg_attr(not(feature = "component"), forbid(unsafe_code))]
 
 mod brief;
 mod consumer;
@@ -130,3 +133,7 @@ impl Settings {
         basis_rank(basis) <= self.minimum_basis
     }
 }
+
+// The component build: the exports of `umbel:plugin/plugin@1.1.0`, routed to `Components`.
+#[cfg(feature = "component")]
+umbel_sdk::export_component!(Components);

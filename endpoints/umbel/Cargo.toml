@@ -189,6 +189,8 @@ tokio = { version = "1", features = ["test-util"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["aws_lc_rs", "tls12"] }
 # The integration tests drive the test kit, and the hello plugin as a second compiled plugin.
 umbel = { path = ".", features = ["testkit"] }
+# `component_components.rs` holds the components plugin's component build to its compiled build.
+umbel-plugin-components = { path = "plugins/components" }
 umbel-plugin-hello = { path = "plugins/hello" }
 umbel-sdk = { path = "sdk", features = ["mounted"] }
 # The auth tests' certificate authority, access tokens and assertions (phase 5 step 1b). Only ever
