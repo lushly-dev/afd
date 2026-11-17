@@ -1,5 +1,5 @@
 {
-	"description": "Approval holds (spec/command-metadata.md, \"Approvals\") against a backend started with APPROVALS=agents, where todo-clear, the one change nothing undoes, is held for any caller that is not a person and an MCP caller is an agent. Each case names the client it needs: \"acknowledge\" declares no elicitation, so a held call fails with APPROVAL_REQUIRED; \"accept\" and \"decline\" declare form elicitation, so the server asks the person, and the client answers every question that way. The runner resets the live list with todo-delete-batch, since a clear would be held; \"then\" checks the state afterwards. TypeScript, Rust and C++ run every case and Python the two acknowledge cases: the Python library cannot yet ask the person over MCP (no elicitation relay for approvals, https://github.com/lushly-dev/afd/issues/1312), so the accept and decline cases leave it out.",
+	"description": "Approval holds (spec/command-metadata.md, \"Approvals\") against a backend started with APPROVALS=agents, where todo-clear, the one change nothing undoes, is held for any caller that is not a person and an MCP caller is an agent. Each case names the client it needs: \"acknowledge\" declares no elicitation, so a held call fails with APPROVAL_REQUIRED; \"accept\" and \"decline\" declare form elicitation, so the server asks the person, and the client answers every question that way. The runner resets the live list with todo-delete-batch, since a clear would be held; \"then\" checks the state afterwards. Every backend runs every case.",
 	"tests": [
 		{
 			"name": "An agent's clear is held",
@@ -36,7 +36,6 @@
 			"name": "An approved clear runs",
 			"description": "The server asks the person, who approves, and the clear removes the completed todo",
 			"client": "accept",
-			"implementedBy": ["typescript", "rust", "cpp"],
 			"setup": [
 				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
 				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
@@ -54,7 +53,6 @@
 			"name": "A declined clear does not run",
 			"description": "The server asks the person, who declines, and nothing is removed",
 			"client": "decline",
-			"implementedBy": ["typescript", "rust", "cpp"],
 			"setup": [
 				{ "command": "todo-create", "input": { "title": "Done already" }, "capture": "done" },
 				{ "command": "todo-toggle", "input": { "id": "$done.id" } }
