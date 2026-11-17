@@ -289,11 +289,15 @@ export async function createApiServer(
 				const commands = registry
 					.list()
 					.filter((cmd) => !HTTP_EXCLUDED_COMMANDS.has(cmd.name))
-					.map((cmd) => ({
-						name: cmd.name,
-						description: cmd.description,
-						category: cmd.name.split('.')[0],
-					}));
+					.map((cmd) => {
+						const deprecated = registry.get(cmd.name)?.deprecated;
+						return {
+							name: cmd.name,
+							description: cmd.description,
+							category: cmd.name.split('.')[0],
+							...(deprecated ? { deprecated: true, replacement: deprecated.replacement } : {}),
+						};
+					});
 				send(res, { success: true, data: { commands } }, 200, corsHeaders);
 				return;
 			}
@@ -339,7 +343,14 @@ export async function createApiServer(
 
 				const context = createContext(db);
 				const result = await registry.execute(command, input, context);
-				send(res, result, 200, corsHeaders);
+				// RFC 9745: a deprecated command is still served, flagged for the caller.
+				const deprecation: Record<string, string> = cmd.deprecated
+					? {
+							Deprecation: 'true',
+							Link: `</api/v1/${cmd.deprecated.replacement.replace('.', '/')}>; rel="successor-version"`,
+						}
+					: {};
+				send(res, result, 200, { ...corsHeaders, ...deprecation });
 				return;
 			}
 

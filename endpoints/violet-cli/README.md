@@ -32,7 +32,7 @@ Settings: `node`, `parent`, `type`, `includes`, and `tiers: true` to read top-le
 
 `--theme-map` is a JSON object mapping FenUI semantic names to color token IDs, e.g. `{ "surfacePanel": "color.bg" }`.
 
-Without `--from`, the CLI keeps nodes in a SQLite database (`~/.violet/violet.db`, or `--db <path>`), which needs the optional `better-sqlite3` package. `violet call <command>` runs any registered command by name, and `violet mcp start` starts the MCP server. `violet compare <a> <b> [c] [d]` puts two to four nodes side by side and prints the tokens that differ from the first, with how alike each pair is (`--all` for every token, `--category`, `--filter`).
+Without `--from`, the CLI keeps nodes in a SQLite database (`~/.violet/violet.db`, or `--db <path>`), which needs the optional `better-sqlite3` package. `violet call <command>` runs any registered command by name, and `violet mcp start` starts the MCP server. `violet compare <a> <b> [c] [d]` puts two to four nodes side by side and prints the tokens that differ from the first, with how alike each pair is (`--all` for every token, `--category`, `--filter`). It runs `tokens.compare`; the older two-node `compare.nodes` is deprecated and will be removed in `@lushly-dev/violet-afd` 0.5.0.
 
 ## Daily rule-check snapshots
 

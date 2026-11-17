@@ -246,6 +246,18 @@ describe('analyze commands', () => {
 	});
 
 	describe('compare.nodes', () => {
+		it('is deprecated in favour of tokens.compare and says so in a result (#500)', async () => {
+			expect(compareNodesCommand.description).toMatch(/^Deprecated: use tokens\.compare/);
+			expect(compareNodesCommand.deprecated?.replacement).toBe('tokens.compare');
+
+			const result = await compareNodesCommand.handler({ nodeA: 'global', nodeB: 'xbox' }, context);
+
+			expect(result.success).toBe(true);
+			expect(result.reasoning).toContain('tokens.compare');
+			expect(result.warnings?.[0]?.code).toBe('DEPRECATED_COMMAND');
+			expect(result.metadata).toMatchObject({ deprecated: true, replacement: 'tokens.compare' });
+		});
+
 		it('should compare two nodes', async () => {
 			const result = await compareNodesCommand.handler({ nodeA: 'global', nodeB: 'xbox' }, context);
 
