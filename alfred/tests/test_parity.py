@@ -888,8 +888,8 @@ NAME_GAP_BUDGET = {
     # the pipeline aggregation helpers; CommandParameter and createCommandRegistry.
     # 73 → 75: commandToolAnnotations and commandResultOutputSchema (MCP tool fields), in
     # the deferred MCP helpers group; the C++ todo backend derives them inline.
-    # 76 → 71 (#465): commandResultOutputSchema, in afd/mcp.hpp, closes one gap; the other four
-    # had closed earlier without the budget being lowered.
+    # 76 → 71 (#465): commandResultOutputSchema, in afd/mcp.hpp, closes one gap; the budget had
+    # stayed at 76 after the measured count fell to 72 (docs/language-parity.md).
     "missing_from_cpp": 71,
 }
 
