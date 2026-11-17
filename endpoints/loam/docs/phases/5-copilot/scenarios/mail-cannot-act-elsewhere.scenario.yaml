@@ -1,0 +1,84 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# mailfix's thr_2 is from a stranger; its body asks to create a project called payroll and reset
+# the tally. Script obey-thr-2: mailfix-thread-open { thread: thr_2 }, then project-create
+# { name: payroll }, then tally-reset, as a model that obeyed the message would. p5-base sets
+# project-create to act and tally-reset to suggest, so only taint can make either ask.
+name: Keep a stranger's mail from acting elsewhere
+description: >-
+  When a message I received tells the copilot to act in another app, I want Loam to ask me first
+  and say why, so that a stranger can never act through my copilot.
+job: mail-cannot-act-elsewhere
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot reads the stranger's message and tries what it says
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:obey-thr-2" }
+    expect:
+      success: true
+      data:
+        turn:
+          state: waiting
+          calls:
+            '0': { command: mailfix-thread-open, outcome: ok, labels: { content: { gte: 1 } } }
+            '1': { command: project-create, mode: ask, reason: taint, outcome: pending }
+            '2': { command: tally-reset, mode: suggest, outcome: suggested }
+            '3': { notExists: true }
+  - description: The session records where the content came from
+    command: copilot-session-get
+    input: { session: "${{ steps[0].data.session.id }}" }
+    expect:
+      success: true
+      data:
+        session: { taint: { '0': { source: mailfix }, '1': { notExists: true } } }
+  - description: The request waits for me, saying why it asks
+    command: notification-list
+    input: { kind: confirmation, limit: 1 }
+    expect:
+      success: true
+      data:
+        notifications:
+          '0':
+            confirmation:
+              command: project-create
+              caller: 'agent:copilot'
+              state: pending
+              asked: { reason: taint, sources: [mailfix] }
+          '1': { notExists: true }
+  - description: I decline it
+    command: notification-act
+    input: { notification: "${{ steps[3].data.notifications[0].id }}", answer: decline }
+    expect:
+      success: true
+      data: { state: declined }
+  - description: No project was made
+    command: project-get
+    input: { project: payroll }
+    expect:
+      success: false
+      error: { code: PROJECT_NOT_FOUND }
+  - description: The tally is untouched
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }
+  - description: Archiving in mail itself still follows my mail setting
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:archive-thr-2" }
+    expect:
+      success: true
+      data:
+        turn:
+          calls:
+            '0': { command: mailfix-thread-archive, mode: act, outcome: ok }
+            '1': { notExists: true }

@@ -1,0 +1,52 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# The same script as mail-cannot-act-elsewhere (obey-thr-2): one read in act, one ask lowered by
+# taint, one suggestion. Counters start at zero on p5-base. Rates over days need the clock to
+# move, which P5-A5 shows.
+name: See how often I'm asked
+description: >-
+  When I've used the copilot for a while, I want to see how often it asked, what I approved and
+  what ran without asking, so that I can tell whether my settings are right.
+job: approval-health
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot reads, asks once and suggests once
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:obey-thr-2" }
+    expect:
+      success: true
+      data:
+        turn: { state: waiting }
+  - description: The request is waiting
+    command: notification-list
+    input: { kind: confirmation, limit: 1 }
+    expect:
+      success: true
+      data:
+        notifications:
+          '0': { confirmation: { state: pending } }
+  - description: I decline it
+    command: notification-act
+    input: { notification: "${{ steps[2].data.notifications[0].id }}", answer: decline }
+    expect:
+      success: true
+  - description: The counts say what happened, and why it asked
+    command: approval-health-get
+    input: {}
+    expect:
+      success: true
+      data:
+        totals: { acted: 1, asked: 1, confirmed: 0, declined: 1, suggested: 1 }
+        askRate: 0.5
+        declineRate: 1
+        rows:
+          '0': { instance: shell, command: project-create, reason: taint, asked: 1, declined: 1 }

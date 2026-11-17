@@ -1,0 +1,44 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# p5-base sets tally-reset to suggest. Script reset-tally: tally-reset {}.
+name: Only suggest where I said so
+description: >-
+  When I've told agents only to suggest a command, I want the copilot to offer it for me to run
+  instead of running it, so that my setting holds.
+job: copilot-suggests-only
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot offers the reset and runs nothing
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:reset-tally" }
+    expect:
+      success: true
+      data:
+        turn:
+          state: done
+          calls:
+            '0': { command: tally-reset, mode: suggest, outcome: suggested, code: AUTONOMY_SUGGEST_ONLY }
+            '1': { notExists: true }
+  - description: The count is unchanged
+    command: tally-get
+    input: {}
+    expect:
+      success: true
+      data: { count: 3 }
+  - description: "[agent] The same call from any agent is only a suggestion"
+    command: tally-reset
+    input: {}
+    expect:
+      success: false
+      error:
+        code: AUTONOMY_SUGGEST_ONLY
+        suggestion: { contains: run }

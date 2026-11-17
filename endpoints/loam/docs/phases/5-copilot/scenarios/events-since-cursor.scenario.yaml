@@ -1,0 +1,39 @@
+# Draft JTBD scenario for Loam's phase 5 specification, milestone B. Needs Loam's runner (tag
+# loam-runner) on the seed p5-base; the step directives are phase 4's. An event's subject is a
+# ResourceLinkV2, whose exact form milestone B's amendment fixes, so only its kind is asserted.
+# The data is invented.
+name: Pick up what changed
+description: >-
+  When I am an app or an agent catching up, I want the shell's events since my cursor, filtered
+  to what I may see, so that I never re-read everything.
+job: events-since-cursor
+tags: [loam-runner]
+steps:
+  - description: "[agent] The agent reads the latest cursor"
+    command: event-list
+    input: { limit: 1 }
+    expect:
+      success: true
+      data: { cursor: { exists: true } }
+  - description: I create a project
+    command: project-create
+    input: { name: Orchard }
+    expect:
+      success: true
+  - description: "[agent] Since its cursor, the agent sees exactly that"
+    command: event-list
+    input: { since: "${{ steps[0].data.cursor }}" }
+    expect:
+      success: true
+      data:
+        events:
+          '0': { kind: project-created }
+          '1': { notExists: true }
+  - description: "[caller: tally] An app without the events grant is refused"
+    command: event-list
+    input: {}
+    expect:
+      success: false
+      error:
+        code: GRANT_REQUIRED
+        suggestion: { contains: events }

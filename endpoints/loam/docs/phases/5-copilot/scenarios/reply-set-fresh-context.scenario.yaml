@@ -1,0 +1,52 @@
+# Draft JTBD scenario for Loam's phase 5 specification. Needs Loam's runner (tag loam-runner):
+# it runs on the seed p5-base and reads the step directives in descriptions, which AFD's
+# `afd scenario run --server` ignores (the specification's "Jobs and scenarios"). The copilot's
+# model is the test provider, which plays the script a message names (`script:<name>`, from
+# kernel/scenarios/model-scripts.ts). The data is invented. Lists are asserted by index ('0'),
+# and an end of list by `'n': { notExists: true }`.
+# p5-base holds mailfix's reply set rs_1: Ada asked about Thursday and Bea about the invoice, and
+# the person's answers are recorded. Script compose-rs-1: mailfix-replyset-next { replyset: rs_1 }
+# twice. Each result is a unit, which the test provider's composer script echo-unit answers with
+# "Dear <the unit's sender>," and the question it was given. Which messages the composer was
+# given is P5-A7's, since a scenario cannot read the provider's inputs.
+name: Compose each reply from its own message
+description: >-
+  When the copilot writes a set of replies, I want each written from only that person's message
+  and my answers, so that one sender's text cannot reach another's reply.
+job: reply-set-fresh-context
+tags: [slice, loam-runner]
+steps:
+  - description: I start a session
+    command: copilot-session-start
+    input: {}
+    expect:
+      success: true
+  - description: The copilot works through the set one unit at a time
+    command: copilot-message-send
+    input: { session: "${{ steps[0].data.session.id }}", text: "script:compose-rs-1" }
+    expect:
+      success: true
+      data:
+        turn:
+          state: done
+          calls:
+            '0': { command: mailfix-replyset-next, outcome: ok, unit: { state: composed } }
+            '1': { command: mailfix-replyset-next, outcome: ok, unit: { state: composed } }
+            '2': { notExists: true }
+  - description: The conversation never saw either message, so it carries no taint
+    command: copilot-session-get
+    input: { session: "${{ steps[0].data.session.id }}" }
+    expect:
+      success: true
+      data:
+        session: { taint: { length: 0 } }
+  - description: Each reply names only its own sender
+    command: mailfix-replyset-show
+    input: { replyset: rs_1 }
+    expect:
+      success: true
+      data:
+        replies:
+          '0': { recipient: ada@example.com, text: { matches: '^(?![\s\S]*Bea)[\s\S]*Ada' } }
+          '1': { recipient: bea@example.com, text: { matches: '^(?![\s\S]*Ada)[\s\S]*Bea' } }
+          '2': { notExists: true }
