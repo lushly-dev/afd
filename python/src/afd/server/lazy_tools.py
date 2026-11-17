@@ -165,9 +165,12 @@ def execute_detail(
             "outputSchema": command.returns,
             "version": command.version,
             "callable": command.name in exposed_command_names,
-            "requires": list(command.requires or []),
-            "contexts": list(command.contexts or []),
-            "examples": serialize_command_examples(list(command.examples or [])),
+            # Empty lists are omitted, as in `_meta` and the other languages.
+            "requires": list(command.requires) if command.requires else None,
+            "contexts": list(command.contexts) if command.contexts else None,
+            "examples": (
+                serialize_command_examples(list(command.examples)) if command.examples else None
+            ),
             "handoff": command.handoff,
             "handoffProtocol": command.handoff_protocol,
             "destructive": command.destructive,
