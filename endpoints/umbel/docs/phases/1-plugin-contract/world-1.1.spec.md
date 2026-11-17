@@ -272,7 +272,8 @@ world, but its manifest and source do:
   section 4; `analyze.rs`'s `wasi_grant`). D2 either declares `random` in the component manifest (amending D151's
   grant list) or uses `BTreeMap` and `BTreeSet`.
 - **`journal`.** The owner answered (D195): the deployer sets it in `umbel.toml`, built in
-  [#1382](https://github.com/lushly-dev/afd/issues/1382). Until then, a component manifest beside the compiled one, as
+  [#1382](https://github.com/lushly-dev/afd/issues/1382) by the [component journal specification](component-journal.spec.md)
+  (`[plugins.<id>.journal]`, added to configuration version 7). Until then, a component manifest beside the compiled one, as
   hello keeps `manifests/component.toml`, declares no `journal`, so the journal records its calls as it records any
   plain command, input and result included.
 - **Pack checks.** The doctor's `plugins.pack_checks` reaches compiled plugins only (components specification, A23).
