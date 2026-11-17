@@ -177,7 +177,8 @@ describe("violet-switch", () => {
             const changes: boolean[] = [];
             element.addEventListener("change", () => changes.push(element.checked));
 
-            (element.shadowRoot?.querySelector(".track") as HTMLElement).click();
+            const track = element.shadowRoot?.querySelector(".track") as HTMLElement;
+            track.click();
 
             expect(element.checked).toBe(true);
             expect(changes).toEqual([true]);

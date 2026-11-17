@@ -8987,7 +8987,7 @@
       "upstream_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
       "staged_path": "packages/violet-elements/src/switch/violet-switch.spec.ts",
       "staged_sha256": "0be3a9b2e2e43cae6eab3bbaf8f08bdc78ba1a8ebf09ce296c952fc6156283a4",
-      "current_import_sha256": "9e58794b58d3c82ed353d8c8cbd44c0e7f1381ea33bf9a1f8730c2d4677b5498",
+      "current_import_sha256": "b2c5f0ed11828e3aff5dba1ca36da84f3dd81750bc0d9fa7bce39e666b6e39cc",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
