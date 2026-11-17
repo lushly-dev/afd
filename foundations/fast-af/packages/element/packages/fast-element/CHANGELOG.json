@@ -2,6 +2,254 @@
   "name": "@microsoft/fast-element",
   "entries": [
     {
+      "date": "Wed, 11 Nov 2026 04:24:47 GMT",
+      "version": "3.1.4",
+      "tag": "@microsoft/fast-element_v3.1.4",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "759121804207e65d9431ab2c74baf3f7268fd42d",
+            "comment": "Preserve default-slot fallback when conditional or empty light-DOM bindings render no content."
+          }
+        ],
+        "none": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "59c074544aa20b99d5b15774b05777e875a89f03",
+            "comment": "Harden cross-platform fixture paths and asynchronous error tests."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Mon, 02 Nov 2026 18:49:44 GMT",
+      "version": "3.1.3",
+      "tag": "@microsoft/fast-element_v3.1.3",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "4be355ca16bb4fdf5b440671b704cc7add426171",
+            "comment": "Initialize complete, dependency-free metadata reflection for Context and dependency injection while keeping core and declarative bundles unchanged."
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "a0786bf7265b28a8c41bfa651d9f16ee647545ad",
+            "comment": "Fix repeat ordering for multi-digit indices and preserve structural changes in mixed array mutation batches."
+          },
+          {
+            "author": "863023+radium-v@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "2e3880fdccac48134aaffdf8126ffe1742f347e2",
+            "comment": "Reduce allocations and function calls in the when directive for fixed templates."
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "bfa3155e823f7d922018f25cb50177029c2d6af3",
+            "comment": "Enable the built-in DOM sink guards consistently across entrypoints and validate coerced URL values while preserving application policy configuration."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Tue, 20 Oct 2026 19:01:10 GMT",
+      "version": "3.1.2",
+      "tag": "@microsoft/fast-element_v3.1.2",
+      "comments": {
+        "none": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "c4013349a5914759dba9dc070f0617ebcaa4ec63",
+            "comment": "Document that bindings and FAST directive markup inside HTML comments are unsupported."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Wed, 14 Oct 2026 22:58:43 GMT",
+      "version": "3.1.2",
+      "tag": "@microsoft/fast-element_v3.1.2",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "436c08bc8e603eb9cbfc46d255fcbec6d4f8c998",
+            "comment": "Avoid live-range hydration fallback for unobserved native markers on FAST elements registered after hydration is enabled, while keeping observation tracking out of client-only bundles."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Wed, 14 Oct 2026 04:26:38 GMT",
+      "version": "3.1.1",
+      "tag": "@microsoft/fast-element_v3.1.1",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "not available",
+            "comment": "Reduce hydration traversal and native marker allocations, and pair scoped repeat ranges in a forward pass while preserving live DOM mutation behavior."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Wed, 14 Oct 2026 02:56:20 GMT",
+      "version": "3.1.0",
+      "tag": "@microsoft/fast-element_v3.1.0",
+      "comments": {
+        "none": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "fb55a8b887edc12f0cd48f9249d5f8c6cd0bcb53",
+            "comment": "Cover omitted server-rendered attributes and their reactive hydration updates in declarative fixtures."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Fri, 09 Oct 2026 21:33:43 GMT",
+      "version": "3.1.0",
+      "tag": "@microsoft/fast-element_v3.1.0",
+      "comments": {
+        "minor": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "c31cde075f64a8b108d426a11e0b54f2ebb3a82d",
+            "comment": "Add an opt-in markers_v2 export providing the last major version's FAST Element 2.x indexed hydration markers, for interoperability with backend systems that have not yet adopted the FAST Element 3.x data-free marker format. The default reader continues to recognize only 3.x data-free markers; markers_v2 must be explicitly installed to hydrate against legacy 2.x indexed marker output, and its parsing logic is tree-shaken out of the bundle unless imported."
+          }
+        ],
+        "patch": [
+          {
+            "author": "jes@microsoft.com",
+            "package": "@microsoft/fast-element",
+            "commit": "c05d0d79637ac313cf67f09820c2aec8ad755c24",
+            "comment": "Block iframe srcdoc attribute bindings in the default DOM policy."
+          }
+        ],
+        "none": [
+          {
+            "author": "13071055+chrisdholt@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "28d1e78c6819d85758e8723dc5d9249df5a4582d",
+            "comment": "chore: upadate to typescript 6 and use typescript 7 for compilation"
+          },
+          {
+            "author": "163576506+minwookshin@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "da3b472f58dfbfef6a9290819d70f6f2b3f544e7",
+            "comment": "Document array reference replacement when using deepMerge."
+          },
+          {
+            "author": "163576506+minwookshin@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "6515f93bb3eb0f8fde4f87fb0960d37288cf3341",
+            "comment": "Cover repeat hydration error diagnostics during refresh and unbind."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Thu, 01 Oct 2026 05:10:34 GMT",
+      "version": "3.0.4",
+      "tag": "@microsoft/fast-element_v3.0.4",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "b0a4f22377c6bcbb4e17a5845563a040b6f373ca",
+            "comment": "Fixed a memory leak in ElementController where a subscriber was created per element instead of per definition, causing every created element to be retained for the lifetime of the page."
+          },
+          {
+            "author": "pradeepramolaa@gmail.com",
+            "package": "@microsoft/fast-element",
+            "commit": "6f97b2ea4ce5e7cf3d52c5b91f426fd60b805ecb",
+            "comment": "Support element filters for declarative f-children directives."
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "bfabb30b51912c3b2dd834604579702fe21c106e",
+            "comment": "Preserve hydration target traversal behavior without performing per-node Range membership checks."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Thu, 10 Sep 2026 02:52:27 GMT",
+      "version": "3.0.3",
+      "tag": "@microsoft/fast-element_v3.0.3",
+      "comments": {
+        "patch": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "896537217c159fecb97f4761645dad8fc31798bb",
+            "comment": "Restore the built-in Trusted Types policy name to `fast-html`."
+          }
+        ]
+      }
+    },
+    {
+      "date": "Wed, 29 Jul 2026 19:34:55 GMT",
+      "version": "3.0.2",
+      "tag": "@microsoft/fast-element_v3.0.2",
+      "comments": {
+        "none": [
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "febeabc2a244df71de8f3d4f35f5fccfc4fc5e7b",
+            "comment": "Update documentation around the necessity for await when using define"
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "8681f2b8e548535ddfa172f9ce75307f6247a105",
+            "comment": "Document declarative fixture testing guidance."
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "443b8a1316eb80467808053e0fe6d5369690d218",
+            "comment": "Update WebUI integration fixtures to generate templates with fast convert."
+          },
+          {
+            "author": "7559015+janechu@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "27a4304bdfa69433b8532bff192d8ac747aef79f",
+            "comment": "Remove the vulnerable concurrently dependency by serving declarative fixtures from source, and update transitive tooling dependencies with security fixes."
+          }
+        ],
+        "patch": [
+          {
+            "author": "pradeepramolaa@gmail.com",
+            "package": "@microsoft/fast-element",
+            "commit": "6be5bb6643458101400494e3efa6b0fdd78acc85",
+            "comment": "Ignore stale observer map array notifications after replacement."
+          },
+          {
+            "author": "863023+radium-v@users.noreply.github.com",
+            "package": "@microsoft/fast-element",
+            "commit": "582df1842d9d8e2bebf9a325fc3088aabb29240f",
+            "comment": "Prevent stale server-rendered structural views from being duplicated during hydration."
+          }
+        ]
+      }
+    },
+    {
       "date": "Fri, 26 Jun 2026 21:42:49 GMT",
       "version": "3.0.1",
       "tag": "@microsoft/fast-element_v3.0.1",

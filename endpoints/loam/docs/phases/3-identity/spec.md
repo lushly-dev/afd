@@ -161,6 +161,7 @@
     - **`agent-member-add`'s input** is a `oneOf` of `{ undo }` and the new record's fields (`z.xor`), so the schema says which it takes; P2-E10's exemption follows `access.projects` into the branch.
     - **Follow-up:** a row for a `workspace: false` agent member reading its own project's record.
     - **Figures after merging phase 6's step 3** (`main` at `6d7c505a`), measured by `budget` in `pnpm verify` at `62a9cd12`: first paint 299,415 of 300,000 and 92,996 of 93,000 gzip (4 bytes of gzip left); the kernel alone 115,401 of 115,500; `late` 78,250 of 78,500; `late-identity` 62,175 of 63,000; `account` 25,727 of 28,000. No ceiling moved; the next step to add first-paint code raises `jsGzip` under D115.
+    - **Figures after AFD's port of Microsoft FAST Element 3.1.4 into `fast-element`** (not a step of this phase), measured against `main` at `38d883d9` on the same machine: first paint 303,018 and 94,579 gzip, +3,603 and +1,583 (the runtime's DOM sink guards on every entrypoint and its hydration markers and traversal). Under D115 `jsMinified` rises from 300,000 to 304,000 and `jsGzip` from 93,000 to 95,500, each the measurement plus a margin. `surfaces` +100, the cold `switcher` +100 and `tooltip` +5 are within their rows; the kernel, `late` and `late-identity` are unchanged.
 - **Not done:** everything else it specifies.
 - **Follow-ups:** [Follow-ups](#follow-ups).
 

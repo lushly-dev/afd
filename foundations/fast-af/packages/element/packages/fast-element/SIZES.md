@@ -2,24 +2,30 @@
 
 Bundle sizes for `@lushly-dev/fast-element` exports.
 
+Context and DI include a dependency-free, FAST-owned legacy metadata shim.
+The shim is excluded from core and declarative bundles when Context/DI
+are not used. Importing both shares a single metadata implementation.
+
 | Export | Minified | Gzip | Brotli |
 |--------|----------|------|--------|
-| CDN Rollup Bundle | 79.77 KB | 23.76 KB | 21.15 KB |
-| FASTElement (@lushly-dev/fast-element/fast-element.js) | 24.20 KB | 7.51 KB | 6.77 KB |
+| CDN Rollup Bundle | 82.29 KB | 24.89 KB | 22.12 KB |
+| FASTElement (@lushly-dev/fast-element/fast-element.js) | 27.75 KB | 8.69 KB | 7.85 KB |
 | Updates (@lushly-dev/fast-element/updates.js) | 473 B | 335 B | 290 B |
 | Observable (@lushly-dev/fast-element/observable.js) | 6.75 KB | 2.51 KB | 2.23 KB |
 | observable (@lushly-dev/fast-element/observable.js) | 6.79 KB | 2.52 KB | 2.24 KB |
 | attr (@lushly-dev/fast-element/attr.js) | 477 B | 287 B | 244 B |
-| children (@lushly-dev/fast-element/children.js) | 4.87 KB | 1.88 KB | 1.66 KB |
-| ref (@lushly-dev/fast-element/ref.js) | 3.84 KB | 1.54 KB | 1.34 KB |
-| slotted (@lushly-dev/fast-element/slotted.js) | 4.66 KB | 1.81 KB | 1.59 KB |
-| volatile (@lushly-dev/fast-element/volatile.js) | 6.84 KB | 2.54 KB | 2.26 KB |
-| when (@lushly-dev/fast-element/when.js) | 1.88 KB | 731 B | 589 B |
-| html (@lushly-dev/fast-element/html.js) | 27.73 KB | 8.96 KB | 8.03 KB |
-| repeat (@lushly-dev/fast-element/repeat.js) | 31.87 KB | 10.01 KB | 9.02 KB |
+| children (@lushly-dev/fast-element/children.js) | 4.31 KB | 1.67 KB | 1.46 KB |
+| ref (@lushly-dev/fast-element/ref.js) | 3.29 KB | 1.34 KB | 1.14 KB |
+| slotted (@lushly-dev/fast-element/slotted.js) | 4.10 KB | 1.61 KB | 1.39 KB |
+| volatile (@lushly-dev/fast-element/volatile.js) | 6.84 KB | 2.54 KB | 2.25 KB |
+| when (@lushly-dev/fast-element/when.js) | 1.98 KB | 781 B | 630 B |
+| html (@lushly-dev/fast-element/html.js) | 31.52 KB | 10.53 KB | 9.49 KB |
+| repeat (@lushly-dev/fast-element/repeat.js) | 31.85 KB | 10.29 KB | 9.31 KB |
 | css (@lushly-dev/fast-element/css.js) | 2.43 KB | 1.00 KB | 911 B |
-| enableHydration (@lushly-dev/fast-element/hydration.js) | 47.63 KB | 14.30 KB | 12.84 KB |
-| declarativeTemplate (@lushly-dev/fast-element/declarative.js) | 62.21 KB | 19.48 KB | 17.44 KB |
-| ArrayObserver (@lushly-dev/fast-element/arrays.js) | 12.55 KB | 4.46 KB | 4.03 KB |
-| observerMap (@lushly-dev/fast-element/observer-map.js) | 20.32 KB | 7.22 KB | 6.51 KB |
-| attributeMap (@lushly-dev/fast-element/attribute-map.js) | 15.56 KB | 5.48 KB | 4.93 KB |
+| enableHydration (@lushly-dev/fast-element/hydration.js) | 54.03 KB | 16.56 KB | 14.90 KB |
+| declarativeTemplate (@lushly-dev/fast-element/declarative.js) | 66.30 KB | 21.17 KB | 18.91 KB |
+| ArrayObserver (@lushly-dev/fast-element/arrays.js) | 12.58 KB | 4.47 KB | 4.04 KB |
+| observerMap (@lushly-dev/fast-element/observer-map.js) | 24.60 KB | 8.65 KB | 7.81 KB |
+| attributeMap (@lushly-dev/fast-element/attribute-map.js) | 17.95 KB | 6.34 KB | 5.73 KB |
+| Context (@lushly-dev/fast-element/context.js) | 6.20 KB | 2.32 KB | 2.03 KB |
+| DI (@lushly-dev/fast-element/di.js) | 18.97 KB | 5.98 KB | 5.40 KB |

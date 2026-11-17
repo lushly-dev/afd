@@ -1,5 +1,7 @@
 import { enableDebug } from "../src/debug.js";
 
+export { createNativeHydrationWorkload } from "./hydration-workload.js";
+
 enableDebug();
 
 export {
@@ -65,6 +67,10 @@ export {
 } from "../src/definition-schema/index.js";
 export { definitionSchemaExtension } from "../src/definition-schema/extension.js";
 export { hydrationDebugger } from "../src/hydration/hydration-debugger.js";
+export { createHydrationMarkers } from "../src/hydration/markers.js";
+export { markers_v2 } from "../src/hydration/markers-v2.js";
+export { collectHydrationRepeatRanges } from "../src/hydration/repeat-ranges.js";
+export { buildViewBindingTargets } from "../src/hydration/target-builder.js";
 export { Observable, observable, SourceLifetime } from "../src/observation/observable.js";
 export { Updates } from "../src/observation/update-queue.js";
 export { volatile } from "../src/observation/volatile.js";
@@ -118,7 +124,12 @@ export {
     render,
     renderWith,
 } from "../src/templating/render.js";
-export { RepeatBehavior, RepeatDirective, repeat } from "../src/templating/repeat.js";
+export {
+    HydrationRepeatError,
+    RepeatBehavior,
+    RepeatDirective,
+    repeat,
+} from "../src/templating/repeat.js";
 export { SlottedDirective, slotted } from "../src/templating/slotted.js";
 export { ViewTemplate } from "../src/templating/template.js";
 export { HTMLView } from "../src/templating/view.js";

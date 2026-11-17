@@ -4,12 +4,18 @@ Maintained FAST-AF runtime and components, imported from [lushly-dev/fast-af](ht
 
 | Package | Path | Contract |
 | --- | --- | --- |
-| `@lushly-dev/fast-element` 3.0.1-preview | [`packages/element/packages/fast-element`](./packages/element/packages/fast-element/README.md) | Web component runtime, 38 export paths with types and production/development root conditions. Depends only on `@webcomponents/scoped-custom-element-registry`. |
+| `@lushly-dev/fast-element` 3.0.1-preview, carrying Microsoft FAST Element 3.1.4 | [`packages/element/packages/fast-element`](./packages/element/packages/fast-element/README.md) | Web component runtime, 38 export paths with types and production/development root conditions. Depends only on `@webcomponents/scoped-custom-element-registry`. |
 | `@lushly-dev/violet-elements` 0.1.0, `private: true` | [`packages/violet-elements`](./packages/violet-elements/README.md) | The FAST-AF component package despite its name: root barrel that registers its elements, per-element modules under `dist/*`, `custom-elements.json`, `tokens/*` and `package.json`. Peer of `@lushly-dev/fast-element` at its exact version. It has local theme registries and no dependency on Violet's token engine. |
 
 Neither package's published code depends on AFD, Specimen or Violet. `violet-elements` has a development dependency on Specimen, for its stories. [`LICENSE`](./LICENSE) and [`NOTICE.md`](./NOTICE.md) are the upstream files, unchanged. `NOTICE.md` also lists upstream components that were not imported (Fluent reference components, Creator). Each package directory carries a verbatim copy of its applicable license so the packed artifact includes it: Microsoft's for `fast-element`, the Lushly root license for `violet-elements`.
 
 Not imported: Creator, the legacy Fluent components, the upstream-named router, the reference sites (except the one path-export page the runtime's documentation check reads), the obsolete fast-html distribution, benchmarks, the CLI, Fastbot, Storybook configuration and the upstream root tooling. Violet web keeps its patched FAST archives; these packages do not replace them.
+
+## Microsoft FAST
+
+`fast-element` is a fork of Microsoft's [`@microsoft/fast-element`](https://github.com/microsoft/fast/tree/main/packages/fast-element): FAST-AF took release 3.0.1 (`1b389e8218e197945e9c603cd223517b7f01009b`, package tree `7b3f79f9`) and added the command, definition-schema, scoped-registry and trust modules. AFD takes Microsoft's later releases as three-way merges from the last one taken, never by copying files over, so FAST-AF's additions and AFD's own fixes stay. On 2026-11-16 it took 3.1.4 (`d26aa135cf1cc17c886745d6b028443f37943bd4`): DOM sink guards on every entrypoint, `srcdoc` blocked on iframes, the `ElementController` memory leak, repeat ordering, complete metadata reflection, the opt-in `markers_v2` hydration export and faster hydration traversal. `provenance.json` lists the 34 upstream commits under `reconciliations`. `NOTICE.md` is fast-af's notice and still says it does not sync with upstream, which was true of that repository.
+
+For the next release, merge `microsoft/fast` from `d26aa135` to the new tag on `packages/fast-element` into this package, with `@microsoft/fast-element` renamed to `@lushly-dev/fast-element` except in the migration guides and changelogs. Rendering through `createChildView`, which carries a scoped registry into child views, has to survive the merge. TypeScript 7 has no JavaScript compiler API, so an upstream test that imports `typescript` compiles through this package's `tsc` instead, as `test/metadata-compatibility.test.js` does. Then record the change with `node scripts/release/provenance.mjs fast-af "<reason>"` and add the release to `reconciliations`.
 
 ## Gates
 
