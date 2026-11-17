@@ -81,6 +81,28 @@ TEST_CASE("a bare command has no title, annotations or _meta") {
     CHECK((*afd::command_tool_meta(conditional))["approval"] == "conditional");
 }
 
+TEST_CASE("command_result_output_schema wraps data in the CommandResult envelope") {
+    const Json envelope = afd::command_result_output_schema(
+        Json{{"$schema", "https://json-schema.org/draft/2020-12/schema"},
+             {"type", "object"},
+             {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}},
+             {"$defs", {{"Tag", {{"type", "string"}}}}}});
+    CHECK(
+        envelope ==
+        Json{{"type", "object"},
+             {"$defs", {{"Tag", {{"type", "string"}}}}},
+             {"properties",
+              {{"success", {{"type", "boolean"}}},
+               {"data", {{"type", "object"}, {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}}}},
+               {"error", {{"type", "object"}}},
+               {"metadata", {{"type", "object"}}}}},
+             {"required", {"success"}}});
+    // Without $defs, data is the schema as given, less $schema.
+    CHECK(afd::command_result_output_schema(Json{{"type", "string"}})["properties"]["data"] ==
+          Json{{"type", "string"}});
+    CHECK_FALSE(afd::command_result_output_schema(Json{{"type", "string"}}).contains("$defs"));
+}
+
 TEST_CASE("commands_to_mcp_tools keeps only commands exposed to MCP, in order") {
     afd::CommandDefinition hidden{.name = "note-hide", .description = "Hidden", .handler = ok};
     afd::CommandDefinition first = full_command();

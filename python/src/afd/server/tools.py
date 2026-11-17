@@ -4,7 +4,11 @@ from __future__ import annotations
 
 from typing import Any, Callable, Optional, Sequence
 
-from afd.core.commands import CommandDefinition, command_to_mcp_tool
+from afd.core.commands import (
+    CommandDefinition,
+    command_result_output_schema,
+    command_to_mcp_tool,
+)
 from afd.server.confirmations import CONFIRM_PROPERTY, accepts_confirm
 from afd.server.meta_argument import META_ARGUMENT_DESCRIPTION
 from afd.server.types import ToolStrategy
@@ -180,13 +184,19 @@ for _schema in (CallToolSchema, BatchToolSchema, PipeToolSchema, DiscoverToolSch
     }
 
 
-def _individual_tool(command: CommandDefinition, confirmations: str) -> dict[str, Any]:
-    """The command's tool, with the ``confirm`` argument when the command accepts it."""
+def _individual_tool(
+    command: CommandDefinition, confirmations: str, output_schema: bool = True
+) -> dict[str, Any]:
+    """The command's tool, with the ``confirm`` argument when the command accepts it, and the
+    CommandResult envelope as its top-level ``outputSchema`` when the command has ``returns``
+    (``spec/command-metadata.md``, "Structured results") and ``output_schema`` is on."""
     tool = command_to_mcp_tool(command)
     if accepts_confirm(command, confirmations):
         schema = dict(tool["inputSchema"])
         schema["properties"] = {**(schema.get("properties") or {}), "confirm": CONFIRM_PROPERTY}
         tool["inputSchema"] = schema
+    if output_schema and command.returns:
+        tool["outputSchema"] = command_result_output_schema(command.returns)
     return tool
 
 
@@ -194,6 +204,7 @@ def _hybrid_tools_list(
     commands: Sequence[CommandDefinition],
     first_class_tools: Sequence[str],
     confirmations: str,
+    output_schema: bool = True,
 ) -> list[dict[str, Any]]:
     """The hybrid list (spec/tool-strategies.md, H3): the five meta-tools, the context tools
     when the server has contexts, then the first-class command tools in configured order.
@@ -210,7 +221,10 @@ def _hybrid_tools_list(
     first_class = [by_name[name] for name in first_class_tools if name in by_name]
     return [
         *meta_tools,
-        *(_individual_tool(command, confirmations) for command in [*context_tools, *first_class]),
+        *(
+            _individual_tool(command, confirmations, output_schema)
+            for command in [*context_tools, *first_class]
+        ),
     ]
 
 
@@ -261,15 +275,18 @@ def get_tools_list(
 	active_context: Optional[str] = None,
 	confirmations: str = "off",
 	first_class_tools: Optional[Sequence[str]] = None,
+	output_schema: bool = True,
 ) -> list[dict[str, Any]]:
 	"""Return the MCP-visible tool list for the selected strategy.
 
 	With ``confirmations="enforce"``, confirm-gated tools advertise the ``confirm`` argument.
-	The hybrid strategy lists ``first_class_tools`` and ignores ``active_context``.
+	The hybrid strategy lists ``first_class_tools`` and ignores ``active_context``. A command
+	listed as its own tool (individual, or first-class under hybrid) with ``returns`` advertises
+	the CommandResult envelope as its top-level ``outputSchema`` unless ``output_schema`` is off.
 	"""
 
 	if tool_strategy == "hybrid":
-		return _hybrid_tools_list(commands, first_class_tools or [], confirmations)
+		return _hybrid_tools_list(commands, first_class_tools or [], confirmations, output_schema)
 
 	builtins = [DiscoverToolSchema, DetailToolSchema, BatchToolSchema, PipeToolSchema, CallToolSchema]
 	filtered_commands = filter_commands_by_context(commands, active_context)
@@ -287,7 +304,10 @@ def get_tools_list(
 		]
 
 	if tool_strategy == "individual":
-		return [*builtins, *(_individual_tool(command, confirmations) for command in filtered_commands)]
+		return [
+			*builtins,
+			*(_individual_tool(command, confirmations, output_schema) for command in filtered_commands),
+		]
 
 	group_name_for = group_by_fn or default_group_name
 	grouped: dict[str, list[CommandDefinition]] = {}

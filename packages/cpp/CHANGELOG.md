@@ -6,6 +6,7 @@ All notable changes to afd-cpp are documented here. The package is versioned ind
 
 ### Added
 
+- **`structuredContent` and the top-level `outputSchema`** (`spec/command-metadata.md`, "Structured results"; [#465](https://github.com/lushly-dev/afd/issues/465)): every `afd::mcp_stdio` tool result carries the CommandResult as `structuredContent`, beside the same JSON as text, and a command with an `output_schema` advertises the CommandResult envelope as its top-level `outputSchema`. `StdioServerOptions::advertise_output_schema = false` switches the schema off. `afd/mcp.hpp` adds `command_result_output_schema`, which drops `$schema` and moves `$defs` to the envelope so `#/$defs/...` references still resolve.
 - **The MCP stdio server: `afd::mcp_stdio` (#341).** An opt-in target, `AFD_BUILD_MCP_STDIO`, off by default, which needs `AFD_ENABLE_THREADS`; `afd::afd` stays transport-free. `afd/mcp_stdio.hpp` adds `afd::mcp::StdioServer`.
   - **Protocol.** Both MCP eras on one stdio connection: 2026-07-28 requests served from their `_meta` (`server/discover`, `resultType`, cache hints, `-32022`), and 2025 `initialize` and `ping`. It serves `tools/list` and `tools/call`, one tool per command exposed to MCP.
   - **Cancellation.** `notifications/cancelled` cancels a call through `CommandContext::cancellation`, including one still queued.

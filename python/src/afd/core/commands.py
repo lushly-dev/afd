@@ -578,9 +578,12 @@ def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, b
 
 def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
-    ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results")."""
-    data = {key: value for key, value in data_schema.items() if key != "$schema"}
-    return {
+    ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
+
+    Pydantic puts nested models in ``$defs`` and points at them with ``#/$defs/...``, which
+    resolves against the document root, so ``$defs`` moves from ``data`` to the envelope."""
+    data = {key: value for key, value in data_schema.items() if key not in ("$schema", "$defs")}
+    envelope: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "success": {"type": "boolean"},
@@ -590,6 +593,9 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "required": ["success"],
     }
+    if "$defs" in data_schema:
+        envelope["$defs"] = data_schema["$defs"]
+    return envelope
 
 
 def serialize_command_examples(examples: List[CommandExample]) -> List[Dict[str, Any]]:
