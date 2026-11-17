@@ -25,9 +25,10 @@ def diagnostics(output: str) -> str:
     return output[:half] + "\n... output omitted ...\n" + output[-half:]
 
 
-def resolve_program(program: str) -> str:
-    """The program's full path, so Windows starts ``gh.exe`` without a shell."""
-    found = shutil.which(program)
+def resolve_program(program: str, path: str | None = None) -> str:
+    """The program's full path, so Windows starts ``gh.exe`` without a shell; ``path`` is the
+    search path when it is not this process's ``PATH``."""
+    found = shutil.which(program, path=path)
     if not found:
         raise WorldError(f"{program} is not on PATH")
     return found

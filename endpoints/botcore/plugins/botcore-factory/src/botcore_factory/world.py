@@ -11,6 +11,7 @@ A failed outside read or write raises ``WorldError``. Commands turn it into ``RE
 
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
@@ -300,6 +301,13 @@ class Git(Protocol):
         ...
 
 
+def nvmrc_version(spec: str) -> str | None:
+    """An ``.nvmrc``'s version numbers (``26``, ``26.13``, ``26.13.0``, without a ``v``), or
+    None for an alias (``lts/*``, ``node``) the lane does not resolve."""
+    wanted = spec.strip().removeprefix("v")
+    return wanted if re.fullmatch(r"\d+(\.\d+){0,2}", wanted) else None
+
+
 @runtime_checkable
 class Clock(Protocol):
     def now(self) -> datetime:
@@ -331,6 +339,12 @@ class Machine(Protocol):
 
     def tool_version(self, tool: str) -> str | None:
         """The installed version of ``tool`` (node, pnpm, ...), or None when it is missing."""
+        ...
+
+    def node_bin(self, spec: str) -> str | None:
+        """The directory holding the ``node`` a version manager (fnm, nvm) installed for
+        ``spec`` (an ``.nvmrc``: ``26``, ``26.13`` or ``v26.13.0``; the newest match), or None
+        when no installed Node matches it."""
         ...
 
 

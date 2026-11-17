@@ -49,6 +49,8 @@ WORLD_KEYS = frozenset(
         "variables",
         "plansUnreadable",
         "toolchains",
+        "nodes",  # Installed Node bin directories by .nvmrc version.
+        "slotFiles",  # Files every lane slot checkout holds (.nvmrc).
         "requiredChecks",
         "outcomes",
         "main",

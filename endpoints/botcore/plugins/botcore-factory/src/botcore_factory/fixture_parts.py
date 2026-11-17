@@ -249,6 +249,8 @@ class FixtureGit:
         return "origin" not in self.store.this_machine().get("missing", [])
 
     def read_file(self, worktree: str, path: str) -> str | None:
+        if worktree.startswith("slots/"):  # Every lane checkout holds ``slotFiles``.
+            return self.store.data.get("slotFiles", {}).get(path)
         return self._worktree(worktree).get("files", {}).get(path)
 
     def fetch_base(self, base: str) -> str:
@@ -361,6 +363,10 @@ class FixtureMachine:
 
     def tool_version(self, tool: str) -> str | None:
         return self.store.data.get("toolchains", {}).get(tool)
+
+    def node_bin(self, spec: str) -> str | None:
+        """``nodes.<spec>``: the installed Node's bin directory, or absent when it is not."""
+        return self.store.data.get("nodes", {}).get(spec.strip().removeprefix("v"))
 
 
 class FixturePlans:

@@ -103,8 +103,10 @@ The lane never edits code, and nothing is killed unless its pid and start time b
 - `plan_list()` -> `plans[] {id, provider, used, elapsed, room, aboveCeiling, resetsAt}`.
   Refuses `PLANS_UNREADABLE`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
-  `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `TOOLCHAIN_MISMATCH`
-  (`packageManager` exactly, `engines.node` at least).
+  `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
+  `.nvmrc` names is not installed under fnm or POSIX nvm; validation and coverage run on it),
+  `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
+  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least).
 - `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
   goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
   only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be
