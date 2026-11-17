@@ -660,8 +660,11 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
   ```
 
   Clients validate `structuredContent` against it, so a handler whose `data` does not match its
-  declared output schema fails on the client. A server MAY switch the top-level `outputSchema` off;
-  `_meta.outputSchema` (the schema of `data` alone) is always reported.
+  declared output schema fails on the client. `#/$defs/...` and `#/definitions/...` references
+  resolve against the envelope, so an output schema's `$defs` or `definitions` belongs at the
+  envelope's root, not inside `data` (Python and C++ move them; TypeScript and Rust do not yet,
+  [#1416](https://github.com/lushly-dev/afd/issues/1416)). A server MAY switch the top-level
+  `outputSchema` off; `_meta.outputSchema` (the schema of `data` alone) is always reported.
 
 ### Implementation status
 
@@ -674,8 +677,8 @@ follows `destructive`, `false` when it is unset.
 | Tool `title` | Yes | Yes | Yes | Yes (`title` on the definition; todo backend tool lists) |
 | Annotations | Yes | `mutation: true` only, with `destructive` | `mutation: true` only, with `destructive`, from `CommandRegistry::get_tool` | `mutation: true` only, with `destructive` (todo backend) |
 | Confirmations | Yes (`confirmations`, `confirmationKey`; client `onElicitation`, CLI prompt) | Yes (`create_server(confirmations=..., confirmation_key=...)`); individual, grouped and meta-tools | Yes (`McpServer::with_confirmations`, `with_confirmations_key`); individual, grouped and meta-tools | Planned (todo backend) |
-| `structuredContent` | Yes | Planned | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Planned |
-| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Planned | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Planned |
+| `structuredContent` | Yes | Yes (every tool result of every route, meta-tools, batch and pipeline included) | Yes (`McpServer`, every tool result of every route, meta-tools, batch and pipeline included) | Yes (`afd::mcp_stdio`, every tool result; the todo backend runs on it) |
+| Top-level `outputSchema` | Yes (`advertiseOutputSchema`) | Yes, for commands with `returns` listed as their own tool, individual or first-class under hybrid (`create_server(advertise_output_schema=False)` opts out); the envelope does not require a property that accepts `null`, because Python's wire format omits model fields set to `None` | Yes, for commands with `returns` under the individual strategy, as in TypeScript (`McpServer::with_advertise_output_schema`) | Yes, for commands with `output_schema` (`StdioServerOptions::advertise_output_schema`) |
 | `toolMeta` and the advertised schema ([`mcp-resources.md`](./mcp-resources.md)) | Yes (`toolMeta`, `advertisedInputSchema`) | Planned | Yes (`with_tool_meta`, `register_with_schemas`) | Planned |
 | `outputBudget` and the check after the handler ([`output-budgets.md`](./output-budgets.md)) | Planned | Planned | Yes (Umbel phase 2 step 0b) | Planned |
 | Hybrid first-class tools: command tools with these fields, `confirm` and the single-command approval relay ([tool strategies](./tool-strategies.md#hybrid)) | Yes | Yes | Yes | Planned |

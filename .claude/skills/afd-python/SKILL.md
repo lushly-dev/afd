@@ -48,7 +48,7 @@ async def create_doc(input: DraftInput) -> CommandResult[DraftOutput]:
 
 - **MCP exposure is opt-in.** `ExposeOptions()` defaults to `palette=True, agent=True, mcp=False, cli=False`. An unexposed command is not listed, and `afd-call` returns `COMMAND_NOT_FOUND` for it. `server.execute(name, input)` still runs it, because it is the trusted host API.
 - **`input_schema`** is a Pydantic model or a JSON Schema dict. It is checked at decoration, and an unsupported keyword raises there. Input is validated against the advertised JSON Schema, then converted to the model.
-- **`output_schema`** takes a Pydantic model only. It is exported as `returns` and surfaced as MCP `_meta.outputSchema`.
+- **`output_schema`** takes a Pydantic model only. It is exported as `returns` and surfaced as MCP `_meta.outputSchema`, and the command's own tool advertises the CommandResult envelope as its top-level `outputSchema`. Clients validate each result's `structuredContent` against it, so `data` must match; `create_server(advertise_output_schema=False)` drops it.
 - **`examples`** are validated against the input schema at decoration time.
 - **`requires`** is planning metadata, never enforced. **`category`** names the grouped tool; without it the group is the name's first kebab segment.
 - **Names.** A name that isn't `domain-action` kebab-case still registers, with a `UserWarning` (as in TypeScript). `register` raises `ValueError` for `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail`. A command named `afd-help`, `afd-docs` or `afd-schema` silently shadows the bootstrap tool.

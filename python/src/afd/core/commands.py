@@ -578,9 +578,18 @@ def command_tool_annotations(command: CommandDefinition) -> Optional[Dict[str, b
 
 def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
     """The MCP ``outputSchema`` of a command tool: the CommandResult envelope, with
-    ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results")."""
-    data = {key: value for key, value in data_schema.items() if key != "$schema"}
-    return {
+    ``data`` typed by ``data_schema`` (``spec/command-metadata.md``, "Structured results").
+
+    ``$defs`` and ``definitions`` move from ``data`` to the envelope, because ``#/$defs/...``
+    references resolve against the document root. The wire format omits a model field set to
+    ``None``, so a property that accepts ``null`` is not listed as required."""
+    data_schema = _optional_nullable_properties(data_schema)
+    data = {
+        key: value
+        for key, value in data_schema.items()
+        if key not in ("$schema", "$defs", "definitions")
+    }
+    envelope: Dict[str, Any] = {
         "type": "object",
         "properties": {
             "success": {"type": "boolean"},
@@ -590,6 +599,56 @@ def command_result_output_schema(data_schema: Dict[str, Any]) -> Dict[str, Any]:
         },
         "required": ["success"],
     }
+    for key in ("$defs", "definitions"):
+        if key in data_schema:
+            envelope[key] = data_schema[key]
+    return envelope
+
+
+def _accepts_null(schema: Any, root: Dict[str, Any], seen: frozenset = frozenset()) -> bool:
+    """Whether ``schema`` admits ``null``: a ``null`` type, enum value or const, a schema
+    that constrains nothing (``{}``, as for ``Any``), a nullable ``anyOf``/``oneOf`` branch,
+    or a local ``$ref`` to one of those."""
+    if schema is True:
+        return True
+    if not isinstance(schema, dict):
+        return False
+    ref = schema.get("$ref")
+    if isinstance(ref, str) and ref.startswith("#/") and ref not in seen:
+        target: Any = root
+        for part in ref[2:].split("/"):
+            target = target.get(part) if isinstance(target, dict) else None
+        if _accepts_null(target, root, seen | {ref}):
+            return True
+    kind = schema.get("type")
+    if kind == "null" or (isinstance(kind, list) and "null" in kind):
+        return True
+    if None in (schema.get("enum") or []) or ("const" in schema and schema["const"] is None):
+        return True
+    branches = [*(schema.get("anyOf") or []), *(schema.get("oneOf") or [])]
+    if any(_accepts_null(branch, root, seen) for branch in branches):
+        return True
+    constraining = {"type", "enum", "const", "$ref", "anyOf", "oneOf", "allOf", "not"}
+    return not constraining & schema.keys()
+
+
+def _optional_nullable_properties(node: Any, root: Optional[Dict[str, Any]] = None) -> Any:
+    """A copy of a schema whose objects no longer require a property that accepts ``null``."""
+    if root is None:
+        root = node
+    if isinstance(node, list):
+        return [_optional_nullable_properties(item, root) for item in node]
+    if not isinstance(node, dict):
+        return node
+    out = {key: _optional_nullable_properties(value, root) for key, value in node.items()}
+    properties, required = node.get("properties"), node.get("required")
+    if isinstance(properties, dict) and isinstance(required, list):
+        out["required"] = [
+            name for name in required if not _accepts_null(properties.get(name), root)
+        ]
+        if not out["required"]:
+            del out["required"]
+    return out
 
 
 def serialize_command_examples(examples: List[CommandExample]) -> List[Dict[str, Any]]:

@@ -17,7 +17,7 @@ Every AFD server is dual-era: 2025 clients that send `initialize` keep working o
 | `createMcpServer({ transport: 'stdio' })` | Nothing. stdio serves both eras. |
 | `createMcpServer({ transport: 'http' })` or `createMcpHandler()` | Point MCP clients at `/mcp`, for example `claude mcp add --transport http my-app http://localhost:3100/mcp`. `/sse` and `/message` still work, are deprecated, and are removed in 3.0. |
 | `contexts` with HTTP clients | 2026-07-28 clients send `_meta["dev.afd/context"]`. `tools/list` defaults to `ttlMs: 0` when contexts are configured. |
-| A command with an `output` schema | Its tool now advertises the CommandResult envelope as `outputSchema`, and clients validate `structuredContent` against it. Make the handler's `data` match the schema, or set `advertiseOutputSchema: false`. |
+| A command with an `output` schema | Its tool now advertises the CommandResult envelope as `outputSchema`, and clients validate `structuredContent` against it. Make the handler's `data` match the schema, or set `advertiseOutputSchema: false`. Python (`output_schema`; `create_server(advertise_output_schema=False)`) and C++ (`output_schema`; `StdioServerOptions::advertise_output_schema = false`) do the same since #465. |
 | `McpClient` with a `/sse` URL | Nothing yet; it keeps the deprecated `sse` transport. Switch to the `/mcp` URL to use `streamable-http`. |
 | `McpClient` with another URL and no `transport` | It now uses `streamable-http` (it used `sse`, which could not connect to such a URL). `protocolMode: 'legacy'` forces the 2025 handshake. |
 | The `afd` CLI | `connect`, `call --connect`, `shell` and `scenario run` infer the transport from the URL. Use `/mcp` URLs. |

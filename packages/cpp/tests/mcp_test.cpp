@@ -1,5 +1,6 @@
 // Commands as MCP tools (afd/mcp.hpp; spec/command-metadata.md, "Reporting rules").
 #include "afd/mcp.hpp"
+#include "afd/schema.hpp"
 
 #include <doctest.h>
 
@@ -79,6 +80,39 @@ TEST_CASE("a bare command has no title, annotations or _meta") {
         return afd::ApprovalDecision::not_required;
     };
     CHECK((*afd::command_tool_meta(conditional))["approval"] == "conditional");
+}
+
+TEST_CASE("command_result_output_schema wraps data in the CommandResult envelope") {
+    const Json envelope = afd::command_result_output_schema(
+        Json{{"$schema", "https://json-schema.org/draft/2020-12/schema"},
+             {"type", "object"},
+             {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}},
+             {"$defs", {{"Tag", {{"type", "string"}}}}}});
+    CHECK(
+        envelope ==
+        Json{{"type", "object"},
+             {"$defs", {{"Tag", {{"type", "string"}}}}},
+             {"properties",
+              {{"success", {{"type", "boolean"}}},
+               {"data", {{"type", "object"}, {"properties", {{"tag", {{"$ref", "#/$defs/Tag"}}}}}}},
+               {"error", {{"type", "object"}}},
+               {"metadata", {{"type", "object"}}}}},
+             {"required", {"success"}}});
+    // Without $defs, data is the schema as given, less $schema.
+    CHECK(afd::command_result_output_schema(Json{{"type", "string"}})["properties"]["data"] ==
+          Json{{"type", "string"}});
+    CHECK_FALSE(afd::command_result_output_schema(Json{{"type", "string"}}).contains("$defs"));
+    // `definitions`, which CompiledSchema resolves as it does $defs, moves the same way.
+    const Json legacy = afd::command_result_output_schema(
+        Json{{"type", "object"},
+             {"properties", {{"p", {{"$ref", "#/definitions/P"}}}}},
+             {"definitions", {{"P", {{"type", "integer"}}}}}});
+    CHECK(legacy["definitions"] == Json{{"P", {{"type", "integer"}}}});
+    CHECK_FALSE(legacy["properties"]["data"].contains("definitions"));
+    const auto compiled = afd::CompiledSchema::compile(legacy);
+    REQUIRE(compiled);
+    CHECK(compiled->validate(Json{{"success", true}, {"data", {{"p", 1}}}}));
+    CHECK_FALSE(compiled->validate(Json{{"success", true}, {"data", {{"p", "one"}}}}));
 }
 
 TEST_CASE("commands_to_mcp_tools keeps only commands exposed to MCP, in order") {

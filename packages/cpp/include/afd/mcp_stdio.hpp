@@ -11,9 +11,12 @@
 //   server-sent `elicitation/create` request on the same connection.
 //
 // It serves `tools/list` and `tools/call` with one tool per command exposed to MCP
-// (`command_to_mcp_tool`, afd/mcp.hpp). Command failures are CommandResults with
-// `isError: true`, never JSON-RPC errors. `notifications/cancelled` cancels the call in flight
-// through `CommandContext::cancellation`. It has no meta-tools, context tools or HTTP transport.
+// (`command_to_mcp_tool`, afd/mcp.hpp). Every tool result carries the CommandResult as
+// `structuredContent` and as JSON text, and a command with an `output_schema` advertises the
+// CommandResult envelope as its top-level `outputSchema` (spec/command-metadata.md, "Structured
+// results"). Command failures are CommandResults with `isError: true`, never JSON-RPC errors.
+// `notifications/cancelled` cancels the call in flight through `CommandContext::cancellation`. It
+// has no meta-tools, context tools or HTTP transport.
 //
 // Confirmations (spec/command-metadata.md, "Confirmations"): with `confirmations` on, a command
 // with `confirm_prompt` runs only after an accepted form elicitation or, under `enforce`, an
@@ -75,6 +78,11 @@ struct StdioServerOptions {
     /// Lines longer than this are rejected, bounding memory for a hostile client.
     std::size_t max_line_bytes = std::size_t{1} << 20;
     ConfirmationMode confirmations = ConfirmationMode::off;
+    /// Advertise the CommandResult envelope (`command_result_output_schema`) as the top-level
+    /// `outputSchema` of each tool whose command has an `output_schema`. Clients validate
+    /// `structuredContent` against it, so a handler whose `data` does not match fails on the
+    /// client. `_meta.outputSchema` and `structuredContent` are sent either way.
+    bool advertise_output_schema = true;
     /// The HMAC key of `requestState`, at least 32 bytes. Default (empty): 32 random bytes for
     /// this server, so a state works only on the process that issued it.
     std::string state_secret;
