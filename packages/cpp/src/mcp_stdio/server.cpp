@@ -504,10 +504,10 @@ struct StdioServer::State {
                         if (!live(entry, "approval", at)) {
                             continue;
                         }
-                        const std::string bound = string_member(entry, "b");
+                        const std::string held = string_member(entry, "b");
                         bool matches = false;
                         for (const auto& candidate : bindings) {
-                            matches = matches || candidate == bound;
+                            matches = matches || candidate == held;
                         }
                         if (!matches) {
                             continue;
@@ -519,7 +519,7 @@ struct StdioServer::State {
                         } else if (response == Response::accept && entry.contains("e") &&
                                    entry["e"].is_number_integer()) {
                             answer.kind = detail::RelayAnswer::Kind::accept;
-                            answer.binding = bound;
+                            answer.binding = held;
                             answer.nonce = string_member(entry, "n");
                             answer.expires_at_ms = entry["e"].get<std::int64_t>();
                             answer.mac = string_member(entry, "m");
