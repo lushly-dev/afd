@@ -132,20 +132,14 @@ explains them.
 `create_approval_middleware`, with the TypeScript backend's summary of what would go ("Remove the
 completed todos for good (2 todos now)"). `APPROVALS=agents` is the default, as in TypeScript.
 
-**Over this server's MCP, a held clear cannot be approved yet.** Every MCP caller is an agent, so
-a clear returns `APPROVAL_REQUIRED`. The TypeScript backend then asks the person through form
-elicitation; the Python library cannot
-([#1312](https://github.com/lushly-dev/afd/issues/1312)), and no MCP call can carry the approval
-token (tool arguments never reach `context.approval`), so retrying over MCP is held again. Until
-#1312, a clear runs when:
-
-- the server runs with `APPROVALS=off`, which holds nothing;
-- trusted code calls the command in process (`await server.execute("todo-clear", input,
-  CommandContext(approval=token))`) with the token from the held result, once a person approved;
-- a person calls it in process (`CommandContext(actor=Actor(kind="human"))`), which is never held;
-- or it goes through the TypeScript server on the same database.
-
-For the same reason the approval suite's approve and decline cases run against TypeScript only.
+Every MCP caller is an agent, so a clear over MCP is held. When the MCP client declares form
+elicitation, the server asks its person (`relay="mcp-elicitation"`): the question names what would
+go, the clear runs once the person approves, and a decline fails it with `APPROVAL_REQUIRED` and
+`details.reason: "declined"`. Any other MCP caller gets `APPROVAL_REQUIRED` with a suggestion to
+ask the person; no MCP call can carry the approval token (tool arguments never reach
+`context.approval`). In process, trusted code retries with the token from the held result once a
+person approved (`await server.execute("todo-clear", input, CommandContext(approval=token))`), and
+a person (`CommandContext(actor=Actor(kind="human"))`) is never held.
 
 ## Tests
 
