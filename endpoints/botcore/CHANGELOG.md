@@ -44,6 +44,7 @@ What a plugin served through the managed host needs: its own command policies, a
 
 ### Fixed
 
+- **Resolving an agent's tools no longer drops the agents already created.** The first agent with connectors builds botcore's command namespace, which configures every discovered plugin again; `botcore-agents`' `set_config` then reset the orchestrator, so agents created before it were gone (lushly-dev/afd#780). The same configuration again now keeps the orchestrator; a different one still starts a new one.
 - **A relative `path` no longer crashes the dev and docs checks** (lushly-dev/afd#1355). `dev_check_size` and `dev_check_paths` raised an uncaught `ValueError` for a relative path, and `staged_only` matched nothing, also in a workspace below the git root. A relative `path` now resolves against the workspace (a managed host's context target, which never changes the cwd), or against the cwd when there is no workspace, in `dev_check_size`, `dev_check_paths`, `dev_dead_code`, `dev_circular_imports`, `dev_dep_graph`, `docs_lint` and the language resolution of the other `dev_*` commands; files outside the workspace are reported by their full path.
 - **botcore-agents' test of wildcard connectors without `botcore-connectors`** expects `ConnectorIntegrationUnavailable`, which `start_agent` maps to `INTEGRATION_UNAVAILABLE`; it still expected an empty list (lushly-dev/afd#1359).
 

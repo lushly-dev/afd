@@ -17,11 +17,11 @@
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "fb99af281369847ae15af3474f11247446c9210bc5d922617146bd51d32305db",
+      "current_import_sha256": "0bb04befd8f3cea55662b4d318848b89dee0c2c42228e4b5afff498a15e016f6",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356); Add the gate-discipline skill and its scripts; list all eleven skills; Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780)"
     },
     {
       "path": "LICENSE",
@@ -808,11 +808,11 @@
       "path": "packages/botcore-agents/src/botcore_agents/commands.py",
       "upstream_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
       "staged_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
-      "current_import_sha256": "113666ae1f189754532f5254f3e5d73670bc6338e6cac33e4c34680cc153f0b5",
+      "current_import_sha256": "747c8a045c8f4db1ab284823b754ad8fbe2a435a4e452c095de2d7e80e2e494b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780)"
     },
     {
       "path": "packages/botcore-agents/src/botcore_agents/config.py",
@@ -924,6 +924,17 @@
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "unchanged-staged",
       "import_reason": "Imported exact frozen staged-input bytes"
+    },
+    {
+      "path": "packages/botcore-agents/tests/test_namespace_reset.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "da6a4b2c2089c1f6483fe364d82d116fa5201909e4dcba612f1911185726c9ed",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Resolving an agent's tools keeps the orchestrator (lushly-dev/afd#780)"
     },
     {
       "path": "packages/botcore-agents/tests/test_orchestrator.py",

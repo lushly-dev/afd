@@ -31,8 +31,15 @@ def _get_config() -> AgentsPluginConfig:
 
 
 def set_config(config: AgentsPluginConfig | None) -> None:
-    """Allow the plugin to inject config at registration time."""
+    """Allow the plugin to inject config at registration time.
+
+    The same configuration again keeps the orchestrator and its agents: resolving an agent's
+    connector tools builds botcore's namespace, which configures every plugin again, this one
+    included (lushly-dev/afd#780). A different configuration starts a new orchestrator.
+    """
     global _backend, _config
+    if config is not None and config == _config:
+        return
     _config = config
     _backend = None
     reset_orchestrator()
