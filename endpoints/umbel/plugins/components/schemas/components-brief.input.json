@@ -86,7 +86,7 @@
 			"type": "string",
 			"minLength": 1,
 			"maxLength": 64,
-			"description": "Deployment consumer name, such as loam. Removes that consumer's excluded rules and references; omit for general library guidance."
+			"description": "Deployment consumer name, such as loam. Applies that consumer's profile: removes its excluded rules and references, and carries its own guidance once as content.guidance. Omit for the deployment's default_consumer when one is configured, otherwise for general library guidance."
 		}
 	}
 }

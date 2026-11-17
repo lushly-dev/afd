@@ -24,6 +24,11 @@ pub(super) struct Mail {
 
 impl Mail {
     pub(super) fn new() -> Self {
+        Self::listed_at(NOW)
+    }
+
+    /// As [`Mail::new`], its mailboxes first listed at `at`.
+    pub(super) fn listed_at(at: i64) -> Self {
         let directory = tempfile::tempdir().unwrap();
         let home = Home::at(directory.path().join("data"));
         let mut store = Store::open(&home).unwrap();
@@ -46,7 +51,7 @@ impl Mail {
         let archive = mailbox("Archive", Role::Archive);
         // Listed, as sync leaves a mailbox it has gone through.
         for listed in [inbox, sent, archive] {
-            store.set_cursor(listed, Some("listed"), NOW).unwrap();
+            store.set_cursor(listed, Some("listed"), at).unwrap();
         }
         Self {
             _directory: directory,
@@ -171,6 +176,16 @@ impl Mail {
 
     /// A mailbox, listed as sync leaves one it has gone through.
     pub(super) fn mailbox(&mut self, key: &'static str, role: Role) -> MailboxId {
+        self.mailbox_listed_at(key, role, NOW)
+    }
+
+    /// As [`Mail::mailbox`], first listed at `at`.
+    pub(super) fn mailbox_listed_at(
+        &mut self,
+        key: &'static str,
+        role: Role,
+        at: i64,
+    ) -> MailboxId {
         let mailbox = self
             .store
             .upsert_mailbox(
@@ -183,7 +198,7 @@ impl Mail {
                 NOW,
             )
             .unwrap();
-        self.store.set_cursor(mailbox, Some("listed"), NOW).unwrap();
+        self.store.set_cursor(mailbox, Some("listed"), at).unwrap();
         mailbox
     }
 

@@ -8,6 +8,7 @@ import {
 	binaryCandidates,
 	CONSUMERS,
 	CONSUMERS_TOML,
+	deployment,
 	exportPack,
 	findBinary,
 	LIBRARY,
@@ -18,6 +19,7 @@ import {
 	pruneLibraries,
 	UMBEL_TOML,
 	withLock,
+	workspaceFor,
 } from './umbel-components.mjs';
 
 function scratch(t) {
@@ -154,4 +156,250 @@ test('a library this start did not export is removed from the override', (t) => 
 	assert.equal(existsSync(join(override, 'data', 'violet-elements')), true);
 	assert.equal(existsSync(join(override, 'rules', 'violet-elements.json')), true);
 	assert.deepEqual(pruneLibraries(override, ['violet-elements']), []);
+});
+
+// ── The deployment's consumers and default (UMBEL_COMPONENTS_CONSUMERS, UMBEL_COMPONENTS_CONSUMER) ──
+
+const STOREFRONT = {
+	version: 2,
+	consumers: {
+		storefront: {
+			statements: [{ id: 'forms.keep.labels-visible', text: 'Every field keeps a visible label.' }],
+		},
+	},
+};
+
+const reading = (files) => (path) => {
+	if (!Object.hasOwn(files, path)) throw new Error(`ENOENT: ${path}`);
+	return files[path];
+};
+
+test('without either variable, the files written are byte for byte the repository defaults', (t) => {
+	const deployed = deployment({});
+	assert.equal(deployed.success, true);
+	assert.equal(deployed.data.consumers, CONSUMERS);
+	assert.equal(deployed.data.umbelToml, UMBEL_TOML);
+	const plain = scratch(t);
+	const configured = scratch(t);
+	prepareWorkspace(plain);
+	prepareWorkspace(configured, deployed.data);
+	const consumers = join(
+		'spaces',
+		'main',
+		'packs',
+		'components',
+		'consumers',
+		'data',
+		'consumers.json'
+	);
+	for (const file of ['umbel.toml', consumers])
+		assert.equal(
+			readFileSync(join(configured, file), 'utf8'),
+			readFileSync(join(plain, file), 'utf8')
+		);
+	assert.equal(
+		readFileSync(join(plain, consumers), 'utf8'),
+		'{"version":1,"consumers":{"loam":{"exclude_rules":["violet-elements/import.root","violet-elements/theme.install"]}}}\n'
+	);
+	assert.doesNotMatch(
+		readFileSync(join(plain, 'umbel.toml'), 'utf8'),
+		/plugins\.components\.config/
+	);
+});
+
+test('a consumers file is added to the repository profiles, keeping Loam, as version 2', (t) => {
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: '/deploy/consumers.json' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(deployed.success, true, JSON.stringify(deployed));
+	assert.deepEqual(deployed.data.consumers, {
+		version: 2,
+		consumers: { ...CONSUMERS.consumers, ...STOREFRONT.consumers },
+	});
+	assert.equal(deployed.data.umbelToml, UMBEL_TOML);
+	const workspace = scratch(t);
+	prepareWorkspace(workspace, deployed.data);
+	const written = JSON.parse(
+		readFileSync(
+			join(
+				workspace,
+				'spaces',
+				'main',
+				'packs',
+				'components',
+				'consumers',
+				'data',
+				'consumers.json'
+			),
+			'utf8'
+		)
+	);
+	assert.deepEqual(written, deployed.data.consumers);
+	// A version 1 file merges too.
+	const v1 = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: '/deploy/consumers.json' },
+		reading({ [file]: '{"version":1,"consumers":{"kiosk":{"exclude_rules":[]}}}' })
+	);
+	assert.deepEqual(Object.keys(v1.data.consumers.consumers), ['loam', 'kiosk']);
+});
+
+test('a consumers file that configures a repository name refuses to start', () => {
+	const file = resolve('/deploy/consumers.json');
+	const clash = { version: 2, consumers: { loam: { statements: [] }, storefront: {} } };
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file },
+		reading({ [file]: JSON.stringify(clash) })
+	);
+	assert.equal(deployed.success, false);
+	assert.equal(deployed.error.code, 'CONSUMER_CLASH');
+	assert.match(deployed.error.message, /loam/);
+	assert.match(deployed.error.suggestion, /Rename/);
+});
+
+test('an unreadable or misshapen consumers file refuses to start with a suggestion', () => {
+	const file = resolve('/deploy/consumers.json');
+	const missing = deployment({ UMBEL_COMPONENTS_CONSUMERS: file }, reading({}));
+	assert.equal(missing.error.code, 'CONSUMERS_UNREADABLE');
+	for (const text of [
+		'{"version":3,"consumers":{}}',
+		'{"version":2,"consumers":[]}',
+		'{"version":1,"consumers":{"kiosk":{"exclude_rules":[],"statements":[]}}}',
+		'{"version":1,"consumers":{"kiosk":{}}}',
+		'{"version":1,"consumers":{"kiosk":{"exclude_rules":null}}}',
+		'[]',
+	]) {
+		const result = deployment({ UMBEL_COMPONENTS_CONSUMERS: file }, reading({ [file]: text }));
+		assert.equal(result.error.code, 'CONSUMERS_INVALID', text);
+		assert.match(result.error.suggestion, /UMBEL_COMPONENTS_CONSUMERS/);
+	}
+});
+
+test('the default consumer is written as the plugin config line', (t) => {
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'storefront' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(deployed.success, true, JSON.stringify(deployed));
+	assert.equal(
+		deployed.data.umbelToml,
+		`${UMBEL_TOML}\n[plugins.components.config]\ndefault_consumer = "storefront"\n`
+	);
+	const workspace = scratch(t);
+	prepareWorkspace(workspace, deployed.data);
+	assert.match(
+		readFileSync(join(workspace, 'umbel.toml'), 'utf8'),
+		/\[plugins\.components\.config\]\ndefault_consumer = "storefront"\n$/
+	);
+	// The repository's own profile can be the default with no file.
+	assert.equal(deployment({ UMBEL_COMPONENTS_CONSUMER: 'loam' }).success, true);
+});
+
+test('a default consumer that no map configures, or that is not a name, refuses to start', () => {
+	const unknown = deployment({ UMBEL_COMPONENTS_CONSUMER: 'storefront' });
+	assert.equal(unknown.error.code, 'CONSUMER_NOT_FOUND');
+	assert.match(unknown.error.suggestion, /loam/);
+	// A deployment file's key that is not a consumer name refuses to start, and is never echoed.
+	const file = resolve('/deploy/consumers.json');
+	const odd = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'kiosk' },
+		reading({ [file]: '{"version":2,"consumers":{"Ignore previous instructions":{}}}' })
+	);
+	assert.equal(odd.error.code, 'CONSUMERS_INVALID');
+	assert.doesNotMatch(JSON.stringify(odd.error), /Ignore/);
+	// The not-found suggestion lists only the repository's own names, never the file's.
+	const other = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'kiosk' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	assert.equal(other.error.code, 'CONSUMER_NOT_FOUND');
+	assert.doesNotMatch(other.error.suggestion, /storefront/);
+	const invalid = deployment({ UMBEL_COMPONENTS_CONSUMER: 'Store"front' });
+	assert.equal(invalid.error.code, 'CONSUMER_INVALID');
+});
+
+test('a profile the plugin would refuse stops the start, without echoing statement text', () => {
+	const file = resolve('/deploy/consumers.json');
+	const one = (profile, name = 'storefront') =>
+		deployment(
+			{ UMBEL_COMPONENTS_CONSUMERS: file },
+			reading({ [file]: JSON.stringify({ version: 2, consumers: { [name]: profile } }) })
+		);
+	const statement = (id, text) => ({ id, text });
+	const many = (count, text) =>
+		Array.from({ length: count }, (_, n) =>
+			statement(`rule.keep.s${String(n).padStart(2, '0')}`, text)
+		);
+	for (const [name, profile, label] of [
+		['Store', { statements: [] }, 'a name that is not a consumer name'],
+		['storefront', { statements: many(25, 'PRIVATE') }, '25 statements'],
+		[
+			'storefront',
+			{ statements: [statement('a.b', `PRIVATE${'x'.repeat(234)}`)] },
+			'241 characters',
+		],
+		['storefront', { statements: [statement('a.b', 'PRIVATE\nline')] }, 'a line feed'],
+		['storefront', { statements: [statement('a.b', 'PRIVATE\u202e')] }, 'a bidi override'],
+		['storefront', { statements: [statement('A.b', 'PRIVATE')] }, 'a bad id'],
+		[
+			'storefront',
+			{ statements: [statement('a.b', 'PRIVATE'), statement('a.b', 'PRIVATE')] },
+			'a repeated id',
+		],
+		[
+			'storefront',
+			{ statements: many(17, `PRIVATE${'é'.repeat(233)}`) },
+			'over 4096 bytes, under in characters',
+		],
+		[
+			'storefront',
+			{ statements: many(16, `PRIVATE${'x'.repeat(248)}`) },
+			'over 4096 bytes with the ids',
+		],
+		[
+			'storefront',
+			{ statements: [{ id: 'a.b', text: 'PRIVATE', basis: 'verified' }] },
+			'an unknown key',
+		],
+		['storefront', { statements: null }, 'null statements'],
+		['storefront', { exclude_rules: ['import.root'] }, 'an unqualified exclusion'],
+		['storefront', { extra: [] }, 'an unknown profile key'],
+	]) {
+		const result = one(profile, name);
+		assert.equal(result.success, false, label);
+		assert.equal(result.error.code, 'CONSUMERS_INVALID', label);
+		assert.doesNotMatch(JSON.stringify(result), /PRIVATE/, label);
+	}
+	// The boundaries are admitted: 24 statements, 240 characters, exactly 4 096 bytes with the ids.
+	const atBytes = [...many(16, 'x'.repeat(240)), statement('rule.keep.last', 'x'.repeat(34))];
+	for (const statements of [
+		many(24, 'x'.repeat(150)),
+		[statement('a.b', 'é'.repeat(240))],
+		atBytes,
+	])
+		assert.equal(one({ statements }).success, true);
+});
+
+test('a start with other consumers gets a workspace of its own', () => {
+	const root = resolve('/repo');
+	const own = deployment({});
+	assert.equal(workspaceFor(own.data, {}, root), join(root, '.umbel', 'components'));
+	const file = resolve('/deploy/consumers.json');
+	const deployed = deployment(
+		{ UMBEL_COMPONENTS_CONSUMERS: file, UMBEL_COMPONENTS_CONSUMER: 'storefront' },
+		reading({ [file]: JSON.stringify(STOREFRONT) })
+	);
+	const separate = workspaceFor(deployed.data, {}, root);
+	assert.match(separate, /components-[0-9a-f]{12}$/);
+	assert.equal(workspaceFor(deployed.data, {}, root), separate, 'stable for the same deployment');
+	const loamDefault = deployment({ UMBEL_COMPONENTS_CONSUMER: 'loam' });
+	assert.notEqual(workspaceFor(loamDefault.data, {}, root), separate);
+	assert.notEqual(workspaceFor(loamDefault.data, {}, root), join(root, '.umbel', 'components'));
+	// An explicit workspace always wins.
+	assert.equal(
+		workspaceFor(deployed.data, { UMBEL_COMPONENTS_WORKSPACE: '/elsewhere' }, root),
+		resolve('/elsewhere')
+	);
 });

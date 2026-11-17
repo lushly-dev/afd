@@ -176,3 +176,105 @@ def test_merge_tree_and_diff_names_read_a_moved_base_without_a_checkout(tmp_path
     assert not conflict.clean and conflict.conflicts == ("a.txt",)
     with pytest.raises(WorldError):
         git.merges_cleanly(head, "0" * 40)
+
+
+def test_a_repair_s_gate_edits_are_its_own_not_main_s_brought_in_by_a_rebase(tmp_path, monkeypatch):
+    """lushly-dev/afd#1374: a rebased repair is not refused for main's gate changes."""
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo = tmp_path / "repo"
+    repo.mkdir()
+    run = make_runner(str(repo))
+
+    def write(name: str, text: str) -> None:
+        (repo / name).write_text(text, encoding="utf-8")
+
+    def commit(message: str) -> str:
+        run(["git", "add", "-A"])
+        run(["git", "commit", "--quiet", "-m", message])
+        return run(["git", "rev-parse", "HEAD"]).strip()
+
+    run(["git", "init", "--quiet", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "config", "core.autocrlf", "false"])
+    lines = "".join(f"line {n}\n" for n in range(1, 21))
+    write("gate.yml", "gate: 1\n")
+    write("shared-gate.yml", lines)
+    write("src.ts", "a\n")
+    base = commit("base")
+    run(["git", "update-ref", "refs/remotes/origin/main", base])
+    run(["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/remotes/origin/main"])
+
+    # The branch, as ejected: a source change and a gate change of its own at the end.
+    run(["git", "checkout", "--quiet", "-b", "fix/a"])
+    write("src.ts", "b\n")
+    write("shared-gate.yml", lines + "branch: tightened\n")
+    ejected = commit("fix")
+
+    # Main moves: it edits gate.yml, and shared-gate.yml far from the branch's change.
+    run(["git", "checkout", "--quiet", "main"])
+    write("gate.yml", "gate: 2\n")
+    write("shared-gate.yml", "main: first\n" + lines)
+    moved = commit("main moves")
+    run(["git", "update-ref", "refs/remotes/origin/main", moved])
+
+    git = CliGit(run)
+    gate = lambda path: path.endswith(".yml")  # noqa: E731
+    run(["git", "checkout", "--quiet", "fix/a"])
+    run(["git", "rebase", "--quiet", "main"])
+    rebased = run(["git", "rev-parse", "HEAD"]).strip()
+    assert git.changed_files(str(repo), ejected) == ["gate.yml", "shared-gate.yml", "src.ts"]
+    assert git.repair_edits(str(repo), moved, ejected, gate) == []
+    assert git.repair_edits(str(repo), moved, None, gate) == ["shared-gate.yml"]
+
+    # The base is the lane's commit: repointing origin/HEAD in the worktree changes nothing.
+    run(["git", "symbolic-ref", "refs/remotes/origin/HEAD", "refs/heads/fix/a"])
+    write("gate.yml", "gate: loosened\n")
+    commit("loosen")
+    assert git.repair_edits(str(repo), moved, ejected, gate) == ["gate.yml"]
+
+    # Taking back its own gate change is still a gate edit.
+    write("shared-gate.yml", "main: first\n" + lines)
+    commit("take back")
+    assert sorted(git.repair_edits(str(repo), moved, ejected, gate)) == [
+        "gate.yml",
+        "shared-gate.yml",
+    ]
+
+    # Re-indenting the branch's own gate lines is an edit: indentation is meaning in YAML.
+    run(["git", "reset", "--quiet", "--hard", rebased])
+    write("shared-gate.yml", "main: first\n" + lines + "  branch: tightened\n")
+    commit("re-indent")
+    assert git.repair_edits(str(repo), moved, ejected, gate) == ["shared-gate.yml"]
+
+    # Renaming a gate file out of the gate globs is seen by its old name.
+    run(["git", "reset", "--quiet", "--hard", rebased])
+    run(["git", "mv", "gate.yml", "gate.off"])
+    commit("rename away")
+    assert git.repair_edits(str(repo), moved, ejected, gate) == ["gate.yml"]
+
+    # The repository's config, which the cell's worktree shares, cannot hide an edit.
+    run(["git", "reset", "--quiet", "--hard", rebased])
+    write("shared-gate.yml", "main: first\n" + lines + "branch: tightened || true\n")
+    commit("loosen its own line")
+    for key, value in (("color.ui", "always"), ("color.diff", "always"), ("diff.external", "echo")):
+        run(["git", "config", key, value])
+        assert git.repair_edits(str(repo), moved, ejected, gate) == ["shared-gate.yml"], key
+        run(["git", "config", "--unset", key])
+
+    # Moving its own gate line elsewhere in the file is an edit, even with no diff context set.
+    run(["git", "reset", "--quiet", "--hard", rebased])
+    write("shared-gate.yml", "main: first\nbranch: tightened\n" + lines)
+    commit("move its own line")
+    run(["git", "config", "diff.context", "0"])
+    assert git.repair_edits(str(repo), moved, ejected, gate) == ["shared-gate.yml"]
+    run(["git", "config", "--unset", "diff.context"])
+
+    # A repair that merges main instead of rebasing is judged the same way.
+    run(["git", "checkout", "--quiet", "-B", "fix/merged", ejected])
+    run(["git", "merge", "--quiet", "--no-edit", moved])
+    assert git.repair_edits(str(repo), moved, ejected, gate) == []

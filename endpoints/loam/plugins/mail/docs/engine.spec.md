@@ -482,7 +482,7 @@ for later phases are a sketch, fixed by the step that creates each.
 | `sender_decision`, `sender_suggestion` | The person's decision on an address (in, out or theirs), with the suggestion it came from; an agent's suggestion, its proposer and where it stands ([7.3](#73-the-persons-decisions), step C2) | No |
 | `change` | One row per change to anything a view shows, with a growing sequence number | No |
 | `story`, `story_member` | Stories and their messages ([section 8](#8-stories)). Step C2 built stream stories (migration 9): `story_member` holds each bulk message a mailbox other than junk and trash shows, with its stream, date, template key, body shape and whether it is an exception; `story_shape` and `story_kind` count each story's body shapes and template keys; `story` is a stream with members, a story from its fifth, with its counts, title and dates. `stream` gives each list or sender the id its story keeps | Stream and burst stories yes: stream stories from `screening` and `envelope`. `stream` no: its ids are kept, and a rebuild drops only the streams of mail no longer held |
-| `first_contact`, `contact_day`, `burst`, `burst_message` | Bursts ([7.4](#74-bursts), step C3, migration 10): each account's first contacts, whether each is kept, its counts of them for each day, its bursts and the first contacts each holds. Migration 10 also adds `sender.first_written`, `sender_decision.first_in_at`, `mailbox.first_listed_at` and `account.listed_at` | Yes, from `sender`, `envelope`, `observation` and `mailbox`; `first_in_at`, `first_listed_at` and `listed_at` no |
+| `first_contact`, `contact_day`, `burst`, `burst_message` | Bursts ([7.4](#74-bursts), step C3, migration 10; migration 11 raised their rule): each account's first contacts, whether each is kept, its counts of them for each day, its bursts and the first contacts each holds. Migration 10 also adds `sender.first_written`, `sender_decision.first_in_at`, `mailbox.first_listed_at` and `account.listed_at` | Yes, from `sender`, `envelope`, `observation` and `mailbox`; `first_in_at`, `first_listed_at` and `listed_at` no |
 | `selection`, `operation` | A frozen set of messages, and a change the engine made to one ([section 9](#9-changing-the-mailbox)) | No |
 | `policy`, `token` | The person's policy; hashed tokens | No |
 | `draft`, `outbound`, `record` | From phases D and E | No |
@@ -1247,25 +1247,33 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
   since blocking them is enough, while a flood of sign-ups comes from many sites.
 - **Days with no history are not quiet days.** Providers empty junk and trash, so a window is
   judged twice and is a burst when either passes: all its first contacts and their senders,
-  against the median over the covered days from where every junk and trash mailbox's history
-  starts (the latest of their earliest first contacts, and the account's own); and its kept ones
-  and their senders, against the median of kept ones from the account's earliest. A median needs
-  30 covered days before the window, so a flood in the first month of an account's history is
-  never a burst, and nor is one wholly in junk or trash within a month of the oldest first
-  contact the engine has seen there: the first sync of an account whose provider empties junk
-  monthly sees no older one.
-  A flood that is not kept is judged from the later of where junk's and trash's histories start,
-  each at the oldest first contact the engine has seen there and kept after the provider empties
-  it. With providers that delete each message 30 days after it arrives, and mailboxes that often
-  get first contacts, the gap is the month before the first sync. It ends later when a mailbox
-  is emptied all at once, appears later, or gets its first first contact later, such as a trash
-  mailbox the person seldom deletes a new sender's first message into: it runs until a month
-  after that start. A time the engine does not sync for longer than the provider keeps junk
-  leaves days that read as quiet.
+  against the median over the covered days from where the history of every junk and trash
+  mailbox starts, and the account's own; and its kept ones and their senders, against the median
+  of kept ones from the account's earliest. A junk or trash mailbox the account had when it was
+  first listed whole has seen all that came to it since the engine first listed it, so its
+  history starts then, or at the oldest first contact the engine has seen in it if that is
+  older, a start kept after the provider empties it; one that appeared later held nothing before
+  it did, and sets no start. This is the rule's third version, raised on 2026-11-16 with the
+  owner's agreement: the second started a mailbox's history at its oldest first contact alone,
+  so a trash mailbox's first first contact, months after the first sync, hid junk floods for a
+  month. A store from before bursts had only each mailbox's last pass before migration 10 to
+  stand for its first listing; migration 11 puts it back to when the engine first saw its
+  account's mail, about the first sync, for each mailbox the account had then. It does this for
+  every store it upgrades: in one made with bursts, a mailbox first listed late in the first sync
+  counts from that sync's start, and what came there and went before its first pass, hours at
+  most, is not seen. An account none of whose mailboxes was ever listed waits. A median needs 30
+  covered days before the window, so a flood in the first month of an account's history is never
+  a burst, and nor is one wholly in junk or trash before where their history starts or within a
+  month after it: at the first sync, the oldest first contact each holds, or the sync itself for
+  one that holds none. With providers that delete each message 30 days after it arrives, the gap
+  is the month before the first sync; with one that empties a mailbox all at once, or a mailbox
+  that holds no first contact then, it runs up to a month past the first sync, and does not come
+  back. A time the engine does not sync for longer than the provider keeps junk leaves days that
+  read as quiet.
   The messages moved out of junk are kept, and are judged on their own against the account's
   whole history of kept ones; a message stays kept after it is deleted. The owner accepted the
-  gap for junk on 2026-11-16: a flood the provider filed away and nobody moved out did not
-  reach the person.
+  gap on 2026-11-16: in junk, a flood the provider filed away and nobody moved out did not reach
+  the person; in trash, it is mail from before the engine ran.
 - **A flood that lasts weeks is one burst while it is unusual.** Its windows overlap from day to
   day, so it is one burst, and it stays one while fewer than half the covered days of the 90
   before a window are its days; after that it is the account's usual day. Thirty new senders a
@@ -1292,7 +1300,9 @@ reports what the rule would have shown; Gmail's 2025 is the candidate the census
   accounts and rebuilds; and the window's counts against counting each window whole, on random
   first contacts. The rule has a number, kept in `engine_state` as `burst-rule` and raised
   with any change to it, a threshold included: a store whose bursts another rule found finds every
-  account's again when it is opened, and the stories they change.
+  account's again when it is opened, and the stories they change. Once builds of a rule are in
+  use, the next comes with a migration, so that they refuse a store a later rule found bursts
+  in: rule 3 with migration 11.
 - **A burst's story** holds its first contacts that are `unknown` or `bulk` and listed, in place of
   a queue entry or a stream story each: they leave the queue, the `unknown` and `bulk` lists and
   `mail-sender-list`'s `waiting`. A message two accounts hold is in its earliest burst's story. A
@@ -1344,6 +1354,16 @@ directions. Import's room over the limit is now 2%
 [before bursts](limits-500000-c3-idle-main.results.json),
 [the second run](limits-500000-c3-idle-2.results.json)). Listing the account found its bursts in
 1.3 to 1.5 ms, and a batch of 250 headers after it took 159 to 211 ms.
+
+**The rule's third version** changes only where a junk or trash mailbox's history starts, which
+is read when an account's bursts are found, never during its first sync. Measured on 2026-11-16
+and 17 beside `main` at `91de6663`, in turn on the Mac's own disk, while other sessions loaded
+the machine (load averages from 4 to 35): import 370, 380 and 368 messages a second against
+`main`'s 477 and 379, so the noise is larger than any cost, and neither met 500 under that load
+([the third run](limits-500000-c3-rule3.results.json),
+[`main`'s second](limits-500000-c3-rule3-main.results.json)). Listing the account found its
+bursts in 1.4 to 1.5 ms beside 1.4 (11 ms in the run that began at a load of 35), and a batch of
+250 headers after it took 174 to 268 ms beside 192 to 211.
 
 ## 8. Stories
 
@@ -1858,7 +1878,7 @@ file.
 | B7 | The acceptance run on the owner's accounts, in two pull requests: iCloud first, then Gmail after B0 and B6. The iCloud half also raised the body batch from 50 to 400, narrowed a failing batch to its own messages, stopped a mailbox for the pass when its opening nests too deep, and made every file the program creates the owner's alone (the index's directory `0700`, the program's mask `077`), all found by the run |
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
-| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods |
+| C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods. Then rule 3 (migration 11): a junk or trash mailbox's history starts no later than when the engine first listed it |
 | D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal |

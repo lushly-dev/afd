@@ -149,7 +149,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 |------|----------|--------|
 | pre-commit | Biome lint and fix (staged), portability, file-size, typecheck of the staged files' packages and their dependents | `git commit` |
 | commit-msg | commitlint (conventional commits) | `git commit` |
-| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, boundaries, skills, tooling tests | `git push` |
+| pre-push | Full lint; test and typecheck of the affected packages; portability, file-size, orphan-files, versions, test-configs, boundaries, skills, tooling tests | `git push` |
 | check | All pre-push + build of the affected packages | `pnpm check` |
 
 **Check scripts** (`scripts/`):
@@ -160,6 +160,7 @@ Lefthook manages git hooks. Installed automatically via `pnpm install`.
 | `check-portability.mjs` | Machine-specific paths (drive letters, user homes) and package managers started without a shell, which fail on Windows. Escape: `// portability-ok: reason` |
 | `check-orphan-files.mjs` | Unreferenced `.ts` files across packages (warning only) |
 | `check-versions.mjs` | Package versions and the AFD contract version (`spec/VERSION`) against the language constants, `docs/language-parity.md` and the README table |
+| `check-test-configs.mjs` | No Vitest or Vite config sets `passWithNoTests`, and no `package.json` script, workflow, `lefthook.yml` or `scripts/affected` module passes `--passWithNoTests`: a runner that finds no test file must fail, not pass. A new package adds its first test with its config |
 
 Skip hooks: `git commit --no-verify` / `git push --no-verify`
 

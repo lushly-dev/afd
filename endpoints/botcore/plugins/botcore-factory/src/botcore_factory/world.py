@@ -12,7 +12,7 @@ A failed outside read or write raises ``WorldError``. Commands turn it into ``RE
 from __future__ import annotations
 
 import re
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Protocol, runtime_checkable
@@ -239,6 +239,16 @@ class Git(Protocol):
     def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
         """The paths the worktree's HEAD changed since ``since`` (a commit), or since it left
         origin's default branch when ``since`` is None."""
+        ...
+
+    def repair_edits(
+        self, worktree: str, base: str, since: str | None, keep: Callable[[str], bool]
+    ) -> list[str]:
+        """The paths ``keep`` selects whose change by the branch itself differs from its change
+        at ``since`` (the ejected head). Each side is the branch's own diff from where it left
+        ``base``, a commit the lane fetched (never a ref the worktree controls), so what main
+        changed, brought in by a rebase or a merge of the base, is not counted. With ``since``
+        None, every selected path the branch changes."""
         ...
 
     def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:

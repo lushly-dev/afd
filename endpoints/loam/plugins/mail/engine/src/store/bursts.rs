@@ -20,7 +20,9 @@
 //!   trash, so a window is judged twice, and is a burst when either holds:
 //!   on all its first contacts and their senders, against a median over the
 //!   days from when every junk and trash mailbox's history starts (the
-//!   latest of their earliest first contacts, and the account's own); and
+//!   latest of the account's earliest first contact and, for each junk and
+//!   trash mailbox it had when first listed whole, the earlier of when the
+//!   engine first listed it and its earliest first contact); and
 //!   on its kept ones and their senders, against a median of kept ones over
 //!   the days from the account's earliest kept one. A median needs
 //!   [`COVERED_LEAST`] covered days before the window: a flood in an
@@ -94,8 +96,10 @@ const HOUR: i64 = 60 * 60 * 1000;
 /// touches by its own rule, until a batch of this one touches the account
 /// again. Raise it with a migration, which earlier builds refuse, once
 /// builds of the earlier rule are in use. Rule 1, on messages alone, never
-/// left its branch.
-pub(super) const RULE: i64 = 2;
+/// left its branch; rule 2 started a junk or trash mailbox's history at the
+/// earliest first contact seen there alone, and rule 3, with migration 11,
+/// at when the engine first listed it too.
+pub(super) const RULE: i64 = 3;
 
 /// The `engine_state` key that holds the [`RULE`] a store's bursts were
 /// found by.
@@ -157,16 +161,25 @@ const HELD: &str = "SELECT burst.id, burst.first, burst.last, burst_message.mess
      WHERE burst.account_id = ?1";
 
 /// Where an account's history of all its first contacts starts: its
-/// earliest, or later the earliest a junk or trash mailbox of it holds.
+/// earliest, or later where a junk or trash mailbox's history starts. That
+/// is, for a mailbox the account had when it was first listed whole, the
+/// earlier of when the engine first listed it, since it has seen all that
+/// came there since, and the earliest first contact it has seen there. A
+/// mailbox that appeared later held nothing before it did, and sets none.
 const COVERED_FROM: &str = "SELECT max(earliest) FROM (
          SELECT min(received) AS earliest FROM first_contact WHERE account_id = ?1
          UNION ALL
-         SELECT min(first_contact.received) FROM first_contact
-             JOIN observation ON observation.message_id = first_contact.message_id
-             JOIN mailbox ON mailbox.id = observation.mailbox_id
-         WHERE first_contact.account_id = ?1 AND mailbox.account_id = ?1
-           AND mailbox.role IN ('junk', 'trash')
-         GROUP BY mailbox.id)";
+         SELECT min(mailbox.first_listed_at, coalesce(seen.earliest, mailbox.first_listed_at))
+         FROM mailbox
+         JOIN account ON account.id = mailbox.account_id
+         LEFT JOIN (SELECT observation.mailbox_id AS id,
+                           min(first_contact.received) AS earliest
+                    FROM first_contact
+                    CROSS JOIN observation ON observation.message_id = first_contact.message_id
+                    WHERE first_contact.account_id = ?1
+                    GROUP BY observation.mailbox_id) AS seen ON seen.id = mailbox.id
+         WHERE mailbox.account_id = ?1 AND mailbox.role IN ('junk', 'trash')
+           AND mailbox.first_listed_at <= account.listed_at)";
 
 /// Where an account's history of its kept first contacts starts.
 const KEPT_FROM: &str =
@@ -254,7 +267,15 @@ fn listed(transaction: &Transaction<'_>, account: i64) -> Result<bool, StoreErro
         // An account removed: what is left of it is found as it is.
         None => Ok(transaction.one(ALL_LISTED, [account], |row| row.get(0))?),
         Some(None) => {
-            let whole: bool = transaction.one(ALL_LISTED, [account], |row| row.get(0))?;
+            // Whole once every mailbox it has was listed, and one was: an
+            // account with none, or whose mailboxes all went unlisted, waits.
+            let whole: bool = transaction.one(ALL_LISTED, [account], |row| row.get(0))?
+                && transaction.one(
+                    "SELECT EXISTS (SELECT 1 FROM mailbox
+                         WHERE account_id = ?1 AND first_listed_at IS NOT NULL)",
+                    [account],
+                    |row| row.get(0),
+                )?;
             if whole {
                 transaction.run(
                     "UPDATE account SET listed_at = coalesce(

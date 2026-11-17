@@ -10,7 +10,7 @@ for ``gh`` and ``git`` without calling them.
 from __future__ import annotations
 
 import json
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from pathlib import Path
 
 from botcore_factory.real_run import Run, make_runner, parse_json, resolve_program, run_process
@@ -338,6 +338,25 @@ def _run_state(run: dict) -> str:
     return "cancelled" if conclusion in ("cancelled", "stale") else "failure"
 
 
+#: ``git diff`` as plain patch text whatever the repository's config says, which a cell's
+#: worktree shares and could set: no colour, external diff, text conversion, relative paths or
+#: dropped context.
+_PLAIN_DIFF = (
+    "-c",
+    "core.quotePath=false",
+    "-c",
+    "color.ui=never",
+    "-c",
+    "diff.relative=false",
+    "diff",
+    "--no-color",
+    "--no-ext-diff",
+    "--no-textconv",
+    "--no-renames",
+    "-U3",  # Context, whatever diff.context says: patch-id ignores line numbers.
+)
+
+
 class CliGit:
     """git in the target checkout. Host records are fetched from origin's refs/factory/hosts."""
 
@@ -382,9 +401,42 @@ class CliGit:
         return [line[3:].split(" -> ")[-1] for line in out.splitlines() if line.strip()]
 
     def changed_files(self, worktree: str, since: str | None = None) -> list[str]:
-        base = since or "origin/HEAD"
-        out = self.run(["git", "-C", worktree, "diff", "--name-only", f"{base}...HEAD"])
+        return self._names(worktree, f"{since or 'origin/HEAD'}...HEAD")
+
+    def repair_edits(
+        self, worktree: str, base: str, since: str | None, keep: Callable[[str], bool]
+    ) -> list[str]:
+        now = [path for path in self._names(worktree, f"{base}...HEAD") if keep(path)]
+        if since is None:
+            return now
+        # The branch's own diff at the ejected head: from where it then left the base.
+        before = [path for path in self._names(worktree, f"{base}...{since}") if keep(path)]
+        edits = [path for path in now if path not in before]
+        for path in before:  # A change it made, now changed or taken back: still a gate edit.
+            if path not in now or self._change_id(worktree, base, "HEAD", path) != self._change_id(
+                worktree, base, since, path
+            ):
+                edits.append(path)
+        return edits
+
+    def _names(self, worktree: str, spec: str) -> list[str]:
+        """Both sides of a rename, and paths unquoted, so a gate file renamed out of the gate
+        globs, or one with a non-ASCII name, still matches them."""
+        out = self.run(["git", "-C", worktree, *_PLAIN_DIFF, "--name-only", spec])
         return [line for line in out.splitlines() if line.strip()]
+
+    def _change_id(self, worktree: str, base: str, head: str, path: str) -> str:
+        """The branch's own change to ``path`` at ``head``, as ``git patch-id --verbatim``: equal
+        for the same lines with the same context when a rebase only moves them in the file.
+        Whitespace counts, since indentation changes what a YAML workflow means; main editing
+        near the branch's own lines changes the context and so fails closed."""
+        patch = self.run(["git", "-C", worktree, *_PLAIN_DIFF, f"{base}...{head}", "--", path])
+        if not patch.strip():
+            return ""
+        out = self.run(["git", "-C", worktree, "patch-id", "--verbatim"], patch).split()
+        if not out:  # A patch patch-id cannot read must never compare equal to another.
+            raise WorldError(f"git patch-id could not read the diff of {path} at {head}")
+        return out[0]
 
     def push_queue_ref(self, worktree: str, branch: str, head: str) -> None:
         self.run(
@@ -464,7 +516,18 @@ class CliGit:
             return None
 
     def fetch_base(self, base: str) -> str:
-        self.run(["git", "fetch", "--quiet", "--no-tags", "origin"])
+        # An explicit refspec: the configured one is shared with cell worktrees, which could
+        # point origin's base at their own branch.
+        self.run(
+            [
+                "git",
+                "fetch",
+                "--quiet",
+                "--no-tags",
+                "origin",
+                f"+refs/heads/{base}:refs/remotes/origin/{base}",
+            ]
+        )
         return self.run(["git", "rev-parse", f"refs/remotes/origin/{base}"]).strip()
 
     def _slot_path(self, slot: str) -> str:

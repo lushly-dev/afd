@@ -19,10 +19,15 @@
   [A23](#amendments-after-step-c3) (D172, the owner's decision of 2026-11-11): the doctor runs this plugin's own
   check on each space override, so an override a call would refuse fails the doctor first. Amended by
   [A27](#amendment-a27-the-catalog-derived-at-run-time-1153) (#1153): the tests derive FAST-AF's catalog at run
-  time, and the committed `tests/fast_af/library.json` is gone.
+  time, and the committed `tests/fast_af/library.json` is gone. Amended by
+  [A28](#amendment-a28-a-deployments-own-guidance) (the owner's decision of 2026-11-16): a consumer
+  profile states the deployment's own guidance, and `default_consumer` applies a profile to calls
+  that name none.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-17 for amendment A28, on `0f625e26`: `cargo test --locked -p umbel-plugin-components`
+  (144 tests), both scenarios validated with `afd scenario validate`, `node --test scripts/umbel-components.test.mjs`
+  and `pnpm verify --keep-going` (Umbel's STATUS.md). Before that, 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
@@ -228,6 +233,77 @@ The tests now export at run time, from committed files alone, and the committed 
   otherwise run Umbel on every release. A FAST-AF source change still runs no Umbel suite; a rebuilt
   record still runs these tests, and now needs nothing else.
 
+### Amendment A28: a deployment's own guidance
+
+The owner decided on 2026-11-16 that a deployment states its own design guidance, and that every
+brief for it carries that guidance. The job, written first as
+`plugins/components/scenarios/deployment-guidance.scenario.yaml` and run by `tests/consumers.rs`,
+which adds a fifth step for the deployment default, since a scenario cannot set an instance's
+configuration:
+*when I build a screen for a product whose deployment states its own design guidance, I want every
+brief to carry it once, marked as the deployment's and as `authored`, so that I apply it without
+having to know it exists; a brief for a deployment with no guidance is unchanged.* A25's profiles
+said what to leave out; they could not say what to add.
+
+- **Statements on a profile.** `data/consumers.json` version 2 lets a profile carry
+  `statements: [{ "id", "text" }]`, in the pack's statement form without a basis, and makes
+  `exclude_rules` optional (default empty). Version 1 is still read, and refuses `statements`. A
+  statement's id follows the format's statement-id pattern and the identifier scan; writing it as
+  `<pattern>.<kind>.<name>` (`forms.keep.labels-visible`) keeps it a file move from a future
+  patterns pack. Its text is one line of 1 to 240 code points with no control or bidirectional
+  character, as the format's statement text is. A profile holds at most 24 statements, with unique
+  ids, and at most 4 096 UTF-8 bytes of ids and text together. The file's other limits are A25's. An
+  older binary given version 2 refuses it with `CONSUMERS_INVALID`.
+- **Always `authored`.** The file has no `basis` key, so a deployment cannot claim a checked basis
+  for text nothing checked. `minimum_basis` applies as to every fact (5.5): with `observed` or
+  stronger the statements are left out and counted in the `minimum-basis` entry.
+- **Where they appear.** Once per answer, whatever the number of tags, in every `detail`, every
+  `sections` choice and every render, and also when no tag answered: `content.guidance`
+  `{ "consumer", "basis": "authored", "items": [{ "id", "text", "flags"? }] }`, inside the content
+  part (5.1), since it is text read from a pack. Each statement is scanned and flagged like every
+  served string, and counts toward `CONTENT_FLAGGED` (5.6). The consumer name and the ids are
+  checked identifiers. In text, a `[guidance <consumer> authored]` block after the library headers
+  and before the first component, one quoted `> id: text` line each, and one sentence added to the
+  head (6.6). The reasoning counts the statements and names none. `components-open` and
+  `components-list` are unchanged.
+- **A deployment default.** `default_consumer` in `[plugins.components.config]` (2.2) names the
+  profile a call uses when it names none, the pattern `default_library` follows. A call that names
+  a consumer overrides it; no call can ask for none while it is set. Turning guidance on through the
+  deployment's default is intended: a workspace serving one product should not depend on every
+  agent knowing to pass a name, and step C5 found that agents skip what they have only been told
+  about. A default the space's map does not hold is not an error at seal: the call fails with
+  `CONSUMER_NOT_FOUND`, and its suggestion names the config key. The doctor fails a `consumers`
+  override whose map lacks a configured default; a space with no override is not checked, the gap
+  `default_library` has too.
+- **No consumer, no change.** With no `consumer` and no `default_consumer` the map is never read
+  (A25), and the answer is byte for byte what it was: `tests/golden/example-*.txt` did not change.
+  A profile with no statements adds no `guidance` and leaves the head as it was.
+- **Part of the floor, never shed.** Guidance is in every build of an answer and in no step of the
+  shedding order (6.4). The components' facts shed around it and stay reachable: `omitted` names
+  the `components-open` call that returns them. Shed guidance would have no way back without a new
+  command; the deployment chose it, and its cost is bounded: the cap counts every byte of the ids
+  and texts, and the served block adds only its framing (about 20 bytes a statement) and JSON's
+  escaping of quotes and backslashes, so ordinary guidance costs a brief little more than 4 KiB. Because
+  every build includes it, `fits` in `OUTPUT_BUDGET_EXCEEDED` counts it with no new logic. That
+  refusal gains `details.guidance`, the count of statements, and when no tag fits beside them its
+  suggestion is to raise the budget, since briefing fewer tags cannot help.
+  **Considered and rejected:** shedding guidance first, as a step 0. It would keep the components'
+  facts identical to a brief without a consumer in every case, but it would drop the guidance on
+  exactly the large pages that already shed, which defeats "in every brief".
+- **The launcher.** `scripts/umbel-components.mjs` gains `UMBEL_COMPONENTS_CONSUMERS`, a consumers
+  file of version 1 or 2 whose profiles are added to the repository's own (Loam's is kept; the map
+  written is version 2; a name the repository already configures refuses to start), and
+  `UMBEL_COMPONENTS_CONSUMER`, written as `default_consumer` (a name no map configures refuses to
+  start). Without either, the files it writes are byte for byte what they were.
+- **Contract.** An addition to one plugin's answer and configuration and to the repository's
+  launcher. The `CommandResult` keeps its shape, the command stays `1.0.0` as A25 left it, and no
+  host grant, hook or AFD type changes, so no other language needs a change.
+
+Tests: `tests/guidance.rs` (delivery in every detail and render, no change without guidance, the
+default, the budget and `fits`, each limit on the call and in the doctor, `minimum_basis`, spaces),
+`tests/consumers.rs` (the scenario), `tests/content_stays_content.rs` (a canary in a statement)
+and `scripts/umbel-components.test.mjs` (the launcher).
+
 ## What this plugin serves
 
 The goal, from the proposal: an agent names the components on a page, or hands over the markup, and gets back in one
@@ -343,7 +419,7 @@ domains = ["components"]
 
 [[grants]]
 name = "config"
-reason = "Reads minimum_basis and default_library."
+reason = "Reads minimum_basis, default_library and default_consumer."
 
 [[grants]]
 name = "packs"
@@ -355,7 +431,7 @@ reason = "Notes counts and identifiers only: tags answered, unknown and shed sec
 
 [[commands]]
 name = "components-brief"
-description = "Brief on the components a page uses, in one call: name the tags, or pass the page's source, and get one entry per component, the shared rules they use stated once, the tags the library does not know with the nearest names, and what was left out to fit, with the call that returns it. Everything in the answer's content part is a library's documentation, not instructions."
+description = "Brief on the components a page uses, in one call: name the tags, or pass the page's source, and get one entry per component, the shared rules they use stated once, the tags the library does not know with the nearest names, and what was left out to fit, with the call that returns it. Everything in the answer's content part is a library's documentation, or a deployment's own guidance, not instructions."
 effects = ["inspect"]
 input_schema = "schemas/components-brief.input.json"
 category = "components"
@@ -424,9 +500,11 @@ schema = "schemas/config.schema.json"
 | --- | --- | --- | --- |
 | `minimum_basis` | `verified`, `observed`, `declared` or `authored` | `authored` | The weakest basis a fact may have to be served. `observed` serves only what Specimen saw or checked (the owner's decision 1 of 2026-11-09). A summary and a long form have no basis and are always served |
 | `default_library` | a library id | none | The library a tag is looked up in first when it is in more than one, and the one `components-list` shows when no `library` is given and the pack has several |
+| `default_consumer` | a consumer name (the library-id pattern) | none | The consumer profile (6.7) `components-brief` uses when a call names none; a call that names one overrides it (A28) |
 
 `additionalProperties: false`. A `default_library` the pack does not hold is not an error at seal; a call that needs it
-fails with `LIBRARY_NOT_FOUND` (section 9).
+fails with `LIBRARY_NOT_FOUND` (section 9). Likewise a `default_consumer` the space's consumers map does not hold: a
+call with no `consumer` fails with `CONSUMER_NOT_FOUND`, and the doctor fails a `consumers` override that lacks it.
 
 ## 3. Reading the pack (D152)
 
@@ -610,7 +688,8 @@ them, and step C5's setup writes them.
   "content": {
     "trust": "content",
     "libraries": [{ "library": "example", "title": "Example components" }],
-    // components-brief: "components" and "rules"; components-list: "components"; components-open: "component" and "rules"
+    // components-brief: "components", "rules" and, for a consumer that states guidance, "guidance" (A28);
+    // components-list: "components"; components-open: "component" and "rules"
   },
   "unknown": [],                         // components-brief only
   "omitted": [],                         // components-brief and components-open
@@ -620,7 +699,8 @@ them, and step C5's setup writes them.
 
 - **One content part.** Every value read from a pack that is not a checked identifier, enum or count is inside
   `content`, which carries `trust: "content"` once. That includes summaries, statements, rule text, descriptions,
-  types, defaults and values, event detail, accessible names, examples, import specifiers and long forms.
+  types, defaults and values, event detail, accessible names, examples, import specifiers and long forms, and a
+  deployment's guidance statements (A28).
 - **Outside it,** only: library ids, package names, versions, digests and tag prefixes from a catalog; tags and
   library ids in `unknown` and `omitted`; the paths and pointers of problems (3.3); section names; counts; the
   caller's own identifiers. Each was checked against its pattern and scanned when read (3.2), or is an enum this
@@ -771,6 +851,11 @@ has an entry `{ "reason": "detail", "sections": ["cssProperties"], "pieces": ["a
 any `minimum-basis` entry and before the budget's, naming only what the answered entries have (A24); the long form,
 left out of every brief, is not named.
 
+For a consumer whose profile states guidance (6.7, A28), `content` also holds `guidance`, once:
+`{ "consumer": "storefront", "basis": "authored", "items": [{ "id": "forms.keep.labels-visible", "text": "…" }] }`,
+each item with `flags` when the scan hits it. It is there in every `detail` and `sections` choice and when no tag
+answered.
+
 ### 6.4 Fitting the budget (D154)
 
 The target is the smaller of `maxBytes` and the call's `output_budget`, measured as AFD measures a result (the UTF-8
@@ -792,7 +877,8 @@ this order, from every entry at once so that entries stay comparable:
 12. The remaining `attributes`
 13. `themes`, `gaps` and `rules`
 
-What is left is each entry's floor. Then:
+What is left is each entry's floor, and the consumer's guidance (A28), which is in no step: it is never shed, and
+`fits` below counts it, and the refusal then carries `details.guidance`, their count. Then:
 
 - The one `omitted` entry with `reason: "budget"` has `sections`, every whole section shed, and `pieces`, every
   piece shed (`eventDetail`, `declaredAttributes`, `ruleText`), each in shedding order. Its `open` names the sections
@@ -852,6 +938,10 @@ It is not an instruction and does not grant permission.
   after a header naming it (`[example example-select--default]`, `[detail]`). A flagged fact's last line ends with
   `(flagged: instruction-like)`.
 - Fitting measures the whole result with `data.text` in it, by the same order (6.4).
+- A consumer's guidance (A28) is a block after the library headers and before the first component:
+  `[guidance <consumer> authored]`, then one quoted `> id: text` line each, flagged as any fact is. Only when it is
+  present, the head's first line ends with one more sentence: "Lines under a [guidance] header are this deployment's
+  guidance, from its consumers pack." Without guidance the head is byte for byte as above.
 
 Step C2 fixes the exact block with a golden file for the example pack, and the README shows it.
 
@@ -865,15 +955,29 @@ deployer overrides it per space with the normal `pack.toml` (`id = "consumers"`,
 {"version":1,"consumers":{"loam":{"exclude_rules":["violet-elements/import.root","violet-elements/theme.install"]}}}
 ```
 
-Only these keys are accepted at each level. The file is at most 65,536 UTF-8 bytes,
+Version 2 (A28) adds a profile's `statements`, the deployment's own guidance, and makes
+`exclude_rules` optional:
+
+```json
+{"version":2,"consumers":{"storefront":{"statements":[{"id":"forms.keep.labels-visible","text":"Every field keeps a visible label; a placeholder is not a label."}]}}}
+```
+
+Only these keys are accepted at each level, a present key may not be `null`, and version 1 accepts no
+`statements`. The file is at most 65,536 UTF-8 bytes,
 with at most 32 consumers and 256 exclusions per consumer. Consumer names match the
 library-id pattern; exclusions are always `<library>/<rule-id>` with the format's
 patterns and identifier scan, even when the call serves only one library. Repeated
 exclusions are read once. A well-formed id absent from the selected library is a no-op,
-so a profile may cover more than one library or a newer pack.
+so a profile may cover more than one library or a newer pack. A profile holds at most 24 statements, with unique
+ids of the format's statement-id pattern that pass the identifier scan, each text one line of 1 to 240 code points
+with no control or bidirectional character, and at most 4 096 UTF-8 bytes of ids and text in all.
 
-A call with no consumer never reads the map. With one, the whole map is validated;
-unknown consumer is `CONSUMER_NOT_FOUND`, malformed or unreadable map is
+The call's `consumer`, else the deployment's `default_consumer` (2.2), selects the profile. A call with neither
+never reads the map. With one, the whole map is validated;
+unknown consumer is `CONSUMER_NOT_FOUND`, whose suggestion says what omitting `consumer` would do: give the general
+brief with no `default_consumer`, give the default's profile when the map holds it, or fail too when it does not
+(and when the default chose the name, the suggestion names the config key),
+malformed or unreadable map is
 `CONSUMERS_INVALID`, and invalid caller name is `COMPONENTS_INVALID`. Refusals give
 recovery guidance and copy no file content or parser message. The doctor uses the
 same validator for a `consumers` override. The packs grant selects the call's space;
@@ -883,7 +987,8 @@ After library validation and basis filtering, before section selection and fitti
 remove excluded rules from the rule text, component rule ids and attribute rule ids.
 This applies to every detail and explicit section choice, with `known` unchanged.
 Record the affected requested rules, sorted, once in `omitted` as
-`{ "reason": "consumer", "consumer": "loam", "rules": ["violet-elements/import.root"] }`.
+`{ "reason": "consumer", "consumer": "loam", "rules": ["violet-elements/import.root"] }`, naming the profile
+used, the default's included.
 The text rendering names the same omission. These checked identifiers are metadata,
 not served rule text. Consumer omissions do not carry an `open` action: those rules
 were deliberately inapplicable. Other fields, including the library's `import`,
@@ -893,6 +998,9 @@ The journal keeps `consumer` alongside the existing input identifiers.
 The repository's launcher writes this separate override on each start. Loam's design
 record and skill request `consumer: "loam"`; other consumers omit it. No AFD core
 contract changes, so no changes to the four language implementations are needed.
+
+A profile's statements are served once in every brief as `content.guidance` (6.3), in text as a
+`[guidance]` block (6.6), never shed (6.4), always `authored` (A28).
 
 ## 7. Reading source
 
@@ -965,8 +1073,8 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 
 | Code | When | Retryable | Details | Suggestion |
 | --- | --- | --- | --- | --- |
-| `CONSUMER_NOT_FOUND` | The requested consumer is absent from the deployment map | No | none | Configure it in the space's consumers pack, or omit consumer for general guidance |
-| `CONSUMERS_INVALID` | The deployment map cannot be read or fails 6.7 | No | none | Repair data/consumers.json in the space's consumers pack |
+| `CONSUMER_NOT_FOUND` | The requested consumer, or with none the deployment's `default_consumer`, is absent from the deployment map | No | none | Configure it in the space's consumers pack; or omit consumer, which gives general guidance with no `default_consumer` and the default's profile with one (A28); for a default the map lacks, add it to the pack or change `default_consumer` in `[plugins.components.config]` |
+| `CONSUMERS_INVALID` | The deployment map cannot be read or fails 6.7, a statement's limits included (A28) | No | none | Repair data/consumers.json in the space's consumers pack |
 | `PACK_EMPTY` | The pack holds no library | No | none | Export a library into the space's pack with `specimen pack-export`, or list what the pack holds with `umbel plugin-show components` |
 | `PACK_INVALID` | A touched library, or the pack itself (3.1), has a problem other than `DIGEST_MISMATCH` and `CATALOG_MISMATCH` (3.3) | No | `library`, `problems` (at most 32), `count`, `refused`, `servable` (9.1) | Re-export the library with `specimen pack-export`; a pack written by hand can be checked with Specimen's `checkPack`. When `details.servable` is present, pass one of those as `library` to keep working |
 | `PACK_INCONSISTENT` | Every refused library's only problems are `DIGEST_MISMATCH` or `CATALOG_MISMATCH` (3.3) | Yes | As `PACK_INVALID` | Retry: an export may be replacing the pack. If it persists, re-export it; a hand edit or a partial copy leaves it like this. When `details.servable` is present, pass one of those as `library` to keep working |
@@ -977,7 +1085,7 @@ Every failure has a suggestion, as AFD requires. `details` hold identifiers, cod
 | `TAG_AMBIGUOUS` | `components-open` on a tag in several libraries, undecided | No | `tag`, `libraries` | Pass `library` |
 | `COMPONENTS_INVALID` | An input the schema subset cannot check: an identifier outside the format's patterns, or `skip` without one list section | No | none, or `matches` and `prefixes` for names with no hyphen (A26) | Fix the field the message names and run the command again; for a name with no hyphen, the served tags it matches (A26) |
 | `TOO_MANY_TAGS` | More than 128 tags requested (6.2) | No | `count` | Brief part of the page at a time |
-| `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it |
+| `OUTPUT_BUDGET_EXCEEDED` | The floors do not fit (6.4), or one item does not (8.2) | No | `fits` (brief), and `guidance` when the brief carries a deployment's guidance (A28) | Brief fewer tags at a time, or ask for a larger budget per call with `_meta["dev.afd/outputBudget"]`, up to the command's maximum; `maxBytes` only lowers it. With `fits` 0 and `details.guidance`, only a larger budget helps, and the suggestion says so (A28) |
 
 | Warning | When | Details |
 | --- | --- | --- |
@@ -1054,7 +1162,7 @@ Each step's tests are listed with it in section 12. The files:
 | `tests/budget.rs` | Shedding order on a synthetic pack whose sizes force each step; `omitted` and its `open`; `OUTPUT_BUDGET_EXCEEDED` with `fits`; `maxBytes` below the budget; the result never over the target |
 | `tests/themes.rs` | `themes` read and refused as Specimen does; the section in a brief, in `components-open` and in the text block; `minimum_basis` leaving out a declared one; shed only in the last step (#1038) |
 | `tests/render.rs` | The golden block for the example pack; every content line quoted; a newline, U+2028 or a `]` in pack text cannot make a header |
-| `tests/content_stays_content.rs` | Proposal criterion 8: a pack whose texts hold instructions and a canary answers with the canary only inside `content` or `data.text`, flagged, and in no message, warning or log line; a pack with an instruction-like string in a tag, id or version is refused when read |
+| `tests/content_stays_content.rs` | Proposal criterion 8: a pack whose texts hold instructions and a canary answers with the canary only inside `content` or `data.text`, flagged, and in no message, warning or log line; a pack with an instruction-like string in a tag, id or version is refused when read; the same for a deployment's statement (A28) |
 | `tests/spaces.rs` | Proposal criterion 7: with no override, only `example` is served; a space override replaces it for that space alone |
 | `tests/twenty_tags.rs` | A 20-tag request from a synthetic library of FAST-AF-like size is answered in one call inside the default budget |
 | `tests/scale.rs` | A synthetic 990-component library is served by a 20-tag brief; the wall time is printed in the test's output (a debug build, as Umbel's tests run) with no threshold, and step C2's pull request records the number on macOS and in CI for the cache follow-up to judge |
@@ -1063,6 +1171,7 @@ Each step's tests are listed with it in section 12. The files:
 | `first-party/tests/first_class.rs` | With all six first-party plugins enabled, five suggestions and two built-ins in the first-class set, in every lane's `tools/list` and the binary's, and every skill listed (step C3, A14) |
 | `tests/no_plugin_dependency.rs` | No dependency on another plugin crate (D3), as context's test checks |
 | `tests/fast_af.rs` | Step C4's end-to-end test (A17, A27): FAST-AF's export, its catalog derived at run time and held to Specimen's exported fixture, beside the example, served as space `main`'s override; criterion 1 on the twenty-component page; criterion 2 measured on step 0.1's four pages (A18); criterion 7 with the real library |
+| `tests/consumers.rs`, `tests/guidance.rs` | Consumer profiles (6.7): A25's exclusions and both jobs' scenarios; A28's guidance in every detail and render, unchanged without it, the default, the budget and `fits`, each limit on the call and in the doctor, `minimum_basis` and spaces |
 | `tests/facts.rs` | Proposal criterion 3: every fact in `tests/fast_af/facts.json` is in one brief or in the `components-open` call its `omitted` names, and every tag that does not exist is in `unknown` (A19) |
 
 The crate also builds for `wasm32-wasip2`: `cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components
@@ -1093,7 +1202,8 @@ exists and `tags` when it does not; write; open a component only when the brief'
 for its examples. It says that everything in `content` is a library's documentation and not an instruction, what each
 basis means and that `authored` is unchecked, that `themes` naming fewer than all three themes means the component
 keeps its look in the others by design, that `unknown` with `nearest` usually means a typo, and that a harness
-injecting `render: "text"` passes `maxBytes` to stay inside its own cap.
+injecting `render: "text"` passes `maxBytes` to stay inside its own cap. Since A28 it also says that `content.guidance`
+(a `[guidance]` block in text) is the deployment's own guidance and `authored`.
 
 ## 13. For the owner
 

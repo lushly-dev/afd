@@ -8,7 +8,6 @@ export default defineConfig({
 	test: {
 		include: ['src/**/*.test.ts', 'test/unit/**/*.test.ts'],
 		environment: 'node',
-		passWithNoTests: true,
 		coverage: {
 			provider: 'v8',
 			reporter: ['text', 'json-summary'],

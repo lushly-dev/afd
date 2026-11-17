@@ -610,6 +610,43 @@ pub(super) const MIGRATIONS: &[&str] = &[
     INSERT INTO engine_state (key, value) SELECT 'burst-fill', 1
         WHERE EXISTS (SELECT 1 FROM message);
     ",
+    // 11: the bursts' third rule (section 7.4). Where a junk or trash mailbox's history starts
+    // counts when the engine first listed it. Builds of the second rule refuse the store; its
+    // bursts are found again when it is next opened.
+    "
+    -- An account none of whose mailboxes was listed is not listed whole: migration 10 marked
+    -- one with no mailboxes listed at 0.
+    UPDATE account SET listed_at = NULL
+        WHERE NOT EXISTS (SELECT 1 FROM mailbox
+                          WHERE mailbox.account_id = account.id
+                            AND mailbox.first_listed_at IS NOT NULL);
+
+    -- Migration 10 could take a mailbox's first listing only from its last pass before it. A
+    -- mailbox its account had when first listed whole has been watched since the engine first
+    -- saw that account's mail, about its first sync; one that appeared since held nothing before.
+    -- In a store made with bursts, this moves a mailbox first listed late in the first sync back
+    -- to that sync's start: what came there and went before its first pass, hours at most, is
+    -- not seen.
+    WITH earliest AS (
+        SELECT other.account_id AS account_id, min(observation.seen_at) AS seen_at
+        FROM observation JOIN mailbox AS other ON other.id = observation.mailbox_id
+        GROUP BY other.account_id)
+    UPDATE mailbox
+        SET first_listed_at = (SELECT seen_at FROM earliest
+                               WHERE earliest.account_id = mailbox.account_id)
+        WHERE first_listed_at <= (SELECT listed_at FROM account
+                                  WHERE account.id = mailbox.account_id)
+          AND (first_listed_at = 0
+               OR first_listed_at > (SELECT seen_at FROM earliest
+                                     WHERE earliest.account_id = mailbox.account_id))
+          AND (SELECT seen_at FROM earliest WHERE earliest.account_id = mailbox.account_id)
+              <= (SELECT listed_at FROM account WHERE account.id = mailbox.account_id)
+          AND EXISTS (SELECT 1 FROM earliest WHERE earliest.account_id = mailbox.account_id);
+
+    -- Makes sure the bursts are found again when the store is opened, as the rule's number
+    -- would anyway.
+    DELETE FROM engine_state WHERE key = 'burst-rule';
+    ",
 ];
 
 /// Brings `connection` to the newest schema, one migration and one

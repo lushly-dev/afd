@@ -74,7 +74,10 @@ pub(crate) fn single_plugin_config(
     keys: &toml::Table,
 ) -> toml::Table {
     let mut table = toml::Table::new();
-    table.insert("config_version".into(), 2.into());
+    // The lowest version that admits the instance's keys: `journal` needs version 7 (the
+    // component journal specification, section 5); everything else, version 2.
+    let version = if keys.contains_key("journal") { 7 } else { 2 };
+    table.insert("config_version".into(), version.into());
     if let Some(first) = spaces.first() {
         table.insert("default_space".into(), first.clone().into());
     }

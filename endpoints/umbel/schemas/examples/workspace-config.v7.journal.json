@@ -1,0 +1,26 @@
+{
+	"config_version": 7,
+	"spaces": {
+		"main": {}
+	},
+	"plugins": {
+		"enabled": ["components"],
+		"components": {
+			"source": "plugins/components",
+			"journal": {
+				"mode": "digest",
+				"keep": ["space", "library"],
+				"commands": {
+					"components-brief": {
+						"mode": "digest",
+						"keep": ["space", "library", "detail", "render", "consumer"]
+					},
+					"components-show": {
+						"mode": "digest",
+						"keep": ["space", "library", "tag"]
+					}
+				}
+			}
+		}
+	}
+}
