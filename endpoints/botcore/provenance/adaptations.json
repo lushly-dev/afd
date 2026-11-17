@@ -7,21 +7,21 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "12f68644ffbdcfe8382d288ec383eefc2efbf3f04d41259160b65bfdd347b06b",
+      "current_import_sha256": "66e40302339ea63992706e241b3df2c913684b3f7d4cbc839885e3a4863cb51f",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Provide current AFD endpoint gates and authority instructions; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
+      "import_reason": "Provide current AFD endpoint gates and authority instructions; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "81af0215025aedf161d607c5d923183412f130bcd493cc122cd9d626b5db947a",
+      "current_import_sha256": "f6b02598798648ee2fab8a2df8b04fbe76384e838a91e5ba8a79887f8a01a663",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354)"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Record the Windows factory App key fix (#1346) in the changelog; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Record the factory lane's starvation guard for a branch that affects every unit; Record the factory lane's repair, ejection-detail and units-checkout fixes (lushly-dev/afd#1374, #1373, #1354); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "LICENSE",
@@ -47,11 +47,11 @@
       "path": "SETUP.md",
       "upstream_sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
       "staged_sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
-      "current_import_sha256": "02260b7c4cb5ec3d2d5e49077bb61cd810bfb1cd4d702f8f0bac00f685263fbb",
+      "current_import_sha256": "3f75b9cc1e2d0dacf181a9faeff66b0c400b443125e47acbcc281e2449fdc9c8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "VALIDATION.md",
@@ -929,11 +929,11 @@
       "path": "packages/botcore-agents/tests/test_orchestrator.py",
       "upstream_sha256": "c8fac98e9bad29aac6e56a80b0bd894123bcd4c2f61ede86491794306d0eede3",
       "staged_sha256": "c8fac98e9bad29aac6e56a80b0bd894123bcd4c2f61ede86491794306d0eede3",
-      "current_import_sha256": "c8fac98e9bad29aac6e56a80b0bd894123bcd4c2f61ede86491794306d0eede3",
+      "current_import_sha256": "ad1f5a953e63a1c4fcbb3e8b867a961b6eb6323da72247f828b76339b80e562b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "packages/botcore-agents/tests/test_plugin.py",
@@ -949,11 +949,11 @@
       "path": "packages/botcore-agents/tests/test_resolve_connector_commands.py",
       "upstream_sha256": "bcfe318eca2860dc214ec1899bb1b6c8c2f94d1a8440c76f857550f12c378903",
       "staged_sha256": "bcfe318eca2860dc214ec1899bb1b6c8c2f94d1a8440c76f857550f12c378903",
-      "current_import_sha256": "bcfe318eca2860dc214ec1899bb1b6c8c2f94d1a8440c76f857550f12c378903",
+      "current_import_sha256": "28444d2ef563e9571e67afadbeb3fb6a8c23d904bba08352b6ecd13321fcf442",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "packages/botcore-agents/tests/test_state.py",
@@ -1489,11 +1489,11 @@
       "path": "pyproject.toml",
       "upstream_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
       "staged_sha256": "0db2afb97d025f6b29d935402ce8656a7c288f4a111b74d9348649af9fddfef2",
-      "current_import_sha256": "8211d05b6a31d613d24219cb6575f59132db9864a806a09505bc0afbd720ebad",
+      "current_import_sha256": "436692f35640192cdf398a3fdf7ff5cbcdae019e35b84206dc2d28bb9bbaaeb8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel"
+      "import_reason": "Set root version 0.7.0, provenance, the AFD bootstrap override and AFD project URLs; pytest-asyncio's fixture loop scope set to function, its next default, so the tests do not warn that it is unset; ship skill scripts in the wheel; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "scripts/package_smoke.py",
@@ -1504,6 +1504,17 @@
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
       "import_reason": "Build/audit all six artifacts and an isolated installed- wheel app; check the bloat-sweeper skill's script ships, among ten skills"
+    },
+    {
+      "path": "scripts/package_tests.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "d36a97ede973d758baa0156bae618c48d2c107e3c50d8dcd747aff4adafb98de",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "scripts/record_provenance.py",
@@ -1722,21 +1733,21 @@
       "path": "src/botcore/commands/dev/analysis.py",
       "upstream_sha256": "2b8aada9f650958b3c1468df70e468b4e179675647fa14f5cf419b264ca1b6ce",
       "staged_sha256": "2b8aada9f650958b3c1468df70e468b4e179675647fa14f5cf419b264ca1b6ce",
-      "current_import_sha256": "2178e0d2cf2dd9f4b7429c04375b7a494c992df626c7bc086dbf47dcb9b34a93",
+      "current_import_sha256": "7f3ef7a97ee5abbec27c15280e3338e35c09bd88d9729c67b9b1558a80fbed13",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/dev/core.py",
       "upstream_sha256": "ac146604bdd5e90f492ae40e21192ad4102e35ad4111a2a165d78025b6f76558",
       "staged_sha256": "ac146604bdd5e90f492ae40e21192ad4102e35ad4111a2a165d78025b6f76558",
-      "current_import_sha256": "696bfadba418599c9820cc82157949a3f312293b232514686d6b26b069e16b59",
+      "current_import_sha256": "b32ecc7f3d273d3b5005243a6857ca712be150136a12b96065c286a0f3ef59fd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Preserve unavailable/error/failed native-tool outcomes"
+      "import_reason": "Preserve unavailable/error/failed native-tool outcomes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/dev/dependencies.py",
@@ -1766,40 +1777,40 @@
       "upstream_sha256": null,
       "staged_sha256": null,
       "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
-      "current_import_sha256": "e88e9bad7822d5a476cb81ecb6c1530b63fe4d246202b2aa98885d84c5d25d2c",
+      "current_import_sha256": "7ee927d013daa0aa87a358bc958259181fd14daec3269b5d14a071137020ed91",
       "stage_classification": "not-in-staging",
       "import_classification": "added-after-staging",
-      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/dev/portability.py",
       "upstream_sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
       "staged_sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
-      "current_import_sha256": "43deadf28fd3992fc0aa53797f3ac3cbcd57371aee20fe04424d2ea5d9a60f45",
+      "current_import_sha256": "c4dc1f8a480a576c65cb1504351a413ba8270b6b8a3939391eddd58cf33b0765",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/dev/quality.py",
       "upstream_sha256": "219d9a8fecc0360b6b5320f5bcce49cb3fe1a296cf4f945cbbba4efffc5678c2",
       "staged_sha256": "219d9a8fecc0360b6b5320f5bcce49cb3fe1a296cf4f945cbbba4efffc5678c2",
-      "current_import_sha256": "ec695b8bddc87def2eef7b10ae79e9fbdb2a427b21d93fe3e71067b965a0bc18",
+      "current_import_sha256": "c47229c0f20e5304cc8ffb4f3c1e056793c23beceabaa47ad97069e35eb84bdd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514)"
+      "import_reason": "Imported exact frozen staged-input bytes; Split modules over 500 lines with no behaviour change (lushly-dev/afd#514); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/docs.py",
       "upstream_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
       "staged_sha256": "b746173f917ca86c6b1dc0ddb06952c0418d4fb2d1912483553e65f52aa6a3d5",
-      "current_import_sha256": "9deac2abbe6fe98fa1cf5055aa760e1d9ace40fb3937246a272f6479105d129c",
+      "current_import_sha256": "2498472b5164c1a3c8695ee0334de44abbda70a4add1ba452cd8c1688c63c6e2",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779)"
+      "import_reason": "Docs checks cover the whole repository: nearest changelog per package, structural changes in any language, single-file and skip-aware lint, Changesets-aware suggestions (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/commands/info.py",
@@ -1975,11 +1986,11 @@
       "path": "src/botcore/docs.py",
       "upstream_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
       "staged_sha256": "f70506d3447e2f5e5139f0380e840c84bea57834ce33b936c81ad4a868139871",
-      "current_import_sha256": "24b1f691e1305dff63887dd8f70d5ba4f61a47c385b7c35f3cd48f8aa6762b52",
+      "current_import_sha256": "34c0e632e0957f46b9c6b1d4ae918b9983a5ade3028024c46f9abe53fef06b19",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Document retired skills and the docs commands' real behaviour"
+      "import_reason": "Document retired skills and the docs commands' real behaviour; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/host.py",
@@ -3556,11 +3567,11 @@
       "path": "src/botcore/skills/docs-manager/SKILL.md",
       "upstream_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
       "staged_sha256": "e5b35b54872fe5353a779e7016d4095607fc13c3cde3f2aa2217c8e754695305",
-      "current_import_sha256": "cd6d3ca2cb3ada73465c8f84fbaba36cf697b8062b695fbe570b00eaed2bce3e",
+      "current_import_sha256": "23abf6fa4f8138c55f7f10b84a97d0803b8e2041b82e9d3772c6b2e143b8180b",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779); Add guidance for editing AI-assisted prose: substance first, formulas over word lists, rewrite instead of swapping, check meaning after a rewriting pass"
+      "import_reason": "Rewrite to the commands' real behaviour; merge docs-update and content-humanizer; Describe the docs checks as they now are (lushly-dev/afd#779); Add guidance for editing AI-assisted prose: substance first, formulas over word lists, rewrite instead of swapping, check meaning after a rewriting pass; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "src/botcore/skills/docs-manager/references/doc-architecture.md",
@@ -5066,11 +5077,11 @@
       "path": "src/botcore/utils/workspace.py",
       "upstream_sha256": "efd7e53b059213ecfaf22169a28dfe79be9d1b7a7c76d9adeacb1c8121acac23",
       "staged_sha256": "2f0ff0b4e8aae12d8f23ddda3d0062396ef5e440f7006298d3345c83a52e5d9a",
-      "current_import_sha256": "2f0ff0b4e8aae12d8f23ddda3d0062396ef5e440f7006298d3345c83a52e5d9a",
+      "current_import_sha256": "6728b19eaaf251ece06317113c560f39d9b61a605a96f9ab622e1a3485538283",
       "stage_classification": "modified-upstream",
       "stage_reason": "Use task-local explicit target context without changing cwd",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "tests/__init__.py",
@@ -5286,21 +5297,21 @@
       "path": "tests/test_dev_portability.py",
       "upstream_sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
       "staged_sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
-      "current_import_sha256": "7745d0134dfd1610dad2de5564a35ff32f878d04547d093654e0171cc27d99b8",
+      "current_import_sha256": "366981a55eeb5cde790e4983599886c0ac5f8d444427c5c8bd38b847554f08c3",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "tests/test_dev_quality.py",
       "upstream_sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
       "staged_sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
-      "current_import_sha256": "e5478a32ca25f040aeaf9eff58b9b924d3768b7ae5ce56669c719e6658947d94",
+      "current_import_sha256": "cdee8218db54c67a7141dd2a670f8d80310c7169107c0e4bee1ba4a2b6da7696",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "tests/test_dev_quality_extended.py",
@@ -5336,11 +5347,11 @@
       "path": "tests/test_docs_extended.py",
       "upstream_sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
       "staged_sha256": "a9b9691d994ddd271c5ce73486c96e59a0dcc1d42ce9907a73c69b2ac264e5ab",
-      "current_import_sha256": "02eb2be9a64d3ff0ca664f5cf01e9d5765410dc715d06f566008f577d52008d3",
+      "current_import_sha256": "27d3969679b8ae1dc64b6db5421f36a500625efac9f467aff13a8c463194f3cf",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Cover whole-repository docs checks (lushly-dev/afd#779)"
+      "import_reason": "Cover whole-repository docs checks (lushly-dev/afd#779); Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "tests/test_frontmatter.py",
@@ -5608,11 +5619,11 @@
       "path": "tests/test_workspace.py",
       "upstream_sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
       "staged_sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
-      "current_import_sha256": "35b31b1a4773105b4113503095a98543a347e2616193892d055a0a1a61e3755e",
+      "current_import_sha256": "939f801ca7237db03eac438236023360dc252257606b0e35b7d06d169a51b69c",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     },
     {
       "path": "tests/windows_acl.py",
@@ -5629,11 +5640,11 @@
       "path": "uv.lock",
       "upstream_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
       "staged_sha256": "de195f74ec7cf4a8bc26f1d03a89ece63b7607f23433c23b86ab342dc335cd95",
-      "current_import_sha256": "37b18fe4ddbcb530e80926141e83c5463e433d31e22ba4b89867ef2581849ddb",
+      "current_import_sha256": "be7da328d3fd680f100897cb4e8c229ae02db8b8e274f8439e8ff90b458b9891",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints"
+      "import_reason": "Lock local AFD 0.10 and MCP 2.3; refresh dependencies within declared constraints; Relative paths in the dev and docs checks, a routing AGENTS.md check, sibling package lint and tests (lushly-dev/afd#1355, #1128, #1359, #1356)"
     }
   ]
 }

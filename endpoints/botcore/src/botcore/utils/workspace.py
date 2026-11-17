@@ -20,6 +20,27 @@ WORKSPACE_MARKERS = [
 ]
 
 
+def resolve_path(path: str | Path | None, workspace: Path | None, default: str = "src") -> Path:
+    """The absolute path a command's ``path`` argument names.
+
+    A relative path resolves against the workspace, not the process's cwd: a managed host's
+    context sets the target and never changes cwd. Without a workspace it resolves against cwd.
+    No ``path`` means ``default`` under the workspace (lushly-dev/afd#1355).
+    """
+    base = workspace if workspace is not None else Path.cwd()
+    return (base / (path if path else default)).resolve()
+
+
+def display_path(path: Path, workspace: Path | None) -> str:
+    """``path`` relative to the workspace when it lies inside it, else as it is."""
+    if workspace is not None:
+        try:
+            return str(path.relative_to(workspace.resolve()))
+        except ValueError:
+            pass
+    return str(path)
+
+
 def find_workspace(start: Path | None = None) -> Path | None:
     """Find the project workspace root.
 

@@ -114,8 +114,9 @@ missing frontmatter on specs and proposals is a warning. External URLs are skipp
 Flag staged source changes that have no CHANGELOG.md update or pending changeset.
 
 ## docs_check_agents()
-Flag staged structural changes (commands, package `__init__.py`) that may need an
-AGENTS.md update.
+Flag what AGENTS.md owns when it is not staged: a new top-level directory it does not
+name, and a path or name it cites that the change removes or renames. New commands,
+packages, skills and workflows are reported as advice, not required.
 
 ## docs_preflight()
 Run changelog and AGENTS.md checks together via a DirectClient pipeline.

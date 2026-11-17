@@ -1,5 +1,5 @@
 version = 1
-revision = 3
+revision = 5
 requires-python = ">=3.11"
 
 [[package]]
@@ -134,6 +134,9 @@ requires-dist = [
     { name = "vulture", marker = "extra == 'dev'", specifier = ">=2.11" },
 ]
 provides-extras = ["dev", "cdp", "research", "quality", "mcp", "all"]
+
+[package.metadata.requires-dev]
+packages = [{ name = "github-copilot-sdk", specifier = ">=1.0.26" }]
 
 [[package]]
 name = "lushly-health"

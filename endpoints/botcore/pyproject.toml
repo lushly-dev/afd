@@ -111,3 +111,9 @@ exclude_lines = [
 # Development bootstrap only; built distributions retain afd>=0.9.0 metadata.
 [tool.uv.sources]
 afd = { path = "../../python", editable = true }
+
+# The sibling packages' tests (scripts/package_tests.py): botcore-llm needs the Copilot SDK.
+[dependency-groups]
+packages = [
+    "github-copilot-sdk>=1.0.26",
+]
