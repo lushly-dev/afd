@@ -8,7 +8,7 @@
 //! catalog is derived from them and the library's stamp as `pack-export` derives it
 //! (`support::export_catalog`, held to Specimen's own export of its example by
 //! `catalog_is_what_specimen_exports`). A rebuilt record needs no second step here, and the test
-//! needs neither Node nor a Specimen build (plugin specification A17). Neither Specimen nor Umbel
+//! needs neither Node nor a Specimen build (plugin specification A27). Neither Specimen nor Umbel
 //! depends on the other: this test reads files, as `default_pack.rs` reads Specimen's fixture.
 #![allow(clippy::unwrap_used, clippy::expect_used)]
 
@@ -42,14 +42,15 @@ fn catalog_is_what_specimen_exports() {
     let exported =
         std::fs::read(specimen_fixtures().join("exported/data/example/library.json")).unwrap();
     let catalog: Value = serde_json::from_slice(&exported).unwrap();
-    let mut stamp = json!({
+    assert!(
+        catalog.get("revision").is_none(),
+        "export_catalog stamps no revision"
+    );
+    let stamp = json!({
         "title": catalog["title"],
         "package": catalog["package"],
         "prefix": catalog["prefix"],
     });
-    if let Some(revision) = catalog.get("revision") {
-        stamp["revision"] = revision.clone();
-    }
     let derived = export_catalog(&committed, "example", &stamp);
     assert_eq!(
         String::from_utf8(derived).unwrap(),

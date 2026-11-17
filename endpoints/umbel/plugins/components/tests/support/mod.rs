@@ -24,7 +24,11 @@ pub fn specimen_fixtures() -> PathBuf {
 
 /// `violet-elements`' committed pack: its records and rules, in Specimen's committed form.
 pub fn fast_af_committed() -> PathBuf {
-    fast_af_library().join("pack")
+    let config: Value = serde_json::from_slice(
+        &std::fs::read(fast_af_library().join("specimen.config.json")).unwrap(),
+    )
+    .unwrap();
+    fast_af_library().join(config["pack"]["directory"].as_str().unwrap())
 }
 
 /// `violet-elements`' directory, whose `specimen.config.json` and `package.json` stamp its catalog.
@@ -40,8 +44,8 @@ pub fn fast_af_fixtures() -> PathBuf {
 
 /// The catalog `specimen pack-export` writes for `library` from its committed `files` (keyed as in
 /// a pack, `rules/<library>.json` and `data/<library>/components/<tag>.json`) and a `stamp` holding
-/// `title`, `package`, `prefix` and, optionally, `revision`: `packCatalog` in the format's words
-/// (Specimen's `pack-format.md`, "The catalog"). The records are listed by tag, each with its
+/// `title`, `package` and `prefix` (no `revision`, which the tests never stamp): `packCatalog` in
+/// the format's words (Specimen's `pack-format.md`, "Catalog"). The records are listed by tag, each with its
 /// summary when it has one, its status and its digest; the pack digest covers the rules and every
 /// record. `catalog_is_what_specimen_exports` in `fast_af.rs` holds it to Specimen's own export.
 pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &Value) -> Vec<u8> {
@@ -75,6 +79,8 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
         .iter()
         .filter(|(path, _)| **path == rules_path || path.starts_with(&prefix))
         .map(|(path, bytes)| (path.as_str(), bytes.as_slice()));
+    // `packCatalog` writes `PACK_FORMAT_VERSION`; every file of a pack the reader accepts carries
+    // that same version, so the rules file's is it.
     let format = serde_json::from_slice::<Value>(rules).unwrap()["format"].clone();
     let mut catalog = json!({
         "format": format,
@@ -86,9 +92,6 @@ pub fn export_catalog(files: &BTreeMap<String, Vec<u8>>, library: &str, stamp: &
         "rules": digest::file_digest(rules),
         "components": components,
     });
-    if let Some(revision) = stamp.get("revision") {
-        catalog["revision"] = revision.clone();
-    }
     canonical::canonical_json(&catalog).into_bytes()
 }
 

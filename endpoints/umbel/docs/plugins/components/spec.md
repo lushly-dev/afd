@@ -22,7 +22,7 @@
   time, and the committed `tests/fast_af/library.json` is gone.
   - It decides [D150 to D156](../../decisions.md). The owner answered section [13](#13-for-the-owner)'s question the
     same day: refuse the call, and make the refusal graceful (section [9.1](#91-a-graceful-refusal)).
-- **Last verified:** 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
+- **Last verified:** 2026-11-16 for #1153, amendment A27: `cargo test --locked -p umbel-plugin-components` and `pnpm verify` (Component Briefs session log). Before that, 2026-11-15 for #1152, consumer profiles (A25, section 6.7), merged in [#1292](https://github.com/lushly-dev/afd/pull/1292): all 126 plugin tests (six consumer tests, including prefix-budget recovery), scenario validation and dry run, real CLI/MCP calls and `pnpm verify --keep-going` on `12582304`. Before that, 2026-11-12 for step C5, on branch `lush/components-first-consumer` from `main` at
   `047268ab`: the release build of `umbel-first-party` on its own, the launcher against it, and `pnpm verify`
   (the Umbel gate among its suites). Before that, 2026-11-11 for step C4, on branch `lush/components-exit-tests` from `main` at `fdfd4874`: the
   Umbel gate, `pnpm test:specimen` and `pnpm test:stories` (see the Component Briefs status for the runs). Before
@@ -199,15 +199,18 @@ The tests now export at run time, from committed files alone, and the committed 
 
 - **What the tests serve.** `tests/support`'s `Pack::fast_af` reads `violet-elements`' committed
   records and rules, as before, and derives the catalog from them with `export_catalog`: the
-  format's `packCatalog` (Specimen's `pack-format.md`, "The catalog"), using this crate's
+  format's `packCatalog` (Specimen's `pack-format.md`, "Catalog"), using this crate's
   `digest.rs` and `canonical.rs`. The stamp is what `pack-export` stamps: the title and prefix from
   `specimen.config.json`'s `pack` section and the name and version from the `package.json` it names.
   On the records of 2026-11-16 the derived catalog was byte for byte the committed one it replaces.
 - **What holds it to Specimen.** `fast_af.rs`'s `catalog_is_what_specimen_exports` derives the
   example's catalog from Specimen's committed fixture and the stamp of its exported fixture, and
   requires the exported `library.json` byte for byte; Specimen's `pack.test.ts` holds that fixture to
-  `packCatalog`. So the derivation and `pack-export` cannot drift apart without a test failing on one
-  side.
+  `packCatalog`. So the record list, digests, order and summary omission cannot drift apart from
+  `pack-export` without a test failing on one side. The stamp is not bound that way: the test takes
+  it from the fixture, and the reader compares neither title nor package, so `fast_af_stamp` reading
+  the wrong field would pass. It reads them as `exportPack` does, and the derived FAST-AF catalog
+  matched the committed one byte for byte when this landed. No `revision` is stamped.
 - **Why not run `specimen pack-export`.** `scripts/umbel-components.mjs` does, for agents, but the CLI
   opens a bench, and the bench indexes stories with Specimen's native host (oxc and rolldown, about
   290 crates) before any command runs. A test that ran it would put Node, `pnpm install`, the
