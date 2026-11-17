@@ -93,7 +93,10 @@ describe('cicd setup workflow templates', () => {
 		expect(workflows.snapshot).toContain('indefinitely');
 	});
 
-	it('snapshot refuses a missing or relative database before running Violet', () => {
+	// These cases run the step under bash as a Linux runner does; Windows has none (#1437).
+	const linux = it.skipIf(process.platform === 'win32');
+
+	linux('snapshot refuses a missing or relative database before running Violet', () => {
 		const script = parseYaml(workflows.snapshot).jobs.snapshot.steps[0].run;
 		for (const db of ['', 'relative.db', '/nonexistent-violet-497/database.db']) {
 			const result = spawnSync('bash', ['-e', '-c', script], {
@@ -113,8 +116,6 @@ describe('cicd setup workflow templates', () => {
 		},
 	);
 
-	// The step runs on Linux runners under /bin/bash, which Windows lacks (#1437).
-	const linux = it.skipIf(process.platform === 'win32');
 	linux('snapshot preserves database paths and propagates CLI failure', () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'violet-snapshot-'));
 		try {
