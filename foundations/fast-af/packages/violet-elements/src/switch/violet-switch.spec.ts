@@ -186,7 +186,7 @@ describe("violet-switch", () => {
         it("toggles from a label click and from the keyboard", async () => {
             const element = await renderSwitch({ label: "Enable notifications" });
 
-            await page.getByText("Enable notifications").click();
+            await page.elementLocator(element.shadowRoot?.querySelector(".label") as HTMLElement).click();
             expect(element.checked).toBe(true);
 
             nativeInput(element).focus();
@@ -199,13 +199,32 @@ describe("violet-switch", () => {
             element.disabled = true;
             await nextFrame();
 
-            const shell = element.shadowRoot?.querySelector(".control-shell") as HTMLElement;
-            await page.elementLocator(shell).click({ force: true });
-            (element.shadowRoot?.querySelector(".track") as HTMLElement).click();
-
+            const track = element.shadowRoot?.querySelector(".track") as HTMLElement;
+            const { x, y } = centerOf(track);
+            expect(element.shadowRoot?.elementFromPoint(x, y)).toBe(nativeInput(element));
             expect(nativeInput(element).disabled).toBe(true);
+
+            track.click();
+            nativeInput(element).click();
+
             expect(element.checked).toBe(false);
             expect(nativeInput(element).checked).toBe(false);
+        });
+
+        it("does not take clicks from a positioned overlay stacked above it", async () => {
+            const element = await renderSwitch({ label: "Enable notifications" });
+            const overlay = document.createElement("div");
+            const rect = element.shadowRoot?.querySelector(".track")?.getBoundingClientRect() as DOMRect;
+            overlay.setAttribute(
+                "style",
+                `position:fixed;left:${rect.left - 4}px;top:${rect.top - 4}px;width:${rect.width + 8}px;height:${rect.height + 8}px`,
+            );
+            document.body.append(overlay);
+            const { x, y } = centerOf(element.shadowRoot?.querySelector(".track") as HTMLElement);
+
+            expect(document.elementFromPoint(x, y)).toBe(overlay);
+            await page.elementLocator(overlay).click();
+            expect(element.checked).toBe(false);
         });
 
         it("keeps the focus ring on the track when the input has keyboard focus", async () => {
