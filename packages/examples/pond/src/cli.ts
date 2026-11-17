@@ -1,3 +1,11 @@
+/**
+ * @fileoverview Run one pond command against a journal file, rebuilding the pond from it first.
+ *
+ *   node dist/cli.js <command> [json input]
+ *
+ * POND_JOURNAL names the journal file (default `pond.jsonl` in the working directory).
+ */
+
 import { resolve } from 'node:path';
 import { openPond, PondJournalError, PondReplayError } from './app.js';
 
@@ -31,7 +39,7 @@ try {
 	} else if (error instanceof PondJournalError) {
 		console.error(error.message);
 		console.error(
-			'The pond was not rebuilt. Repair or remove the damaged line, or start a new journal.'
+			'The pond was not rebuilt. If a line is damaged, repair or remove it, or start a new journal.'
 		);
 		process.exitCode = 2;
 	} else {

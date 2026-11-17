@@ -45,10 +45,11 @@ only because replay restores what each call read.
 
 `replayJournal` restores, per entry, the command's input, its actor, trace ID and interface, the
 context fields declared `journal: true`, and the values the call read from `context.clock` and
-`context.random`. Nothing else. Where an entry has no tape, or a call reads more than its tape
-holds, replay hands out a clock fixed at the entry's time and values from a seeded source:
-deterministic, but not what the recording read. It then compares each replayed result with the
-recorded one.
+`context.random`. Nothing else. Where an entry has no tape, replay hands out a clock fixed at
+the entry's time and seeded random values; where a call reads past its tape, the clock repeats
+its last recorded reading and random values continue from a seeded source. Both are
+deterministic, but neither is what the recording read. It then compares each replayed result
+with the recorded one.
 
 Everything else that could make a replay come out different is the application's to keep
 deterministic. In this example:
