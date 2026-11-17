@@ -30,7 +30,12 @@ from botcore.commands.dev.dependencies import (
 from botcore.commands.dev.lockfile import dev_check_lockfile as dev_check_lockfile
 from botcore.config import load_config
 from botcore.utils.runner import run_external_tool, run_python_module
-from botcore.utils.workspace import find_workspace, resolve_language
+from botcore.utils.workspace import (
+    display_path,
+    find_workspace,
+    resolve_language,
+    resolve_path,
+)
 
 _LANG_EXTENSIONS: dict[str, list[str]] = {
     "python": [".py"],
@@ -60,7 +65,7 @@ async def dev_check_size(
     warn_threshold = warn_threshold if warn_threshold is not None else config.file_size_warn
     error_threshold = error_threshold if error_threshold is not None else config.file_size_error
 
-    check_path = Path(path) if path else (ws / "src" if ws else Path("src"))
+    check_path = resolve_path(path, ws)
 
     if not check_path.exists():
         return error(
@@ -72,14 +77,14 @@ async def dev_check_size(
     # If staged_only, filter to only staged files
     if staged_only:
         result = subprocess.run(
-            ["git", "diff", "--cached", "--name-only"],
+            ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only", "--relative"],
             cwd=ws or Path.cwd(),
             capture_output=True,
             text=True,
         )
         if result.returncode == 0:
             staged_files = set(
-                str((ws or Path.cwd()) / f.strip())
+                str(((ws or Path.cwd()) / f.strip()).resolve())
                 for f in result.stdout.strip().split("\n")
                 if f.strip()
             )
@@ -91,7 +96,7 @@ async def dev_check_size(
     # Determine which extensions to scan
     lang = (
         resolve_language(
-            Path(path) if path else None,
+            check_path if path else None,
             config,
             ws,
             language_override=language,
@@ -125,7 +130,7 @@ async def dev_check_size(
             continue
 
         results["files_checked"] += 1
-        relative_path = str(source_file.relative_to(ws) if ws else source_file)
+        relative_path = display_path(source_file, ws)
 
         if lines >= error_threshold:
             results["errors"].append({"file": relative_path, "lines": lines})

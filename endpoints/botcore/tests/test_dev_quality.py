@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+import subprocess
+from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
 from afd.testing import assert_error, assert_success
@@ -97,6 +99,58 @@ async def test_check_size_path_not_found(tmp_path) -> None:
     assert_error(result, "PATH_NOT_FOUND")
 
 
+async def test_check_size_relative_path_resolves_against_workspace(tmp_path, monkeypatch) -> None:
+    """A relative path names a directory under the workspace, whatever the cwd (#1355)."""
+    ws = tmp_path / "ws"
+    (ws / "src" / "pkg").mkdir(parents=True)
+    (ws / "src" / "pkg" / "big.py").write_text("x = 1\n" * 600)
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    with patch("botcore.commands.dev.quality.find_workspace", return_value=ws):
+        result = await dev_check_size(path="src", warn_threshold=500, error_threshold=1000)
+
+    data = assert_success(result)
+    assert data["files_checked"] == 1
+    assert data["warnings"] == [{"file": str(Path("src/pkg/big.py")), "lines": 600}]
+
+
+async def test_check_size_staged_only_with_relative_path(tmp_path) -> None:
+    """staged_only matches staged files when the path is relative (#1355)."""
+    src = tmp_path / "src"
+    src.mkdir()
+    (src / "staged.py").write_text("x = 1\n" * 600)
+    (src / "unstaged.py").write_text("x = 1\n" * 600)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "src/staged.py"], cwd=tmp_path, check=True)
+
+    with patch("botcore.commands.dev.quality.find_workspace", return_value=tmp_path):
+        result = await dev_check_size(
+            path="src", warn_threshold=500, error_threshold=1000, staged_only=True
+        )
+
+    data = assert_success(result)
+    assert [entry["file"] for entry in data["warnings"]] == [str(Path("src/staged.py"))]
+
+
+async def test_check_size_staged_only_in_a_nested_workspace(tmp_path) -> None:
+    """Git prints staged paths from its root; a workspace below it still matches them."""
+    ws = tmp_path / "sub"
+    (ws / "src").mkdir(parents=True)
+    (ws / "src" / "big.py").write_text("x = 1\n" * 600)
+    subprocess.run(["git", "init", "-q"], cwd=tmp_path, check=True)
+    subprocess.run(["git", "add", "sub/src/big.py"], cwd=tmp_path, check=True)
+
+    with patch("botcore.commands.dev.quality.find_workspace", return_value=ws):
+        result = await dev_check_size(
+            path="src", warn_threshold=500, error_threshold=1000, staged_only=True
+        )
+
+    data = assert_success(result)
+    assert [entry["file"] for entry in data["warnings"]] == [str(Path("src/big.py"))]
+
+
 async def test_check_size_typescript_extensions(tmp_path) -> None:
     """check_size scans .ts/.tsx files when language=typescript."""
     src = tmp_path / "src"
@@ -107,7 +161,10 @@ async def test_check_size_typescript_extensions(tmp_path) -> None:
 
     with patch("botcore.commands.dev.quality.find_workspace", return_value=tmp_path):
         result = await dev_check_size(
-            path=str(src), language="typescript", warn_threshold=500, error_threshold=1000,
+            path=str(src),
+            language="typescript",
+            warn_threshold=500,
+            error_threshold=1000,
         )
 
     data = assert_success(result)

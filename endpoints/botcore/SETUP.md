@@ -68,19 +68,10 @@ Python by itself:
 
 ## Repo Configuration
 
-`botcore.toml` at repo root:
-
-```toml
-language = "python"
-linter = "ruff"
-test_runner = "pytest"
-formatter = "ruff"
-file_size_warn = 500
-file_size_error = 1000
-coverage_threshold = 80
-check_changelog = true
-check_agents = true
-
-[skills]
-source_dir = ".claude/skills"
-```
+AFD's `botcore.toml` sits at the repository root, not in `endpoints/botcore`, and describes the
+whole repository: its primary language is TypeScript (`language = "typescript"`, Biome and
+Vitest), with `file_size_warn = 500` and `file_size_error = 1500`. It also holds the skills
+profile (`[skills]`), the bloat sweep (`[sweep]`) and the software factory's adapter
+(`[plugins.factory]`). Read that file for the current values; the `configure-botcore` skill
+explains which config file wins and what each key does. Botcore's own Python code follows the
+Ruff settings in `endpoints/botcore/pyproject.toml` (above), whatever the root file names.

@@ -48,6 +48,25 @@ async def test_check_paths_no_issues(tmp_path) -> None:
     assert len(data["errors"]) == 0
 
 
+async def test_check_paths_relative_path_resolves_against_workspace(tmp_path, monkeypatch) -> None:
+    """A relative path names a directory under the workspace, whatever the cwd (#1355)."""
+    src = tmp_path / "ws" / "src"
+    src.mkdir(parents=True)
+    # portability-ok: a fixture the portability scanner must flag
+    (src / "config.toml").write_text('DATA_DIR = "/home/admin/data"\n')
+    elsewhere = tmp_path / "elsewhere"
+    elsewhere.mkdir()
+    monkeypatch.chdir(elsewhere)
+
+    with (
+        patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path / "ws"),
+        patch("botcore.commands.dev.portability.DEFAULT_ALLOWLIST_PATTERNS", []),
+    ):
+        result = await dev_check_paths(path="src")
+
+    assert_error(result, "HARDCODED_PATHS_FOUND")
+
+
 async def test_check_paths_detects_windows_drive(tmp_path) -> None:
     """Detects hardcoded Windows drive paths."""
     src = tmp_path / "src"

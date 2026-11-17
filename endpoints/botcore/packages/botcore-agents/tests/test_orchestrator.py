@@ -631,7 +631,7 @@ class TestCapabilityDeclarations:
     """Verify that start_agent() restricts tools based on connector config."""
 
     async def test_skills_only_no_connectors(self, orchestrator: AgentOrchestrator, mock_llm):
-        """Default researcher (connectors=[]) → no tools bridged (skills are knowledge, not tools)."""
+        """Default researcher (connectors=[]): no tools bridged; skills are knowledge, not tools."""
         await orchestrator.create_agent("researcher")
         await orchestrator.start_agent("researcher")
         mock_llm["session_create"].assert_awaited_once_with(

@@ -1517,7 +1517,9 @@ export function parseSpecimenAssignment(text: string): [string, string, string |
 function addSpecimenCommands(program: Command): void {
 	const specimen = program
 		.command('specimen')
-		.description('Which tokens draw the component specimens (button, input, card)');
+		.description(
+			'Which tokens draw the component specimens (button, input, card, text, link, checkbox, focus)',
+		);
 
 	specimen
 		.command('get <nodeId>')

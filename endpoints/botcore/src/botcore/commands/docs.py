@@ -4,12 +4,12 @@ from __future__ import annotations
 
 import re
 import subprocess
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 from afd import CommandResult, error, success
 
 from botcore.registry import get_client
-from botcore.utils.workspace import find_workspace
+from botcore.utils.workspace import display_path, find_workspace, resolve_path
 
 PIPELINE_DOCS = """# Pipelines
 
@@ -105,7 +105,7 @@ def _extract_frontmatter(content: str) -> dict[str, str]:
 
 
 def _format_issue_path(md_file: Path, ws: Path | None) -> str:
-    return str(md_file.relative_to(ws) if ws else md_file)
+    return display_path(md_file, ws)
 
 
 def _record_issue(
@@ -151,11 +151,19 @@ def _check_frontmatter(
     frontmatter = _extract_frontmatter(content)
     missing_fields = sorted(_FRONTMATTER_REQUIRED_FIELDS - set(frontmatter.keys()))
     if not frontmatter:
-        _record_issue(issues, md_file, ws, 1, "warning", "missing-frontmatter",
-                       "Missing frontmatter block")
+        _record_issue(
+            issues, md_file, ws, 1, "warning", "missing-frontmatter", "Missing frontmatter block"
+        )
     elif missing_fields:
-        _record_issue(issues, md_file, ws, 1, "warning", "missing-frontmatter-fields",
-                       f"Missing frontmatter fields: {', '.join(missing_fields)}")
+        _record_issue(
+            issues,
+            md_file,
+            ws,
+            1,
+            "warning",
+            "missing-frontmatter-fields",
+            f"Missing frontmatter fields: {', '.join(missing_fields)}",
+        )
 
 
 def _split_anchor(link_url: str) -> tuple[str, str]:
@@ -187,8 +195,16 @@ def _check_anchor(
 ) -> None:
     anchor_slug = _slugify_heading(anchor)
     if anchor_slug and anchor_slug not in target_headings:
-        _record_issue(issues, md_file, ws, line_num, "error", "broken-anchor",
-                       f"Anchor '#{anchor}' not found", link_text)
+        _record_issue(
+            issues,
+            md_file,
+            ws,
+            line_num,
+            "error",
+            "broken-anchor",
+            f"Anchor '#{anchor}' not found",
+            link_text,
+        )
 
 
 def _check_link(
@@ -210,8 +226,16 @@ def _check_link(
         if url_path:
             target = _resolve_target(ws, md_file, url_path)
             if not target.exists():
-                _record_issue(issues, md_file, ws, line_num, "error", "broken-link",
-                               f"Link target '{url_path}' does not exist", link_text)
+                _record_issue(
+                    issues,
+                    md_file,
+                    ws,
+                    line_num,
+                    "error",
+                    "broken-link",
+                    f"Link target '{url_path}' does not exist",
+                    link_text,
+                )
                 return
             target_headings = _load_target_headings(target, anchor_cache)
         else:
@@ -224,15 +248,37 @@ def _check_link(
 
     target = _resolve_target(ws, md_file, url_path)
     if not target.exists():
-        _record_issue(issues, md_file, ws, line_num, "error", "broken-link",
-                       f"Link target '{url_path}' does not exist", link_text)
+        _record_issue(
+            issues,
+            md_file,
+            ws,
+            line_num,
+            "error",
+            "broken-link",
+            f"Link target '{url_path}' does not exist",
+            link_text,
+        )
 
 
 # Directories of installed or generated files, never a repository's own docs.
-_SKIPPED_DIRS = frozenset({
-    ".git", ".hg", ".venv", "venv", ".tox", ".nox", "node_modules", "__pycache__",
-    "dist", "build", "target", ".next", ".turbo", "coverage",
-})
+_SKIPPED_DIRS = frozenset(
+    {
+        ".git",
+        ".hg",
+        ".venv",
+        "venv",
+        ".tox",
+        ".nox",
+        "node_modules",
+        "__pycache__",
+        "dist",
+        "build",
+        "target",
+        ".next",
+        ".turbo",
+        "coverage",
+    }
+)
 
 
 def _markdown_files(path: Path) -> list[Path]:
@@ -240,7 +286,8 @@ def _markdown_files(path: Path) -> list[Path]:
     if path.is_file():
         return [path] if path.suffix.lower() == ".md" else []
     return sorted(
-        md for md in path.rglob("*.md")
+        md
+        for md in path.rglob("*.md")
         if not _SKIPPED_DIRS.intersection(md.relative_to(path).parts[:-1])
     )
 
@@ -255,7 +302,7 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
     - Missing frontmatter for specs/proposals
     """
     ws = find_workspace()
-    check_path = Path(path) if path else (ws / "docs" if ws else Path("docs"))
+    check_path = resolve_path(path, ws, "docs")
 
     if not check_path.exists():
         return error(
@@ -281,8 +328,14 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
         for line_num, line in enumerate(lines, 1):
             for match in link_pattern.finditer(line):
                 _check_link(
-                    match.group(1), match.group(2), md_file, ws,
-                    line_num, doc_headings, anchor_cache, issues,
+                    match.group(1),
+                    match.group(2),
+                    md_file,
+                    ws,
+                    line_num,
+                    doc_headings,
+                    anchor_cache,
+                    issues,
                 )
 
     has_errors = any(i["severity"] == "error" for i in issues)
@@ -306,10 +359,24 @@ async def docs_lint(path: str | None = None) -> CommandResult[dict]:
 
 
 # Source files whose change a changelog records: these extensions, under a ``src/`` directory.
-_SOURCE_SUFFIXES = frozenset({
-    ".py", ".ts", ".tsx", ".js", ".jsx", ".mjs", ".cjs", ".rs", ".go",
-    ".c", ".cc", ".cpp", ".h", ".hpp",
-})
+_SOURCE_SUFFIXES = frozenset(
+    {
+        ".py",
+        ".ts",
+        ".tsx",
+        ".js",
+        ".jsx",
+        ".mjs",
+        ".cjs",
+        ".rs",
+        ".go",
+        ".c",
+        ".cc",
+        ".cpp",
+        ".h",
+        ".hpp",
+    }
+)
 
 
 def _is_source(path: str) -> bool:
@@ -376,10 +443,9 @@ async def docs_check_changelog() -> CommandResult[dict]:
     changeset_dir = ws / ".changeset"
     changeset_count = 0
     if changeset_dir.exists():
-        changeset_count = len([
-            f for f in changeset_dir.glob("*.md")
-            if f.name.lower() != "readme.md"
-        ])
+        changeset_count = len(
+            [f for f in changeset_dir.glob("*.md") if f.name.lower() != "readme.md"]
+        )
 
     covered: dict[str, str] = {}
     for f in staged_files:
@@ -441,7 +507,8 @@ def _is_test(path: str) -> bool:
 
 
 def _structural_change(path: str, added: bool) -> str | None:
-    """What a staged file changes in a repository's structure, which AGENTS.md maps, if anything.
+    """What a staged file changes in a repository's structure, if anything. It is reported, not
+    required in AGENTS.md, which routes rather than lists (lushly-dev/afd#1128).
 
     A command module counts whenever it is staged; a package, skill or workflow only when it
     is new, since editing one does not move it.
@@ -466,8 +533,89 @@ def _structural_change(path: str, added: bool) -> str | None:
     return None
 
 
+def _git_lines(ws: Path, *args: str) -> list[str] | None:
+    """Git's output lines, run in the workspace; None when git fails."""
+    result = subprocess.run(
+        ["git", "-c", "core.quotePath=false", *args], cwd=ws, capture_output=True, text=True
+    )
+    return result.stdout.splitlines() if result.returncode == 0 else None
+
+
+def _staged_changes(ws: Path) -> list[tuple[str, str, str | None]]:
+    """Each staged change in the workspace as ``(status, path, old path)``, relative to the
+    workspace, which may sit below the git root; a rename's old path, else None."""
+    changes = []
+    for line in _git_lines(ws, "diff", "--cached", "--name-status", "-M", "--relative") or []:
+        fields = line.split("\t")
+        if len(fields) == 3:
+            changes.append((fields[0][:1], fields[2], fields[1]))
+        elif len(fields) == 2:
+            changes.append((fields[0][:1], fields[1], None))
+    return changes
+
+
+def _cites(text: str, name: str) -> bool:
+    """Whether AGENTS.md cites ``name`` as a whole name, not inside a longer one."""
+    return re.search(rf"(?<![\w./-]){re.escape(name)}(?![\w-])", text) is not None
+
+
+def _names(path: str) -> list[str]:
+    """The names AGENTS.md could cite ``path`` by: the path, a skill's name, and the file name of
+    a command module or workflow. A manifest's or ``__init__.py``'s name says nothing alone."""
+    parts = Path(path).parts
+    names = [path]
+    if parts[-1] == "SKILL.md" and len(parts) > 1:
+        names.append(f"`{parts[-2]}`")
+    elif _structural_change(path, False) or (_structural_change(path, True) or "").startswith(
+        "New workflow"
+    ):
+        names.append(parts[-1])
+    return names
+
+
+def _owned_changes(ws: Path, text: str, changes: list[tuple[str, str, str | None]]) -> list[str]:
+    """The changes AGENTS.md owns: a new top-level directory it does not name, and a path or
+    directory it names that the change removes or renames (lushly-dev/afd#1128).
+
+    AGENTS.md routes; it need not list each package, skill, workflow or command, so a new one
+    is not stale until AGENTS.md cites it.
+    """
+    tracked = _git_lines(ws, "ls-tree", "--name-only", "HEAD")  # None before a first commit.
+    # Git prints "/" on every platform; directories that still hold a file after the change.
+    remaining = {
+        str(parent)
+        for path in _git_lines(ws, "ls-files") or []
+        for parent in PurePosixPath(path).parents
+    }
+    owned: list[str] = []
+    new_tops: set[str] = set()
+    gone_dirs: set[str] = set()
+    for status, path, old in changes:
+        top = PurePosixPath(path).parts
+        if status in "AR" and tracked is not None and len(top) > 1 and top[0] not in tracked:
+            if top[0] not in new_tops and not _cites(text, top[0]):
+                owned.append(f"New top-level directory: {top[0]}/")
+            new_tops.add(top[0])
+        gone = old if status == "R" else path if status == "D" else None
+        if gone is None:
+            continue
+        verb = f"renamed to {path}" if status == "R" else "removed"
+        cited = next((name for name in _names(gone) if _cites(text, name)), None)
+        if cited is not None:
+            owned.append(f"AGENTS.md names {cited}, which this change {verb}")
+        for parent in PurePosixPath(gone).parents:
+            folder = str(parent)
+            if folder == "." or folder in remaining or folder in gone_dirs:
+                continue
+            gone_dirs.add(folder)
+            if _cites(text, f"{folder}/"):
+                owned.append(f"AGENTS.md names {folder}/, which this change removes or moves")
+    return owned
+
+
 async def docs_check_agents() -> CommandResult[dict]:
-    """Check if AGENTS.md needs updating based on structural changes."""
+    """Check whether AGENTS.md needs updating for what it owns: the top-level layout and the
+    paths it names. Other structural changes are reported, not required."""
     ws = find_workspace()
     if not ws:
         return error(
@@ -483,59 +631,49 @@ async def docs_check_agents() -> CommandResult[dict]:
             reasoning="No AGENTS.md found - skipping check",
         )
 
-    result = subprocess.run(
-        ["git", "-c", "core.quotePath=false", "diff", "--cached", "--name-only"],
-        cwd=ws,
-        capture_output=True,
-        text=True,
-    )
-
-    staged_files = result.stdout.strip().splitlines() if result.returncode == 0 else []
-
-    added_result = subprocess.run(
-        [
-            "git", "-c", "core.quotePath=false",
-            "diff", "--cached", "--name-only", "--diff-filter=AR",
-        ],
-        cwd=ws,
-        capture_output=True,
-        text=True,
-    )
-    added = set(
-        added_result.stdout.strip().splitlines() if added_result.returncode == 0 else []
-    )
-
+    changes = _staged_changes(ws)
     structural_changes = [
-        change for f in staged_files if (change := _structural_change(f, f in added))
+        change
+        for status, path, _old in changes
+        if status != "D" and (change := _structural_change(path, status in "AR"))
     ]
+    agents_staged = any(path == "AGENTS.md" for _status, path, _old in changes)
+    owned = [] if agents_staged else _owned_changes(ws, agents_md.read_text("utf-8"), changes)
 
-    agents_staged = "AGENTS.md" in staged_files
-
-    if structural_changes and not agents_staged:
-        changes_summary = ", ".join(structural_changes[:3])
+    data = {
+        "has_agents_md": True,
+        "needs_update": bool(owned),
+        "owned_changes": owned,
+        "structural_changes": structural_changes,
+    }
+    if owned:
         return success(
-            data={
-                "has_agents_md": True,
-                "needs_update": True,
-                "structural_changes": structural_changes,
-            },
-            reasoning=f"Structural changes but AGENTS.md not updated: {changes_summary}",
-            suggestions=["Update AGENTS.md to reflect structural changes"],
+            data=data,
+            reasoning=f"AGENTS.md is out of date: {', '.join(owned[:3])}",
+            suggestions=["Update AGENTS.md: name the new directory, or fix the name it cites"],
         )
-
-    return success(
-        data={"has_agents_md": True, "needs_update": False},
-        reasoning="AGENTS.md is up to date or no structural changes",
-    )
+    if structural_changes and not agents_staged:
+        return success(
+            data=data,
+            reasoning="Structural changes that AGENTS.md does not list: "
+            f"{', '.join(structural_changes[:3])}",
+            suggestions=[
+                "No AGENTS.md entry is needed; describe them where they are owned (a README, "
+                "the docs, the command's own description)"
+            ],
+        )
+    return success(data=data, reasoning="AGENTS.md is up to date or no structural changes")
 
 
 async def docs_preflight() -> CommandResult[dict]:
     """Run docs release-readiness checks via an AFD DirectClient pipeline."""
     client = get_client(source="docs_preflight")
-    pipeline = await client.pipe([
-        {"command": "docs_check_changelog", "input": {}, "as": "changelog"},
-        {"command": "docs_check_agents", "input": {}, "as": "agents"},
-    ])
+    pipeline = await client.pipe(
+        [
+            {"command": "docs_check_changelog", "input": {}, "as": "changelog"},
+            {"command": "docs_check_agents", "input": {}, "as": "agents"},
+        ]
+    )
 
     final = pipeline.final
     if not pipeline.success or final is None:
@@ -562,7 +700,7 @@ async def docs_preflight() -> CommandResult[dict]:
         changelogs = changelog.get("changelogs") or ["CHANGELOG.md"]
         suggestions.append(f"{_changelog_suggestion(find_workspace())}: {', '.join(changelogs)}")
     if agents.get("needs_update"):
-        suggestions.append("Update AGENTS.md to reflect the staged structural changes")
+        suggestions.append("Update AGENTS.md: name the new directory, or fix the name it cites")
 
     return success(
         data={
