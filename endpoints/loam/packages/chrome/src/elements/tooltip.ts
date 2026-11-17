@@ -65,20 +65,21 @@ const tipOf = (path: readonly EventTarget[], root: Node): TipTarget | undefined 
 			node instanceof HTMLElement && node.getRootNode() === root && 'tip' in node
 	);
 
-/** The open modal dialogs of a document, through its shadow roots: looked for only on an Escape. */
-const openModals = (root: Document | ShadowRoot): Element[] =>
-	[...root.querySelectorAll('*')].flatMap((element) => [
-		...(element.matches(':modal') ? [element] : []),
-		...(element.shadowRoot ? openModals(element.shadowRoot) : []),
-	]);
+/** Whether `node` is inside `modal`, across shadow roots. */
+const holds = (modal: Element, node: Node | undefined): boolean =>
+	node !== undefined &&
+	(modal.contains(node) || holds(modal, (node.getRootNode() as ShadowRoot).host));
 
-/** Whether `node` is inside `container`, across shadow boundaries. */
-const holds = (container: Element, node: Node): boolean => {
-	for (let at: Node | null = node; at; at = at.parentNode ?? (at as ShadowRoot).host ?? null) {
-		if (at === container) return true;
-	}
-	return false;
-};
+/**
+ * Whether an open modal dialog that does not hold `entry` is in `root` or its shadow roots, so `entry` is
+ * inert behind it. Looked for only on an Escape.
+ */
+const behindModal = (root: Document | ShadowRoot, entry: Node): boolean =>
+	[...root.querySelectorAll('*')].some(
+		(element) =>
+			(element.matches(':modal') && !holds(element, entry)) ||
+			(element.shadowRoot !== null && behindModal(element.shadowRoot, entry))
+	);
 
 export class LoamTooltip extends FASTElement {
 	#anchor: TipTarget | null = null;
@@ -188,7 +189,7 @@ export class LoamTooltip extends FASTElement {
 		// cannot reach and the modal open (#1054), so the tooltip goes with the dialog's Escape instead. A
 		// tooltip whose entry is inside the modal keeps its own Escape.
 		const anchor = this.#anchor;
-		if (anchor && openModals(this.ownerDocument).some((modal) => !holds(modal, anchor))) {
+		if (anchor && behindModal(this.ownerDocument, anchor)) {
 			this.#hide();
 			return;
 		}
