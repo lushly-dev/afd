@@ -348,9 +348,10 @@ CommandResult CommandRegistry::execute(std::string_view name, const Json& input,
     // 3. Context.
     if (!is_accessible_in_context(definition, context.active_context)) {
         // The afd-context-* tools, when this caller can call them (the lock is released above).
-        const auto list = get("afd-context-list");
+        const auto context_list = get("afd-context-list");
         const bool context_tools =
-            list && (!context.surface || is_exposed_to(list->definition.expose, *context.surface));
+            context_list &&
+            (!context.surface || is_exposed_to(context_list->definition.expose, *context.surface));
         return failure(
             create_error(error_codes::COMMAND_NOT_IN_CONTEXT,
                          "Command '" + definition.name + "' is not available in context '" +

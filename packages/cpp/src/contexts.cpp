@@ -137,10 +137,10 @@ std::vector<CommandDefinition> context_commands(std::vector<ContextConfig> confi
         const std::string name = input.contains("context") && input["context"].is_string()
                                      ? input["context"].get<std::string>()
                                      : std::string();
-        const bool configured =
+        const bool known =
             std::any_of(contexts->begin(), contexts->end(),
                         [&](const ContextConfig& config) { return config.name == name; });
-        if (!configured) {
+        if (!known) {
             std::string available;
             for (const auto& config : *contexts) {
                 available += (available.empty() ? "" : ", ") + config.name;
