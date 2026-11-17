@@ -145,6 +145,8 @@ fn reload_script() -> &'static str {
     }
 }
 
+// The `return` ends the macOS branch before the other platforms' tail, which only clippy on macOS sees.
+#[cfg_attr(target_os = "macos", allow(clippy::needless_return))]
 fn menu(app: &AppHandle) -> tauri::Result<Menu<tauri::Wry>> {
     let palette = MenuItem::with_id(app, "palette", "Command palette", true, Some("CmdOrCtrl+K"))?;
     let reload = MenuItem::with_id(app, "reload", "Reload", true, Some("CmdOrCtrl+R"))?;
