@@ -19,25 +19,25 @@
 
 - **Principles:** 3, everything is a command; 8, agents are first-class users; 13, deterministic core; 15, AFD first; the architecture's copilot, bus and mounted-server components.
 - **The owner's direction of 2026-11-15 and 2026-11-16.** The first Loam is a local, personal Loam on the desktop (D128, D133); its local parts should not wait on hosted work (D129); mail is the first app (D135), and Mail's step F, the mount and the native app, runs on the desktop lane (D132). So this specification orders the desktop path first: **the copilot runtime in the shell, mounted servers through the Rust host, and mail as the first consumer.**
-- **Decisions this specification proposes:** D138 to D149, in [Proposed decisions](#proposed-decisions). D137 is phase 6's 10.8, decided on 2026-11-16 ([#1345](https://github.com/lushly-dev/afd/pull/1345)), so this specification starts at D138.
+- **Decisions this specification proposes:** D141 to D152, in [Proposed decisions](#proposed-decisions). [#1345](https://github.com/lushly-dev/afd/pull/1345) takes D137 to D140, the owner's answers on the desktop's inbound MCP and CLI (phase 6's 10.8), as the coordinator directed on 2026-11-16, so this specification starts at D141. 10.8 is treated as decided.
 
 ### Carried from earlier phases, answered here
 
 | Item | Answer |
 | --- | --- |
 | The TanStack AI panel spike, "the first task of the phase 5 specification" (D27, STATUS follow-up of 2026-10-30) | [Step 0a](#03-the-spike-step-0a), with its questions and pass conditions; the research it starts from is [0.1](#01-tanstack-ai-as-of-2026-11-16) |
-| [#883](https://github.com/lushly-dev/afd/issues/883), where Lushly's copilot code goes | [Section 12](#12-lushlys-copilot-code-883-d147) (D147), from the inventory of 2026-11-13 on the issue |
-| [#885](https://github.com/lushly-dev/afd/issues/885), WebMCP's shape and milestone | [0.2](#02-webmcp-as-of-2026-11-16) and [section 11](#11-webmcp-885-d146) (D146) |
-| [#913](https://github.com/lushly-dev/afd/issues/913), where the copilot runs relative to a person's data | [Section 3](#3-where-the-copilot-runs-913-d139) (D139) |
-| D41's per-part trust labels (Mail's L1 and L2) | [Section 5](#5-labels-and-taint-l1-l2-d141) (D141) |
-| Fresh-context batch units (Mail's L6) | [Section 7.3](#73-fresh-context-units-l6-d144) (D144) |
-| A plugin bringing its own engine (Mail's L5; the owner's direction of 2026-11-10) | [Section 7.4](#74-a-plugins-engine-l5-d145) (D145) and [Q2](#q2-engine-who-keeps-a-plugins-engine-running) |
-| An approval in the shell releasing a mounted server's person-only command (Mail's L7, AFD's A1) | [Section 7.2](#72-a-mounted-command-only-a-person-may-run-l7-a1-d143) (D143) and [Q1](#q1-mail-send-how-does-a-person-approve-a-mounted-send) |
-| Phase 4's 4.5: "phase 5 calls `resolveAutonomy` before every call the copilot or the agent interface makes" | [Section 6](#6-autonomy-enforced-and-approval-health-d142) (D142) |
+| [#883](https://github.com/lushly-dev/afd/issues/883), where Lushly's copilot code goes | [Section 12](#12-lushlys-copilot-code-883-d150) (D150), from the inventory of 2026-11-13 on the issue |
+| [#885](https://github.com/lushly-dev/afd/issues/885), WebMCP's shape and milestone | [0.2](#02-webmcp-as-of-2026-11-16) and [section 11](#11-webmcp-885-d149) (D149) |
+| [#913](https://github.com/lushly-dev/afd/issues/913), where the copilot runs relative to a person's data | [Section 3](#3-where-the-copilot-runs-913-d142) (D142) |
+| D41's per-part trust labels (Mail's L1 and L2) | [Section 5](#5-labels-and-taint-l1-l2-d144) (D144) |
+| Fresh-context batch units (Mail's L6) | [Section 7.3](#73-fresh-context-units-l6-d147) (D147) |
+| A plugin bringing its own engine (Mail's L5; the owner's direction of 2026-11-10) | [Section 7.4](#74-a-plugins-engine-l5-d148) (D148) and [Q2](#q2-engine-who-keeps-a-plugins-engine-running) |
+| An approval in the shell releasing a mounted server's person-only command (Mail's L7, AFD's A1) | [Section 7.2](#72-a-mounted-command-only-a-person-may-run-l7-a1-d146) (D146) and [Q1](#q1-mail-send-how-does-a-person-approve-a-mounted-send) |
+| Phase 4's 4.5: "phase 5 calls `resolveAutonomy` before every call the copilot or the agent interface makes" | [Section 6](#6-autonomy-enforced-and-approval-health-d145) (D145) |
 | Phase 4's 4.1 and D118: "approval of a plan or a capability within limits" has no field; "phase 5 adds the limit" | Milestone B (section 9): a delegation's budget is that limit, and approving a plan is answering a confirmation group; neither is in milestone A |
 | Phase 4's 13: seven obligations on phase 5's "shell commands over MCP" | [Section 10](#10-milestone-c-the-hosted-criterion), milestone C, all seven |
 | Phase 6's 12: the `HostModule` seam and row P6-X1, "phase 5's to write" | [Section 10](#10-milestone-c-the-hosted-criterion); P6-X1 in [section 18](#18-exit-criterion-and-tests) |
-| Phase 1's 7.4: "`approval` reported as `required` is displayed. Enforcement is the server's own until phase 5"; "the copilot's use of the label is phase 5" | Sections [5](#5-labels-and-taint-l1-l2-d141) and [7.2](#72-a-mounted-command-only-a-person-may-run-l7-a1-d143) |
+| Phase 1's 7.4: "`approval` reported as `required` is displayed. Enforcement is the server's own until phase 5"; "the copilot's use of the label is phase 5" | Sections [5](#5-labels-and-taint-l1-l2-d144) and [7.2](#72-a-mounted-command-only-a-person-may-run-l7-a1-d146) |
 | Phase 6's 10.8 seam (D137): "page state and mounted instances' commands through" the desktop's inbound endpoint are phase 5's | [Section 17](#17-out-of-scope-and-the-seams-reserved): reserved, not served by milestone A; the copilot's own commands are never served inbound; [6.1](#61-before-every-call) amends 10.8 so `loam-inbound` gets 6.1's confirmations |
 | STATUS, 2026-11-13: prepare the groundwork before M1 (#883, #885, the spike) | Section 0. #883's inventory and #885's check were done on 2026-11-13; the spike is step 0a |
 | STATUS, 2026-11-10: a shell surface for long-running commands (Mail's L3) and a kit component for reviewing a batch (L4) | Not decided here: [section 17](#17-out-of-scope-and-the-seams-reserved) names the seam each would use and leaves its phase open, as STATUS does |
@@ -93,7 +93,7 @@ Rows this phase depends on, re-checked 2026-11-16 (S101 to S106; the [trajectory
 | Row | Recorded | Now | Effect on phase 5 |
 | --- | --- | --- | --- |
 | W15 | TanStack AI's core stable since 2026-10-23; web components undocumented | 1.0.0 published 2026-10-22; `@tanstack/ai` 1.4.0 and `-client` 1.1.0, every change additive; a headless client for vanilla JavaScript and a custom connection adapter for workers; still no web-component example [S101 to S103] | Pins exact versions in step 1; the spike settles the panel |
-| W20 | WebMCP origin trial 149 to 156, an extension to 162 requested | Extension approved; trial to 162, ending 2027-03-30; no Intent to Ship; `document.modelContext`; WebKit opposed, Mozilla neutral [S105] | D39's projection stays optional and off every exit criterion (D146) |
+| W20 | WebMCP origin trial 149 to 156, an extension to 162 requested | Extension approved; trial to 162, ending 2027-03-30; no Intent to Ship; `document.modelContext`; WebKit opposed, Mozilla neutral [S105] | D39's projection stays optional and off every exit criterion (D149) |
 | W11 | MCP Events, SEP-3415, open with no sponsor | Labelled `accepted` on 2026-11-11, its pull request still open [S106] | `event-list` (section 9) keeps a shape a protocol projection can carry; nothing waits on it |
 
 ## Terms
@@ -168,7 +168,7 @@ Ranked; built and passing first. Job 9, added after the walk, ranks after the sa
 
 **What the scenarios cannot show,** and where it is shown instead: that the approval token never reaches the copilot, the console, a view, the journal or the store (P5-A6, a unit and suite test, since a scenario cannot assert `details`); that the runtime's frame has no network or shared storage (P5-A2); that the model key never reaches the webview (P5-A3); a confirmation's expiry (P5-A5, since the clock cannot move); and a model's judgment (P5-A9).
 
-## 1. Three milestones and the gate (D138)
+## 1. Three milestones and the gate (D141)
 
 Today phase 5 is gated on phase 3's exit and phase 6's M1. D129 asks that its local parts not wait on hosted work. This specification splits the phase:
 
@@ -196,7 +196,7 @@ Today phase 5 is gated on phase 3's exit and phase 6's M1. D129 asks that its lo
 
 Every new package starts quarantined in the release inventory and joins `loam.yml`'s `Affected units` and unit steps (D14). The copilot is never in first paint: the panel's chunk loads when the panel first opens, and the runtime's frame when the first session starts.
 
-## 3. Where the copilot runs (#913, D139)
+## 3. Where the copilot runs (#913, D142)
 
 ### 3.1 On each host
 
@@ -305,7 +305,7 @@ export interface CopilotTurnV1 {
 - **A session whose provider was removed** gives `COPILOT_PROVIDER_UNKNOWN`, with the suggestion "Start a new session".
 - **A turn's limits** (4.4) stop it with `stoppedBy: 'limit'`.
 
-## 4. The runtime and model access (D140)
+## 4. The runtime and model access (D143)
 
 ### 4.1 The provider configuration
 
@@ -403,7 +403,7 @@ Settings of the `copilot` section (phase 4's 3.1), at workspace level, an owner'
   - A `labels = "per-part"` instance: the server's descriptions, wrapped as its claims (5.2).
   - **A `labels = "whole"` instance: only the deployer's text** (the manifest's or entry's title and description). Its input schema is given with **only structural keywords kept**: `type`, `properties`, `required`, `items`, `enum`, `additionalProperties`, the numeric and length bounds, and `$ref` and `$defs`, under the identifier rule below. Every other keyword is dropped, `title`, `description`, `examples`, `default`, `const`, `pattern`, `format`, `$id`, `$comment` and unknown `x-` keys included. **A tool the deployer does not name under `commands` is not listed** when its name, a property name or an `enum` value falls outside `^[A-Za-z0-9_.-]{1,64}$`. With no deployer text, the tool's name alone is given. An unvetted server so puts no prose of its own before the model.
 
-## 5. Labels and taint (L1, L2, D141)
+## 5. Labels and taint (L1, L2, D144)
 
 ### 5.1 Labels per part
 
@@ -465,7 +465,7 @@ This is a mitigation, not the boundary. **The boundary is 5.3**: what a tainted 
   - A `per-part` source whose own non-destructive mutations carry data out of the machine would let content steer data out through that source alone. Mail's do not: archive, label, mark and trash change the mailbox; drafts stay local; send is a person's. A deployer setting `labels = "per-part"` vouches for exactly that.
   - Taint's source is the instance. One mail instance holding work and personal accounts is one source, so a personal message can steer archiving in the work account within mail's policy. Per-account sources are a follow-up for mail's step F.
 
-## 6. Autonomy enforced, and approval health (D142)
+## 6. Autonomy enforced, and approval health (D145)
 
 ### 6.1 Before every call
 
@@ -554,7 +554,7 @@ Phase 6's 10.4 already mounts `http` and `stdio` instances through the Rust host
 - **Exposure.** A mounted instance's tools reach the agent interface by phase 1's 7.4 rules, unchanged: mutations and destructive commands stay hidden until the entry names them.
 - **Modes.** A mounted tool's default mode is `ask` (phase 4's 4.2). The exception is 6.1's `act` for reads of a `per-part` instance.
 
-### 7.2 A mounted command only a person may run (L7, A1, D143)
+### 7.2 A mounted command only a person may run (L7, A1, D146)
 
 Mail's send is a command only a person may run. Its engine issues its own approval tokens and accepts evidence only from its context (`spec/command-metadata.md`, Approvals, rule 1). Today it does not list such commands over MCP at all (its M18).
 
@@ -625,7 +625,7 @@ Its stronger form, the engine's own page with a passkey, is Q1's option (b).
 - **Each released command's input names what it previews:** a revision or the preview's digest, which the engine checks. A change made by another caller then fails the send even outside Loam.
 - **A call carrying an approver's evidence counts as the person's** against its agent limits (its 9.4). A person's own bulk change through Loam is therefore not counted as an agent's.
 
-### 7.3 Fresh-context units (L6, D144)
+### 7.3 Fresh-context units (L6, D147)
 
 A reply set hands out one unit at a time: the person's answers to one recipient's questions, and that recipient's own message. Isolation is real only if the model that writes the reply sees nothing else (Mail's 4.8).
 
@@ -643,7 +643,7 @@ A reply set hands out one unit at a time: the person's answers to one recipient'
 - **Recorded:** the turn's call entry carries `unit: { id, state }`, and the submit is journaled like any call. The composed text goes only to the server, never into a confirmation or the store.
 - **What this guarantees, and what it does not.** A reply composed through a unit cannot carry another recipient's text. A model can still write replies another way: it can read thirty threads and call `mail-draft-create` thirty times in one context. Those drafts are not isolated. The person sees each draft's body and recipients in the send's preview, and a reply set's preview marks the replies whose text differs from the shared text (mail's 10.3). The mail app offers the reply set as its way to answer many people.
 
-### 7.4 A plugin's engine (L5, D145)
+### 7.4 A plugin's engine (L5, D148)
 
 The owner directed on 2026-11-10 that a plugin can bring its engine, and that engines stay out of Loam's core. Mail's engine is a long-lived server on loopback HTTP, since mail must sync with the shell shut (its M17).
 
@@ -747,7 +747,7 @@ Phase 6's 12: routes under `<base>api/copilot/`, a `ModulePrincipal` only throug
 
 Approvals carried through the hosted relay (7.2), a server-side loop over documents (3.1), and the hosted receiver of D131.
 
-## 11. WebMCP (#885, D146)
+## 11. WebMCP (#885, D149)
 
 - **D39 stands,** in the browser only: commands exposed to MCP are registered with `document.modelContext.registerTool` behind `'modelContext' in document`, never `navigator`.
 - **Never on the desktop.** A webview has no browser agent to call it, and a custom scheme cannot hold an origin trial token. The desktop's outward projection is phase 6's inbound MCP (10.8, D137).
@@ -758,7 +758,7 @@ Approvals carried through the hosted relay (7.2), a server-side loop over docume
 - **`allow="tools"` is never granted** to a view's frame.
 - **Not in any exit criterion** while WebMCP has no shipping milestone and WebKit opposes it; step 15 is optional. Re-check W20 when Chrome 162 nears or an Intent to Ship appears.
 
-## 12. Lushly's copilot code (#883, D147)
+## 12. Lushly's copilot code (#883, D150)
 
 From the inventory on [#883](https://github.com/lushly-dev/afd/issues/883):
 
@@ -1004,7 +1004,7 @@ The slice ranks nine jobs ([Jobs and scenarios](#jobs-and-scenarios)), and miles
 
 ### Q7. Delegation: may this specification decide #913 and #883?
 
-The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](https://github.com/lushly-dev/afd/issues/883) left their choices to you. This specification decides them, as D139 and D147, under your standing grant to the coordinator. It also adds two reads, `confirmation-get` and `confirmation-withdraw`, to the desktop's inbound list you approved in D137 (6.1).
+The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](https://github.com/lushly-dev/afd/issues/883) left their choices to you. This specification decides them, as D142 and D150, under your standing grant to the coordinator. It also adds two reads, `confirmation-get` and `confirmation-withdraw`, to the desktop's inbound list you approved in D137 (6.1).
 
 - **(a) Confirm all three as written (recommended).**
   - #913: the copilot runs beside your own kernel on every host, and never reads your documents on a server before the collaboration service.
@@ -1017,22 +1017,22 @@ The comments on [#913](https://github.com/lushly-dev/afd/issues/913) and [#883](
 
 ## Proposed decisions
 
-Proposed by this specification on 2026-11-16, and decided only with its approval. D137 is phase 6's 10.8, decided on 2026-11-16.
+Proposed by this specification on 2026-11-16, and decided only with its approval. D137 to D140 are #1345's, the owner's answers on 10.8; this specification's numbers start at D141.
 
 | ID | Decision | Amends or annotates |
 | --- | --- | --- |
-| D138 | Phase 5 has three milestones: A, the desktop copilot, which needs nothing hosted; B, the rest of the local criterion; C, the hosted criterion, which needs M1 and phase 3's step 10. It exits when all three pass | Annotates D100 and D129; the architecture's phase 5 row, and its gate in STATUS |
-| D139 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913, subject to Q7 | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
-| D140 | Model keys live in the OS keychain or the server's secrets, set at a terminal. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
-| D141 | A mounted result is content as a whole unless its instance entry says `labels = "per-part"`, and a whole server's own words never reach the model. Content taints a session, through stored outcomes and nested calls too. A tainted session's mutations outside a vouched source, and its calls to other servers or `http` apps, are at most `ask`, through `calls` grants as well. Answers L1 and L2 | Annotates D41 and D65 |
-| D142 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D137's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
-| D143 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1, subject to Q1 | Annotates D65; needs AFD's step 0c |
-| D144 | A vouched server's result marked as a unit is composed in a fresh context with no history and no tools, and neither its payload nor its submit's result reaches the parent. Isolation is guaranteed on that path only. Answers L6 | None |
-| D145 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5, subject to Q2 | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
-| D146 | The WebMCP projection is the browser's only, outward only, never on the desktop, and in no exit criterion while WebMCP has no shipping milestone. Answers #885 | Annotates D39 |
-| D147 | Of Lushly's copilot code: the approval display rules go to AFD with step 0c, and the approval link store to AFD when milestone C needs it; the runtime interfaces, tool bridge and transport handshake go to `@lushly-dev/loam-copilot`; the execution origin stays in Lushly. Answers #883, subject to Q7 | None |
-| D148 | The copilot's records are sessions and turns in the person's store, kept for a person's retention setting. Its commands are human commands, served to no agent. There is no memory across sessions in phase 5 | Annotates D24 |
-| D149 | `calls` grants reach mounted instances in milestone A, on the instance entry's declaration. Milestone B's bus adds native callees with AFD's `apps` flag, `event-list` as a projection of the journal the caller may see, and `shell-open` over phase 2's resource links, with exact tables in its amendment | Annotates D30, D65 and D81 |
+| D141 | Phase 5 has three milestones: A, the desktop copilot, which needs nothing hosted; B, the rest of the local criterion; C, the hosted criterion, which needs M1 and phase 3's step 10. It exits when all three pass | Annotates D100 and D129; the architecture's phase 5 row, and its gate in STATUS |
+| D142 | Before the collaboration service, the copilot runs in an opaque-origin frame beside the person's kernel on every host. It calls commands only through the agent interface, as `copilot` for the person, with a kernel-held trace, and reaches a model only through the trusted host. On the hosted lane, its trust-record writes use its own route and principal, never A6's human route. Answers #913, subject to Q7 | Narrows D24 and D25's "in-process on the hosted Node server" to the model and call routes until the collaboration service |
+| D143 | Model keys live in the OS keychain or the server's secrets, set at a terminal. Endpoints live in the trusted host: on the desktop, `models.json` and two IPC commands that build the request and allow only a listed body; on the hosted lane, the server's secrets; on a static deployment, the test provider alone. The webview names a provider id, and providers swap by configuration | Amends D106 (six IPC commands with D137's) and phase 6's 10.2, 10.4 and 17 |
+| D144 | A mounted result is content as a whole unless its instance entry says `labels = "per-part"`, and a whole server's own words never reach the model. Content taints a session, through stored outcomes and nested calls too. A tainted session's mutations outside a vouched source, and its calls to other servers or `http` apps, are at most `ask`, through `calls` grants as well. Answers L1 and L2 | Annotates D41 and D65 |
+| D145 | Phase 5 enforces phase 4's autonomy before every call of the copilot and the agent interface, the inbound agent included, adding `confirmation-get` and `confirmation-withdraw` to D137's inbound list. Human and owner commands are never asked or suggested; destructive and approval-held commands are always at most `ask`; a vouched server's reads default to `act`. The resolved action is shown, suggestions run only through the palette's prompt, and approval health is reported. Mutations fail closed until phase 4's steps land | Fulfils D41's "enforcement in phase 5"; amends phase 4's default for vouched reads and phase 6's 10.8 |
+| D146 | A mounted command only a person may run is approved in the shell, once, with a required preview that is re-checked while the instance is held, and is released by an AFD-defined approver carrier bound to Loam's credential. The token never leaves the kernel's memory. It applies to the copilot's requests and to the person's own, and only for the named commands. Desktop only until milestone C. Answers L7 and A1, subject to Q1 | Annotates D65; needs AFD's step 0c |
+| D147 | A vouched server's result marked as a unit is composed in a fresh context with no history and no tools, and neither its payload nor its submit's result reaches the parent. Isolation is guaranteed on that path only. Answers L6 | None |
+| D148 | A plugin brings its engine through `loam plugin install` at a terminal. Its manifest names an artifact and its hash, never a command line. The install shows what will run and asks, and a new binary needs a new install. Answers L5, subject to Q2 | Amends phase 1's manifest profile, D56 and D63's wording; D95 and D106 hold |
+| D149 | The WebMCP projection is the browser's only, outward only, never on the desktop, and in no exit criterion while WebMCP has no shipping milestone. Answers #885 | Annotates D39 |
+| D150 | Of Lushly's copilot code: the approval display rules go to AFD with step 0c, and the approval link store to AFD when milestone C needs it; the runtime interfaces, tool bridge and transport handshake go to `@lushly-dev/loam-copilot`; the execution origin stays in Lushly. Answers #883, subject to Q7 | None |
+| D151 | The copilot's records are sessions and turns in the person's store, kept for a person's retention setting. Its commands are human commands, served to no agent. There is no memory across sessions in phase 5 | Annotates D24 |
+| D152 | `calls` grants reach mounted instances in milestone A, on the instance entry's declaration. Milestone B's bus adds native callees with AFD's `apps` flag, `event-list` as a projection of the journal the caller may see, and `shell-open` over phase 2's resource links, with exact tables in its amendment | Annotates D30, D65 and D81 |
 
 **Amendments to other documents, if approved.** Each is applied by the step named, so as not to collide with open pull requests:
 
@@ -1042,7 +1042,7 @@ Proposed by this specification on 2026-11-16, and decided only with its approval
 - phase 4's 4.2 gains the default for vouched reads (step 3);
 - phase 1's 7.4 and D65's consequence gain `labels`, `approvals`, `preview` and `expose.apps` (steps 4 and 5);
 - phase 1's section 2, D56 and D63 gain 7.4's plugin manifest and wording (step 9);
-- W20 and D39's consequence note D146 (with approval).
+- W20 and D39's consequence note D149 (with approval).
 
 ## Review 2026-11-16
 
@@ -1102,7 +1102,7 @@ Its improvements were taken too:
 - the body's allow-list (4.2);
 - the plugin hash claim corrected (7.4);
 - approver tokens bound to the credential, with precedence over the elicitation relay (7.2);
-- the merge of #1345 and D137 (sections 3.3 and 6.1, the decision numbers);
+- the merge of #1345 and D137 (sections 3.3 and 6.1); the numbers moved to start at D141 when the coordinator gave #1345 D137 to D140;
 - `calls` grants placed in milestone A, so P5-A4 can test them;
 - D118's "within limits" placed in milestone B;
 - costs on every question, and the shell-served page route explained (Q1);
