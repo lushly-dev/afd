@@ -68,7 +68,23 @@ def verify_records(read: Callable[[str], bytes], current: Path | None = None) ->
     assert set(staged_files).issubset({row["path"] for row in rows})
     for row in rows:
         name = row["path"]
-        assert name in upstream_files or name in absent, f"Unclassified upstream path: {name}"
+        assert (
+            isinstance(name, str)
+            and name
+            and "\\" not in name
+            and ":" not in name
+            and all(part not in {"", ".", ".."} for part in name.split("/"))
+        ), f"Invalid adaptation path: {name}"
+        selected = name in upstream_files or name in absent
+        if selected:
+            assert "origin" not in row, f"Frozen selection cannot be relabeled local: {name}"
+        else:
+            # New AFD-authored files have no source-byte claim. Do not extend or
+            # reinterpret the immutable selected-source manifest to record them.
+            assert row.get("origin") == "local-after-import", f"Unclassified upstream path: {name}"
+            assert row["upstream_sha256"] is None and row["staged_sha256"] is None, (
+                f"Local addition cannot claim source or staged bytes: {name}"
+            )
         assert row["upstream_sha256"] == upstream_files.get(name)
         assert row["staged_sha256"] == staged_files.get(name)
         assert (row["stage_classification"], row["import_classification"]) == classify(

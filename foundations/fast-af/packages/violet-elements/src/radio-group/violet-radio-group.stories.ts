@@ -130,6 +130,7 @@ export const Overview: Story = {
             expect(group.checkValidity()).toBe(true);
         });
 
+        const { parentNode, nextSibling } = group;
         const form = document.createElement("form");
         form.append(group);
 
@@ -137,6 +138,8 @@ export const Overview: Story = {
             const formData = new FormData(form);
             expect(formData.get("sowingMethod")).toBe("direct");
         });
+        // Back where it was, so the capture after the play shows it.
+        parentNode?.insertBefore(group, nextSibling);
     },
 };
 

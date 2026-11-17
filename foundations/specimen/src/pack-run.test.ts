@@ -109,6 +109,33 @@ describe('specimen pack', () => {
 		SEVERAL_BUILDS
 	);
 
+	it(
+		'refuses to write, and fails the check, when a guide has an error',
+		async () => {
+			const root = await copy();
+			const guide = join(root, 'pack-library/guides/field.guide.json');
+			const parsed = JSON.parse(await readFile(guide, 'utf8')) as { summary: string };
+			parsed.summary = 'x'.repeat(400);
+			await writeFile(guide, JSON.stringify(parsed));
+			const broken = await createSpecimenBench({ root: join(root, 'pack-library') });
+			try {
+				const check = await broken.packCheck({ workers: 1 });
+				expect(check.valid).toBe(false);
+				expect(check.problems).toEqual([
+					expect.objectContaining({
+						code: 'GUIDE_TEXT_TOO_LONG',
+						path: './guides/field.guide.json',
+					}),
+				]);
+				await expect(broken.pack({ workers: 1 })).rejects.toThrow(/GUIDE_TEXT_TOO_LONG/);
+			} finally {
+				await broken.close();
+				await rm(root, { recursive: true, force: true });
+			}
+		},
+		SEVERAL_BUILDS
+	);
+
 	// The Component Briefs proposal's exit criteria 4 and 5, on the example library.
 	it(
 		'drops a fact to its unchecked basis when the claim that verified it fails',
