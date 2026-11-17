@@ -168,6 +168,13 @@ export class LoamTooltip extends FASTElement {
 
 	#escape(event: KeyboardEvent): void {
 		if (event.key !== 'Escape' || !this.matches(':popover-open')) return;
+		// A modal dialog opened since it showed, as a view's can: its entry is inert behind it, and Escape is
+		// the dialog's. Taking it would leave the person's first Escape closing a tooltip they cannot reach
+		// and the modal open (#1054), so the tooltip goes with the dialog's Escape instead.
+		if (event.composedPath().some((node) => node instanceof Element && node.matches(':modal'))) {
+			this.#hide();
+			return;
+		}
 		this.#dismissed = true;
 		this.#close();
 		event.preventDefault();

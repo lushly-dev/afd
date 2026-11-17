@@ -449,6 +449,49 @@ describe('P2-E13: E2: what a hostile view can reach', () => {
 		await opened.context.close();
 	});
 
+	it('closes its modal on the first Escape, with a rail tooltip left showing beneath it (#1054)', async () => {
+		const opened = await openShell(browser, site.origin);
+		const { page } = opened;
+		await openApp(page, 'fixture');
+		const { inner } = await viewFrames(page);
+		// A hover loads the rail's tooltip. The pointer then leaves the rail, so no pointer event of its is
+		// still on its way when the view opens a modal, which makes the rail inert.
+		await page.locator('loam-rail loam-app-entry[instance="fixture"] button').hover();
+		const tip = page.locator('loam-rail loam-tooltip');
+		await expect.poll(() => tip.evaluate((el) => el.matches(':popover-open'))).toBe(true);
+		await page.locator('loam-view-frame').hover();
+		await expect.poll(() => tip.evaluate((el) => el.matches(':popover-open'))).toBe(false);
+		await inner.evaluate(() => {
+			parent.postMessage(
+				{
+					jsonrpc: '2.0',
+					id: 'over-the-tip',
+					method: 'tools/call',
+					params: { name: 'modal-open', arguments: { title: 'Over', body: 'The tooltip' } },
+				},
+				'*'
+			);
+		});
+		const modal = page.locator('loam-modal dialog[open]');
+		await modal.waitFor();
+		// The tooltip loads on first use and can show once the modal is already open, as it did when this
+		// failed: shown here through its own handler, as a hover still on the entry shows it.
+		await tip.evaluate((el) => {
+			const entry = (el.getRootNode() as ShadowRoot).querySelector(
+				'loam-app-entry[instance="fixture"]'
+			);
+			(el as unknown as { handle(type: string, path: EventTarget[]): void }).handle('pointerover', [
+				entry as Element,
+			]);
+		});
+		expect(await tip.evaluate((el) => el.matches(':popover-open'))).toBe(true);
+		await page.keyboard.press('Escape');
+		await expect.poll(() => modal.count()).toBe(0);
+		const dismissed = (await journal(page)).filter((e) => e.command === 'overlay-dismiss');
+		expect(dismissed).toHaveLength(1);
+		await opened.context.close();
+	});
+
 	it('cannot lose a journal entry with a value JSON cannot hold', async () => {
 		const opened = await openShell(browser, site.origin);
 		const { page } = opened;
