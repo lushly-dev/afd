@@ -4,7 +4,8 @@
  * app or plugin can register is refused from the main webview; Tauri's framework transport, the ACL-exempt
  * channel fetch pinned in `src-tauri/tests/acl.rs`, hands out nothing, since Loam uses no `Channel`; neither
  * frame's `invoke` runs a command, nor does one with a forged `Origin` on Tauri's message fallback or a raw IPC
- * message; and the `loam` protocol answers 404 for a path reaching `mounts.json`.
+ * message, though the same message, with the key, from the main frame does; and the `loam` protocol answers 404 for a path
+ * reaching `mounts.json`.
  */
 import { readFileSync, symlinkSync } from 'node:fs';
 import { join } from 'node:path';
@@ -242,6 +243,86 @@ describe('P6-D4: the capabilities', () => {
 		expect(Number(second.value)).toBe(Number(first.value) + 1);
 		for (const handle of [first.value, second.value])
 			await invoke('mount_close', { handle: Number(handle) });
+	});
+
+	it("P6-D4: from the main frame, Tauri's postMessage fallback runs a command whose Origin is forged, and nothing without the shell's Origin or the invoke key", async () => {
+		// The control for the test above, whose still counter means something only if a delivered keyed message
+		// would move it. Here the main frame, whose posts every engine delivers, sends what a frame holding the key
+		// could. With the invoke key and a forged `Origin` it runs, so `from_shell` is no barrier on the fallback
+		// and the frames' result measures what reaches the host and the key. Without an `Origin` `from_shell`
+		// refuses it, and with a wrong key Tauri drops it unanswered. Each handle is closed as soon as it is known,
+		// to stay under the instance's handle limit; the counter does not go back.
+		const answers = (await desktop.browser.execute(
+			async (shell, timeoutMs) => {
+				const page = window as unknown as {
+					__TAURI_INTERNALS__: {
+						invoke(command: string, args: unknown): Promise<unknown>;
+						transformCallback(callback: (value: unknown) => void, once: boolean): number;
+					};
+					ipc: { postMessage(message: string): void };
+				};
+				const internals = page.__TAURI_INTERNALS__;
+				// The key, from the shell's own IPC fetch, as a frame on WebView2 can read it from its own.
+				const fetched = window.fetch;
+				let key = '';
+				window.fetch = (input, init) => {
+					const found = new Headers(init?.headers).get('Tauri-Invoke-Key');
+					if (found) key = found;
+					return fetched.call(window, input, init);
+				};
+				let first: unknown;
+				try {
+					first = await internals.invoke('mount_open', { instance: 'fixture' });
+				} finally {
+					window.fetch = fetched;
+				}
+				await internals.invoke('mount_close', { handle: first });
+				const post = (headers: Record<string, string>, invokeKey: string) =>
+					new Promise<string>((resolve) => {
+						const timer = setTimeout(() => resolve('unanswered'), timeoutMs);
+						const settle = (outcome: string) => async (value: unknown) => {
+							clearTimeout(timer);
+							if (outcome === 'ok') await internals.invoke('mount_close', { handle: value });
+							resolve(`${outcome} ${JSON.stringify(value)}`);
+						};
+						page.ipc.postMessage(
+							JSON.stringify({
+								cmd: 'mount_open',
+								callback: internals.transformCallback(settle('ok'), true),
+								error: internals.transformCallback(settle('error'), true),
+								payload: { instance: 'fixture' },
+								options: { headers },
+								__TAURI_INVOKE_KEY__: invokeKey,
+							})
+						);
+					});
+				return {
+					first: String(first),
+					keyed: key !== '',
+					forged: await post({ Origin: shell }, key),
+					bare: await post({}, key),
+					unkeyed: await post({ Origin: shell }, 'forged'),
+				};
+			},
+			ORIGINS.shell,
+			2_000
+		)) as { first: string; keyed: boolean; forged: string; bare: string; unkeyed: string };
+		process.stderr.write(
+			`P6-D4 main-frame fallback on ${process.platform}: ${JSON.stringify(answers)}\n`
+		);
+		const first = Number(answers.first);
+		expect(answers.keyed).toBe(true);
+		expect(answers.forged).toBe(`ok ${first + 1}`);
+		expect(answers.bare).toBe('error "DESKTOP_ORIGIN_REFUSED"');
+		expect(answers.unkeyed).toBe('unanswered');
+		// The counter: the forged message alone ran `mount_open`.
+		const last = await invoke('mount_open', { instance: 'fixture' });
+		try {
+			expect(last.ok).toBe(true);
+			expect(Number(last.value)).toBe(first + 2);
+		} finally {
+			if (last.ok) await invoke('mount_close', { handle: Number(last.value) });
+		}
 	});
 
 	it('P6-D4: the loam protocol answers 404 for a path reaching mounts.json, encoded or through a symbolic link', async () => {
