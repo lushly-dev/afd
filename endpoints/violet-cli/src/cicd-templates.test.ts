@@ -113,8 +113,9 @@ describe('cicd setup workflow templates', () => {
 		},
 	);
 
-	// The step runs on Linux runners under /bin/bash, which Windows has no counterpart for (#1437).
-	it.skipIf(process.platform === 'win32')('snapshot preserves database paths and propagates CLI failure', () => {
+	// The step runs on Linux runners under /bin/bash, which Windows lacks (#1437).
+	const linux = it.skipIf(process.platform === 'win32');
+	linux('snapshot preserves database paths and propagates CLI failure', () => {
 		const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'violet-snapshot-'));
 		try {
 			const db = path.join(dir, 'live history.db');
