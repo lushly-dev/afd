@@ -44,24 +44,19 @@ ruff check src/ --fix
 ruff format src/
 ```
 
-## Git Hooks (Lefthook)
+## Gates in AFD
 
-Lefthook manages git hooks. Requires `lefthook` binary on PATH.
+Botcore's own Lefthook hooks and check scripts were retired when it moved into AFD. The
+repository's `lefthook.yml` runs `scripts/check-portability.mjs` and `scripts/check-file-size.mjs`
+on staged TypeScript, JavaScript, JSON, Markdown and YAML only, so neither runs on Botcore's Python
+by itself:
 
-| Hook | Commands | Trigger |
-|------|----------|--------|
-| pre-commit | ruff check --fix (staged), ruff format (staged), portability, file-size | `git commit` |
-| pre-push | Full ruff lint, format-check, pytest, portability, file-size | `git push` |
-| check | Same as pre-push | `lefthook run check` |
-
-**Check scripts** (`scripts/`):
-
-| Script | What it checks |
-|--------|---------------|
-| `check-file-size.mjs` | Warn >300, error >500 lines. Escape: `# botcore-override: max-lines=N` (cap 1000) |
-| `check-portability.mjs` | Machine-specific paths (drive letters, user homes). Escape: `# portability-ok: reason` |
-
-Skip hooks: `git commit --no-verify` / `git push --no-verify`
+| Check | Where it runs |
+|-------|---------------|
+| `ruff check` on `src/`, `tests/`, `scripts/` and each `packages/*/src/` | The Botcore workflow's lint step, and `pnpm verify` for a Botcore change |
+| `ruff format` | Compared against base only: format the files you change, never untouched ones |
+| Portability | `node scripts/check-portability.mjs <files>` from the repository root. Escape: `# portability-ok: reason` on the line or the one above |
+| File size | The `dev_check_size` command (over MCP) reads `file_size_warn` and `file_size_error` (500 and 1,000 by default) and only warns below the error line |
 
 ## Code Style (Ruff)
 

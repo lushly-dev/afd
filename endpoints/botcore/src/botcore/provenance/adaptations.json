@@ -7,21 +7,21 @@
       "path": "AGENTS.md",
       "upstream_sha256": "f5450e1ba56adb4b95452b6700a3799cd614be00d3dfa7919778586c29121741",
       "staged_sha256": null,
-      "current_import_sha256": "5018b3c535390041a7c95dc6eda9a1c9587479388d9296577bc91ff8cac97c19",
+      "current_import_sha256": "12f68644ffbdcfe8382d288ec383eefc2efbf3f04d41259160b65bfdd347b06b",
       "stage_classification": "not-in-staging",
       "stage_reason": "Not selected in the frozen staged-input payload",
       "import_classification": "added-after-staging",
-      "import_reason": "Provide current AFD endpoint gates and authority instructions"
+      "import_reason": "Provide current AFD endpoint gates and authority instructions; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
     },
     {
       "path": "CHANGELOG.md",
       "upstream_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
       "staged_sha256": "c14847885d718bc5ed772cb9593f9bb59a5c433b9eb0071b566499f6ba4768f3",
-      "current_import_sha256": "7b61cf6fa004f8b8cce58ef4e09ea9117b23e75482702dc80f92de9f3b468e67",
+      "current_import_sha256": "86fff6455f5df9f67b752df47d8ab2e8d055f4001da975ad27dfa877dbf1b6d8",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move"
+      "import_reason": "Record the 0.6.0 host adaptation, compatibility changes and budget modernization; Record the docs checks fix (lushly-dev/afd#779); Record the 0.6.1 release; Record the 0.7.0 release: the bloat-sweeper skill; Record plugin-declared policies, catalog input schemas and argument refusals; Record that a host does not warn about unselected plugin sections; Record the docs-manager prose guidance; Record either-spelling command names, kebab_names, typed inputs, a context per call and the remote-caller profile; Record hosts served over HTTP with bearer tokens and the HTTP client; Normalize Git fixture paths and use the same case-sensitive skill ordering on Windows; Record the factory lane loop and its checkpoint review repairs; Record the factory lane's review evidence; Record the factory's command lines and run-fleet; Record the factory lane's slots beside the checkout; Protect Windows token stores with native private creation and cross-process locks; explicitly record local additions without rewriting frozen source evidence; Merge main's factory report plan counts; refuse ancestor write-attributes grants, recheck the held chain for reparse points and poll the Windows store lock; Record the factory lane's .nvmrc Node; Record the factory lane's base advance past an unrelated main move; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
     },
     {
       "path": "LICENSE",
@@ -47,11 +47,11 @@
       "path": "SETUP.md",
       "upstream_sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
       "staged_sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
-      "current_import_sha256": "2870d372847f64596db5b1fa974522ca8e959ff65683b066cdcb1d42bc8c124b",
+      "current_import_sha256": "c50802affb31ceb9416e47b9487a09bd09f428c30bbd8318bbaeb1f3b9ef3be7",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
     },
     {
       "path": "VALIDATION.md",
@@ -1698,11 +1698,11 @@
       "path": "src/botcore/commands/dev/portability.py",
       "upstream_sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
       "staged_sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
-      "current_import_sha256": "34807e496fafb1f654f1d0ee15ee3c7b93d38eb9b093285138998b02c014749c",
+      "current_import_sha256": "43deadf28fd3992fc0aa53797f3ac3cbcd57371aee20fe04424d2ea5d9a60f45",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
     },
     {
       "path": "src/botcore/commands/dev/quality.py",
@@ -5209,11 +5209,11 @@
       "path": "tests/test_dev_portability.py",
       "upstream_sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
       "staged_sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
-      "current_import_sha256": "0a86d3c81a5edab3e4107dabbd6b7f4726c8ba8a039616a2c7cff88a50b461fd",
+      "current_import_sha256": "7ac0c7f0995b581cf5ee54836ecf0468f9efcbca28d95f5666655be5e11bdf4f",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Make the diff-scoped quality gate pass on main: portability markers, lint scope, format decision (lushly-dev/afd#513)"
     },
     {
       "path": "tests/test_dev_quality.py",
