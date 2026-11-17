@@ -21,6 +21,7 @@ namespace afd {
 namespace detail {
 struct JournalCallState;
 struct DirectApprovalState;
+class McpApprovalRelay;
 struct JournaledContextFields;
 } // namespace detail
 
@@ -88,6 +89,8 @@ struct CommandContext {
     std::shared_ptr<detail::JournalCallState> journal;
     /// Internal approval marker. DirectClient ignores caller-provided markers and evidence.
     std::shared_ptr<detail::DirectApprovalState> direct_approval;
+    /// Internal MCP approval relay (afd::mcp_stdio). Only the MCP server sets it.
+    std::shared_ptr<detail::McpApprovalRelay> mcp_approval_relay;
     /// Set by the registry once the call's declared context fields validated: which of them the
     /// journal keeps. Leave it unset. Never recorded or hashed.
     std::shared_ptr<const detail::JournaledContextFields> journaled_fields;
