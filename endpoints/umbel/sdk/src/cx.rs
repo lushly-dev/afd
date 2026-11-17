@@ -36,8 +36,8 @@ pub struct CallContext {
     /// else the call's one space (the default space for a command with no space input). The
     /// store methods refuse a space outside it.
     pub spaces: Vec<String>,
-    /// The effective output budget in bytes, for a command that declares one (compiled plugins
-    /// only in phase 2); `None` otherwise.
+    /// The effective output budget in bytes, for a command that declares one; `None` otherwise.
+    /// A component reads it through WIT world 1.1.0's `call` interface.
     pub output_budget: Option<u64>,
     /// The actor's kind: `human`, `agent`, `service` or `script`.
     pub actor_kind: String,
@@ -53,7 +53,7 @@ pub struct CallContext {
     /// The host fills it for a compiled plugin's command only, from a table it keeps itself,
     /// keyed by the fresh random trace id it gave the step, and only when the entry names the
     /// command called. Nothing a caller sends sets it: not the input, not `extra`, not a trace id
-    /// chosen by a client. A component (WIT world 1.0.0) and a mounted server never see it.
+    /// chosen by a client. A component (WIT worlds 1.0.0 and 1.1.0) and a mounted server never see it.
     pub pipeline: Option<PipelineAttestation>,
     /// Whether the host counts the caller as a person for this command (phase 3 specification,
     /// sections 3.3 and 8.7; D86): a human through the library, or a human at the command line
@@ -63,7 +63,7 @@ pub struct CallContext {
     /// `curator-promote` makes it before a person widens their own records (phase 4 step 4,
     /// amendment 9). **Not an attestation**: it rests on a terminal check until phase 5.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see `false`.
     pub person: bool,
     /// The legacy principal strings the caller's effective principal stands for (phase 5
@@ -72,7 +72,7 @@ pub struct CallContext {
     /// namespaced principal is never a different person from their legacy one. Empty when none
     /// maps to it.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see none.
     pub equivalents: Vec<String>,
     /// Whether the host seals this caller's positions (phase 5 section 9.3, D125): a hosted
@@ -80,7 +80,7 @@ pub struct CallContext {
     /// through [`crate::Cx::doc_position`] (it does in any case) and counts in its totals only
     /// what the caller can read.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see `false`.
     pub sealed_positions: bool,
     /// The caller's delegation chain, outermost first (phase 5 sections 2.1 and 2.4): the
@@ -88,7 +88,7 @@ pub struct CallContext {
     /// a token or an assertion. A plugin copies it into a version 3 envelope it writes in a record
     /// body (a proposal's `provenance`); the store envelope's own chain is the host's to fill.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see none.
     pub delegation_chain: Vec<umbel_store::ChainLink>,
     /// The host's attestation that a person decided this very call on the person page (phase 5
@@ -97,7 +97,7 @@ pub struct CallContext {
     /// acts for, after the plugin gate admitted it once. Nothing a caller sends sets it. `None` at
     /// a terminal (the CLI's check is [`Self::person`]'s) and everywhere else.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see none.
     pub person_decision: Option<PersonDecision>,
     /// The call a person is about to be asked to decide on the person page, when this call is
@@ -108,7 +108,7 @@ pub struct CallContext {
     /// in-process call: [`Self::interface`] is then empty, and [`PersonCheck::surface`] says where
     /// the call it checks came from.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see none.
     pub person_check: Option<PersonCheck>,
     /// The page of its preview the person page asks a `confirm_preview` command for (the Ideas
@@ -117,7 +117,7 @@ pub struct CallContext {
     /// answers exactly `{ preview }`. The page number is never part of the command's input, so it
     /// is never part of the digest the decision binds. Host-owned, as [`Self::person_check`] is.
     ///
-    /// The host fills it for a compiled plugin's command only; a component (WIT world 1.0.0) and
+    /// The host fills it for a compiled plugin's command only; a component (WIT worlds 1.0.0 and 1.1.0) and
     /// a mounted server always see none.
     pub preview_page: Option<u32>,
 }
@@ -178,7 +178,8 @@ pub struct PipelineAttestation {
     pub run: String,
 }
 
-/// Why a host service refused (WIT `host-error`; world 1.1.0 adds the store variants). The memory
+/// Why a host service refused (WIT `host-error`; world 1.1.0 adds `Conflict`, `Busy`, `Corrupt`
+/// and `Io`, and world 1.0.0's four cases stay frozen). The memory
 /// variants are phase 3's (section 5.2); each names the error code a plugin answers with.
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[non_exhaustive]
@@ -802,7 +803,7 @@ pub trait HostServices: Send + Sync {
     /// lock wait, answering whether the write-ahead log is now empty (phase 4 section 9.1). A
     /// command that removed text, such as a proposal's redaction, says whether the removed bytes
     /// are gone or wait for a later checkpoint. The same grants as [`HostServices::checkpoint`].
-    /// Compiled plugins only: WIT world 1.0.0 has no such function.
+    /// Compiled plugins only: no WIT world has such a function.
     ///
     /// # Errors
     /// [`HostError::NotGranted`] (the message names `STORE_WRITE_NOT_ALLOWED` when a write grant

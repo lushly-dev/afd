@@ -25,7 +25,7 @@ pub fn wasm(name: &str) -> PathBuf {
         .join(format!("{name}.wasm"));
     assert!(
         path.is_file(),
-        "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello --features component -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future`",
+        "{} is missing: build the components first with `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-hello -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget --features umbel-plugin-hello/component,umbel-fixture-budget/component`",
         path.display()
     );
     path

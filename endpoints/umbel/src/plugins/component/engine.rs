@@ -3,9 +3,10 @@
 //!
 //! One engine serves every component of the process (the specification says one per host; a
 //! process-wide engine lets hosts and tests share compiled components, and its epoch thread runs
-//! once). The linker is built once as well: it links the world `umbel:plugin/plugin@1.0.0` and
-//! the virtualized WASI 0.2 interfaces, and **no** `wasi:sockets` and no `wasi:http`, so a
-//! component that imports them cannot even be instantiated, whatever the import check says.
+//! once). The linker is built once as well: it links the worlds `umbel:plugin/plugin@1.0.0` and
+//! `@1.1.0` and the virtualized WASI 0.2 interfaces, and **no** `wasi:sockets` and no
+//! `wasi:http`, so a component that imports them cannot even be instantiated, whatever the import
+//! check says.
 
 use std::collections::HashMap;
 use std::sync::{Mutex, OnceLock};

@@ -115,9 +115,11 @@ manifest has no grant for: `plugin check` names the grant to add. A compiled plu
 declaration and not a sandbox. Mounted and pack plugins declare none.
 
 **Building a component.** `umbel-sdk`'s `export_component!` exports the WIT world
-`umbel:plugin/plugin@1.0.0` from the same `Plugin` implementation the tests run as a compiled
-plugin. Build with `--target wasm32-wasip2 --features component`; the toolchain file the scaffold
-writes already names the target. A component keeps no state between calls and reads time and
+`umbel:plugin/plugin@1.1.0` from the same `Plugin` implementation the tests run as a compiled
+plugin, and a command that declares `output_budget` reads it from `cx.call().output_budget`, as a
+compiled one does. The host still loads components built against world 1.0.0. Build with
+`--target wasm32-wasip2 --features component`; the toolchain file the scaffold writes already
+names the target. A component keeps no state between calls and reads time and
 randomness only through `Cx`. Random bytes are written to the journal, so never use them for keys.
 
 **Mounting a server.** Any MCP server over stdio works; AFD's TypeScript (`@lushly-dev/afd-server`),

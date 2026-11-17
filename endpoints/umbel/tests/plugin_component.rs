@@ -151,11 +151,13 @@ fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
         .collect();
     imports.sort();
     let mut expected: Vec<String> = [
-        "umbel:plugin/types@1.0.0",
-        "umbel:plugin/config@1.0.0",
-        "umbel:plugin/log@1.0.0",
-        "umbel:plugin/packs@1.0.0",
-        "umbel:plugin/clock@1.0.0",
+        // umbel-sdk targets world 1.1.0, and reads the grant-free `call` once per call.
+        "umbel:plugin/types@1.1.0",
+        "umbel:plugin/call@1.1.0",
+        "umbel:plugin/config@1.1.0",
+        "umbel:plugin/log@1.1.0",
+        "umbel:plugin/packs@1.1.0",
+        "umbel:plugin/clock@1.1.0",
         "wasi:clocks/monotonic-clock",
         "wasi:cli/environment",
         "wasi:cli/exit",
@@ -205,7 +207,127 @@ fn hellos_imports_are_exactly_the_ones_its_grants_allow() {
         .exports(&engine)
         .map(|(name, _)| name.to_owned())
         .collect();
-    assert_eq!(exports, ["umbel:plugin/command@1.0.0"]);
+    assert_eq!(exports, ["umbel:plugin/command@1.1.0"]);
+}
+
+// ─── world 1.1.0: the output budget (the world 1.1.0 specification, sections 4 and 9) ──────────
+
+/// A manifest whose first command declares `output_budget = { default_bytes = 100, max_bytes =
+/// 200 }` (manifest version 2).
+fn budgeted_manifest(id: &str, file: &str, grants: &[&str], commands: &[&str]) -> String {
+    fixture_manifest(id, file, grants, commands, "")
+        .replace("manifest_version = 1", "manifest_version = 2")
+        .replacen(
+            "effects = [\"inspect\"]\n",
+            "effects = [\"inspect\"]\noutput_budget = { default_bytes = 100, max_bytes = 200 }\n",
+            1,
+        )
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_component_reads_its_calls_output_budget() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = budgeted_manifest("bud", "bud.wasm", &["clock", "random", "events"], &["read"]);
+    let plugin = component_dir(
+        dir.path(),
+        "bud",
+        &manifest,
+        "umbel_fixture_budget",
+        "bud.wasm",
+    );
+    let host = boot(&plugin).unwrap();
+    let call = |ask: Option<u64>| {
+        let host = &host;
+        async move {
+            let mut context = host
+                .host()
+                .context(afd::Actor::new(afd::ActorKind::Test).with_id("testkit"));
+            if let Some(ask) = ask {
+                context = context.with_output_budget_ask(ask);
+            }
+            host.host()
+                .registry()
+                .execute("bud-read", json!({}), Some(context))
+                .await
+        }
+    };
+    // The declared default, the caller's ask, and an ask clamped to max_bytes.
+    assert_eq!(data(&call(None).await)["budget"], 100);
+    assert_eq!(data(&call(Some(150)).await)["budget"], 150);
+    assert_eq!(data(&call(Some(500)).await)["budget"], 200);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn a_component_command_without_a_budget_reads_none() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = fixture_manifest(
+        "bud",
+        "bud.wasm",
+        &["clock", "random", "events"],
+        &["read"],
+        "",
+    );
+    let plugin = component_dir(
+        dir.path(),
+        "bud",
+        &manifest,
+        "umbel_fixture_budget",
+        "bud.wasm",
+    );
+    let host = boot(&plugin).unwrap();
+    assert_eq!(
+        data(&host.call("bud-read", json!({})).await)["budget"],
+        Value::Null
+    );
+}
+
+/// `events@1.1.0`, with its eight-case `host-error`, is linked and served beside 1.0.0's.
+#[tokio::test(flavor = "multi_thread")]
+async fn a_world_1_1_0_component_reads_events() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = fixture_manifest(
+        "bud",
+        "bud.wasm",
+        &["clock", "random", "events"],
+        &["events"],
+        "",
+    );
+    let plugin = component_dir(
+        dir.path(),
+        "bud",
+        &manifest,
+        "umbel_fixture_budget",
+        "bud.wasm",
+    );
+    let host = boot(&plugin).unwrap();
+    let answer = data(&host.call("bud-events", json!({})).await);
+    assert!(answer.get("events").is_some(), "{answer}");
+}
+
+#[test]
+fn a_budgeted_command_needs_a_component_of_world_1_1_0() {
+    let dir = tempfile::tempdir().unwrap();
+    let manifest = budgeted_manifest(
+        "imp",
+        "imp.wasm",
+        &["config", "log", "packs", "events", "clock", "random"],
+        &["config"],
+    );
+    let plugin = component_dir(
+        dir.path(),
+        "imp",
+        &manifest,
+        "umbel_fixture_imports",
+        "imp.wasm",
+    );
+    let error = error_of(boot(&plugin));
+    assert_eq!(error.code(), "PLUGIN_PROTOCOL_UNSUPPORTED", "{error}");
+    assert!(error.message().contains("output_budget"), "{error}");
+    assert!(
+        error.message().contains("umbel:plugin/command@1.0.0"),
+        "{error}"
+    );
+    assert!(error.message().contains("imp-config"), "{error}");
 }
 
 // ─── imports against grants ─────────────────────────────────────────────────────────────────────

@@ -556,7 +556,16 @@ fn the_wit_world_is_the_files_the_specification_prints() {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let wit = fs::read_to_string(root.join("wit/umbel-plugin-1.0.0/world.wit")).unwrap();
     assert!(wit.starts_with("package umbel:plugin@1.0.0;"));
-    assert_eq!(umbel::WIT_WORLD, "umbel:plugin/plugin@1.0.0");
+    // World 1.0.0 is frozen: its file never changes (the world 1.1.0 specification, D190).
+    use sha2::Digest as _;
+    let digest: String = sha2::Sha256::digest(wit.as_bytes())
+        .iter()
+        .map(|byte| format!("{byte:02x}"))
+        .collect();
+    assert_eq!(
+        digest,
+        "435927e9891d5ed39dc481f4b7b49ae708856bf53af564522ffb5f7cf756f32b"
+    );
     for needed in [
         "interface types",
         "interface config",
@@ -573,6 +582,31 @@ fn the_wit_world_is_the_files_the_specification_prints() {
     }
     // The specification prints the file; they must not drift apart.
     let spec = fs::read_to_string(root.join("docs/phases/1-plugin-contract/spec.md")).unwrap();
+    let start = spec.find("```wit\n").unwrap() + "```wit\n".len();
+    let end = start + spec[start..].find("```").unwrap();
+    assert_eq!(&spec[start..end], wit);
+}
+
+#[test]
+fn wit_world_1_1_0_is_the_file_its_specification_prints() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let wit = fs::read_to_string(root.join("wit/umbel-plugin-1.1.0/world.wit")).unwrap();
+    assert!(wit.starts_with("package umbel:plugin@1.1.0;"));
+    assert_eq!(umbel::WIT_WORLD, "umbel:plugin/plugin@1.1.0");
+    for needed in [
+        "interface call",
+        "output-budget: func() -> option<u64>;",
+        "conflict(option<string>),",
+        "busy(string),",
+        "corrupt(string),",
+        "io(string),",
+        "import call;",
+        "export command;",
+    ] {
+        assert!(wit.contains(needed), "{needed}");
+    }
+    let spec =
+        fs::read_to_string(root.join("docs/phases/1-plugin-contract/world-1.1.spec.md")).unwrap();
     let start = spec.find("```wit\n").unwrap() + "```wit\n".len();
     let end = start + spec[start..].find("```").unwrap();
     assert_eq!(&spec[start..end], wit);
@@ -750,12 +784,13 @@ fn the_version_2_manifest_schema_refuses_what_the_host_refuses() {
             with(&|m| m["plugin"]["domains"] = json!(["store"])),
         ],
     );
-    // A component plugin may not declare an output budget in protocol 1.
+    // A component plugin may declare an output budget (D191); the host checks at load that its
+    // component exports world 1.1.0, which no schema can see.
     let mut component = example("plugin-manifest.v1", "component");
     component["manifest_version"] = json!(2);
     assert!(validator.is_valid(&component));
     component["commands"][0]["output_budget"] = json!({ "default_bytes": 1, "max_bytes": 2 });
-    assert!(!validator.is_valid(&component));
+    assert!(validator.is_valid(&component));
     // A mounted tool holds no grants, so neither new effect fits it.
     let mut mounted = example("plugin-manifest.v1", "mounted");
     mounted["manifest_version"] = json!(2);
