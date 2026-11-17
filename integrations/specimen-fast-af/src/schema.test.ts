@@ -12,7 +12,6 @@ const fast = {
 	events: [{ name: 'press' }],
 	slots: [{ name: 'after', description: 'After the label' }],
 	cssProperties: [{ name: '--press-ink', default: 'black' }],
-	commands: [{ id: 'x.press', label: 'Press' }],
 };
 
 describe('FAST-AF schema enrichment', () => {
@@ -35,7 +34,7 @@ describe('FAST-AF schema enrichment', () => {
 			slots: [{ name: 'after', description: 'After the label' }],
 			events: [{ name: 'press' }],
 			cssProperties: [{ name: '--press-ink', default: 'black' }],
-			commands: [{ id: 'x.press', label: 'Press' }],
+			commands: [],
 			unknown: [],
 		});
 	});
@@ -63,8 +62,9 @@ describe('FAST-AF schema enrichment', () => {
 		});
 		expect(merged.properties.map((item) => item.name)).toEqual(['tone', 'label', 'disabled']);
 		expect(merged.slots).toEqual([{ name: 'after' }]);
+		// A FAST-AF element has no commands, so the merge settles what the manifest left unknown.
 		expect(merged.unknown).toEqual([]);
-		expect(merged.commands).toEqual([{ id: 'x.press', label: 'Press' }]);
+		expect(merged.commands).toEqual([]);
 	});
 
 	it('keeps an attribute the manifest lists apart from its property once, on the property', () => {

@@ -1,9 +1,7 @@
 import type { FASTElementDefinition } from "../components/fast-definitions.js";
 import type { ElementStyles } from "../styles/element-styles.js";
 import type { ElementViewTemplate } from "../templating/template.js";
-import { getCommandMetadata } from "../command/command.js";
 import type {
-    CommandSchema,
     ComponentSchema,
     CSSPropertySchema,
     PropertySchema,
@@ -156,42 +154,15 @@ export function extractCSSProperties(
 }
 
 /**
- * Extracts command schemas from a component class via `command` metadata.
- * @param type - The class constructor to extract commands from.
- * @returns An array of CommandSchema objects.
- */
-export function extractCommands(type: Function): CommandSchema[] {
-    const metadata = getCommandMetadata(type);
-
-    return metadata.map(meta => ({
-        id: meta.id,
-        methodName: meta.methodName,
-        label: meta.label,
-        icon: meta.icon,
-        description: meta.description,
-        category: meta.category,
-        keybinding: meta.keybinding,
-        parameters: meta.parameters,
-        when: meta.when,
-        hidden: meta.hidden,
-    }));
-}
-
-/**
  * Builds a complete ComponentSchema from a FASTElementDefinition.
- * Combines property, slot, CSS property, and command extraction.
+ * Combines property, slot, and CSS property extraction.
  * @param definition - The FASTElementDefinition to build a schema from.
- * @param type - The class constructor for the component.
  * @returns A complete ComponentSchema object.
  */
-export function buildSchema(
-    definition: FASTElementDefinition,
-    type: Function,
-): ComponentSchema {
+export function buildSchema(definition: FASTElementDefinition): ComponentSchema {
     const properties = extractProperties(definition);
     const slots = extractSlots(definition.template);
     const cssProperties = extractCSSProperties(definition.styles);
-    const commands = extractCommands(type);
 
     return {
         name: definition.name,
@@ -201,6 +172,5 @@ export function buildSchema(
         events: [], // Phase 2: Extract from JSDoc or decorator
         slots,
         cssProperties,
-        commands,
     };
 }

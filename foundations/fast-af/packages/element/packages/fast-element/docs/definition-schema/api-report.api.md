@@ -18,22 +18,7 @@ export interface AriaHint {
 }
 
 // @public
-export interface CommandSchema {
-    category?: string;
-    description?: string;
-    hidden?: boolean;
-    icon?: string;
-    id: string;
-    keybinding?: string;
-    label?: string;
-    methodName: string;
-    parameters?: Record<string, unknown>;
-    when?: string;
-}
-
-// @public
 export interface ComponentSchema {
-    commands?: CommandSchema[];
     cssProperties: CSSPropertySchema[];
     description?: string;
     events: EventSchema[];
@@ -48,14 +33,6 @@ export interface CSSPropertySchema {
     default?: string;
     name: string;
     syntax?: string;
-}
-
-// @public
-export interface CustomElementsManifest {
-    // (undocumented)
-    modules: ManifestModule[];
-    // (undocumented)
-    schemaVersion: "2.1.0";
 }
 
 // @public
@@ -87,55 +64,6 @@ export function getSchemaOrThrow(name: string, registry?: CustomElementRegistry)
 
 // @public
 export type JSONSchema = Record<string, unknown>;
-
-// @public
-export interface ManifestDeclaration {
-    // (undocumented)
-    cssProperties: Array<{
-        name: string;
-        default?: string;
-    }>;
-    // (undocumented)
-    customElement: true;
-    // (undocumented)
-    description?: string;
-    // (undocumented)
-    events: Array<{
-        name: string;
-        type: {
-            text: string;
-        };
-    }>;
-    // (undocumented)
-    kind: "class";
-    // (undocumented)
-    members: Array<{
-        kind: "field";
-        name: string;
-        type: {
-            text: string;
-        };
-    }>;
-    // (undocumented)
-    name: string;
-    // (undocumented)
-    slots: Array<{
-        name: string;
-        description?: string;
-    }>;
-    // (undocumented)
-    tagName: string;
-}
-
-// @public
-export interface ManifestModule {
-    // (undocumented)
-    declarations: ManifestDeclaration[];
-    // (undocumented)
-    kind: "javascript-module";
-    // (undocumented)
-    path: string;
-}
 
 // @public
 export interface PropertySchema {
@@ -182,12 +110,6 @@ export interface SlotSchema {
     description?: string;
     name: string;
 }
-
-// @public
-export function toCustomElementsManifest(registry?: CustomElementRegistry): CustomElementsManifest;
-
-// @public
-export function toPascalCase(str: string): string;
 
 // (No @packageDocumentation comment for this package)
 

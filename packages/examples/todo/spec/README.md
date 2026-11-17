@@ -8,17 +8,16 @@ This directory contains the shared API contract for the Todo example. All four b
   keyed by MCP tool name, and each command's `metadata`: `mutation`, `destructive`, `contexts`
   and, on `todo-clear`, `confirmPrompt`. The test suites of all four backends fail if it does not
   list exactly the commands their backend defines with that metadata; the C++ backend also
-  validates every input against it. A command with `implementedBy` (`todo-restore`,
-  `todo-history`), or an input property with `x-implementedBy` (`deleted` on `todo-list` and
-  `todo-clear`), exists so far only in the languages it names, TypeScript, Python and Rust, and
-  only their tests expect it: the
+  checks that each input schema it declares is the contract's, descriptions aside. Every backend
+  implements all 13 commands. A command with `implementedBy`, or an input property with
+  `x-implementedBy`, would exist only in the languages it names, and every backend's tests honour
+  both; none has either now (the
   [to-do reference plan](../../../../docs/features/active/todo-reference/todo-reference.proposal.md)
-  added it to TypeScript in phase 2 and to Python and Rust in phase 5, and removes the field once
-  C++ has it too.
+  used them while `todo-restore`, `todo-history` and `deleted` reached each language).
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
-- `approval-cases.json`: Approval hold cases (`--suite approvals`): TypeScript and Rust run all
-  four, Python the two that need no elicitation.
+- `approval-cases.json`: Approval hold cases (`--suite approvals`): TypeScript, Rust and C++ run
+  all four, Python the two that need no elicitation.
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -38,11 +37,9 @@ script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 
-A case with `implementedBy` runs only against backends in those languages, like the commands
-marked so in `commands.schema.json`. Six cases in `test-cases.json` (undo metadata, deleting and
-restoring, emptying the deleted todos, history) are TypeScript's, Python's and Rust's, so those
-three run all 41, and so do both Umbel modes, which serve the Rust backend; the C++ backend runs
-the 35 shared ones, and phase 5 removes the field once it catches up.
+A case with `implementedBy` runs only against backends in those languages. No case in
+`test-cases.json` has one: every backend runs all 41, and so do both Umbel modes, which serve the
+Rust backend.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays
 and read `.length` (`data.todos.0.title`, `data.todos.length`). The value is either the exact
@@ -65,7 +62,7 @@ command is shown to have changed nothing.
 | TypeScript | `pnpm test:conformance:ts --suite confirmations` | Yes, every protocol mode |
 | Python | `pnpm test:conformance:py --suite confirmations` | Yes, every protocol mode |
 | Rust | `pnpm test:conformance:rs --suite confirmations` | Yes, every protocol mode (over stdio; a 2025 request over the backend's stateless HTTP has no back channel, so there it answers `CONFIRMATION_REQUIRED` to a client that declares elicitation) |
-| C++ | Not yet | No. `todo-clear` declares the prompt, but the backend's own stdio loop does not enforce confirmations; that waits on the library's `afd::mcp_stdio` ([#341](https://github.com/lushly-dev/afd/issues/341)) |
+| C++ | `pnpm test:conformance:cpp --suite confirmations` | Yes, every protocol mode (the library's `afd::mcp_stdio`) |
 
 ## Approval Cases
 
@@ -82,7 +79,7 @@ the reset before each case deletes the live todos with `todo-delete-batch` inste
 | TypeScript | `pnpm test:conformance:ts --suite approvals` | All 4, in both protocol modes |
 | Python | `pnpm test:conformance:py --suite approvals` | The 2 `acknowledge` cases, in both protocol modes. The `accept` and `decline` cases need the server to ask the person over MCP, which the Python library cannot do yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)): a held clear answers `APPROVAL_REQUIRED` whatever the client declares |
 | Rust | `pnpm test:conformance:rs --suite approvals` | All 4, in both protocol modes |
-| C++ | Not yet | Approvals come in C++'s phase 5 pull request |
+| C++ | `pnpm test:conformance:cpp --suite approvals` | All 4, in both protocol modes |
 
 The runner skips a client kind with no case for the backend's language, and fails a suite that
 leaves the language no case at all.
@@ -170,8 +167,8 @@ Command names are kebab-case MCP tool names, and every command is exposed to MCP
 9. `todo-create-batch`: Create multiple todos (1-100)
 10. `todo-delete-batch`: Delete multiple todos (1-100 IDs)
 11. `todo-toggle-batch`: Toggle multiple todos, or set them all with `completed`
-12. `todo-restore`: Bring deleted todos back as they were (not C++ yet)
-13. `todo-history`: Recent changes with their actor and undo (not C++ yet)
+12. `todo-restore`: Bring deleted todos back as they were
+13. `todo-history`: Recent changes with their actor and undo
 
 ## Error Codes
 
@@ -181,7 +178,7 @@ Every error includes a `suggestion` for recovery.
 - `VALIDATION_ERROR`: Input failed validation
 - `NO_CHANGES`: Update requested but no changes provided
 - `APPROVAL_REQUIRED`: `todo-clear` from a caller that is not a person, held until a person
-  approves (TypeScript, Python and Rust)
+  approves
 
 Batch commands report per-item failures in `data.failed` (with the same error codes) and still
 return `success: true`; they fail as a whole only when the input itself is invalid.

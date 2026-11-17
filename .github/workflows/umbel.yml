@@ -135,15 +135,11 @@ jobs:
       # The components are built for WASI 0.2, so they are linted for that target too (the host
       # target lints them above as plain crates; wit-bindgen stubs the imports there).
       - name: Clippy (components, wasm32-wasip2)
-        run: cargo clippy --locked --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello --features umbel-plugin-hello/component,umbel-fixture-budget/component -- -D warnings
-      # The components plugin has no component build until its step D2, so it is linted for the
-      # target and not built as a `.wasm` file (specification, section 11).
-      - name: Clippy (components plugin, wasm32-wasip2)
-        run: cargo clippy --locked --target wasm32-wasip2 -p umbel-plugin-components -- -D warnings
-      # The component-loader tests read hello and the fixture components from
-      # target/wasm32-wasip2/release/; no .wasm file is committed.
+        run: cargo clippy --locked --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello -p umbel-plugin-components --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component -- -D warnings
+      # The component-loader tests read hello, the components plugin (Component Briefs step D2) and
+      # the fixture components from target/wasm32-wasip2/release/; no .wasm file is committed.
       - name: Build the components
-        run: cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello --features umbel-plugin-hello/component,umbel-fixture-budget/component
+        run: cargo build --locked --release --target wasm32-wasip2 -p umbel-fixture-behaviors -p umbel-fixture-imports -p umbel-fixture-sockets -p umbel-fixture-future -p umbel-fixture-budget -p umbel-plugin-hello -p umbel-plugin-components --features umbel-plugin-hello/component,umbel-plugin-components/component,umbel-fixture-budget/component
       # A host test cannot use another crate's CARGO_BIN_EXE_*: the mounted-loader tests find
       # hello-mcp in the target directory, next to the test binaries.
       - name: Build hello-mcp

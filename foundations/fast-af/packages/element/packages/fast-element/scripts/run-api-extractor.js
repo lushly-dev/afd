@@ -8,11 +8,6 @@ const __dirname = path.dirname(__filename);
 
 export const exportPaths = [
     {
-        path: "./command.js",
-        docsFolder: "command",
-        configPath: path.resolve(__dirname, "../api-extractor.command.json"),
-    },
-    {
         path: "./context.js",
         docsFolder: "context",
         configPath: path.resolve(__dirname, "../api-extractor.context.json"),
@@ -41,11 +36,6 @@ export const exportPaths = [
         path: "./scoped.js",
         docsFolder: "scoped",
         configPath: path.resolve(__dirname, "../api-extractor.scoped.json"),
-    },
-    {
-        path: "./trust.js",
-        docsFolder: "trust",
-        configPath: path.resolve(__dirname, "../api-extractor.trust.json"),
     },
 ];
 

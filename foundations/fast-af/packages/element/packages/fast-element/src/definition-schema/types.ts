@@ -38,8 +38,6 @@ export interface ComponentSchema {
     slots: SlotSchema[];
     /** CSS custom properties (design tokens) used by the component */
     cssProperties: CSSPropertySchema[];
-    /** Command palette actions (Phase 2) */
-    commands?: CommandSchema[];
 }
 
 /**
@@ -123,34 +121,6 @@ export interface CSSPropertySchema {
     default?: string;
     /** CSS syntax descriptor (e.g., "<color>", "<length>") */
     syntax?: string;
-}
-
-/**
- * Schema describing a command palette action.
- * Populated by the `command` decorator during schema extraction.
- * @public
- */
-export interface CommandSchema {
-    /** Unique command identifier */
-    id: string;
-    /** Method name on the component class */
-    methodName: string;
-    /** Human-readable label for the command */
-    label?: string;
-    /** Icon identifier for the command */
-    icon?: string;
-    /** Extended description for command palettes and documentation */
-    description?: string;
-    /** Grouping category for organization in UI */
-    category?: string;
-    /** Keyboard shortcut (e.g., "Ctrl+Shift+P") */
-    keybinding?: string;
-    /** JSON Schema for runtime parameter validation */
-    parameters?: Record<string, unknown>;
-    /** Context expression for conditional visibility (e.g., "editorFocus") */
-    when?: string;
-    /** If true, command is registered but hidden from UI */
-    hidden?: boolean;
 }
 
 /**

@@ -8,9 +8,19 @@ license = "MIT"
 description = "AFD Umbel components plugin: briefs on a component library's components from the space's Specimen pack, a second reader of Specimen's pack format held equal to its checker"
 repository = "https://github.com/lushly-dev/afd"
 
+[lib]
+# A component is a cdylib; everything else links the rlib.
+crate-type = ["cdylib", "rlib"]
+
+[features]
+# The plugin as a WebAssembly component of world 1.1.0 (Component Briefs step D2):
+# `cargo build --locked --release --target wasm32-wasip2 -p umbel-plugin-components --features component`,
+# served with `manifests/component.toml`.
+component = ["umbel-sdk/component"]
+
 # No dependency on another plugin crate, of any kind (D3): `tests/no_plugin_dependency.rs` holds
-# that. The source uses no filesystem, clock, thread or network, so it stays inside what a
-# component may do; its component build waits for WIT world 1.1.0 (D151).
+# that. The source uses no filesystem, clock, thread or network; the component build's manifest
+# adds only `clock` and `random`, which the build imports without any command reading them (D198).
 [dependencies]
 # The format's identifier patterns: ASCII-only, Unicode features off, as `umbel-scan` compiles.
 regex = { version = "1", default-features = false, features = ["std", "perf"] }
@@ -36,5 +46,15 @@ tracing-subscriber = { version = "0.3", features = ["fmt"] }
 # The tests boot a host with the plugin and its grants, with no loader (so no wasmtime).
 umbel = { path = "../..", default-features = false, features = ["store-embedded", "testkit"] }
 
-[lints]
-workspace = true
+# The workspace lints, with hello's one scoped exception: under `component` `export_component!`
+# expands wit-bindgen's glue in this crate, and it uses `unsafe`, so `unsafe_code` is `deny`, not
+# `forbid`; the glue is wrapped in `#[allow(unsafe_code)]`.
+[lints.rust]
+unsafe_code = "deny"
+missing_docs = "warn"
+unreachable_pub = "warn"
+
+[lints.clippy]
+all = { level = "warn", priority = -1 }
+unwrap_used = "warn"
+expect_used = "warn"

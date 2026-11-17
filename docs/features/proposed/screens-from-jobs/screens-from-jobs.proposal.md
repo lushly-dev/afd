@@ -94,7 +94,8 @@ about a screen, not a component.
   - `capture`, a named checkpoint.
 - **A command runner** is `{ commands?(element), run(element, name, input) }`
   (`src/plugin.ts:66-69`). Registered runners are a map by id (`src/browser/plugins.ts:6`). Only
-  the FAST-AF runner and the fixture runner exist.
+  the fixture runner exists; the FAST-AF runner went with the runtime's command module
+  ([#1385](https://github.com/lushly-dev/afd/issues/1385)).
 - **Every operation is one request in a fresh context.**
   - The worker dispatches render, run, a11y, themes, coverage and the rest, one request each
     (`src/bench-worker.ts:47-59`).

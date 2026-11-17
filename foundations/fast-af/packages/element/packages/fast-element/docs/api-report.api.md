@@ -374,7 +374,7 @@ export class ElementController<TElement extends HTMLElement = HTMLElement> imple
     readonly definition: FASTElementDefinition;
     disconnect(): void;
     protected disconnectBehaviors(): void;
-    emit(type: string, detail?: any, options?: TrustEmitOptions): void | boolean;
+    emit(type: string, detail?: any, options?: Omit<CustomEventInit, "detail">): void | boolean;
     static forCustomElement(element: HTMLElement, override?: boolean): ElementController;
     protected hasExistingShadowRoot: boolean;
     // @internal
@@ -525,7 +525,7 @@ export const FAST: {
 
 // @public
 export interface FASTElement extends HTMLElement {
-    $emit(type: string, detail?: any, options?: TrustEmitOptions): boolean | void;
+    $emit(type: string, detail?: any, options?: Omit<CustomEventInit, "detail">): boolean | void;
     readonly $fastController: ElementController;
     attributeChangedCallback(name: string, oldValue: string | null, newValue: string | null): void;
     connectedCallback(): void;
@@ -1152,17 +1152,6 @@ export type TrustedTypesPolicy = {
 };
 
 // @public
-export interface TrustEmitOptions extends Omit<CustomEventInit, "detail">, TrustSignals {
-}
-
-// @public
-export interface TrustSignals {
-    confidence?: number;
-    reasoning?: string;
-    warnings?: Warning[];
-}
-
-// @public
 export function twoWay<T = any>(expression: Expression<T>, optionsOrChangeEvent?: TwoWayBindingOptions | string, policy?: DOMPolicy, isBindingVolatile?: boolean): Binding<T>;
 
 // @public
@@ -1289,17 +1278,6 @@ export class ViewTemplate<TSource = any, TParent = any> implements ElementViewTe
 
 // @public
 export function volatile(target: {}, name: string | Accessor, descriptor: PropertyDescriptor): PropertyDescriptor;
-
-// @public
-export interface Warning {
-    code: string;
-    details?: Record<string, unknown>;
-    message: string;
-    severity?: WarningSeverity;
-}
-
-// @public
-export type WarningSeverity = "info" | "warning" | "caution";
 
 // @beta
 export function watch(object: any, subscriber: Subscriber | ((subject: any, args: any) => void)): Disposable;

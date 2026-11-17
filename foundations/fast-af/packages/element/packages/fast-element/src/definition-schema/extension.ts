@@ -14,7 +14,7 @@ function storeDefinitionSchema(
     definition: FASTElementDefinition,
     registry: CustomElementRegistry,
 ): void {
-    storeSchema(definition.type, buildSchema(definition, definition.type));
+    storeSchema(definition.type, buildSchema(definition));
     registerTag(definition.name, definition.type, registry);
 }
 

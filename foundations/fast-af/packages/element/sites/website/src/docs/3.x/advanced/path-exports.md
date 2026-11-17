@@ -38,7 +38,6 @@ generated table is current.
 | `@lushly-dev/fast-element/attribute-map.js` | Schema-driven attribute map extension. | `./dist/esm/declarative/attribute-map.js` | `./dist/dts/declarative/attribute-map.d.ts` |
 | `@lushly-dev/fast-element/binding.js` | Binding directives and binding helpers. | `./dist/esm/binding/exports.js` | `./dist/dts/binding/exports.d.ts` |
 | `@lushly-dev/fast-element/children.js` | children directive. | `./dist/esm/templating/children.js` | `./dist/dts/templating/children.d.ts` |
-| `@lushly-dev/fast-element/command.js` | Agent-first command discovery and execution APIs. | `./dist/esm/command/index.js` | `./dist/dts/command/index.d.ts` |
 | `@lushly-dev/fast-element/context.js` | Path-only context protocol APIs. | `./dist/esm/context.js` | `./dist/dts/context.d.ts` |
 | `@lushly-dev/fast-element/css.js` | CSS template tag APIs. | `./dist/esm/styles/css.js` | `./dist/dts/styles/css.d.ts` |
 | `@lushly-dev/fast-element/debug.js` | Debug message helpers. | `./dist/esm/debug.js` | `./dist/dts/debug.d.ts` |
@@ -59,12 +58,11 @@ generated table is current.
 | `@lushly-dev/fast-element/render.js` | Render directive APIs. | `./dist/esm/render.js` | `./dist/dts/render.d.ts` |
 | `@lushly-dev/fast-element/repeat.js` | repeat directive. | `./dist/esm/templating/repeat.js` | `./dist/dts/templating/repeat.d.ts` |
 | `@lushly-dev/fast-element/schema.js` | Schema and schema registry APIs. | `./dist/esm/schema.js` | `./dist/dts/schema.d.ts` |
-| `@lushly-dev/fast-element/scoped.js` | Scoped custom element registry detection and authoring APIs. | `./dist/esm/scoped/index.js` | `./dist/dts/scoped/index.d.ts` |
+| `@lushly-dev/fast-element/scoped.js` | Scoped custom element registry detection and polyfill loading. | `./dist/esm/scoped/index.js` | `./dist/dts/scoped/index.d.ts` |
 | `@lushly-dev/fast-element/signal.js` | Signal binding helper. | `./dist/esm/binding/signal.js` | `./dist/dts/binding/signal.d.ts` |
 | `@lushly-dev/fast-element/slotted.js` | slotted directive. | `./dist/esm/templating/slotted.js` | `./dist/dts/templating/slotted.d.ts` |
 | `@lushly-dev/fast-element/state.js` | State and watch helpers. | `./dist/esm/state/exports.js` | `./dist/dts/state/exports.d.ts` |
 | `@lushly-dev/fast-element/two-way.js` | Two-way binding helper. | `./dist/esm/binding/two-way.js` | `./dist/dts/binding/two-way.d.ts` |
-| `@lushly-dev/fast-element/trust.js` | Event trust-signal types and inspection APIs. | `./dist/esm/trust/index.js` | `./dist/dts/trust/index.d.ts` |
 | `@lushly-dev/fast-element/updates.js` | DOM update queue APIs. | `./dist/esm/observation/update-queue.js` | `./dist/dts/observation/update-queue.d.ts` |
 | `@lushly-dev/fast-element/utilities.js` | DOM and view behavior utility helpers. | `./dist/esm/utilities.js` | `./dist/dts/utilities.d.ts` |
 | `@lushly-dev/fast-element/volatile.js` | Volatile observable decorator. | `./dist/esm/observation/volatile.js` | `./dist/dts/observation/volatile.d.ts` |

@@ -1,6 +1,6 @@
 import type { Meta, StoryObj } from "@lushly-dev/specimen/types";
 import { claim } from "@lushly-dev/specimen/evidence";
-import { expect, userEvent, waitFor } from "@lushly-dev/specimen/test";
+import { expect, userEvent, waitFor, within } from "@lushly-dev/specimen/test";
 
 import "./violet-switch";
 import type { VioletSwitch } from "./violet-switch";
@@ -86,19 +86,22 @@ export const Overview: Story = {
     },
     play: async ({ canvasElement }) => {
         const element = canvasElement.querySelector("violet-switch") as VioletSwitch | null;
-        const input = element?.shadowRoot?.querySelector('input[type="checkbox"]') as HTMLInputElement | null;
-        const track = element?.shadowRoot?.querySelector(".track") as HTMLLabelElement | null;
+        const root = element?.shadowRoot;
 
-        if (!element || !input || !track) {
+        if (!element || !root) {
             throw new Error("Expected violet-switch to render.");
         }
+
+        // The switch is found and clicked by role, as a person or an agent would: the
+        // decorative track passes pointer events through to this input.
+        const input = within(root as unknown as HTMLElement).getByRole("switch") as HTMLInputElement;
 
         await expect(input.getAttribute("role")).toBe("switch");
         await expect(input.checked).toBe(false);
         await expect(element.checkValidity()).toBe(false);
         const invalidWhileOff = !element.checkValidity();
 
-        await userEvent.click(track);
+        await userEvent.click(input);
 
         await waitFor(() => {
             expect(element.checked).toBe(true);

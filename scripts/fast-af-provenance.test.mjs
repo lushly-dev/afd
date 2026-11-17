@@ -6,6 +6,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import {
 	hasStaleShape,
+	isRemoved,
 	matchesRecord,
 	PROVENANCE_FAMILIES,
 	provenancePaths,
@@ -79,6 +80,20 @@ test('every imported FAST-AF file is present, recorded and unchanged since revie
 	const unrecorded = present.filter((path) => !recorded.has(path));
 	assert.deepEqual(unrecorded, [], 'record new FAST-AF files in adaptations.json');
 	for (const file of adaptations.files) {
+		if (isRemoved(file)) {
+			// A removed file's record is kept as history; the file must stay gone.
+			assert(
+				!present.includes(file.path),
+				`${file.path} is back; run scripts/release/provenance.mjs`
+			);
+			assert.match(
+				file.removed?.on ?? '',
+				/^\d{4}-\d{2}-\d{2}$/,
+				`${file.path} needs a removal date`
+			);
+			assert(file.removed.reason && file.removed.import_classification, `${file.path} removal`);
+			continue;
+		}
 		assert(existsSync(join(root, file.path)), `missing or ignored: ${file.path}`);
 		assert(present.includes(file.path), `not visible to Git (check .gitignore): ${file.path}`);
 		const bytes = readFileSync(join(root, file.path));
@@ -106,6 +121,7 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	const byPath = new Map(upstream.files.map((file) => [file.path, file]));
 	let checked = 0;
 	for (const file of adaptations.files) {
+		if (isRemoved(file)) continue;
 		if (!file.upstream_path || file.current_import_sha256 !== file.upstream_sha256) continue;
 		const bytes = readFileSync(join(root, file.path));
 		assert.equal(blob(bytes), byPath.get(file.upstream_path).git_blob, file.path);
@@ -121,6 +137,8 @@ test('upstream Git object ids match the bytes of every file imported unchanged',
 	// and the type alias values (#1147) changed the manifest: 613 together. Microsoft FAST Element
 	// 3.0.2-3.1.4, taken into fast-element, changed 85 more: 528. Scoping hydrated views and
 	// disconnecting a replaced controller changed five more, a command spec, the scoped mixin, the
-	// hydration runtime, render and view: 523.
-	assert(checked > 522, `only ${checked} unchanged upstream files`);
+	// hydration runtime, render and view: 523. The runtime cleanup (#1385) removed 23 of them and
+	// changed 19 more, among them `index.ts` and `fast-element.ts`, which match Microsoft's again,
+	// not fast-af's: 481. A removed file's record is kept but not counted.
+	assert(checked > 480, `only ${checked} unchanged upstream files`);
 });

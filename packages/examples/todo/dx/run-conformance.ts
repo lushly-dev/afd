@@ -245,7 +245,7 @@ async function startBackend(target: Backend, extraEnv: Record<string, string>): 
 	}
 	// The todo and confirmation suites reset with a clear, which an agent's approval hold would
 	// stop, so they run with APPROVALS=off, as they set CONFIRMATIONS; the approvals suite turns
-	// it on. C++ has no approval hold yet and ignores the variable.
+	// it on.
 	const env = {
 		...process.env,
 		APPROVALS: 'off',

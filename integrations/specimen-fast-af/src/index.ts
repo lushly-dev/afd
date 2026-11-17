@@ -1,4 +1,3 @@
-import { getCommandMetadata } from '@lushly-dev/fast-element/command.js';
 import { enableDefinitionSchema, getSchema } from '@lushly-dev/fast-element/definition-schema.js';
 import type { SpecimenPlugin, ThemePreset, TokenMap } from '@lushly-dev/specimen';
 import own from '@lushly-dev/specimen-fast-af/package.json' with { type: 'json' };
@@ -52,25 +51,5 @@ export function fastAf(options: FastAfOptions = {}): SpecimenPlugin {
 			? { themes: Object.fromEntries(themes.presets.map((name) => [name, preset(name)])) }
 			: {}),
 		...(options.tokens ? { tokens: options.tokens } : {}),
-		runners: {
-			'fast-af': {
-				commands: (element) => getCommandMetadata(element.constructor).map((command) => command.id),
-				run(element, name, input) {
-					const command = getCommandMetadata(element.constructor).find((item) => item.id === name);
-					if (!command)
-						throw new Error(
-							`${element.localName} has no FAST-AF command '${name}'; it has ${
-								getCommandMetadata(element.constructor)
-									.map((item) => item.id)
-									.join(', ') || 'none'
-							}.`
-						);
-					const method = (element as unknown as Record<string, unknown>)[command.methodName];
-					if (typeof method !== 'function')
-						throw new Error(`${element.localName}.${command.methodName} is not a function.`);
-					return input === undefined ? method.call(element) : method.call(element, input);
-				},
-			},
-		},
 	};
 }

@@ -1,14 +1,17 @@
 #include "store.hpp"
 
 #include <algorithm>
-#include <cctype>
+#include <iterator>
+#include <utility>
 
 namespace todo {
 namespace {
 
 std::string ascii_lower(std::string text) {
     for (char& c : text) {
-        c = static_cast<char>(std::tolower(static_cast<unsigned char>(c)));
+        if (c >= 'A' && c <= 'Z') {
+            c = static_cast<char>(c - 'A' + 'a');
+        }
     }
     return text;
 }
@@ -22,6 +25,43 @@ int priority_rank(const std::string& priority) {
 int compare_titles(const std::string& a, const std::string& b) {
     const int folded = ascii_lower(a).compare(ascii_lower(b));
     return folded != 0 ? folded : a.compare(b);
+}
+
+int compare_optional(const std::optional<std::string>& a, const std::optional<std::string>& b) {
+    if (a && b) {
+        return a->compare(*b);
+    }
+    return a ? 1 : b ? -1 : 0;
+}
+
+int compare(const Todo& a, const Todo& b, std::string_view sort_by) {
+    if (sort_by == "priority") {
+        return priority_rank(a.priority) - priority_rank(b.priority);
+    }
+    if (sort_by == "title") {
+        return compare_titles(a.title, b.title);
+    }
+    if (sort_by == "updatedAt") {
+        return a.updated_at.compare(b.updated_at);
+    }
+    if (sort_by == "deletedAt") {
+        return compare_optional(a.deleted_at, b.deleted_at);
+    }
+    return a.created_at.compare(b.created_at);
+}
+
+std::vector<Todo>::iterator find(std::vector<Todo>& todos, const std::string& id) {
+    return std::find_if(todos.begin(), todos.end(),
+                        [&](const Todo& todo) { return todo.id == id; });
+}
+
+std::vector<std::string> ids_of(const std::vector<Todo>& todos) {
+    std::vector<std::string> ids;
+    ids.reserve(todos.size());
+    for (const Todo& todo : todos) {
+        ids.push_back(todo.id);
+    }
+    return ids;
 }
 
 } // namespace
@@ -40,162 +80,191 @@ void to_json(afd::Json& out, const Todo& todo) {
     if (todo.completed_at) {
         out["completedAt"] = *todo.completed_at;
     }
-}
-
-TodoStore::TodoStore(std::shared_ptr<const afd::Clock> clock,
-                     std::shared_ptr<afd::RandomSource> random)
-    : clock_(std::move(clock)), random_(std::move(random)) {}
-
-std::string TodoStore::now() const {
-    return afd::wire::iso8601_utc(clock_->wall_ms());
-}
-
-Todo* TodoStore::find(const std::string& id) {
-    const auto it =
-        std::find_if(todos_.begin(), todos_.end(), [&](const Todo& todo) { return todo.id == id; });
-    return it == todos_.end() ? nullptr : &*it;
-}
-
-Todo TodoStore::create(std::string title, std::optional<std::string> description,
-                       std::string priority) {
-    // "todo-<ms>-<7 base-36 characters>", as the TypeScript store generates.
-    constexpr char digits[] = "0123456789abcdefghijklmnopqrstuvwxyz";
-    std::string suffix;
-    for (int i = 0; i < 7; ++i) {
-        suffix.push_back(digits[static_cast<std::size_t>(random_->next() * 36.0)]);
+    if (todo.deleted_at) {
+        out["deletedAt"] = *todo.deleted_at;
     }
-    Todo todo;
-    todo.id = "todo-" + std::to_string(clock_->wall_ms()) + "-" + suffix;
-    todo.title = std::move(title);
-    todo.description = std::move(description);
-    todo.priority = std::move(priority);
-    todo.created_at = now();
-    todo.updated_at = todo.created_at;
-    todos_.push_back(todo);
-    return todo;
+}
+
+void to_json(afd::Json& out, const Change& change) {
+    afd::Json actor{{"kind", change.actor_kind}};
+    if (change.actor_id) {
+        actor["id"] = *change.actor_id;
+    }
+    out = afd::Json{{"seq", change.seq},
+                    {"at", change.at},
+                    {"actor", std::move(actor)},
+                    {"command", change.command},
+                    {"ids", change.ids}};
+    if (change.undo_command) {
+        out["undoCommand"] = *change.undo_command;
+    }
+    if (change.undo_args) {
+        out["undoArgs"] = *change.undo_args;
+    }
+    if (change.superseded) {
+        out["superseded"] = true;
+    }
+}
+
+std::unique_lock<std::mutex> TodoStore::changing() {
+    return std::unique_lock<std::mutex>(changing_);
+}
+
+Todo TodoStore::create(NewTodo todo) {
+    Todo created;
+    created.id = std::move(todo.id);
+    created.title = std::move(todo.title);
+    created.description = std::move(todo.description);
+    created.priority = std::move(todo.priority);
+    created.created_at = todo.now;
+    created.updated_at = std::move(todo.now);
+    const std::lock_guard lock(mutex_);
+    todos_.push_back(created);
+    return created;
 }
 
 std::optional<Todo> TodoStore::get(const std::string& id) const {
+    const std::lock_guard lock(mutex_);
     const auto it =
         std::find_if(todos_.begin(), todos_.end(), [&](const Todo& todo) { return todo.id == id; });
     return it == todos_.end() ? std::nullopt : std::optional<Todo>(*it);
 }
 
-std::vector<Todo> TodoStore::list(const TodoFilter& filter) const {
-    std::vector<Todo> results;
+std::vector<Todo> TodoStore::list(const TodoFilter& filter, std::string_view sort_by,
+                                  std::string_view sort_order) const {
     const std::string search = filter.search ? ascii_lower(*filter.search) : std::string();
-    for (const Todo& todo : todos_) {
-        if (filter.completed && todo.completed != *filter.completed) {
-            continue;
-        }
-        if (filter.priority && !filter.priority->empty() && todo.priority != *filter.priority) {
-            continue;
-        }
-        if (!search.empty()) {
-            const bool in_title = ascii_lower(todo.title).find(search) != std::string::npos;
-            const bool in_description =
-                todo.description &&
-                ascii_lower(*todo.description).find(search) != std::string::npos;
-            if (!in_title && !in_description) {
+    std::vector<Todo> results;
+    {
+        const std::lock_guard lock(mutex_);
+        for (const Todo& todo : filter.deleted ? deleted_ : todos_) {
+            if (filter.completed && todo.completed != *filter.completed) {
                 continue;
             }
+            if (filter.priority && todo.priority != *filter.priority) {
+                continue;
+            }
+            if (!search.empty()) {
+                const bool in_title = ascii_lower(todo.title).find(search) != std::string::npos;
+                const bool in_description =
+                    todo.description &&
+                    ascii_lower(*todo.description).find(search) != std::string::npos;
+                if (!in_title && !in_description) {
+                    continue;
+                }
+            }
+            results.push_back(todo);
         }
-        results.push_back(todo);
     }
-
-    const bool ascending = filter.sort_order == "asc";
+    const bool ascending = sort_order == "asc";
     std::stable_sort(results.begin(), results.end(), [&](const Todo& a, const Todo& b) {
-        int comparison = 0;
-        if (filter.sort_by == "priority") {
-            comparison = priority_rank(a.priority) - priority_rank(b.priority);
-        } else if (filter.sort_by == "title") {
-            comparison = compare_titles(a.title, b.title);
-        } else if (filter.sort_by == "updatedAt") {
-            comparison = a.updated_at.compare(b.updated_at);
-        } else {
-            comparison = a.created_at.compare(b.created_at);
-        }
+        const int comparison = compare(a, b, sort_by);
         return ascending ? comparison < 0 : comparison > 0;
     });
-
-    const auto size = static_cast<std::int64_t>(results.size());
-    const std::int64_t begin = (std::min)((std::max)(filter.offset, std::int64_t{0}), size);
-    const std::int64_t end = (std::min)(begin + (std::max)(filter.limit, std::int64_t{0}), size);
-    return {results.begin() + begin, results.begin() + end};
+    return results;
 }
 
-std::optional<Todo> TodoStore::update(const std::string& id, const TodoUpdate& update) {
-    Todo* todo = find(id);
-    if (todo == nullptr) {
+std::optional<Todo> TodoStore::update(const std::string& id, const TodoUpdate& update,
+                                      const std::string& now) {
+    const std::lock_guard lock(mutex_);
+    const auto it = find(todos_, id);
+    if (it == todos_.end()) {
         return std::nullopt;
     }
-    const bool was_completed = todo->completed;
+    Todo& todo = *it;
     if (update.title) {
-        todo->title = *update.title;
+        todo.title = *update.title;
     }
     if (update.description) {
-        todo->description = *update.description;
+        todo.description =
+            update.description->empty() ? std::nullopt : std::optional(*update.description);
     }
     if (update.priority) {
-        todo->priority = *update.priority;
+        todo.priority = *update.priority;
     }
     if (update.completed) {
-        todo->completed = *update.completed;
-        if (*update.completed && !was_completed) {
-            todo->completed_at = now();
-        } else if (!*update.completed && was_completed) {
-            todo->completed_at.reset();
+        if (*update.completed && !todo.completed) {
+            todo.completed_at = now;
+        } else if (!*update.completed) {
+            todo.completed_at.reset();
         }
+        todo.completed = *update.completed;
     }
-    todo->updated_at = now();
-    return *todo;
+    todo.updated_at = now;
+    return todo;
 }
 
-std::optional<Todo> TodoStore::toggle(const std::string& id) {
-    Todo* todo = find(id);
-    if (todo == nullptr) {
+std::optional<Todo> TodoStore::toggle(const std::string& id, const std::string& now) {
+    const std::lock_guard lock(mutex_);
+    const auto it = find(todos_, id);
+    if (it == todos_.end()) {
         return std::nullopt;
     }
-    todo->completed = !todo->completed;
-    if (todo->completed) {
-        todo->completed_at = now();
-    } else {
-        todo->completed_at.reset();
-    }
-    todo->updated_at = now();
-    return *todo;
+    it->completed = !it->completed;
+    it->completed_at = it->completed ? std::optional(now) : std::nullopt;
+    it->updated_at = now;
+    return *it;
 }
 
-bool TodoStore::remove(const std::string& id) {
-    const auto it =
-        std::find_if(todos_.begin(), todos_.end(), [&](const Todo& todo) { return todo.id == id; });
+std::optional<Todo> TodoStore::remove(const std::string& id, const std::string& now) {
+    const std::lock_guard lock(mutex_);
+    const auto it = find(todos_, id);
     if (it == todos_.end()) {
-        return false;
+        return std::nullopt;
     }
+    Todo todo = std::move(*it);
     todos_.erase(it);
-    return true;
+    todo.deleted_at = now;
+    deleted_.push_back(todo);
+    return todo;
 }
 
-std::pair<std::int64_t, std::int64_t> TodoStore::clear_completed() {
-    const auto before = static_cast<std::int64_t>(todos_.size());
-    todos_.erase(std::remove_if(todos_.begin(), todos_.end(),
-                                [](const Todo& todo) { return todo.completed; }),
-                 todos_.end());
-    const auto remaining = static_cast<std::int64_t>(todos_.size());
-    return {before - remaining, remaining};
+std::optional<Todo> TodoStore::restore(const std::string& id) {
+    const std::lock_guard lock(mutex_);
+    const auto it = find(deleted_, id);
+    if (it == deleted_.end()) {
+        return std::nullopt;
+    }
+    Todo todo = std::move(*it);
+    deleted_.erase(it);
+    todo.deleted_at.reset();
+    todos_.push_back(todo);
+    return todo;
 }
 
-void TodoStore::clear() {
+ClearResult TodoStore::clear_completed() {
+    const std::lock_guard lock(mutex_);
+    ClearResult result;
+    const auto kept = std::stable_partition(todos_.begin(), todos_.end(),
+                                            [](const Todo& todo) { return !todo.completed; });
+    for (auto it = kept; it != todos_.end(); ++it) {
+        result.cleared_ids.push_back(it->id);
+    }
+    todos_.erase(kept, todos_.end());
+    result.remaining = static_cast<std::int64_t>(todos_.size());
+    return result;
+}
+
+ClearResult TodoStore::clear_deleted() {
+    const std::lock_guard lock(mutex_);
+    ClearResult result{ids_of(deleted_), static_cast<std::int64_t>(todos_.size())};
+    deleted_.clear();
+    return result;
+}
+
+ClearResult TodoStore::clear_all() {
+    const std::lock_guard lock(mutex_);
+    ClearResult result{ids_of(todos_), 0};
+    const auto deleted = ids_of(deleted_);
+    result.cleared_ids.insert(result.cleared_ids.end(), deleted.begin(), deleted.end());
     todos_.clear();
-}
-
-std::int64_t TodoStore::count() const {
-    return static_cast<std::int64_t>(todos_.size());
+    deleted_.clear();
+    return result;
 }
 
 TodoStats TodoStore::stats() const {
+    const std::lock_guard lock(mutex_);
     TodoStats stats;
-    stats.total = count();
+    stats.total = static_cast<std::int64_t>(todos_.size());
     for (const Todo& todo : todos_) {
         stats.completed += todo.completed ? 1 : 0;
         stats.low += todo.priority == "low" ? 1 : 0;
@@ -207,6 +276,30 @@ TodoStats TodoStore::stats() const {
         stats.total > 0 ? static_cast<double>(stats.completed) / static_cast<double>(stats.total)
                         : 0;
     return stats;
+}
+
+ClearCounts TodoStore::counts() const {
+    const std::lock_guard lock(mutex_);
+    const auto completed = std::count_if(todos_.begin(), todos_.end(),
+                                         [](const Todo& todo) { return todo.completed; });
+    return {static_cast<std::int64_t>(completed), static_cast<std::int64_t>(todos_.size()),
+            static_cast<std::int64_t>(deleted_.size())};
+}
+
+Change TodoStore::record(Change change) {
+    const std::lock_guard lock(mutex_);
+    change.seq = history_.empty() ? 1 : history_.back().seq + 1;
+    history_.push_back(change);
+    if (history_.size() > history_limit) {
+        history_.erase(history_.begin(), history_.begin() + static_cast<std::ptrdiff_t>(
+                                                                history_.size() - history_limit));
+    }
+    return change;
+}
+
+std::vector<Change> TodoStore::history() const {
+    const std::lock_guard lock(mutex_);
+    return history_;
 }
 
 } // namespace todo
