@@ -9,6 +9,7 @@ add_executable(
     command_test.cpp
     context_fields_test.cpp
     context_test.cpp
+    contexts_test.cpp
     direct_client_test.cpp
     handoff_test.cpp
     helpers_test.cpp
