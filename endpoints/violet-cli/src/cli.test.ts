@@ -1338,6 +1338,34 @@ describe('CLI behaviour', () => {
 			expect(out).toContain('recorded checks on 1 day(s): 0 → 0 open');
 		});
 
+		it.each([['snapshot'], ['call', 'analyze.snapshot']])(
+			'refuses file-driven history through %j even when --db is supplied',
+			async (...command) => {
+				// Refusal must happen before reading files, including for a nonexistent directory.
+				await expect(
+					run('--json', '--from', path.join(tmpDir, 'absent'), ...command),
+				).rejects.toThrow('process.exit(1)');
+				const result = JSON.parse(logs.join('\n'));
+				expect(result).toMatchObject({
+					success: false,
+					error: {
+						code: 'SNAPSHOT_REQUIRES_PERSISTENT_DATABASE',
+						suggestion: expect.stringContaining('without --from'),
+					},
+				});
+				expect(result.error.suggestion).toContain('import.tree');
+				logs.length = 0;
+				await run('--json', 'call', 'analyze.trends', '-i', JSON.stringify({ rootId: 'global' }));
+				expect(JSON.parse(logs.join('\n')).data.summary.history.days).toBe(0);
+			},
+		);
+
+		it('prints the file-driven refusal and recovery in human output', async () => {
+			await expect(run('--from', tmpDir, 'snapshot')).rejects.toThrow('process.exit(1)');
+			expect(logs.join('\n')).toContain('Cannot record rule-check history with --from');
+			expect(logs.join('\n')).toContain('without --from');
+		});
+
 		it('maps specimen roles to tokens and shows what draws', async () => {
 			await run('specimen', 'set', 'next', 'button.background=btn.bg', 'button.border=btn.bg');
 			expect(logs.join('\n')).toContain("Stored the specimen map on 'global'");
@@ -1471,6 +1499,23 @@ describe('CLI behaviour', () => {
 	});
 
 	describe('cicd setup', () => {
+		it('generates the opt-in daily snapshot job and explains runner setup', async () => {
+			const outDir = path.join(tmpDir, 'wf');
+			await run('--json', 'cicd', 'setup', '-t', 'snapshot', '-n', 'global', '-o', outDir);
+			const { data } = JSON.parse(logs.join('\n'));
+			expect(data.templates).toEqual(['snapshot']);
+			expect(data.createdFiles).toEqual([path.join(outDir, 'tokens-snapshot.yml')]);
+			const job = parseYaml(fs.readFileSync(data.createdFiles[0], 'utf-8')).jobs.snapshot;
+			expect(job.env.VIOLET_NODE).toBe('global');
+			expect(data.nextSteps.join('\n')).toContain('self-hosted Linux runner');
+			expect(data.nextSteps.join('\n')).toContain('VIOLET_DB_PATH');
+			expect(data.nextSteps.join('\n')).toContain('03:17 UTC');
+			expect(data.nextSteps.join('\n')).toContain('indefinitely');
+			logs.length = 0;
+			await run('--json', 'cicd', 'setup', '-o', path.join(tmpDir, 'default-wf'));
+			expect(JSON.parse(logs.join('\n')).data.templates).toEqual(['sync', 'validate']);
+		});
+
 		it('writes the workflows and reports next steps with --json', async () => {
 			const outDir = path.join(tmpDir, 'wf');
 

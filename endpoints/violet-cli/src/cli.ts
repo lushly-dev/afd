@@ -8,6 +8,7 @@ import {
 	buildOpenApiSpec,
 	createMemoryDatabase,
 	createSQLiteDatabase,
+	failure,
 	initializeCore,
 	registry,
 	seedRealisticSystem,
@@ -149,6 +150,10 @@ export function createCLI(skipInit = false): Command {
 				return;
 			}
 
+			if (globalOpts.from && commandName === 'analyze.snapshot') {
+				rejectFileSnapshot(globalOpts);
+				return;
+			}
 			const db = await getDatabase(globalOpts);
 			const context = createContext(db);
 
@@ -620,6 +625,10 @@ function addTokenCommands(program: Command): void {
 		.option('-r, --root <id>', 'The node and its descendants; defaults to every tree')
 		.action(async (options, cmd) => {
 			const globalOpts = cmd.parent.opts();
+			if (globalOpts.from) {
+				rejectFileSnapshot(globalOpts);
+				return;
+			}
 			const db = await getDatabase(globalOpts);
 			const context = createContext(db);
 
@@ -1778,14 +1787,18 @@ function addCicdCommands(program: Command): void {
 	// cicd setup - Generate GitHub workflows for the file-driven and hosted paths
 	cicd
 		.command('setup')
-		.description('Generate GitHub workflows that validate, release or sync design tokens')
+		.description('Generate GitHub workflows that validate, release, sync or snapshot design tokens')
 		.option('-p, --platform <platform>', 'CI platform (only github is supported)', 'github')
 		.option(
 			'-t, --templates <templates>',
 			`Workflow templates, comma-separated: ${CICD_TEMPLATES.join(', ')}`,
 			'sync,validate',
 		)
-		.option('-n, --node <id>', 'Node the workflows validate, export or fetch', 'global-base')
+		.option(
+			'-n, --node <id>',
+			'Node the workflows validate, export, fetch or snapshot',
+			'global-base',
+		)
 		.option('--tokens-dir <dir>', 'Directory of DTCG node files for --from', 'tokens')
 		.option('-o, --output <dir>', 'Output directory for workflows', '.github/workflows')
 		.option('--force', 'Overwrite existing files')
@@ -2122,6 +2135,14 @@ function cicdNextSteps(templates: CicdTemplate[], options: CicdTemplateOptions):
 			'Set the VIOLET_API_URL repository variable to your Violet deployment URL (there is no default)',
 			'Add the VIOLET_API_KEY repository secret: a hosted API key with the export:read scope (violet apikeys create)',
 			'Allow GitHub Actions to create pull requests (Settings > Actions > General)',
+		);
+	}
+	if (templates.includes('snapshot')) {
+		steps.push(
+			`Provision a dedicated self-hosted Linux runner labelled violet with Node >=24, ${CLI_PACKAGE} and better-sqlite3; put violet on the runner service's PATH`,
+			'Set the VIOLET_DB_PATH repository variable to the absolute path of the existing live SQLite database on that runner, outside its workspace; --from is not supported',
+			`After committing the workflow to the default branch, run Snapshot Design Token Rules manually in Actions, then check violet --db <path> trends --root ${options.node} --since 7d; it also runs daily at 03:17 UTC`,
+			'Snapshots are kept indefinitely in the database; back it up and monitor its size',
 		);
 	}
 	steps.push('Commit and push the workflow files');
@@ -2815,9 +2836,21 @@ function createContext(db: Database): CommandContext {
 	};
 }
 
-/**
- * Output result based on format options
- */
+/** Refuse history that would disappear when the file-driven command exits. */
+function rejectFileSnapshot(options: { json?: boolean; agent?: boolean }): void {
+	outputResult(
+		failure({
+			code: 'SNAPSHOT_REQUIRES_PERSISTENT_DATABASE',
+			message:
+				'Cannot record rule-check history with --from: its in-memory database is discarded when the command exits.',
+			suggestion:
+				'Import the DTCG tree into a persistent SQLite database with violet --db <path> call import.tree -i <json>, then run violet --db <path> snapshot without --from. See the CLI README for the import.tree files input and daily schedule setup.',
+		}),
+		options,
+	);
+}
+
+/** Output result based on format options. */
 function outputResult(
 	result: CommandResult<unknown>,
 	options: { json?: boolean; agent?: boolean },
