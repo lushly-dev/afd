@@ -21,8 +21,8 @@ uv pip install --python python --break-system-packages -e ".[dev,mcp]"
 
 ```bash
 pytest tests/ -v          # Run all tests
-ruff check src/           # Lint
-ruff format --check src/  # Format check
+ruff check src/ tests/ scripts/ packages/*/src/   # Lint
+ruff format --check <changed files>               # Format, against base only
 ```
 
 ## Development Commands
@@ -40,16 +40,17 @@ ruff check src/
 # Lint with auto-fix
 ruff check src/ --fix
 
-# Format
-ruff format src/
+# Format the files you changed (never untouched ones)
+ruff format <changed files>
 ```
 
 ## Gates in AFD
 
 Botcore's own Lefthook hooks and check scripts were retired when it moved into AFD. The
-repository's `lefthook.yml` runs `scripts/check-portability.mjs` and `scripts/check-file-size.mjs`
-on staged TypeScript, JavaScript, JSON, Markdown and YAML only, so neither runs on Botcore's Python
-by itself:
+repository's `lefthook.yml` runs `scripts/check-portability.mjs` on staged TypeScript, JavaScript,
+JSON, Markdown and YAML, and `scripts/check-file-size.mjs` on staged TypeScript; their full-tree
+runs in pre-push scan only the repository's own roots, not `endpoints/`. Neither reaches Botcore's
+Python by itself:
 
 | Check | Where it runs |
 |-------|---------------|

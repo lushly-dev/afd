@@ -151,7 +151,7 @@ async def test_check_paths_skips_comments(tmp_path) -> None:
     """Skips paths in comments."""
     src = tmp_path / "src"
     src.mkdir()
-    # portability-ok: a fixture the portability scanner must flag
+    # portability-ok: a fixture the portability scanner must skip
     (src / "app.toml").write_text('# Default: /home/user/.config\nconfig = "safe"\n')
 
     with (
@@ -184,7 +184,7 @@ async def test_check_paths_skips_non_code_extensions(tmp_path) -> None:
     """Skips files with non-code extensions."""
     src = tmp_path / "src"
     src.mkdir()
-    # portability-ok: a fixture the portability scanner must flag
+    # portability-ok: a fixture the portability scanner must skip
     (src / "data.bin").write_bytes(b"/home/user/bad/path")
 
     with patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path):
@@ -207,7 +207,7 @@ async def test_check_paths_respects_exclude_patterns(tmp_path) -> None:
     src = tmp_path / "src"
     nm = src / "node_modules" / "pkg"
     nm.mkdir(parents=True)
-    # portability-ok: a fixture the portability scanner must flag
+    # portability-ok: a fixture the portability scanner must skip
     (nm / "index.js").write_text('const p = "/home/admin/data";\n')
 
     with patch("botcore.commands.dev.portability.find_workspace", return_value=tmp_path):
