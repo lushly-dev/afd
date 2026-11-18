@@ -30,6 +30,7 @@ import {
 	type DeploymentFinding,
 	type DeploymentNotice,
 	type InstanceEffect,
+	type ModelAccess,
 	type MountAccess,
 	type StdioMountAccess,
 	secretPaths,
@@ -43,6 +44,7 @@ export {
 	type DeploymentFinding,
 	type DeploymentNotice,
 	desktopOrigins,
+	type ModelAccess,
 	type MountAccess,
 	type StdioMountAccess,
 } from './deployment-analysis.js';
@@ -55,6 +57,11 @@ export interface WriteDeploymentOptions {
 	out: string;
 	/** Where the CLI writes the `mounts` list, mode 0600 and outside everything served. */
 	mountsOut?: string;
+	/**
+	 * Where a desktop deployment's `models.json` goes, beside `mounts.json` and under its rule (phase 5 specification,
+	 * 4.2): owner-only, outside everything served. Required when `[copilot]` lists a provider but `test`.
+	 */
+	modelsOut?: string;
 	/** Write the site as if the file's `[sandbox] origin` were this one (`AnalyzeDeploymentOptions`). */
 	sandboxOrigin?: string;
 	/**
@@ -142,17 +149,24 @@ export function canonicalJson(value: unknown): string {
 /**
  * `sha256-` and the digest of `{ workspace, apps }` with each `boot` left out (2.2): it changes when a
  * deployer's entry changes, not when a package's display does. A version 4 projection's `host` joins it, so a
- * change of kind is applied, and journaled, as a change of entries is (phase 6 specification, 3.3 and A5); an
- * earlier projection's generation is unchanged.
+ * change of kind is applied, and journaled, as a change of entries is (phase 6 specification, 3.3 and A5), and so is
+ * its `copilot`, so a swap of providers is too (phase 5 specification, 4.1); an earlier projection's generation is
+ * unchanged.
  */
 export function generationOf(
 	workspace: DeploymentWorkspaceV2,
 	apps: readonly ProjectionAppV2[],
-	host?: NonNullable<ProjectionV4['host']>
+	host?: NonNullable<ProjectionV4['host']>,
+	copilot?: NonNullable<ProjectionV4['copilot']>
 ): string {
 	const entries = apps.map(({ boot: _boot, ...entry }) => entry);
 	const digest = createHash('sha256').update(
-		canonicalJson({ workspace, apps: entries, ...(host ? { host } : {}) })
+		canonicalJson({
+			workspace,
+			apps: entries,
+			...(host ? { host } : {}),
+			...(copilot ? { copilot } : {}),
+		})
 	);
 	return `sha256-${digest.digest('hex')}`;
 }
@@ -201,9 +215,23 @@ export function projectionOf(
 		deployment.deployment_version === 4 ? 4 : deployment.deployment_version === 3 ? 3 : 2;
 	const host: ProjectionV4['host'] =
 		version === 4 ? (kind === 'hosted' ? { kind, kernel: 'api/kernel' } : { kind }) : undefined;
+	// The copilot's providers: each one's id, kind and model, never its key or endpoint (phase 5 specification, 4.1).
+	const providers = deployment.deployment_version === 4 ? deployment.copilot?.providers : undefined;
+	const first = providers?.[0];
+	const copilot: ProjectionV4['copilot'] =
+		deployment.deployment_version === 4 && providers && first
+			? {
+					default: deployment.copilot?.default ?? first.id,
+					providers: providers.map(({ id, kind: providerKind, model }) => ({
+						id,
+						kind: providerKind,
+						model,
+					})),
+				}
+			: undefined;
 	return {
 		deployment_version: version,
-		generation: generationOf(workspace, apps, host),
+		generation: generationOf(workspace, apps, host, copilot),
 		workspace: { id: workspace.id, name: workspace.name },
 		sandbox_origin: deployment.sandbox?.origin ?? null,
 		...((deployment.deployment_version === 3 || deployment.deployment_version === 4) &&
@@ -222,6 +250,7 @@ export function projectionOf(
 				}
 			: {}),
 		...(host ? { host } : {}),
+		...(copilot ? { copilot } : {}),
 		apps,
 	};
 }
@@ -294,6 +323,25 @@ async function restrictToOwner(path: string): Promise<void> {
 	await run(join(system, 'icacls.exe'), [path, '/inheritance:r', '/grant:r', `*${sid}:F`], {
 		windowsHide: true,
 	});
+}
+
+/**
+ * A desktop file only its owner can read (phase 6 specification, 10.3; phase 5 specification, 4.2): mode 0600, and on
+ * Windows created empty and restricted before anything is written into it. Removed first, since a mode applies only
+ * when a file is created.
+ */
+async function writeOwnerOnly(
+	path: string,
+	text: string,
+	platform: NodeJS.Platform | undefined
+): Promise<void> {
+	await mkdir(dirname(resolve(path)), { recursive: true });
+	await rm(path, { force: true });
+	if ((platform ?? process.platform) === 'win32') {
+		await writeFile(path, '', { mode: 0o600, flag: 'wx' });
+		await restrictToOwner(path);
+		await writeFile(path, text, { flag: 'r+' });
+	} else await writeFile(path, text, { mode: 0o600, flag: 'wx' });
 }
 
 /** `frame-src` becomes the sandbox origin or `'none'`, and nothing else in the CSP changes. */
@@ -402,7 +450,38 @@ async function pathRefusals(
 			);
 		}
 	}
+	if (options.modelsOut) {
+		const direct = resolve(options.modelsOut);
+		const places = [await realish(direct), join(await realish(dirname(direct)), basename(direct))];
+		const served = [out, dist, ...packages];
+		const mounts = options.mountsOut
+			? [resolve(options.mountsOut), await realish(resolve(options.mountsOut))]
+			: [];
+		if (
+			places.some(
+				(place) =>
+					secrets.includes(place) ||
+					mounts.some((mount) => samePath(mount, place, options.platform)) ||
+					served.some((directory) => isWithin(place, directory))
+			)
+		) {
+			found.push(
+				pathRefusal(
+					'--models-out',
+					'`--models-out` is inside what is served, or would replace `--mounts-out`, the deployment file or a credential.',
+					'Write it beside `mounts.json`, outside `--out`, `--dist` and every package.'
+				)
+			);
+		}
+	}
 	return found;
+}
+
+/** Two paths naming one file: on Windows and macOS, whose volumes ignore case by default, compared without it. */
+function samePath(a: string, b: string, platform: NodeJS.Platform | undefined): boolean {
+	const folds =
+		(platform ?? process.platform) === 'win32' || (platform ?? process.platform) === 'darwin';
+	return folds ? a.toLowerCase() === b.toLowerCase() : a === b;
 }
 
 /** What will be copied, listed first, so a problem found here costs nothing. A link leaving is skipped. */
@@ -460,8 +539,32 @@ export async function writeDeployment(
 	const { projection } = checked;
 	const changed = await workspaceChange(out, projection.workspace.id);
 	if (changed) warnings.push(changed);
+	// A model provider needs the Rust host's `models.json`, which only the desktop's host reads (4.2).
+	if (analysis.models.length > 0 && !options.modelsOut) {
+		return stop([
+			pathRefusal(
+				'--models-out',
+				'A desktop copilot with a provider but `test` needs `--models-out`: the Rust host reads its providers there.',
+				'Add `--models-out <app data>/models.json`, beside `--mounts-out`.'
+			),
+		]);
+	}
+	if (options.modelsOut && !desktop) {
+		return stop([
+			pathRefusal(
+				'--models-out',
+				'Only the desktop has a host that reads `models.json`.',
+				'Drop `--models-out`, or write the deployment with `--host desktop`.'
+			),
+		]);
+	}
+	// The sandbox origin frames a view, and the copilot's runtime (phase 5 specification, 3.2): a deployment that
+	// lists a provider names it, since `'none'` would refuse the frame.
 	const anyView = analysis.instances.some(({ rawKind }) => rawKind === 'view');
-	const frameSrc = anyView && projection.sandbox_origin ? projection.sandbox_origin : "'none'";
+	const frameSrc =
+		(anyView || projection.copilot !== undefined) && projection.sandbox_origin
+			? projection.sandbox_origin
+			: "'none'";
 	const source = await readFile(join(dist, 'index.html'), 'utf8');
 	const connected = desktop ? withDesktopConnectSrc(source) : source;
 	if (connected === undefined) {
@@ -516,12 +619,17 @@ export async function writeDeployment(
 			...analysis.stdioMounts,
 		];
 		const text = `${JSON.stringify({ mounts }, null, '\t')}\n`;
-		if (desktop && (options.platform ?? process.platform) === 'win32') {
-			// Created empty and restricted before anything is written into it.
-			await writeFile(options.mountsOut, '', { mode: 0o600, flag: 'wx' });
-			await restrictToOwner(options.mountsOut);
-			await writeFile(options.mountsOut, text, { flag: 'r+' });
-		} else await writeFile(options.mountsOut, text, { mode: 0o600, flag: 'wx' });
+		if (desktop) await writeOwnerOnly(options.mountsOut, text, options.platform);
+		else await writeFile(options.mountsOut, text, { mode: 0o600, flag: 'wx' });
+	}
+	if (options.modelsOut) {
+		// Each provider's kind, model, endpoint and key reference, never a key (4.2).
+		const models: ModelAccess[] = analysis.models;
+		await writeOwnerOnly(
+			options.modelsOut,
+			`${JSON.stringify({ providers: models }, null, '\t')}\n`,
+			options.platform
+		);
 	}
 	return {
 		ok: true,

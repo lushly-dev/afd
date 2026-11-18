@@ -7,6 +7,10 @@
  * - `LOAM_DESKTOP_TAURI_DRIVER`: `tauri-driver`; default on `PATH`.
  * - `LOAM_DESKTOP_NATIVE_DRIVER`: the platform's driver (`msedgedriver` on Windows; `WebKitWebDriver` on
  *   Linux, found on `PATH` when unset).
+ *
+ * The app's stderr reaches the suite's through `redactInvokeKey` (#1448): Tauri prints its expected invoke key when it
+ * drops a message for its key, and on WebKitGTK that key is the copilot frame's barrier (phase 5 specification, D153),
+ * so no CI log holds it. Each refusal is still counted, in `Desktop.stderr`.
  */
 import { type ChildProcess, spawn } from 'node:child_process';
 import { existsSync } from 'node:fs';
@@ -22,6 +26,18 @@ import { remote } from 'webdriverio';
 type Browser = Awaited<ReturnType<typeof remote>>;
 
 const PACKAGE = fileURLToPath(new URL('..', import.meta.url));
+
+/** Tauri 2.12's line when it drops a message for its invoke key (`Webview::on_message`). */
+const INVOKE_KEY_LINE = /__TAURI_INVOKE_KEY__ expected (\S+) but received (\S*)/;
+
+/** A line of the app's stderr with Tauri's expected invoke key replaced, and what was received kept. */
+export function redactInvokeKey(line: string): string {
+	return line.replace(
+		INVOKE_KEY_LINE,
+		(_all, _expected: string, received: string) =>
+			`__TAURI_INVOKE_KEY__ expected <key> but received ${received === '' ? '<empty>' : '<other>'}`
+	);
+}
 export const LOAM = fileURLToPath(new URL('../../..', import.meta.url));
 const WEB_DIST = join(LOAM, 'packages/web/dist');
 const windows = process.platform === 'win32';
@@ -102,6 +118,8 @@ async function waitForPort(port: number, child: ChildProcess, deadline = 30_000)
 
 export interface Desktop {
 	browser: Browser;
+	/** The app's and the drivers' stderr, a line each, the invoke key redacted; and Tauri's key refusals, counted. */
+	stderr: { lines: string[]; keyRefusals: number };
 	/** The app's data directory: `site/`, `mounts.json` and the webview's profile. */
 	data: string;
 	/** Milliseconds from the session's request to the shell's `data-loam-host`. */
@@ -141,6 +159,7 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 		dist: WEB_DIST,
 		out: join(data, 'site'),
 		mountsOut: join(data, 'mounts.json'),
+		modelsOut: join(data, 'models.json'),
 		host: 'desktop',
 	});
 	if (!written.ok) throw new Error(JSON.stringify(written.refusals));
@@ -159,8 +178,21 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 			String(nativePort),
 			...(native ? ['--native-driver', native] : []),
 		],
-		{ env: { ...process.env, LOAM_DESKTOP_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'inherit'] }
+		{ env: { ...process.env, LOAM_DESKTOP_DATA_DIR: data }, stdio: ['ignore', 'ignore', 'pipe'] }
 	);
+	const stderr = { lines: [] as string[], keyRefusals: 0 };
+	let partial = '';
+	driver.stderr?.setEncoding('utf8');
+	driver.stderr?.on('data', (chunk: string) => {
+		const lines = (partial + chunk).split(/\r?\n/);
+		partial = lines.pop() ?? '';
+		for (const line of lines) {
+			if (INVOKE_KEY_LINE.test(line)) stderr.keyRefusals += 1;
+			const shown = redactInvokeKey(line);
+			stderr.lines.push(shown);
+			process.stderr.write(`${shown}\n`);
+		}
+	});
 	await waitForPort(port, driver);
 	const began = performance.now();
 	let browser: Browser;
@@ -236,6 +268,7 @@ export async function openDesktop(options: OpenOptions = {}): Promise<Desktop> {
 		};
 	return {
 		browser,
+		stderr,
 		data,
 		coldStartMs,
 		call: run(false),

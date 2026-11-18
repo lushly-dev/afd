@@ -283,6 +283,110 @@ function identityRefusals(
 	return refusals;
 }
 
+/** Providers a `[copilot]` may list, as `copilotOf` reads the projection. */
+const COPILOT_PROVIDERS_MAX = 16;
+
+/** An `openai-compatible` endpoint (phase 5 specification, 4.1): `https`, or `http` to 127.0.0.1 or ::1 only. */
+export function copilotEndpointAllowed(endpoint: string): boolean {
+	if (endpoint.includes('?') || endpoint.includes('#') || endpoint.includes('@')) return false;
+	let parsed: URL;
+	try {
+		parsed = new URL(endpoint);
+	} catch {
+		return false;
+	}
+	if (parsed.protocol === 'https:') return parsed.hostname !== '';
+	return (
+		parsed.protocol === 'http:' && (parsed.hostname === '127.0.0.1' || parsed.hostname === '[::1]')
+	);
+}
+
+/**
+ * Version 4's `[copilot]` (phase 5 specification, 4.1 and 4.2), past its schema: ids once each, a `default` naming
+ * one of them, an `endpoint` for `openai-compatible` alone, a key for `anthropic` and `openai`, none for `test`,
+ * and on any host but the desktop no kind but `test` (`COPILOT_PROVIDER_HOST`): only the desktop's Rust host holds
+ * a key until milestone C gives the hosted server its model route.
+ */
+function copilotRefusals(deployment: DeploymentV4, host: HostKindV1): DeploymentRefusal[] {
+	const copilot = deployment.copilot;
+	if (copilot === undefined) return [];
+	const refusals: DeploymentRefusal[] = [];
+	const refuse = (pointer: string, message: string, suggestion: string): void => {
+		refusals.push({
+			code: 'DEPLOYMENT_COPILOT_INVALID',
+			key: keyOf(`/copilot${pointer}`),
+			message,
+			suggestion,
+		});
+	};
+	const providers = copilot.providers ?? [];
+	const seen = new Set<string>();
+	providers.forEach((provider, index) => {
+		const at = `/providers/${index}`;
+		if (seen.has(provider.id))
+			refuse(
+				`${at}/id`,
+				`The provider \`${provider.id}\` is named twice.`,
+				'Give each provider its own id.'
+			);
+		seen.add(provider.id);
+		const compatible = provider.kind === 'openai-compatible';
+		if (compatible && provider.endpoint === undefined)
+			refuse(
+				`${at}/endpoint`,
+				'An `openai-compatible` provider names its `endpoint`.',
+				"Set `endpoint` to the server's base URL, such as `http://127.0.0.1:11434/v1`."
+			);
+		if (provider.endpoint !== undefined && !compatible)
+			refuse(
+				`${at}/endpoint`,
+				`A \`${provider.kind}\` provider has its kind's fixed endpoint.`,
+				'Remove `endpoint`, or use `kind = "openai-compatible"`.'
+			);
+		if (compatible && provider.endpoint !== undefined && !copilotEndpointAllowed(provider.endpoint))
+			refuse(
+				`${at}/endpoint`,
+				'`endpoint` is `https`, or `http` to 127.0.0.1 or ::1 only, with no user, query or fragment.',
+				'Use `https://…`, or `http://127.0.0.1:<port>/…` for a model server on this computer.'
+			);
+		if (provider.kind === 'test' && provider.key !== undefined)
+			refuse(`${at}/key`, 'The test provider takes no key.', 'Remove `key`.');
+		if ((provider.kind === 'anthropic' || provider.kind === 'openai') && provider.key === undefined)
+			refuse(
+				`${at}/key`,
+				`A \`${provider.kind}\` provider names where its key is kept.`,
+				`Add \`key = { keychain = "loam-copilot", account = "${provider.id}" }\`, then run \`loam copilot key set ${provider.id}\`.`
+			);
+		if (host !== 'desktop' && provider.kind !== 'test')
+			refusals.push({
+				code: 'COPILOT_PROVIDER_HOST',
+				key: keyOf(`/copilot${at}/kind`),
+				message: `Only the desktop's host holds a model's key: a ${host} deployment can use only \`kind = "test"\`.`,
+				suggestion:
+					'A static deployment can use only `kind = "test"`; use the desktop, or a hosted deployment once its model route exists.',
+			});
+	});
+	if (copilot.default !== undefined && !seen.has(copilot.default))
+		refuse(
+			'/default',
+			'`default` names no provider listed here.',
+			"Set `default` to one of the providers' ids, or remove it to use the first."
+		);
+	if (providers.length === 0)
+		refuse(
+			'',
+			'`[copilot]` lists no provider.',
+			'Add a `[[copilot.providers]]` table, or remove `[copilot]`.'
+		);
+	if (providers.length > COPILOT_PROVIDERS_MAX)
+		refuse(
+			'/providers',
+			`\`[copilot]\` lists more than ${COPILOT_PROVIDERS_MAX} providers.`,
+			'Keep the providers you use.'
+		);
+	return refusals;
+}
+
 /** The identity a read deployment carries: `[identity]` with its defaults, or `local`. */
 function identityOf(deployment: AnyDeployment): IdentityV1 {
 	const identity =
@@ -405,16 +509,24 @@ export function readDeployment(json: unknown): DeploymentRead {
 							"`workspace.id` must be lowercase letters, digits and `-`, at most 63, and not a name a deployment's own files or the hosted server's routes use.",
 						suggestion: `${refusal.suggestion.replace(/ and `404\.html` are reserved\.$/, ', `404.html`')}, \`api\`, \`mcp\` and \`.well-known\` are reserved.`,
 					}
-				: (schema === 'deploymentV3' || schema === 'deploymentV4') &&
-						refusal.key.startsWith('identity')
+				: schema === 'deploymentV4' && refusal.key.startsWith('copilot')
 					? {
 							...refusal,
-							code: 'DEPLOYMENT_IDENTITY_INVALID' as const,
-							message: `\`${refusal.key}\` is not an identity this shell reads.`,
+							code: 'DEPLOYMENT_COPILOT_INVALID' as const,
+							message: `\`${refusal.key}\` is not a copilot setting this shell reads.`,
 							suggestion:
-								'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+								'Write `[copilot]` with `default` and `[[copilot.providers]]` tables of `id`, `kind` and `model`, with `endpoint` and `key` where the kind takes them.',
 						}
-					: refusal
+					: (schema === 'deploymentV3' || schema === 'deploymentV4') &&
+							refusal.key.startsWith('identity')
+						? {
+								...refusal,
+								code: 'DEPLOYMENT_IDENTITY_INVALID' as const,
+								message: `\`${refusal.key}\` is not an identity this shell reads.`,
+								suggestion:
+									'Write `[identity]` with `mode`, `provider = "better-auth"`, `organization`, `path` and `methods`, and nothing else.',
+							}
+						: refusal
 		);
 		return { ok: false, refusals, warnings: [] };
 	}
@@ -432,6 +544,10 @@ export function readDeployment(json: unknown): DeploymentRead {
 	if (refusals.length > 0) return { ok: false, refusals, warnings: [] };
 	const identity = identityOf(deployment);
 	const host = hostKindOf(deployment);
+	if (deployment.deployment_version === 4) {
+		const copilot = copilotRefusals(deployment, host);
+		if (copilot.length > 0) return { ok: false, refusals: copilot, warnings: [] };
+	}
 	const found = hostFindings(host, identity);
 	if (found.refusals.length > 0) return { ok: false, refusals: found.refusals, warnings: [] };
 	return {
