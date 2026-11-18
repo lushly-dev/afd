@@ -91,6 +91,41 @@ export const styles = css`
         align-items: start;
     }
 
+    .fill-actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: var(--_space-inline-sm);
+    }
+
+    .fill-status {
+        align-self: center;
+        color: var(--_text-secondary);
+        font-size: var(--_type-meta-size);
+    }
+
+    .fill-action {
+        min-inline-size: 24px;
+        min-block-size: 32px;
+        padding: var(--_space-stack-xs) var(--_space-inline-md);
+        border: 1px solid var(--_border-strong);
+        border-radius: var(--_radius-md);
+        background: var(--_surface-card);
+        color: var(--_text-primary);
+        font: inherit;
+        font-size: var(--_type-meta-size);
+        cursor: pointer;
+    }
+
+    .fill-action:disabled {
+        color: var(--_text-muted);
+        cursor: default;
+    }
+
+    .fill-action:focus-visible {
+        outline: 2px solid var(--_focus-ring);
+        outline-offset: var(--_focus-outline-offset);
+    }
+
     .toolbar-meta {
         display: flex;
         justify-content: space-between;
@@ -385,7 +420,20 @@ export const styles = css`
         background: color-mix(in srgb, var(--_surface-selected) 70%, var(--_surface-page));
     }
 
+    /* Keep the 24px target inside the corner cell, including at scroll edges. */
     .fill-handle {
+        position: absolute;
+        inset-inline-end: 0;
+        inset-block-end: 0;
+        inline-size: 24px;
+        block-size: 24px;
+        touch-action: none;
+        cursor: crosshair;
+        z-index: var(--_layer-sticky);
+    }
+
+    .fill-handle::after {
+        content: "";
         position: absolute;
         inset-inline-end: -3px;
         inset-block-end: -3px;
@@ -394,9 +442,8 @@ export const styles = css`
         border: 1px solid var(--_active-cell-ring);
         border-radius: 2px;
         background: var(--_surface-card);
-        cursor: crosshair;
+        pointer-events: none;
         box-shadow: 0 0 0 1px var(--_surface-card);
-        z-index: var(--_layer-sticky);
     }
 
     .cell-content {

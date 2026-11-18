@@ -700,6 +700,23 @@ const template = html<VioletDataGrid>`
                             </div>
                         `,
                         )}
+                    ${when(
+                      (x) => x.focusMode === "cell",
+                      html<VioletDataGrid>`
+                          <div class="fill-actions" role="group" aria-label="Fill selection">
+                              <button class="fill-action" type="button"
+                                  ?disabled="${(x) => !x.canFillSelection("down")}"
+                                  @click="${(x) => x.handleFillAction("down")}"
+                              >Fill down</button>
+                              <button class="fill-action" type="button"
+                                  ?disabled="${(x) => !x.canFillSelection("right")}"
+                                  @click="${(x) => x.handleFillAction("right")}"
+                              >Fill right</button>
+                              <span class="fill-status" role="status" aria-live="polite" aria-atomic="true"
+                              >${(x) => x.fillAnnouncement}</span>
+                          </div>
+                      `,
+                    )}
                     <div class="toolbar-meta">
                         <span>${(x) => x.rowSummary}</span>
                         <div class="toolbar-slot">
@@ -943,6 +960,9 @@ export class VioletDataGrid extends FASTElement {
   /** Visible live feedback for terminal edit lifecycle events. */
   public declare editAnnouncement: string;
 
+  /** Live feedback from the built-in single-pointer fill actions. */
+  public declare fillAnnouncement: string;
+
   public declare fillPreview: VioletDataGridCellRange | null;
 
     /**
@@ -1053,6 +1073,7 @@ export class VioletDataGrid extends FASTElement {
     this.editingError = "";
     this.editAnnouncement = "";
         this.fillPreview = null;
+        this.fillAnnouncement = "";
     this.#settingAutomaticEstimatedRowHeight = true;
     this.estimatedRowHeight = this.rowHeightForDensity(this.density);
     this.#settingAutomaticEstimatedRowHeight = false;
@@ -1312,7 +1333,7 @@ export class VioletDataGrid extends FASTElement {
     }
 
     public get shouldShowToolbar(): boolean {
-        return this.showsBuiltInFilter || this.hasToolbarSlotContent;
+        return this.focusMode === "cell" || this.showsBuiltInFilter || this.hasToolbarSlotContent;
     }
 
     public get activeCellLabelId(): string {
@@ -2379,6 +2400,7 @@ export class VioletDataGrid extends FASTElement {
         }
 
         this.editAnnouncement = "";
+        this.fillAnnouncement = "";
         this.setActiveCell({ rowId, columnId }, { extendRange });
         this.getScrollContainer()?.focus({ preventScroll: true });
     }
@@ -2944,6 +2966,34 @@ export class VioletDataGrid extends FASTElement {
      * @returns The emitted `cell-fill` detail, or `null` when nothing was filled.
      */
     public fillSelection(direction: VioletDataGridFillDirection, count = 1): VioletDataGridFillDetail | null {
+        const ranges = this.fillSelectionRanges(direction, count);
+        const detail = ranges ? this.fillDetailFor(ranges.source, ranges.target) : null;
+        if (detail) {
+            this.$emit("cell-fill", detail);
+            this.cellSelection = this.createCellSelection(detail.target.anchor, detail.target.focus);
+        }
+        return detail;
+    }
+
+    public canFillSelection(direction: VioletDataGridFillDirection): boolean {
+        return this.fillSelectionRanges(direction, 1) !== null;
+    }
+
+    public handleFillAction(direction: VioletDataGridFillDirection): void {
+        const detail = this.fillSelection(direction);
+        if (detail) {
+            const end = this.cellIndicesFor(detail.target.focus);
+            const destination = end
+                ? `row ${end.rowIndex + 1}, column ${this.presentedColumns[end.columnIndex]?.label ?? detail.target.focus.columnId}`
+                : `row ${detail.target.focus.rowId}, column ${detail.target.focus.columnId}`;
+            this.fillAnnouncement = `Filled ${detail.changes.length} cell${detail.changes.length === 1 ? "" : "s"} ${direction}. Selection ends at ${destination}.`;
+        }
+    }
+
+    private fillSelectionRanges(direction: VioletDataGridFillDirection, count: number): {
+        source: VioletDataGridCellRange;
+        target: VioletDataGridCellRange;
+    } | null {
         if (this.focusMode !== "cell" || this.editingCell) {
             return null;
         }
@@ -2975,13 +3025,14 @@ export class VioletDataGrid extends FASTElement {
             return null;
         }
 
-        const detail = this.fillDetailFor(source, target);
-        if (detail) {
-            this.$emit("cell-fill", detail);
+        const targetBounds = this.boundsForRange(target);
+        if (!targetBounds || (
+            targetBounds.rowStart === sourceBounds.rowStart && targetBounds.rowEnd === sourceBounds.rowEnd &&
+            targetBounds.columnStart === sourceBounds.columnStart && targetBounds.columnEnd === sourceBounds.columnEnd
+        )) {
+            return null;
         }
-
-        this.cellSelection = this.createCellSelection(target.anchor, target.focus);
-        return detail;
+        return { source, target };
     }
 
   private currentEditingSession(): VioletDataGridEditingSession | null {
@@ -4224,6 +4275,7 @@ observable(VioletDataGrid.prototype, "editingValue");
 observable(VioletDataGrid.prototype, "editingError");
 observable(VioletDataGrid.prototype, "editAnnouncement");
 observable(VioletDataGrid.prototype, "fillPreview");
+observable(VioletDataGrid.prototype, "fillAnnouncement");
 observable(VioletDataGrid.prototype, "estimatedRowHeight");
 observable(VioletDataGrid.prototype, "overscanCount");
 observable(VioletDataGrid.prototype, "virtualPaddingStart");
