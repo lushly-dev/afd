@@ -51,6 +51,7 @@ export const SUITES = [
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element build' },
 			{ gate: 'runtime', run: 'pnpm -F @lushly-dev/fast-element test:chromium' },
 			{ gate: 'components', run: 'pnpm -F "@lushly-dev/violet-elements..." build' },
+			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements typecheck' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements verify:exports' },
 			{ gate: 'components', run: 'node scripts/fast-af-generated.mjs' },
 			{ gate: 'components', run: 'pnpm -F @lushly-dev/violet-elements lint' },
