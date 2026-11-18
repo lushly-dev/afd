@@ -303,6 +303,13 @@ def test_plans_come_from_t3_code_s_weekly_windows(tmp_path):
                             "resetsAt": "2030-01-07T12:00:00Z",
                         },
                         {"id": "five_hour", "kind": "session", "usedPercent": 90, "resetsAt": "x"},
+                        # Only Fable draws on this window, inside seven_day: not a plan.
+                        {
+                            **week,
+                            "id": "seven_day_fable",
+                            "usedPercent": 5,
+                            "resetsAt": "2030-01-07T12:00:00Z",
+                        },
                     ]
                 }
             }
