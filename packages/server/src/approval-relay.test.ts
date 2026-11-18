@@ -2,6 +2,7 @@
  * The MCP approval relay (#418): `createApprovalMiddleware({ relay: 'mcp-elicitation' })` asks the
  * human behind the MCP client through a form elicitation, and an agent cannot approve its own call.
  */
+import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
 import type { AddressInfo } from 'node:net';
 import type { CommandResult } from '@lushly-dev/afd-core';
@@ -20,6 +21,7 @@ import {
 	type ApprovalHold,
 	type ApprovalQuestion,
 	type ApprovalRelay,
+	type ApprovedStep,
 	approvalRelay,
 	bindApprovalRelay,
 	bindUpFrontApproval,
@@ -27,7 +29,7 @@ import {
 	upFrontApproval,
 	withoutApprovalRelay,
 } from './approval-relay.js';
-import { createUpFrontApproval } from './approval-up-front.js';
+import { createUpFrontApproval, MAX_KEPT_INPUT } from './approval-up-front.js';
 import { defineCommand } from './schema.js';
 import { createMcpHandler } from './server.js';
 import type { McpHandlerOptions } from './server-types.js';
@@ -109,6 +111,8 @@ function commands(calls: string[]) {
 interface Setup {
 	middleware?: Partial<ApprovalMiddlewareOptions>;
 	server?: Partial<McpHandlerOptions>;
+	/** Commands served besides the usual ones. */
+	extra?: (calls: string[]) => ReturnType<typeof commands>;
 }
 
 /** A clock the tests move: approvals expire on the middleware's clock. */
@@ -126,7 +130,7 @@ async function serve(setup: Setup = {}) {
 	const calls: string[] = [];
 	const requests: ApprovalRequest[] = [];
 	const clock = movableClock();
-	const list = commands(calls);
+	const list = [...commands(calls), ...(setup.extra?.(calls) ?? [])];
 	const handler = createMcpHandler({
 		name: 'approval-relay-test',
 		version: '1.0.0',
@@ -1285,6 +1289,70 @@ describe('approval middleware with a relay', () => {
 		expect(again.error?.code).toBe('APPROVAL_REQUIRED');
 	});
 
+	it('asks again when the input kept for a step is not the one its approval is bound to', async () => {
+		const middleware = createApprovalMiddleware({
+			secret: SECRET,
+			commands: [remove],
+			relay: 'mcp-elicitation',
+		});
+		const request = { commands: [{ command: 'todo-delete', input: { id: 1 } }] };
+		let held: StepsHold | undefined;
+		const asking = { ...fakeRelay(missing).relay, holdSteps: (hold: StepsHold) => (held = hold) };
+		const first = bindUpFrontApproval(
+			{ interface: 'mcp' },
+			createUpFrontApproval(asking, 'afd-batch', request, commands([]))
+		);
+		expect((await middleware('todo-delete', { id: 1 }, first, ran)).success).toBe(false);
+		const question = held?.questions[0] as ApprovalQuestion;
+		expect(question.step).toMatchObject({ index: 0, input: '{"id":1}' });
+		// A state that pairs the genuine approval of { id: 1 } with another kept input.
+		held = undefined;
+		const swapped = {
+			...asking,
+			answers: async () => ({
+				accepted: [
+					{
+						binding: question.binding,
+						nonce: question.nonce,
+						expiresAt: question.expiresAt,
+						mac: question.mac,
+						step: { ...(question.step as ApprovedStep), input: '{"id":2}' },
+					},
+				],
+				declined: [],
+			}),
+		};
+		const upFront = createUpFrontApproval(swapped, 'afd-batch', request, commands([]));
+		// The step takes the kept input, as the engine would give it to the middleware.
+		const kept = await upFront.validated('todo-delete', { id: 1 });
+		expect(kept).toEqual({ input: { id: 2 } });
+		const call = bindUpFrontApproval({ interface: 'mcp' }, upFront);
+		const result = await middleware('todo-delete', kept?.input, call, ran);
+		// The approval is of { id: 1 }: nothing runs, and the human is asked about { id: 2 }.
+		expect(result.error?.code).toBe('APPROVAL_REQUIRED');
+		expect((held as StepsHold | undefined)?.questions[0]?.step?.input).toBe('{"id":2}');
+	});
+
+	it('gives the validated input only to a command that has an approval policy', async () => {
+		const request = {
+			commands: [
+				{ command: 'todo-list', input: {} },
+				{ command: 'todo-delete', input: { id: 1 } },
+			],
+		};
+		const upFront = createUpFrontApproval(
+			fakeRelay(missing).relay,
+			'afd-batch',
+			request,
+			commands([])
+		);
+		expect(await upFront.validated('todo-list', {})).toBeUndefined();
+		expect(await upFront.validated('todo-delete', { id: 2 })).toBeUndefined();
+		expect(await upFront.validated('todo-delete', { id: 1 })).toEqual({ input: { id: 1 } });
+		// Handed out once.
+		expect(await upFront.validated('todo-delete', { id: 1 })).toBeUndefined();
+	});
+
 	it('rejects an unknown relay mode', () => {
 		expect(() =>
 			createApprovalMiddleware({
@@ -1293,5 +1361,249 @@ describe('approval middleware with a relay', () => {
 				relay: 'auto' as never,
 			})
 		).toThrow(TypeError);
+	});
+});
+
+/** A gated command whose schema defaults differ from one validation to the next. */
+function noteAdd(calls: string[]) {
+	return [
+		defineCommand({
+			name: 'note-add',
+			description: 'Add a note',
+			mutation: true,
+			approval: 'required',
+			expose: { mcp: true },
+			input: z.object({
+				text: z.string(),
+				id: z.string().default(() => randomUUID()),
+				at: z.string().default(() => new Date().toISOString()),
+			}),
+			handler: async (input) => {
+				calls.push(`add:${input.id}:${input.at}`);
+				return success({ id: input.id });
+			},
+		}),
+	] as unknown as ReturnType<typeof commands>;
+}
+
+/** The `id` and `at` each gated step of a question was shown with, as `add:<id>:<at>`. */
+function shown(message: string | undefined): string[] {
+	return [...(message ?? '').matchAll(/^Input: (.*)$/gm)].map((match) => {
+		const input = JSON.parse(match[1] as string) as { id: string; at: string };
+		return `add:${input.id}:${input.at}`;
+	});
+}
+
+describe('a step runs on the input approved up front (#1414)', () => {
+	const NOTES = {
+		commands: [
+			{ command: 'todo-list', input: {} },
+			{ command: 'note-add', input: { text: 'milk' } },
+		],
+	};
+
+	it('runs a gated batch step whose schema defaults are random on the approved input', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({ name: 'afd-batch', arguments: NOTES });
+		expect(body(result)).toMatchObject({ success: true });
+		// Asked once; the ungated step ran once, and the gated one on the id and time shown.
+		expect(prompts).toHaveLength(1);
+		expect(shown(prompts[0])).toHaveLength(1);
+		expect(calls).toEqual(['list', ...shown(prompts[0])]);
+	});
+
+	it('runs a gated pipeline step whose schema defaults are random on the approved input', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-pipe',
+			arguments: {
+				input: { text: 'eggs' },
+				steps: [{ command: 'todo-list' }, { command: 'note-add', input: { text: '$input.text' } }],
+			},
+		});
+		expect((body(result).steps as Array<{ status: string }>).map((step) => step.status)).toEqual([
+			'success',
+			'success',
+		]);
+		expect(prompts).toHaveLength(1);
+		expect(calls).toEqual(['list', ...shown(prompts[0])]);
+	});
+
+	it('runs two steps sent alike, each on its own approved input', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const step = { command: 'note-add', input: { text: 'milk' } };
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: { commands: [step, step], options: { parallelism: 2 } },
+		});
+		expect(body(result)).toMatchObject({ success: true });
+		const inputs = shown(prompts[0]);
+		expect(new Set(inputs).size).toBe(2);
+		expect([...calls].sort()).toEqual([...inputs].sort());
+	});
+
+	it('does not run an approved input in a request that differs from the one approved', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const call = rawCaller(url);
+		const first = asked(await call('afd-batch', NOTES));
+		const [approvedInput] = shown(first.inputRequests?.approval?.params?.message);
+		const other = {
+			commands: [
+				{ command: 'todo-list', input: {} },
+				{ command: 'note-add', input: { text: 'bleach' } },
+			],
+		};
+		const second = asked(
+			await call('afd-batch', other, { inputResponses: approved, requestState: first.requestState })
+		);
+		// The human is asked about the new request, on an input of its own; nothing ran.
+		expect(second.resultType).toBe('input_required');
+		const message = second.inputRequests?.approval?.params?.message;
+		expect(message).toContain('"text":"bleach"');
+		expect(shown(message)).not.toContain(approvedInput);
+		expect(calls).toEqual([]);
+	});
+
+	it('does not run an input altered in the request state', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const call = rawCaller(url);
+		const first = asked(await call('afd-batch', NOTES));
+		const forged = editState(first.requestState as string, (payload) => ({
+			...payload,
+			p: payload.p.map((item) => ({
+				...item,
+				i: JSON.stringify({ ...JSON.parse(item.i as string), text: 'bleach' }),
+			})),
+		}));
+		const second = asked(
+			await call('afd-batch', NOTES, { inputResponses: approved, requestState: forged })
+		);
+		expect(second.resultType).toBe('input_required');
+		expect(second.inputRequests?.approval?.params?.message).not.toContain('bleach');
+		expect(calls).toEqual([]);
+		// The untouched state still runs what was approved.
+		const [approvedInput] = shown(first.inputRequests?.approval?.params?.message);
+		const run = await call('afd-batch', NOTES, {
+			inputResponses: approved,
+			requestState: first.requestState,
+		});
+		expect((run.result as { isError?: boolean }).isError).toBe(false);
+		expect(calls).toEqual(['list', approvedInput]);
+	});
+
+	it('asks again, running nothing, when the approved input is too long to keep', async () => {
+		const { url, calls } = await serve({ extra: noteAdd });
+		const call = rawCaller(url);
+		const long = {
+			commands: [
+				{ command: 'todo-list', input: {} },
+				{ command: 'note-add', input: { text: 'x'.repeat(MAX_KEPT_INPUT) } },
+			],
+		};
+		const first = asked(await call('afd-batch', long));
+		const second = asked(
+			await call('afd-batch', long, { inputResponses: approved, requestState: first.requestState })
+		);
+		// Validated again, the random default differs from the one approved.
+		expect(second.resultType).toBe('input_required');
+		expect(calls).toEqual([]);
+	});
+});
+
+/** Commands whose schema checks the store: an item must exist to be touched or wiped. */
+function items(calls: string[]) {
+	const store = new Set([1]);
+	const existing = z.object({
+		id: z.number().refine((id) => store.has(id), { message: 'No such item' }),
+	});
+	return [
+		defineCommand({
+			name: 'item-remove',
+			description: 'Remove an item',
+			mutation: true,
+			expose: { mcp: true },
+			input: z.object({ id: z.number() }),
+			handler: async (input) => {
+				store.delete(input.id);
+				calls.push(`remove:${input.id}`);
+				return success({ removed: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'item-touch',
+			description: 'Touch an item',
+			mutation: true,
+			expose: { mcp: true },
+			input: existing,
+			handler: async (input) => {
+				calls.push(`touch:${input.id}`);
+				return success({ touched: input.id });
+			},
+		}),
+		defineCommand({
+			name: 'item-wipe',
+			description: 'Wipe an item',
+			mutation: true,
+			approval: 'required',
+			expose: { mcp: true },
+			input: existing,
+			handler: async (input) => {
+				calls.push(`wipe:${input.id}`);
+				return success({ wiped: input.id });
+			},
+		}),
+	] as unknown as ReturnType<typeof commands>;
+}
+
+describe('a step is still validated when it runs (#1414)', () => {
+	const codes = (result: unknown) =>
+		(body(result).results as Array<{ result: { error?: { code: string } } }>).map(
+			(item) => item.result.error?.code
+		);
+
+	it.each([
+		['with the approval middleware', {}],
+		['without an approval middleware', { server: { middleware: [] } }],
+	])('fails a step whose schema an earlier step made false, %s', async (_what, setup) => {
+		const { url, calls } = await serve({ extra: items, ...setup });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'item-remove', input: { id: 1 } },
+					{ command: 'item-touch', input: { id: 1 } },
+				],
+			},
+		});
+		expect(codes(result)).toEqual([undefined, 'VALIDATION_ERROR']);
+		expect(prompts).toEqual([]);
+		expect(calls).toEqual(['remove:1']);
+	});
+
+	it('fails an approved step whose schema an earlier step made false', async () => {
+		const { url, calls } = await serve({ extra: items });
+		const prompts: string[] = [];
+		const client = await connect(url, 'accept', prompts);
+		const result = await client.callTool({
+			name: 'afd-batch',
+			arguments: {
+				commands: [
+					{ command: 'item-remove', input: { id: 1 } },
+					{ command: 'item-wipe', input: { id: 1 } },
+				],
+			},
+		});
+		// Valid when the human was asked, and no longer when the step ran.
+		expect(prompts).toHaveLength(1);
+		expect(codes(result)).toEqual([undefined, 'VALIDATION_ERROR']);
+		expect(calls).toEqual(['remove:1']);
 	});
 });

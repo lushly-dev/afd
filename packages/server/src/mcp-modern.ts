@@ -430,13 +430,23 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 				const { accepted, declined } = await round.read();
 				const approval = (item: Asked) => item.k === APPROVAL_INPUT_KEY;
 				return {
-					accepted: accepted
-						.filter(approval)
-						.flatMap((item) =>
-							item.n !== undefined && item.x !== undefined && item.m !== undefined
-								? [{ binding: item.b, nonce: item.n, expiresAt: item.x, mac: item.m }]
-								: []
-						),
+					accepted: accepted.filter(approval).flatMap((item) =>
+						item.n !== undefined && item.x !== undefined && item.m !== undefined
+							? [
+									{
+										binding: item.b,
+										nonce: item.n,
+										expiresAt: item.x,
+										mac: item.m,
+										...(item.s !== undefined &&
+											item.i !== undefined &&
+											item.c !== undefined && {
+												step: { index: item.s, input: item.i, call: item.c },
+											}),
+									},
+								]
+							: []
+					),
 					declined: declined.filter(approval).map((item) => item.b),
 				};
 			},
@@ -561,6 +571,11 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 							n: question.nonce,
 							x: question.expiresAt,
 							m: question.mac,
+							...(question.step && {
+								s: question.step.index,
+								i: question.step.input,
+								c: question.step.call,
+							}),
 						})),
 						held.message,
 						APPROVAL_REQUESTED_SCHEMA,

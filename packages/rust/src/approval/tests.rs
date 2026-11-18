@@ -1737,6 +1737,7 @@ async fn an_up_front_step_takes_only_an_approval_of_its_own_input_once() {
         command: "todo-delete".into(),
         dynamic: false,
         input: Some(validated(1)),
+        sent: None,
     };
     let up_front = Arc::new(relay::UpFrontApproval::new(
         "afd-batch",
@@ -1819,6 +1820,7 @@ async fn a_single_command_answer_is_never_an_up_front_approval() {
         command: "todo-delete".into(),
         dynamic: false,
         input: Some(validated(1)),
+        sent: None,
     };
     let mut context = CommandContext::new().with_actor(agent());
     context.up_front_approval = Some(Arc::new(relay::UpFrontApproval::new(
