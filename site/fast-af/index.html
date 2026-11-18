@@ -1,0 +1,529 @@
+<!doctype html>
+<html lang="en" data-side="dev">
+	<head>
+		<meta charset="UTF-8">
+		<meta name="viewport" content="width=device-width, initial-scale=1">
+		<title>FAST-AF — web components and their runtime, built on Microsoft FAST (proposal)</title>
+		<meta name="robots" content="noindex">
+		<meta
+			name="description"
+			content="FAST-AF is a component library and its runtime: web components on a fork of Microsoft's FAST Element, each with a record an agent can read. Every component on this page is the real one, running."
+		>
+		<meta name="theme-color" content="#f74431">
+		<link rel="icon" href="../svg/favicon.svg" type="image/svg+xml">
+		<link rel="preconnect" href="https://fonts.googleapis.com">
+		<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+		<link
+			href="https://fonts.googleapis.com/css2?family=Archivo+Black&family=Space+Grotesk:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Inter:wght@400;500;600&display=swap"
+			rel="stylesheet"
+		>
+		<link rel="stylesheet" href="../css/tokens-m2.css">
+		<link rel="stylesheet" href="../css/manifesto-2.css">
+		<link rel="stylesheet" href="../css/manifesto-3.css">
+		<link rel="stylesheet" href="../css/area.css">
+		<link rel="stylesheet" href="../css/area-kit.css">
+		<link rel="stylesheet" href="../css/fast-af.css">
+		<link rel="stylesheet" href="../css/refined.css">
+		<script type="module" src="../js/fast-af-page.js"></script>
+	</head>
+	<body>
+		<a class="skip-link" href="#main">Skip to content</a>
+		<header class="manifesto-nav">
+			<a class="wordmark" href="../" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<nav aria-label="On this page">
+				<a href="#components">The components</a><a href="#intent">Events, then commands</a
+				><a href="#fast">FAST</a><a href="#agent">For an agent</a><a href="#start">Start</a>
+			</nav>
+			<div class="nav-actions">
+				<nav class="side-switch" aria-label="Side of AFD">
+					<a href="./" aria-current="page">Dev</a><a href="../design/">Design</a>
+				</nav>
+				<a class="github-link" href="https://github.com/lushly-dev/afd/tree/main/foundations/fast-af"
+					>GitHub <i class="icon icon--out" aria-hidden="true"></i></a
+				>
+			</div>
+		</header>
+		<main id="main">
+			<section class="opening opening--area" id="top">
+				<div class="opening-art" aria-hidden="true">
+					<span class="slash"></span>
+				</div>
+				<div class="wrap">
+					<div class="opening-label">
+						<span class="crumb"><a href="../">Agent-First Development</a> / <b>FAST-AF</b></span>
+						<span class="edition">In preview, on npm</span>
+					</div>
+					<div class="area-hero">
+						<div class="area-hero-text">
+							<h1 class="area-name">FAST-AF</h1>
+							<p class="area-is">
+								Web components, and their runtime.<br><span>Built on Microsoft FAST.</span>
+							</p>
+							<p class="area-lead">
+								<span class="keep">FAST-AF</span> is a component library and its runtime:
+								<span data-component-count>77</span> web components on a fork of Microsoft's FAST
+								Element. Every component works with any framework, or none, and ships with a record
+								an agent can read.
+							</p>
+							<div class="opening-actions">
+								<a href="#components" class="button button--ink"
+									>See every component <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+								<a href="#fast" class="text-link"
+									>What it adds to FAST <i class="icon icon--down" aria-hidden="true"></i></a
+								>
+							</div>
+							<p class="hero-install">
+								<code>npm install @lushly-dev/violet-elements@preview @lushly-dev/fast-element@preview</code>
+								<button type="button" data-copy-inline aria-live="polite">Copy</button>
+							</p>
+						</div>
+						<figure class="area-figure fa-shown">
+							<figcaption><span>Running in this tab</span><span data-hero-theme>Light theme</span></figcaption>
+							<div class="fa-stage fa-stage--hero" data-hero-stage>
+								<p class="fa-wait">Loading the components…<noscript> They need JavaScript to run.</noscript></p>
+							</div>
+							<p class="hero-answer">
+								<span class="mono">Not a picture</span>
+								<span data-hero-answer>These are the components themselves, loaded from the package and mounted from the markup their stories rendered.</span>
+							</p>
+						</figure>
+					</div>
+					<dl class="hero-facts">
+						<div>
+							<dt><span data-component-count>77</span> components</dt>
+							<dd>Buttons, fields, menus, a data grid, a chat thread. Each one has a record written for an agent.</dd>
+						</div>
+						<div>
+							<dt>Microsoft FAST underneath</dt>
+							<dd>
+								The runtime is a fork of FAST Element <span data-microsoft-version>3.1.4</span>, and it
+								takes Microsoft's releases as they ship.
+							</dd>
+						</div>
+						<div>
+							<dt><span data-command-count>0</span> commands in a component</dt>
+							<dd>A component says what the person meant, as an event. The application decides what to do.</dd>
+						</div>
+					</dl>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="components">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 01</span>The components</span>
+						<h2>Every component.<br><span>Running here.</span></h2>
+					</div>
+					<p class="surface-hint">
+						<b>Pick one</b
+						><span
+							>These are the real components, loaded from the package. Each example is the markup
+							one of its stories rendered, mounted again here, and you can use it. The facts under
+							it are read from the component's record.</span
+						>
+					</p>
+					<div class="record fa-index">
+						<div class="fa-pick">
+							<label class="fa-find">
+								<span class="mono">Find</span>
+								<input type="search" data-find placeholder="button, grid, chat…" autocomplete="off" spellcheck="false">
+							</label>
+							<div class="record-list fa-list" role="group" aria-label="A component" data-component-list></div>
+							<p class="fa-found mono" data-found aria-live="polite"></p>
+						</div>
+						<figure class="command-source record-out fa-card">
+							<figcaption>
+								<span data-card-tag>&lt;violet-button&gt;</span>
+								<span class="chips fa-themes" role="group" aria-label="Theme" data-themes></span>
+							</figcaption>
+							<p class="fa-summary" data-card-summary></p>
+							<div class="chips fa-examples" role="group" aria-label="An example from its stories" data-examples></div>
+							<div class="fa-stage" data-stage>
+								<p class="fa-wait">Loading the components…<noscript> They need JavaScript to run.</noscript></p>
+							</div>
+							<p class="fa-heard" aria-live="polite">
+								<span class="mono">Events heard</span><span data-heard>None yet. Use the component.</span>
+							</p>
+							<div class="chips fa-tabs" role="tablist" aria-label="What the record says" data-fact-tabs>
+								<button type="button" role="tab" id="fa-tab-markup" aria-controls="fa-panel-markup" aria-selected="true">Markup</button>
+								<button type="button" role="tab" id="fa-tab-attributes" aria-controls="fa-panel-attributes" aria-selected="false" tabindex="-1">Attributes</button>
+								<button type="button" role="tab" id="fa-tab-parts" aria-controls="fa-panel-parts" aria-selected="false" tabindex="-1">Slots and events</button>
+								<button type="button" role="tab" id="fa-tab-guide" aria-controls="fa-panel-guide" aria-selected="false" tabindex="-1">Guidance</button>
+							</div>
+							<div class="fa-panel" id="fa-panel-markup" role="tabpanel" aria-labelledby="fa-tab-markup">
+								<pre tabindex="0"><code data-markup></code></pre>
+							</div>
+							<div class="fa-panel" id="fa-panel-attributes" role="tabpanel" aria-labelledby="fa-tab-attributes" hidden>
+								<div class="fa-scroll" tabindex="0" data-attributes></div>
+							</div>
+							<div class="fa-panel" id="fa-panel-parts" role="tabpanel" aria-labelledby="fa-tab-parts" hidden>
+								<div class="fa-scroll" tabindex="0" data-parts></div>
+							</div>
+							<div class="fa-panel" id="fa-panel-guide" role="tabpanel" aria-labelledby="fa-tab-guide" hidden>
+								<div class="fa-scroll" tabindex="0" data-guide></div>
+							</div>
+						</figure>
+					</div>
+					<p class="record-foot" data-library-foot></p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--rest" id="intent" data-lit>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 02</span>The layer</span>
+						<h2>A component says what was meant.<br><span>The app decides what happens.</span></h2>
+					</div>
+					<p class="d-lead">
+						No component calls a command. A field says the person typed, a checkbox says it was
+						ticked, and the application turns that into a command, the same one an agent or the
+						command line would call. So the components stay reusable and the commands stay in
+						one place.
+					</p>
+					<p class="surface-hint">
+						<b>Try it</b
+						><span
+							>Add a task and tick it. The left side is three <span class="keep">FAST-AF</span> components. The right side is
+							this site's real command registry, the one the home page's terminal calls.</span
+						>
+					</p>
+					<div class="fa-flow">
+						<figure class="fa-flow-app">
+							<figcaption class="mono">The components</figcaption>
+							<div class="fa-stage fa-stage--app" data-app-stage>
+								<p class="fa-wait">Loading the components…</p>
+							</div>
+						</figure>
+						<figure class="fa-flow-log">
+							<figcaption class="mono">What each layer did</figcaption>
+							<ol class="fa-log" data-flow-log aria-live="polite">
+								<li class="fa-log-empty">Nothing yet. Type a task and press Add.</li>
+							</ol>
+						</figure>
+					</div>
+					<p class="fa-verdict" data-flow-verdict></p>
+					<figure class="command-source fa-wiring">
+						<figcaption><span>The wiring</span><span>The code running above</span></figcaption>
+						<pre tabindex="0"><code data-wiring></code></pre>
+					</figure>
+					<p class="result-live">
+						This wiring is written by hand, here and in your application. A binder that does it for
+						you is planned, not shipped.
+					</p>
+				</div>
+			</section>
+
+			<section class="d-section d-section--deep" id="fast">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 03</span>The runtime</span>
+						<h2>FAST underneath.<br><span>And what FAST-AF adds.</span></h2>
+					</div>
+					<p class="d-lead">
+						The runtime is a fork of Microsoft's FAST Element. Templates, bindings, attributes and
+						styles are FAST's, unchanged, so what you know about FAST is true here. <span class="keep">FAST-AF</span> adds
+						two things an application built for agents needs, and keeps taking FAST's releases.
+					</p>
+					<aside class="fa-fast" aria-label="About FAST">
+						<span class="mono">Where it comes from</span>
+						<div>
+							<p class="fa-fast-name">FAST</p>
+							<p>
+								Microsoft's open-source library for building web components on the browser's own
+								standards. Jason Falk
+								founded FAST at Microsoft and later created AFD. <span class="keep">FAST-AF</span> is what the two have in
+								common.
+							</p>
+							<p data-fast-history></p>
+							<div class="start-links">
+								<a class="text-link" href="https://fast.design"
+									>fast.design <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="https://github.com/microsoft/fast"
+									>microsoft/fast <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+					</aside>
+
+					<div class="fa-add">
+						<div class="fa-add-text">
+							<span class="mono">From FAST</span>
+							<h3>What FAST gives every component.</h3>
+							<dl class="fa-gives">
+								<div>
+									<dt>A component is an HTML tag.</dt>
+									<dd>
+										FAST builds on the browser's own custom elements and shadow DOM, so a component
+										works in any framework, or with none. <span data-fast-tags></span>
+									</dd>
+								</div>
+								<div>
+									<dt>Only what changed is updated.</dt>
+									<dd>
+										A template knows which value each binding reads. When a value changes, FAST
+										writes to that one place. There is no virtual DOM, and nothing is rendered again.
+									</dd>
+								</div>
+								<div>
+									<dt>It is small.</dt>
+									<dd data-fast-size></dd>
+								</div>
+							</dl>
+						</div>
+						<div class="fa-add-run">
+							<figure class="fa-live">
+								<figcaption class="mono">A FAST component, defined in this tab</figcaption>
+								<div class="fa-live-stage" data-fast-live></div>
+								<p class="fa-live-said" data-fast-changes aria-live="polite">
+									Press Add one, and the page reports what FAST changed in the component.
+								</p>
+							</figure>
+							<details class="fa-source" open>
+								<summary>The component, as it is defined</summary>
+								<pre tabindex="0"><code data-fast-live-source></code></pre>
+							</details>
+						</div>
+					</div>
+
+					<div class="fa-add">
+						<div class="fa-add-text">
+							<span class="mono">Added, 1</span>
+							<h3>A registry of its own, all the way down.</h3>
+							<p>
+								A browser can give one part of a page its own list of custom elements, so two
+								versions of a component, or two teams' components with the same name, can share a
+								page. <span class="keep">FAST-AF</span> creates everything a component's template renders in that
+								component's registry.
+							</p>
+							<p>
+								The test on the right runs in this tab, once on each runtime, from the same
+								function: a host with its own registry renders a child that only that registry
+								knows.
+							</p>
+							<p class="fa-native mono" data-native></p>
+						</div>
+						<div class="fa-add-run">
+							<table class="fa-compare">
+								<caption class="mono">One test, two runtimes</caption>
+								<thead>
+									<tr>
+										<th scope="col"><span class="sr-only">What was checked</span></th>
+										<th scope="col" data-compare-head="microsoft">Microsoft FAST Element</th>
+										<th scope="col" data-compare-head="fast-af">FAST-AF</th>
+									</tr>
+								</thead>
+								<tbody data-compare>
+									<tr><td colspan="3">Running the test…</td></tr>
+								</tbody>
+							</table>
+							<p class="fa-compare-note" data-compare-note></p>
+							<button type="button" class="button button--outline fa-again" data-compare-run>Run it again</button>
+							<details class="fa-source">
+								<summary>The test, as it ran</summary>
+								<pre tabindex="0"><code data-compare-source></code></pre>
+							</details>
+						</div>
+					</div>
+
+					<div class="fa-add">
+						<div class="fa-add-text">
+							<span class="mono">Added, 2</span>
+							<h3>A component you can ask.</h3>
+							<p>
+								Turn the definition schema on and every component defined afterwards can be asked
+								what it is: its attributes, their types, its slots. The answer comes from the
+								running definition, not from a file that might be out of date.
+							</p>
+							<p class="fa-agree" data-schema-agree></p>
+						</div>
+						<div class="fa-add-run">
+							<figure class="command-source">
+								<figcaption><span data-schema-call>getSchema('violet-button')</span><span>Asked in this tab</span></figcaption>
+								<pre tabindex="0" class="fa-schema"><code data-schema></code></pre>
+							</figure>
+						</div>
+					</div>
+
+					<div class="fa-add">
+						<div class="fa-add-text">
+							<span class="mono">Kept</span>
+							<h3>It keeps up with FAST.</h3>
+							<p data-fast-keeps></p>
+						</div>
+						<div class="fa-add-run">
+							<dl class="fa-numbers" data-fast-numbers></dl>
+						</div>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--agent" id="agent">
+				<span class="big-numeral" aria-hidden="true">04</span>
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 04</span>The pack</span>
+						<h2>What an agent is told.<br><span>And how it is known.</span></h2>
+					</div>
+					<p class="d-lead">
+						An agent writing a page with these components reads a record for each one it uses:
+						what it is for, its attributes, slots and events, examples that work, and the rules
+						that apply. Every fact says where it came from, so the agent knows what to trust.
+					</p>
+					<div class="fa-bases" data-bases></div>
+					<div class="fa-gaps">
+						<div>
+							<h3>It says what it doesn't know.</h3>
+							<p data-gaps-lead></p>
+							<p class="result-live">
+								Counted in this tab from the records.
+								<a href="../specimen/#pack">How Specimen builds a pack</a>
+							</p>
+						</div>
+						<ul class="fa-gap-list" data-gaps></ul>
+					</div>
+				</div>
+			</section>
+
+			<section class="d-section d-section--ink" id="start">
+				<div class="wrap">
+					<div class="editorial-heading">
+						<span class="section-index"><span class="fig-chip">Fig. 05</span>Start</span>
+						<h2>Install it.<br><span>Write a tag.</span></h2>
+					</div>
+					<div class="code-tabs">
+						<div class="chips" role="tablist" aria-label="Ways to use FAST-AF">
+							<button type="button" role="tab" id="tab-use" aria-controls="code-use" aria-selected="true">
+								Use a component
+							</button>
+							<button type="button" role="tab" id="tab-theme" aria-controls="code-theme" aria-selected="false" tabindex="-1">
+								Set the theme
+							</button>
+							<button type="button" role="tab" id="tab-build" aria-controls="code-build" aria-selected="false" tabindex="-1">
+								Build your own
+							</button>
+							<button type="button" role="tab" id="tab-schema" aria-controls="code-schema" aria-selected="false" tabindex="-1">
+								Ask for the schema
+							</button>
+						</div>
+						<figure class="command-source" id="code-use" role="tabpanel" aria-labelledby="tab-use">
+							<figcaption><span>app.js and any HTML</span><span>One import registers every element</span></figcaption>
+							<pre tabindex="0"><code><span class="tok-kw">import</span> <span class="tok-str">'@lushly-dev/violet-elements'</span>;
+
+<span class="tok-dim">// Then, in HTML, a template, or a framework's markup:</span>
+&lt;violet-text-field label=<span class="tok-str">"Task"</span> name=<span class="tok-str">"title"</span>&gt;&lt;/violet-text-field&gt;
+&lt;violet-button appearance=<span class="tok-str">"primary"</span>&gt;Add&lt;/violet-button&gt;
+
+<span class="tok-dim">// A component says what the person meant. You decide what it does.</span>
+field.addEventListener(<span class="tok-str">'change'</span>, (event) =&gt; save(event.detail.value));</code></pre>
+						</figure>
+						<figure class="command-source" id="code-theme" role="tabpanel" aria-labelledby="tab-theme" hidden>
+							<figcaption><span>app.js</span><span data-preset-names>light, dark, high-contrast</span></figcaption>
+							<pre tabindex="0"><code><span class="tok-kw">import</span> { applyVioletThemePreset, installVioletThemeSet } <span class="tok-kw">from</span> <span class="tok-str">'@lushly-dev/violet-elements'</span>;
+<span class="tok-kw">import</span> theme <span class="tok-kw">from</span> <span class="tok-str">'./afd-theme.json'</span> <span class="tok-kw">with</span> { type: <span class="tok-str">'json'</span> };
+
+<span class="tok-dim">// A theme is data: each preset is a list of token ids and values.</span>
+<span class="tok-dim">// With none installed, the components use the package's default.</span>
+installVioletThemeSet(theme.set);
+applyVioletThemePreset(document, <span class="tok-str">'dark'</span>);</code></pre>
+						</figure>
+						<figure class="command-source" id="code-build" role="tabpanel" aria-labelledby="tab-build" hidden>
+							<figcaption><span>plan-badge.js</span><span>FAST's API, unchanged</span></figcaption>
+							<pre tabindex="0"><code><span class="tok-kw">import</span> { attr, css, FASTElement, html } <span class="tok-kw">from</span> <span class="tok-str">'@lushly-dev/fast-element'</span>;
+
+<span class="tok-kw">class</span> PlanBadge <span class="tok-kw">extends</span> FASTElement {
+  @attr plan = <span class="tok-str">'free'</span>;
+}
+
+PlanBadge.define({
+  name: <span class="tok-str">'plan-badge'</span>,
+  template: html`&lt;span&gt;${(x) =&gt; x.plan}&lt;/span&gt;`,
+  styles: css`:host { display: inline-block; }`,
+});</code></pre>
+						</figure>
+						<figure class="command-source" id="code-schema" role="tabpanel" aria-labelledby="tab-schema" hidden>
+							<figcaption><span>app.js</span><span>Opt in before elements are defined</span></figcaption>
+							<pre tabindex="0"><code><span class="tok-kw">import</span> { enableDefinitionSchema, getSchema } <span class="tok-kw">from</span> <span class="tok-str">'@lushly-dev/fast-element/definition-schema.js'</span>;
+
+enableDefinitionSchema();
+<span class="tok-kw">await import</span>(<span class="tok-str">'@lushly-dev/violet-elements'</span>);
+
+getSchema(<span class="tok-str">'violet-button'</span>).properties;
+<span class="tok-dim">// [{ name: 'appearance', type: 'string', attribute: 'appearance' }, …]</span></code></pre>
+						</figure>
+					</div>
+					<div class="installs" data-installs>
+						<div>
+							<span class="mono">The components</span>
+							<div class="install-command">
+								<pre><code>npm install @lushly-dev/violet-elements@preview @lushly-dev/fast-element@preview</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the install command for the components" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+						<div>
+							<span class="mono">The runtime alone</span>
+							<div class="install-command">
+								<pre><code>npm install @lushly-dev/fast-element@preview</code></pre>
+								<button type="button" class="icon-button" data-copy aria-label="Copy the install command for the runtime" title="Copy">
+									<i class="icon icon--copy" aria-hidden="true"></i>
+								</button>
+							</div>
+						</div>
+					</div>
+					<p class="copy-status" data-copy-status role="status"></p>
+					<div class="area-start">
+						<div class="area-status">
+							<span class="mono">Status</span>
+							<p data-status>
+								<strong>In preview, on npm.</strong> Both packages publish under the
+								<code>preview</code> tag, never <code>latest</code>.
+							</p>
+						</div>
+						<div class="area-status">
+							<span class="mono">Read on</span>
+							<div class="start-links">
+								<a class="text-link" href="https://www.npmjs.com/package/@lushly-dev/violet-elements"
+									>The components on npm <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="https://www.npmjs.com/package/@lushly-dev/fast-element"
+									>The runtime on npm <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="https://github.com/lushly-dev/afd/tree/main/foundations/fast-af"
+									>Source <i class="icon icon--out" aria-hidden="true"></i></a
+								>
+								<a class="text-link" href="../specimen/"
+									>Its stories run on Specimen <i class="icon icon--right" aria-hidden="true"></i></a
+								>
+							</div>
+						</div>
+					</div>
+				</div>
+			</section>
+		</main>
+		<footer class="footer wrap">
+			<div class="founder-note">
+				<span class="section-index">A designer's perspective</span>
+				<p>
+					AFD grew out of thirty years of building interfaces, and the realization that the most
+					durable layer isn't the UI. <strong>It's the commands underneath.</strong>
+				</p>
+				<a href="https://github.com/Falkicon">Jason Falk / Creator of AFD</a>
+			</div>
+			<a href="../" class="wordmark" aria-label="AFD home"
+				><svg viewBox="0 0 2409 688" aria-hidden="true" focusable="false"><path class="wordmark-slash" fill="#f74431" d="M0 688 L251 0 L416 0 L165 688 Z"/><path fill="currentColor" d="M790 688 761 591H520L491 688H265L516 0H773L1024 688ZM566 437H715L643 192H639Z M1095 0H1651V165H1316V283H1604V441H1316V688H1095Z M2409 344Q2409 688 2048 688H1750V0H2048Q2409 0 2409 344ZM1971 523H2044Q2183 523 2183 374V314Q2183 165 2044 165H1971Z"/></svg></a
+			>
+			<p>For people.<br>And the agents working with them.</p>
+			<nav aria-label="Footer">
+				<a href="../">Agent-First Development</a
+				><a href="../design/">Agent-First Design</a
+				><a href="https://github.com/lushly-dev/afd">Source</a>
+			</nav>
+			<span class="footer-edition">AGENT-FIRST DEVELOPMENT / FAST-AF</span>
+		</footer>
+	</body>
+</html>

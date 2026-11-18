@@ -1,0 +1,570 @@
+/* ============================================================
+   Parts that more than one area page uses (proposal)
+   ------------------------------------------------------------
+   Loaded after area.css, before a page's own stylesheet. An area
+   page is not built from a template, but some parts recur: a row
+   of chips, code behind tabs, the package layers, install rows,
+   the status block at the foot. They live here once. Anything
+   only one tool needs stays in that tool's stylesheet.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── Syntax colours the shared set doesn't have ──────────────── */
+
+.tok-dim {
+	color: var(--afd-stone-500);
+}
+
+.tok-warn {
+	color: var(--afd-red-200);
+}
+
+/* The fields AFD adds to a result: the ones an agent acts on. */
+.tok-afd {
+	color: var(--afd-white);
+	font-weight: var(--weight-strong);
+}
+
+/* ── Marks: how much stands behind a word ────────────────────────
+   A small mono label on a fact: a status, a basis, a result. Its
+   weight says how sure the fact is, the same way on every page:
+
+     solid    proven, or complete        ink, filled
+     outline  seen, or partly there      ink, outlined
+     dashed   stated but not run,        a broken outline
+              or not available
+     plain    someone's word             no box at all
+     alert    needs a decision           the one red mark
+
+   Red and mint keep their meanings (a person, an agent), so a
+   mark is never mint, and red is only the alert. For light
+   fields: a mark sits on paper, cream or mint. */
+
+.mark {
+	display: inline-block;
+	padding: 2px var(--space-2);
+	border: var(--rule-thin) solid var(--color-rule);
+	color: var(--color-text);
+	font: var(--weight-medium) var(--t-label) / 1.4 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+	white-space: nowrap;
+}
+
+.mark[data-mark="solid"] {
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+.mark[data-mark="dashed"] {
+	border-style: dashed;
+}
+
+.mark[data-mark="plain"] {
+	border-color: transparent;
+	color: var(--color-text-muted);
+}
+
+.mark[data-mark="alert"] {
+	border-color: var(--accent-human-text);
+	background: var(--accent-human-text);
+	color: var(--afd-white);
+}
+
+/* ── A hero's proof: one command, written for each caller ────── */
+
+.hero-callers dl {
+	display: grid;
+	gap: var(--space-4);
+	margin: 0;
+	padding: var(--space-4) 0;
+}
+
+.hero-callers dt {
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.hero-callers dd {
+	margin: var(--space-1) 0 0;
+}
+
+.hero-callers code {
+	font-size: var(--t-code);
+	line-height: 1.6;
+	overflow-wrap: anywhere;
+}
+
+/* ── Chips: pick one of a few ────────────────────────────────── */
+
+.chips {
+	display: flex;
+	flex-wrap: wrap;
+	gap: var(--space-2);
+}
+
+.chips button {
+	min-height: 36px;
+	padding: var(--space-2) var(--space-3);
+	border: var(--rule-thin) solid color-mix(in srgb, var(--accent-agent) 45%, transparent);
+	background: transparent;
+	color: var(--color-on-dark);
+	font: var(--weight-medium) var(--t-code) var(--font-sans);
+	cursor: pointer;
+}
+
+.chips button:hover {
+	border-color: var(--accent-agent);
+}
+
+.chips button[aria-selected="true"],
+.chips button[aria-pressed="true"] {
+	border-color: var(--accent-agent);
+	background: var(--accent-agent);
+	color: var(--color-text);
+}
+
+/* The chips on a light field: ink where the dark ones are mint. */
+.chips--light button {
+	border-color: var(--color-rule);
+	color: var(--color-text);
+}
+
+.chips--light button:hover {
+	border-color: var(--color-rule);
+	background: var(--color-line);
+}
+
+.chips--light button[aria-selected="true"],
+.chips--light button[aria-pressed="true"] {
+	border-color: var(--color-rule);
+	background: var(--color-text);
+	color: var(--color-surface);
+}
+
+/* ── Two results, side by side ───────────────────────────────── */
+
+.result-pair {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	align-items: start;
+	gap: var(--space-5);
+	margin-top: var(--space-8);
+}
+
+.result-pair .command-source {
+	border-top-color: var(--accent-agent);
+}
+
+.result-pair .command-source figcaption span + span {
+	color: var(--accent-agent);
+}
+
+.result-pair .command-source--failed {
+	border-top-color: var(--afd-red-300);
+}
+
+.result-pair .command-source--failed figcaption span + span {
+	color: var(--afd-red-300);
+}
+
+.result-pair pre {
+	max-height: 560px;
+	overflow: auto;
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.result-notes {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-6);
+	margin: var(--space-7) 0 0;
+}
+
+.result-notes > div {
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--color-rule);
+}
+
+.result-notes dt {
+	font: var(--weight-strong) var(--t-small) / 1.5 var(--mono);
+}
+
+.result-notes dd {
+	margin: var(--space-2) 0 0;
+	color: var(--color-text-muted);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.result-live {
+	margin-top: var(--space-6);
+	color: var(--color-text-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+/* ── The package layers, endpoints on top ────────────────────── */
+
+.layers {
+	display: grid;
+	gap: var(--space-2);
+	margin-top: var(--space-8);
+}
+
+.layer {
+	display: grid;
+	grid-template-columns: 150px repeat(2, minmax(0, 1fr));
+	gap: var(--space-2);
+}
+
+.layer > .mono {
+	padding-top: var(--space-5);
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.layer article {
+	min-width: 0;
+	padding: var(--space-5);
+	background: var(--afd-green-700);
+}
+
+.layer .layer-wide {
+	grid-column: 2 / -1;
+}
+
+.layer h3 {
+	font: var(--weight-medium) var(--t-lead) / 1.2 var(--mono);
+	letter-spacing: -0.02em;
+}
+
+.layer p {
+	max-width: 52ch;
+	margin-top: var(--space-2);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.layer code,
+.d-lead code {
+	font-family: var(--mono);
+	font-size: 0.9em;
+}
+
+.layer code {
+	color: var(--color-on-dark);
+}
+
+.d-section--ink .d-lead code {
+	color: var(--accent-agent);
+}
+
+/* ── Code, behind tabs ───────────────────────────────────────── */
+
+.code-tabs {
+	margin-top: var(--heading-gap);
+}
+
+.code-tabs .command-source {
+	margin-top: var(--space-4);
+}
+
+.code-tabs .command-source[hidden] {
+	display: none;
+}
+
+.code-tabs .command-source pre {
+	font-size: var(--t-code);
+}
+
+/* ── Install rows ────────────────────────────────────────────── */
+
+.installs {
+	display: grid;
+	gap: var(--space-3);
+	margin-top: var(--heading-gap);
+}
+
+.installs > div {
+	display: grid;
+	grid-template-columns: 220px minmax(0, 1fr);
+	align-items: center;
+	gap: var(--space-5);
+}
+
+.installs .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.installs .install-command {
+	margin-top: 0;
+	padding: var(--space-4) var(--space-5);
+}
+
+/* ── Where it runs: the family list, with a command on each row ── */
+
+.d-section .runs-list {
+	margin-top: var(--space-8);
+}
+
+.runs-list li {
+	grid-template-columns: minmax(0, 1fr) minmax(0, 2.4fr) minmax(0, 1.3fr);
+}
+
+.runs-list code {
+	color: var(--accent-agent);
+	font: var(--t-code) / 1.7 var(--mono);
+}
+
+/* ── Steps: a short process, in order, on a dark field ───────── */
+
+.steps {
+	display: grid;
+	grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+	gap: var(--space-6);
+	margin: var(--space-8) 0 0;
+	padding: 0;
+	list-style: none;
+}
+
+.steps li {
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--accent-agent);
+}
+
+.steps .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.steps h3 {
+	margin-top: var(--space-3);
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.steps p {
+	margin-top: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+/* ── A recorded run: pick a line, read what the tool printed ────
+   For a tool that cannot run in a tab. The list is one button per
+   line of the run; the figure shows that line, exactly what came
+   back, and a sentence on what to notice. On a dark field. */
+
+.record {
+	display: grid;
+	grid-template-columns: minmax(0, 0.55fr) minmax(0, 1.5fr);
+	align-items: start;
+	gap: var(--space-5);
+	margin-top: var(--space-5);
+}
+
+.record-list {
+	display: grid;
+	gap: var(--space-1);
+}
+
+.record-list button {
+	padding: var(--space-3) var(--space-4);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	border-left: var(--rule-heavy) solid transparent;
+	background: transparent;
+	color: var(--color-on-dark-muted);
+	font: var(--weight-medium) var(--t-small) / 1.4 var(--font-sans);
+	text-align: left;
+	cursor: pointer;
+}
+
+.record-list button:hover {
+	color: var(--color-on-dark);
+}
+
+.record-list button[aria-pressed="true"] {
+	border-left-color: var(--accent-agent);
+	background: var(--afd-ink-raised);
+	color: var(--color-on-dark);
+}
+
+.record-out {
+	border-top-color: var(--accent-agent);
+	background: var(--afd-black);
+}
+
+.record-out figcaption span:first-child {
+	color: var(--color-on-dark);
+	overflow-wrap: anywhere;
+}
+
+.record-out figcaption span + span {
+	color: var(--accent-agent);
+	white-space: nowrap;
+}
+
+.record-out figcaption span[data-failed] {
+	color: var(--afd-red-300);
+}
+
+.record-out pre {
+	height: 460px;
+	overflow: auto;
+	font-size: var(--t-code);
+	white-space: pre-wrap;
+	overflow-wrap: anywhere;
+}
+
+.record-out .command-source__note {
+	min-height: 5.2em;
+}
+
+.record-foot {
+	margin-top: var(--space-5);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.record-foot a {
+	color: var(--accent-agent);
+	text-decoration: underline;
+	text-underline-offset: 3px;
+}
+
+/* ── The foot: how to start, and where it stands ─────────────── */
+
+.area-start {
+	display: grid;
+	grid-template-columns: minmax(0, 1.1fr) minmax(0, 0.9fr);
+	gap: var(--space-8);
+	margin-top: var(--space-8);
+}
+
+.area-start h3 {
+	font-size: var(--t-title);
+	font-weight: var(--weight-medium);
+	line-height: 1.1;
+	letter-spacing: -0.02em;
+}
+
+.area-start p:not(.copy-status) {
+	margin-top: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-body);
+	line-height: var(--leading-body);
+}
+
+.area-start .install-command {
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	background: var(--afd-ink-raised);
+}
+
+.area-status .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.area-status strong {
+	color: var(--color-on-dark);
+}
+
+.area-status code {
+	color: var(--accent-agent);
+	font: var(--t-small) var(--mono);
+}
+
+.area-status .start-links {
+	margin-top: var(--space-5);
+}
+
+.area-status .text-link {
+	color: var(--accent-agent);
+}
+
+/* On the dev side the status sits under install rows, and is the wider half. */
+[data-side="dev"] #start .area-start {
+	grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr);
+}
+
+[data-side="dev"] #start .start-links {
+	flex-wrap: wrap;
+	gap: var(--space-4) var(--space-6);
+	margin-top: var(--space-3);
+}
+
+/* ── Narrower screens ────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.result-pair,
+	.area-start,
+	[data-side="dev"] #start .area-start,
+	.record {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	/* The lines become a row of chips above the output. */
+	.record-list {
+		display: flex;
+		flex-wrap: wrap;
+		gap: var(--space-2);
+	}
+
+	.record-list button {
+		padding: var(--space-2) var(--space-3);
+		border-left-width: var(--rule-thin);
+		border-left-color: var(--color-on-dark-line);
+	}
+
+	.record-list button[aria-pressed="true"] {
+		border-color: var(--accent-agent);
+	}
+}
+
+@media (max-width: 850px) {
+	.result-notes {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-5);
+	}
+
+	.layer {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.layer > .mono {
+		padding-top: var(--space-4);
+	}
+
+	.layer .layer-wide {
+		grid-column: auto;
+	}
+
+	.installs > div {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-2);
+	}
+
+	.runs-list li {
+		grid-template-columns: minmax(0, 1fr);
+		gap: var(--space-2);
+	}
+}
+
+@media (max-width: 620px) {
+	.record-out pre {
+		height: 380px;
+	}
+}

@@ -1,0 +1,113 @@
+{
+	"title": "Refined",
+	"note": "Round two: a plain UI face, one control height, three type sizes, and depth in named levels (well, page, band, key, raised, floating) in place of outlines.",
+	"extends": "calm",
+	"added": {
+		"paper-200": [
+			"#e9e5de",
+			"a shade of paper, for bands, tinted rows and tracks: stone-100 is a 3% step on paper and reads green beside it"
+		],
+		"mint-soft": [
+			"#badecf",
+			"mint with its saturation taken down, behind a tick or a switch key on paper: full mint reads much louder in light than its dark counterpart"
+		],
+		"mint-wash": [
+			"#dfeae3",
+			"a greyed tint of mint, for a success message or a selected row on paper: mint-50 is far brighter than the deep green that does this job in dark"
+		],
+		"amber-wash": [
+			"#f3e8d2",
+			"a greyed tint of amber, for a warning on paper"
+		],
+		"red-wash": [
+			"#f7e4df",
+			"a greyed tint of red, for an error message on paper"
+		]
+	},
+	"light": {
+		"font.family.body": "\"Inter\", system-ui, sans-serif",
+		"radius.sm": "4px",
+		"radius.md": "8px",
+		"radius.lg": "12px",
+		"size.focus-ring.width": "2px",
+		"size.target.compact": "24px",
+		"size.target.natural": "32px",
+		"type.body.md.size": "14px",
+		"type.body.md.line": "20px",
+		"type.body.md.weight": "400",
+		"type.label.sm.size": "13px",
+		"type.label.sm.line": "16px",
+		"type.label.sm.weight": "500",
+		"type.caption.xs.size": "12px",
+		"type.caption.xs.line": "16px",
+		"type.caption.xs.weight": "400",
+		"type.title.sm.weight": "600",
+		"type.title.md.weight": "600",
+		"color.surface.subtle": "@paper-200",
+		"color.surface.floating": "@white",
+		"color.surface.highlight": "@white",
+		"color.border.subtle": "@ink/0.10",
+		"color.field.background": "@white",
+		"color.field.background.readonly": "@ink/0.05",
+		"color.state.success.background": "@mint-wash",
+		"color.state.success.border": "transparent",
+		"color.state.warning.background": "@amber-wash",
+		"color.state.warning.border": "transparent",
+		"color.state.danger.background": "@red-wash",
+		"color.state.danger.border": "transparent",
+		"shadow.control": "0 0 0 1px @ink/0.05, 0 1px 2px @ink/0.10",
+		"shadow.card": "0 0 0 1px @ink/0.06, 0 1px 2px @ink/0.06, 0 4px 10px -2px @ink/0.06",
+		"shadow.floating": "0 0 0 1px @ink/0.08, 0 4px 12px -2px @ink/0.12, 0 18px 40px -8px @ink/0.20",
+		"color.control.selected.background": "@mint-soft",
+		"color.control.selected.border": "@mint-ink/0.5",
+		"color.surface.selected": "@mint-wash",
+		"color.field.border": "@stone-500",
+		"font.family.heading": "\"Space Grotesk\", \"Segoe UI\", system-ui, sans-serif"
+	},
+	"dark": {
+		"color.surface.floating": "@green-800",
+		"color.surface.highlight": "@stone-700",
+		"color.border.subtle": "@paper/0.10",
+		"color.field.background": "@black/0.26",
+		"color.field.background.readonly": "@paper/0.06",
+		"color.state.success.border": "transparent",
+		"color.state.warning.border": "transparent",
+		"color.state.danger.border": "transparent",
+		"shadow.control": "0 0 0 1px @paper/0.07, 0 1px 2px @black/0.40",
+		"shadow.card": "0 0 0 1px @paper/0.07, 0 1px 2px @black/0.32, 0 6px 14px -2px @black/0.30",
+		"shadow.floating": "0 0 0 1px @paper/0.13, 0 6px 16px -2px @black/0.45, 0 22px 48px -8px @black/0.60"
+	},
+	"high-contrast": {
+		"shadow.floating": "0 0 0 2px @black"
+	},
+	"css": [
+		"token defaults (every action and field component): under a fine pointer the default is the natural target (32px) and the type sizes as the theme gives them. The compact target and the 1px step down are removed as a default; compact stays as something a host asks for. The date, time, date-range and colour pickers then match the field beside them with no change.",
+		"button, icon-button: no movement on hover or press; primary and danger carry shadow.control and go flat when pressed; quiet has no border; icon 16px in a 32px button; disabled at 0.5.",
+		"text-field, text-area, combobox, date-picker, time-picker (.control-frame) and select, date-range-picker, color-picker (.trigger): fill from color.field.background (and .readonly), text from color.field.text, placeholder from color.field.placeholder, focus edge from color.field.border.focus. The edge is a hairline (border.subtle) with one rule under it in color.field.border, which holds 3:1; the full outline returns for focus (2px in the focus colour plus a soft halo) and for invalid. No resting shadow, no translateY on focus. Label and supporting text sit 6px from the control.",
+		"text-field, text-area: supporting text under an invalid value takes the danger text colour.",
+		"select, combobox: the popup is the floating surface with radius.lg and no border; the caret is smaller and muted. date-picker, date-range-picker: the calendar in the popup takes the floating surface and shadow.",
+		"option: defines the sizes its action token block lacks (it drew at 16px in a bare listbox); chosen is color.surface.selected with a trailing tick, no border; the row the keys are on is tinted, and ringed only when its list says the keyboard is there. listbox: radius.lg, shadow.card, no border.",
+		"checkbox, radio, switch: the mark sits on the first line of its label (it was centred on the row, so a label with supporting text sat above it); 2px between label and supporting text; no shadow on the mark; the edge darkens under the pointer; focus is a 2px ring offset by 2px; invalid reads color.field.border.invalid, not the message border. checkbox: box-sizing: border-box, so it is 16px like the radio. radio: the host's own browser outline removed. radio-group: vertical rows stack without a gap.",
+		"switch: redrawn as a slide key. A filled slot one text line tall (20 by 36px, radius 6px) in color.border.strong when off, the selected fill with a 1px selected border when on; a squared 16px key (radius.sm) that crosses it and shows a tick when on. No outline at rest.",
+		"segmented-control: defines the radius it read and never had; the track is a well (a wash of the text colour) with no border or shadow. segment: defines its missing sizes; 28px keys in a 32px track; the chosen key is color.surface.highlight with shadow.control.",
+		"pagination: defines the eight private properties it read and never had; 32px buttons, tabular numerals; the current page is filled like a secondary button.",
+		"slider, range-slider: rail is a well; the fill shows by default in the selected foreground; the thumb is 16px in the same colour with shadow.control, not shadow.floating. progress: 6px round track as a well; the value in caption size, tabular.",
+		"card: radius.lg; an outline card is the card surface with shadow.control and no drawn border; header and footer are bands of color.surface.subtle; no lift on hover.",
+		"alert: no tinted disc behind the icon, icon on the title's line, radius.lg, title at 500; the default tone is a band with no border. The toned outlines are still drawn from color.state.*.border, which this theme sets to transparent and high contrast keeps.",
+		"badge: defines its missing weight; no border except on the outline appearance; radius 6px; subtle is the fill at 65%.",
+		"accordion: one raised panel (card surface, shadow.control, radius.lg). accordion-item: defines its missing sizes (headers drew at 16px); no side borders, a hairline between items, none between a header and its panel.",
+		"tabs, tab (open appearance): the chosen tab is a filled key (secondary background and border), no rule under the row, no underline indicator; 500 weight; hover no longer mixes with a literal white.",
+		"tree: framed surface has radius.lg and no border. tree-item: a chosen row is color.surface.selected with no ring.",
+		"menu: defines the spacing it read and never had; floating surface, radius.lg, no border; the separator has a height (block-size: thin was not a length). menu-item: 8px inline padding, focus tinted as hover is.",
+		"popover, toast, snackbar: floating surface, radius.lg, no border. tooltip: inverted (primary action colours), 6px radius, shadow.card, and as wide as its text (it wrapped to the anchor's width).",
+		"dialog: floating surface, radius.lg + 4px, no border; no rule under the header; the title in the heading face at title-sm; the footer is a band.",
+		"text (title-sm, title-md) and dialog title: the heading face, Space Grotesk, written into the patch as var(--font-family-heading, ...). It would become a heading family token.",
+		"empty-state: the outline appearance is a dashed edge. skeleton: no literal white. calendar: no border beside its shadow; squared day cells; the chosen day is the selected fill and foreground, not the success colour under a literal white. persona: no border or shadow, box-sizing: border-box (it was 34px).",
+		"conversation: message (assistant) has no box, padding or fill; reasoning-block is a line of muted text that opens; tool-call-card is a band with the command name in the mono face and no outline; tool-result-card is a line, with its output in a well when open; approval-card is the one raised card (shadow.card), its toned header full width, no empty footer once answered; chat-suggestions are filled and 32px tall; chat-composer is raised with no border; thread and message gaps are 12px.",
+		"fields: the fill goes toward the base (white in light, black in dark) so a field reads as a place to type and separates from buttons, which go darker; the edge is an inner cut (a 3:1 rule on the top inner edge and a small inset shadow) where cards and buttons carry their shadow outside. Needs a shadow.well token: the inset is a literal in the patch.",
+		"spinner: Trace, chosen by the owner from six ideas (fast-af/review/spinner.html): a run round a rounded square in place of the ring, at 16, 24 and 32px. The component needs the two rects in its template; the patch draws it as a mask."
+	],
+	"adds": [
+		"font.family.heading"
+	]
+}

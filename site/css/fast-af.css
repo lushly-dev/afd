@@ -1,0 +1,791 @@
+/* ============================================================
+   FAST-AF — the page (proposal)
+   ------------------------------------------------------------
+   Loaded after area-kit.css. The page runs the real library:
+   every component is mounted in a stage (a shadow root that
+   holds the components' own theme), the picker is .record from
+   area-kit.css, and the facts are read from the component pack.
+   Tokens only: no hex values, no px font sizes.
+   ============================================================ */
+
+/* ── A stage: where real components are mounted ──────────────── */
+
+.fa-stage {
+	/* A grid, so the stage root inside fills the whole height. */
+	display: grid;
+	min-height: 220px;
+	/* Until the theme arrives; the stage's own root paints over it. */
+	background: var(--afd-white);
+	color: var(--afd-ink);
+}
+
+.fa-stage--hero {
+	min-height: 0;
+}
+
+.fa-stage--app {
+	min-height: 320px;
+	border: var(--rule-thin) solid var(--color-rule);
+}
+
+.fa-wait {
+	margin: 0;
+	padding: var(--space-5);
+	color: var(--afd-stone-500);
+	font: var(--t-label) / 1.6 var(--mono);
+}
+
+.fa-shown .fa-stage {
+	margin-block: var(--space-4);
+}
+
+/* ── Fig. 01: the index ──────────────────────────────────────── */
+
+.fa-index {
+	grid-template-columns: minmax(0, 0.42fr) minmax(0, 1.5fr);
+}
+
+.fa-pick {
+	display: grid;
+	gap: var(--space-3);
+	min-width: 0;
+}
+
+.fa-find {
+	display: grid;
+	gap: var(--space-2);
+	color: var(--color-on-dark-muted);
+}
+
+.fa-find .mono {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-find input {
+	width: 100%;
+	padding: var(--space-3) var(--space-4);
+	border: var(--rule-thin) solid var(--color-on-dark-line);
+	border-radius: 0;
+	background: var(--afd-black);
+	color: var(--color-on-dark);
+	font: var(--t-small) / 1.4 var(--font-sans);
+}
+
+.fa-find input::placeholder {
+	color: var(--color-on-dark-muted);
+}
+
+.fa-find input:focus-visible {
+	outline: var(--rule) solid var(--accent-agent);
+	outline-offset: 2px;
+}
+
+.fa-list {
+	max-height: 760px;
+	overflow-y: auto;
+	align-content: start;
+	padding-right: var(--space-1);
+}
+
+.fa-list button {
+	padding-block: var(--space-2);
+	font-family: var(--mono);
+	font-size: var(--t-code);
+	overflow-wrap: anywhere;
+}
+
+.fa-found {
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-card figcaption {
+	align-items: center;
+	flex-wrap: wrap;
+}
+
+.fa-card figcaption [data-card-tag] {
+	font-size: var(--t-small);
+}
+
+.fa-card figcaption .fa-themes {
+	white-space: normal;
+}
+
+.fa-themes button,
+.fa-examples button,
+.fa-tabs button {
+	min-height: 0;
+	padding: var(--space-1) var(--space-3);
+}
+
+.fa-summary {
+	margin: 0;
+	padding: var(--space-5) var(--space-5) 0;
+	color: var(--color-on-dark);
+	font-size: var(--t-body);
+	line-height: var(--leading-snug);
+}
+
+.fa-summary[data-missing] {
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+}
+
+.fa-examples {
+	padding: var(--space-4) var(--space-5);
+}
+
+.fa-card .fa-stage {
+	max-height: 560px;
+	margin-inline: var(--space-5);
+	overflow: auto;
+}
+
+.fa-heard {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--space-2) var(--space-4);
+	min-height: 3.4em;
+	margin: 0;
+	padding: var(--space-4) var(--space-5);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.fa-heard .mono {
+	flex-shrink: 0;
+	color: var(--afd-red-300);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-heard code,
+.fa-log code,
+.fa-said code {
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.fa-heard code {
+	color: var(--color-on-dark);
+}
+
+.fa-tabs {
+	padding: var(--space-4) var(--space-5);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.fa-card .fa-panel pre {
+	height: 260px;
+	padding-top: 0;
+	white-space: pre;
+	overflow-wrap: normal;
+}
+
+.fa-scroll {
+	height: 260px;
+	padding: 0 var(--space-5) var(--space-5);
+	overflow: auto;
+}
+
+.fa-scroll h4 {
+	margin: var(--space-5) 0 var(--space-2);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-scroll h4:first-child {
+	margin-top: 0;
+}
+
+.fa-facts {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.fa-facts th {
+	padding: 0 var(--space-4) var(--space-2) 0;
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.fa-facts td {
+	padding: var(--space-2) var(--space-4) var(--space-2) 0;
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark);
+	vertical-align: top;
+}
+
+.fa-facts td:last-child {
+	padding-right: 0;
+	white-space: nowrap;
+}
+
+.fa-facts code {
+	color: var(--accent-agent);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.fa-type {
+	color: var(--color-on-dark-muted);
+	font: var(--t-code) / 1.5 var(--mono);
+	overflow-wrap: anywhere;
+}
+
+.fa-none {
+	margin: 0;
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+}
+
+.fa-said {
+	display: grid;
+	gap: var(--space-3);
+	margin: 0;
+	padding: 0;
+	list-style: none;
+	color: var(--color-on-dark);
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+.fa-said .mark,
+.fa-none .mark {
+	margin-left: var(--space-1);
+}
+
+/* ── Fig. 02: events in, commands out ────────────────────────── */
+
+#intent .surface-hint {
+	margin-top: var(--space-7);
+	color: var(--color-text);
+}
+
+#intent .surface-hint b {
+	color: var(--accent-human-text);
+}
+
+.fa-flow {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.25fr);
+	gap: var(--space-5);
+	align-items: stretch;
+}
+
+.fa-flow figure {
+	display: grid;
+	grid-template-rows: auto minmax(0, 1fr);
+	gap: var(--space-2);
+	min-width: 0;
+	margin: 0;
+}
+
+.fa-flow figcaption {
+	color: var(--color-text-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-log {
+	display: grid;
+	align-content: start;
+	gap: var(--space-3);
+	height: 320px;
+	margin: 0;
+	padding: var(--space-5);
+	overflow-y: auto;
+	border-top: var(--rule-heavy) solid var(--accent-human);
+	background: var(--color-code-bg);
+	color: var(--color-code-text);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+	list-style: none;
+}
+
+.fa-log li {
+	display: grid;
+	grid-template-columns: 7.5em minmax(0, 1fr);
+	gap: var(--space-3);
+	align-items: baseline;
+}
+
+.fa-log .mono {
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-log [data-layer="component"] .mono {
+	color: var(--afd-red-300);
+}
+
+.fa-log [data-layer="command"] .mono,
+.fa-log [data-layer="command"] code {
+	color: var(--accent-agent);
+}
+
+.fa-log code {
+	overflow-wrap: anywhere;
+}
+
+.fa-log .fa-log-empty {
+	display: block;
+	color: var(--color-on-dark-muted);
+}
+
+.fa-verdict {
+	max-width: 820px;
+	margin-top: var(--space-6);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+	line-height: 1.4;
+}
+
+.fa-verdict:empty {
+	display: none;
+}
+
+.fa-wiring {
+	margin-top: var(--space-7);
+}
+
+.fa-wiring pre {
+	overflow: auto;
+}
+
+/* ── Fig. 03: FAST, and what is added ────────────────────────── */
+
+.fa-fast {
+	display: grid;
+	grid-template-columns: minmax(0, 0.5fr) minmax(0, 1.5fr);
+	gap: var(--space-5);
+	margin-top: var(--space-8);
+	padding-block: var(--space-6);
+	border-block: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.fa-fast > .mono,
+.fa-add-text > .mono {
+	color: var(--accent-agent);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-fast-name {
+	margin: 0 0 var(--space-3);
+	font: var(--t-title) / 1 var(--font-display);
+	letter-spacing: 0.01em;
+}
+
+.fa-fast p:not(.fa-fast-name) {
+	max-width: 62ch;
+	margin: 0 0 var(--space-3);
+	color: var(--color-on-dark);
+	line-height: var(--leading-body);
+}
+
+.fa-fast .start-links {
+	margin-top: var(--space-4);
+}
+
+.fa-add {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1.2fr);
+	gap: var(--space-7);
+	align-items: start;
+	margin-top: var(--space-8);
+	padding-top: var(--space-6);
+	border-top: var(--rule) solid var(--color-on-dark-line);
+}
+
+.fa-add-text h3 {
+	margin: var(--space-3) 0 var(--space-4);
+	font-size: var(--t-title);
+	font-weight: var(--weight-strong);
+	line-height: 1.1;
+}
+
+.fa-add-text p {
+	max-width: 52ch;
+	margin: 0 0 var(--space-3);
+	color: var(--color-on-dark);
+	line-height: var(--leading-body);
+}
+
+.fa-add-text .fa-native,
+.fa-add-text .fa-agree {
+	margin-top: var(--space-5);
+	color: var(--color-on-dark-muted);
+}
+
+.fa-add-text .fa-agree {
+	font-size: var(--t-small);
+}
+
+.fa-gives {
+	display: grid;
+	gap: var(--space-5);
+	margin: 0;
+}
+
+.fa-gives dt {
+	margin-bottom: var(--space-1);
+	font-weight: var(--weight-strong);
+}
+
+.fa-gives dd {
+	max-width: 52ch;
+	margin: 0;
+	color: var(--color-on-dark);
+	line-height: var(--leading-body);
+}
+
+.fa-live {
+	margin: 0;
+}
+
+.fa-live figcaption {
+	padding-bottom: var(--space-3);
+	border-bottom: var(--rule-heavy) solid var(--accent-agent);
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+}
+
+.fa-live-stage {
+	padding: var(--space-5);
+	background: var(--afd-black);
+}
+
+.fa-live-said {
+	margin: 0;
+	padding-top: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.fa-add-run {
+	min-width: 0;
+}
+
+.fa-compare {
+	width: 100%;
+	border-collapse: collapse;
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.fa-compare caption {
+	padding-bottom: var(--space-3);
+	color: var(--color-on-dark-muted);
+	letter-spacing: var(--tracking-label);
+	text-align: left;
+	text-transform: uppercase;
+}
+
+.fa-compare th,
+.fa-compare td {
+	padding: var(--space-3) var(--space-4) var(--space-3) 0;
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	text-align: left;
+	vertical-align: top;
+}
+
+.fa-compare thead th {
+	border-top: var(--rule-heavy) solid var(--accent-agent);
+	color: var(--color-on-dark);
+	font: var(--weight-medium) var(--t-code) / 1.4 var(--mono);
+}
+
+.fa-compare tbody th {
+	color: var(--color-on-dark-muted);
+	font-weight: var(--weight-regular);
+}
+
+.fa-compare code {
+	color: var(--accent-agent);
+	font: var(--t-code) / 1.5 var(--mono);
+}
+
+.fa-compare-note {
+	margin: 0;
+	padding-top: var(--space-3);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+.fa-again {
+	margin-top: var(--space-4);
+	border-color: var(--color-on-dark);
+	color: var(--color-on-dark);
+}
+
+.fa-again:hover {
+	border-color: var(--accent-agent);
+	color: var(--accent-agent);
+}
+
+.fa-source {
+	margin-top: var(--space-5);
+	border-top: var(--rule-thin) solid var(--color-on-dark-line);
+}
+
+.fa-source summary {
+	padding-block: var(--space-3);
+	color: var(--color-on-dark-muted);
+	font: var(--t-label) / 1.5 var(--mono);
+	letter-spacing: var(--tracking-label);
+	text-transform: uppercase;
+	cursor: pointer;
+}
+
+.fa-source pre {
+	max-height: 420px;
+	margin: 0;
+	padding: var(--space-5);
+	overflow: auto;
+	background: var(--afd-black);
+	color: var(--color-code-text);
+	font: var(--t-label) / 1.75 var(--mono);
+}
+
+.fa-add .command-source pre {
+	height: 340px;
+	overflow: auto;
+}
+
+.fa-numbers {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: var(--space-5);
+	margin: 0;
+}
+
+.fa-numbers > div {
+	padding-top: var(--space-3);
+	border-top: var(--rule-heavy) solid var(--accent-agent);
+}
+
+.fa-numbers dt {
+	font: var(--t-title) / 1.1 var(--font-display);
+}
+
+.fa-numbers dd {
+	margin: var(--space-2) 0 0;
+	color: var(--color-on-dark-muted);
+	font-size: var(--t-small);
+	line-height: var(--leading-snug);
+}
+
+/* ── Fig. 04: what an agent is told ──────────────────────────── */
+
+.fa-bases {
+	margin-top: var(--space-8);
+}
+
+.fa-bases-total {
+	margin: 0 0 var(--space-5);
+	font-size: var(--t-lead);
+	font-weight: var(--weight-thin);
+}
+
+.fa-bases dl {
+	display: grid;
+	grid-template-columns: repeat(4, minmax(0, 1fr));
+	gap: var(--space-5);
+	margin: 0;
+}
+
+.fa-bases dl > div {
+	display: grid;
+	align-content: start;
+	gap: var(--space-2);
+	padding-top: var(--space-4);
+	border-top: var(--rule) solid var(--afd-ink);
+}
+
+.fa-bases dt {
+	display: flex;
+	flex-wrap: wrap;
+	align-items: baseline;
+	gap: var(--space-3);
+}
+
+.fa-bases dt b {
+	font: var(--t-title) / 1 var(--font-display);
+}
+
+.fa-bases dd {
+	margin: 0;
+	font-size: var(--t-small);
+	line-height: var(--leading-body);
+}
+
+/* How much of the pack each kind is. */
+.fa-share {
+	display: block;
+	width: calc(var(--share) * 100%);
+	min-width: var(--rule-heavy);
+	height: var(--rule-heavy);
+	margin-top: var(--space-2);
+	background: var(--afd-ink);
+}
+
+.fa-gaps {
+	display: grid;
+	grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+	gap: var(--space-7);
+	margin-top: var(--space-8);
+	padding-top: var(--space-6);
+	border-top: var(--rule-thin) solid var(--afd-ink);
+}
+
+.fa-gaps h3 {
+	margin: 0 0 var(--space-4);
+	font-size: var(--t-title);
+	font-weight: var(--weight-strong);
+	line-height: 1.1;
+}
+
+.fa-gaps p:not(.result-live) {
+	max-width: 52ch;
+	line-height: var(--leading-body);
+}
+
+.fa-gaps .result-live {
+	color: var(--accent-agent-text);
+}
+
+.fa-gaps .result-live a {
+	color: inherit;
+}
+
+.fa-gap-list {
+	display: grid;
+	gap: 0;
+	margin: 0;
+	padding: 0;
+	list-style: none;
+}
+
+.fa-gap-list li {
+	display: grid;
+	grid-template-columns: 3.2em minmax(0, 1fr);
+	align-items: baseline;
+	gap: var(--space-3);
+	padding-block: var(--space-3);
+	border-bottom: var(--rule-thin) solid var(--afd-ink);
+}
+
+.fa-gap-list b {
+	font: var(--t-lead) / 1 var(--font-display);
+}
+
+/* ── Fig. 05: the start ──────────────────────────────────────── */
+
+#start .installs {
+	margin-top: var(--space-7);
+}
+
+/* ── Narrower ────────────────────────────────────────────────── */
+
+@media (max-width: 1100px) {
+	.fa-index {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.fa-list {
+		max-height: 190px;
+	}
+
+	.fa-list button {
+		padding: var(--space-1) var(--space-3);
+	}
+}
+
+@media (max-width: 850px) {
+	.fa-flow,
+	.fa-add,
+	.fa-gaps,
+	.fa-fast {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.fa-add {
+		gap: var(--space-5);
+	}
+
+	.fa-bases dl {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+@media (max-width: 620px) {
+	.fa-bases dl,
+	.fa-numbers {
+		grid-template-columns: minmax(0, 1fr);
+	}
+
+	.fa-card .fa-stage {
+		margin-inline: var(--space-3);
+	}
+
+	/* A row of facts becomes a block, each cell under its own label. */
+	.fa-facts thead {
+		display: none;
+	}
+
+	.fa-facts tr {
+		display: grid;
+		gap: var(--space-1);
+		padding-block: var(--space-3);
+		border-top: var(--rule-thin) solid var(--color-on-dark-line);
+	}
+
+	.fa-facts td {
+		display: grid;
+		grid-template-columns: 7.5em minmax(0, 1fr);
+		gap: var(--space-3);
+		padding: 0;
+		border: 0;
+	}
+
+	.fa-facts td:empty {
+		display: none;
+	}
+
+	.fa-facts td::before {
+		content: attr(data-label);
+		color: var(--color-on-dark-muted);
+		font: var(--t-label) / 1.8 var(--mono);
+		letter-spacing: var(--tracking-label);
+		text-transform: uppercase;
+	}
+
+	.fa-facts td:last-child {
+		white-space: normal;
+	}
+
+	.fa-log li {
+		grid-template-columns: minmax(0, 1fr);
+		gap: 0;
+	}
+
+	.fa-compare th,
+	.fa-compare td {
+		padding-right: var(--space-2);
+	}
+}

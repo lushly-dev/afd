@@ -1,0 +1,16 @@
+{
+	"format": 1,
+	"library": "bench",
+	"rules": [
+		{
+			"appliesTo": {
+				"tags": [
+					"change-bar"
+				]
+			},
+			"basis": "authored",
+			"id": "bars.one-main-action",
+			"text": "A bar has one main action. Everything else in it is a plain button."
+		}
+	]
+}
