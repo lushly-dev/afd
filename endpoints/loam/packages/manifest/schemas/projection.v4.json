@@ -2,7 +2,7 @@
 	"$schema": "https://json-schema.org/draft/2020-12/schema",
 	"$id": "https://afd.dev/loam/schemas/projection.v4.json",
 	"title": "Loam browser projection, version 4",
-	"description": "deployment.json, written from the deployment file: version 3, which it also reads, with the host that serves it (phase 6 specification, 3.3): its kind, and for the hosted server the same-origin path of its trust-record transport under base_path. It has no key for a location, a credential, a command line, a secret or an organization id, and it is closed at every depth. A projection before version 4 is static.",
+	"description": "deployment.json, written from the deployment file: version 3, which it also reads, with the host that serves it (phase 6 specification, 3.3): its kind, and for the hosted server the same-origin path of its trust-record transport under base_path. It has no key for a location, a credential, a command line, a secret or an organization id, and it is closed at every depth. From version 4 also the copilot's providers (phase 5 specification, 4.1): each one's id, kind and model, never a key or an endpoint. A projection before version 4 is static.",
 	"type": "object",
 	"properties": {
 		"deployment_version": {
@@ -51,6 +51,9 @@
 		"host": {
 			"$ref": "#/$defs/host"
 		},
+		"copilot": {
+			"$ref": "#/$defs/copilot"
+		},
 		"apps": {
 			"type": "array",
 			"items": {
@@ -70,7 +73,8 @@
 	"then": {
 		"properties": {
 			"identity": false,
-			"host": false
+			"host": false,
+			"copilot": false
 		}
 	},
 	"$defs": {
@@ -328,6 +332,38 @@
 					"kernel": false
 				}
 			}
+		},
+		"copilot": {
+			"type": "object",
+			"properties": {
+				"default": {
+					"type": "string",
+					"pattern": "^[a-z][a-z0-9-]{0,31}$"
+				},
+				"providers": {
+					"type": "array",
+					"items": {
+						"type": "object",
+						"properties": {
+							"id": {
+								"type": "string",
+								"pattern": "^[a-z][a-z0-9-]{0,31}$"
+							},
+							"kind": {
+								"enum": ["anthropic", "openai", "openai-compatible", "test"]
+							},
+							"model": {
+								"type": "string",
+								"pattern": "^[A-Za-z0-9][A-Za-z0-9._:/@-]{0,127}$"
+							}
+						},
+						"required": ["id", "kind", "model"],
+						"additionalProperties": false
+					}
+				}
+			},
+			"required": ["default", "providers"],
+			"additionalProperties": false
 		}
 	},
 	"else": {
@@ -340,7 +376,8 @@
 		},
 		"then": {
 			"properties": {
-				"host": false
+				"host": false,
+				"copilot": false
 			}
 		}
 	}

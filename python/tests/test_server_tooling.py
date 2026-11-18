@@ -44,7 +44,7 @@ class TestToolStrategies:
         assert {"afd-call", "afd-batch", "afd-pipe", "afd-help", "afd-docs", "afd-schema"} <= tool_names
         assert "todo-create" in tool_names
 
-    def test_grouped_strategy_groups_user_commands_but_keeps_bootstrap_direct(self):
+    def test_grouped_strategy_lists_the_meta_tools_then_the_groups(self):
         server = create_server("test-app", tool_strategy="grouped")
 
         @server.command(
@@ -64,10 +64,27 @@ class TestToolStrategies:
         async def todo_list(input):
             return success({"items": []})
 
-        tool_names = _tool_names(server)
-        assert "todo" in tool_names
-        assert "todo-create" not in tool_names
-        assert "afd-help" in tool_names
+        # The five meta-tools in the hybrid order, then each group in the order of its first
+        # command, the bootstrap commands among them (spec/tool-strategies.md, #533).
+        tools = server.get_tool_definitions()
+        assert [tool["name"] for tool in tools] == [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
+            "afd-batch",
+            "afd-pipe",
+            "todo",
+            "bootstrap",
+        ]
+        todo = tools[5]
+        assert todo["inputSchema"]["properties"]["action"]["enum"] == ["create", "list"]
+        assert [entry["command"] for entry in todo["_meta"]["actions"]] == [
+            "todo-create",
+            "todo-list",
+        ]
+        branches = todo["inputSchema"]["properties"]["params"]["anyOf"]
+        assert [branch["title"] for branch in branches] == ["create", "list"]
+        assert tools[6]["inputSchema"]["properties"]["action"]["enum"] == ["help", "docs", "schema"]
 
     def test_grouped_strategy_prefers_explicit_category(self):
         server = create_server("test-app", tool_strategy="grouped")
@@ -86,7 +103,7 @@ class TestToolStrategies:
         assert "planning" in tool_names
         assert "todo" not in tool_names
 
-    def test_lazy_strategy_exposes_discovery_tools_and_bootstrap(self):
+    def test_lazy_strategy_lists_the_meta_tools_only_without_contexts(self):
         server = create_server("test-app", tool_strategy="lazy")
 
         @server.command(
@@ -98,9 +115,32 @@ class TestToolStrategies:
         async def todo_create(input: MathInput):
             return success({"total": input.value})
 
-        tool_names = _tool_names(server)
-        assert {"afd-discover", "afd-detail", "afd-call", "afd-help", "afd-schema"} <= tool_names
-        assert "todo-create" not in tool_names
+        # The hybrid list with no first-class tools: no bootstrap tools, and no context tools
+        # without contexts (#533).
+        assert [tool["name"] for tool in server.get_tool_definitions()] == [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
+            "afd-batch",
+            "afd-pipe",
+        ]
+
+    def test_lazy_strategy_adds_the_context_tools_with_contexts(self):
+        server = create_server(
+            "test-app",
+            tool_strategy="lazy",
+            contexts=[ContextConfig(name="reading"), ContextConfig(name="editing")],
+        )
+        assert [tool["name"] for tool in server.get_tool_definitions()] == [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
+            "afd-batch",
+            "afd-pipe",
+            "afd-context-list",
+            "afd-context-enter",
+            "afd-context-exit",
+        ]
 
     @pytest.mark.asyncio
     async def test_grouped_tool_executes_action(self):
@@ -488,3 +528,66 @@ class TestFastMcpRegistration:
 
         after_names = {tool.name for tool in await mcp.list_tools()}
         assert "doc-edit" not in after_names
+
+
+def test_the_meta_tools_are_spec_meta_tools_json_field_for_field():
+    """Every language advertises the same meta-tools (spec/tool-strategies.md, #533)."""
+    import json
+    from pathlib import Path
+
+    from afd.server.tools import META_TOOLS
+
+    spec = json.loads(
+        (Path(__file__).resolve().parents[2] / "spec" / "meta-tools.json").read_text(encoding="utf-8")
+    )
+    by_name = {tool["name"]: tool for tool in spec}
+    assert [tool["name"] for tool in META_TOOLS] == [
+        "afd-discover",
+        "afd-detail",
+        "afd-call",
+        "afd-batch",
+        "afd-pipe",
+    ]
+    for tool in META_TOOLS:
+        assert tool == by_name[tool["name"]], tool["name"]
+
+
+def test_grouped_confirm_is_beside_action_never_in_params():
+    """TypeScript's shape: a confirm-gated group takes `confirm` at its top level, and neither
+    `_meta.actions` nor the `params.anyOf` branches carry it (#533)."""
+    server = create_server("test-app", confirmations="enforce")
+
+    @server.command(
+        name="todo-clear",
+        description="Clear todos",
+        confirm_prompt="Clear every todo?",
+        expose=ExposeOptions(mcp=True),
+    )
+    async def todo_clear(input):
+        return success({"cleared": 0})
+
+    todo = next(tool for tool in server.get_tool_definitions() if tool["name"] == "todo")
+    properties = todo["inputSchema"]["properties"]
+    assert "confirm" in properties
+    entry = todo["_meta"]["actions"][0]
+    assert "confirm" not in (entry["inputSchema"].get("properties") or {})
+    for branch in properties["params"]["anyOf"]:
+        assert "confirm" not in (branch.get("properties") or {})
+
+
+def test_the_bootstrap_group_lists_the_context_tools_first():
+    server = create_server(
+        "test-app",
+        contexts=[ContextConfig(name="reading"), ContextConfig(name="editing")],
+    )
+    bootstrap = next(
+        tool for tool in server.get_tool_definitions() if tool["name"] == "bootstrap"
+    )
+    assert bootstrap["inputSchema"]["properties"]["action"]["enum"] == [
+        "context-list",
+        "context-enter",
+        "context-exit",
+        "help",
+        "docs",
+        "schema",
+    ]

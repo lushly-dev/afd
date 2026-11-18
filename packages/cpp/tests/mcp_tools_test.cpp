@@ -203,21 +203,22 @@ TEST_CASE("the meta-tools are spec/meta-tools.json, field for field") {
     }
 }
 
-TEST_CASE("each strategy lists TypeScript's tools in TypeScript's order") {
+TEST_CASE("each strategy lists the five meta-tools first, then its own tools (#533)") {
     Fixture fixture;
     auto individual = make_server(*fixture.registry, {.tool_strategy = ToolStrategy::individual});
     CHECK(names(list(*individual)) ==
-          std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call", "note-create", "note-list",
-                                   "note-delete", "tag-remove", "tag-list", "afd-help", "afd-docs",
-                                   "afd-schema"});
+          std::vector<std::string>{"afd-discover", "afd-detail", "afd-call", "afd-batch",
+                                   "afd-pipe", "note-create", "note-list", "note-delete",
+                                   "tag-remove", "tag-list", "afd-help", "afd-docs", "afd-schema"});
     auto lazy = make_server(*fixture.registry, {.tool_strategy = ToolStrategy::lazy});
-    CHECK(names(list(*lazy)) == std::vector<std::string>{"afd-discover", "afd-detail", "afd-batch",
-                                                         "afd-pipe", "afd-call"});
+    CHECK(names(list(*lazy)) == std::vector<std::string>{"afd-discover", "afd-detail", "afd-call",
+                                                         "afd-batch", "afd-pipe"});
     // The default: one tool per group, in the order of each group's first command.
     auto grouped = make_server(*fixture.registry);
     const Json tools = list(*grouped);
-    CHECK(names(tools) == std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call",
-                                                   "afd-detail", "notes", "tag", "bootstrap"});
+    CHECK(names(tools) == std::vector<std::string>{"afd-discover", "afd-detail", "afd-call",
+                                                   "afd-batch", "afd-pipe", "notes", "tag",
+                                                   "bootstrap"});
     CHECK(send(*grouped, request(1, "tools/list"))["result"]["tools"] == tools);
     CHECK(grouped->tools() == tools);
 
@@ -230,8 +231,27 @@ TEST_CASE("each strategy lists TypeScript's tools in TypeScript's order") {
             }
             return std::string("app");
         }});
-    CHECK(names(list(*by)) == std::vector<std::string>{"afd-batch", "afd-pipe", "afd-call",
-                                                       "afd-detail", "app", "general"});
+    CHECK(names(list(*by)) == std::vector<std::string>{"afd-discover", "afd-detail", "afd-call",
+                                                       "afd-batch", "afd-pipe", "app", "general"});
+}
+
+TEST_CASE("lazy lists the meta-tools and the context tools, the same in every context") {
+    Fixture fixture(true);
+    auto server = make_server(*fixture.registry,
+                              {.tool_strategy = ToolStrategy::lazy, .contexts = fixture.contexts});
+    const std::vector<std::string> expected{
+        "afd-discover", "afd-detail",       "afd-call",          "afd-batch",
+        "afd-pipe",     "afd-context-list", "afd-context-enter", "afd-context-exit"};
+    CHECK(names(list(*server)) == expected);
+    Json reading = modern_meta();
+    reading["dev.afd/context"] = "reading";
+    CHECK(names(list(*server, reading)) == expected);
+    // It does not vary by context, so it keeps the default ttlMs.
+    CHECK(send(*server, request(1, "tools/list", {{"_meta", modern_meta()}}))["result"]["ttlMs"] ==
+          300000);
+    auto grouped = make_server(*fixture.registry, {.contexts = fixture.contexts});
+    CHECK(send(*grouped, request(1, "tools/list", {{"_meta", modern_meta()}}))["result"]["ttlMs"] ==
+          0);
 }
 
 TEST_CASE("a grouped tool takes { action, params } and describes every action") {

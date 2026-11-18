@@ -293,12 +293,14 @@ export const CEILINGS = Object.freeze({
 	// (+3,603) and 92,996 to 94,579 gzip (+1,583), the runtime's DOM sink guards on every entrypoint and its
 	// hydration markers and traversal; set to each measurement plus a margin. `surfaces` (+100), the cold
 	// `switcher` (+100) and `tooltip` (+5) are within their rows.
-	// Raised from 304,000 to 304,700 by AFD's theme, Refined (D159, D115): measured against
-	// `lush/violet-elements-refined` at `c8a5f7b6` on the same machine, 303,794 to 304,186 (+392): the entry's
-	// import of the typefaces' stylesheet and the chrome reading the font tokens; gzip 94,907 to 94,807, within its
-	// ceiling. Set to the measurement plus a margin.
-	jsMinified: 304_700,
-	jsGzip: 95_500,
+	// Raised again under D115 by phase 5's step 2 (model access on the desktop), measured at its final head with
+	// `main` at `e96c2f00` merged in: first paint 305,658 of 304,000 and 95,533 of 95,500 gzip (stage A's strict
+	// reader of the projection's `copilot`, the lazy copilot handed to the kernel and the panel, the panel part's
+	// column and scroll stop, and the shell's reset on a sign-in or sign-out), set to 308,000 and 96,500. AFD's
+	// theme, Refined (D159), adds 392 (the entry's import of the typefaces' stylesheet and the chrome reading the
+	// font tokens); measured with it merged onto `main`, 307,063 and 95,739 gzip, which these ceilings hold.
+	jsMinified: 308_000,
+	jsGzip: 96_500,
 	// Raised from 8,496 to 10,500 by AFD's theme, Refined (D159, D115): `loam-theme.css` 8,217 to 8,431 (+214, the
 	// longer shadows and the three font stacks), and the theme's typefaces' `@font-face` rules, 1,820, the first
 	// stylesheet `index.html` links; measured 10,251, plus a margin.
@@ -306,7 +308,8 @@ export const CEILINGS = Object.freeze({
 	// AFD's typefaces (D159): six latin woff2 files, Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono
 	// 400 and 500, 115,268 bytes, which first paint's text asks for; plus a margin.
 	fontsBytes: 116_000,
-	kernelMinified: 116_800,
+	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
+	kernelMinified: 118_000,
 	lateMinified: 80_500,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
@@ -320,7 +323,8 @@ export const CEILINGS = Object.freeze({
 	accountMenuMinified: 5_400,
 	accountMinified: 28_000,
 	urlMinified: 5_700,
-	appsMinified: 395_700,
+	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
+	appsMinified: 397_000,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.

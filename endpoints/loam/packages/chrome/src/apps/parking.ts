@@ -22,8 +22,12 @@ export interface Parked {
 /** Take a part's app elements out, keeping where they were scrolled to; `parked` stays when it has none. */
 export function park(part: HTMLElement, parked: Parked | undefined): Parked | undefined {
 	const body = part.shadowRoot?.querySelector('.body');
+	// The copilot's panel is the shell's, not the app's: it stays in the part when apps switch (phase 5's 3.2).
 	const elements = [...part.children].filter(
-		(child) => child.getAttribute('slot') !== 'handle' && child.localName !== 'loam-empty-state'
+		(child) =>
+			child.getAttribute('slot') !== 'handle' &&
+			child.localName !== 'loam-empty-state' &&
+			child.localName !== 'loam-copilot-panel'
 	) as HTMLElement[];
 	if (elements.length === 0) return parked;
 	const scroll = elements.flatMap((element) => scrollOffsets(element));

@@ -9,6 +9,7 @@ import { appCheck } from './app-check.js';
 import { appNew } from './app-new.js';
 import { appPack } from './app-pack.js';
 import type { AppCheckReport } from './check.js';
+import { type CopilotKeySetDeps, copilotKeySet, systemKeySetDeps } from './copilot-key.js';
 import { analyzeDeployment, type DeploymentFinding, writeDeployment } from './deployment.js';
 
 /** A CLI command is on no shell surface: there is no shell here to expose it to. */
@@ -134,6 +135,8 @@ export const deploymentWriteCommand = defineCommand({
 		dist: z.string(),
 		out: z.string(),
 		mountsOut: z.string().optional(),
+		/** A desktop copilot's providers, for the Rust host (phase 5 specification, 4.2). */
+		modelsOut: z.string().optional(),
 		/** The host that serves it (phase 6 specification, 3.3): set when the file names none. */
 		host: z.enum(['static', 'hosted', 'desktop']).optional(),
 	}),
@@ -155,5 +158,50 @@ export const deploymentWriteCommand = defineCommand({
 		);
 	},
 });
+
+/**
+ * `loam copilot key set <provider>` (phase 5 specification, 4.2): the development path for a model's key, at a
+ * terminal. The key is read without echo and never appears in the result.
+ */
+export function createCopilotKeySetCommand(deps: () => CopilotKeySetDeps = systemKeySetDeps) {
+	return defineCommand({
+		name: 'copilot-key-set',
+		title: 'Set a copilot provider’s key',
+		description:
+			"Read a model provider's key without echo, store it in the OS keychain where the deployment names it, and check it.",
+		input: z.object({
+			provider: z.string().regex(/^[a-z][a-z0-9-]{0,31}$/),
+			config: z.string().default('loam.deployment.toml'),
+		}),
+		mutation: true,
+		expose: EXPOSE,
+		async handler(input) {
+			const result = await copilotKeySet(input, deps());
+			if (!result.ok)
+				return failure({
+					code: result.code,
+					message: result.message,
+					suggestion: result.suggestion,
+				});
+			return success(
+				{
+					provider: result.provider,
+					keychain: { service: result.service, account: result.account },
+					checked: result.checked,
+					...(result.answered === undefined ? {} : { answered: result.answered }),
+				},
+				{
+					reasoning: result.checked
+						? 'Stored the key, and the provider accepted it.'
+						: result.answered === undefined
+							? 'Stored the key; the provider could not be reached to check it.'
+							: `Stored the key; the provider answered ${result.answered}, so it was not checked.`,
+				}
+			);
+		},
+	});
+}
+
+export const copilotKeySetCommand = createCopilotKeySetCommand();
 
 export type { AppCheckReport };

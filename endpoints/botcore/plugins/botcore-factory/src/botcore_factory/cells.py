@@ -95,13 +95,47 @@ def describe_plan(plan: Plan, ceiling: float, now: datetime) -> dict:
 
 def read_plans(factory: Factory) -> list[Plan]:
     try:
-        return factory.world.plans.read()
+        plans = factory.world.plans.read()
+        if not plans:
+            raise WorldError("no weekly plan windows")
+        return plans
     except WorldError as exc:
         raise Refusal(
             "PLANS_UNREADABLE",
             f"Cannot read the plans' weekly windows: {exc}",
             "Open T3 Code so it refreshes its usage caches, then retry",
         ) from exc
+
+
+#: Providers whose plans run Claude Code: T3 Code's cache name, and the provider's own name.
+CLAUDE_PROVIDERS = frozenset({"claudeAgent", "anthropic"})
+
+
+def cell_plans(plans: list[Plan], overrides: dict) -> list[Plan]:
+    """The plans a cell may start on: only Claude's while ``cells.claudeOnly`` is on, since
+    cells implement on Opus (the owner's route of 2026-11-17)."""
+    if dials.value(overrides, "cells.claudeOnly"):
+        return [plan for plan in plans if plan.provider in CLAUDE_PROVIDERS]
+    return plans
+
+
+def no_plan_reason(plans: list[Plan], choice: PlanChoice, overrides: dict) -> tuple[str, str, str]:
+    """Why no plan was chosen, as a refusal code, message and suggestion: no Claude plan at
+    all, or every plan a cell may take at its ceiling."""
+    if not plans and dials.value(overrides, "cells.claudeOnly"):
+        return (
+            "NO_CLAUDE_PLAN",
+            "No Claude plan is signed in on this host, and cells.claudeOnly keeps cells on Claude",
+            "Sign in to Claude in T3 Code on the lane host, or dial-set cells.claudeOnly false to "
+            "start cells on any plan",
+        )
+    which = "Claude plan" if dials.value(overrides, "cells.claudeOnly") else "plan"
+    return (
+        "PLAN_ABOVE_CEILING",
+        f"Every {which} is at or above plans.ceiling ({_percent(choice.ceiling)})",
+        f"Start nothing until the next window resets at "
+        f"{choice.next_reset or 'an unknown time'}; lane-status says when canStartCell returns",
+    )
 
 
 def seated(state: dict) -> list[dict]:
@@ -119,7 +153,7 @@ def _validate(issues: list[int], branch: str, route: str) -> None:
     if not branch.strip() or any(c.isspace() for c in branch) or branch.startswith("-"):
         problems.append("branch must be a branch name")
     if not route.strip():
-        problems.append("route must name a model route, e.g. sol/high")
+        problems.append("route must name a model route, e.g. opus/medium")
     if problems:
         raise Refusal(
             "VALIDATION_ERROR",
@@ -188,15 +222,14 @@ def _check_capacity(factory: Factory, state: dict) -> PlanChoice:
             "Start the cell when a seat frees: lane-wait reports merged and queue-room events, "
             "and lane-status says canStartCell",
         )
-    choice = choose_plan(
-        read_plans(factory), dials.value(overrides, "plans.ceiling"), factory.world.clock.now()
-    )
+    plans = cell_plans(read_plans(factory), overrides)
+    choice = choose_plan(plans, dials.value(overrides, "plans.ceiling"), factory.world.clock.now())
     if choice.plan is None:
+        code, message, suggestion = no_plan_reason(plans, choice, overrides)
         raise Refusal(
-            "PLAN_ABOVE_CEILING",
-            f"Every plan is at or above plans.ceiling ({_percent(choice.ceiling)})",
-            f"Start nothing until the next window resets at "
-            f"{choice.next_reset or 'an unknown time'}; lane-status says when canStartCell returns",
+            code,
+            message,
+            suggestion,
             nextReset=choice.next_reset,
         )
     floor = dials.value(overrides, "host.minFreeGb")

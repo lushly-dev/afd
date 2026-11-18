@@ -49,6 +49,7 @@ from afd.core.result import (
 )
 from afd.core.actor import Actor, ContextDefaults, with_context_defaults
 from afd.core.clock import Clock, RandomSource
+from afd.core.direct_allow import _bind_allow, _direct_allows, _is_allowed, _not_allowed
 from afd.core.errors import CommandError, not_found_error, validation_error
 from afd.core.similarity import find_similar_tools, truncate_name
 from afd.core.pipeline import (
@@ -100,6 +101,7 @@ class CommandContext:
     random: Optional[RandomSource] = None
     approval: Optional[str] = None
     _direct_approval: Any = field(default=None, repr=False, compare=False)
+    _direct_allow: Any = field(default=None, repr=False, compare=False)
 
 
 @dataclass
@@ -151,6 +153,10 @@ class DirectClientOptions:
     random: Optional[RandomSource] = None
     on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None
     """Trusted host hook. Only an explicit True permits one private retry."""
+    allow: Optional[Callable[[str], bool]] = None
+    """Permit only names for which this predicate returns True; exceptions deny."""
+    middleware: List[Callable] = field(default_factory=list)
+    """Client middleware wraps each registry attempt, in list order."""
 
 
 @dataclass
@@ -437,6 +443,8 @@ class SimpleRegistry:
         context: Optional[CommandContext] = None,
     ) -> CommandResult:
         """Execute a command by name."""
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
         cmd = self._commands.get(name)
         if not cmd:
             return failure(not_found_error("Command", name))
@@ -529,6 +537,30 @@ class DirectClient:
     ):
         self.registry = registry
         self.options = options or DirectClientOptions()
+
+    def _is_allowed(self, name: str) -> bool:
+        return self.options.allow is None or _direct_allows(self.options.allow, name)
+
+    async def _execute(self, name: str, args: Any, context: CommandContext) -> CommandResult:
+        # A fresh context per attempt keeps a middleware's mutations out of a retry.
+        context = copy.copy(context)
+        context.extra = dict(context.extra)
+        context.actor = copy.copy(context.actor)
+        context = _bind_allow(context, self.options.allow)
+
+        async def execute() -> CommandResult:
+            return _public_result(await self.registry.execute(name, args, context), name)
+
+        next_fn = execute
+        for middleware in reversed(self.options.middleware):
+            next_fn = (lambda mw, nxt: lambda: mw(name, args if args is not None else {}, context, nxt))(
+                middleware, next_fn
+            )
+        try:
+            return await next_fn()
+        except Exception as exc:
+            logger.error("Command '%s' raised an unhandled exception", name, exc_info=exc)
+            return execution_failure(exc)
     
     async def call(
         self,
@@ -550,10 +582,13 @@ class DirectClient:
         trace_id = (context.trace_id if context else None) or _generate_trace_id()
         
         self._debug(f"[{trace_id}] Calling {name}", args)
+
+        if not self._is_allowed(name):
+            return failure(_not_allowed(name))
         
         # Check if command exists
         if not self.registry.has_command(name):
-            available = self.registry.list_command_names()
+            available = self.list_command_names()
             error_data = _create_unknown_tool_error(name, available)
             
             self._debug(f"[{trace_id}] Unknown command: {name}")
@@ -624,7 +659,7 @@ class DirectClient:
             ))
 
         async def run():
-            result = _public_result(await self.registry.execute(name, args, cmd_context), name)
+            result = _public_result(await self._execute(name, args, cmd_context), name)
             if expired():
                 return timed_out()
             pending = exchange.pending()
@@ -642,7 +677,7 @@ class DirectClient:
                 if expired():
                     return timed_out()
                 if answer is True and exchange.approve():
-                    result = _public_result(await self.registry.execute(name, args, cmd_context), name)
+                    result = _public_result(await self._execute(name, args, cmd_context), name)
             return timed_out() if expired() else result
 
         # Shield the worker so caller cancellation disposes authority immediately, even
@@ -678,15 +713,15 @@ class DirectClient:
     
     def list_commands(self) -> List[CommandInfo]:
         """List available commands."""
-        return self.registry.list_commands()
+        return [command for command in self.registry.list_commands() if self._is_allowed(command.name)]
     
     def list_command_names(self) -> List[str]:
         """List command names."""
-        return self.registry.list_command_names()
+        return [name for name in self.registry.list_command_names() if self._is_allowed(name)]
     
     def has_command(self, name: str) -> bool:
         """Check if a command exists."""
-        return self.registry.has_command(name)
+        return self._is_allowed(name) and self.registry.has_command(name)
     
     def get_source(self) -> Optional[str]:
         """Get the source identifier for this client."""
@@ -1059,6 +1094,8 @@ def create_direct_client(
     validate_inputs: bool = True,
     *,
     on_approval_needed: Optional[Callable[[DirectApprovalRequest], Any]] = None,
+    allow: Optional[Callable[[str], bool]] = None,
+    middleware: Optional[List[Callable]] = None,
 ) -> DirectClient:
     """Create a DirectClient for zero-overhead command execution.
     
@@ -1082,6 +1119,8 @@ def create_direct_client(
             debug=debug,
             validate_inputs=validate_inputs,
             on_approval_needed=on_approval_needed,
+            allow=allow,
+            middleware=list(middleware or []),
         ),
     )
 
@@ -1099,7 +1138,7 @@ class DirectCommandRegistry:
 
     def list_commands(self) -> List[CommandInfo]:
         return [CommandInfo(c.name, c.description) for c in
-                self._server.list_exposed_commands(interface=self._interface)]
+                self._server.list_exposed_commands(interface=self._interface, include_bootstrap=False)]
 
     def list_command_names(self) -> List[str]:
         return [c.name for c in self.list_commands()]
@@ -1107,22 +1146,34 @@ class DirectCommandRegistry:
     def has_command(self, name: str) -> bool:
         return name in self.list_command_names()
 
-    async def execute(self, name: str, args: Any = None, context: Any = None) -> CommandResult:
+    async def execute(self, name: str, args: Any = None, context: Any = None, *,
+                      allow: Optional[Callable[[str], bool]] = None) -> CommandResult:
         from afd.core.direct_approval import _exchange, _public_context
 
+        context = _bind_allow(context or CommandContext(trace_id=_generate_trace_id()), allow)
+        if not _is_allowed(context, name):
+            return failure(_not_allowed(name))
         # server.execute also routes MCP meta-tools, which build a fresh MCP context.
         # Only registered commands may cross this direct boundary; never dispatch a router.
         if not any(command.name == name for command in self._server.list_commands()):
             return failure(CommandError(code="COMMAND_NOT_FOUND",
                 message=f"Command '{truncate_name(name)}' not found",
                 suggestion="List available commands to see valid options", retryable=False))
-        context = context or CommandContext(trace_id=_generate_trace_id())
+        definition = next(command for command in self._server.list_commands() if command.name == name)
+        if not self._server._is_exposed_to(definition, self._interface):
+            return failure(CommandError(
+                code="COMMAND_NOT_EXPOSED",
+                message=f"Command '{truncate_name(name)}' is not exposed to {self._interface}",
+                suggestion="Call a command exposed to the registry's configured interface",
+                retryable=False,
+            ))
         exchange = _exchange(context)
         owned = exchange is None
         exchange = exchange or _DirectApprovalExchange()
         clean = _public_context(context)
         clean._direct_approval = exchange
         clean.extra["interface"] = self._interface
+        clean.extra.pop("remote", None)
         try:
             return _public_result(await self._server.execute(name, {} if args is None else args, clean), name)
         finally:

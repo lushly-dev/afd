@@ -59,7 +59,8 @@ def _public_context(context: Any) -> Any:
     return CommandContext(**{
         key: getattr(context, key, None) for key in
         ("trace_id", "timeout", "actor", "clock", "random")
-    }, extra=dict(getattr(context, "extra", {})))
+    }, extra=dict(getattr(context, "extra", {})),
+       _direct_allow=getattr(context, "_direct_allow", None))
 
 
 def _public_result(result: Any, command: str) -> Any:

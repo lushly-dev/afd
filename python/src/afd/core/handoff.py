@@ -26,6 +26,9 @@ HandoffProtocol = Union[
 ]
 
 
+_DEFAULT_RECONNECT_POLICY = {"allowed": True, "maxAttempts": 3, "backoffMs": 1000}
+
+
 class ReconnectPolicy(WireModel):
     """Reconnection policy for handoff connections.
 
@@ -380,7 +383,8 @@ def create_handoff(
         expected_latency: Expected latency in ms.
         capabilities: Channel capabilities.
         expires_at: When credentials expire (ISO 8601).
-        reconnect_allowed: Whether reconnection is allowed.
+        reconnect_allowed: Whether reconnection is allowed. When no reconnect
+            options are supplied, defaults to allowed, 3 attempts and 1000 ms.
         reconnect_max_attempts: Max reconnection attempts.
         reconnect_backoff_ms: Base backoff time in ms.
         description: Human-readable description.
@@ -417,35 +421,33 @@ def create_handoff(
             credentials["headers"] = headers
         result["credentials"] = credentials
 
-    # Build metadata if any metadata fields provided
-    has_metadata = any([
-        expected_latency is not None,
-        capabilities is not None,
-        expires_at is not None,
-        reconnect_allowed is not None,
-        description is not None,
-    ])
+    # Always include the reference reconnect policy. An explicit policy replaces
+    # it, rather than filling in fields the caller intentionally left unset.
+    metadata: Dict[str, Any] = {}
+    if expected_latency is not None:
+        metadata["expectedLatency"] = expected_latency
+    if capabilities is not None:
+        metadata["capabilities"] = capabilities
+    if expires_at is not None:
+        metadata["expiresAt"] = expires_at
+    if description is not None:
+        metadata["description"] = description
 
-    if has_metadata:
-        metadata: Dict[str, Any] = {}
-        if expected_latency is not None:
-            metadata["expectedLatency"] = expected_latency
-        if capabilities is not None:
-            metadata["capabilities"] = capabilities
-        if expires_at is not None:
-            metadata["expiresAt"] = expires_at
-        if description is not None:
-            metadata["description"] = description
+    # Build reconnect policy if specified
+    if any(value is not None for value in (
+        reconnect_allowed, reconnect_max_attempts, reconnect_backoff_ms
+    )):
+        reconnect: Dict[str, Any] = {
+            "allowed": True if reconnect_allowed is None else reconnect_allowed
+        }
+        if reconnect_max_attempts is not None:
+            reconnect["maxAttempts"] = reconnect_max_attempts
+        if reconnect_backoff_ms is not None:
+            reconnect["backoffMs"] = reconnect_backoff_ms
+        metadata["reconnect"] = reconnect
+    else:
+        metadata["reconnect"] = dict(_DEFAULT_RECONNECT_POLICY)
 
-        # Build reconnect policy if specified
-        if reconnect_allowed is not None:
-            reconnect: Dict[str, Any] = {"allowed": reconnect_allowed}
-            if reconnect_max_attempts is not None:
-                reconnect["maxAttempts"] = reconnect_max_attempts
-            if reconnect_backoff_ms is not None:
-                reconnect["backoffMs"] = reconnect_backoff_ms
-            metadata["reconnect"] = reconnect
-
-        result["metadata"] = metadata
+    result["metadata"] = metadata
 
     return result

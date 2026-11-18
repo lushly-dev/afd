@@ -47,7 +47,9 @@
 	"sideEffects": false,
 	"dependencies": {
 		"@lushly-dev/afd-core": "workspace:*",
-		"yaml": "^2.9.0"
+		"@lushly-dev/afd-server": "workspace:*",
+		"yaml": "^2.9.0",
+		"zod": "^4.6.6"
 	},
 	"devDependencies": {
 		"@vitest/coverage-v8": "^5.1.0",

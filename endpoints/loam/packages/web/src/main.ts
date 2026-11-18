@@ -12,6 +12,7 @@ import themeCss from '@lushly-dev/loam-theme/loam-theme.css?inline';
 // The theme's typefaces (D159), served with the shell: a stylesheet of `@font-face` rules the build
 // links from `index.html`, and the woff2 files beside it, since Loam loads nothing from another origin.
 import '@lushly-dev/loam-theme/loam-fonts.css';
+import { lazyCopilot } from './copilot-lazy.js';
 import { createHostKernel, mediaEnvironment, OTHER_TAB_NOTICE } from './host.js';
 import { type ProviderIdentity, probeIdentity } from './identity.js';
 
@@ -139,6 +140,20 @@ async function boot(): Promise<void> {
 	}
 	// The URL's project, by slug, for the first frame: the kernel enters it only if the actor may (6.3).
 	const { workspace, project } = parseRoute(location.href, base) as Partial<Record<string, string>>;
+	// The copilot, when the deployment names a provider (phase 5 specification, 3.2 and 4.1): its chunk, frame and
+	// transport load the first time a turn starts or the panel opens, never in first paint. A provider but `test`
+	// reaches a model through the desktop's Rust host, the only host that holds a key until milestone C.
+	const named = read.copilot;
+	const copilot = named
+		? lazyCopilot(named.projection, async () => {
+				const { createHostTransport, createWebCopilot } = await import('./copilot.js');
+				return createWebCopilot({
+					document,
+					sandboxOrigin: named.sandboxOrigin,
+					transport: createHostTransport(window),
+				}).host;
+			})
+		: undefined;
 	const host = await createHostKernel({
 		...(provider
 			? { auth: provider.adapter, membership: provider.membership, identityPorts: provider.ports }
@@ -149,6 +164,7 @@ async function boot(): Promise<void> {
 		// Any shape at this workspace names the scope: a project's slug, or `null` for workspace level, so
 		// `/personal/hello` paints the workspace whatever `loam.scope` records (6.3, as amended by step 5).
 		...(workspace === read.workspace.id ? { initialScope: { project: project ?? null } } : {}),
+		...(copilot ? { copilot: copilot.options } : {}),
 	});
 	if (host.kind === 'locked') {
 		await renderNotice(document.body, { themeCss, ...OTHER_TAB_NOTICE });
@@ -162,8 +178,8 @@ async function boot(): Promise<void> {
 		listsApps: read.apps.length > 0,
 		base,
 		...(shown ? { identity: shown } : {}),
-		// No `copilot` yet: a deployment names no provider before phase 5's step 2 (`[copilot]`), which passes it, with
-		// the frame's runner, so the shell's panel part keeps its empty state until then.
+		// With no provider named, the shell's panel part keeps its empty state.
+		...(copilot ? { copilot: { host: copilot.panel } } : {}),
 	});
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).
 	if (provider)

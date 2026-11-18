@@ -43,14 +43,14 @@ unfiltered one and the opposite state), ties keeping insertion order in both sor
 the `destructive` hints, and the tool list.
 
 A case with `implementedBy` runs only against backends in those languages, and one with `notOn`
-skips the backends it names. Two cases use them:
+skips the backends it names. Two cases skip the Umbel modes:
 
 | Case | Runs against | Why not the others |
 | --- | --- | --- |
-| `tool_list_grouped` | TypeScript | The list [#533](https://github.com/lushly-dev/afd/issues/533) decided; Rust, C++ and Python serve it in their own steps, and Umbel lists its own hybrid tools |
+| `tool_list_grouped` | Every backend but the Umbel modes | Umbel lists its own hybrid tools |
 | `tool_list_destructive_hints` | Every backend but the Umbel modes | Umbel's hybrid list does not list the todo commands; `detail_destructive_hints` checks their hints there through `afd-detail` |
 
-So TypeScript runs all 50, Python, Rust and C++ 49, and each Umbel mode, which serves the Rust
+So TypeScript, Python, Rust and C++ run all 50, and each Umbel mode, which serves the Rust
 backend, 48.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays
