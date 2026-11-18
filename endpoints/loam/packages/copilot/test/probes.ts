@@ -270,3 +270,39 @@ export async function runProbes(
 	await safe('tauri', tauri);
 	return out;
 }
+
+/** A script outside the copilot's path on the sandbox origin, which a test serves to show the policy holds the path. */
+export const OUTSIDE_SCRIPT = '/sandbox/probe-outside.js';
+
+/**
+ * Whether the policy holds the copilot's path and not the whole sandbox origin (phase 5 specification, 3.2): a script
+ * the test serves at {@link OUTSIDE_SCRIPT}, which sets `loamTestImported` to `outside`, loaded by `importScripts` in a
+ * worker or by a `<script>` element in the frame. `LOADED` means the origin form is in force.
+ */
+export async function runPathProbes(targets: ProbeTargets): Promise<Record<string, string>> {
+	const url = `${targets.sandbox}${OUTSIDE_SCRIPT}`;
+	const scope = globalThis as unknown as {
+		importScripts?: (...urls: string[]) => void;
+		loamTestImported?: string;
+	};
+	scope.loamTestImported = undefined;
+	if (typeof scope.importScripts === 'function') {
+		try {
+			scope.importScripts(url);
+			return { 'importScripts outside the copilot path': `LOADED ${scope.loamTestImported}` };
+		} catch (error) {
+			return { 'importScripts outside the copilot path': `refused ${name(error)}` };
+		}
+	}
+	const loaded = await timeout(
+		new Promise<string>((resolve) => {
+			const script = document.createElement('script');
+			script.src = url;
+			script.onload = () => resolve(`LOADED ${scope.loamTestImported ?? '(ran, no marker)'}`);
+			script.onerror = () => resolve('refused (error event)');
+			document.head.append(script);
+		}),
+		3_000
+	);
+	return { 'script outside the copilot path': String(loaded) };
+}

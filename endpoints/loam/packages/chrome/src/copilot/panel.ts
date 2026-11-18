@@ -102,10 +102,10 @@ const styles = css`
 		font-weight: var(--type-body-md-weight);
 		color: var(--color-text-primary);
 	}
+	/* The thread scrolls itself, in a focusable log; a scroller here would be a second, unfocusable one. */
 	.thread {
 		flex: 1;
 		min-block-size: 0;
-		overflow: auto;
 	}
 	.notice,
 	.empty,

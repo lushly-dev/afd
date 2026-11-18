@@ -1190,6 +1190,39 @@ After the owner's answers and the coordinator's approval, a fresh reviewer (Clau
 
 Its improvements were taken: two stale "if approved" phrases, the jobs for the key and the install reopened by the condition, D141 recording that phase 7 waits, the hold's exemption keyed by the confirmation's id, and STATUS's decision-log row.
 
+## Step 1, 2026-11-17
+
+The copilot core, in STEP1PR, on `main` at STEP1BASE.
+
+**Built.**
+
+- `@lushly-dev/loam-copilot` (`endpoints/loam/packages/copilot/`): `CopilotRuntimeV1` and its TanStack AI implementation (`@tanstack/ai` 1.4.0, `-anthropic` and `-openai` 1.1.1, pinned), the ports' runtime halves, the context builder (5.2), the test provider, an in-process launcher for tests, and the runtime frame: `index.html`, a first-party `bootstrap.js` and one runtime chunk per provider kind, built into `dist/frame/` with the vendor SDKs stubbed (95.3 KB gzip for `anthropic` and `test`, 95.2 KB for the OpenAI kinds). Its README names its source (12, D150): nothing of Lushly's code was copied.
+- Kernel interface 5: `CallOptionsV5.trace`, read only from the options the kernel makes for the agent port; `copilot` reserved; `copilotSession`, `turn` and `trace` declared, journaled and inherited by every nested call through its `parent`. Version 4 is phase 4's step 1, not yet landed; the shell reports 5.
+- The records and the seven commands of 3.4 and 3.5 in the kernel's `late-copilot` chunk, with `copilot-port-refuse` (internal, journaled) and `copilot-turn-settle` (boot-only, the kernel's own write of a settled turn). The ports' trusted halves (`@lushly-dev/loam-kernel/copilot`, `createCopilotHost`): one port set per session, each message checked against its port's keys, the model port bound to the session's provider with `max_tokens` lowered to 16,384 and the turn's tokens counted from the provider's stream, and the panel port forwarding only `PANEL_EVENT_FIELDS`.
+- The gate, last in the kernel's chain (6.1's order): a copilot call to a mutation, or to a mounted instance's command, is `AUTONOMY_UNAVAILABLE`, journaled. No mounted tool is listed (4.5).
+- The frame on the sandbox origin, under the path-scoped policy, on the desktop (`site.rs`), the hosted server and the browser harness; the web host's frame launcher and page transport (`web/src/copilot.ts`); the web build copies the frame to `sandbox/copilot/`.
+- The panel (`@lushly-dev/loam-chrome/copilot`, `loam-copilot-panel`), loaded when the shell's panel part first opens, without approval cards.
+- Loam's scenario runner (`kernel/src/scenarios.test.ts`, the directives in `kernel/scenarios/directives.ts`), the seeds and the test provider's scripts (`kernel/scenarios/`), and the `mailfix` server (`kernel/scenarios/mailfix.ts`, with a stdio entry). Scenarios 6 and 8 pass.
+
+**Decided while building it,** each amending the section named:
+
+- **`copilotSession`, not `session`** (3.2): AFD sets a context's `session` and refuses a declared field of that name.
+- **The ports** (3.2): a run's history and provider come from the kernel through the main frame's half; a run ends with one `end` message, since TanStack repeats `RUN_FINISHED` per model round; tokens are counted by the model port's half from the stream.
+- **Exposure** (3.5): the three human commands stay in the agent registry so their `HUMAN_REQUIRED` is journaled, as phase 3's are; the four queries are `agent: false`.
+- **Where the halves live** (2): in the kernel's `/copilot` entry, DOM-free, so the kernel's own tests run them; `loam-web` holds the frame's launcher and the page's transport.
+- **Mounted commands are refused by name too,** not only left unlisted (4.5): a mounted tool's default mode is `ask`, which nothing can do before step 3, so it fails closed with the mutations.
+- **Attachments are refused** (`VALIDATION_ERROR`) until step 4: given to the model, they would be content without taint.
+- **The panel draws a tool call as a line of text,** not `violet-tool-call-card`, which imports the settings icon first paint holds (parting it into a chunk of its own) and bundles `violet-approval-card`. It returns with step 3's cards.
+- **`approval-health-get`** reads the turns' calls (only `acted` is ever non-zero before step 3); step 3 keeps 6.3's daily counters.
+
+**Not in step 1, and where it goes:** providers in a deployment (`[copilot]`, step 2), so the shell's panel says no model is set up and the shell never creates the frame; with them, step 2 must also have `deployment write` name the sandbox origin in the shell's `frame-src` whenever `[copilot]` lists a provider, since today it does only for a deployment that lists a view app (`cli/src/deployment.ts`), and the frame would be refused; sessions' retention (`copilot.sessions.days`, phase 4's settings); `p5-base`'s apps, autonomy rows and `mailfix` mounted (phase 4's step 1, and steps 4 and 5 for the entry's `labels` and `approvals`); `mailfix`'s approver carrier (steps 0c and 5); the panel's axe run and its two time rows of 16 (step 3's P5-A8).
+
+**Measured.** 4.5: the copilot is offered 71 tools on an empty shell (the agent interface lists 99), about 21.8 KB of descriptions and schemas, so 128 needs no other cut yet. 16 and D115: the panel's chunk is 58,244 gzip, so its row is 72,800; `late-copilot` 12,630 (row 13,900); the kernel alone 116,337 (row raised from 115,500 to 116,800) and `late` 79,516 (row raised from 78,500 to 80,500), first paint unchanged; `budget.mjs` records each.
+
+**P5-A2.** P5A2RESULTS
+
+**Verified.** STEP1VERIFY
+
 ## Follow-ups
 
 | Date | Follow-up | Status |

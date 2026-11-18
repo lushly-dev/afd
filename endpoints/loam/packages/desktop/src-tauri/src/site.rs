@@ -27,6 +27,20 @@ pub fn sandbox_origin() -> &'static str {
     }
 }
 
+/// The copilot runtime's frame and its chunks, on the sandbox origin (phase 5 specification, 3.2).
+const COPILOT_PATH: &str = "sandbox/copilot/";
+
+/// The copilot frame's header policy (3.2): scripts only from the copilot's path on the sandbox origin, never
+/// `'self'`, which matches nothing in an opaque-origin document on WebKitGTK; workers only from `blob:`; no
+/// connection; framed only by the shell. A worker the frame starts inherits it.
+pub fn copilot_policy() -> String {
+    format!(
+        "default-src 'none'; script-src {}/{COPILOT_PATH}; worker-src blob:; connect-src 'none'; frame-ancestors {}",
+        sandbox_origin(),
+        shell_origin()
+    )
+}
+
 const FRAME_ANCESTORS_NONE: &str = "frame-ancestors 'none'";
 const INERT_POLICY: &str = "sandbox; default-src 'none'; frame-ancestors 'none'";
 
@@ -203,7 +217,9 @@ pub fn serve(
         return not_found();
     };
     let shell_page = !sandbox && (name == "index.html" || name == "404.html");
-    let policy = if sandbox {
+    let policy = if sandbox && name.starts_with(COPILOT_PATH) {
+        copilot_policy()
+    } else if sandbox {
         // No request of the proxy's own, and so no IPC, whatever its page's <meta> says: a header and a <meta>
         // policy both apply, and a view's srcdoc document inherits it (10.2).
         format!("connect-src 'none'; frame-ancestors {}", shell_origin())
@@ -373,6 +389,55 @@ mod tests {
         ] {
             assert_eq!(get(&site, true, path, "text/html").status(), 404, "{path}");
         }
+    }
+
+    #[test]
+    fn p5_a2_the_copilot_frame_carries_its_path_scoped_policy() {
+        let (_data, root) = site();
+        std::fs::create_dir_all(root.join("sandbox/copilot")).unwrap();
+        std::fs::write(
+            root.join("sandbox/copilot/index.html"),
+            "<script src=\"bootstrap.js\"></script>",
+        )
+        .unwrap();
+        std::fs::write(root.join("sandbox/copilot/bootstrap.js"), "0").unwrap();
+        std::fs::write(root.join("sandbox/copilot-other.html"), "<p>other</p>").unwrap();
+        let site = Site::Directory(root);
+        let expected = format!(
+            "default-src 'none'; script-src {}/sandbox/copilot/; worker-src blob:; connect-src 'none'; frame-ancestors {}",
+            sandbox_origin(),
+            shell_origin()
+        );
+        assert_eq!(copilot_policy(), expected);
+        assert!(!expected.contains("'self'"));
+        for (path, kind) in [
+            ("/sandbox/copilot/index.html", "text/html; charset=utf-8"),
+            (
+                "/sandbox/copilot/bootstrap.js",
+                "text/javascript; charset=utf-8",
+            ),
+        ] {
+            let response = get(&site, true, path, "*/*");
+            assert_eq!(response.status(), 200, "{path}");
+            assert_eq!(
+                response.headers()["content-security-policy"],
+                expected,
+                "{path}"
+            );
+            assert_eq!(response.headers()["content-type"], kind, "{path}");
+            assert_eq!(response.headers()["x-content-type-options"], "nosniff");
+            assert_eq!(response.headers()["referrer-policy"], "no-referrer");
+        }
+        // Only the copilot's own directory: a neighbour sharing its prefix keeps the proxy's policy, and the
+        // shell's protocol serves no copilot policy.
+        assert_eq!(
+            get(&site, true, "/sandbox/copilot-other.html", "*/*").headers()["content-security-policy"],
+            format!("connect-src 'none'; frame-ancestors {}", shell_origin())
+        );
+        assert_eq!(
+            get(&site, false, "/sandbox/copilot/bootstrap.js", "*/*").headers()["content-security-policy"],
+            INERT_POLICY
+        );
     }
 
     #[test]
