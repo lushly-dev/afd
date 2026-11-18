@@ -35,7 +35,7 @@ Run from the primary checkout on current `main`, on the lane host; cells run the
 
 Run `triage-issues` first, then take work in `issue-check`'s `dispatchable` order. Batch issues that share code into one package; never split work to fill seats. Start a cell only when `lane-status` says `canStartCell`, on its `plan` and `nextIssue`:
 
-1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>", "session": "<your thread id>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing.
+1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>", "session": "<your thread id>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing. Issues that edit the same files go in one cell as a package: list them all, add `"related_because": "<what they share>"`, and raise `cells.issuesMax` to the count first if needed. Separate cells for them would conflict in the queue.
 2. `delegate_task` on that plan with `isolation: "worktree"` and [the cell brief](references/runbook.md#the-cell-brief).
 3. `cell-attach {"branch": "<branch>", "thread": "<childThreadId>"}`.
 
