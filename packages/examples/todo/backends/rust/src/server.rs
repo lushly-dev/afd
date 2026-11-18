@@ -247,8 +247,9 @@ pub struct AppState {
 
 /// The MCP server for the todo registry, for HTTP or stdio: the library's own tool list (each
 /// command's whole input schema, title, annotations and approval mode), the `todo-reading` and
-/// `todo-editing` contexts with their `afd-context-*` commands, and the configuration's
-/// confirmation mode and tool strategy.
+/// `todo-editing` contexts with their `afd-context-*` commands, then the bootstrap commands
+/// (`afd-help`, `afd-docs`, `afd-schema`), and the configuration's confirmation mode and tool
+/// strategy.
 ///
 /// # Errors
 /// When the context commands cannot be registered, for example on a registry that already has
@@ -257,12 +258,18 @@ pub fn mcp_server(
     registry: Arc<CommandRegistry>,
     config: &ServerConfig,
 ) -> Result<McpServer, String> {
-    Ok(
-        McpServer::new(registry, "todo-app-rust", env!("CARGO_PKG_VERSION"))
-            .with_contexts(contexts())?
-            .with_confirmations(config.confirmations)
-            .with_tool_strategy(config.strategy),
+    let server = McpServer::new(
+        Arc::clone(&registry),
+        "todo-app-rust",
+        env!("CARGO_PKG_VERSION"),
     )
+    .with_contexts(contexts())?
+    .with_confirmations(config.confirmations)
+    .with_tool_strategy(config.strategy);
+    // After the context commands, as TypeScript's `bootstrap: true` registers them, so the
+    // `bootstrap` tool lists its actions in TypeScript's order.
+    afd::register_bootstrap_commands(&registry)?;
+    Ok(server)
 }
 
 /// Build the HTTP application.

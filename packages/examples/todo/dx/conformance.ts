@@ -10,10 +10,17 @@ import fs from 'node:fs/promises';
  * `.length` included, e.g. `data.todos.0.title`) to either an exact JSON value
  * or `{ "exists": boolean }`, which checks presence without fixing the value.
  *
+ * An expected array is compared as JSON, whole.
+ *
  * A case may also name the `client` it needs (the confirmation suite runs each kind against its
  * own connection) and a `then` step whose result is checked after the command. A case with
  * `implementedBy` runs only against backends in those languages, as spec/commands.schema.json
- * marks the commands only some languages have so far.
+ * marks the commands only some languages have so far; one with `notOn` skips the backends it
+ * names, for what a backend does not serve by design.
+ *
+ * The command `tools/list` is not a tool: the runner lists the server's tools and answers with
+ * `toolListView` of them, so a case can check the tool list and each command's hints whatever
+ * the tool strategy.
  */
 
 interface TestCase {
@@ -25,6 +32,8 @@ interface TestCase {
 	expect: Record<string, unknown>;
 	client?: string;
 	implementedBy?: string[];
+	/** Backends that skip the case (`ts`, `py`, `rs`, `cpp`, `umbel`, `umbel-mounted`). */
+	notOn?: string[];
 	then?: { command: string; input: unknown; expect: Record<string, unknown> };
 }
 
@@ -47,6 +56,51 @@ interface TestResult {
 export interface CaseFilter {
 	client?: string;
 	language?: string;
+	backend?: string;
+}
+
+/** The pseudo-command a case names to check the tool list instead of calling a tool. */
+export const TOOL_LIST = 'tools/list';
+
+interface ListedTool {
+	name: string;
+	annotations?: { destructiveHint?: boolean };
+	inputSchema?: { properties?: { action?: { enum?: unknown } } };
+	_meta?: {
+		destructive?: unknown;
+		actions?: Array<{ command?: unknown; destructive?: unknown }>;
+	};
+}
+
+/**
+ * A tool list as a case reads it, the same for every tool strategy:
+ *
+ * - `names`: the tool names, in order;
+ * - `actions`: each grouped tool's `action` values, in order;
+ * - `commands`: each command the list shows, by name: the `tool` that runs it and whether it is
+ *   reported `destructive` (the tool's `_meta.destructive` or `destructiveHint`, or its grouped
+ *   action's `destructive`).
+ */
+export function toolListView(tools: ListedTool[]) {
+	const actions: Record<string, unknown> = {};
+	const commands: Record<string, { tool: string; destructive: boolean }> = {};
+	for (const tool of tools) {
+		const grouped = tool._meta?.actions;
+		if (Array.isArray(grouped)) {
+			actions[tool.name] = tool.inputSchema?.properties?.action?.enum;
+			for (const action of grouped) {
+				if (typeof action.command === 'string') {
+					commands[action.command] = { tool: tool.name, destructive: action.destructive === true };
+				}
+			}
+			continue;
+		}
+		commands[tool.name] = {
+			tool: tool.name,
+			destructive: tool._meta?.destructive === true || tool.annotations?.destructiveHint === true,
+		};
+	}
+	return { names: tools.map((tool) => tool.name), actions, commands };
 }
 
 /**
@@ -64,7 +118,8 @@ export async function selectCases(specPath: string, filter: CaseFilter = {}): Pr
 			(filter.client === undefined || test.client === filter.client) &&
 			(filter.language === undefined ||
 				test.implementedBy === undefined ||
-				test.implementedBy.includes(filter.language))
+				test.implementedBy.includes(filter.language)) &&
+			(filter.backend === undefined || !test.notOn?.includes(filter.backend))
 	);
 }
 
@@ -177,8 +232,15 @@ export class ConformanceRunner {
 		for (const [key, expectedValue] of Object.entries(expect)) {
 			const actualValue = this.getValue(actual, key);
 
-			// Object expectations were compared by reference and could never pass;
-			// the only object form is the { exists } matcher.
+			// The only object form is the { exists } matcher; an array is compared as JSON.
+			if (Array.isArray(expectedValue)) {
+				if (JSON.stringify(actualValue) !== JSON.stringify(expectedValue)) {
+					errors.push(
+						`Expected ${key} to be ${JSON.stringify(expectedValue)}, got ${JSON.stringify(actualValue)}`
+					);
+				}
+				continue;
+			}
 			if (isExistsMatcher(expectedValue)) {
 				const present = actualValue !== undefined && actualValue !== null;
 				if (present !== expectedValue.exists) {

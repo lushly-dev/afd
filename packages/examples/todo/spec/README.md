@@ -16,8 +16,8 @@ This directory contains the shared API contract for the Todo example. All four b
   used them while `todo-restore`, `todo-history` and `deleted` reached each language).
 - `test-cases.json`: Conformance test cases used to verify backend implementations.
 - `confirmation-cases.json`: Confirmation enforcement cases (`--suite confirmations`).
-- `approval-cases.json`: Approval hold cases (`--suite approvals`): TypeScript, Rust and C++ run
-  all four, Python the two that need no elicitation.
+- `approval-cases.json`: Approval hold cases (`--suite approvals`): every backend runs all four;
+  the Umbel modes do not run the suite ([#1329](https://github.com/lushly-dev/afd/issues/1329)).
 - `README.md`: This file.
 
 ## Conformance Test Cases
@@ -37,14 +37,32 @@ script needs CMake 3.25+ and a C++20 compiler; it builds `todo-server-cpp` first
 case the runner calls `todo-clear` with `{ "all": true }`, then runs the `setup` steps (a step's
 `capture` stores its `data`, which later inputs reference as `"$name.field"`), then the command.
 
-A case with `implementedBy` runs only against backends in those languages. No case in
-`test-cases.json` has one: every backend runs all 41, and so do both Umbel modes, which serve the
-Rust backend.
+The 50 cases cover every command, its errors and the change history, and also what the
+backends must agree on beyond a single result: `alternatives` (a filtered list offers the
+unfiltered one and the opposite state), ties keeping insertion order in both sort directions,
+the `destructive` hints, and the tool list.
+
+A case with `implementedBy` runs only against backends in those languages, and one with `notOn`
+skips the backends it names. Two cases use them:
+
+| Case | Runs against | Why not the others |
+| --- | --- | --- |
+| `tool_list_grouped` | TypeScript, Rust, C++ | Python's grouped strategy lists other tools, and its backend lists one tool per command, until [#533](https://github.com/lushly-dev/afd/issues/533) decides the alignment; Umbel lists its own hybrid tools |
+| `tool_list_destructive_hints` | Every backend but the Umbel modes | Umbel's hybrid list does not list the todo commands; `detail_destructive_hints` checks their hints there through `afd-detail` |
+
+So TypeScript, Rust and C++ run all 50, Python 49, and each Umbel mode, which serves the Rust
+backend, 48.
 
 Each `expect` entry maps a dotted path in the `CommandResult` to a value. Paths may index arrays
-and read `.length` (`data.todos.0.title`, `data.todos.length`). The value is either the exact
-JSON value expected, or `{ "exists": true }` / `{ "exists": false }` to check that a field is
-present (not `null` or missing) without fixing its value.
+and read `.length` (`data.todos.0.title`, `data.todos.length`). The value is the exact JSON value
+expected (an array is compared whole), or `{ "exists": true }` / `{ "exists": false }` to check
+that a field is present (not `null` or missing) without fixing its value.
+
+The command `tools/list` is not a tool: the runner lists the server's tools and answers with a
+view that is the same for every tool strategy (`toolListView` in `dx/conformance.ts`):
+`data.names` (the tool names in order), `data.actions.<group>` (a grouped tool's actions in
+order) and `data.commands.<command>` (the `tool` that runs it and whether it is reported
+`destructive`).
 
 ## Confirmation Cases
 
@@ -77,7 +95,7 @@ the reset before each case deletes the live todos with `todo-delete-batch` inste
 | Backend | Script | Cases |
 |---------|--------|-------|
 | TypeScript | `pnpm test:conformance:ts --suite approvals` | All 4, in both protocol modes |
-| Python | `pnpm test:conformance:py --suite approvals` | The 2 `acknowledge` cases, in both protocol modes. The `accept` and `decline` cases need the server to ask the person over MCP, which the Python library cannot do yet ([#1312](https://github.com/lushly-dev/afd/issues/1312)): a held clear answers `APPROVAL_REQUIRED` whatever the client declares |
+| Python | `pnpm test:conformance:py --suite approvals` | All 4, in both protocol modes (`relay="mcp-elicitation"`, [#1312](https://github.com/lushly-dev/afd/issues/1312)) |
 | Rust | `pnpm test:conformance:rs --suite approvals` | All 4, in both protocol modes |
 | C++ | `pnpm test:conformance:cpp --suite approvals` | All 4, in both protocol modes |
 
