@@ -272,6 +272,32 @@ describe('afd-detail', () => {
 		expect(result.data?.[1]).not.toHaveProperty('contexts');
 	});
 
+	it('omits empty tags and errors, and reports declared ones (#1420)', () => {
+		const handler = async () => ({ success: true as const, data: null });
+		const empty = defineCommand({
+			name: 'todo-empty',
+			description: 'Declares empty lists',
+			input: z.object({}),
+			tags: [],
+			errors: [],
+			handler,
+		});
+		const declared = defineCommand({
+			name: 'todo-tagged',
+			description: 'Declares tags and errors',
+			input: z.object({}),
+			tags: ['read'],
+			errors: ['NOT_FOUND'],
+			handler,
+		});
+		const result = executeDetail([empty, declared], new Set(['todo-empty', 'todo-tagged']), {
+			command: ['todo-empty', 'todo-tagged'],
+		});
+		expect(result.data?.[0]).not.toHaveProperty('tags');
+		expect(result.data?.[0]).not.toHaveProperty('errors');
+		expect(result.data?.[1]).toMatchObject({ tags: ['read'], errors: ['NOT_FOUND'] });
+	});
+
 	it('omits outputSchema when command has no output', () => {
 		const commands = createTestCommands();
 		const exposedNames = new Set(commands.map((c) => c.name));

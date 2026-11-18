@@ -322,8 +322,43 @@ class TestBuiltInRoutedTools:
         detail = await server.call_tool("afd-detail", {"command": ["todo-create", "todo-list"]})
         assert detail.success is True
         assert [item["name"] for item in detail.data] == ["todo-create", "todo-list"]
-        # Unset, requires, contexts and examples are omitted, as in the other languages.
-        assert not {"requires", "contexts", "examples"} & detail.data[1].keys()
+        # Unset, the lists are omitted, as in the other languages (#1420).
+        assert not {"requires", "contexts", "examples", "tags", "errors"} & detail.data[1].keys()
+
+    @pytest.mark.asyncio
+    async def test_lazy_detail_reports_declared_tags(self):
+        server = create_server("test-app", tool_strategy="lazy")
+
+        @server.command(
+            name="todo-list",
+            description="List todo items",
+            tags=["read"],
+            expose=ExposeOptions(mcp=True),
+        )
+        async def todo_list(input):
+            return success({"items": []})
+
+        detail = await server.call_tool("afd-detail", {"command": "todo-list"})
+        assert detail.data[0]["tags"] == ["read"]
+
+    def test_lazy_detail_reports_declared_errors(self):
+        from afd.core.commands import CommandDefinition
+        from afd.server.lazy_tools import execute_detail
+
+        async def handler(input, context=None):
+            return success(None)
+
+        declared = CommandDefinition(
+            name="todo-get", description="Get a todo", handler=handler, errors=["NOT_FOUND"]
+        )
+        empty = CommandDefinition(
+            name="todo-list", description="List todos", handler=handler, errors=[], tags=[]
+        )
+        detail = execute_detail(
+            [declared, empty], {"todo-get", "todo-list"}, {"command": ["todo-get", "todo-list"]}
+        )
+        assert detail.data[0]["errors"] == ["NOT_FOUND"]
+        assert not {"tags", "errors"} & detail.data[1].keys()
 
 
 class TestContextScoping:

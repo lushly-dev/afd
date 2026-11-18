@@ -10,13 +10,19 @@
 // - 2025 clients: `initialize`, `notifications/initialized` and `ping`. An elicitation is a
 //   server-sent `elicitation/create` request on the same connection.
 //
-// It serves `tools/list` and `tools/call` with one tool per command exposed to MCP
-// (`command_to_mcp_tool`, afd/mcp.hpp). Every tool result carries the CommandResult as
-// `structuredContent` and as JSON text, and a command with an `output_schema` advertises the
-// CommandResult envelope as its top-level `outputSchema` (spec/command-metadata.md, "Structured
-// results"). Command failures are CommandResults with `isError: true`, never JSON-RPC errors.
-// `notifications/cancelled` cancels the call in flight through `CommandContext::cancellation`. It
-// has no meta-tools or HTTP transport.
+// It serves `tools/list` and `tools/call` for the commands exposed to MCP, by tool strategy
+// (spec/tool-strategies.md: `individual`, `grouped`, the default, or `lazy`), with the
+// meta-tools `afd-call`, `afd-batch`, `afd-pipe`, `afd-discover` and `afd-detail`
+// (spec/meta-tools.json). Every route runs the same exposure, context, confirmation and
+// validation checks as a command's own tool, and a command not exposed to MCP is answered as an
+// unknown one (spec/error-codes.md, D4). A meta-tool's `meta` argument carries
+// `dev.afd/context` for clients that cannot set `_meta`.
+//
+// Every tool result carries the result as `structuredContent` and as JSON text, and a command
+// with an `output_schema` advertises the CommandResult envelope as its top-level `outputSchema`
+// (spec/command-metadata.md, "Structured results"). Command failures are results with
+// `isError: true`, never JSON-RPC errors. `notifications/cancelled` cancels the call in flight
+// through `CommandContext::cancellation`. It has no HTTP transport.
 //
 // Contexts (spec/tool-strategies.md, "Contexts"): with `StdioServerOptions::contexts`, a 2025
 // connection keeps one context stack, which `afd-context-enter` and `afd-context-exit` change,
@@ -27,8 +33,12 @@
 // Confirmations (spec/command-metadata.md, "Confirmations"): with `confirmations` on, a command
 // with `confirm_prompt` runs only after an accepted form elicitation or, under `enforce`, an
 // acknowledgement (`confirm: true` in the arguments or `_meta["dev.afd/confirm"]: true`).
-// Approvals: an approval middleware created with `.relay = afd::ApprovalRelay::mcp_elicitation`
-// asks the human behind the client in the same way ("Asking the human over MCP").
+// `afd-batch` and `afd-pipe` take a `confirm` array of command names, and ask once, before any
+// step runs, for every gated step. Approvals: an approval middleware created with
+// `.relay = afd::ApprovalRelay::mcp_elicitation` asks the human behind the client in the same way
+// for a call to one command ("Asking the human over MCP"), and approves an `afd-batch` or
+// `afd-pipe` up front, as a whole: one question for every gated step before any runs ("One
+// approval up front for `afd-batch` and `afd-pipe`").
 #pragma once
 
 #include "afd/command.hpp"
@@ -60,6 +70,25 @@ enum class ConfirmationMode {
     require_human
 };
 
+/// How `tools/list` presents the commands (spec/tool-strategies.md, "Tool lists"), as in
+/// TypeScript and Rust. Every strategy routes every meta-tool and every exposed command by its own
+/// name, so a call never depends on which tools were listed.
+enum class ToolStrategy {
+    /// `afd-batch`, `afd-pipe`, `afd-call`, then one tool per command.
+    individual,
+    /// `afd-batch`, `afd-pipe`, `afd-call`, `afd-detail`, then one tool per group of commands,
+    /// taking `{ action, params }`, in the order of each group's first command (the default).
+    grouped,
+    /// Only the meta-tools: `afd-discover`, `afd-detail`, `afd-batch`, `afd-pipe`, `afd-call`.
+    lazy
+};
+
+/// The strategy's name, as `afd-help` reports it: `individual`, `grouped` or `lazy`.
+std::string_view tool_strategy_name(ToolStrategy strategy) noexcept;
+
+/// A grouped tool's name for a command; `std::nullopt` or an empty name is `general`.
+using GroupBy = std::function<std::optional<std::string>(const CommandDefinition& command)>;
+
 /// The `_meta` key a client sets to `true` to acknowledge a confirm-gated call.
 inline constexpr std::string_view confirm_meta_key = "dev.afd/confirm";
 
@@ -87,6 +116,11 @@ struct StdioServerOptions {
     /// Lines longer than this are rejected, bounding memory for a hostile client.
     std::size_t max_line_bytes = std::size_t{1} << 20;
     ConfirmationMode confirmations = ConfirmationMode::off;
+    /// How `tools/list` presents the commands. Default: `grouped`, as in TypeScript and Rust.
+    ToolStrategy tool_strategy = ToolStrategy::grouped;
+    /// The grouped tool of each command under `grouped`. Default: its `category`, else the first
+    /// kebab-case segment of its name, else `general`.
+    GroupBy group_by;
     /// The contexts the server serves (contexts.hpp). Register their commands first with
     /// `afd::register_context_commands(registry, contexts)`; `create` fails when they are
     /// missing. Empty (the default): no contexts.
@@ -145,7 +179,7 @@ public:
     /// thread watches for `notifications/cancelled` and elicitation responses while a call runs.
     void serve(std::istream& in, std::ostream& out);
 
-    /// The tools `tools/list` returns with no active context.
+    /// The tools `tools/list` returns with no active context, by the server's strategy.
     [[nodiscard]] Json tools() const;
 
 private:

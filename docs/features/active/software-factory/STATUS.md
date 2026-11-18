@@ -5,6 +5,46 @@ Read this before the [proposal](software-factory.proposal.md). It moved from `pr
 day against `main` at `ee1b5827`, from merged history; this reconciliation did not rerun the
 plugin's tests.
 
+## Ejections that count, gate files past the rerun limit, plan pacing and kept validations, 2026-11-17
+
+Four owner-approved fixes from the second fleet (run-4), fixed by hand since they change the lane
+that would merge them, in [#1470](https://github.com/lushly-dev/afd/pull/1470). None is yet seen
+in a fleet run.
+
+- **Only a branch's own failures count toward `cells.maxEjections`.** #499 and #503 were released at
+  the limit after ejections their own changes did not cause (#503: three `conflict`s, two in
+  provenance records alone; #499: `final-failed`, `conflict`, `ci-failed`). A `conflict` and the
+  push, PR and merge plumbing (`push-failed`, `pr-failed`, `merge-failed`) now eject without
+  counting (the record's `counted` is false, with its `excuse`). The foreman's new `ejection-excuse
+  {branch, reason}` stops the latest ejection counting when a diagnosis finds a known flake (such as
+  #1408), records `ejection-excused`, and answers an open `ejection-limit` once under it.
+  `lane-status` shows `excused` and `countedEjections`; `lane-report` counts `ejections` and
+  `excusedEjections`. Records `SCHEMA` is 3.
+- **Gate files past the rerun limit.** #1391's guard refused to let the PR's `ci-ok` stand in when
+  main's move touched any `gate_paths`. Past `lane.maxBaseReruns`, it now refuses only main's
+  changes to the adapter's new `revalidate_paths` (AFD: `pnpm-lock.yaml`, `pnpm-workspace.yaml`,
+  `package.json`, `.npmrc`, `.nvmrc`, `Cargo.lock`, `uv.lock`, `rust-toolchain.toml`, `.cargo/`),
+  since `ci-ok` runs on the merge ref with main's own workflows and gates. A lockfile change on
+  main, which the guard let through before as a `shared_paths` entry that is no gate path, now
+  validates again too. The watch on `main_checks` after the merge is unchanged.
+- **Plan pacing (the owner's rule).** The lane assigned the plan with the most room (elapsed minus
+  used). It now assigns the highest pace: room below `plans.ceiling` over the days to the plan's
+  reset (a plan without `resetsAt` reads it from its share elapsed of a seven-day window), so every
+  plan tracks to its ceiling around its own reset. `plan-list` shows `left` (room below the
+  ceiling), `pace`, `daysToReset` and `next`; `lane-status`'s `plan` carries its `pace`. The ceiling
+  and its refusals stand.
+- **[#1452](https://github.com/lushly-dev/afd/issues/1452): a finished validation is kept when its
+  slot goes to the front.** #503's passed validation was discarded (`rerun`, `slot-needed`) so #506
+  could validate. The validated branch now keeps state `validated` and its base; its checkout moves
+  aside (`git worktree move` to `<checkout>.factory-slots/kept-<branch>-<hash>`), keeping the git
+  directory where `pnpm verify`'s record lives, so the real pre-push decision still accepts its push
+  (tested against `scripts/pre-push.mjs`). The base checks at the front decide whether it runs
+  again. A `slot-released` record names it; the kept checkout is removed once no validated entry
+  needs it: renamed aside at once and removed by `git worktree remove --force` in a detached
+  process, which unregisters only that checkout (never `git worktree prune`). The slot checks out
+  afresh, so the front branch's validation installs from nothing. A checkout that cannot move falls
+  back to the old `slot-needed` rerun.
+
 ## Provenance conflicts, one foreman, and the lane's own review check, 2026-11-17
 
 [#1410](https://github.com/lushly-dev/afd/issues/1410): three of round 2's ejections were merge

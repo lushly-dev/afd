@@ -138,12 +138,18 @@ impl Store {
         )?;
         // So does an operation that acted on it, or put mail there: its
         // places name mailboxes that are gone, and it can be neither resumed
-        // nor undone. An undo of one acts on the same mail, and goes with it.
+        // nor undone. An undo of one acts on the same mail, and goes with it,
+        // and so do the undos of that undo: one dismissed or expired as a
+        // proposal kept no items to find it by, only what it would undo.
         transaction.execute(
-            "DELETE FROM operation WHERE id IN
-                 (SELECT operation_id FROM operation_item
-                  WHERE mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1)
-                     OR to_mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1))",
+            "WITH RECURSIVE going (id) AS (
+                 SELECT operation_id FROM operation_item
+                 WHERE mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1)
+                    OR to_mailbox_id IN (SELECT id FROM mailbox WHERE account_id = ?1)
+                 UNION
+                 SELECT operation.id FROM operation JOIN going ON operation.undo_of = going.id
+             )
+             DELETE FROM operation WHERE id IN (SELECT id FROM going)",
             [account.0],
         )?;
         transaction.execute(

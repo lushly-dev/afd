@@ -21,8 +21,8 @@
 // - The TypeScript generator collapses ASCII whitespace around line breaks in a description;
 //   JavaScript's `\s` also matches Unicode spaces.
 //
-// `afd-help` does not report `toolStrategy` yet: `afd::mcp_stdio` lists one tool per command
-// (#1451).
+// Served by `afd::mcp_stdio`, `afd-help` reports the server's `toolStrategy`
+// (`CommandContext::tool_strategy`); in process it leaves it out.
 #pragma once
 
 #include "afd/command.hpp"
