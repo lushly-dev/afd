@@ -225,8 +225,12 @@ export class VioletSegmentedControl extends FASTElement {
         this.#tabStop()?.focusButton(options);
     }
 
+    // `segments` is refreshed on slotchange, so a segment removed in this update may still be listed; the
+    // validation anchor must be inside the host, so only a segment still in it counts.
     #tabStop(): VioletSegment | undefined {
-        return this.segments.find(segment => segment.buttonTabIndex === 0 && !segment.effectiveDisabled);
+        return this.segments.find(
+            segment => this.contains(segment) && segment.buttonTabIndex === 0 && !segment.effectiveDisabled,
+        );
     }
 
     public handleSlotChange(): void {

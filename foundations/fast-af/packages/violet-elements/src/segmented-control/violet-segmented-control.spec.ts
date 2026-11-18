@@ -59,6 +59,19 @@ describe("violet-segmented-control", () => {
         expect(control.checkValidity()).toBe(true);
     });
 
+    // Regression: the validation anchor came from the segment list cached until slotchange, so removing the
+    // Tab stop and invalidating in one update passed a removed segment to setValidity, which threw.
+    it("does not throw when the Tab stop is removed and the group is invalidated in the same update", async () => {
+        const control = await renderControl();
+        control.querySelector('violet-segment[value="overview"]')?.remove();
+
+        expect(() => {
+            control.required = true;
+            control.invalid = true;
+        }).not.toThrow();
+        expect(control.validity.customError).toBe(true);
+    });
+
     it("selects a segment on click", async () => {
         const control = await renderControl();
         const segments = control.querySelectorAll<VioletSegment>("violet-segment");
