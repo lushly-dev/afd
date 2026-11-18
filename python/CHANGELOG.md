@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-17
+
+Implements AFD contract `1.0-rc`.
+
+### Breaking changes
+
+- **The `requestState` of a confirmation** is now a sealed JSON object that carries the questions asked and the answers of earlier rounds (`afd.server.elicitation`), so a call that needs a confirmation and then an approval asks for each in turn, and an answer counts for 10 minutes after its question was asked. A state minted by an earlier version is not an answer, and the person is asked again. A confirmation answered in band on a 2025 connection is kept for the call's later rounds.
+
+- **A command's output schema is its serialization schema** (#465): `CommandDefinition.returns`, and with it `_meta.outputSchema` and afd-detail's `outputSchema`, is now `model_json_schema(mode="serialization")`, which describes the data a result carries: serialization aliases and computed fields included. It is also the default-on top-level `outputSchema`, so a handler whose `data` does not match its declared `output_schema` now fails on MCP clients that validate `structuredContent`; `create_server(advertise_output_schema=False)` turns the check off.
+
 ### Added
 
 - **The MCP approval relay** (`spec/command-metadata.md`, "Asking the human over MCP"; [#1312](https://github.com/lushly-dev/afd/issues/1312)), at parity with TypeScript's `relay: 'mcp-elicitation'`: `create_approval_middleware(relay="mcp-elicitation")` asks the person behind an MCP client instead of returning a token. A call to one command (its own tool, `afd-call` or a grouped action) whose request can carry a form elicitation is answered with one under the input key `approval`, a required boolean `approve`, whose message is the summary, the command and its canonical validated input; it runs once the person approves. On MCP 2026-07-28 that is an `input_required` result, on a 2025 connection with a back channel (stdio, stateful HTTP) a server-sent elicitation after which the call runs again. A decline, a cancel or `approve` not `true` fails the call with `APPROVAL_REQUIRED`, `details.reason: "declined"` and `retryable: false`. The approval is bound to the command, the validated input and the actor, its nonce and expiry carry a MAC under the approval secret, and the nonce is spent when the call runs; an expired or spent approval is asked again. `afd-batch` and `afd-pipe` are approved up front, as a whole, before any step runs (#459): one question lists every gated step, bound to the whole request; a pipeline whose gated step reads `$prev`, `$first` or `$steps` runs nothing (`reason: "input-not-known"`), and more than 20 gated steps run nothing (`reason: "too-many-approvals"`). A command run by another command's handler, or a call that cannot elicit, still gets `APPROVAL_REQUIRED`. The relay's types are in `afd.server.approval_relay`.
@@ -27,12 +37,6 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - **Hybrid tool strategy** (`spec/tool-strategies.md`, H1 to H8): `create_server(tool_strategy="hybrid", first_class_tools=[...])` and `ServerConfig.first_class_tools` list the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), the context tools when `contexts` are configured, then 1 to 8 named commands as their own tools, in the order given. Every other command is reached by name, `afd-call`, `afd-batch` or `afd-pipe`. The list never varies by active context (a first-class command outside its context answers `COMMAND_NOT_IN_CONTEXT`), so `ttlMs` stays 300000 even with contexts. A bad set (not hybrid, empty, unregistered, unexposed, a built-in tool, repeated, over 8) raises `ValueError` naming the entry, at construction for the options and before the first request for the entries, so commands may be registered after `create_server`. `afd-help` reports `toolStrategy` on every strategy and, on hybrid servers, `firstClassTools` and `firstClass: true`; the default `server/discover` instructions gain the hybrid sentence. The shared cases in `spec/tool-strategies.json` run in `tests/test_hybrid_tool_strategy.py`.
 
 - Add the private DirectClient approval hook, validating direct registry, and in-process CLI `call --module` with `--approve` or an interactive prompt (#460). Public caller evidence is ignored, held results and observers stay token-free, and one total deadline covers the decision and retry. Trusted host middleware retains its token API. Raw JSON CLI output no longer receives Rich wrapping.
-
-### Changed
-
-- **The `requestState` of a confirmation** is now a sealed JSON object that carries the questions asked and the answers of earlier rounds (`afd.server.elicitation`), so a call that needs a confirmation and then an approval asks for each in turn, and an answer counts for 10 minutes after its question was asked. A state minted by an earlier version is not an answer, and the person is asked again. A confirmation answered in band on a 2025 connection is kept for the call's later rounds.
-
-- **A command's output schema is its serialization schema** (#465): `CommandDefinition.returns`, and with it `_meta.outputSchema` and afd-detail's `outputSchema`, is now `model_json_schema(mode="serialization")`, which describes the data a result carries: serialization aliases and computed fields included. It is also the default-on top-level `outputSchema`, so a handler whose `data` does not match its declared `output_schema` now fails on MCP clients that validate `structuredContent`; `create_server(advertise_output_schema=False)` turns the check off.
 
 ### Fixed
 
@@ -245,7 +249,8 @@ These were released together with the repository-wide releases of the same perio
 
 - Published to PyPI: `pip install afd>=0.1.1`
 
-[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.10.0...main
+[Unreleased]: https://github.com/lushly-dev/afd/compare/python-v0.11.0...main
+[0.11.0]: https://github.com/lushly-dev/afd/compare/python-v0.10.0...python-v0.11.0
 [0.10.0]: https://github.com/lushly-dev/afd/compare/python-v0.9.0...python-v0.10.0
 [0.9.0]: https://github.com/lushly-dev/afd/compare/python-v0.8.0...python-v0.9.0
 [0.8.0]: https://github.com/lushly-dev/afd/compare/python-v0.7.0...python-v0.8.0
