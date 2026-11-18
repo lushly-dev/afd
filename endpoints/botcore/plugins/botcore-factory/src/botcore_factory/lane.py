@@ -17,7 +17,8 @@ a fixture world and a fake clock. Each step, in order:
    only in files the adapter's ``regenerate`` names are written again by its command and the
    merge committed: lushly-dev/afd#1410), then runs one background
    job: the adapter's ``install`` (with a timeout) and ``validate``, on the Node the slot's
-   ``.nvmrc`` names (missing, it is the lane's trouble);
+   ``.nvmrc`` names (missing, it ejects the branch as ``node-missing`` when the branch changed
+   ``.nvmrc``, and is the lane's trouble when the ``.nvmrc`` is the base's own);
 5. runs coverage on the base (``lane_coverage``);
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
@@ -42,7 +43,7 @@ from botcore_factory.lane_base import (
     first_lines,
     log_path,
 )
-from botcore_factory.lane_coverage import Coverage
+from botcore_factory.lane_coverage import Coverage, NodeUnavailable
 from botcore_factory.lane_merge import Merging
 from botcore_factory.runtime import Factory
 from botcore_factory.world import MergeOutcome, WorldError
@@ -240,11 +241,11 @@ class Step(Merging, Coverage):
         if not merged.clean:
             self.eject(entry, "conflict", f"Conflicts with {base}: {', '.join(merged.conflicts)}")
             return False
+        steps = self.validation_steps(entry, path, base)
+        if steps is None:
+            return False
         handle = self.world.processes.start_job(
-            self.job_steps("validate", self.config.validate_command, path),
-            cwd=path,
-            log=self.absolute(log),
-            label="validate",
+            steps, cwd=path, log=self.absolute(log), label="validate"
         )
         entry.update(
             state="validating",
@@ -272,6 +273,19 @@ class Step(Merging, Coverage):
             self.actions.append(f"regenerated {', '.join(regenerated)} for {branch}")
         self.actions.append(f"validating {branch} in slot {slot}")
         return True
+
+    def validation_steps(self, entry: dict, path: str, base: str) -> list[dict] | None:
+        """The validation job's steps, on the Node the merged slot's ``.nvmrc`` names. That Node
+        missing ejects the branch as ``node-missing`` when the branch changed ``.nvmrc``; when
+        the ``.nvmrc`` is the base's own, no branch is to blame, and the lane pauses
+        (lushly-dev/afd#1352). None when the branch was ejected."""
+        try:
+            return self.job_steps("validate", self.config.validate_command, path)
+        except NodeUnavailable as unavailable:
+            if ".nvmrc" not in self.world.git.changed_files(path, base):
+                raise
+            self.eject(entry, "node-missing", unavailable.for_branch())
+            return None
 
     def regenerable(self, conflicts: tuple[str, ...]) -> bool:
         """Whether every conflicting path is a file the adapter's ``regenerate`` writes."""

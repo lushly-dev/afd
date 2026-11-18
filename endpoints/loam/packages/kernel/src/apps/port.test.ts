@@ -17,10 +17,10 @@ import {
 	probeDefinition,
 	probeDeployment,
 } from '../testing.js';
-import type { AppDetailV1, AppSummaryV1, LoamKernelV3 } from '../types.js';
+import type { AppDetailV1, AppSummaryV1, LoamKernelV5 } from '../types.js';
 import { packageFile } from './port.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 const WORKSPACE = { workspace: 'personal' };
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));

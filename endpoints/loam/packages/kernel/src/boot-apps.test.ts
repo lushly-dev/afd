@@ -12,9 +12,9 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LoamKernelError } from './errors.js';
 import { createKernelParts, NEEDS_STAGE_B } from './kernel.js';
 import { createFixedEnvironment, createTestKernel } from './testing.js';
-import type { AppDetailV1, AppSummaryV2, AppsLoadV2, LoamKernelV3 } from './types.js';
+import type { AppDetailV1, AppSummaryV2, AppsLoadV2, LoamKernelV5 } from './types.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	vi.unstubAllGlobals();
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
@@ -66,7 +66,7 @@ async function partsOf(apps: BootAppV2[], appsLoader: () => Promise<AppsLoadV2>)
 	return parts;
 }
 
-const listOf = async (kernel: LoamKernelV3) =>
+const listOf = async (kernel: LoamKernelV5) =>
 	(await kernel.call<{ active: string | null; apps: AppSummaryV2[] }>('app-list')).data;
 
 describe('stage A: the apps from their boot records', () => {

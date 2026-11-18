@@ -159,6 +159,8 @@ async function boot(): Promise<void> {
 		listsApps: read.apps.length > 0,
 		base,
 		...(shown ? { identity: shown } : {}),
+		// No `copilot` yet: a deployment names no provider before phase 5's step 2 (`[copilot]`), which passes it, with
+		// the frame's runner, so the shell's panel part keeps its empty state until then.
 	});
 	// Stage B loads Better Auth's client in `provider` mode only (4.2).
 	if (provider)

@@ -33,7 +33,14 @@ afterEach(async () => {
 	await Promise.all(hosts.splice(0).map((host) => host.close()));
 });
 
-async function start(options: { body?: string; server?: Partial<LoamHostConfig['server']> } = {}) {
+async function start(
+	options: {
+		body?: string;
+		server?: Partial<LoamHostConfig['server']>;
+		/** Adds files to the fixture's `dist` before the host writes its site. */
+		dist?: (dist: string) => Promise<void>;
+	} = {}
+) {
 	const root = await temporaryDirectory();
 	const data = join(root, 'data');
 	const config = {
@@ -41,6 +48,7 @@ async function start(options: { body?: string; server?: Partial<LoamHostConfig['
 		deployment: await deploymentFile(root, options.body),
 		dist: await fixtureDist(root),
 	};
+	await options.dist?.(config.dist);
 	const host = await createLoamHost(config);
 	hosts.push(host);
 	await host.listen();
@@ -321,6 +329,47 @@ describe('the sandbox on another site (3.2, 3.4, D62)', () => {
 			'/api/health',
 		])
 			expect((await raw(port, path, { host: SANDBOX_HOST, accept: HTML })).status, path).toBe(404);
+	});
+
+	it("P5-A2: serves every file under sandbox/copilot/ with the copilot frame's path-scoped policy (phase 5's 3.2)", async () => {
+		const { port } = await start({
+			body,
+			server: { sandbox: { origin: SANDBOX_ORIGIN } },
+			dist: async (dist) => {
+				await mkdir(join(dist, 'sandbox', 'copilot'), { recursive: true });
+				await writeFile(
+					join(dist, 'sandbox', 'copilot', 'index.html'),
+					'<!doctype html><script src="bootstrap.js"></script>\n'
+				);
+				await writeFile(join(dist, 'sandbox', 'copilot', 'bootstrap.js'), '// bootstrap\n');
+				await writeFile(join(dist, 'sandbox', 'copilot-other.html'), '<p>other</p>\n');
+			},
+		});
+		const policy = `default-src 'none'; script-src ${SANDBOX_ORIGIN}/sandbox/copilot/; worker-src blob:; connect-src 'none'; frame-ancestors https://localhost:8443`;
+		for (const path of [
+			'/sandbox/copilot/index.html',
+			'/sandbox/copilot/bootstrap.js',
+			// Decided on the path once decoded, so no spelling of it escapes the policy.
+			'/sandbox/%63opilot/index.html',
+		]) {
+			const answer = await raw(port, path, { host: SANDBOX_HOST, accept: HTML });
+			expect(answer.status, path).toBe(200);
+			expect(answer.headers['content-security-policy'], path).toBe(policy);
+			expect(answer.headers, path).toMatchObject(common);
+		}
+		for (const path of ['/sandbox/proxy.html', '/sandbox/copilot-other.html'])
+			expect(
+				(await raw(port, path, { host: SANDBOX_HOST, accept: HTML })).headers[
+					'content-security-policy'
+				],
+				path
+			).toBe('frame-ancestors https://localhost:8443');
+		// The shell's origin serves sandbox/ inert, the copilot's path among it (P6-E2).
+		expect(
+			(await raw(port, '/sandbox/copilot/index.html', { host: SHELL_HOST, accept: HTML })).headers[
+				'content-security-policy'
+			]
+		).toBe("sandbox; default-src 'none'; frame-ancestors 'none'");
 	});
 
 	it('serves sandbox/ on its own listener, and nothing of the shell there', async () => {

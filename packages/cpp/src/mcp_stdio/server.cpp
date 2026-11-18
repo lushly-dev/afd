@@ -641,8 +641,18 @@ struct StdioServer::State {
     [[nodiscard]] Json input_required(std::string_view key_name, std::string message,
                                       Json requested_schema, Json question, const Json& accepted,
                                       std::string_view binding) const {
+        return input_required_all(key_name, std::move(message), std::move(requested_schema),
+                                  Json::array({std::move(question)}), accepted, binding);
+    }
+
+    /// An `input_required` result that asks `questions` with one form: one answer covers them all.
+    [[nodiscard]] Json input_required_all(std::string_view key_name, std::string message,
+                                          Json requested_schema, Json questions,
+                                          const Json& accepted, std::string_view binding) const {
         const std::int64_t asked = now();
-        question["t"] = asked;
+        for (auto& question : questions) {
+            question["t"] = asked;
+        }
         Json kept = Json::array();
         for (const auto& entry : accepted) {
             if (entry.is_object() && entry.contains("t") && entry["t"].is_number_integer() &&
@@ -650,9 +660,8 @@ struct StdioServer::State {
                 kept.push_back(entry);
             }
         }
-        const Json payload{{"p", Json::array({std::move(question)})},
-                           {"a", std::move(kept)},
-                           {"x", asked + answer_ttl_ms}};
+        const Json payload{
+            {"p", std::move(questions)}, {"a", std::move(kept)}, {"x", asked + answer_ttl_ms}};
         return {{"resultType", "input_required"},
                 {"inputRequests",
                  {{std::string(key_name),
@@ -1023,11 +1032,10 @@ struct StdioServer::State {
     /// The confirmation gate of a batch or pipeline (`tool`, sent as `request`): it asks once,
     /// before any step runs, for every gated step (an exposed command with a `confirm_prompt`),
     /// listing them all. `acknowledged` holds the `confirm` names.
-    StepsDecision confirm_steps(std::string_view tool, const Json& request,
-                                const std::vector<std::pair<std::string, Json>>& steps,
+    StepsDecision confirm_steps(const std::vector<std::pair<std::string, Json>>& steps,
                                 const std::set<std::string>& acknowledged, std::string_view how,
-                                const Json& params, const RequestInfo& info,
-                                const ClientRequester& ask, const CommandContext& context) {
+                                Round& round, const std::string& binding, const RequestInfo& info,
+                                const ClientRequester& ask) {
         using Kind = StepsDecision::Kind;
         if (options.confirmations == ConfirmationMode::off) {
             return {};
@@ -1057,9 +1065,7 @@ struct StdioServer::State {
         }
         const std::string question =
             detail::base64url_encode(detail::sha256(canonical(gated_steps)));
-        const std::string binding = state_binding(context.actor, tool, request);
         const std::int64_t at = now();
-        const Round round = info.modern ? modern_round(params, binding) : Round{};
         for (const auto& entry : round.accepted) {
             if (live(entry, "confirm", at) && string_member(entry, "q") == question) {
                 return {};
@@ -1072,6 +1078,9 @@ struct StdioServer::State {
                     return {.kind = Kind::refuse, .error = declined_error(names), .response = {}};
                 }
                 if (answer == Response::accept) {
+                    // Carried into a later question (the up-front approval), so it is not asked
+                    // again.
+                    round.accepted.push_back(Json{{"k", "confirm"}, {"q", question}, {"t", at}});
                     return {};
                 }
             }
@@ -1160,6 +1169,142 @@ struct StdioServer::State {
         return steps;
     }
 
+    /// The step of an up-front call as the approval middleware sees it: its validated input, or
+    /// none when it names no command the caller can run or does not validate.
+    [[nodiscard]] detail::UpFrontStep up_front_step(std::size_t index, const std::string& command,
+                                                    const Json& input) const {
+        detail::UpFrontStep step{
+            .index = index, .command = command, .dynamic = false, .input = std::nullopt};
+        const auto found = registry.get(command);
+        if (found && is_exposed_to(found->definition.expose, Interface::mcp)) {
+            if (auto validated = found->input_schema.validate(input)) {
+                step.input = std::move(*validated);
+            }
+        }
+        return step;
+    }
+
+    /// Whether a batch or pipeline is approved up front: the request can carry a form elicitation
+    /// and a step names an exposed command with an approval policy.
+    [[nodiscard]] bool may_gate(const std::vector<std::pair<std::string, Json>>& steps,
+                                const RequestInfo& info, const ClientRequester& ask) const {
+        if (!declares_form_elicitation(info.client_capabilities) ||
+            !(info.modern || static_cast<bool>(ask))) {
+            return false;
+        }
+        return std::any_of(steps.begin(), steps.end(), [this](const auto& step) {
+            const auto command = registry.get(step.first);
+            return command && is_exposed_to(command->definition.expose, Interface::mcp) &&
+                   command->definition.approval.has_value();
+        });
+    }
+
+    /// The approval answers a modern retry carries for the questions asked last round.
+    [[nodiscard]] detail::UpFrontAnswers up_front_answers(const Round& round) const {
+        detail::UpFrontAnswers answers;
+        const std::int64_t at = now();
+        const Response response = response_to(round, approval_input_key, "approve");
+        for (const auto& entry : round.pending) {
+            if (!live(entry, "approval", at)) {
+                continue;
+            }
+            if (response == Response::decline) {
+                answers.declined.push_back(string_member(entry, "b"));
+            } else if (response == Response::accept && entry.contains("e") &&
+                       entry["e"].is_number_integer()) {
+                answers.accepted.push_back(
+                    detail::RelayAnswer{.kind = detail::RelayAnswer::Kind::accept,
+                                        .binding = string_member(entry, "b"),
+                                        .nonce = string_member(entry, "n"),
+                                        .expires_at_ms = entry["e"].get<std::int64_t>(),
+                                        .mac = string_member(entry, "m")});
+            }
+        }
+        return answers;
+    }
+
+    /// Runs a batch or pipeline (`run`, given its steps' context) under one up-front approval
+    /// (spec/command-metadata.md, "One approval up front for `afd-batch` and `afd-pipe`"):
+    /// nothing runs unless every gated step is approved, and the human is asked once for all.
+    /// `refused` is the call's result when nothing ran.
+    Json run_up_front(std::string_view tool, const Json& request, bool conditional,
+                      std::vector<detail::UpFrontStep> steps, Round& round,
+                      const std::string& binding, const RequestInfo& info,
+                      const ClientRequester& ask, const CommandContext& context,
+                      const std::function<Json(const CommandContext&)>& run,
+                      const std::function<Json(const CommandError&)>& refused) {
+        const std::string call = canonical(Json::array({std::string(tool), request}));
+        const auto attempt = [&](detail::UpFrontAnswers answers) {
+            auto up_front = std::make_shared<detail::UpFrontApproval>(
+                std::string(tool), call, conditional, steps, std::move(answers));
+            CommandContext steps_context = step_context(context, info, ask);
+            steps_context.up_front_approval = up_front;
+            Json result = run(steps_context);
+            return std::pair{std::move(up_front), std::move(result)};
+        };
+        const auto finished = [&](const detail::UpFrontApproval& up_front, Json result) {
+            if (auto refusal = up_front.refusal()) {
+                return refused(*refusal);
+            }
+            return result;
+        };
+        if (info.modern) {
+            auto [up_front, result] = attempt(up_front_answers(round));
+            if (auto hold = up_front->held()) {
+                Json questions = Json::array();
+                for (const auto& question : hold->questions) {
+                    questions.push_back(Json{{"k", "approval"},
+                                             {"b", question.binding},
+                                             {"n", question.nonce},
+                                             {"e", question.expires_at_ms},
+                                             {"m", question.mac}});
+                }
+                return input_required_all(approval_input_key, std::move(hold->message),
+                                          approval_schema(), std::move(questions), round.accepted,
+                                          binding);
+            }
+            return finished(*up_front, std::move(result));
+        }
+        // A 2025 connection asks in band, then runs the call again with the answer. Nothing ran
+        // while the question was pending, so running again runs each step once. A second round
+        // asks again when the first answer had expired or was already used.
+        detail::UpFrontAnswers answers;
+        for (int rounds = 0; rounds < 2; ++rounds) {
+            auto [up_front, result] = attempt(answers);
+            const auto hold = up_front->held();
+            if (!hold) {
+                return finished(*up_front, std::move(result));
+            }
+            const Json request_form{{"method", "elicitation/create"},
+                                    {"params",
+                                     {{"mode", "form"},
+                                      {"message", hold->message},
+                                      {"requestedSchema", approval_schema()}}}};
+            const auto answer = ask_in_band(request_form, info, ask);
+            if (!answer) {
+                // Nobody declined: the call fails as unanswered.
+                return refused(*unanswered(approval_input_key, tool, "").error);
+            }
+            const bool accept = string_member(*answer, "action") == "accept" &&
+                                is_true(object_member(*answer, "content"), "approve");
+            answers = {};
+            for (const auto& question : hold->questions) {
+                if (accept) {
+                    answers.accepted.push_back(
+                        detail::RelayAnswer{.kind = detail::RelayAnswer::Kind::accept,
+                                            .binding = question.binding,
+                                            .nonce = question.nonce,
+                                            .expires_at_ms = question.expires_at_ms,
+                                            .mac = question.mac});
+                } else {
+                    answers.declined.push_back(question.binding);
+                }
+            }
+        }
+        auto [up_front, result] = attempt(answers);
+        return finished(*up_front, std::move(result));
+    }
+
     Json afd_batch(const Json& arguments, const Json& params, const RequestInfo& info,
                    const ClientRequester& ask, const CommandContext& context) {
         const auto invalid = [this](std::optional<Json> details = std::nullopt) {
@@ -1190,18 +1335,33 @@ struct StdioServer::State {
             }
             steps.emplace_back(item.command, item.input.value_or(Json::object()));
         }
-        auto decision = confirm_steps("afd-batch", request, steps, *acknowledged,
+        // Confirmations and the approval share one state, bound to the caller and the request.
+        const std::string binding = state_binding(context.actor, "afd-batch", request);
+        Round round = info.modern ? modern_round(params, binding) : Round{};
+        auto decision = confirm_steps(steps, *acknowledged,
                                       "repeat the afd-batch with confirm: [the command names]",
-                                      params, info, ask, context);
+                                      round, binding, info, ask);
         if (decision.kind == StepsDecision::Kind::ask) {
             return std::move(decision.response);
         }
         if (decision.kind == StepsDecision::Kind::refuse) {
             return batch_failure(std::move(*decision.error), now());
         }
-        const BatchResult result =
-            registry.execute_batch(*parsed, step_context(context, info, ask));
-        return json_tool_result(Json(result), !result.success);
+        const auto run = [&](const CommandContext& steps_context) {
+            const BatchResult result = registry.execute_batch(*parsed, steps_context);
+            return json_tool_result(Json(result), !result.success);
+        };
+        if (!may_gate(steps, info, ask)) {
+            return run(step_context(context, info, ask));
+        }
+        // Steps cannot ask mid-run: the whole batch is approved up front, or nothing runs.
+        std::vector<detail::UpFrontStep> up_front;
+        for (std::size_t i = 0; i < steps.size(); ++i) {
+            up_front.push_back(up_front_step(i, steps[i].first, steps[i].second));
+        }
+        return run_up_front(
+            "afd-batch", request, false, std::move(up_front), round, binding, info, ask, context,
+            run, [this](const CommandError& error) { return batch_failure(error, now()); });
     }
 
     Json afd_pipe(const Json& arguments, const Json& params, const RequestInfo& info,
@@ -1227,21 +1387,58 @@ struct StdioServer::State {
         for (const auto& step : parsed->steps) {
             steps.emplace_back(step.command, step.input.value_or(Json::object()));
         }
-        auto decision = confirm_steps("afd-pipe", request, steps, *acknowledged,
+        const std::string binding = state_binding(context.actor, "afd-pipe", request);
+        Round round = info.modern ? modern_round(params, binding) : Round{};
+        auto decision = confirm_steps(steps, *acknowledged,
                                       "repeat the afd-pipe with confirm: [the command names]",
-                                      params, info, ask, context);
+                                      round, binding, info, ask);
         if (decision.kind == StepsDecision::Kind::ask) {
             return std::move(decision.response);
         }
         if (decision.kind == StepsDecision::Kind::refuse) {
             return pipeline_failure(*decision.error);
         }
-        const PipelineResult result =
-            registry.execute_pipeline(*parsed, step_context(context, info, ask));
-        const bool failed =
-            std::any_of(result.steps.begin(), result.steps.end(),
-                        [](const StepResult& step) { return step.status == StepStatus::failure; });
-        return json_tool_result(Json(result), failed);
+        const auto run = [&](const CommandContext& steps_context) {
+            const PipelineResult result = registry.execute_pipeline(*parsed, steps_context);
+            const bool failed =
+                std::any_of(result.steps.begin(), result.steps.end(), [](const StepResult& step) {
+                    return step.status == StepStatus::failure;
+                });
+            return json_tool_result(Json(result), failed);
+        };
+        if (!may_gate(steps, info, ask)) {
+            return run(step_context(context, info, ask));
+        }
+        // Steps cannot ask mid-run: the whole pipeline is approved up front, or nothing runs. A
+        // step whose input reads an earlier step's data is not known up front; any other has its
+        // `$input` references resolved, as the pipeline will.
+        const PipelineContext references{
+            .pipeline_input = parsed->input, .steps = {}, .previous_success = std::nullopt};
+        std::vector<detail::UpFrontStep> up_front;
+        bool conditional = false;
+        for (std::size_t i = 0; i < parsed->steps.size(); ++i) {
+            const auto& step = parsed->steps[i];
+            conditional = conditional || step.when.has_value();
+            const auto command = registry.get(step.command);
+            if (!command || !is_exposed_to(command->definition.expose, Interface::mcp)) {
+                // A command the caller cannot run is not one: it fails as a missing name.
+                up_front.push_back(
+                    {.index = i, .command = step.command, .dynamic = false, .input = std::nullopt});
+            } else if (step.input && reads_step_data(*step.input)) {
+                up_front.push_back(
+                    {.index = i, .command = step.command, .dynamic = true, .input = std::nullopt});
+            } else {
+                auto resolved = resolve_variables(step.input.value_or(Json::object()), references);
+                up_front.push_back(resolved ? up_front_step(i, step.command, *resolved)
+                                            : detail::UpFrontStep{.index = i,
+                                                                  .command = step.command,
+                                                                  .dynamic = false,
+                                                                  .input = std::nullopt});
+            }
+        }
+        return run_up_front("afd-pipe", request, conditional, std::move(up_front), round, binding,
+                            info, ask, context, run,
+                            [](const CommandError& error) { return pipeline_failure(error); });
     }
 
     Json call_tool(const Json& params, const RequestInfo& info, const ClientRequester& ask,

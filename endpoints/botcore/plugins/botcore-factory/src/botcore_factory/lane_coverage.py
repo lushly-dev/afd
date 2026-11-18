@@ -16,6 +16,41 @@ from botcore_factory.world import LANE_HOST_VARIABLE, nvmrc_version
 INSTALL_TIMEOUT_SECONDS = 1800
 
 
+class NodeUnavailable(LaneTrouble):
+    """The Node a checkout's ``.nvmrc`` names is not installed, or ``.nvmrc`` is an alias. As
+    the lane's trouble it pauses the lane (main's own ``.nvmrc``); ``for_branch`` says it to a
+    branch whose own change to ``.nvmrc`` it is, which is ejected as ``node-missing``."""
+
+    def __init__(self, spec: str, cwd: str) -> None:
+        self.spec = spec
+        self.alias = nvmrc_version(spec) is None
+        if self.alias:
+            message = (
+                f".nvmrc in {cwd} names {spec!r}, an alias the lane does not resolve: pin a "
+                "version number there (such as 26), then lane-resume"
+            )
+        else:
+            message = (
+                f"Node {spec}, which .nvmrc in {cwd} names, is not installed on this machine: "
+                f"install it (`fnm install {spec}` or `nvm install {spec}`), then lane-resume"
+            )
+        super().__init__(message)
+
+    def for_branch(self) -> str:
+        """NODE_MISSING for the cell: what to change, or who installs the Node."""
+        if self.alias:
+            return (
+                f"NODE_MISSING: the branch's .nvmrc names {self.spec!r}, an alias the lane does "
+                "not resolve: pin a version number, or keep the base's .nvmrc"
+            )
+        return (
+            f"NODE_MISSING: the branch's .nvmrc names Node {self.spec}, which the lane host has "
+            f"not installed: keep the base's .nvmrc, or have the owner install it on the lane "
+            f"host (`fnm install {self.spec}` or `nvm install {self.spec}`) before enqueueing "
+            "again"
+        )
+
+
 class Coverage(StepBase):
     def job_steps(self, label: str, command: list[str], cwd: str) -> list[dict]:
         """Install (bounded by a timeout), then the command: one background job, on the Node
@@ -35,21 +70,13 @@ class Coverage(StepBase):
 
     def node_bin(self, cwd: str) -> str | None:
         """The bin directory of the Node the checkout's ``.nvmrc`` names; None without one.
-        That Node missing is the lane's trouble: never validate on another one."""
+        That Node missing raises ``NodeUnavailable``: never validate on another one."""
         spec = (self.world.git.read_file(cwd, ".nvmrc") or "").strip()
         if not spec:
             return None
-        if nvmrc_version(spec) is None:
-            raise LaneTrouble(
-                f".nvmrc in {cwd} names {spec!r}, an alias the lane does not resolve: pin a "
-                "version number there (such as 26), then lane-resume"
-            )
-        found = self.world.machine.node_bin(spec)
+        found = self.world.machine.node_bin(spec) if nvmrc_version(spec) else None
         if found is None:
-            raise LaneTrouble(
-                f"Node {spec}, which .nvmrc in {cwd} names, is not installed on this machine: "
-                f"install it (`fnm install {spec}` or `nvm install {spec}`), then lane-resume"
-            )
+            raise NodeUnavailable(spec, cwd)
         return found
 
     def coverage_owed(self) -> bool:

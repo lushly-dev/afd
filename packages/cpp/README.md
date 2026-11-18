@@ -164,7 +164,7 @@ if (!server) { /* server.error() says why */ }
   - Create the approval middleware with `.relay = afd::ApprovalRelay::mcp_elicitation`, and a held call is asked of the person in the same way. No token reaches the agent.
   - A call that needs both questions asks them in turn, and one state carries both answers.
   - Opt in only when the client application shows the question to a person.
-  - Only a call to one command is asked (its own tool, `afd-call` or a grouped tool). A step of `afd-batch` or `afd-pipe` that needs approval fails with `APPROVAL_REQUIRED`, telling the agent to call it on its own; asking once for the whole batch is #1451's last step.
+  - `afd-batch` and `afd-pipe` are approved up front, as a whole or not at all ([spec](../../spec/command-metadata.md#one-approval-up-front-for-afd-batch-and-afd-pipe)): before any step runs, the person is asked once for every gated step, each shown with its validated input (a pipeline's `$input` resolved), and each runs once on its own approval. A gated pipeline step whose input reads an earlier step runs nothing (`input-not-known`), and so do more than 20 gated steps (`too-many-approvals`) and a decline. A command a step runs falls back, telling the agent to call it on its own.
 - **State key.** The `requestState` key is `state_secret`, at least 32 bytes. When it is unset, the key is random for each server.
 - `examples/mcp_stdio_server.cpp` is a complete server, and the [C++ todo backend](../examples/todo/backends/cpp/README.md) runs on this target.
 

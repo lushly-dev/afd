@@ -18,9 +18,9 @@ import {
 	probeDefinition,
 	probeDeployment,
 } from '../testing.js';
-import type { AppSummaryV2, LoamKernelV3 } from '../types.js';
+import type { AppSummaryV2, LoamKernelV5 } from '../types.js';
 
-const kernels: LoamKernelV3[] = [];
+const kernels: LoamKernelV5[] = [];
 afterEach(async () => {
 	await Promise.all(kernels.splice(0).map((kernel) => kernel.dispose()));
 });
@@ -69,9 +69,9 @@ async function boot(
 	return { kernel, journal };
 }
 
-const listOf = async (kernel: LoamKernelV3) =>
+const listOf = async (kernel: LoamKernelV5) =>
 	(await kernel.call<{ active: string | null; apps: AppSummaryV2[] }>('app-list')).data;
-const layoutOf = async (kernel: LoamKernelV3) =>
+const layoutOf = async (kernel: LoamKernelV5) =>
 	(await kernel.call<LayoutStateV0>('layout-get')).data as LayoutStateV0;
 
 describe('stage B corrects a boot record', () => {

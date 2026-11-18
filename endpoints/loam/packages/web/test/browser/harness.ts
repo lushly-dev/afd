@@ -16,6 +16,7 @@ import { fileURLToPath } from 'node:url';
 import { promisify } from 'node:util';
 import { appPack } from '@lushly-dev/loam-cli';
 import { writeDeployment } from '@lushly-dev/loam-cli/deployment';
+import { copilotFramePolicy, isCopilotFramePath } from '@lushly-dev/loam-host';
 import {
 	startTestAuthHost,
 	type TestAuthHost,
@@ -72,7 +73,8 @@ async function serveDirectory(
 	root: string,
 	options: {
 		only?: string;
-		headers?: () => Record<string, string>;
+		/** Each answer's extra headers, by its request's path. */
+		headers?: (path: string) => Record<string, string>;
 		relay?: () => MountRelay | undefined;
 		base?: string;
 		fallback?: boolean;
@@ -123,7 +125,7 @@ async function serveDirectory(
 			log.push({ path, bytes: body.length, status: 200 });
 			response.writeHead(200, {
 				'content-type': TYPES[extname(served)] ?? 'application/octet-stream',
-				...options.headers?.(),
+				...options.headers?.(path),
 			});
 			response.end(body);
 		} catch {
@@ -286,7 +288,8 @@ function authProxy(prefix: string, host: () => TestAuthHost | undefined) {
  * `writeDeployment` into a temporary directory, then served, as a deployer does (phase 1 specification,
  * section 14). `config` is the file's text: a relative `package` is relative to that directory, so a
  * test names an absolute one. `sandbox: true` serves `sandbox/` on a second loopback origin, with
- * `frame-ancestors` naming the shell's, as a deployer does (6.1). `mounts: true` serves the test-only
+ * `frame-ancestors` naming the shell's, as a deployer does (6.1), and `sandbox/copilot/` with the copilot frame's
+ * path-scoped policy (phase 5 specification, 3.2). `mounts: true` serves the test-only
  * relay at `mounts/<instance>/mcp` (7.1), with `writeDeployment`'s `mounts`, held in memory.
  */
 export async function serveDeployment(options: {
@@ -311,13 +314,20 @@ export async function serveDeployment(options: {
 	const config = join(directory, 'loam.deployment.toml');
 	const out = join(directory, 'site');
 	let shellOrigin = '';
-	// A port is known before the file is written, and the shell's only after it is served.
+	let sandboxOrigin = '';
+	// A port is known before the file is written, and the shell's only after it is served. The copilot's path
+	// carries its frame's own policy (phase 5 specification, 3.2), as every host serves it.
 	const sandbox = options.sandbox
 		? await serveDirectory(out, {
 				only: '/sandbox/',
-				headers: () => ({ 'content-security-policy': `frame-ancestors ${shellOrigin}` }),
+				headers: (path) => ({
+					'content-security-policy': isCopilotFramePath(path)
+						? copilotFramePolicy(sandboxOrigin, shellOrigin)
+						: `frame-ancestors ${shellOrigin}`,
+				}),
 			})
 		: undefined;
+	sandboxOrigin = sandbox?.origin ?? '';
 	await writeFile(
 		config,
 		[

@@ -564,39 +564,37 @@ async fn detail_reports_every_field_and_bounds_unknown_names() {
     assert_eq!(detailed["reasoning"], "Resolved 1 of 3 requested commands");
 }
 
-/// `requires`, `examples` and `contexts` are reported when set, and they and `scopes` are omitted
-/// when empty (#474).
+/// `requires`, `examples` and `contexts` are reported when set, and they, `scopes`, `tags` and
+/// `errors` are omitted when empty (#474, #1420).
 #[tokio::test]
 async fn detail_reports_requires_examples_and_contexts() {
     let registry = CommandRegistry::new();
     let runs = Arc::new(AtomicUsize::new(0));
-    registry
-        .register(
-            CommandDefinition::new(
-                "todo-update",
-                "Update a todo",
-                vec![CommandParameter::required_string("id", "Id")],
-                Echo(Arc::clone(&runs)),
-            )
-            .with_requires(["todo-list"])
-            .with_examples(vec![CommandExample::new(
-                "Update one",
-                json!({ "id": "t-1" }),
-            )])
-            .with_contexts(["planning"])
-            .with_expose(mcp()),
-        )
-        .unwrap();
-    registry
-        .register(
-            CommandDefinition::new("todo-list", "List todos", vec![], Echo(runs))
-                .with_requires(Vec::<String>::new())
-                .with_contexts(Vec::<String>::new())
-                .with_examples(vec![])
-                .with_scopes(Vec::<String>::new())
-                .with_expose(mcp()),
-        )
-        .unwrap();
+    let mut updated = CommandDefinition::new(
+        "todo-update",
+        "Update a todo",
+        vec![CommandParameter::required_string("id", "Id")],
+        Echo(Arc::clone(&runs)),
+    )
+    .with_requires(["todo-list"])
+    .with_examples(vec![CommandExample::new(
+        "Update one",
+        json!({ "id": "t-1" }),
+    )])
+    .with_contexts(["planning"])
+    .with_tags(vec!["write".into()])
+    .with_expose(mcp());
+    updated.errors = Some(vec!["NOT_FOUND".into()]);
+    registry.register(updated).unwrap();
+    let mut listed = CommandDefinition::new("todo-list", "List todos", vec![], Echo(runs))
+        .with_requires(Vec::<String>::new())
+        .with_contexts(Vec::<String>::new())
+        .with_examples(vec![])
+        .with_scopes(Vec::<String>::new())
+        .with_tags(vec![])
+        .with_expose(mcp());
+    listed.errors = Some(vec![]);
+    registry.register(listed).unwrap();
     let server = McpServer::new(Arc::new(registry), "detail", "1.0.0")
         .with_tool_strategy(ToolStrategy::Lazy);
     let (detailed, failed) = call(
@@ -613,7 +611,11 @@ async fn detail_reports_requires_examples_and_contexts() {
         json!([{ "title": "Update one", "input": { "id": "t-1" } }])
     );
     assert_eq!(entries[0]["contexts"], json!(["planning"]));
-    for key in ["requires", "examples", "contexts", "scopes"] {
+    assert_eq!(entries[0]["tags"], json!(["write"]));
+    assert_eq!(entries[0]["errors"], json!(["NOT_FOUND"]));
+    for key in [
+        "requires", "examples", "contexts", "scopes", "tags", "errors",
+    ] {
         assert!(entries[1].get(key).is_none(), "{key}: {}", entries[1]);
     }
 }

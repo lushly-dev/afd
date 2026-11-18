@@ -17,7 +17,7 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 3,
+				"kernelInterface": 5,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,
@@ -2051,7 +2051,7 @@
 		"result": {
 			"success": true,
 			"data": {
-				"kernelInterface": 3,
+				"kernelInterface": 5,
 				"layoutState": 0,
 				"storeInterface": 1,
 				"tokenContract": 1,

@@ -29,7 +29,8 @@
 		"@lushly-dev/loam-manifest": "workspace:*",
 		"@lushly-dev/loam-theme": "workspace:*",
 		"@lushly-dev/local-db": "workspace:*",
-		"zod": "^4.6.6"
+		"zod": "^4.6.6",
+		"@lushly-dev/loam-copilot": "workspace:*"
 	},
 	"devDependencies": {
 		"@better-auth/passkey": "1.7.18",

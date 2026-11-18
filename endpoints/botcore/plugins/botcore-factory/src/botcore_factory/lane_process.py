@@ -2,7 +2,8 @@
 
 ``lane-start`` runs on the lane host only, with a free host-wide lock, ``required_check`` a
 required check on main, the Node ``.nvmrc`` names installed and the toolchains the repository
-pins. It takes the lock, starts
+pins, read on that Node as validation runs (its bin directory first on ``PATH``). It takes the
+lock, starts
 ``python -m botcore_factory.lane_main`` detached (Windows: DETACHED_PROCESS |
 CREATE_NEW_PROCESS_GROUP; POSIX: a new session) and hands the lock to it. That process runs the
 loop (``run_loop``): it resumes where the last one stopped (a branch that was validating goes
@@ -106,10 +107,33 @@ def _version(text: str | None) -> tuple[int, ...] | None:
     return tuple(int(part) for part in match.groups()) if match else None
 
 
+def nvmrc_node(factory: Factory) -> tuple[str, str | None]:
+    """The checkout's ``.nvmrc`` (empty without one) and the bin directory of the Node it names,
+    found as validation finds it; None when that Node is not installed or ``.nvmrc`` is an
+    alias."""
+    try:
+        spec = (factory.target / ".nvmrc").read_text(encoding="utf-8").strip()
+    except OSError:
+        return "", None
+    if not spec or nvmrc_version(spec) is None:
+        return spec, None
+    return spec, factory.world.machine.node_bin(spec)
+
+
 def toolchain_mismatches(factory: Factory) -> list[str]:
+    """The pins this machine misses, read as validation runs: on the ``.nvmrc`` Node, with its
+    bin directory first on ``PATH``, so ``node`` and the ``pnpm`` found there are the ones a
+    validation job runs (lushly-dev/afd#1352). Without ``.nvmrc``, the host's ``PATH``."""
+    spec, node = nvmrc_node(factory)
+    rules = pins(factory.target)
     problems = []
-    for tool, rule in pins(factory.target).items():
-        have = factory.world.machine.tool_version(tool)
+    if spec and node is None:
+        why = "an alias" if nvmrc_version(spec) is None else "not installed"
+        problems.append(f"node {spec} from .nvmrc ({why})")
+        rules.pop("node", None)  # Not the Node validation would run on.
+    path = [node] if node else []
+    for tool, rule in rules.items():
+        have = factory.world.machine.tool_version(tool, path)
         want = _version(rule)
         got = _version(have)
         if got is None:
@@ -119,13 +143,9 @@ def toolchain_mismatches(factory: Factory) -> list[str]:
     return problems
 
 
-def require_node(factory: Factory, then: str) -> None:
-    """Refuse when the Node the checkout's ``.nvmrc`` names is not installed: the lane validates
-    on it, never on whatever ``node`` comes first on PATH."""
-    try:
-        spec = (factory.target / ".nvmrc").read_text(encoding="utf-8").strip()
-    except OSError:
-        return
+def require_toolchains(factory: Factory, then: str) -> None:
+    """Refuse unless the ``.nvmrc`` Node is installed and the toolchains meet the pins."""
+    spec, node = nvmrc_node(factory)
     if spec and nvmrc_version(spec) is None:
         raise Refusal(
             "NODE_UNPINNED",
@@ -133,12 +153,20 @@ def require_node(factory: Factory, then: str) -> None:
             f"Pin a version number in .nvmrc (such as 26), then {then}",
             nvmrc=spec,
         )
-    if spec and factory.world.machine.node_bin(spec) is None:
+    if spec and node is None:
         raise Refusal(
             "NODE_MISSING",
             f"Node {spec}, which the repository's .nvmrc names, is not installed on this machine",
             f"Install it with `fnm install {spec}` (or `nvm install {spec}`), then {then}",
             nvmrc=spec,
+        )
+    mismatches = toolchain_mismatches(factory)
+    if mismatches:
+        raise Refusal(
+            "TOOLCHAIN_MISMATCH",
+            f"This machine's toolchains differ from the repository's pins: {'; '.join(mismatches)}",
+            f"Install the pinned versions{f' for Node {spec}' if spec else ''}, then {then}",
+            mismatches=mismatches,
         )
 
 
@@ -165,15 +193,7 @@ def lane_start(factory: Factory) -> dict:
             "lane-status says what it is doing; stop it with lane-stop first",
         )
     require_check(factory)
-    require_node(factory, "lane-start again")
-    mismatches = toolchain_mismatches(factory)
-    if mismatches:
-        raise Refusal(
-            "TOOLCHAIN_MISMATCH",
-            f"This machine's toolchains differ from the repository's pins: {'; '.join(mismatches)}",
-            "Install the pinned versions, then lane-start again",
-            mismatches=mismatches,
-        )
+    require_toolchains(factory, "lane-start again")
     repository = factory.world.github.repository()
     target = str(factory.target)
     with factory.store.update("lane-start") as state:
@@ -315,15 +335,7 @@ def run_loop(
     same grounds as lane-start."""
     me = require_host(factory)
     require_check(factory)
-    require_node(factory, "start the lane again")
-    mismatches = toolchain_mismatches(factory)
-    if mismatches:
-        raise Refusal(
-            "TOOLCHAIN_MISMATCH",
-            f"This machine's toolchains differ from the repository's pins: {'; '.join(mismatches)}",
-            "Install the pinned versions, then start the lane again",
-            mismatches=mismatches,
-        )
+    require_toolchains(factory, "start the lane again")
     lock = host_lock(factory)
     holder = lock.live_holder()
     if holder is not None and holder.get("pid") != os.getpid():

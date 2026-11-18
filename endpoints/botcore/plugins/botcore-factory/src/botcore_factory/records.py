@@ -12,7 +12,9 @@ branch's first enqueue, counting up with each re-enqueue), so a reader folds the
 ======================  ==================================================  =====================
 kind                    required fields                                     written by
 ======================  ==================================================  =====================
-``cell-registered``     branch, issues, plan, route, profile                cell-register
+``cell-registered``     branch, issues, plan, route, profile; optional      cell-register
+                        relatedBecause (why a package of issues shares
+                        the cell)
 ``enqueued``            branch, attempt, head, issues, plan, route,         lane-enqueue
                         profile, state (queued | held), firstEnqueuedAt
 ``queued``              branch, attempt (a held attempt joins the queue)    the lane loop
@@ -39,10 +41,10 @@ kind                    required fields                                     writ
 ``ejected``             branch, attempt, cause (conflict | entry-invalid |  the lane loop
                         final-failed | push-failed | pr-failed | ci-failed
                         | merge-failed | coverage-failed | pr-closed |
-                        review-unverified); optional head, logPath,
-                        counted (false: not the branch's own failure, so
-                        it does not count toward cells.maxEjections),
-                        excuse (why not)
+                        review-unverified | node-missing); optional
+                        head, logPath, counted (false: not the branch's
+                        own failure, so it does not count toward
+                        cells.maxEjections), excuse (why not)
 ``ejection-excused``    branch, attempt, cause, reason: the foreman found   ejection-excuse
                         the latest ejection was not the branch's fault
 ``slot-released``       branch, attempt, slot, path: a validated branch     the lane loop
@@ -121,6 +123,7 @@ EJECT_CAUSES = (
     "coverage-failed",
     "pr-closed",
     "review-unverified",
+    "node-missing",
 )
 #: Ejection causes that mean a check failed; a repair after one may not edit a gate.
 FAILING_CHECK_CAUSES = frozenset({"entry-invalid", "final-failed", "ci-failed", "coverage-failed"})

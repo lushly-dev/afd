@@ -1835,3 +1835,50 @@ async fn a_single_command_answer_is_never_an_up_front_approval() {
     assert_eq!(harness.handled.load(Ordering::SeqCst), 0);
     assert!(channel.held().is_some());
 }
+
+/// An approver's call ("Approval evidence from an approver client"), as the MCP server marks it.
+fn approver_context(evidence: Option<&str>) -> CommandContext {
+    let mut context = CommandContext::new().with_actor(agent());
+    context.approver = Some(Arc::new(super::approver::ApproverCall::new(
+        evidence.map(str::to_owned),
+    )));
+    context
+}
+
+#[tokio::test]
+async fn an_approvers_carried_evidence_is_taken_once_by_the_first_command() {
+    let harness = setup_with(ApprovalPolicy::Required, |options| {
+        options.with_include_token(false)
+    });
+    let held = harness
+        .call("todo-delete", json!({ "id": 1 }), approver_context(None))
+        .await;
+    // The token reaches an approver whatever `include_token` says.
+    let token = held.error.unwrap().details.unwrap()["approvalToken"]
+        .as_str()
+        .unwrap()
+        .to_owned();
+    let context = approver_context(Some(&token));
+    // The command the call routes to takes it, even one that needs no approval ...
+    assert!(
+        harness
+            .call("todo-list", json!({}), context.clone())
+            .await
+            .success
+    );
+    // ... so a command run after it in process never sees it.
+    let nested = harness
+        .call("todo-delete", json!({ "id": 1 }), context)
+        .await;
+    let details = nested.error.unwrap().details.unwrap();
+    assert!(!details.contains_key("reason"), "{details:?}");
+    // The token binds the approver's principal: as a plain actor's evidence it does not hold.
+    let outside = harness
+        .agent_call("todo-delete", json!({ "id": 1 }), Some(&token))
+        .await;
+    assert_eq!(
+        outside.error.unwrap().details.unwrap()["reason"],
+        "actor-mismatch"
+    );
+    assert_eq!(harness.handled(), 1);
+}

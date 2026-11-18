@@ -35,11 +35,11 @@ Run from the primary checkout on current `main`, on the lane host; cells run the
 
 Run `triage-issues` first, then take work in `issue-check`'s `dispatchable` order. Batch issues that share code into one package; never split work to fill seats. Start a cell only when `lane-status` says `canStartCell`, on its `plan` and `nextIssue`:
 
-1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>", "session": "<your thread id>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing.
+1. `cell-register {"issues": [n], "branch": "<branch>", "route": "<model/effort>", "session": "<your thread id>"}`. The lane claims the issues and assigns the plan; a refusal costs nothing. Issues that edit the same files go in one cell as a package: list them all, add `"related_because": "<what they share>"`, and raise `cells.issuesMax` to the count first if needed. Separate cells for them would conflict in the queue.
 2. `delegate_task` on that plan with `isolation: "worktree"` and [the cell brief](references/runbook.md#the-cell-brief).
 3. `cell-attach {"branch": "<branch>", "thread": "<childThreadId>"}`.
 
-Take the route from [model routing](../../../docs/operations/model-routing.md). A cell runs wholly on its plan's provider; only you cross providers.
+Take the route from [model routing](../../../docs/operations/model-routing.md): a cell implements on Opus 5.5 `medium`, so it runs only on a Claude plan. The lane does not yet limit cells to Claude plans ([#1498](https://github.com/lushly-dev/afd/issues/1498)): when `lane-status` names a ChatGPT plan, start nothing and tell the owner, and if `cell-register` assigns one (it reads the plans again), `lane-drop` the cell before step 2. A cell runs wholly on its plan's provider, except that its first review adds a second reviewer on the other provider as `prepare-pr` says.
 
 ## Wake only for judgment
 

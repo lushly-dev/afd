@@ -33,11 +33,14 @@ A cell, done and reviewed, calls `lane_enqueue(worktree)` once and ends its turn
 ## Events
 
 `ejected` (`reason`: `conflict`, `entry-invalid`, `final-failed`, `push-failed`, `pr-failed`,
-`pr-closed`, `ci-failed`, `merge-failed`; with `detail`, `lines` and `logPath`, and `excused`
-when it does not count; answered by a re-enqueue or `lane_drop`), `ejection-limit` (the
-branch's own failures reached `cells.maxEjections`: `conflict`, `push-failed`, `pr-failed` and
-`merge-failed` never count, nor one `ejection_excuse` excused; answered as `ejected` is, or by
-the excuse that brings it under the limit), `lane-error`
+`pr-closed`, `ci-failed`, `merge-failed`, `review-unverified`, `node-missing` (the branch's own
+`.nvmrc` names a Node the lane host lacks, or an alias; `detail` starts `NODE_MISSING`: keep
+the base's `.nvmrc`, or the owner installs that Node on the lane host); with `detail`, `lines`
+and `logPath`, and `excused` when it does not count; answered by a re-enqueue or
+`lane_drop`), `ejection-limit` (the branch's own failures reached `cells.maxEjections`:
+`conflict`, `push-failed`, `pr-failed` and `merge-failed` never count, nor one
+`ejection_excuse` excused; answered as `ejected` is, or by the excuse that brings it under the
+limit), `lane-error`
 (the lane's own trouble: the network, a timeout, a cancelled check, a required check still
 running after `lane.checkTimeoutMinutes` with its PR left open; it paused and ejected nothing;
 `lane_resume`), `queue-room` (`cell_register`),
@@ -84,20 +87,24 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   until related issues are computed), `staleClaims[] {number, branch, machine, leaseUntil}`
   (expired leases, or a claim label with no claim comment), `held[] {number, reasons}`.
   Refuses `READ_FAILED`: a failed GitHub read is never an empty answer.
-- `cell_register(issues, branch, route, thread?, session?)` -> `cell {branch, issues, route,
-  thread, plan, state, ejections, registeredAt, leaseUntil, machine}`. Refusals, checked in this
+- `cell_register(issues, branch, route, thread?, session?, related_because?)` -> `cell {branch,
+  issues, route, thread, plan, state, ejections, registeredAt, leaseUntil, machine,
+  relatedBecause?}`. More than one issue is a package the foreman names: up to
+  `cells.issuesMax` dispatchable issues that share files, with `related_because` saying what
+  they share; one PR then replaces cells that would conflict in the queue. Refusals, checked in this
   order: `VALIDATION_ERROR` for an empty `session`, `FOREMAN_BUSY` (another session holds the
   lane; the lease is taken before the checks below), `VALIDATION_ERROR`,
-  `TOO_MANY_ISSUES` (over `cells.issuesMax`, or unrelated issues), `ALREADY_EXISTS` (the branch
-  has a cell), `ALREADY_CLAIMED` (names the holding branch),
+  `TOO_MANY_ISSUES` (over `cells.issuesMax`, or a package without `related_because`),
+  `ALREADY_EXISTS` (the branch has a cell), `ALREADY_CLAIMED` (names the holding branch),
   `NOT_DISPATCHABLE` (triage has not planned it, or a rule holds it), `CELLS_FULL`
   (`cells.max`), `PLAN_ABOVE_CEILING` (every plan at or above `plans.ceiling`; names the next
   reset), `PLANS_UNREADABLE`, `HOST_LOADED` (free memory below `host.minFreeGb`),
-  `WRITE_FAILED`. A refusal writes nothing.
+  `WRITE_FAILED` (a claim write failed; the claims it wrote are put back, and it names any it
+  could not). A refusal writes nothing.
 - `lane_status(limit?, cursor?)` -> `runId`, `host {id, isLaneHost, laneHost}`, `running`,
   `paused`, `pauseReason`, `draining`, `slots {total, busy}`, `queue[]`, `held[]`,
-  `cells[] {branch, issue, issues, state, plan, route, ejections, excused, countedEjections,
-  lastEjection}`, `openEvents[]`,
+  `cells[] {branch, issue, issues, relatedBecause?, state, plan, route, ejections, excused,
+  countedEjections, lastEjection}`, `openEvents[]`,
   `waitingOnOwner`, `dials`, `canStartCell` with `plan` (with its `pace`) and `nextIssue`, or
   `reason`. `slots.busy` leaves out a validated branch that gave its slot up.
 - `lane_enqueue(worktree, title?, body_file?)` -> `state` (`queued` or `held`), `position`,
@@ -142,9 +149,12 @@ The lane never edits code, and nothing is killed unless its pid and start time b
   (no cell, or no ejection) and `ALREADY_EXCUSED`.
 - `lane_start()` -> `running`, `runId`, `pid`. Refuses `HOST_NOT_SET`, `NOT_LANE_HOST`,
   `LANE_LOCKED` (one lane per machine), `REQUIRED_CHECK_MISSING`, `NODE_MISSING` (the Node
-  `.nvmrc` names is not installed under fnm or POSIX nvm; validation and coverage run on it),
-  `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
-  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least).
+  `.nvmrc` names is not installed under fnm, nvm or nvm-windows; validation and coverage run
+  on it), `NODE_UNPINNED` (`.nvmrc` holds an alias such as `lts/*`, not a version number),
+  `TOOLCHAIN_MISMATCH` (`packageManager` exactly, `engines.node` at least, read on the
+  `.nvmrc` Node with its bin directory first on `PATH`, as validation runs them). Once
+  running, a branch whose own `.nvmrc` names a Node the host lacks is ejected as
+  `node-missing`; main's own pauses the lane.
 - `lane_stop(force?)` -> `running`; a running validation finishes first unless `force` (then it
   goes back to the front of the queue): `{running: true, stopping: true, finishing[]}`. Stops
   only this repository's lane, and refuses `LANE_LOCKED` when the lock's process cannot be

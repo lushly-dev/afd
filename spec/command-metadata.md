@@ -53,7 +53,8 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
+- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`, and
+  afd-detail's `tags` and `errors`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -273,7 +274,9 @@ Rules:
    holds the call; one that throws fails the call before the handler.
 6. **The agent does not get the token by default.** On MCP calls the result leaves
    `details.approvalToken` out unless the server opts in, and the token goes to the approver
-   another way.
+   another way. A caller the server named an approver gets it, and carries it back in `_meta`
+   ([Approval evidence from an approver client](#approval-evidence-from-an-approver-client)): the
+   server sets that as the evidence, never tool arguments.
 
 The token is `afdap1.<payload>.<mac>`, both parts base64url without padding. The payload is the
 JSON `{"c","i","a","iat","exp","n"}` in that order: the command, the base64url HMAC-SHA256 of
@@ -432,7 +435,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio or stateful HTTP connection is asked in band) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
-| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | Planned ([#1451](https://github.com/lushly-dev/afd/issues/1451)): a step that needs approval fails with `APPROVAL_REQUIRED` and is not asked |
+| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection; `afd::mcp_stdio` with `ApprovalRelay::mcp_elicitation`) |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence
@@ -471,6 +474,108 @@ Rules:
 5. **Refused evidence** fails the call with `APPROVAL_REQUIRED` and that `details.reason`, with no
    token unless the server includes tokens. Evidence on a command whose policy does not require
    approval is ignored.
+
+### Approval evidence from an approver client
+
+A server MAY name approvers: MCP clients it trusts to show a person a held action and to carry
+the person's decision back. Loam's shell is one, for a mounted server's command only a person may
+run (Loam's phase 5 specification, 7.2, D146). The
+[proposal](../docs/features/active/approver-client/approver-client.proposal.md) gives the jobs and
+the reasons.
+
+1. **An approver is a caller the server marks,** by its own mapping of a verified credential
+   (TypeScript `approver(context)` in `createMcpServer`'s options; Rust
+   `McpServer::with_approver(|context| bool)`). The predicate sees the call's context once the
+   server has set its credentials and the host its actor, and only `true` makes an approver. There
+   are none by default. A predicate that throws or panics fails the call as an internal error. An
+   approver is bound to the call's [principal binding](./authorization.md#m8-the-principal-binding);
+   credentials that cannot be bound (an empty issuer, subject or client id) fail an approver's call
+   as an internal error whose message names no one.
+2. **For an approver only:**
+   - an `APPROVAL_REQUIRED` result carries `details.approvalToken` on every MCP lane, whatever the
+     middleware's `includeToken` option says, and the server never answers an approver's call with
+     the [MCP elicitation relay](#asking-the-human-over-mcp)'s form, for one command or up front;
+   - a `tools/call` whose `_meta["dev.afd/approval"]` holds a value has it set as the context's
+     approval evidence before the middleware runs. The command the call routes to takes it, once:
+     a command its handler runs in process never sees it. The first approval middleware the call
+     reaches takes it, so a server with two takes the evidence in the outer one only, and the
+     retry is held again (it fails closed).
+
+   **From any other caller, the key is ignored,** silently, and no token is included
+   (rule 6 of [Approvals](#approvals) holds).
+3. **One command, modern era,** as [host-verified confirmation](#host-verified-confirmation)'s
+   step 1: an approver's `afd-batch`, `afd-pipe` or 2025-era request carrying the key fails with
+   `APPROVAL_REQUIRED`, `retryable: false`, before anything runs, the suggestion saying to retry
+   the approved command on its own from a 2026-07-28 client. Its own tool, a hybrid first-class
+   tool, a grouped tool and `afd-call` carry it. A host-verified command takes only its relay's
+   decision ([relay evidence](#relay-evidence), rule 2), so the key never stands for that.
+4. **Bound to the approver's credential.** A token issued on an approver's call keeps the
+   [format](#approvals), but its `a` is the keyed digest of `principal\0` and the call's principal
+   binding (M8), instead of `actor\0` and the actor JSON. On an approver's call every token, from
+   the key or from an `approval` the host set, is verified against that binding, and a mismatch is
+   `credentials-mismatch`; on any other call `a` is checked as before, so an approver's token is
+   `actor-mismatch` there. With the input digest, single use and the expiry, only the principal
+   that received a token can redeem it, only for that input, once, before it expires. A verifier
+   that does not know this rule refuses an approver's token, with `actor-mismatch`. **Without
+   credentials the binding is the actor alone** (M8): two approvers the server tells apart only
+   by an actor its hook maps can redeem each other's tokens if they share that actor, so over HTTP
+   name only callers with verified credentials approvers. Over stdio the process boundary is the
+   credential.
+5. **The key is never input.** A `tools/call` whose arguments hold an object key
+   `dev.afd/approval` at any depth (a meta-tool's `meta` argument included, and a member named
+   `__proto__`, checked before a parser could turn it into a prototype) fails with
+   `VALIDATION_ERROR` before anything else runs, from any caller, approvers included.
+6. **What an approver promises,** which a server cannot check: it never gives the token to an agent
+   or a model, nor puts it in a log, a store or a result; it presents a token only on a retry that
+   a person approved after seeing the action, shown by the [display rules](#approval-display).
+   A server that journals results outside the approval middleware records an approver's held
+   result with its token: redact `details.approvalToken` there.
+
+`details.reason` keeps its meaning: a non-approver's ignored key is no evidence, so its held
+result has no `reason`. [`vectors/approver-client.json`](./vectors/approver-client.json) pins
+rules 2 to 5 in its `carrier` section, each token's payload included.
+
+| | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| Approver carrier (rules 1 to 5) | Yes (`createMcpServer({ approver })`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`McpServer::with_approver`; `AFD_APPROVAL_META_KEY`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
+
+### Approval display
+
+What a person must be able to read in full before approving an action (D150, from Lushly's
+`approval-display.ts`). An approver, or any surface that shows a person a held call, measures the
+call's validated input and shows it only when every rule below holds. Otherwise it shows none of
+it, says which rule failed, and offers no approval: a person cannot approve what they cannot see.
+Truncating is not showing.
+
+| Check, in this order | Limit | Refusal |
+| --- | --- | --- |
+| The input is plain JSON: approvals' canonical JSON accepts it (rule 3) | | `not-json` |
+| Its canonical JSON, in UTF-16 code units | 8000 | `too-long` |
+| Then depth first, through object keys in canonical order, for each value: | | |
+| &nbsp;&nbsp;values visited so far, the input itself included | 400 | `too-many-values` |
+| &nbsp;&nbsp;its depth: the input is 0, its members and items 1 | 6 | `too-deep` |
+| &nbsp;&nbsp;a string, in UTF-16 code units | 2000 | `string-too-long` |
+| &nbsp;&nbsp;a string that hides characters (below) | | `hidden-characters` |
+| &nbsp;&nbsp;for an object, each key in UTF-16 code units, before its value | 200 | `key-too-long` |
+| &nbsp;&nbsp;a key that hides characters, before its value | | `hidden-characters` |
+
+The first failure is the refusal. An absent input (TypeScript `undefined`) is `{}`.
+
+Text **hides characters** when it holds a hidden code point, or a run of six or more combining
+marks (Unicode general category M, by the language's own Unicode tables, so a mark newer than
+one language's tables may be judged differently), which draw over the lines around them. The hidden code points
+are U+0000 to U+001F but tab (U+0009) and line feed (U+000A); U+007F to U+009F; U+00AD; U+034F;
+U+061C; U+115F; U+1160; U+17B4; U+17B5; U+180B to U+180F; U+200B to U+200F; U+2028; U+2029;
+U+202A to U+202E; U+2060 to U+206F; U+2800; U+3164; U+D800 to U+DFFF (an unpaired surrogate);
+U+FE00 to U+FE0D; U+FEFF; U+FFA0; U+FFF0 to U+FFFB; U+1BCA0 to U+1BCA3; U+1D173 to U+1D17A; and
+U+E0000 to U+E0FFF.
+
+[`vectors/approver-client.json`](./vectors/approver-client.json)'s `display` section pins every
+rule and range.
+
+| | TypeScript | Python | Rust | C++ |
+| --- | --- | --- | --- | --- |
+| Display rules | Yes (`@lushly-dev/afd-core`: `approvalDisplay`, `hidesCharacters`, `isHiddenCodePoint`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) | Yes (`approval_display`, `hides_characters`, `is_hidden_code_point`, `APPROVAL_DISPLAY_LIMITS`) | Planned ([#1466](https://github.com/lushly-dev/afd/issues/1466)) |
 
 ## Tasks
 
@@ -664,9 +769,8 @@ titles in [`meta-tools.json`](./meta-tools.json), which every implementation lis
   Clients validate `structuredContent` against it, so a handler whose `data` does not match its
   declared output schema fails on the client. `#/$defs/...` and `#/definitions/...` references
   resolve against the envelope, so an output schema's `$defs` or `definitions` belongs at the
-  envelope's root, not inside `data` (Python and C++ move them; TypeScript and Rust do not yet,
-  [#1416](https://github.com/lushly-dev/afd/issues/1416)). A server MAY switch the top-level
-  `outputSchema` off; `_meta.outputSchema` (the schema of `data` alone) is always reported.
+  envelope's root, not inside `data`. A server MAY switch the top-level `outputSchema` off;
+  `_meta.outputSchema` (the schema of `data` alone) is always reported.
 
 ### Implementation status
 
