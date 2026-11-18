@@ -12,9 +12,13 @@ Implements AFD contract `1.0-rc`.
 
 ### Breaking changes
 
-- **The `requestState` of a confirmation** is now a sealed JSON object that carries the questions asked and the answers of earlier rounds (`afd.server.elicitation`), so a call that needs a confirmation and then an approval asks for each in turn, and an answer counts for 10 minutes after its question was asked. A state minted by an earlier version is not an answer, and the person is asked again. A confirmation answered in band on a 2025 connection is kept for the call's later rounds.
+- **The `requestState` of a confirmation** is now a sealed JSON object that carries the questions asked and the answers of earlier rounds (`afd.server.elicitation`), so a call that needs a confirmation and then an approval asks for each in turn, and an answer counts for 10 minutes after its question was asked. A state minted by an earlier version is not an answer, and the person is asked again; no code change is needed (#1312). A confirmation answered in band on a 2025 connection is kept for the call's later rounds.
 
 - **A command's output schema is its serialization schema** (#465): `CommandDefinition.returns`, and with it `_meta.outputSchema` and afd-detail's `outputSchema`, is now `model_json_schema(mode="serialization")`, which describes the data a result carries: serialization aliases and computed fields included. It is also the default-on top-level `outputSchema`, so a handler whose `data` does not match its declared `output_schema` now fails on MCP clients that validate `structuredContent`; `create_server(advertise_output_schema=False)` turns the check off.
+
+- **`afd-detail` leaves out empty lists** ([#474](https://github.com/lushly-dev/afd/issues/474), [#1420](https://github.com/lushly-dev/afd/issues/1420)): an entry no longer carries `tags`, `errors`, `requires`, `contexts` or `examples` when the command declares none (see Fixed). Code that reads one of them, such as `entry["requires"]`, should treat a missing key as empty.
+
+- **Raw JSON CLI output is plain** (#460): `afd` no longer wraps raw JSON output in Rich formatting, so scripts that parse it receive the JSON as written.
 
 ### Added
 
@@ -36,7 +40,7 @@ Implements AFD contract `1.0-rc`.
 
 - **Hybrid tool strategy** (`spec/tool-strategies.md`, H1 to H8): `create_server(tool_strategy="hybrid", first_class_tools=[...])` and `ServerConfig.first_class_tools` list the five meta-tools (`afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe`), the context tools when `contexts` are configured, then 1 to 8 named commands as their own tools, in the order given. Every other command is reached by name, `afd-call`, `afd-batch` or `afd-pipe`. The list never varies by active context (a first-class command outside its context answers `COMMAND_NOT_IN_CONTEXT`), so `ttlMs` stays 300000 even with contexts. A bad set (not hybrid, empty, unregistered, unexposed, a built-in tool, repeated, over 8) raises `ValueError` naming the entry, at construction for the options and before the first request for the entries, so commands may be registered after `create_server`. `afd-help` reports `toolStrategy` on every strategy and, on hybrid servers, `firstClassTools` and `firstClass: true`; the default `server/discover` instructions gain the hybrid sentence. The shared cases in `spec/tool-strategies.json` run in `tests/test_hybrid_tool_strategy.py`.
 
-- Add the private DirectClient approval hook, validating direct registry, and in-process CLI `call --module` with `--approve` or an interactive prompt (#460). Public caller evidence is ignored, held results and observers stay token-free, and one total deadline covers the decision and retry. Trusted host middleware retains its token API. Raw JSON CLI output no longer receives Rich wrapping.
+- Add the private DirectClient approval hook, validating direct registry, and in-process CLI `call --module` with `--approve` or an interactive prompt (#460). Public caller evidence is ignored, held results and observers stay token-free, and one total deadline covers the decision and retry. Trusted host middleware retains its token API.
 
 ### Fixed
 
