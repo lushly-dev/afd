@@ -34,12 +34,12 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | Default | `grouped` | `individual` | `Grouped` | — |
 | Group name | `groupByFn` | `group_by` | `with_group_by` | — |
 | Contexts | `contexts` | `contexts` | `with_contexts` | `StdioServerOptions::contexts`, after `register_context_commands` |
-| Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | — |
+| Bootstrap tools | `bootstrap: true` (default `false`) | Always registered | `register_bootstrap_commands` on the registry | `register_bootstrap_commands` on the registry |
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
-C++'s `afd::mcp_stdio` lists one command tool per command, the context tools among them when it
-serves contexts; the meta-tools, bootstrap tools and strategies are
+C++'s `afd::mcp_stdio` lists one command tool per command, the context and bootstrap tools among
+them when they are registered; the meta-tools and strategies are
 [#1451](https://github.com/lushly-dev/afd/issues/1451).
 
 ## Tool lists
@@ -127,7 +127,7 @@ A command cannot take a name the server provides itself.
 | TypeScript | The meta-tool names always; the bootstrap names with `bootstrap: true`; the context names with `contexts`. Duplicates are refused too (`command-names.ts`) |
 | Python | The meta-tool names. A command named like a bootstrap tool shadows it ([language parity](../docs/language-parity.md#command-definition)) |
 | Rust | The bootstrap and context names, by `register_bootstrap_commands` and `with_contexts` when a command already has one. A command named like a meta-tool is not refused, but the router handles the meta-tool first, so the command is unreachable |
-| C++ | The meta-tool names, by `register_command`; the context names by `register_context_commands` when a command already has one. C++ has no bootstrap tools ([#1451](https://github.com/lushly-dev/afd/issues/1451)) |
+| C++ | The meta-tool names, by `register_command`; the bootstrap and context names by `register_bootstrap_commands` and `register_context_commands` when a command already has one |
 
 ## Cache hints and `listChanged`
 
@@ -154,8 +154,8 @@ Unless the server sets its own `instructions`, they are these sentences, joined 
    - `individual`: "Each command is its own tool; afd-call also runs any command by name."
    - `hybrid`: see [H8](#h8-what-afd-help-serverdiscover-and-afd-detail-report).
 3. "Use afd-batch for several independent commands and afd-pipe to chain them."
-4. With bootstrap tools (TypeScript with `bootstrap: true`; Rust when all three are registered and
-   exposed; Python never adds it): "afd-help, afd-docs and afd-schema describe this server."
+4. With bootstrap tools (TypeScript with `bootstrap: true`; Rust and C++ when all three are
+   registered and exposed; Python never adds it): "afd-help, afd-docs and afd-schema describe this server."
 5. With contexts: "Commands are scoped by context (afd-context-list lists them). Send
    `_meta["dev.afd/context"]` with a context name on tools/list and tools/call to work in that
    context."
