@@ -30,9 +30,9 @@ use std::sync::Arc;
 use std::time::Duration;
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
-/// Ports of the dev frontends in the todo README: `pnpm dev:web` (3000) and
-/// the Vite dev servers (5173, and 5174 when both run).
-const DEV_FRONTEND_PORTS: [u16; 3] = [3000, 5173, 5174];
+/// Ports of the dev frontends in the todo README: the Vite dev servers of the
+/// FAST-AF page (`pnpm dev:web`, 5173) and the React page (`pnpm dev:react`, 5174).
+const DEV_FRONTEND_PORTS: [u16; 2] = [5173, 5174];
 
 // ═══════════════════════════════════════════════════════════════════════════════
 // CONFIGURATION AND POLICY

@@ -1,4 +1,4 @@
-# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# Built in the to-do reference plan's phase 2 (docs/features/complete/todo-reference); runs in
 # src/scenarios.test.ts through the server's own middleware.
 # The caller here is not a person: over `afd scenario run --server` steps run as the server's
 # default actor { kind: agent }, and in-process as { kind: test }. Both are held.

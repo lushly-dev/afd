@@ -1,4 +1,4 @@
-# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference); runs in
+# Built in the to-do reference plan's phase 2 (docs/features/complete/todo-reference); runs in
 # src/scenarios.test.ts through the server's own middleware.
 # Limit: the clock cannot move between steps, so "long after" is shown only as not having the
 # delete's result to hand: the restore uses the id the deleted list returns, newest deletion

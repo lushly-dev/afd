@@ -11,7 +11,7 @@ pnpm test:browser   # the shared Chromium suite against a real TypeScript backen
 ```
 
 `?backend=http://host:port` picks another backend. The page imports only the violet elements it
-uses (`src/elements.ts`); add a module there before using another element, and brief on it with
+uses (`../shared/src/elements.ts`, imported as `@afd/example-todo-ui/elements`); add a module there before using another element, and brief on it with
 the `umbel` server's `components-brief` (see the repository's `AGENTS.md`).
 
 What it shows and why is in the [example README](../../README.md#frontend-features).

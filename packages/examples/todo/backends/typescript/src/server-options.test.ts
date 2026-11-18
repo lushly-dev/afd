@@ -48,13 +48,14 @@ describe('resolveAllowedOrigins', () => {
 	it('includes the README dev frontends on both loopback names', () => {
 		const origins = resolveAllowedOrigins({});
 		for (const origin of [
-			'http://localhost:3000',
-			'http://127.0.0.1:3000',
 			'http://localhost:5173',
 			'http://127.0.0.1:5173',
+			'http://localhost:5174',
+			'http://127.0.0.1:5174',
 		]) {
 			expect(origins).toContain(origin);
 		}
+		expect(origins).not.toContain('http://localhost:3000');
 	});
 
 	it('adds exact origins from ALLOWED_ORIGINS', () => {
@@ -73,7 +74,7 @@ describe('resolveAllowedOrigins', () => {
 });
 
 describe('browser access (production mode)', () => {
-	it.each(['http://localhost:3000', 'http://localhost:5173'])(
+	it.each(['http://localhost:5173', 'http://localhost:5174'])(
 		'lets the dev frontend at %s call tools',
 		async (origin) => {
 			const base = await start();

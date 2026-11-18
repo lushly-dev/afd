@@ -1,4 +1,4 @@
-# Built in the to-do reference plan's phase 2 (docs/features/active/todo-reference).
+# Built in the to-do reference plan's phase 2 (docs/features/complete/todo-reference).
 # Runs with the context todo-reading active: src/scenarios.test.ts runs it in-process through
 # createDirectRegistry's activeContext; over /mcp a client sends _meta["dev.afd/context"] on every
 # request (MCP 2026-07-28 keeps no context between requests, so afd-context-enter stores nothing
