@@ -39,7 +39,8 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
-C++'s `afd::mcp_stdio` lists TypeScript's tools for the individual, grouped and lazy strategies;
+C++'s `afd::mcp_stdio` serves the individual, grouped and lazy strategies, with the earlier lists
+until its [#533](https://github.com/lushly-dev/afd/issues/533) step ([Alignment](#alignment-533));
 the hybrid strategy is [#1202](https://github.com/lushly-dev/afd/issues/1202).
 
 ## Tool lists
@@ -129,14 +130,15 @@ A command cannot take a name the server provides itself.
 
 ## Cache hints and `listChanged`
 
-| Field | `individual`, `grouped`, `lazy` | `hybrid` |
+| Field | `individual`, `grouped` | `lazy`, `hybrid` |
 | --- | --- | --- |
-| `ttlMs` on `tools/list` and `server/discover` | `toolsListTtlMs` when set; otherwise 300,000, or 0 when contexts are configured, because the list can vary by `_meta["dev.afd/context"]`, which clients leave out of their cache key | `toolsListTtlMs` when set; otherwise 300,000 whether or not contexts are configured ([H6](#h6-cache-hints-and-listchanged)) |
+| `ttlMs` on `tools/list` and `server/discover` | `toolsListTtlMs` when set; otherwise 300,000, or 0 when contexts are configured, because the list can vary by `_meta["dev.afd/context"]`, which clients leave out of their cache key | `toolsListTtlMs` when set; otherwise 300,000 whether or not contexts are configured, because the list does not vary by context ([H6](#h6-cache-hints-and-listchanged)) |
 | `cacheScope` | `public`; `private` on `tools/list` when the server filters tools by scope ([authorization, M6](./authorization.md#listing)) | The same |
 | `capabilities.tools.listChanged` | `false` | `false` ([H6](#h6-cache-hints-and-listchanged)) |
 
-The `ttlMs` default under contexts applies to the lazy strategy too, although TypeScript's and
-Rust's lazy lists do not vary by context. No AFD server sends `notifications/tools/list_changed`.
+Before #533, `lazy` took the 0 default under contexts too; a language still serving the earlier
+lists keeps it ([Alignment](#alignment-533)). No AFD server sends
+`notifications/tools/list_changed`.
 
 ## `server/discover` instructions
 
@@ -173,6 +175,7 @@ lists above in its own step; until then, its earlier list stays conforming.
 | `grouped`: groups in order of first command, `_meta.actions` | Yes | Planned | Yes | Yes |
 | Meta-tool definitions equal [`meta-tools.json`](./meta-tools.json) | Yes | Planned | Yes | Yes |
 | Default strategy `grouped` | Yes | Planned (`individual` today) | Yes | Yes |
+| `lazy` keeps the default `ttlMs` under contexts | Yes | Planned | Planned | Planned |
 
 The hybrid strategy was already the same in every language.
 

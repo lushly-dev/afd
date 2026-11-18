@@ -72,6 +72,28 @@ function surfaceRegistry(options: DirectRegistryOptions = {}) {
 	return createDirectRegistry(commands, { contexts, tools: createDirectToolSurface(), ...options });
 }
 
+describe('createDirectToolSurface lazy list', () => {
+	it('lists the meta-tools and the context tools in every context, and allow filters both', () => {
+		const registry = surfaceRegistry({ tools: createDirectToolSurface({ strategy: 'lazy' }) });
+		const expected = [
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
+			'afd-batch',
+			'afd-pipe',
+			'afd-context-list',
+			'afd-context-enter',
+			'afd-context-exit',
+		];
+		const names = (options?: Parameters<typeof registry.listTools>[0]) =>
+			registry.listTools(options).map((tool) => tool.name);
+		expect(names()).toEqual(expected);
+		expect(names({ activeContext: 'billing' })).toEqual(expected);
+		const allowed = new Set(['afd-call', 'afd-context-list']);
+		expect(names({ allow: (name) => allowed.has(name) })).toEqual(['afd-call', 'afd-context-list']);
+	});
+});
+
 describe('createDirectRegistry contexts, without a tool surface', () => {
 	const registry = createDirectRegistry(commands, { contexts });
 
