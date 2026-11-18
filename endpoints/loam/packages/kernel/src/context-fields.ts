@@ -1,7 +1,8 @@
 /**
  * @fileoverview The declared context fields on both registries (phase 1 specification, 7.6), with
- * `scope` (phase 2 specification, 3.2) and `persona` (phase 3 specification, 6.2). The kernel alone sets them, and each holds an id, so the journal
- * keeps them all.
+ * `scope` (phase 2 specification, 3.2), `persona` (phase 3 specification, 6.2) and `migration` (phase 4 specification,
+ * 3.6: the literal `true`, on the kernel's own move of an old appearance record). The kernel alone sets them, and none
+ * holds a secret, so the journal keeps them all.
  */
 
 import type { Actor } from '@lushly-dev/afd-core';
