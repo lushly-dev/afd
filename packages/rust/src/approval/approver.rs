@@ -14,7 +14,9 @@ pub(crate) struct ApproverCall {
 }
 
 impl ApproverCall {
-    /// A call that carried `evidence` in `_meta["dev.afd/approval"]`, or none.
+    /// A call that carried `evidence` in `_meta["dev.afd/approval"]`, or none. Only the MCP
+    /// server (and the middleware's tests) makes one.
+    #[cfg_attr(not(feature = "server"), allow(dead_code))]
     pub(crate) fn new(evidence: Option<String>) -> Self {
         Self {
             evidence: Mutex::new(evidence),

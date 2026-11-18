@@ -229,6 +229,46 @@ export function defaultInstructions(options: {
 }
 
 /**
+ * Refuse a `tools/call` whose arguments hold `dev.afd/approval` as the transport delivers it,
+ * before the SDK validates the request ("Approval evidence from an approver client", rule 5).
+ * The SDK's validation rebuilds `arguments` and drops a member named `__proto__`, so a key
+ * beneath one would never reach the router's own check: it would vanish instead of being refused.
+ */
+function refuseApprovalKeyBeforeParsing(
+	server: Server,
+	modern: boolean,
+	report: (error: unknown) => void
+): void {
+	const connect = server.connect.bind(server);
+	server.connect = async (transport: Transport) => {
+		await connect(transport);
+		const deliver = transport.onmessage;
+		transport.onmessage = (message, extra) => {
+			const request = message as {
+				id?: unknown;
+				method?: unknown;
+				params?: { arguments?: unknown };
+			};
+			const refusal =
+				request.method === 'tools/call' && request.id !== undefined
+					? approvalKeyInInput(request.params?.arguments)
+					: undefined;
+			if (!refusal) return deliver?.(message, extra as never);
+			transport
+				.send({
+					jsonrpc: '2.0',
+					id: request.id as string | number,
+					result: {
+						...resultContent(failure(refusal), true),
+						...(modern && { resultType: 'complete' }),
+					} as never,
+				})
+				.catch(report);
+		};
+	};
+}
+
+/**
  * Create the server factory both entries share. It runs once per HTTP request, and once per
  * stdio connection (plus a discarded `server/discover` probe instance).
  */
@@ -482,6 +522,7 @@ function createServerFactory(deps: ModernMcpDeps, options: FactoryOptions) {
 			}
 		);
 		deps.resources?.install(server, { modern: era === 'modern', internalError });
+		refuseApprovalKeyBeforeParsing(server, era === 'modern', report);
 
 		if (deps.contextFields?.length) {
 			// The SDK's serving layer installs its own `server/discover` handler, which calls

@@ -496,7 +496,9 @@ the reasons.
      the [MCP elicitation relay](#asking-the-human-over-mcp)'s form, for one command or up front;
    - a `tools/call` whose `_meta["dev.afd/approval"]` holds a value has it set as the context's
      approval evidence before the middleware runs. The command the call routes to takes it, once:
-     a command its handler runs in process never sees it.
+     a command its handler runs in process never sees it. The first approval middleware the call
+     reaches takes it, so a server with two takes the evidence in the outer one only, and the
+     retry is held again (it fails closed).
 
    **From any other caller, the key is removed and ignored,** silently, and no token is included
    (rule 6 of [Approvals](#approvals) holds).
@@ -511,19 +513,26 @@ the reasons.
    binding (M8), instead of `actor\0` and the actor JSON. On an approver's call every token, from
    the key or from an `approval` the host set, is verified against that binding, and a mismatch is
    `credentials-mismatch`; on any other call `a` is checked as before, so an approver's token is
-   `actor-mismatch` there. With the input digest, single use and the expiry, only the credential
+   `actor-mismatch` there. With the input digest, single use and the expiry, only the principal
    that received a token can redeem it, only for that input, once, before it expires. A verifier
-   that does not know this rule refuses an approver's token, with `actor-mismatch`.
+   that does not know this rule refuses an approver's token, with `actor-mismatch`. **Without
+   credentials the binding is the actor alone** (M8): two approvers the server tells apart only
+   by an actor its hook maps can redeem each other's tokens if they share that actor, so over HTTP
+   name only callers with verified credentials approvers. Over stdio the process boundary is the
+   credential.
 5. **The key is never input.** A `tools/call` whose arguments hold an object key
-   `dev.afd/approval` at any depth (a meta-tool's `meta` argument included) fails with
+   `dev.afd/approval` at any depth (a meta-tool's `meta` argument included, and a member named
+   `__proto__`, checked before a parser could turn it into a prototype) fails with
    `VALIDATION_ERROR` before anything else runs, from any caller, approvers included.
 6. **What an approver promises,** which a server cannot check: it never gives the token to an agent
    or a model, nor puts it in a log, a store or a result; it presents a token only on a retry that
    a person approved after seeing the action, shown by the [display rules](#approval-display).
+   A server that journals results outside the approval middleware records an approver's held
+   result with its token: redact `details.approvalToken` there.
 
 `details.reason` keeps its meaning: a non-approver's ignored key is no evidence, so its held
 result has no `reason`. [`vectors/approver-client.json`](./vectors/approver-client.json) pins
-rules 2 to 5 (its `tokens` and `carrier` sections).
+rules 2 to 5 in its `carrier` section, each token's payload included.
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |

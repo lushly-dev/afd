@@ -172,14 +172,16 @@ The phase 5 specification fixed the carrier's rules. These details were left to 
 
 ## Conformance
 
-`spec/vectors/approver-client.json` holds three sections, each case pinned by the TypeScript
-reference:
+`spec/vectors/approver-client.json` holds two sections, the display verdicts from the
+TypeScript reference and the token payloads built from the documented format:
 
 - `display`: inputs and their verdict, a case for each rule and each hidden range;
-- `tokens`: an approver's token, built from the format with a fixed nonce, its `a` digest, and the
-  calls that accept or refuse it;
-- `carrier`: one MCP server with a held command and two callers, one an approver, and the calls of
-  7.2's rules 2 to 4 with what each must return.
+- `carrier`: one MCP server per case with a held command and three callers, two of them
+  approvers, and the calls of 7.2's rules 2 to 5 with what each must return, including each
+  token's payload and its `a` digest.
+
+Each language's own tests cover what the shared cases cannot: a 2025-era request, an expired
+token, a failing predicate and unbindable credentials.
 
 Python and C++ load the file, and each skips its cases as the documented gap, naming the parity
 issue, until it implements them.

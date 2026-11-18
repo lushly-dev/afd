@@ -115,6 +115,15 @@ describe('the approver carrier', () => {
 		expect(runs).toEqual([]);
 	});
 
+	it('refuses the key under a __proto__ member on a 2025-era request, before the SDK drops it', async () => {
+		const { base, runs } = await serve();
+		const client = await connect(`${base}/mcp`, 'legacy');
+		const args = JSON.parse(`{"id":7,"__proto__":{"${AFD_APPROVAL_META_KEY}":"x"}}`);
+		const refused = result(await client.callTool({ name: 'todo-delete', arguments: args }));
+		expect(refused.error?.code).toBe('VALIDATION_ERROR');
+		expect(runs).toEqual([]);
+	});
+
 	it('fails the call when the predicate throws, and never takes it as a yes', async () => {
 		const { base, runs, errors } = await serve({
 			approver: () => {
@@ -160,6 +169,72 @@ describe('the approver carrier', () => {
 		});
 		expect(((await batch.json()) as CommandResult).error?.code).toBe('VALIDATION_ERROR');
 		expect(runs).toEqual([]);
+	});
+
+	it('gives an approver its token on the 2025-era /message lane, and refuses the key there', async () => {
+		const { base, runs } = await serve();
+		const message = async (meta: Record<string, unknown>) => {
+			const response = await fetch(`${base}/message`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					jsonrpc: '2.0',
+					id: 1,
+					method: 'tools/call',
+					params: { name: 'todo-delete', arguments: { id: 7 }, _meta: meta },
+				}),
+			});
+			return result(((await response.json()) as { result: unknown }).result);
+		};
+		const held = await message({});
+		expect(held.error?.code).toBe('APPROVAL_REQUIRED');
+		const approval = token(held);
+		expect(approval).toMatch(/^afdap1\./);
+		const retry = await message({ [AFD_APPROVAL_META_KEY]: approval });
+		expect(retry.error?.code).toBe('APPROVAL_REQUIRED');
+		expect(retry.error?.message).toContain('one command');
+		expect(runs).toEqual([]);
+	});
+
+	it('still asks a caller that is not an approver with the relay', async () => {
+		const runs: string[] = [];
+		const list = commands(runs);
+		const { base } = await serve({
+			approver: () => false,
+			middleware: [
+				createApprovalMiddleware({ secret: SECRET, commands: list, relay: 'mcp-elicitation' }),
+			],
+		});
+		const response = await fetch(`${base}/mcp`, {
+			method: 'POST',
+			headers: {
+				'Content-Type': 'application/json',
+				Accept: 'application/json, text/event-stream',
+				'MCP-Protocol-Version': '2026-07-28',
+				'Mcp-Method': 'tools/call',
+				'Mcp-Name': 'todo-delete',
+			},
+			body: JSON.stringify({
+				jsonrpc: '2.0',
+				id: 1,
+				method: 'tools/call',
+				params: {
+					name: 'todo-delete',
+					arguments: { id: 7 },
+					_meta: {
+						'io.modelcontextprotocol/protocolVersion': '2026-07-28',
+						'io.modelcontextprotocol/clientCapabilities': { elicitation: {} },
+						'io.modelcontextprotocol/clientInfo': { name: 'raw', version: '0' },
+					},
+				},
+			}),
+		});
+		const text = await response.text();
+		const body = JSON.parse(/^data: (.*)$/m.exec(text)?.[1] ?? text) as {
+			result?: { resultType?: string; inputRequests?: Record<string, unknown> };
+		};
+		expect(body.result?.resultType).toBe('input_required');
+		expect(Object.keys(body.result?.inputRequests ?? {})).toEqual(['approval']);
 	});
 });
 
@@ -225,5 +300,12 @@ describe('approvalKeyInInput', () => {
 		}
 		at[AFD_APPROVAL_META_KEY] = 1;
 		expect(approvalKeyInInput(deep)?.code).toBe('VALIDATION_ERROR');
+		// A `__proto__` member that a parser turned into the prototype is still input.
+		const hidden = Object.create({ [AFD_APPROVAL_META_KEY]: 'x' }) as Record<string, unknown>;
+		hidden.id = 1;
+		expect(approvalKeyInInput({ a: hidden })?.code).toBe('VALIDATION_ERROR');
+		expect(approvalKeyInInput(JSON.parse('{"__proto__":{"dev.afd/approval":1}}'))?.code).toBe(
+			'VALIDATION_ERROR'
+		);
 	});
 });

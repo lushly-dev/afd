@@ -484,8 +484,9 @@ impl McpServer {
     /// 2026-07-28 request carries the token in `_meta["dev.afd/approval"]`
     /// ([`AFD_APPROVAL_META_KEY`]); on `afd-batch`, `afd-pipe` or a 2025-era request the key fails
     /// the call with `APPROVAL_REQUIRED` before anything runs. Its tokens bind its principal
-    /// binding, so only the same credential can redeem them. From any other caller the key is
-    /// ignored. The key in tool arguments is refused from every caller.
+    /// binding, so only the same principal can redeem them. Without credentials that is the actor
+    /// alone, so over HTTP name only callers with verified credentials. From any other caller the
+    /// key is ignored. The key in tool arguments is refused from every caller.
     ///
     /// An approver promises what the server cannot check: it never gives the token to an agent
     /// or a model, and presents it only on a retry a person approved after seeing the action,

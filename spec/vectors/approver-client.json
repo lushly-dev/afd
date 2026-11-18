@@ -19,6 +19,11 @@
 				"expected": "shown"
 			},
 			{
+				"description": "a null input is shown as null",
+				"input": null,
+				"expected": "shown"
+			},
+			{
 				"description": "an ordinary call",
 				"input": {
 					"id": 7,
@@ -1187,6 +1192,21 @@
 						"arguments": {
 							"id": 7,
 							"_meta": {
+								"dev.afd/approval": "afdap1.x.y"
+							}
+						},
+						"expected": {
+							"code": "VALIDATION_ERROR"
+						},
+						"runs": 0,
+						"elicit": true
+					},
+					{
+						"caller": "agent",
+						"tool": "todo-delete",
+						"arguments": {
+							"id": 7,
+							"__proto__": {
 								"dev.afd/approval": "afdap1.x.y"
 							}
 						},

@@ -94,6 +94,12 @@ export function approvalKeyInInput(input: unknown): CommandError | undefined {
 			};
 		}
 		for (const item of Object.values(value)) pending.push(item);
+		// A parser that builds objects by assignment turns a `__proto__` member into the object's
+		// prototype, where `hasOwn` and `values` never look: walk it as a member.
+		const prototype: unknown = Object.getPrototypeOf(value);
+		if (prototype !== null && prototype !== Object.prototype && prototype !== Array.prototype) {
+			pending.push(prototype);
+		}
 	}
 	return undefined;
 }

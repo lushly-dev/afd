@@ -261,8 +261,9 @@ export interface McpServerOptions {
 	 * `includeToken` says) and is never turned into a form elicitation, and a retry of one command
 	 * on an MCP 2026-07-28 request carries the token in `_meta["dev.afd/approval"]`
 	 * (`AFD_APPROVAL_META_KEY`). Its tokens bind its principal binding (`spec/authorization.md`,
-	 * M8), so only the same credential can redeem them. From any other caller the key is ignored.
-	 * The key in tool arguments is refused from every caller.
+	 * M8), so only the same principal can redeem them. Without credentials that is the actor
+	 * alone, so over HTTP name only callers with verified credentials. From any other caller the
+	 * key is ignored. The key in tool arguments is refused from every caller.
 	 *
 	 * An approver promises what the server cannot check: it never gives the token to an agent or a
 	 * model, and presents it only on a retry a person approved after seeing the action, shown by

@@ -97,16 +97,16 @@ export function hidesCharacters(text: string): boolean {
 
 /**
  * Whether a person can be shown `input` in full before approving it, and if so the input as plain
- * JSON (object keys in canonical order). The checks, in order: the input is plain JSON (the
+ * JSON, as parsed from its canonical JSON. The checks, in order: the input is plain JSON (the
  * approval tokens' canonical JSON accepts it); its canonical JSON is at most 8000 UTF-16 code
  * units; then, depth first through keys in canonical order, each value is at most the 400th
  * visited and at depth 6 or less, each string at most 2000 code units and each key at most 200,
- * and none hides characters. The first failure is the refusal. An absent input is `{}`.
+ * and none hides characters. The first failure is the refusal. An absent (`undefined`) input is `{}`; `null` is `null`.
  */
 export function approvalDisplay(input: unknown): ApprovalDisplay {
 	let text: string;
 	try {
-		text = canonicalJson(input ?? {});
+		text = canonicalJson(input === undefined ? {} : input);
 	} catch {
 		return { ok: false, refusal: 'not-json' };
 	}

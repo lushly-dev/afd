@@ -1871,7 +1871,7 @@ async fn an_approvers_carried_evidence_is_taken_once_by_the_first_command() {
         .call("todo-delete", json!({ "id": 1 }), context)
         .await;
     let details = nested.error.unwrap().details.unwrap();
-    assert!(details.get("reason").is_none(), "{details:?}");
+    assert!(!details.contains_key("reason"), "{details:?}");
     // The token binds the approver's principal: as a plain actor's evidence it does not hold.
     let outside = harness
         .agent_call("todo-delete", json!({ "id": 1 }), Some(&token))
