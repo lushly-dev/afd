@@ -8589,11 +8589,11 @@
       "upstream_sha256": "d6098ea3ac5eb3fa2cfc5fadbf1f10aebdadb3c11bfe7f525e51157c9dc182f2",
       "staged_path": "packages/violet-elements/src/option/violet-option.spec.ts",
       "staged_sha256": "d6098ea3ac5eb3fa2cfc5fadbf1f10aebdadb3c11bfe7f525e51157c9dc182f2",
-      "current_import_sha256": "612a7a42f284d2863a5ad4244fd1c7040efe226cb0599da6d74bc1e05aa207b8",
+      "current_import_sha256": "a6e2db7b5dab19aba345822b6ef463620ecab7a65d0745cbd1c06b2f484f3e63",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02)"
+      "import_reason": "Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Fix #659 active option token, contrast regression and regenerated pack metadata"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/option/violet-option.stories.ts",
@@ -8613,11 +8613,11 @@
       "upstream_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
       "staged_path": "packages/violet-elements/src/option/violet-option.ts",
       "staged_sha256": "c3684ac1f320c564775f19779bf148aa8b3697ca6306440da2a4afb5524467f2",
-      "current_import_sha256": "8e892b215362b22760ca7aca8b345ba98b1040a6181564da5c17cb0938b1748e",
+      "current_import_sha256": "750bb5c6e3976faef785c977b68606c78f4a9dd00b81f83054d8d277696b3170",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json; Fix nine bounded violet-elements bugs (#1158, #1160-#1167)"
+      "import_reason": "Rewrote each literal var(--<component id>, <literal>) fallback that differed from Loam's light theme to its value, as Loam's theme:check fallback scan requires, so the component renders the light theme with no theme installed (D50; endpoints/loam/docs/phases/0-kernel-chrome/spec.md, section 2.4); Kept a disabled control's supporting text readable and left an enabled option's aria-disabled unset, so a disabled listbox's state reaches it; turned on Specimen's settled accessibility check for the stories (Specimens T08, owner decision of 2026-11-02); Component Briefs B4: document the six components the manifest described with no text (combobox, listbox, option, option-group, persona, select) and their slots, events and parts, and regenerate custom-elements.json; Fix nine bounded violet-elements bugs (#1158, #1160-#1167); Fix #659 active option token, contrast regression and regenerated pack metadata"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/pagination/violet-pagination.spec.ts",
@@ -10365,11 +10365,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "eb9355b6965ba860102e3c4ba5c4026a98343ec2e8c0155ffd8433084abb40f1",
+      "current_import_sha256": "b3f3ffe838e7bac7966507c95402f67d495f1e2ac52fef3d0b61af3bbd79110c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Fix #659 active option token, contrast regression and regenerated pack metadata"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-pagination.json",
@@ -11481,11 +11481,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "ce82e2ad057c21eec403b8a4c43fcc7c730a90eaf4e6d95ed2cc537bb5b69182",
+      "current_import_sha256": "307f613667b8a0f5826c7afd608bdc8d7ee800088443eeb8dc3cab45f7c9ceac",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511)"
+      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511); Fix #659 active option token, contrast regression and regenerated pack metadata"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",

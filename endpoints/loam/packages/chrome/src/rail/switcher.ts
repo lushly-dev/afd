@@ -110,9 +110,6 @@ const styles = css`
 	dialog::backdrop {
 		background: color-mix(in srgb, var(--color-surface-page) 60%, transparent);
 	}
-	violet-option {
-		--color-surface-highlight: var(--color-surface-subtle);
-	}
 	.failure {
 		margin: var(--space-stack-xs) 0 0;
 		color: var(--color-state-danger-text);
