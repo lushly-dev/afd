@@ -476,7 +476,7 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
     git.remove_checkout(kept)
     assert not Path(kept).exists()
     listed = run(["git", "worktree", "list", "--porcelain"])
-    assert str(other) in listed
+    assert other.as_posix() in listed  # git lists forward slashes, also on Windows.
     slots = Path(slot).parent
     deadline = time.monotonic() + 30
     while any(slots.glob(".removing-*")) and time.monotonic() < deadline:
@@ -484,7 +484,7 @@ def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_p
     assert not any(slots.glob(".removing-*"))
     listed = run(["git", "worktree", "list", "--porcelain"])
     assert "kept-fix-a" not in listed and ".removing-" not in listed
-    assert str(other) in listed
+    assert other.as_posix() in listed  # git lists forward slashes, also on Windows.
     git.remove_checkout(kept)  # Already gone: nothing to do.
     stray = slots / "kept-stray"  # Left unregistered by a crash: removed all the same.
     stray.mkdir()
