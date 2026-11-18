@@ -11,6 +11,7 @@ mod bursts;
 mod classes;
 mod decisions;
 mod derived;
+mod operations;
 mod parts;
 mod policy;
 mod read;
@@ -32,6 +33,10 @@ pub use decisions::{
     Blocked, Decided, Decision, DecisionRow, Proposer, Suggested, SuggestionRow, SuggestionState,
 };
 pub use derived::{Found, Opened, RebuildProgress, ThreadId, ThreadListed};
+pub use operations::{
+    Action, ItemStep, Kind, NewItem, NewOperation, OperationItem, OperationRow, OperationState,
+    Step, StepCounts, flags_after,
+};
 pub use policy::{MOST_ASK_ABOVE, MOST_PER_CALL, MOST_PER_DAY, Policy, PolicyRow};
 pub use read::{Evidence, LinkRow, MessageListed, PartRow, Shown};
 pub use remove::{RemovalPreview, Removed};
@@ -355,6 +360,9 @@ impl Store {
             stories::fill_if_marked(&mut connection)?;
             bursts::fill_if_marked(&mut connection)?;
             bursts::find_if_rule_changed(&mut connection)?;
+            // This process owns the store now: an operation that says it
+            // runs was running in one that is gone.
+            Self::stop_interrupted_operations(&connection, wall_clock())?;
         }
         // The write-ahead log and its index take the database file's mode
         // when SQLite creates them; this covers ones left from before.

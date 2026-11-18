@@ -37,7 +37,9 @@ fn main() -> ExitCode {
     });
     let mut engine = Engine::new(home.clone())
         .with_connector(Arc::new(icloud))
-        .with_secrets(Arc::clone(&secrets));
+        .with_secrets(Arc::clone(&secrets))
+        // A change run at the terminal stops after the batch in hand on Ctrl-C.
+        .with_interrupts();
     if std::io::stderr().is_terminal() {
         engine = engine.with_progress(Arc::new(|line| eprintln!("{line}")));
     }
