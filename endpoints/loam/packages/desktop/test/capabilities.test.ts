@@ -282,8 +282,18 @@ describe('P6-D4: the capabilities', () => {
 						const timer = setTimeout(() => resolve('unanswered'), timeoutMs);
 						const settle = (outcome: string) => async (value: unknown) => {
 							clearTimeout(timer);
-							if (outcome === 'ok') await internals.invoke('mount_close', { handle: value });
-							resolve(`${outcome} ${JSON.stringify(value)}`);
+							const answer = `${outcome} ${JSON.stringify(value)}`;
+							// Close before resolving, so the next post runs under the handle limit; a failed
+							// close fails the assertion with its cause instead of hanging the script.
+							if (outcome === 'ok') {
+								try {
+									await internals.invoke('mount_close', { handle: value });
+								} catch (cause) {
+									resolve(`${answer}, not closed: ${String(cause)}`);
+									return;
+								}
+							}
+							resolve(answer);
 						};
 						page.ipc.postMessage(
 							JSON.stringify({
