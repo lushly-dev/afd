@@ -9,7 +9,7 @@
  *   `beacon`), as phase 4's `p4-base` has them, with the ids `project-create` gives (`p4-base` will fix them);
  * - the copilot on the test provider (`kind = "test"`), its scripts `model-scripts.ts`, run in this process over
  *   real `MessagePort`s through the kernel's own port halves;
- * - **not yet**: `p4-base`'s apps, tally's count and its checklist document (phase 4's step 1 builds `p4-base`); the
+ * - **not yet**: `p4-base`'s apps, tally's count and its document (phase 4's step 1 builds `p4-base`); the
  *   autonomy rows (phase 4's steps 6 and 8); `mailfix` mounted, whose `labels` and `approvals` entry keys are steps 4
  *   and 5's, and `mailfixapp` with its `calls` grant (step 4). The `mailfix` server itself is `mailfix.ts`.
  *

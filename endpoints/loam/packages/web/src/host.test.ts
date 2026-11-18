@@ -75,8 +75,8 @@ describe('the two stages (phase 2 specification, 2.2)', () => {
 			boot: { generation: 'empty', workspace: { id: 'personal', name: 'Personal' }, apps: [] },
 		});
 		if (host.kind !== 'ready') throw new Error('expected a kernel');
-		// Kernel interface version 3 (phase 3 specification, 12).
-		expect(host.kernel.version).toBe(3);
+		// Kernel interface version 5 (phase 5 specification, 3.2).
+		expect(host.kernel.version).toBe(5);
 		expect(host.kernel.listCommands().map((row) => row.name)).toEqual([
 			'layout-get',
 			'appearance-get',
