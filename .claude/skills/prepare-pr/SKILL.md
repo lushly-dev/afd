@@ -74,11 +74,18 @@ Stop on unknown dirty files, an in-progress merge or rebase, or work that alread
    - Path filters vary the check set by PR. Every check that ran on the current head must be green, none pending.
    - A base advance doesn't reset the review; re-review only the seams the integration changed.
 
-9. **Merge only when authorized.** `main`'s one required check is `ci-ok`, the verdict that every workflow on the head passed ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would merge whatever head is there when `ci-ok` passes, not the one you reviewed (the factory lane's pinned auto-merge is the exception, because the lane owns every push). Never merge with `--admin`, which skips `ci-ok`. With the user's authorization and every check on the exact head green, bind the merge to that head:
+9. **Merge only when authorized.** `main`'s one required check is `ci-ok`, the verdict that every workflow on the head passed ([gates.md](references/gates.md)). Never enable auto-merge in a session: it would merge whatever head is there when `ci-ok` passes, not the one you reviewed (the factory lane's pinned auto-merge is the exception, because the lane owns every push). Never merge with `--admin`, which skips `ci-ok`. With the user's authorization and every check on the exact head green, bind the merge to that head and give it the branch's commit messages as its body:
 
    ```bash
-   gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8>
+   body="$(mktemp)"
+   gh pr view <n> --json commits --jq '.commits[]
+       | select(.messageHeadline | test("^Merge (remote-tracking )?(branch|commit) ") | not)
+       | .messageHeadline + "\n\n" + .messageBody + "\n"' \
+     | grep -vi '^co-authored-by:' > "$body"
+   gh pr merge <n> --squash --match-head-commit <full headRefOid verified in step 8> --body-file "$body"
    ```
+
+   Without `--body-file`, GitHub writes its default squash message, which adds a `Co-authored-by:` line for every commit author whose address isn't the merging account's. That credits a retired address or an agent as a co-author on `main`, and no gate sees it, because `commit-credit.mjs` checks only the branch's commits. The body keeps each commit's own `Assisted-by:` trailers.
 
    A pull request that changes `pnpm-lock.yaml` merges one at a time, rebased onto the new `main` first ([gates.md](references/gates.md)). A short SHA is rejected; re-reading the head at merge time would bind whatever is there now. A mismatch sends you back to step 8. After the merge, fetch and run `start-session`'s content-based landing check on the branch's files; a bare `git diff HEAD origin/main` also shows other PRs' changes. Head branches are deleted on merge. Without authorization, stop and report the PR URL, head SHA, check state and the owner's next action.
 
