@@ -10365,11 +10365,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "eb9355b6965ba860102e3c4ba5c4026a98343ec2e8c0155ffd8433084abb40f1",
+      "current_import_sha256": "b3f3ffe838e7bac7966507c95402f67d495f1e2ac52fef3d0b61af3bbd79110c",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description"
+      "import_reason": "Component Briefs B4: violet-elements' component pack: guide files for 46 components and shared rules, the attribute taxonomy as a guide source (allowed-origins' definition shortened to fit a 240-character rule), the pack key, the committed records and their gap report, pack-check in test:stories, and guide claims on the checkbox and switch overviews, which now put their component back after the form check; Component Briefs B4: violet-elements' records rebuilt with each example's attributes in name order; Component Briefs C4: the pack's records rebuilt in format 1; violet-file-upload's guide gives one role for its selected state; violet-data-grid-pill-select's error-announcement takes the manifest's attribute description; Regenerate #659 option pack declared active surface token"
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/pack/data/violet-elements/components/violet-pagination.json",
