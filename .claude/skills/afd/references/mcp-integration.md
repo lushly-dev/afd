@@ -25,8 +25,7 @@ Every strategy lists the five meta-tools first: `afd-discover`, `afd-detail`, `a
 | `lazy` | The context tools when contexts are set; agents run `afd-discover` → `afd-detail` → `afd-call` |
 | `hybrid` | The context tools when contexts are set, then 1 to 8 `firstClassTools`; the list never varies by context |
 
-TypeScript, Rust and C++ serve these lists; Python still serves the earlier ones until its #533
-step lands (`spec/tool-strategies.md`, "Alignment"). Every strategy routes all five meta-tools, and
+Every language serves these lists, with `grouped` as its default. Every strategy routes all five meta-tools, and
 any exposed command by its own name, whether or not it is listed.
 
 A grouped tool takes `{ action, params }` (`todo-create` is group `todo`, action `create`). Its
