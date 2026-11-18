@@ -11,7 +11,7 @@
 
 - **State: Approved** 2026-11-17 by the coordinator, under the owner's standing grant; the owner answered [Q1 to Q7](#questions-for-the-owner) the same day, each as recommended, Q2 with a condition. D141 to D152 are decided; D153, the owner's amendment of 3.2's IPC gate after step 0a, on 2026-11-17. Written 2026-11-16 against `main` at `a3ea9aa8`, and revised the same day after an independent trust-boundary review and a three-seat walk of its jobs ([Review](#review-2026-11-16)), with `main` merged in at `38d883d9`, then a re-check and a final verify. **Step 1, the copilot core, is built** ([Step 1, 2026-11-17](#step-1-2026-11-17)); milestone A's other steps are not.
 - **Last verified:** 2026-11-17. Read: the documents in the table above; Loam's STATUS rows that name this specification; [#1337](https://github.com/lushly-dev/afd/pull/1337) (phase 6's step 11, the desktop lane) and [#1345](https://github.com/lushly-dev/afd/pull/1345) (phase 6's 10.8, the desktop's inbound MCP and CLI), both merged while this specification was in review and merged into its branch. 10.8 was approved on 2026-11-17, with the owner's answers recorded as D137 to D140 in [#1378](https://github.com/lushly-dev/afd/pull/1378). This specification changes neither's files but STATUS.md; issues [#883](https://github.com/lushly-dev/afd/issues/883), [#884](https://github.com/lushly-dev/afd/issues/884), [#885](https://github.com/lushly-dev/afd/issues/885), [#912](https://github.com/lushly-dev/afd/issues/912) and [#913](https://github.com/lushly-dev/afd/issues/913) with their comments. External facts retrieved 2026-11-16 (S101 to S106). No code was built or run; the scenario files were checked with AFD's parser and coverage report ([Jobs and scenarios](#jobs-and-scenarios)).
-- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106; step 0a, the spike, whose results amend 0.1, 0.3, 3.2, 4.2, 4.3, 16 and P5-A2 on 2026-11-17 ([0.3's results](#results-2026-11-17)). Step 1, the copilot core, on 2026-11-17 (STEP1PR): see [its record](#step-1-2026-11-17).
+- **Done:** this specification, its eleven scenario files, the trajectory refresh (W11, W15, W20) and sources S101 to S106; step 0a, the spike, whose results amend 0.1, 0.3, 3.2, 4.2, 4.3, 16 and P5-A2 on 2026-11-17 ([0.3's results](#results-2026-11-17)). Step 1, the copilot core, on 2026-11-17 ([#1493](https://github.com/lushly-dev/afd/pull/1493)): see [its record](#step-1-2026-11-17).
 - **Not done:** every step in [section 19](#19-implementation-plan) but 0a and 1.
 - **Follow-ups:** [at the end](#follow-ups).
 
@@ -1192,7 +1192,7 @@ Its improvements were taken: two stale "if approved" phrases, the jobs for the k
 
 ## Step 1, 2026-11-17
 
-The copilot core, in STEP1PR, on `main` at `59625650`.
+The copilot core, in [#1493](https://github.com/lushly-dev/afd/pull/1493), on `main` at `59625650`.
 
 **Built.**
 
