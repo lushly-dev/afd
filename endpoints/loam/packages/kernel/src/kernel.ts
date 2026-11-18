@@ -25,6 +25,7 @@ import {
 } from '@lushly-dev/afd-server/direct';
 import { ViewStateRegistry } from '@lushly-dev/afd-view-state';
 import { type BootProjectionV2, type IdentityV1, readBoot } from '@lushly-dev/loam-manifest';
+import { appearanceFrom } from './appearance.js';
 import {
 	type AppsRuntime,
 	bootApps,
@@ -49,7 +50,7 @@ import { firstLayoutOf } from './layout.js';
 import type { OverlayStore } from './overlays.js';
 import { type AccessActorV1, type MembershipV1, personKey, personOf } from './scope/access.js';
 import { createScopeMiddleware, type LateScope, sessionActor } from './scope/middleware.js';
-import { personalStore } from './scope/personal.js';
+import { personalRecordId, personalStore } from './scope/personal.js';
 import { CALL_MARK, createScopeRuntime, type QueuedTicket } from './scope/runtime.js';
 import { registerShellState } from './shell-state.js';
 import type {
@@ -57,7 +58,7 @@ import type {
 	CallOptionsV5,
 	CommandSummaryV1,
 	ContextFieldV2,
-	KernelEventV3,
+	KernelEventV4,
 	KernelMcpOptions,
 	KernelOptionsV5,
 	LoamKernelV5,
@@ -263,7 +264,10 @@ export async function createKernelParts(
 	// In `provider` mode a person's records are theirs, for whoever is signed in at each read and write (4.5).
 	const personal = provider ? personalStore(options.store, person) : undefined;
 	const viewState = new ViewStateRegistry({ adapter: personal ?? options.store });
-	const state = registerShellState(viewState);
+	// Signed out in `provider` mode the page paints the profile's last appearance (phase 4 specification, 3.6).
+	const state = registerShellState(viewState, {
+		lastFirst: () => provider && person() === undefined,
+	});
 	const workspace = boot?.workspace ??
 		options.deployment?.workspace ??
 		options.workspace ?? { id: 'personal', name: 'Personal' };
@@ -507,6 +511,8 @@ export async function createKernelParts(
 	 */
 	const BOOT_FIELDS: KernelCallFields = {};
 	const runBoot = (name: string, input?: unknown) => run('palette', name, input, {}, BOOT_FIELDS);
+	/** A palette call stage B makes itself, past the queue it holds, journaled as the person's (phase 4's 3.6). */
+	const runNow = (name: string, input: unknown) => execute('palette', name, input, {}, {});
 	let endStageB: () => void = () => {};
 	const appsReady = new Promise<void>((resolve) => {
 		endStageB = resolve;
@@ -608,6 +614,8 @@ export async function createKernelParts(
 			setAppCommands(apps.commands);
 			// Stage B's first act before any queued call: `late/` hears the adapter from here (phase 3 specification, 4.4).
 			await lateParts?.begin();
+			// An old appearance record moves into the person's settings, once stage A has read it (phase 4's 3.6).
+			if (hydrated) await lateParts?.migrate(runNow);
 		})()
 			.catch((cause: unknown) => {
 				stageBError = cause;
@@ -621,7 +629,7 @@ export async function createKernelParts(
 		return stageB;
 	}
 
-	const listeners = new Set<(event: KernelEventV3) => void>();
+	const listeners = new Set<(event: KernelEventV4) => void>();
 	const traceBase = `loam-${Math.floor(options.clock?.() ?? Date.now()).toString(36)}`;
 	let calls = 0;
 	let disposed = false;
@@ -757,7 +765,7 @@ export async function createKernelParts(
 		if (fields.parent !== undefined && seq !== undefined) {
 			internals.nestedUnrecorded?.(fields.parent, name);
 		}
-		const event: KernelEventV3 = {
+		const event: KernelEventV4 = {
 			command: name,
 			interface: iface,
 			success: result.success,
@@ -830,8 +838,9 @@ export async function createKernelParts(
 		if (stageBError instanceof LoamKernelError) throw stageBError;
 		await state.hydrate();
 		apps.reconcileLayouts();
-		// Stage B ran before the persisted state was read, so its settle is here (F3).
+		// Stage B ran before the persisted state was read, so its settle is here (F3), and the appearance's move.
 		if (applying) await lateParts?.settle(runBoot);
+		await lateParts?.migrate(runNow);
 	}
 	// Stage A's person's active persona (6.1), so their first call carries it; a read that fails is `default`.
 	const who = personOf({ actor: sessionActor(options.auth, clock) });
@@ -841,6 +850,16 @@ export async function createKernelParts(
 			.catch(() => null)
 	)?.value?.active;
 	if (typeof active === 'string' && active !== 'default') personas.set(who, active);
+	// Phase 4's settings (its 3.6): stage A paints from the person's `loam.settings`, and in `provider` mode, signed out,
+	// from `loam.appearance.last`. Read as the persona is, from the view-state store's table; a read that fails is none.
+	const read = async (id: string) =>
+		(await options.store.get<{ value?: unknown }>('settings', id).catch(() => null))?.value;
+	const signedIn = person();
+	if (!provider || signedIn !== undefined) {
+		const id = provider ? personalRecordId('loam.settings', signedIn) : 'loam.settings';
+		state.setOwnAppearance(appearanceFrom(await read(id), true));
+	}
+	if (provider) state.setLastAppearance(appearanceFrom(await read('loam.appearance.last'), false));
 	chooseScope(options.initialScope?.project);
 	// The first frame has this project's layout: without it, a reload in a project paints the workspace's.
 	await state.scopedLayoutId(

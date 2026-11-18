@@ -126,6 +126,7 @@ describe("Loam's profile", () => {
 			'ui-project-summary',
 			'ui-documents',
 			'ui-new',
+			'ui-settings',
 		]) {
 			// Under version 1, the version is what the author is told; under 2, that no step serves it yet,
 			// until its step serves it: `app.resource_keys` is step 4's, `tree` step 6's,
@@ -144,7 +145,14 @@ describe("Loam's profile", () => {
 		const ajv = new Ajv2020({ ...AJV_OPTIONS });
 		ajv.addSchema(readCore());
 		const validateV1 = ajv.compile(readSchema('app-manifest', 1));
-		const versionTwo = ['/app/resource_keys', '/ui/project_summary', '/ui/documents', '/ui/new'];
+		const versionTwo = [
+			'/app/resource_keys',
+			'/ui/project_summary',
+			'/ui/documents',
+			'/ui/new',
+			// Phase 4's step 1: `ui.settings` is a key of version 2 (its 12.1).
+			'/ui/settings',
+		];
 		const errorsOf = (errors: readonly ValidatorError[] | null | undefined): string[] =>
 			(errors ?? [])
 				.filter((error) => error.keyword !== 'if')

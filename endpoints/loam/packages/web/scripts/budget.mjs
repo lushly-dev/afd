@@ -286,6 +286,16 @@ const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '..');
  * specification's 16 sets its rows from a measurement; under its 113 KB, which counted FAST and the spike's
  * harness); and the runtime frame's two chunks, read from `@lushly-dev/loam-copilot`'s `dist/frame/sizes.json`, at
  * 16's 120,000 gzip (95,308 for `anthropic` and `test`, 95,178 for the OpenAI kinds).
+ * Phase 4's step 1 (the settings core) added a row and raised three under D115, measured on its branch from `main` at
+ * `8f58c33e`. First paint 303,593 and 94,914 gzip, within its rows (section 14's estimate for the step was 450 and
+ * 180: stage A's read of the person's `loam.settings` and, in `provider` mode, `loam.appearance.last`, and the
+ * appearance's three sources). `kernelMinified` 116,800 to 118,000 (117,473): that read, the shell state's three
+ * appearance sources and `appearanceFrom`, and kernel interface 4's types. `lateMinified` 80,500 to 82,000 (81,246):
+ * the settings chunk's wiring, the `loam.appearance` alias's write through the settings, `trashDays` written through
+ * and the hosted flag. `appsMinified` 395,700 to 417,500 (416,423): the manifest validator's `ui.settings`, five
+ * closed definitions that Ajv's standalone code adds about 28,000 unminified bytes for (329,227 to 357,289 for
+ * `validate.generated.js`). New row: `lateSettingsMinified` 22,800 (20,698 plus 10%; section 14 estimated 26,000):
+ * the five `setting-*` commands, their rules and the shell's two sections.
  */
 export const CEILINGS = Object.freeze({
 	// Raised from 300,000 and 93,000 under D115 by AFD's port of Microsoft FAST Element 3.1.4 into
@@ -310,11 +320,12 @@ export const CEILINGS = Object.freeze({
 	fontsBytes: 116_000,
 	// Step 2 too: 117,495 of 116,800, the stop on a sign-in or sign-out and the copilot's new checks; set to 118,000.
 	kernelMinified: 118_000,
-	lateMinified: 80_500,
+	lateMinified: 82_000,
 	lateDocumentsMinified: 13_218,
 	lateEditorMinified: 15_305,
 	lateIdentityMinified: 63_000,
 	lateCopilotMinified: 13_900,
+	lateSettingsMinified: 22_800,
 	copilotPanelGzip: 72_800,
 	copilotRuntimeAnthropicGzip: 120_000,
 	copilotRuntimeOpenaiGzip: 120_000,
@@ -324,7 +335,7 @@ export const CEILINGS = Object.freeze({
 	accountMinified: 28_000,
 	urlMinified: 5_700,
 	// Step 2 too: 396,210 of 395,700, the stage B reader of the projection's `copilot`; set to 397,000.
-	appsMinified: 397_000,
+	appsMinified: 417_500,
 	surfacesMinified: 85_000,
 	// Raised from 25,105 to 25,900 by AFD #1190 (D115): `dev.loam/tokens` reads the contract's component
 	// ids, which grew from 108 to 115 with violet-elements' token interface; measured 25,793, plus a margin.
@@ -501,7 +512,11 @@ async function measurePage() {
 	// `late-editor` too, step 10's, with a row of its own (2.4, amended 2026-11-07), and phase 3's
 	// `late-identity` (phase 3 specification, 13).
 	// Phase 5's `late-copilot` too, the copilot's records and commands (phase 5 specification, 2 and 16).
-	const late = closure(/^assets\/late-(?!documents-|editor-|identity-|copilot-)/, initial);
+	// Phase 4's `late-settings` too, its settings commands (phase 4 specification, 1 and 14).
+	const late = closure(
+		/^assets\/late-(?!documents-|editor-|identity-|copilot-|settings-)/,
+		initial
+	);
 	if (late.size === 0) throw new Error('budget: the build has no `late` chunk to measure');
 	// `loadLate` awaits it before stage B's last `setAppCommands`, so it loads after `late` and before `apps`.
 	const lateDocuments = closure(/^assets\/late-documents-/, new Set([...initial, ...late]));
@@ -532,6 +547,14 @@ async function measurePage() {
 	if (lateCopilot.size === 0) {
 		throw new Error('budget: the build has no `late-copilot` chunk to measure');
 	}
+	// Phase 4's (its 1): awaited beside `late-identity` in `loadLate`, so charged after the late chunks before it.
+	const lateSettings = closure(
+		/^assets\/late-settings-/,
+		new Set([...initial, ...late, ...lateDocuments, ...lateEditor, ...lateIdentity, ...lateCopilot])
+	);
+	if (lateSettings.size === 0) {
+		throw new Error('budget: the build has no `late-settings` chunk to measure');
+	}
 	const afterLate = new Set([
 		...initial,
 		...late,
@@ -539,6 +562,7 @@ async function measurePage() {
 		...lateEditor,
 		...lateIdentity,
 		...lateCopilot,
+		...lateSettings,
 	]);
 	// Phase 3's `auth` (13): Better Auth's client, `BetterAuthAdapter` and `SessionSync`, which stage B loads in
 	// `provider` mode only, after `late-identity` and before `apps`. A `local` shell never loads it, so it is charged
@@ -658,6 +682,7 @@ async function measurePage() {
 		lateEditorMinified: sizeOf(lateEditor),
 		lateIdentityMinified: sizeOf(lateIdentity),
 		lateCopilotMinified: sizeOf(lateCopilot),
+		lateSettingsMinified: sizeOf(lateSettings),
 		copilotPanelGzip: gzipOfFiles(copilotPanel),
 		authMinified: sizeOf(auth),
 		signInMinified: sizeOf(signIn),
@@ -752,6 +777,7 @@ const ROWS = [
 	['lateEditorMinified', "The kernel's `late-editor` chunk and its imports, minified"],
 	['lateIdentityMinified', "The kernel's `late-identity` chunk and its imports, minified"],
 	['lateCopilotMinified', "The kernel's `late-copilot` chunk and its imports, minified"],
+	['lateSettingsMinified', "The kernel's `late-settings` chunk and its imports, minified"],
 	['copilotPanelGzip', 'The `copilot-panel` chunk and its imports, gzip'],
 	['copilotRuntimeAnthropicGzip', 'The copilot runtime for `anthropic` and `test`, gzip'],
 	['copilotRuntimeOpenaiGzip', 'The copilot runtime for the OpenAI kinds, gzip'],

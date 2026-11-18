@@ -106,7 +106,12 @@ const KEY_ROWS: Readonly<Record<string, Row>> = {
 		suggestion: 'Remove `panel`. A later version adds it when a type asks.',
 	},
 	'/ui/account': later('ui.account', 3),
-	'/ui/settings': later('ui.settings', 4),
+	'/ui/settings/*/requires_experiment': {
+		code: 'MANIFEST_SURFACE_UNAVAILABLE',
+		message:
+			'`ui.settings[].requires_experiment` arrives with `ui.experiments`, in step 9 of phase 4.',
+		suggestion: 'Remove `requires_experiment` until experiments are served.',
+	},
 	'/ui/experiments': later('ui.experiments', 4),
 	'/ui/menus': later('ui.menus', 4),
 	'/ui/automations': later('ui.automations', 7),
@@ -161,10 +166,20 @@ function surfaceRow(name: string, table: Readonly<Record<string, readonly string
 	};
 }
 
+/** A settings key's shape outside 3.1's subset: `pattern`, nesting, `$ref` or `oneOf` (phase 4 specification, 3.1). */
+const SETTING_SCHEMA = /^\/ui\/settings\/\*\/schema(\/|$)/;
+const settingSchemaRow = (key: string): Row => ({
+	code: 'MANIFEST_SETTING_SCHEMA',
+	message: `\`${key}\` is outside the settings subset: no \`pattern\`, nesting, \`$ref\` or \`oneOf\`, and no regular expression an app supplies ever runs.`,
+	suggestion:
+		'Use one of the shapes of the settings subset: a boolean, a string with `enum` or `maxLength`, a number with `minimum` and `maximum`, or an array of `enum` strings.',
+});
+
 function keyRow(pointer: string, table: Readonly<Record<string, readonly string[]>>): Row {
 	const shape = shapeOf(pointer);
 	const row = KEY_ROWS[shape];
 	if (row) return row;
+	if (SETTING_SCHEMA.test(shape)) return settingSchemaRow(keyOf(pointer));
 	const parts = pointer.split('/');
 	const name = (parts.at(-1) as string).replaceAll('~1', '/').replaceAll('~0', '~');
 	if (parts.slice(0, -1).join('/') === '/ui/surfaces') return surfaceRow(name, table);
@@ -199,6 +214,7 @@ function refusalFor(pointer: string, error: ValidatorError, document: unknown): 
 	const shape = shapeOf(pointer);
 	const key = keyOf(pointer);
 	const said = `\`${key}\` ${error.message ?? `fails \`${error.keyword}\``}.`;
+	if (SETTING_SCHEMA.test(shape)) return settingSchemaRow(key);
 	if (shape.startsWith('/ui/documents/*/binding')) {
 		return {
 			code: 'MANIFEST_DOCUMENT_BINDING',

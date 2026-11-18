@@ -15,6 +15,7 @@ import {
 	type LoamClientV1,
 	projectsOver,
 	type ScopeV1,
+	settingsOver,
 } from './index.js';
 import { createPeer, RpcAborted, RpcFailure, type RpcPeer } from './rpc.js';
 
@@ -317,6 +318,7 @@ function callContext(peer: RpcPeer, { callId, context }: HandlerCallParams): App
 		client,
 		scope: scope ?? { workspace: '' },
 		...(granted.has('projects') ? { projects: projectsOver(client, scope?.project) } : {}),
+		...(granted.has('settings') ? { settings: settingsOver(client) } : {}),
 		...(granted.has('clock') && now !== undefined ? { now: () => now } : {}),
 		...(granted.has('random') && randomSeed !== undefined
 			? { random: mulberry32(randomSeed) }

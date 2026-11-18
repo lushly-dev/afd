@@ -49,6 +49,11 @@ export const HUMAN_COMMANDS: readonly string[] = Object.freeze([
 	'copilot-session-start',
 	'copilot-message-send',
 	'copilot-turn-stop',
+	// Phase 4's (its 3.2, A-P3-1), whole, by name before their steps build them: an inbox action (step 5) and the
+	// palette's run of a command with its input (step 6) are a person's gestures. `setting-*`, `autonomy-set` and
+	// `experiment-*` refuse an agent in their own handlers instead, each with its own hand-off.
+	'notification-act',
+	'palette-run',
 ]);
 
 /**
