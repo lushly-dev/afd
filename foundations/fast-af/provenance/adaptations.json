@@ -9297,11 +9297,11 @@
       "upstream_sha256": "60fe93d72273aa5182e2b86f74822b4d1a8cf39e43b7e559487516c183353c7d",
       "staged_path": "packages/violet-elements/src/text-area/violet-text-area.spec.ts",
       "staged_sha256": "60fe93d72273aa5182e2b86f74822b4d1a8cf39e43b7e559487516c183353c7d",
-      "current_import_sha256": "e70472fff26399590a521a56364a0516d92ef0a0418098312a8f5a34c040e126",
+      "current_import_sha256": "2f6659c972a0aea361b1d2d07be7f6893fb4c19900710de40dc9b4d5cd0b408d",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450; AFD's theme decision renumbered D159 after main took D154 (#1430); The read-only text area test waits for the frame's shadow transition to settle instead of assuming it has started."
+      "import_reason": "Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450; AFD's theme decision renumbered D159 after main took D154 (#1430); The read-only text area test waits for the frame's shadow transition to settle instead of assuming it has started.; The read-only field line tests keep hover out, since an earlier test can leave the pointer over the field."
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-area/violet-text-area.stories.ts",
@@ -9345,11 +9345,11 @@
       "upstream_sha256": "595e210e19c3980e14ffe77674c9d130692339f15fa07e8ad4da4a1624dce542",
       "staged_path": "packages/violet-elements/src/text-field/violet-text-field.spec.ts",
       "staged_sha256": "595e210e19c3980e14ffe77674c9d130692339f15fa07e8ad4da4a1624dce542",
-      "current_import_sha256": "998b4880aca045404e450e432cb68d5570e2f22c71d2f8072ba4ff5d9b509b6d",
+      "current_import_sha256": "4761b79347ced8440384452bd271db1d564a691297f2075708e62220aeed9759",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
       "import_classification": "modified-after-staging",
-      "import_reason": "Added number-entry specs: a typed minus sign survives over an empty or selected value, the value attribute shows, a form reset clears a partial entry, and a value set from outside still shows (lushly-dev/afd#712); Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450; AFD's theme decision renumbered D159 after main took D154 (#1430); The read-only text field test waits for the frame's shadow transition to settle instead of assuming it has started."
+      "import_reason": "Added number-entry specs: a typed minus sign survives over an empty or selected value, the value attribute shows, a form reset clears a partial entry, and a value set from outside still shows (lushly-dev/afd#712); Review fixes for AFD's theme (D159, #1430): read-only fields draw their line in the strong border and their placeholder in secondary text; the conversation components' second-level fallbacks take AFD's values; high contrast's pressed surface and state icons and dark's success icon take their own values; Recheck improvements for AFD's theme (D159, #1430): the read-only specs assert the painted line, the message's stray border fallbacks are dropped, the foundations specimen draws the read-only line, dark's strong border is stone-450; AFD's theme decision renumbered D159 after main took D154 (#1430); The read-only text field test waits for the frame's shadow transition to settle instead of assuming it has started.; The read-only field line tests keep hover out, since an earlier test can leave the pointer over the field."
     },
     {
       "path": "foundations/fast-af/packages/violet-elements/src/text-field/violet-text-field.stories.ts",

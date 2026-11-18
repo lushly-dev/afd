@@ -259,6 +259,8 @@ describe("violet-text-area", () => {
 
         it("draws a read-only field's line in the strong border and its placeholder in secondary text", async () => {
             const area = await renderTextArea({ readonly: "" });
+            // An earlier test can leave the pointer over the field, and the hover line is darker; keep hover out.
+            area.style.pointerEvents = "none";
             const style = getComputedStyle(area);
             // With no theme installed these are the light theme's values (Loam's D159).
             expect(style.getPropertyValue("--_field-border").trim().toLowerCase()).toBe("#6b7d6e");
