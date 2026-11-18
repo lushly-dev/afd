@@ -99,8 +99,10 @@ palette the components were first drawn in is Lushly's and lives in Lushly.
   #645): it is the field's only boundary. The shared field components draw
   it from `color.field.border`; values in
   [references/history.md](references/history.md). Refined (D154) draws it as
-  the field's top inner line, stone-500, 3:1 on the white field; on the light
-  read-only fill it is 2.64, the one pair light does not hold.
+  the field's top inner line, stone-500, 3:1 on the white field. A read-only
+  field draws its line in `color.border.strong` and its placeholder in
+  `color.text.secondary`, which hold on every surface; field pairs are
+  measured over page, card, subtle and floating.
 - Forced colors: system colors only inside `@media (forced-colors: active)`;
   `CanvasText`/`Canvas`, `ButtonText`/`ButtonFace`, `Highlight`/`HighlightText`
   for focus and selection, `GrayText` for disabled. Forced colors removes

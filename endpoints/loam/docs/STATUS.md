@@ -180,8 +180,10 @@ should never have to scan the codebase to learn what is current.
   - AFD's theme, Refined (D154; branch `lush/afd-theme-refined`, cut from the restyle, not merged as of
     2026-11-17): the tree's values, the `violet-elements` export, built-in set and fallbacks are the
     approved set from the AFD site's review pages, except dark `color.border.strong` (stone-500 for 3:1
-    on the subtle surface) and the resting field border on the light read-only fill, which `pairs.ts`
-    no longer holds in light (2.64:1). The chrome, console and two apps read `font.family.*` in place of
+    on the subtle surface) and four values carried over from Lushly's palette (high contrast's pressed
+    surface and state icons, dark's success icon). A read-only field's line is `color.border.strong` and
+    its placeholder `color.text.secondary`, and `pairs.ts` measures field pairs over page, card, subtle
+    and floating. The chrome, console and two apps read `font.family.*` in place of
     literal stacks; `@lushly-dev/loam-theme` ships Inter, Space Grotesk and IBM Plex Mono (`fonts/`, six
     latin woff2, 115,268 bytes, SIL OFL 1.1), linked by `loam-web`. Budget (2026-11-17, under D115):
     `cssMinified` 8,496 to 10,500 (measured 10,251: `loam-theme.css` 8,217 to 8,431, the fonts'

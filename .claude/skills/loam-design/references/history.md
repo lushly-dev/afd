@@ -193,5 +193,7 @@ The values above landed, for the theme and the components together:
   Space Grotesk for headings and IBM Plex Mono, which Loam ships. D28 and D50 stand: one component set, many
   design systems, and the built-in default is AFD's, shared with Loam. Lushly carries its look as its own
   theme set (lushly#2468); the old values are at `599be245`. Dark `color.border.strong` is stone-500, one
-  step lighter than Refined drew, to keep 3:1 on the subtle surface; the resting field border on the light
-  read-only fill (2.64:1) is the one pair light no longer holds.
+  step lighter than Refined drew, to keep 3:1 on the subtle surface. A read-only field draws its line in
+  `color.border.strong` and its placeholder in `color.text.secondary`, measured over every surface a field
+  sits on. High contrast's pressed surface and state icons, and dark's success icon, which had kept Lushly's
+  values, take their own.

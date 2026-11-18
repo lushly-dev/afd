@@ -40,7 +40,7 @@ with the tints and shades Refined added marked in `src/tree/primitives.ts`.
 | `color.surface.floating` | `#ffffff` | `#252e29` | `#ffffff` |
 | `color.surface.selected` | `#dfeae3` | `#20352c` | `#E0E0E0` |
 | `color.surface.highlight` | `#ffffff` | `#4d5b50` | `#ffffff` |
-| `color.surface.pressed` | `#d8dcd6` | `rgba(244, 240, 234, 0.14)` | `#E7E4D8` |
+| `color.surface.pressed` | `#d8dcd6` | `rgba(244, 240, 234, 0.14)` | `#E6E6E6` |
 | `color.text.primary` | `#181b1a` | `#f4f0ea` | `#000000` |
 | `color.text.secondary` | `#48534b` | `#bdcfc1` | `#1F1F1F` |
 | `color.text.muted` | `#5e6460` | `#adb6ab` | `#3D3D3D` |
@@ -60,7 +60,7 @@ with the tints and shades Refined added marked in `src/tree/primitives.ts`.
 | `color.state.success.background` / `.text` / `.border` | `#dfeae3` / `#2c5e4b` / `transparent` | `#20352c` / `#a3ebcd` / `transparent` | `#ffffff` / `#0B5A1E` / `#0B5A1E` |
 | `color.state.warning.background` / `.text` / `.border` | `#f3e8d2` / `#92400e` / `transparent` | `#3a2b18` / `#f3d6a3` / `transparent` | `#ffffff` / `#6B3200` / `#6B3200` |
 | `color.state.danger.background` / `.text` / `.border` | `#f7e4df` / `#c42a1a` / `transparent` | `#3d211d` / `#ffab99` / `transparent` | `#ffffff` / `#A30000` / `#A30000` |
-| `color.state.success.foreground`, `color.state.danger.foreground` | `#2c5e4b` / `#c42a1a` | `#2c5e4b` / `#ff897a` | `#245C36` / `#B42318` |
+| `color.state.success.foreground`, `color.state.danger.foreground` | `#2c5e4b` / `#c42a1a` | `#a3ebcd` / `#ff897a` | `#0B5A1E` / `#A30000` |
 | `color.field.background` / `.readonly` | `#ffffff` / `rgba(24, 27, 26, 0.05)` | `rgba(0, 0, 0, 0.26)` / `rgba(244, 240, 234, 0.06)` | `#ffffff` / `#F2F2F2` |
 | `color.field.border` / `.hover` / `.focus` / `.invalid` | `#869089` / `#48534b` / `#146ba0` / `#c42a1a` | `#6b7d6e` / `#adb6ab` / `#a3ebcd` / `#ff897a` | `#595959` / `#000000` / `#000000` / `#A30000` |
 
@@ -82,10 +82,11 @@ Some ids are aliases, so they follow the theme:
 | Text pairs | 4.5:1 | 7:1 |
 | Non-text pairs | 3:1 | 3:1 |
 | Decorative borders, button fills | not held | 3:1 |
-| The resting field border on the read-only fill | dark only (light 2.64, D154) | 3:1 |
 
 The pairs are listed in `src/pairs.ts`. Translucent colors are measured drawn
-over their background, drawn over `color.surface.page`.
+over their background, drawn over `color.surface.page`; a field's pairs over
+each of page, card, subtle and floating. A read-only field's line is
+`color.border.strong` and its placeholder `color.text.secondary` (D154).
 
 ## Type
 
@@ -104,7 +105,8 @@ over their background, drawn over `color.surface.page`.
 | `font.family.mono` | `"IBM Plex Mono", ui-monospace, Consolas, monospace`: the tool-call card's command name and the console's output |
 
 Loam ships the three faces (`packages/theme/fonts/`, latin woff2, SIL OFL 1.1):
-Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono 400 and 500.
+Inter 400, 500 and 600, Space Grotesk 600 and IBM Plex Mono 400 and 500. Bold
+uses the 600 files; italics are synthesized.
 `packages/web` links `loam-fonts.css`; nothing loads from another origin. An
 app's frame does not get them and falls back to the system face.
 
