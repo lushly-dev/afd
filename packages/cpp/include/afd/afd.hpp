@@ -4,6 +4,7 @@
 #include "afd/actor.hpp"
 #include "afd/approval.hpp"
 #include "afd/batch.hpp"
+#include "afd/bootstrap.hpp"
 #include "afd/builtin_names.hpp"
 #include "afd/command.hpp"
 #include "afd/context_fields.hpp"

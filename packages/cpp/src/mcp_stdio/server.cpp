@@ -299,6 +299,17 @@ struct StdioServer::State {
                            " is an AFD server. Every tool returns a CommandResult as JSON text: "
                            "{ success, data, error: { code, message, suggestion } }; follow "
                            "error.suggestion to recover.";
+        // With the bootstrap commands (afd::register_bootstrap_commands), as Rust: all three
+        // registered and exposed to MCP.
+        const bool bootstrap = std::all_of(
+            std::begin(afd_bootstrap_command_names), std::end(afd_bootstrap_command_names),
+            [this](std::string_view name) {
+                const auto command = registry.get(name);
+                return command && is_exposed_to(command->definition.expose, Interface::mcp);
+            });
+        if (bootstrap) {
+            text += " afd-help, afd-docs and afd-schema describe this server.";
+        }
         if (!options.contexts.empty()) {
             text += " Commands are scoped by context (afd-context-list lists them). Send _meta[\"" +
                     std::string(context_meta_key) +

@@ -8,6 +8,7 @@
 
 #include "commands.hpp"
 #include <afd/approval.hpp>
+#include <afd/bootstrap.hpp>
 
 namespace todo {
 
@@ -58,6 +59,10 @@ make_registry(const std::shared_ptr<TodoStore>& store, RegistryOptions options) 
         return afd::unexpected(*error);
     }
     if (auto error = afd::register_context_commands(*registry, todo_contexts())) {
+        return afd::unexpected(*error);
+    }
+    // afd-help, afd-docs and afd-schema, as TypeScript's `bootstrap: true` registers them.
+    if (auto error = afd::register_bootstrap_commands(*registry)) {
         return afd::unexpected(*error);
     }
     if (options.approvals == Approvals::agents) {
