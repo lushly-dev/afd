@@ -628,6 +628,11 @@ export class VioletFileUpload extends FASTElement {
         this.#clearNativeInputValue();
     }
 
+    /** Focuses the browse button. The native file input is hidden, so it is not a focus target. */
+    public override focus(options?: FocusOptions): void {
+        (this.shadowRoot?.querySelector('[part~="browse-button"]') as HTMLElement | null)?.focus(options);
+    }
+
     public get form(): HTMLFormElement | null {
         return this.#internals.form;
     }

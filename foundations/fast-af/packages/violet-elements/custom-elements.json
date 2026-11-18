@@ -2959,6 +2959,13 @@
             },
             {
               "kind": "field",
+              "name": "#describedByObserver",
+              "privacy": "private",
+              "readonly": true,
+              "default": "new MutationObserver(() => this.#syncDescribedBy())"
+            },
+            {
+              "kind": "field",
               "name": "#internals",
               "privacy": "private",
               "type": {
@@ -2975,6 +2982,17 @@
                   "text": "void"
                 }
               }
+            },
+            {
+              "kind": "method",
+              "name": "#syncDescribedBy",
+              "privacy": "private",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Describes the input by the host's `aria-describedby` targets and the slotted supporting text.\nHost IDREFs cannot cross the shadow boundary, so they are resolved in the host's root node and\nassigned through element reflection (`ariaDescribedByElements`). Without element reflection only\nthe supporting text is linked, by an IDREF inside the shadow root."
             },
             {
               "kind": "method",
@@ -24541,6 +24559,26 @@
               }
             },
             {
+              "kind": "method",
+              "name": "focus",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "parameters": [
+                {
+                  "name": "options",
+                  "optional": true,
+                  "type": {
+                    "text": "FocusOptions"
+                  }
+                }
+              ],
+              "description": "Focuses the browse button. The native file input is hidden, so it is not a focus target."
+            },
+            {
               "kind": "field",
               "name": "form",
               "type": {
@@ -32273,6 +32311,17 @@
               },
               "privacy": "public",
               "description": "True while an ancestor `<fieldset disabled>` disables the control."
+            },
+            {
+              "kind": "method",
+              "name": "focus",
+              "privacy": "public",
+              "return": {
+                "type": {
+                  "text": "void"
+                }
+              },
+              "description": "Focuses the group's Tab stop: the checked segment, or the first enabled one when none is checked."
             },
             {
               "kind": "field",

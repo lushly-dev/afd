@@ -211,6 +211,27 @@ describe("violet-checkbox", () => {
             expect(input(checkbox).getAttribute("aria-label")).toBe("Accept the terms and conditions");
         });
 
+        it("is described by its supporting text and the host's aria-describedby", async () => {
+            const { checkbox } = await renderCheckbox({
+                label: "Accept terms",
+                supporting: "Read the policy first.",
+            });
+            const hint = document.createElement("p");
+            hint.id = "terms-hint";
+            hint.textContent = "Required to continue.";
+            document.body.prepend(hint);
+            checkbox.setAttribute("aria-describedby", "terms-hint");
+            await nextFrame();
+
+            const supporting = checkbox.shadowRoot?.querySelector('[part~="supporting-text"]');
+            expect(input(checkbox).ariaDescribedByElements).toEqual([hint, supporting]);
+
+            checkbox.querySelector('[slot="supporting"]')?.remove();
+            await nextFrame();
+
+            expect(input(checkbox).ariaDescribedByElements).toEqual([hint]);
+        });
+
         it("omits aria-label when there is no label text", async () => {
             const { checkbox } = await renderCheckbox();
 

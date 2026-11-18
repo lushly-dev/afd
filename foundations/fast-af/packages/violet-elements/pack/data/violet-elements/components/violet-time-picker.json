@@ -227,7 +227,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.input-change",
 		"field.label",
 		"field.label-required",

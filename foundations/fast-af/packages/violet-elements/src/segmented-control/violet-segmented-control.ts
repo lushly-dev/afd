@@ -218,6 +218,11 @@ export class VioletSegmentedControl extends FASTElement {
         return this.#internals.reportValidity();
     }
 
+    /** Focuses the group's Tab stop: the checked segment, or the first enabled one when none is checked. */
+    public override focus(): void {
+        this.segments.find(segment => segment.buttonTabIndex === 0 && !segment.effectiveDisabled)?.focusButton();
+    }
+
     public handleSlotChange(): void {
         this.segments = this.#ownedSegments();
         this.#synchronizeSegments();

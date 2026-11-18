@@ -207,7 +207,7 @@
 	],
 	"import": "@lushly-dev/violet-elements",
 	"rules": [
-		"event.native-input",
+		"event.input-once",
 		"field.input-change",
 		"field.label",
 		"field.label-required",
@@ -241,8 +241,8 @@
 		},
 		{
 			"basis": "authored",
-			"id": "color-picker.native-input",
-			"text": "The hex field's and sliders' native input events also reach host listeners, without detail; skip events that have none. Typing previews only full 6-digit hex; an invalid entry reverts on blur."
+			"id": "color-picker.input",
+			"text": "input fires only when the colour changes, with detail.value. Typing previews only full 6-digit hex; an invalid entry reverts on blur."
 		},
 		{
 			"basis": "authored",
