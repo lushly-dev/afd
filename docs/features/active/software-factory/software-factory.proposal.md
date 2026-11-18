@@ -288,7 +288,8 @@ host the lane validates several branches at once while still merging one at a ti
   `lane-status`, take work in `issue-check`'s dispatch order, start a cell, react to the
   events above, finish with `lane-report`. Under 500 words; the runbook holds the detail.
 - Cells are T3 Code `delegate_task` children with `isolation: "worktree"`. A cell runs
-  wholly on one plan; only the foreman crosses providers. Routes come from
+  wholly on one plan, a Claude plan since 2026-11-17, except for the second reviewer
+  on its first review. Routes come from
   [model routing](../../../operations/model-routing.md).
 - Starting a cell is reserve, then start: `cell-register` claims the issue and assigns the
   plan (from `canStartCell`'s `nextIssue` and `plan`), then `delegate_task` starts the cell

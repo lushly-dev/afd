@@ -12,8 +12,8 @@ Complete issue(s) #<n>: <acceptance>. Route: <model/effort>.
 First: git fetch origin '+refs/heads/main:refs/remotes/origin/main', then
 git switch -c <branch> origin/main, and start-session. The lane has claimed the issues;
 never claim, push, open a PR, run the full pnpm verify or merge: the lane does.
-Own the work without phase approvals: implementation, an independent review on your own
-provider's routes (wait for it in this turn: a turn that ends reads as the cell finishing),
+Own the work without phase approvals: implementation, independent review as prepare-pr's
+step 2 says, two reviewers first, one per provider (wait for them in this turn: a turn that ends reads as the cell finishing),
 and repairs. Then run prepare-pr in lane mode: it records the review with
 scripts/review-record.mjs and enqueues with a title and body through factory-cell. End your
 turn once the branch is queued (or held); you are resumed only if it is ejected.
