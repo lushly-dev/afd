@@ -10,6 +10,10 @@ for ``gh`` and ``git`` without calling them.
 from __future__ import annotations
 
 import json
+import os
+import subprocess
+import sys
+import time
 from collections.abc import Callable, Sequence
 from pathlib import Path
 
@@ -567,6 +571,30 @@ class CliGit:
         self.run(["git", "-C", path, "clean", "-fd", "--quiet"])
         return path
 
+    def park_slot(self, slot: str, name: str) -> str:
+        """Move the slot's checkout, with its git directory and the validation record kept
+        there, to the lane's checkout ``name`` (``git worktree move``: a rename, so nothing is
+        copied); the slot's path is free for ``prepare_slot`` to check out afresh."""
+        source, target = self._slot_path(slot), self._slot_path(name)
+        if Path(target).exists():
+            self.remove_checkout(target)
+        self.run(["git", "worktree", "move", source, target])
+        return target
+
+    def remove_checkout(self, path: str) -> None:
+        """Forget a lane checkout: renamed aside at once (so the step never waits on deleting
+        a checkout's dependencies), ``git worktree prune``, then deleted in a detached
+        process."""
+        place = Path(path)
+        if place.exists():
+            trash = place.with_name(f".removing-{place.name}-{os.getpid()}-{time.time_ns()}")
+            try:
+                place.rename(trash)
+            except OSError as exc:
+                raise WorldError(f"Cannot move {path} aside to remove it: {exc}") from exc
+            _delete_detached(trash)
+        self.run(["git", "worktree", "prune"])
+
     _IDENTITY = ("-c", "user.name=botcore-factory", "-c", "user.email=factory@localhost")
 
     def _unmerged(self, path: str) -> tuple[str, ...]:
@@ -647,6 +675,27 @@ class CliGit:
         if lease:
             args.append(f"--force-with-lease=refs/heads/{branch}:{lease}")
         self.run([*args, "origin", f"{head}:refs/heads/{branch}"])
+
+
+def _delete_detached(path: Path) -> None:
+    """Delete ``path`` in a process of its own that outlives the lane step (best effort: a
+    leftover ``.removing-*`` directory holds no lane state)."""
+    options: dict = (
+        {"creationflags": subprocess.DETACHED_PROCESS | subprocess.CREATE_NEW_PROCESS_GROUP}
+        if sys.platform == "win32"
+        else {"start_new_session": True}
+    )
+    code = "import shutil, sys; shutil.rmtree(sys.argv[1], ignore_errors=True)"
+    try:
+        subprocess.Popen(  # noqa: S603 - an argument list, no shell
+            [sys.executable, "-c", code, str(path)],
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            **options,
+        )
+    except OSError as exc:
+        raise WorldError(f"Cannot start deleting {path}: {exc}") from exc
 
 
 def real_world(target: Path, *, caches: Path | None = None) -> World:

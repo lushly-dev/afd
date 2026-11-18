@@ -289,6 +289,8 @@ async def test_status_of_the_backlog(make_run):
             "plan": "plan-a",
             "route": "sol/high",
             "ejections": 0,
+            "excused": 0,
+            "countedEjections": 0,
             "thread": "thread-7",
         }
     ]

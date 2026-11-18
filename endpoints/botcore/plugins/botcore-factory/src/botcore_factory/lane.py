@@ -22,11 +22,15 @@ a fixture world and a fake clock. Each step, in order:
 6. says ``queue-empty`` when nothing is queued, held, active or owed, and makes a drained move.
 
 A validated head is pushed by commit from its validation checkout, so a slot is free for the
-next branch once the push finished. What ejects a branch is in ``lane_base``. The lane
-never edits code.
+next branch once the push finished. A validated branch behind the front gives its slot to a
+front branch that needs one: its checkout moves aside with its validation (``slot-released``),
+and the base checks at the front decide whether it runs again (lushly-dev/afd#1452). What
+ejects a branch is in ``lane_base``. The lane never edits code.
 """
 
 from __future__ import annotations
+
+import re
 
 from botcore_factory import job
 from botcore_factory.adapter import matches
@@ -63,6 +67,7 @@ class Step(Merging, Coverage):
             if not self.lane.get("paused"):
                 self.queue_held()
                 self.advance_front()
+                self.sweep_kept()
                 if not self.lane.get("stopRequested"):
                     self.start_validations()
                 self.start_coverage()
@@ -146,7 +151,10 @@ class Step(Merging, Coverage):
                 # A front entry requeued after a base change (or a repaired entry) must
                 # not deadlock behind later entries reserving every completed slot.
                 later = self.state["queue"][self.state["queue"].index(entry) + 1 :]
-                reserved = next((e for e in reversed(later) if e["state"] == "validated"), None)
+                reserved = next(
+                    (e for e in reversed(later) if e["state"] == "validated" and e.get("slot")),
+                    None,
+                )
                 if reserved is None:
                     return
             if not self.config.validate_command:
@@ -156,10 +164,54 @@ class Step(Merging, Coverage):
                 continue
             if reserved is not None:
                 free.append(reserved["slot"])
-                self.requeue(reserved, "slot-needed", front=False)
+                self.release_slot(reserved)
             slot = free.pop(0)
             if not self.start_validation(entry, slot):
                 free.insert(0, slot)  # Ejected before it ran: the next branch takes the slot.
+
+    def release_slot(self, entry: dict) -> None:
+        """Give a validated entry's slot to the front of the queue, keeping its validation
+        (lushly-dev/afd#1452).
+
+        Its checkout moves aside to the lane checkout ``kept-<branch>`` with the git directory
+        that holds the validation's record, so the validated head is still pushed from where it
+        passed; the entry keeps state ``validated`` and its base, and the base checks at the
+        front decide whether it runs again. When the checkout cannot move, the validation is
+        given up as before (``rerun``, ``slot-needed``).
+        """
+        slot, branch = entry["slot"], entry["branch"]
+        name = "kept-" + re.sub(r"[^A-Za-z0-9._-]+", "-", branch).strip("-")
+        try:
+            path = self.world.git.park_slot(slot, name)
+        except WorldError as exc:
+            self.requeue(entry, "slot-needed", front=False, detail=f"its checkout stayed: {exc}")
+            return
+        entry.pop("slot")
+        entry["path"] = path
+        kept = self.lane.setdefault("keptCheckouts", [])
+        if path not in kept:
+            kept.append(path)
+        self.record("slot-released", branch=branch, attempt=entry["attempt"], slot=slot, path=path)
+        self.actions.append(f"released slot {slot} from {branch}; its validation is kept")
+
+    def sweep_kept(self) -> None:
+        """Remove the kept checkouts no validated entry still needs (pushed, merged, ejected,
+        dropped or validated again); one that cannot be removed is tried again next step."""
+        kept = self.lane.get("keptCheckouts")
+        if not kept:
+            return
+        needed = {
+            entry.get("path") for entry in self.state["queue"] if entry.get("state") == "validated"
+        }
+        for path in list(kept):
+            if path in needed:
+                continue
+            try:
+                self.world.git.remove_checkout(path)
+            except WorldError as exc:
+                self.actions.append(f"kept checkout {path} not removed yet: {exc}")
+                continue
+            kept.remove(path)
 
     def start_validation(self, entry: dict, slot: str) -> bool:
         """Start validating ``entry`` in ``slot``; False when it was ejected instead."""

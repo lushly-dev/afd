@@ -395,3 +395,85 @@ def test_a_merge_left_open_for_generated_files_is_finished_or_aborted(tmp_path, 
     assert finished.clean
     parents = run(["git", "-C", slot, "rev-list", "--parents", "-n", "1", "HEAD"]).split()
     assert parents[1:] == [branch, main]
+
+
+def test_a_kept_checkout_still_pushes_with_its_record_and_is_removed_after(tmp_path, monkeypatch):
+    """lushly-dev/afd#1452: a validated slot given to the front of the queue moves aside with
+    the git directory that holds its validation record, so the real pre-push decision still
+    accepts its push, and the slot's path is checked out afresh."""
+    import time
+
+    for key in list(os.environ):
+        if key.startswith("GIT_"):
+            monkeypatch.delenv(key)
+    monkeypatch.setenv("GIT_CONFIG_NOSYSTEM", "1")
+    monkeypatch.setenv("GIT_CONFIG_GLOBAL", os.devnull)
+    repo, remote = tmp_path / "repo", tmp_path / "remote.git"
+    repo.mkdir()
+    run = make_runner(str(repo))
+    run(["git", "init", "--initial-branch=main"])
+    run(["git", "config", "user.name", "Fixture"])
+    run(["git", "config", "user.email", "fixture@localhost"])
+    run(["git", "commit", "--allow-empty", "-m", "base"])
+    base = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "update-ref", "refs/remotes/origin/main", base])
+    run(["git", "init", "--bare", str(remote)])
+    run(["git", "remote", "add", "origin", str(remote)])
+    run(["git", "commit", "--allow-empty", "-m", "candidate"])
+    head = run(["git", "rev-parse", "HEAD"]).strip()
+    run(["git", "checkout", "--detach", base])
+    (repo / ".git" / "info" / "exclude").write_text("node_modules/\n", encoding="utf-8")
+    git = CliGit(run, str(repo))
+    slot = git.prepare_slot("1", "", head)
+    (Path(slot) / "node_modules").mkdir()
+    (Path(slot) / "node_modules" / "installed").write_text("x", encoding="utf-8")
+    git_path = ["rev-parse", "--git-path", "afd-verify-record.json"]
+    record = Path(slot) / run(["git", "-C", slot, *git_path]).strip()
+    record.write_text(
+        json.dumps(
+            {
+                "schema": 1,
+                "head": head,
+                "base": base,
+                "tree": run(["git", "-C", slot, "rev-parse", "HEAD^{tree}"]).strip(),
+                "results": [{"name": "check (ci.yml)", "ok": True}],
+                "finishedAt": datetime.now(UTC).isoformat(),
+            }
+        ),
+        encoding="utf-8",
+    )
+    kept = git.park_slot("1", "kept-fix-a")
+    assert kept == str(Path(slot).with_name("kept-fix-a")) and not Path(slot).exists()
+    assert (Path(kept) / "node_modules" / "installed").exists()  # Moved, not copied or lost.
+    assert git.head(kept) == head
+    # The slot's own path is free and is checked out afresh for the front of the queue.
+    assert git.head(git.prepare_slot("1", "", base)) == base
+
+    hooks = tmp_path / "hooks"
+    hooks.mkdir()
+    run(["git", "config", "core.hooksPath", str(hooks)])
+    checker = tmp_path / "check-record.mjs"
+    checker.write_text(
+        "import {execFileSync} from 'node:child_process';\n"
+        "import {readFileSync} from 'node:fs';\n"
+        f"import {{decide}} from {json.dumps((ROOT / 'scripts/pre-push.mjs').as_uri())};\n"
+        "const git = args => execFileSync('git', args, {encoding:'utf8'});\n"
+        "const decision = decide({updates:readFileSync(0,'utf8'), git});\n"
+        "if (!decision.accepted) {console.error(decision.reason); process.exit(1);}\n",
+        encoding="utf-8",
+    )
+    hook = hooks / "pre-push"
+    hook.write_text(f"#!/bin/sh\nexec node {shlex.quote(checker.as_posix())}\n", encoding="utf-8")
+    hook.chmod(0o755)
+    git.push_head(kept, "fix/a", head, None)
+    assert run(["git", "--git-dir", str(remote), "rev-parse", "refs/heads/fix/a"]).strip() == head
+
+    git.remove_checkout(kept)
+    assert not Path(kept).exists()
+    assert kept not in run(["git", "worktree", "list", "--porcelain"])
+    slots = Path(slot).parent
+    deadline = time.monotonic() + 30
+    while any(slots.glob(".removing-*")) and time.monotonic() < deadline:
+        time.sleep(0.1)
+    assert not any(slots.glob(".removing-*"))
+    git.remove_checkout(kept)  # Already gone: nothing to do.

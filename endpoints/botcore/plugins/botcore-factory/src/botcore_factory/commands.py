@@ -253,7 +253,8 @@ def make_commands(get: Callable[[], Factory]) -> list[Callable]:
         return await run(lambda: success(cells.gate_allow(get(), branch, reason)))
 
     async def plan_list() -> CommandResult:
-        """Each plan's weekly window: share used and elapsed, room, and whether it is above
+        """Each plan's weekly window: share used and elapsed, room, pace (room below
+        plans.ceiling per day to its reset; the highest is chosen next) and whether it is above
         plans.ceiling."""
         return await run(lambda: success(status.plan_list(get())))
 

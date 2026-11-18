@@ -288,6 +288,16 @@ class Git(Protocol):
         """
         ...
 
+    def park_slot(self, slot: str, name: str) -> str:
+        """Move the checkout of ``slot`` to the lane checkout ``name``, keeping its git
+        directory (a validation record lives there), and return the new path. The slot's own
+        path is then free: the next ``prepare_slot`` checks it out afresh."""
+        ...
+
+    def remove_checkout(self, path: str) -> None:
+        """Forget the lane checkout at ``path`` (one ``park_slot`` made); absent is done."""
+        ...
+
     def merge_main(
         self, path: str, main: str, keep_open: Callable[[tuple[str, ...]], bool] | None = None
     ) -> MergeOutcome:
