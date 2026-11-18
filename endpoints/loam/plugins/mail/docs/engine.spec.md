@@ -1709,7 +1709,7 @@ change alone.
 **As step D1 built it** (its second part): a change, a resume or an undo by any caller but a
 person is checked against the policy before anything is asked of the provider: a change of more
 messages than its call's limit, or a trash that would take the caller's last 24 hours over the
-day's, changes nothing and fails with `POLICY_LIMIT` (the third part makes it a proposal). The
+day's, changes nothing at the provider; the third part makes it a proposal. The
 day counts the messages of the trash operations the caller made, whether they finished or not; a
 resume is checked against the call's limit by what is left, and is not counted again. A script
 shares one day with every other script. At a terminal, the command line shows a change, a resume
@@ -1741,6 +1741,64 @@ frozen set and its proposer, and returns the operation's id and that state. The 
 - `mail-operation-dismiss` discards a proposal. The person or its proposer may run it.
 - A caller may have five proposals waiting. A further one fails with `POLICY_LIMIT`, so mail
   that steers an agent cannot bury the person in requests.
+
+**As step D1 built it** (its third part, migration 14):
+
+- **A proposal is an operation** in the state `proposed`, beside `running`, `stopped` and `done`.
+  Migration 14 makes the `operation` table again to widen its states, keeping every row, id and
+  reference and the next id, so an id is never given twice. A change, a resume or an undo by an
+  agent or a script that is over a limit is made one; the result is the operation, with
+  `proposal`: its proposer, when it was proposed and when it expires, why it waits in the
+  engine's words, and what comes next. It is checked as any change is first: a wrong count, an
+  expired selection or a message not found is refused, and nothing is proposed.
+- **What is proposed.** A change or an undo is a new operation that has never run: its frozen
+  set is kept with it as its items, and `startedAt` is null until it is approved. A resume
+  proposes the stopped operation itself: it waits in `proposed` with what it did so far kept.
+  While an undo of an operation waits, that operation is neither resumed nor undone again, by
+  anyone, so that what the person approves is still what it would undo; the person approves or
+  dismisses the waiting undo first.
+- **The five.** A sixth proposal from a caller that has five waiting fails with `POLICY_LIMIT`
+  and proposes nothing. Each token is a caller; scripts share one, as they share a day.
+- **Seven days.** A proposal not approved seven days after it was proposed goes: a change that
+  never ran is `expired`, and a resume proposed is stopped again. The engine ends them when a
+  command reads or acts on operations, and when a process opens the store.
+- **Dismissed.** `mail-operation-dismiss` takes the operation's id. The person at the terminal
+  may dismiss any proposal, and a caller its own; anyone else's is `FORBIDDEN`. A change that
+  never ran is `dismissed`; a resume proposed is stopped again. A change dismissed or expired
+  drops its items, so that proposals refused do not fill the disk: its row keeps the command,
+  the count and the proposer. It is not approved, resumed or undone after. A resume proposed
+  and then dismissed or expired keeps when its run stopped. An id with no operation is
+  `PROPOSAL_NOT_OPEN` to approve or dismiss.
+- **Removing an account** removes an undo proposal with the operation it would undo, as it
+  removes any undo, though a dismissed or expired one holds no items of that account.
+- **The preview** is `mail-operation-show` of a proposal, which adds `preview`: whether it can
+  be approved now and, if not, why; its places by account and by mailbox, and by the mailbox a
+  move or a copy puts them in, each mailbox's name labelled as content; its messages by
+  screening class, each message once, with `own` for the person's own mail, which has no class;
+  how many of its messages come from senders the person knows, and how many such senders; and
+  how many of its places are messages the provider never returned. It counts the places not yet
+  finished, so a resume proposed shows what is left. The query is the operation's own `query`,
+  labelled as content. The command line shows each of these, names each value from mail as it
+  shows it ("its name, as the provider writes it"), gives the known senders a line of its own
+  ("Mail from senders you know: it holds 4 messages from 1 sender you know"), and asks nothing
+  of a proposal that cannot be approved now.
+- **`mail-operation-approve`** takes the operation's id and is held for the person's approval
+  every time. Its summary is the proposal's command and count and its proposer, with a token's
+  name, which is the person's own words: "Approve operation 12: move 283721 messages to the
+  trash, proposed by the agent with the token "laptop" (tok_…)". It is refused, even when
+  approved, when the proposal is not open (`PROPOSAL_NOT_OPEN`), when the operation an undo
+  would undo runs or was undone since, and while screening is not ready
+  (`SCREENING_NOT_READY`, which can be retried), because the preview's classes could be wrong.
+  Approved, it runs as a person's change does: inside the call, or as the server's work when it
+  is larger than a call finishes; `approvedAt` records when.
+- **Its proposer's day.** An operation made as a proposal counts against no caller's day of
+  trash, approved or not. A resume proposed is the operation's own, which counted once when it
+  was made.
+- **What awaits the person.** `mail-status` counts the proposals waiting and names the 20 most
+  recently proposed, each with its command, its count, its places left and its proposer.
+  `mail-operation-list` with `proposed` lists only the proposals waiting, in the same order and
+  paged by a cursor of its own, since a resume proposed keeps its operation's older id.
+  `mail-policy-show` gives the five and the seven days.
 
 **What cannot be undone (M29).** Every change to mail in this section can be undone, which is
 why an agent may make small ones alone. A command that sends mail, or removes for good the
@@ -1821,7 +1879,7 @@ says otherwise.
 
 | Command | Phase | Class | Exposed to | Notes |
 | --- | --- | --- | --- | --- |
-| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome. Step B5: and the server's work ([3.2](#32-modes)) |
+| `mail-status` | B | Read | cli, mcp | Sync state per mailbox ([5.7](#57-what-synced-means)), bursts, recent blocks, sends of unknown outcome. Step B5: and the server's work ([3.2](#32-modes)). Step D1: the operations running and stopped, and the proposals waiting for the person ([9.4](#94-the-policy)) |
 | `mail-account-list` | B | Read | cli, mcp | |
 | `mail-account-add`, `mail-account-remove` | B | Local; a person; removing is destructive | cli | Removing an account deletes its mail from the store, not from the provider, and its preview says so. Adding is step B3's; removing is step B5's ([3.5](#35-commands-only-a-person-may-run)) |
 | `mail-token-create`, `mail-token-revoke` | B | Local; a person; revoking is destructive | cli | The new token is shown once. Its result is removed from the journal ([13.1](#131-the-journal)). Step B5: creating asks for approval and refuses a name another token has; revoking an id that is not there is `TOKEN_NOT_FOUND` |
@@ -1839,11 +1897,11 @@ says otherwise.
 | `mail-message-list` | C | Read | cli, mcp | Added by step C2 ([7.2](#72-the-screening-class)): one class's messages, newest first, paged by cursor, while a mailbox other than junk and trash shows them |
 | `mail-story-list`, `mail-story-open`, `mail-story-changes` | C | Read | cli, mcp | Step C2's second part ([section 8](#8-stories)): the list newest first and the open paged by cursor, the open with a story's kinds and its exceptions; the changes with a cursor of the stories' epoch and a change's number |
 | `mail-selection-create` | D | Local | cli, mcp | Step D1 ([9.1](#91-selections)): the query's fields, the items it freezes, its counts and a labelled sample; ten a caller |
-| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)). Step D1's second part ([9.2](#92-the-commands)): a selection with its count or up to 200 ids; over a limit, `POLICY_LIMIT` until the third part |
-| `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28) |
-| `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's |
-| `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor |
-| `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command. Step D1's second part: cancel stops after the batch in hand, for any caller |
+| `mail-archive`, `mail-label`, `mail-mark`, `mail-trash` | D | Remote, undoable | cli, mcp | Under the policy; over a limit, a proposal ([9.4](#94-the-policy)). Step D1's second part ([9.2](#92-the-commands)): a selection with its count or up to 200 ids. Its third part: over a limit, the operation waits in `proposed`, five a caller |
+| `mail-operation-approve` | D | Remote, undoable; a person | cli | Runs an agent's proposal (M28). Step D1's third part: by the operation's id, after the preview of `mail-operation-show`; refused while screening is not ready |
+| `mail-operation-dismiss` | D | Local | cli, mcp | The person's or the proposer's. Step D1's third part: a change that never ran is dropped with its items; a resume proposed is stopped again |
+| `mail-operation-list`, `mail-operation-show` | D | Read | cli, mcp | Step D1's second part ([9.1](#91-selections)): the list newest first, the show with a page of items, both by cursor. Its third part: the list's `proposed` filter, and the show's preview of a proposal |
+| `mail-operation-undo`, `mail-operation-resume`, `mail-operation-cancel` | D | Remote, undoable | cli, mcp | Under the policy, as the operation's own command. Step D1's second part: cancel stops after the batch in hand, for any caller. Its third part: an undo or a resume over a limit is a proposal |
 | `mail-thread-snooze` | D | Local, undoable | cli, mcp | |
 | `mail-draft-create`, `mail-draft-update` | D | Local | cli, mcp | |
 | `mail-draft-discard`, `mail-draft-restore` | D | Local, undoable | cli, mcp | A discarded draft is held for 30 days (M29) |
@@ -1928,7 +1986,7 @@ Beside the crate's own codes:
 | `ONE_COMMAND_PER_CALL` | `afd-batch` or `afd-pipe` called on a server ([3.2](#32-modes)) |
 | `TOKEN_NOT_FOUND` | No agent's token has the id named |
 | `PERSON_REQUIRED` | A person's command with no terminal |
-| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller; until step D1's third part, a change over the policy |
+| `POLICY_LIMIT` | More proposals or suggestions waiting than the policy allows this caller |
 | `PROPOSAL_NOT_OPEN` | The proposal or suggestion named was already approved, dismissed or expired, or there is none with that id |
 | `SCREENING_NOT_READY` | Classes or stories are read while messages wait to be derived again or a rebuild is under way ([7.1](#71-senders)); retryable |
 | `SELECTION_MISMATCH` | The count stated is not the selection's count, or the selection has expired |
@@ -2024,7 +2082,7 @@ file.
 | C1 | Senders, and the report on Q2 and the two groupings ([6.3](#63-the-template-fingerprint)). Built: `recipient` and `sender` (migration 7, the derivation's version 3), `mail-sender-list` and `mail-sender-show` ([7.1](#71-senders)), and the report, run on a copy of the owner's iCloud store; the Gmail half of the report waits for step B6. An address the person adds as theirs comes with their decisions in C2 |
 | C2 | In two pull requests. First: screening classes, the person's decisions (an address the person adds as theirs among them) and agents' suggestions, and screening that waits until no message waits to be derived again ([7.2](#72-the-screening-class), [7.3](#73-the-persons-decisions)), with `mail-message-list`. Second: stream stories, by list id or else sender, with their exceptions and `mail-story-*` ([section 8](#8-stories)) |
 | C3 | Bursts, tried on the period the owner names. Built ([7.4](#74-bursts)): first contacts and bursts (migration 10), each burst a story in place of its queue entries and stream stories, flagged in `mail-status` with the known senders that wrote during it. Tried on the owner's iCloud mail ([the counts](live-icloud-c3.results.json)): one burst, in February 2022, of 75 messages from 4 new senders through 16 lists, one service's first day rather than a flood of strangers; so a burst also needs 10 new senders, which the owner agreed to, and finds none there ([the counts](live-icloud-c3-senders.results.json)); the flood the owner remembers from 2024 and 2025 was deleted, and the owner reports none on Gmail. Tested on made-up floods. Then rule 3 (migration 11): a junk or trash mailbox's history starts no later than when the engine first listed it |
-| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches (migration 13), `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss`. The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
+| D1 | Selections, the policy, proposals and their approval, operations and undo, on the doubles. In three pull requests. First: selections and the policy (migration 12), `mail-selection-create`, `mail-policy-show` and `mail-policy-set`. Second: the change commands at the provider within the policy, on the scripted IMAP server: operations and their batches (migration 13), `mail-operation-list`, `-show`, `-resume`, `-cancel` and `-undo`. Third: a change over the policy as a proposal (M28), `mail-operation-approve` and `-dismiss` (migration 14). The scripted Gmail API's half waits for step B6. `mail-thread-snooze`, local like the drafts, moves to D3 |
 | D2 | The four remote commands on iCloud and Gmail |
 | D3 | Drafts, send and unsubscribe at the terminal, and `mail-thread-snooze` |
 | E1 to E3 | Records; proposed stories; reply sets |

@@ -3,11 +3,11 @@
 //!
 //! Each takes a selection with its exact count, or at most 200 message ids,
 //! and makes an operation of it ([`crate::operate`]). An agent's or a
-//! script's change must be within the person's policy; over it, nothing
-//! changes and the call fails with `POLICY_LIMIT` (step D1's third part
-//! makes it a proposal). The person's own change has no limit: one larger
-//! than a call can finish runs as the server's work when a server runs, and
-//! to its end at the terminal otherwise.
+//! script's change within the person's policy runs; one over it changes
+//! nothing at the provider and is made a proposal (M28), which waits for the
+//! person's approval ([`crate::operations`]). The person's own change has no
+//! limit: one larger than a call can finish runs as the server's work when a
+//! server runs, and to its end at the terminal otherwise.
 //!
 //! - **Archive** takes mail out of the inbox: each copy the inbox shows moves
 //!   to the account's archive mailbox, as Gmail's archive removes the inbox
@@ -37,8 +37,8 @@ use crate::operate::{Ran, Until, operation_now, run};
 use crate::read::{integer, parameter, read_exposure};
 use crate::screening::proposer_of;
 use crate::store::{
-    AccountId, Action, Kind, MailboxRow, NewItem, NewOperation, Proposer, Role, SelectionItem,
-    Step, Store, StoreError,
+    AccountId, Action, Kind, MOST_PROPOSALS, MailboxRow, NewItem, NewOperation, Proposer, Role,
+    SelectionItem, Step, Store, StoreError,
 };
 
 /// The most message ids a change takes; more go through a selection (9.1).
@@ -413,8 +413,8 @@ fn plan(
 }
 
 /// Why an agent's or a script's change of `messages` messages, of `kind`,
-/// is beyond the person's policy, or `None`. `charged` counts it against
-/// the caller's day, for a change it makes now.
+/// is beyond the person's policy, in the engine's words, or `None`.
+/// `charged` counts it against the caller's day, for a change it makes now.
 pub(crate) fn beyond_policy(
     store: &Store,
     creator: &Proposer,
@@ -422,7 +422,7 @@ pub(crate) fn beyond_policy(
     messages: u64,
     charged: bool,
     now: i64,
-) -> Result<Option<CommandError>, StoreError> {
+) -> Result<Option<String>, StoreError> {
     if creator.kind == "human" {
         return Ok(None);
     }
@@ -431,32 +431,67 @@ pub(crate) fn beyond_policy(
         Kind::Change => policy.change_per_call,
         Kind::Trash => policy.trash_per_call,
     };
-    let refused = |message: String| {
-        Some(
-            CommandError::new("POLICY_LIMIT", message).with_suggestion(
-                "Nothing was changed. Change fewer messages, or ask the person to run it at the terminal.",
-            ),
-        )
-    };
     if messages > u64::from(per_call) {
         let what = match kind {
             Kind::Change => "archive, label or mark",
             Kind::Trash => "move to the trash or junk",
         };
-        return Ok(refused(format!(
+        return Ok(Some(format!(
             "this change is {messages} messages, more than the {per_call} an agent or a script may {what} in a call"
         )));
     }
     if kind == Kind::Trash && charged {
         let trashed = store.trashed_since(creator, now - DAY)?;
         if trashed + messages > u64::from(policy.trash_per_day) {
-            return Ok(refused(format!(
+            return Ok(Some(format!(
                 "this caller has moved {trashed} messages to the trash in the last day, and {messages} more is over the {} a day it may",
                 policy.trash_per_day
             )));
         }
     }
     Ok(None)
+}
+
+/// Whether `proposer` may make another proposal: `None`, or the failure
+/// when it has as many waiting as it may (9.4), so that mail that steers an
+/// agent cannot bury the person in requests. Proposals past their time are
+/// ended first.
+pub(crate) fn proposal_room(
+    store: &mut Store,
+    proposer: &Proposer,
+    now: i64,
+) -> Result<Option<CommandError>, StoreError> {
+    store.expire_proposals(now)?;
+    let waiting = store.proposals_waiting(proposer)?;
+    if waiting < u64::from(MOST_PROPOSALS) {
+        return Ok(None);
+    }
+    Ok(Some(
+        CommandError::new(
+            "POLICY_LIMIT",
+            format!(
+                "this caller has {waiting} proposals waiting for the person already, the most it may"
+            ),
+        )
+        .with_suggestion(
+            "Nothing was changed or proposed. Wait for the person to approve or dismiss one, or dismiss your own with mail-operation-dismiss.",
+        ),
+    ))
+}
+
+/// The result of a proposal: the operation, waiting in the state
+/// `proposed`, and why it waits, in the engine's words.
+pub(crate) fn proposed(engine: &Engine, id: i64, why: &str) -> CommandResult<Value> {
+    match operation_now(engine, id) {
+        Ok(mut value) => {
+            value["proposal"]["why"] = json!(why);
+            value["proposal"]["next"] = json!(
+                "Nothing was changed. The person approves it at the terminal with mail-operation-approve, or dismisses it; mail-operation-dismiss withdraws it."
+            );
+            success(value)
+        }
+        Err(error) => failure(*error),
+    }
 }
 
 /// Runs operation `id`, made with `messages` messages, for the call
@@ -564,7 +599,12 @@ impl CommandHandler for Change {
                 Ok(planned) => planned,
                 Err(error) => return Ok(Err(*error)),
             };
-            if let Some(error) = beyond_policy(store, &creator, kind, messages, true, now)? {
+            // Over the policy, it is a proposal: nothing is asked of the
+            // provider until the person approves it (M28).
+            let over = beyond_policy(store, &creator, kind, messages, true, now)?;
+            if over.is_some()
+                && let Some(error) = proposal_room(store, &creator, now)?
+            {
                 return Ok(Err(error));
             }
             let row = store.create_operation(
@@ -582,16 +622,20 @@ impl CommandHandler for Change {
                     creator: creator.clone(),
                     messages,
                     items,
+                    proposed: over.is_some(),
                 },
                 now,
             )?;
-            Ok(Ok((row.id, messages)))
+            Ok(Ok((row.id, messages, over)))
         });
-        let (id, messages) = match made {
+        let (id, messages, over) = match made {
             Ok(Ok(made)) => made,
             Ok(Err(error)) => return failure(error),
             Err(error) => return failure(store_failure(&error)),
         };
+        if let Some(why) = over {
+            return proposed(&self.engine, id, &why);
+        }
         carry_out(&self.engine, id, messages, &context).await
     }
 }

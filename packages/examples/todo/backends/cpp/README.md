@@ -72,14 +72,17 @@ context at all, show every command. A 2025 client enters a context for its conne
 2026-07-28 client names it on each request in `_meta["dev.afd/context"]`. A call outside the
 active context fails with `COMMAND_NOT_IN_CONTEXT`.
 
+## Tools
+
+`tools/list` is TypeScript's grouped list: `afd-batch`, `afd-pipe`, `afd-call` and `afd-detail`,
+then the `todo` group (every todo command as an `action`) and the `bootstrap` group (the context
+tools, `afd-help`, `afd-docs` and `afd-schema`). Every command is also callable by its own name,
+which is how the conformance suites call them.
+
 ## Known differences from the TypeScript backend
 
 - **Title sort order** compares case-insensitively and then by code unit. TypeScript's `localeCompare` is locale-aware. The two agree for ASCII titles that differ in more than case.
 - **`todo-list` search** lowercases ASCII only.
-- **The tool list** has one tool per command, the context and bootstrap tools (`afd-help`,
-  `afd-docs`, `afd-schema`) among them. The library's `afd::mcp_stdio` has no meta-tools
-  (`afd-call`, `afd-batch`, `afd-pipe`) or grouped tool strategy yet
-  ([#1451](https://github.com/lushly-dev/afd/issues/1451)).
 - **Validation messages** come from the library's validator, not TypeScript's custom zod texts
   (`"Too small: expected string to have >=1 characters"` where TypeScript says `"Todo ID is
   required"`), and `expectedFields` is in alphabetical order. An `offset` beyond 2^53 - 1 is

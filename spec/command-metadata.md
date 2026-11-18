@@ -53,7 +53,8 @@ call it requires is held before the handler runs, as [Approvals](#approvals) des
   Consumers read an absent boolean as its default. An explicit `false` is reported as `false`.
 - **Two exceptions:** afd-detail always reports `mutation`, and afd-discover reports it when
   `includeMutation` is set. Both use `false` when it is unset.
-- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`).
+- **`_meta` and afd-detail omit empty arrays** (`requires`, `examples`, `contexts`, `scopes`, and
+  afd-detail's `tags` and `errors`).
 - **`_meta` carries planning signals, not display text.** It has `destructive` and `undoable` but
   not `confirmPrompt`, which is for a frontend's confirmation dialog. Agents get it from afd-detail.
 - **Grouped tools** (`toolStrategy: 'grouped'`) carry the per-command `_meta` fields on each entry
@@ -432,7 +433,7 @@ The result is an ordinary failed `CommandResult`, so it needs no wire fixture of
 | DirectClient approval hook and private exchange | Yes | Yes (`on_approval_needed`) | Yes (`with_on_approval_needed`) | Yes (`on_approval_needed`) |
 | CLI approval flow (`afd call --module`, in-process only) | Yes | Yes (`--approve` or interactive prompt) | N/A: no CLI | N/A: no CLI |
 | MCP relay (form elicitation) | Yes (`relay: 'mcp-elicitation'`) | Yes (`create_approval_middleware(relay="mcp-elicitation")`; one SDK-sealed, principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio or stateful HTTP connection is asked in band) | Yes (Umbel phase 5 step 0d: `ApprovalMiddlewareOptions::with_relay(ApprovalRelay::McpElicitation)`; one `requestState` per call carries the confirmation and approval answers, bound to the principal; a 2025 stdio connection is asked in band) | Yes (`ApprovalMiddlewareOptions::relay = ApprovalRelay::mcp_elicitation` with `afd::mcp_stdio`; one principal-bound `requestState` per call carries the confirmation and approval answers; a 2025 stdio connection is asked in band) |
-| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | N/A: `afd::mcp_stdio` serves no meta-tools |
+| Up-front approval of `afd-batch` and `afd-pipe` (#459) | Yes | Yes (on 2026-07-28 and in band on a 2025 stdio or stateful HTTP connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection) | Yes (on 2026-07-28 and in band on a 2025 stdio connection; `afd::mcp_stdio` with `ApprovalRelay::mcp_elicitation`) |
 | Relay evidence from a `HumanRelay` ([below](#relay-evidence)) | Planned | Planned | Yes (step 0d): a crate-private `CommandContext` field the server sets after `Approved`, which `create_approval_middleware` checks in rule 3's order and spends once as `relay:<decisionId>`; removed before the handler runs | N/A: no `HumanRelay` |
 
 ### Relay evidence
@@ -597,7 +598,8 @@ Phase 5 of the MCP 2026-07-28 plan deferred three items. The owner decided them 
    in `_meta`, for clients that cannot set `_meta`. Only `dev.afd/context` has an effect on
    `afd-discover` and `afd-detail`. A key sent both ways must agree, or the call fails with
    `VALIDATION_ERROR`. [`context-fields.md`](./context-fields.md#clients-that-cannot-set-_meta)
-   gives the rules; TypeScript, Python and Rust implement it (C++'s `afd::mcp_stdio` has no meta-tools).
+   gives the rules; TypeScript, Python and Rust implement it, and C++'s `afd::mcp_stdio` lifts
+   `dev.afd/context` only (it reads no declared context fields from `_meta`).
 3. **`x-mcp-header: "Afd-Command"` on `afd-call.command`: not adopted.** A server that declares it
    makes clients mirror the value into an `Mcp-Param-Afd-Command` header and rejects a call whose
    header is missing or differs, so a client without support could no longer use `afd-call`; client

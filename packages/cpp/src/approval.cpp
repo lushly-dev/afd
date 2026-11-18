@@ -539,9 +539,10 @@ struct ApprovalState {
         return mac(key, data);
     }
 
-    /// Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent.
-    bool relayed_approval_holds(const detail::RelayAnswer& answer,
-                                const std::vector<std::string>& bindings, std::int64_t now) {
+    /// Whether an accepted relayed approval is genuine (one of `bindings`, with a MAC under that
+    /// binding's key) and unexpired. Its nonce is not spent here.
+    [[nodiscard]] bool genuine(const detail::RelayAnswer& answer,
+                               const std::vector<std::string>& bindings, std::int64_t now) const {
         const auto found = std::find(bindings.begin(), bindings.end(), answer.binding);
         if (found == bindings.end()) {
             return false;
@@ -552,10 +553,63 @@ struct ApprovalState {
                 answer.mac, hold_mac(key, answer.binding, answer.nonce, answer.expires_at_ms))) {
             return false;
         }
-        if (now >= answer.expires_at_ms || answer.expires_at_ms > now + ttl_ms) {
-            return false;
+        return now < answer.expires_at_ms && answer.expires_at_ms <= now + ttl_ms;
+    }
+
+    /// Whether an accepted relayed approval is genuine, unexpired and (single-use) unspent.
+    bool relayed_approval_holds(const detail::RelayAnswer& answer,
+                                const std::vector<std::string>& bindings, std::int64_t now) {
+        return genuine(answer, bindings, now) && consume(answer.nonce, answer.expires_at_ms, now);
+    }
+
+    /// A question for the human, bound to `bindings` (the signing key's first).
+    [[nodiscard]] detail::RelayHold question(std::vector<std::string> bindings,
+                                             std::int64_t now) const {
+        detail::RelayHold hold;
+        hold.binding = bindings.front();
+        hold.bindings = std::move(bindings);
+        hold.nonce = random_nonce();
+        hold.expires_at_ms = now + ttl_ms;
+        hold.mac = hold_mac(keys.front(), hold.binding, hold.nonce, hold.expires_at_ms);
+        return hold;
+    }
+
+    /// The summary of a held call: the host's, else the confirmation prompt, else "Run <name>".
+    [[nodiscard]] std::string summary(std::string_view name, const Json& input,
+                                      const CommandContext& context,
+                                      const ApprovalCommand* command) const {
+        std::string text;
+        if (options.summarize) {
+            text = options.summarize(name, input, context).value_or("");
         }
-        return consume(answer.nonce, answer.expires_at_ms, now);
+        if (text.empty() && command && command->confirm_prompt) {
+            text = *command->confirm_prompt;
+        }
+        return text.empty() ? "Run " + std::string(name) : text;
+    }
+
+    /// The bindings of an up-front approval, one per key: a keyed digest of the call's tag under
+    /// that key (itself a keyed digest of the whole request), the command, its canonical input
+    /// and the actor, so an approval given for one request covers no other, nor a call to the
+    /// command on its own (Rust's `up_front_bindings`).
+    [[nodiscard]] std::vector<std::string> up_front_bindings(const detail::UpFrontApproval& up,
+                                                             std::string_view name,
+                                                             std::string_view input,
+                                                             std::string_view actor) const {
+        std::string call = "relay-call";
+        call.push_back('\0');
+        call += up.call();
+        std::vector<std::string> bindings;
+        bindings.reserve(keys.size());
+        for (const auto& key : keys) {
+            const auto fields = canonical_json(Json::array(
+                {mac(key, call), std::string(name), std::string(input), std::string(actor)}));
+            std::string data = "relay-step";
+            data.push_back('\0');
+            data += fields ? *fields : std::string();
+            bindings.push_back(mac(key, data));
+        }
+        return bindings;
     }
 
     std::string random_nonce() const {
@@ -596,9 +650,8 @@ CommandResult unbindable(std::string_view command, const std::string& reason) {
 /// counts them; C++ cuts at a code point boundary at or below that many bytes.
 constexpr std::size_t max_shown_input = 1000;
 
-/// The question of a relayed approval: the summary, then what exactly would run.
-std::string relay_message(std::string_view summary, std::string_view command,
-                          std::string_view input, std::string_view note) {
+/// A canonical input as a question shows it, cut to `max_shown_input`.
+std::string shown_input(std::string_view input) {
     std::string shown(input);
     if (shown.size() > max_shown_input) {
         std::size_t cut = max_shown_input;
@@ -608,12 +661,18 @@ std::string relay_message(std::string_view summary, std::string_view command,
         shown.resize(cut);
         shown += "\xE2\x80\xA6"; // U+2026, as TypeScript appends
     }
+    return shown;
+}
+
+/// The question of a relayed approval: the summary, then what exactly would run.
+std::string relay_message(std::string_view summary, std::string_view command,
+                          std::string_view input, std::string_view note) {
     std::string message;
     if (!note.empty()) {
         message.append(note).append("\n");
     }
     message.append(summary).append("\n\nCommand: ").append(command).append("\nInput: ");
-    message += shown;
+    message += shown_input(input);
     return message;
 }
 
@@ -627,6 +686,276 @@ CommandResult relay_declined(std::string_view command, const std::string& summar
         .details = Json{{"summary", summary}, {"reason", "declined"}},
         .cause = nullptr,
     });
+}
+
+// --- One approval up front for afd-batch and afd-pipe (#459) --------------------------------
+
+/// The latest approval clock reading whose expiry still fits an ISO 8601 date (years up to
+/// 9999), as `expiresAt` reports it: 9999-12-31, less a day.
+constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms;
+
+CommandError clock_out_of_range(std::string_view name) {
+    return CommandError{
+        .code = error_codes::COMMAND_EXECUTION_ERROR,
+        .message = std::string(name) + " cannot be approved: the approval clock is out of range",
+        .suggestion = "Give the approval middleware a clock that reads the current time.",
+        .retryable = false,
+        .details = std::nullopt,
+        .cause = nullptr,
+    };
+}
+
+/// The most gated steps one question lists; a person cannot weigh more at once.
+constexpr std::size_t max_up_front_approvals = 20;
+
+std::string_view noun(std::string_view tool) {
+    return tool == "afd-batch" ? "batch" : "pipeline";
+}
+
+CommandError up_front_error(std::string message, std::string suggestion, Json details) {
+    return CommandError{.code = error_codes::APPROVAL_REQUIRED,
+                        .message = std::move(message),
+                        .suggestion = std::move(suggestion),
+                        .retryable = false,
+                        .details = std::move(details),
+                        .cause = nullptr};
+}
+
+/// One gated step as the plan sees it.
+struct GatedStep {
+    std::size_t index = 0;
+    std::string command;
+    /// The canonical JSON of its validated input.
+    std::string input;
+    std::string summary;
+    std::vector<std::string> bindings;
+};
+
+std::string summaries(const std::vector<GatedStep>& gated) {
+    std::string out;
+    for (const auto& step : gated) {
+        out += (out.empty() ? "" : "; ") + step.summary;
+    }
+    return out;
+}
+
+/// The question of an up-front approval: what the call is, then each gated step's summary,
+/// command and canonical input, so the human sees exactly what would run.
+std::string steps_message(const detail::UpFrontApproval& up, const std::vector<GatedStep>& gated,
+                          std::string_view note) {
+    const std::string what(noun(up.tool()));
+    std::string message;
+    if (!note.empty()) {
+        message.append(note).append("\n");
+    }
+    message += "This " + what + " includes " +
+               (gated.size() == 1 ? std::string("a step that needs")
+                                  : std::to_string(gated.size()) + " steps that need") +
+               " your approval. Approving lets each run once, exactly as shown; if you do not "
+               "approve, nothing in the " +
+               what + " runs.";
+    if (up.conditional()) {
+        message += "\nSome steps run only when their conditions hold, so one step may run while "
+                   "another is skipped.";
+    }
+    for (const auto& step : gated) {
+        message += "\n\nStep " + std::to_string(step.index + 1) + ": " + step.summary +
+                   "\nCommand: " + step.command + "\nInput: " + shown_input(step.input);
+    }
+    return message;
+}
+
+/// What the approval middleware decides for an up-front call, before any step runs. Every step's
+/// policy (and `summarize`) is evaluated with the context of the step that reached the middleware
+/// first, as in Rust; a policy that decides otherwise for a later step's own context fails that
+/// step with APPROVAL_REQUIRED (spec rule 4), though earlier steps may have run.
+detail::UpFrontApproval::Plan decide(ApprovalState& state, detail::UpFrontApproval& up,
+                                     const CommandContext& context) {
+    using Plan = detail::UpFrontApproval::Plan;
+    const std::string what(noun(up.tool()));
+    // A gated pipeline step whose input comes from an earlier step cannot be shown up front.
+    for (const auto& step : up.steps()) {
+        const auto found = state.commands.find(step.command);
+        if (!step.dynamic || found == state.commands.end() || !found->second.approval) {
+            continue;
+        }
+        const ApprovalPolicy& policy = *found->second.approval;
+        if (!policy.function() && policy.decision() == ApprovalDecision::not_required) {
+            continue;
+        }
+        const std::string at = std::to_string(step.index);
+        return Plan{
+            .refusal = up_front_error(
+                step.command + " (the step at index " + at +
+                    ") needs approval, and its input comes from an earlier step, so the user "
+                    "cannot approve it before the " +
+                    what + " runs. Nothing ran.",
+                "Split the " + what + " before the step at index " + at +
+                    ": run the steps before it with " + up.tool() + ", then call " + step.command +
+                    " on its own with the input they returned, so the client can ask the user.",
+                Json{{"reason", "input-not-known"},
+                     {"step", step.index},
+                     {"command", step.command}}),
+            .approved = {}};
+    }
+
+    const std::int64_t now = state.options.clock->wall_ms();
+    // Expiry must fit an ISO 8601 date, as on the single-command path.
+    if (now < 0 || now > max_wall_ms) {
+        return Plan{.refusal = clock_out_of_range(up.tool()), .approved = {}};
+    }
+    const auto actor = actor_binding(context.actor);
+    if (!actor) {
+        return Plan{.refusal = *unbindable(up.tool(), actor.error()).error, .approved = {}};
+    }
+    std::vector<GatedStep> gated;
+    for (const auto& step : up.steps()) {
+        if (step.dynamic || !step.input) {
+            continue;
+        }
+        const auto found = state.commands.find(step.command);
+        const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
+        if (!state.requires_approval(command, *step.input, context)) {
+            continue;
+        }
+        const auto canonical = canonical_json(*step.input);
+        if (!canonical) {
+            return Plan{.refusal =
+                            CommandError{.code = error_codes::COMMAND_EXECUTION_ERROR,
+                                         .message = "The input of " + step.command +
+                                                    " cannot be bound to an approval",
+                                         .suggestion = "Pass plain JSON input: integers within "
+                                                       "±2^53",
+                                         .retryable = false,
+                                         .details = std::nullopt,
+                                         .cause = nullptr},
+                        .approved = {}};
+        }
+        gated.push_back(
+            GatedStep{.index = step.index,
+                      .command = step.command,
+                      .input = *canonical,
+                      .summary = state.summary(step.command, *step.input, context, command),
+                      .bindings = state.up_front_bindings(up, step.command, *canonical, *actor)});
+        if (gated.size() > max_up_front_approvals) {
+            const std::string limit = std::to_string(max_up_front_approvals);
+            return Plan{
+                .refusal = up_front_error(
+                    "The " + what + " has more than " + limit +
+                        " steps that need approval, more than the user can be asked "
+                        "about at once. Nothing ran.",
+                    "Split it into calls of " + up.tool() + " with at most " + limit +
+                        " steps that need approval each.",
+                    Json{{"reason", "too-many-approvals"}, {"limit", max_up_front_approvals}}),
+                .approved = {}};
+        }
+    }
+    if (gated.empty()) {
+        return Plan{};
+    }
+
+    const auto& answers = up.answers();
+    const auto declined = std::any_of(gated.begin(), gated.end(), [&](const GatedStep& step) {
+        return std::any_of(step.bindings.begin(), step.bindings.end(),
+                           [&](const std::string& binding) {
+                               return std::find(answers.declined.begin(), answers.declined.end(),
+                                                binding) != answers.declined.end();
+                           });
+    });
+    if (declined) {
+        std::vector<std::string> names;
+        std::string listed;
+        for (const auto& step : gated) {
+            if (std::find(names.begin(), names.end(), step.command) == names.end()) {
+                names.push_back(step.command);
+                listed += (listed.empty() ? "" : ", ") + step.command;
+            }
+        }
+        return Plan{.refusal = up_front_error(
+                        "The user did not approve " + listed + "; nothing in the " + what + " ran",
+                        "Do not run this again without asking the user first; the user chose "
+                        "not to approve it.",
+                        Json{{"reason", "declined"}, {"summary", summaries(gated)}}),
+                    .approved = {}};
+    }
+
+    // Each gated step takes a distinct genuine acceptance of its own binding, so two identical
+    // steps need two. The latest answer wins: later answers are read last.
+    std::vector<detail::RelayAnswer> pool = answers.accepted;
+    std::vector<detail::RelayAnswer> matched;
+    for (const auto& step : gated) {
+        auto found = pool.end();
+        for (auto it = pool.begin(); it != pool.end(); ++it) {
+            if (state.genuine(*it, step.bindings, now)) {
+                found = it;
+            }
+        }
+        if (found == pool.end()) {
+            break;
+        }
+        matched.push_back(*found);
+        pool.erase(found);
+    }
+    if (matched.size() == gated.size()) {
+        // Spend every nonce before anything runs: a replay of this request runs nothing.
+        bool fresh = true;
+        for (const auto& answer : matched) {
+            fresh = state.consume(answer.nonce, answer.expires_at_ms, now) && fresh;
+        }
+        if (fresh) {
+            Plan plan;
+            for (const auto& answer : matched) {
+                plan.approved.emplace_back(answer.binding, false);
+            }
+            return plan;
+        }
+    }
+
+    // Ask once for every gated step, saying why when earlier approvals did not hold.
+    detail::UpFrontHold hold;
+    for (const auto& step : gated) {
+        hold.questions.push_back(state.question(step.bindings, now));
+    }
+    hold.message = steps_message(
+        up, gated,
+        answers.accepted.empty()
+            ? std::string_view()
+            : std::string_view("The earlier approval expired, was already used or no longer "
+                               "matches; approve again to run it."));
+    up.hold(std::move(hold));
+    const std::string summary = summaries(gated);
+    return Plan{
+        .refusal = up_front_error("The " + what + " needs approval before it runs",
+                                  "Wait for the user to approve \"" + summary + "\" in the client.",
+                                  Json{{"summary", summary}}),
+        .approved = {}};
+}
+
+/// One step of an up-front call: nothing runs until the plan is to run, and then a gated step
+/// runs only on an unused approval of its own binding.
+CommandResult run_up_front(ApprovalState& state, detail::UpFrontApproval& up, std::string_view name,
+                           const Json& input, CommandContext& context, const Next& next) {
+    const auto plan = up.plan([&] { return decide(state, up, context); });
+    if (plan->refusal) {
+        return failure(*plan->refusal);
+    }
+    const auto found = state.commands.find(name);
+    const ApprovalCommand* command = found == state.commands.end() ? nullptr : &found->second;
+    if (!state.requires_approval(command, input, context)) {
+        return next();
+    }
+    const auto canonical = canonical_json(input);
+    const auto actor = actor_binding(context.actor);
+    if (canonical && actor && up.take(state.up_front_bindings(up, name, *canonical, *actor))) {
+        return next();
+    }
+    // A gated step the human was not asked about up front (its policy changed its mind).
+    return failure(up_front_error(
+        std::string(name) + " needs approval before it runs",
+        "Ask the user to approve it; the client could not be asked for this step of the " +
+            std::string(noun(up.tool())) + ". Call " + std::string(name) +
+            " on its own so the client can ask the user.",
+        Json{{"summary", "Run " + std::string(name)}}));
 }
 
 } // namespace
@@ -710,6 +1039,15 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
 
     return CommandMiddleware([state](std::string_view name, const Json& input,
                                      CommandContext& context, const Next& next) -> CommandResult {
+        // A step of an afd-batch or afd-pipe approved up front. The step never sees the up-front
+        // approval, so a command it runs falls back as a nested command does.
+        if (context.up_front_approval) {
+            const auto up_front = std::move(context.up_front_approval);
+            context.up_front_approval.reset();
+            if (state->options.relay == ApprovalRelay::mcp_elicitation) {
+                return run_up_front(*state, *up_front, name, input, context, next);
+            }
+        }
         // Claimed only by the command the tool call routes to, once, gated or not, so a command
         // that runs inside another (or after it) cannot turn the tool call into an elicitation.
         detail::McpApprovalRelay* relay = nullptr;
@@ -734,17 +1072,8 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
         }
         const std::int64_t now = settings.clock->wall_ms();
         // Expiry must fit an ISO 8601 date (years up to 9999), as `expiresAt` reports it.
-        constexpr std::int64_t max_wall_ms = 253402300799999 - max_ttl_ms; // 9999-12-31, less a day
         if (now < 0 || now > max_wall_ms) {
-            return failure(CommandError{
-                .code = error_codes::COMMAND_EXECUTION_ERROR,
-                .message = std::string(name) + " cannot be approved: the approval clock is out "
-                                               "of range",
-                .suggestion = "Give the approval middleware a clock that reads the current time.",
-                .retryable = false,
-                .details = std::nullopt,
-                .cause = nullptr,
-            });
+            return failure(clock_out_of_range(name));
         }
 
         std::optional<ApprovalRejection> rejected;
@@ -763,16 +1092,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
             }
         }
 
-        std::string summary;
-        if (settings.summarize) {
-            summary = settings.summarize(name, input, context).value_or("");
-        }
-        if (summary.empty() && command->confirm_prompt) {
-            summary = *command->confirm_prompt;
-        }
-        if (summary.empty()) {
-            summary = "Run " + std::string(name);
-        }
+        const std::string summary = state->summary(name, input, context, command);
 
         if (relay) {
             const auto bindings = state->relay_bindings(name, *input_binding, *actor);
@@ -785,13 +1105,7 @@ Expected<CommandMiddleware> create_approval_middleware(ApprovalMiddlewareOptions
                 return next();
             }
             // An expired, spent or invalid approval is asked again, saying why.
-            detail::RelayHold hold;
-            hold.binding = bindings.front();
-            hold.bindings = bindings;
-            hold.nonce = state->random_nonce();
-            hold.expires_at_ms = now + state->ttl_ms;
-            hold.mac = ApprovalState::hold_mac(state->keys.front(), hold.binding, hold.nonce,
-                                               hold.expires_at_ms);
+            detail::RelayHold hold = state->question(bindings, now);
             hold.message = relay_message(
                 summary, name, *input_binding,
                 answer.kind == detail::RelayAnswer::Kind::accept
