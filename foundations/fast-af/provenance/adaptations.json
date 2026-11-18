@@ -11481,11 +11481,11 @@
       "upstream_sha256": null,
       "staged_path": null,
       "staged_sha256": null,
-      "current_import_sha256": "dbd5c46a8db820cacdeb1fa486caa5b044b3b1d0851e7e226ed6cfc288c2492d",
+      "current_import_sha256": "ce82e2ad057c21eec403b8a4c43fcc7c730a90eaf4e6d95ed2cc537bb5b69182",
       "stage_classification": "post-import-addition",
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
-      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present"
+      "import_reason": "Versioned for release by pnpm version-packages (specimen, specimen-afd, specimen-fast-af, violet-elements, violet-npm); Versioned for release by pnpm version-packages (specimen, violet-elements); Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present; Add closed dialog keyboard and pointer browser regressions (#511)"
     },
     {
       "path": "foundations/fast-af/packages/element/packages/fast-element/src/components/element-registration.ts",
@@ -11810,6 +11810,18 @@
       "stage_reason": "New local work with no selected upstream or staging predecessor",
       "import_classification": "added-after-import",
       "import_reason": "Fix #506: accessible data-grid fill targets and built-in single-pointer actions with browser coverage; scope edit lifecycle assertions to the public edit-status part when fill feedback is present"
+    },
+    {
+      "path": "foundations/fast-af/packages/violet-elements/src/dialog/violet-dialog.focus.spec.ts",
+      "upstream_path": null,
+      "upstream_sha256": null,
+      "staged_path": null,
+      "staged_sha256": null,
+      "current_import_sha256": "503082ef8b0ed5680c74a3979e719fed0729ca9c5c052ac41da940aead6546f0",
+      "stage_classification": "post-import-addition",
+      "stage_reason": "New local work with no selected upstream or staging predecessor",
+      "import_classification": "added-after-import",
+      "import_reason": "Add closed dialog keyboard and pointer browser regressions (#511)"
     }
   ]
 }
