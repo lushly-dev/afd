@@ -263,9 +263,11 @@ describe('createDirectRegistry with a tool surface', () => {
 		// The surface's own tools are exposed to whatever interface the registry serves.
 		const cli = surfaceRegistry({ interface: 'cli' });
 		expect(cli.listTools().map((tool) => tool.name)).toEqual([
+			'afd-discover',
+			'afd-detail',
+			'afd-call',
 			'afd-batch',
 			'afd-pipe',
-			'afd-call',
 			'afd-context-list',
 			'afd-context-enter',
 			'afd-context-exit',

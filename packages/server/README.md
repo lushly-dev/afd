@@ -1349,14 +1349,14 @@ const server = createMcpServer({
 
 ## Tool Strategies
 
-`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. `afd-call`, `afd-batch` and `afd-pipe` are listed in every strategy.
+`toolStrategy` controls how MCP-exposed commands appear in `tools/list`. Every strategy lists the five meta-tools first, in this order: `afd-discover`, `afd-detail`, `afd-call`, `afd-batch`, `afd-pipe` ([`spec/tool-strategies.md`](../../spec/tool-strategies.md#tool-lists), #533). Then:
 
-| Strategy | Tools listed |
+| Strategy | Tools listed after the meta-tools |
 |----------|--------------|
-| `grouped` (default) | One tool per group plus `afd-detail`. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
+| `grouped` (default) | One tool per group. A group is the command's `category`, else the first name segment (`todo-create` → `todo`), or `groupByFn(command)` |
 | `individual` | One tool per command, with its full input schema and `_meta` |
-| `lazy` | `afd-discover` and `afd-detail` only |
-| `hybrid` | The five meta-tools, the context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
+| `lazy` | The context tools when `contexts` are set, and nothing else |
+| `hybrid` | The context tools when `contexts` are set, then the commands in `firstClassTools` (at most 8) as individual tools. See [Hybrid Strategy](#hybrid-strategy) |
 
 A grouped tool takes `{ action, params }`, where `action` is the command name without its group segment (`todo-create-batch` → `create-batch`). So that agents need not guess `params`, each grouped tool carries every action's schema and metadata in `_meta.actions`:
 
@@ -1392,7 +1392,7 @@ When a group's per-action schemas are small (at most 8,192 characters of JSON, a
 
 ## Lazy Strategy
 
-For servers with many commands, the `lazy` strategy exposes 5 meta-tools instead of listing all commands:
+For servers with many commands, the `lazy` strategy lists the 5 meta-tools (and the context tools) instead of the commands:
 
 ```typescript
 const server = createMcpServer({

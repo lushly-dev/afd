@@ -89,7 +89,7 @@ function asListed(command: ZodCommandDefinition): ZodCommandDefinition {
  *   contexts: [{ name: 'billing' }],
  *   tools: createDirectToolSurface({ strategy: 'lazy' }),
  * });
- * registry.listTools(); // afd-discover, afd-detail, afd-batch, afd-pipe, afd-call
+ * registry.listTools(); // afd-discover, afd-detail, afd-call, afd-batch, afd-pipe
  * await registry.execute('afd-discover', {}, {}, { activeContext: 'billing' });
  * ```
  *
