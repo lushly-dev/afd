@@ -1297,6 +1297,17 @@
       "import_reason": "Imported exact frozen staged-input bytes"
     },
     {
+      "path": "plugins/botcore-factory/tests/test_lane_git.py",
+      "origin": "local-after-import",
+      "upstream_sha256": null,
+      "staged_sha256": null,
+      "stage_reason": "Outside the immutable frozen import selection; no source-byte claim",
+      "current_import_sha256": "556cce2ebf9f0bde6a83ccce28041c7b46342e99ea3e8e6e7f48ea17919b6ad5",
+      "stage_classification": "not-in-staging",
+      "import_classification": "added-after-staging",
+      "import_reason": "Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows"
+    },
+    {
       "path": "plugins/botcore-teams/LICENSE",
       "upstream_sha256": null,
       "staged_sha256": "3f888b54c5c5d37c35639fc241822dfff41e90605e74b7626b7e51c028ba8a37",
@@ -5533,11 +5544,11 @@
       "path": "tests/test_remaining_coverage.py",
       "upstream_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
       "staged_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
-      "current_import_sha256": "93b35c327491cb6291006758b8eccb29b1819201c2b12eb33077f7b8deccf0a3",
+      "current_import_sha256": "4cf369f4623391ce5935bfe2141dc8b08bc90037e12b86f998ecbf402d6933dd",
       "stage_classification": "unchanged-upstream",
       "stage_reason": "Staged bytes match the immutable upstream Git object",
-      "import_classification": "unchanged-staged",
-      "import_reason": "Imported exact frozen staged-input bytes"
+      "import_classification": "modified-after-staging",
+      "import_reason": "Imported exact frozen staged-input bytes; Count only run_external_tool's own warning in its not-found test (lushly-dev/afd#1467); compare worktree paths as git lists them, with forward slashes on Windows"
     },
     {
       "path": "tests/test_research.py",

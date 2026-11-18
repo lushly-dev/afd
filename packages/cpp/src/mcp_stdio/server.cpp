@@ -1,10 +1,14 @@
 #include "afd/actor.hpp"
 #include "afd/approval.hpp"
+#include "afd/batch.hpp"
 #include "afd/errors.hpp"
 #include "afd/mcp.hpp"
 #include "afd/mcp_stdio.hpp"
 #include "afd/middleware.hpp"
+#include "afd/pipeline.hpp"
+#include "afd/registry.hpp"
 #include "afd/result.hpp"
+#include "afd/similarity.hpp"
 
 #include <algorithm>
 #include <array>
@@ -24,6 +28,7 @@
 #include "detail/canonical_json.hpp"
 #include "detail/hmac.hpp"
 #include "detail/sha256.hpp"
+#include "tools.hpp"
 
 namespace afd::mcp {
 namespace {
@@ -167,33 +172,55 @@ std::string confirm_question(std::string_view command, const Json& input) {
     return detail::base64url_encode(detail::sha256(canonical(steps)));
 }
 
-CommandResult confirmation_declined(std::string_view command) {
-    return failure(CommandError{
+/// `'a', 'b'`.
+std::string quoted(const std::vector<std::string>& names) {
+    std::string out;
+    for (const auto& name : names) {
+        out += (out.empty() ? "'" : ", '") + name + "'";
+    }
+    return out;
+}
+
+CommandError declined_error(const std::vector<std::string>& names) {
+    return CommandError{
         .code = error_codes::CONFIRMATION_DECLINED,
-        .message = "The user did not confirm '" + std::string(command) + "'",
+        .message = "The user did not confirm " + quoted(names),
         .suggestion =
             "Do not run this again without asking the user first; the user chose not to proceed.",
         .retryable = false,
-        .details = Json{{"commands", Json::array({std::string(command)})}},
+        .details = Json{{"commands", names}},
         .cause = nullptr,
-    });
+    };
 }
 
-CommandResult confirmation_required(std::string_view command, std::string_view prompt,
-                                    ConfirmationMode mode) {
-    return failure(CommandError{
+CommandResult confirmation_declined(std::string_view command) {
+    return failure(declined_error({std::string(command)}));
+}
+
+/// CONFIRMATION_REQUIRED for `names`; `how` is the tool's way to acknowledge, such as "repeat
+/// the call with confirm: true".
+CommandError required_error(std::string message, const std::vector<std::string>& names,
+                            ConfirmationMode mode, std::string_view how) {
+    return CommandError{
         .code = error_codes::CONFIRMATION_REQUIRED,
-        .message = "'" + std::string(command) + "' needs confirmation: " + std::string(prompt),
+        .message = std::move(message),
         .suggestion =
             mode == ConfirmationMode::enforce
-                ? std::string("Make sure the user intends this, then repeat the call with "
-                              "confirm: true.")
+                ? "Make sure the user intends this, then " + std::string(how) + "."
                 : std::string("This server accepts only a confirmation from the user: use an "
                               "MCP client that supports elicitation."),
         .retryable = false,
-        .details = Json{{"commands", Json::array({std::string(command)})}},
+        .details = Json{{"commands", names}},
         .cause = nullptr,
-    });
+    };
+}
+
+CommandResult confirmation_required(std::string_view command, std::string_view prompt,
+                                    ConfirmationMode mode,
+                                    std::string_view how = "repeat the call with confirm: true") {
+    return failure(
+        required_error("'" + std::string(command) + "' needs confirmation: " + std::string(prompt),
+                       {std::string(command)}, mode, how));
 }
 
 /// The result when a 2025 client asked in band gave no answer.
@@ -213,13 +240,56 @@ CommandResult unanswered(std::string_view key, std::string_view command, std::st
     });
 }
 
-/// A `tools/call` result: the CommandResult as `structuredContent` and the same JSON as text.
-Json tool_result(const CommandResult& result) {
-    Json structured(result);
+/// A `tools/call` result: `structured` as `structuredContent` and the same JSON as text.
+Json json_tool_result(Json structured, bool is_error) {
     std::string text = wire::serialize(structured);
     return {{"content", {{{"type", "text"}, {"text", std::move(text)}}}},
             {"structuredContent", std::move(structured)},
-            {"isError", !result.success}};
+            {"isError", is_error}};
+}
+
+Json tool_result(const CommandResult& result) {
+    return json_tool_result(Json(result), !result.success);
+}
+
+BatchTiming no_time(std::int64_t now) {
+    const std::string at = wire::iso8601_utc(now);
+    return BatchTiming{.total_ms = 0, .average_ms = 0, .started_at = at, .completed_at = at};
+}
+
+/// The result of a batch that runs nothing: no item results, and `error`.
+Json batch_failure(CommandError error, std::int64_t now) {
+    return json_tool_result(Json(create_failed_batch_result(std::move(error), no_time(now))), true);
+}
+
+/// The result of a pipeline that runs no step: one synthetic failed step at index -1, as
+/// TypeScript reports it.
+Json pipeline_failure(const CommandError& error) {
+    return json_tool_result(Json{{"metadata",
+                                  {{"confidence", 0},
+                                   {"confidenceBreakdown", Json::array()},
+                                   {"reasoning", Json::array()},
+                                   {"warnings", Json::array()},
+                                   {"sources", Json::array()},
+                                   {"alternatives", Json::array()},
+                                   {"executionTimeMs", 0},
+                                   {"completedSteps", 0},
+                                   {"totalSteps", 0}}},
+                                 {"steps", Json::array({Json{{"index", -1},
+                                                             {"command", ""},
+                                                             {"status", "failure"},
+                                                             {"executionTimeMs", 0},
+                                                             {"error", Json(error)}}})}},
+                            true);
+}
+
+/// A meta-tool argument's value, or `null` when absent.
+Json member(const Json& object, std::string_view key) {
+    if (!object.is_object()) {
+        return nullptr;
+    }
+    const auto found = object.find(std::string(key));
+    return found != object.end() ? *found : Json();
 }
 
 /// The answers one `tools/call` carries: the questions asked last round (`pending`), those
@@ -299,6 +369,20 @@ struct StdioServer::State {
                            " is an AFD server. Every tool returns a CommandResult as JSON text: "
                            "{ success, data, error: { code, message, suggestion } }; follow "
                            "error.suggestion to recover.";
+        switch (options.tool_strategy) {
+        case ToolStrategy::lazy:
+            text += " Call afd-discover to find commands, afd-detail for a command schema, and "
+                    "afd-call to run one.";
+            break;
+        case ToolStrategy::grouped:
+            text += " Each tool groups related commands: pass { action, params }. afd-detail "
+                    "returns a command schema; afd-call runs any command by name.";
+            break;
+        case ToolStrategy::individual:
+            text += " Each command is its own tool; afd-call also runs any command by name.";
+            break;
+        }
+        text += " Use afd-batch for several independent commands and afd-pipe to chain them.";
         // With the bootstrap commands (afd::register_bootstrap_commands), as Rust: all three
         // registered and exposed to MCP.
         const bool bootstrap = std::all_of(
@@ -390,27 +474,95 @@ struct StdioServer::State {
                    command.contexts.end();
     }
 
+    /// Whether a command's tool advertises the `confirm` acknowledgement.
+    [[nodiscard]] bool accepts_confirm(const CommandDefinition& command) const {
+        return options.confirmations == ConfirmationMode::enforce && command.confirm_prompt &&
+               !declares_confirm_input(command);
+    }
+
+    /// The command tool of `command`, as the individual strategy lists it.
+    [[nodiscard]] Json command_tool(const CommandDefinition& command) const {
+        Json tool = command_to_mcp_tool(command);
+        if (accepts_confirm(command)) {
+            Json& schema = tool["inputSchema"];
+            if (!schema.is_object()) {
+                schema = Json{{"type", "object"}};
+            }
+            schema["properties"]["confirm"] = confirm_property();
+        }
+        if (options.advertise_output_schema && command.output_schema) {
+            tool["outputSchema"] = command_result_output_schema(*command.output_schema);
+        }
+        return tool;
+    }
+
+    /// The commands exposed to MCP and available in `active`, in registration order.
+    [[nodiscard]] std::vector<std::shared_ptr<const RegisteredCommand>>
+    callable(const std::optional<std::string>& active) const {
+        std::vector<std::shared_ptr<const RegisteredCommand>> commands;
+        for (auto& command : registry.list_by_exposure(Interface::mcp)) {
+            if (in_context(command->definition, active)) {
+                commands.push_back(std::move(command));
+            }
+        }
+        return commands;
+    }
+
+    /// `commands` with their command tools. The definitions stay owned by `commands`.
+    [[nodiscard]] std::vector<surface::Listed>
+    listed(const std::vector<std::shared_ptr<const RegisteredCommand>>& commands) const {
+        std::vector<surface::Listed> out;
+        for (const auto& command : commands) {
+            out.push_back({.command = &command->definition,
+                           .tool = command_tool(command->definition),
+                           .accepts_confirm = accepts_confirm(command->definition)});
+        }
+        return out;
+    }
+
+    /// The grouped tool name of `command`.
+    [[nodiscard]] std::string group_of(const CommandDefinition& command) const {
+        if (options.group_by) {
+            auto group = options.group_by(command);
+            return group && !group->empty() ? *group : std::string("general");
+        }
+        return surface::default_command_group(command);
+    }
+
     [[nodiscard]] Json tools(const std::optional<std::string>& active = std::nullopt) const {
         Json tools = Json::array();
-        for (const auto& command : registry.list_by_exposure(Interface::mcp)) {
-            if (!in_context(command->definition, active)) {
-                continue;
+        if (options.tool_strategy == ToolStrategy::lazy) {
+            for (const auto* name :
+                 {"afd-discover", "afd-detail", "afd-batch", "afd-pipe", "afd-call"}) {
+                tools.push_back(surface::meta_tool(name));
             }
-            Json tool = command_to_mcp_tool(command->definition);
-            if (options.confirmations == ConfirmationMode::enforce &&
-                command->definition.confirm_prompt &&
-                !declares_confirm_input(command->definition)) {
-                Json& schema = tool["inputSchema"];
-                if (!schema.is_object()) {
-                    schema = Json{{"type", "object"}};
-                }
-                schema["properties"]["confirm"] = confirm_property();
+            return tools;
+        }
+        for (const auto* name : {"afd-batch", "afd-pipe", "afd-call"}) {
+            tools.push_back(surface::meta_tool(name));
+        }
+        const auto commands = callable(active);
+        const auto entries = listed(commands);
+        if (options.tool_strategy == ToolStrategy::individual) {
+            for (const auto& entry : entries) {
+                tools.push_back(entry.tool);
             }
-            if (options.advertise_output_schema && command->definition.output_schema) {
-                tool["outputSchema"] =
-                    command_result_output_schema(*command->definition.output_schema);
+            return tools;
+        }
+        tools.push_back(surface::meta_tool("afd-detail"));
+        std::vector<std::pair<std::string, std::vector<const surface::Listed*>>> groups;
+        for (const auto& entry : entries) {
+            const std::string group = group_of(*entry.command);
+            auto it = std::find_if(groups.begin(), groups.end(),
+                                   [&](const auto& existing) { return existing.first == group; });
+            if (it == groups.end()) {
+                groups.emplace_back(group, std::vector<const surface::Listed*>{&entry});
+            } else {
+                it->second.push_back(&entry);
             }
-            tools.push_back(std::move(tool));
+        }
+        for (const auto& [group, members] : groups) {
+            tools.push_back(surface::grouped_tool(group, members));
         }
         return tools;
     }
@@ -532,6 +684,9 @@ struct StdioServer::State {
         // The server's: what the request named, or the connection's stack. The registry runs the
         // call in the scope's active context.
         context.context_scope = scope;
+        // A remote caller: an unexposed command is an unknown one (D4).
+        context.remote = true;
+        context.tool_strategy = std::string(tool_strategy_name(options.tool_strategy));
         return context;
     }
 
@@ -539,7 +694,8 @@ struct StdioServer::State {
     /// `bound` is the validated input when the arguments are valid, the arguments otherwise.
     Attempt attempt(const std::string& name, const Json& arguments, const Json& bound, bool valid,
                     const CommandContext& base, const RegisteredCommand* command, bool gated,
-                    bool acknowledged, bool can_elicit, Round& round, std::string_view binding) {
+                    bool acknowledged, bool can_elicit, Round& round, std::string_view binding,
+                    std::string_view how) {
         const std::int64_t at = now();
         // Invalid input is never confirmed: the registry answers VALIDATION_ERROR instead.
         if (gated && !acknowledged && valid) {
@@ -570,9 +726,10 @@ struct StdioServer::State {
                                 confirm_schema(), Json{{"k", "confirm"}, {"q", question}},
                                 round.accepted, binding)};
                 } else {
-                    return {.complete = tool_result(confirmation_required(
-                                name, *command->definition.confirm_prompt, options.confirmations)),
-                            .input_required = std::nullopt};
+                    return {
+                        .complete = tool_result(confirmation_required(
+                            name, *command->definition.confirm_prompt, options.confirmations, how)),
+                        .input_required = std::nullopt};
                 }
             }
         }
@@ -631,49 +788,21 @@ struct StdioServer::State {
         return {.complete = tool_result(result), .input_required = std::nullopt};
     }
 
-    Json call_tool(const Json& params, const RequestInfo& info, const ClientRequester& ask,
-                   const CancellationToken& cancellation,
-                   const std::shared_ptr<const ContextScope>& scope) {
-        const std::string name =
-            params.is_object() && params.contains("name") && params["name"].is_string()
-                ? params["name"].get<std::string>()
-                : "";
-        // Missing or null arguments mean an empty input, as MCP clients send.
-        Json arguments = Json::object();
-        if (params.is_object()) {
-            if (const auto it = params.find("arguments"); it != params.end() && !it->is_null()) {
-                arguments = *it;
-            }
-        }
-
-        const auto command = registry.get(name);
-        const bool exposed =
-            command != nullptr && is_exposed_to(command->definition.expose, Interface::mcp);
-        // A command outside the active context is refused before anyone is asked.
-        const bool gated = exposed && in_context(command->definition, info.active_context) &&
-                           options.confirmations != ConfirmationMode::off &&
+    /// A call that routes to the one command `name` with `arguments` as its input: the
+    /// confirmation gate, then the approval relay, asked in turn. `command` is the exposed command
+    /// in the active context, or null (the registry then answers the name). `how` is the tool's
+    /// way to acknowledge a confirmation.
+    Json single(const std::string& name, const Json& arguments, const RegisteredCommand* command,
+                bool acknowledged, std::string_view how, const Json& params,
+                const RequestInfo& info, const ClientRequester& ask,
+                const CommandContext& context) {
+        const bool gated = command != nullptr && options.confirmations != ConfirmationMode::off &&
                            command->definition.confirm_prompt.has_value();
-        bool acknowledged = false;
-        if (gated) {
-            bool confirm_argument = false;
-            if (arguments.is_object() && arguments.contains("confirm")) {
-                confirm_argument = is_true(arguments, "confirm");
-                // The acknowledgement is the server's, so the command's schema never sees it,
-                // unless the command declares a `confirm` of its own.
-                if (!declares_confirm_input(command->definition)) {
-                    arguments.erase("confirm");
-                }
-            }
-            acknowledged = options.confirmations == ConfirmationMode::enforce &&
-                           (confirm_argument || is_true(info.meta, confirm_meta_key));
-        }
-
-        const CommandContext context = call_context(info, cancellation, scope);
         // Questions and their state bind the validated input, as the person decides on exactly
         // what will run: defaults filled in and undeclared members removed.
         Json bound = arguments;
         bool valid = false;
-        if (exposed) {
+        if (command != nullptr) {
             if (auto validated = command->input_schema.validate(arguments)) {
                 bound = std::move(*validated);
                 valid = true;
@@ -685,9 +814,8 @@ struct StdioServer::State {
         Round round = info.modern ? modern_round(params, binding) : Round{};
 
         for (int rounds = 0;; ++rounds) {
-            Attempt next =
-                attempt(name, arguments, bound, valid, context, exposed ? command.get() : nullptr,
-                        gated, acknowledged, can_elicit, round, binding);
+            Attempt next = attempt(name, arguments, bound, valid, context, command, gated,
+                                   acknowledged, can_elicit, round, binding, how);
             if (next.complete) {
                 return std::move(*next.complete);
             }
@@ -703,12 +831,8 @@ struct StdioServer::State {
             Json responses = Json::object();
             for (const auto& [key_name, request] :
                  (*next.input_required)["inputRequests"].items()) {
-                Json sent = request;
-                if (info.protocol_version < elicitation_mode_version) {
-                    sent["params"].erase("mode");
-                }
-                const auto answer = ask(sent);
-                if (!answer || !answer->is_object()) {
+                const auto answer = ask_in_band(request, info, ask);
+                if (!answer) {
                     // Cancelled (serve sends no reply then), or the client went away, timed out
                     // or answered with an error: nobody declined, so do not say so.
                     return tool_result(unanswered(key_name, name,
@@ -722,7 +846,490 @@ struct StdioServer::State {
         }
     }
 
+    /// Sends an `inputRequests` entry to a 2025 client in band; its answer, or nothing.
+    static std::optional<Json> ask_in_band(const Json& request, const RequestInfo& info,
+                                           const ClientRequester& ask) {
+        Json sent = request;
+        if (info.protocol_version < elicitation_mode_version) {
+            sent["params"].erase("mode");
+        }
+        auto answer = ask(sent);
+        if (!answer || !answer->is_object()) {
+            return std::nullopt;
+        }
+        return answer;
+    }
+
+    /// The exposed command `name` when it is available in the active context, else null.
+    [[nodiscard]] std::shared_ptr<const RegisteredCommand> routable(std::string_view name,
+                                                                    const RequestInfo& info) const {
+        auto command = registry.get(name);
+        if (!command || !is_exposed_to(command->definition.expose, Interface::mcp) ||
+            !in_context(command->definition, info.active_context)) {
+            return nullptr;
+        }
+        return command;
+    }
+
+    [[nodiscard]] bool acknowledges(const Json& flag, const RequestInfo& info) const {
+        return options.confirmations == ConfirmationMode::enforce &&
+               ((flag.is_boolean() && flag.get<bool>()) || is_true(info.meta, confirm_meta_key));
+    }
+
+    /// A call to a command's own tool, in any strategy.
+    Json direct(const std::string& name, Json arguments, const Json& params,
+                const RequestInfo& info, const ClientRequester& ask,
+                const CommandContext& context) {
+        const auto command = routable(name, info);
+        // A command outside the active context, unknown or unexposed, is answered by the registry
+        // before anyone is asked.
+        bool acknowledged = false;
+        if (command && options.confirmations != ConfirmationMode::off &&
+            command->definition.confirm_prompt && arguments.is_object() &&
+            arguments.contains("confirm")) {
+            acknowledged = acknowledges(arguments["confirm"], info);
+            // The acknowledgement is the server's, so the command's schema never sees it, unless
+            // the command declares a `confirm` of its own.
+            if (!declares_confirm_input(command->definition)) {
+                arguments.erase("confirm");
+            }
+        } else if (command) {
+            acknowledged = acknowledges(Json(), info);
+        }
+        return single(name, arguments, command.get(), acknowledged,
+                      "repeat the call with confirm: true", params, info, ask, context);
+    }
+
+    Json afd_call(const Json& arguments, const Json& params, const RequestInfo& info,
+                  const ClientRequester& ask, const CommandContext& context) {
+        auto parsed = surface::parse_meta_args(
+            "afd-call", arguments, "Provide { command: \"command-name\", input: {...} }");
+        if (!parsed) {
+            return tool_result(failure(parsed.error()));
+        }
+        const std::string name = (*parsed)["command"].get<std::string>();
+        const Json input = parsed->contains("input") && !(*parsed)["input"].is_null()
+                               ? (*parsed)["input"]
+                               : Json::object();
+        const auto command = routable(name, info);
+        if (!command) {
+            // Unknown, unexposed (D4) or outside the active context: the registry's answer.
+            return tool_result(registry.execute(name, input, context));
+        }
+        return single(name, input, command.get(), acknowledges(member(*parsed, "confirm"), info),
+                      "repeat the afd-call with confirm: true", params, info, ask, context);
+    }
+
+    /// A grouped tool call; `std::nullopt` when `name` is not a group.
+    std::optional<Json> grouped(const std::string& name, const Json& arguments, const Json& params,
+                                const RequestInfo& info, const ClientRequester& ask,
+                                const CommandContext& context) {
+        std::vector<std::shared_ptr<const RegisteredCommand>> members;
+        for (auto& command : registry.list_by_exposure(Interface::mcp)) {
+            if (group_of(command->definition) == name) {
+                members.push_back(std::move(command));
+            }
+        }
+        if (members.empty()) {
+            return std::nullopt;
+        }
+        const Json action = member(arguments, "action");
+        if (!action.is_string() || action.get_ref<const std::string&>().empty()) {
+            // The actions the caller is shown: those of the active context.
+            std::string actions;
+            for (const auto& command : members) {
+                if (in_context(command->definition, info.active_context)) {
+                    actions += (actions.empty() ? "" : ", ") +
+                               surface::command_action(command->definition);
+                }
+            }
+            return tool_result(failure(create_error(
+                error_codes::INVALID_GROUPED_CALL,
+                "Grouped tool '" + name + "' requires an 'action' parameter",
+                {.suggestion = "Provide { action: \"<action>\", params: {...} }. Available "
+                               "actions: " +
+                               actions})));
+        }
+        const auto& wanted = action.get_ref<const std::string&>();
+        std::vector<std::shared_ptr<const RegisteredCommand>> candidates;
+        for (const auto& command : members) {
+            if (surface::command_action(command->definition) == wanted) {
+                candidates.push_back(command);
+            }
+        }
+        if (candidates.size() != 1) {
+            return tool_result(failure(create_error(
+                candidates.empty() ? error_codes::COMMAND_NOT_FOUND : error_codes::AMBIGUOUS_ACTION,
+                "Action '" + truncate_name(wanted) + "' does not identify one command in group '" +
+                    truncate_name(name) + "'",
+                {.suggestion = "Use afd-call with the full command name, or list tools to find a "
+                               "valid action."})));
+        }
+        const auto& command = candidates.front();
+        const Json found = member(arguments, "params");
+        const Json input = found.is_null() ? Json::object() : found;
+        if (!in_context(command->definition, info.active_context)) {
+            return tool_result(registry.execute(command->definition.name, input, context));
+        }
+        return single(command->definition.name, input, command.get(),
+                      acknowledges(member(arguments, "confirm"), info),
+                      "repeat the " + name + " call with confirm: true", params, info, ask,
+                      context);
+    }
+
+    Json afd_discover(const Json& arguments, const RequestInfo& info) {
+        auto parsed = surface::parse_meta_args(
+            "afd-discover", arguments,
+            "Provide optional { category, tag, tagMode, search, includeMutation, limit, offset }");
+        if (!parsed) {
+            return tool_result(failure(parsed.error()));
+        }
+        const auto commands = callable(info.active_context);
+        std::vector<const CommandDefinition*> definitions;
+        for (const auto& command : commands) {
+            definitions.push_back(&command->definition);
+        }
+        return tool_result(surface::discover(definitions, *parsed));
+    }
+
+    Json afd_detail(const Json& arguments, const RequestInfo& info) {
+        auto parsed = surface::parse_meta_args(
+            "afd-detail", arguments,
+            "Provide { command: \"command-name\" } or { command: [\"name-1\", \"name-2\"] } (max "
+            "10)");
+        if (!parsed) {
+            return tool_result(failure(parsed.error()));
+        }
+        const auto commands = callable(info.active_context);
+        const auto entries = listed(commands);
+        std::vector<const surface::Listed*> pointers;
+        std::vector<std::string> names;
+        for (const auto& entry : entries) {
+            pointers.push_back(&entry);
+            names.push_back(entry.command->name);
+        }
+        return tool_result(surface::detail(pointers, *parsed, [&](std::string_view name) {
+            return not_found_suggestion(name, names, true);
+        }));
+    }
+
+    /// What the confirmation gate decided for a batch or pipeline.
+    struct StepsDecision {
+        enum class Kind { proceed, refuse, ask } kind = Kind::proceed;
+        std::optional<CommandError> error;
+        Json response;
+    };
+
+    /// The confirmation gate of a batch or pipeline (`tool`, sent as `request`): it asks once,
+    /// before any step runs, for every gated step (an exposed command with a `confirm_prompt`),
+    /// listing them all. `acknowledged` holds the `confirm` names.
+    StepsDecision confirm_steps(std::string_view tool, const Json& request,
+                                const std::vector<std::pair<std::string, Json>>& steps,
+                                const std::set<std::string>& acknowledged, std::string_view how,
+                                const Json& params, const RequestInfo& info,
+                                const ClientRequester& ask, const CommandContext& context) {
+        using Kind = StepsDecision::Kind;
+        if (options.confirmations == ConfirmationMode::off) {
+            return {};
+        }
+        std::vector<std::pair<const std::pair<std::string, Json>*, std::string>> gated;
+        std::vector<std::string> names;
+        for (const auto& step : steps) {
+            // Every exposed command, whatever the active context: an earlier step can change a
+            // 2025 connection's context (afd-context-enter) before a later one runs.
+            const auto command = registry.get(step.first);
+            if (command && is_exposed_to(command->definition.expose, Interface::mcp) &&
+                command->definition.confirm_prompt) {
+                gated.emplace_back(&step, *command->definition.confirm_prompt);
+                if (std::find(names.begin(), names.end(), step.first) == names.end()) {
+                    names.push_back(step.first);
+                }
+            }
+        }
+        if (gated.empty()) {
+            return {};
+        }
+        // The question binds the gated commands and their input as sent; the state binds the
+        // caller and the whole request.
+        Json gated_steps = Json::array();
+        for (const auto& [step, prompt] : gated) {
+            gated_steps.push_back(Json::array({step->first, step->second}));
+        }
+        const std::string question =
+            detail::base64url_encode(detail::sha256(canonical(gated_steps)));
+        const std::string binding = state_binding(context.actor, tool, request);
+        const std::int64_t at = now();
+        const Round round = info.modern ? modern_round(params, binding) : Round{};
+        for (const auto& entry : round.accepted) {
+            if (live(entry, "confirm", at) && string_member(entry, "q") == question) {
+                return {};
+            }
+        }
+        for (const auto& entry : round.pending) {
+            if (live(entry, "confirm", at) && string_member(entry, "q") == question) {
+                const Response answer = response_to(round, confirm_input_key, "confirm");
+                if (answer == Response::decline) {
+                    return {.kind = Kind::refuse, .error = declined_error(names), .response = {}};
+                }
+                if (answer == Response::accept) {
+                    return {};
+                }
+            }
+        }
+        if (options.confirmations == ConfirmationMode::enforce &&
+            (is_true(info.meta, confirm_meta_key) ||
+             std::all_of(names.begin(), names.end(),
+                         [&](const std::string& name) { return acknowledged.count(name) > 0; }))) {
+            return {};
+        }
+        const bool can_elicit = declares_form_elicitation(info.client_capabilities) &&
+                                (info.modern || static_cast<bool>(ask));
+        if (can_elicit) {
+            std::string message;
+            if (gated.size() == 1) {
+                message = gated.front().second;
+            } else {
+                message = "This request runs commands that need confirmation:";
+                for (const auto& [step, prompt] : gated) {
+                    message += "\n- " + step->first + ": " + prompt;
+                }
+            }
+            Json asked =
+                input_required(confirm_input_key, message, confirm_schema(),
+                               Json{{"k", "confirm"}, {"q", question}}, round.accepted, binding);
+            if (info.modern) {
+                return {.kind = Kind::ask, .error = std::nullopt, .response = std::move(asked)};
+            }
+            const auto answer =
+                ask_in_band(asked["inputRequests"][std::string(confirm_input_key)], info, ask);
+            if (answer) {
+                if (string_member(*answer, "action") == "accept" &&
+                    is_true(object_member(*answer, "content"), "confirm")) {
+                    return {};
+                }
+                return {.kind = Kind::refuse, .error = declined_error(names), .response = {}};
+            }
+            // Cancelled, or the client went away, timed out or answered with an error: nobody
+            // declined, so do not say so.
+            return {.kind = Kind::refuse,
+                    .error =
+                        *unanswered(confirm_input_key, names.front(), gated.front().second).error,
+                    .response = {}};
+        }
+        std::string message;
+        if (gated.size() == 1 || names.size() == 1) {
+            message = "'" + names.front() + "' needs confirmation: " + gated.front().second;
+        } else {
+            message = quoted(names) + " need confirmation";
+        }
+        return {.kind = Kind::refuse,
+                .error = required_error(std::move(message), names, options.confirmations, how),
+                .response = {}};
+    }
+
+    /// The `confirm` names of a batch or pipeline, or nothing when `confirm` is not a string array.
+    static std::optional<std::set<std::string>> confirm_names(const Json& arguments) {
+        std::set<std::string> names;
+        const Json value = member(arguments, "confirm");
+        if (value.is_null()) {
+            return names;
+        }
+        if (!value.is_array()) {
+            return std::nullopt;
+        }
+        for (const auto& name : value) {
+            if (!name.is_string()) {
+                return std::nullopt;
+            }
+            names.insert(name.get<std::string>());
+        }
+        return names;
+    }
+
+    /// The context of a batch's or pipeline's steps. When the request could carry a form
+    /// elicitation, a relay that no command can claim, so the approval middleware tells the agent
+    /// to call the command on its own.
+    CommandContext step_context(const CommandContext& context, const RequestInfo& info,
+                                const ClientRequester& ask) const {
+        CommandContext steps = context;
+        if (declares_form_elicitation(info.client_capabilities) &&
+            (info.modern || static_cast<bool>(ask))) {
+            steps.mcp_approval_relay =
+                std::make_shared<detail::McpApprovalRelay>(std::string(), nullptr);
+        }
+        return steps;
+    }
+
+    Json afd_batch(const Json& arguments, const Json& params, const RequestInfo& info,
+                   const ClientRequester& ask, const CommandContext& context) {
+        const auto invalid = [this](std::optional<Json> details = std::nullopt) {
+            return batch_failure(create_error(error_codes::INVALID_BATCH_REQUEST,
+                                              "Invalid batch request envelope",
+                                              {.suggestion = "Provide { commands: [...] } with "
+                                                             "command objects",
+                                               .details = std::move(details)}),
+                                 now());
+        };
+        const auto acknowledged = confirm_names(arguments);
+        if (!arguments.is_object() || !acknowledged) {
+            return invalid();
+        }
+        // `context` is not an afd-batch argument: declared context fields come only from _meta.
+        Json request = arguments;
+        request.erase("confirm");
+        request.erase("context");
+        auto parsed = parse_batch_request(request);
+        if (!parsed) {
+            return invalid(parsed.error().details);
+        }
+        std::vector<std::pair<std::string, Json>> steps;
+        for (auto& item : parsed->commands) {
+            // A missing or null input is an empty one, as on a command's own tool.
+            if (!item.input || item.input->is_null()) {
+                item.input = Json::object();
+            }
+            steps.emplace_back(item.command, item.input.value_or(Json::object()));
+        }
+        auto decision = confirm_steps("afd-batch", request, steps, *acknowledged,
+                                      "repeat the afd-batch with confirm: [the command names]",
+                                      params, info, ask, context);
+        if (decision.kind == StepsDecision::Kind::ask) {
+            return std::move(decision.response);
+        }
+        if (decision.kind == StepsDecision::Kind::refuse) {
+            return batch_failure(std::move(*decision.error), now());
+        }
+        const BatchResult result =
+            registry.execute_batch(*parsed, step_context(context, info, ask));
+        return json_tool_result(Json(result), !result.success);
+    }
+
+    Json afd_pipe(const Json& arguments, const Json& params, const RequestInfo& info,
+                  const ClientRequester& ask, const CommandContext& context) {
+        const auto invalid = [](std::optional<Json> details = std::nullopt) {
+            return pipeline_failure(create_error(
+                error_codes::INVALID_PIPELINE_REQUEST, "Invalid pipeline request envelope",
+                {.suggestion = "Provide steps with nonempty command names, object inputs, valid "
+                               "conditions, and correctly typed options; input must be JSON",
+                 .details = std::move(details)}));
+        };
+        const auto acknowledged = confirm_names(arguments);
+        if (!arguments.is_object() || !acknowledged) {
+            return invalid();
+        }
+        Json request = arguments;
+        request.erase("confirm");
+        auto parsed = parse_pipeline_request(request);
+        if (!parsed) {
+            return invalid(parsed.error().details);
+        }
+        std::vector<std::pair<std::string, Json>> steps;
+        for (const auto& step : parsed->steps) {
+            steps.emplace_back(step.command, step.input.value_or(Json::object()));
+        }
+        auto decision = confirm_steps("afd-pipe", request, steps, *acknowledged,
+                                      "repeat the afd-pipe with confirm: [the command names]",
+                                      params, info, ask, context);
+        if (decision.kind == StepsDecision::Kind::ask) {
+            return std::move(decision.response);
+        }
+        if (decision.kind == StepsDecision::Kind::refuse) {
+            return pipeline_failure(*decision.error);
+        }
+        const PipelineResult result =
+            registry.execute_pipeline(*parsed, step_context(context, info, ask));
+        const bool failed =
+            std::any_of(result.steps.begin(), result.steps.end(),
+                        [](const StepResult& step) { return step.status == StepStatus::failure; });
+        return json_tool_result(Json(result), failed);
+    }
+
+    Json call_tool(const Json& params, const RequestInfo& info, const ClientRequester& ask,
+                   const CancellationToken& cancellation,
+                   const std::shared_ptr<const ContextScope>& scope) {
+        const std::string name =
+            params.is_object() && params.contains("name") && params["name"].is_string()
+                ? params["name"].get<std::string>()
+                : "";
+        // Missing or null arguments mean an empty input, as MCP clients send.
+        Json arguments = Json::object();
+        if (params.is_object()) {
+            if (const auto it = params.find("arguments"); it != params.end() && !it->is_null()) {
+                arguments = *it;
+            }
+        }
+        const CommandContext context = call_context(info, cancellation, scope);
+        // 1. A meta-tool, whether or not the strategy lists it.
+        if (name == "afd-call") {
+            return afd_call(arguments, params, info, ask, context);
+        }
+        if (name == "afd-batch") {
+            return afd_batch(arguments, params, info, ask, context);
+        }
+        if (name == "afd-pipe") {
+            return afd_pipe(arguments, params, info, ask, context);
+        }
+        if (name == "afd-discover") {
+            return afd_discover(arguments, info);
+        }
+        if (name == "afd-detail") {
+            return afd_detail(arguments, info);
+        }
+        // 2. Under `grouped`, a grouped tool.
+        if (options.tool_strategy == ToolStrategy::grouped) {
+            if (auto result = grouped(name, arguments, params, info, ask, context)) {
+                return std::move(*result);
+            }
+        }
+        // 3. A command by its own name.
+        return direct(name, std::move(arguments), params, info, ask, context);
+    }
+
     // --- dispatch -----------------------------------------------------------------------------
+
+    /// Moves a meta-tool's `meta` argument into `info.meta`: its `dev.afd/context`, the one key a
+    /// C++ server reads from `_meta` that a client may be unable to set. Other keys are dropped,
+    /// as undeclared `_meta` keys are. A failure when `meta` is not an object, or disagrees with
+    /// `_meta`.
+    static std::optional<CommandResult> lift_meta_argument(Json& params, RequestInfo& info) {
+        const std::string tool = string_member(params, "name");
+        const bool meta_tool =
+            std::find(std::begin(afd_meta_tool_names), std::end(afd_meta_tool_names), tool) !=
+            std::end(afd_meta_tool_names);
+        if (!meta_tool || !params.contains("arguments") || !params["arguments"].is_object() ||
+            !params["arguments"].contains("meta")) {
+            return std::nullopt;
+        }
+        Json& arguments = params["arguments"];
+        const Json argument = arguments["meta"];
+        arguments.erase("meta");
+        if (argument.is_null()) {
+            return std::nullopt;
+        }
+        const std::string context_key(context_meta_key);
+        if (!argument.is_object()) {
+            return failure(create_error(
+                error_codes::VALIDATION_ERROR,
+                "The meta argument of " + tool + " must be an object",
+                {.suggestion = "Send meta as an object whose keys are _meta keys: " + context_key,
+                 .details = Json{{"argument", "meta"}}}));
+        }
+        const auto value = argument.find(context_key);
+        if (value == argument.end() || value->is_null()) {
+            return std::nullopt;
+        }
+        const auto sent = info.meta.find(context_key);
+        if (sent != info.meta.end() && !sent->is_null() && *sent != *value) {
+            return failure(create_error(
+                error_codes::VALIDATION_ERROR,
+                "_meta[\"" + context_key + "\"] and the meta argument of " + tool + " disagree",
+                {.suggestion = "Send " + context_key +
+                               " in _meta or in the meta argument, or the same " + "value in both",
+                 .details = Json{{"meta", context_key}}}));
+        }
+        info.meta[context_key] = *value;
+        return std::nullopt;
+    }
 
     std::optional<std::string> handle(std::string_view line, const ClientRequester& ask,
                                       const CancellationToken& cancellation) {
@@ -789,6 +1396,15 @@ struct StdioServer::State {
         if (method == "ping" && !modern) {
             return response(id, Json::object()); // removed in 2026-07-28
         }
+        // A meta-tool's `meta` argument counts as `_meta` from here on (TypeScript's
+        // `liftMetaArgument`), so it can name the active context.
+        Json routed = params;
+        if (method == "tools/call") {
+            if (auto refused = lift_meta_argument(routed, info)) {
+                Json result = tool_result(*refused);
+                return response(id, modern ? modern_result(std::move(result)) : std::move(result));
+            }
+        }
         std::shared_ptr<const ContextScope> scope;
         if (method == "tools/list" || method == "tools/call") {
             auto requested = request_scope(info);
@@ -812,12 +1428,24 @@ struct StdioServer::State {
         }
         if (method == "tools/call") {
             Json result =
-                call_tool(params, info, modern ? ClientRequester{} : ask, cancellation, scope);
+                call_tool(routed, info, modern ? ClientRequester{} : ask, cancellation, scope);
             return response(id, modern ? modern_result(std::move(result)) : std::move(result));
         }
         return error_response(id, -32601, "Method not found: " + method);
     }
 };
+
+std::string_view tool_strategy_name(ToolStrategy strategy) noexcept {
+    switch (strategy) {
+    case ToolStrategy::individual:
+        return "individual";
+    case ToolStrategy::lazy:
+        return "lazy";
+    case ToolStrategy::grouped:
+        break;
+    }
+    return "grouped";
+}
 
 Expected<std::unique_ptr<StdioServer>> StdioServer::create(const CommandRegistry& registry,
                                                            StdioServerOptions options) {
