@@ -39,9 +39,7 @@ explains why the hybrid exists and records the owner's decisions it follows.
 | `ttlMs` | `toolsListTtlMs` | `tools_list_ttl_ms` | `with_tools_list_ttl_ms` | `StdioServerOptions::tools_list_ttl_ms` |
 | Hybrid first-class set | `firstClassTools` | `first_class_tools` | `with_first_class_tools` | Planned |
 
-C++'s `afd::mcp_stdio` serves the individual, grouped and lazy strategies, with the earlier lists
-until its [#533](https://github.com/lushly-dev/afd/issues/533) step ([Alignment](#alignment-533));
-the hybrid strategy is [#1202](https://github.com/lushly-dev/afd/issues/1202).
+C++'s `afd::mcp_stdio` serves the individual, grouped and lazy strategies; the hybrid strategy is [#1202](https://github.com/lushly-dev/afd/issues/1202).
 
 ## Tool lists
 
@@ -170,12 +168,12 @@ lists above in its own step; until then, its earlier list stays conforming.
 
 | | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| The five meta-tools first, in the hybrid order, in every strategy | Yes | Planned | Planned | Planned |
-| `lazy`: the meta-tools and the context tools | Yes | Planned | Planned | Planned |
+| The five meta-tools first, in the hybrid order, in every strategy | Yes | Planned | Yes | Yes |
+| `lazy`: the meta-tools and the context tools | Yes | Planned | Yes | Yes |
 | `grouped`: groups in order of first command, `_meta.actions` | Yes | Planned | Yes | Yes |
 | Meta-tool definitions equal [`meta-tools.json`](./meta-tools.json) | Yes | Planned | Yes | Yes |
 | Default strategy `grouped` | Yes | Planned (`individual` today) | Yes | Yes |
-| `lazy` keeps the default `ttlMs` under contexts | Yes | Planned | Planned | Planned |
+| `lazy` keeps the default `ttlMs` under contexts | Yes | Planned | Yes | Yes |
 
 The hybrid strategy was already the same in every language.
 
@@ -364,9 +362,9 @@ name, which every strategy serves, so it does not change.
 
 | Strategy | TypeScript | Python | Rust | C++ |
 | --- | --- | --- | --- | --- |
-| `individual` | Yes | Yes (the default), the earlier list ([Alignment](#alignment-533)) | Yes, the earlier list | Yes, the earlier list |
-| `grouped` | Yes (the default) | Yes, the earlier list ([Alignment](#alignment-533)) | Yes (the default), the earlier list | Yes (the default), the earlier list |
-| `lazy` | Yes | Yes, the earlier list ([Alignment](#alignment-533)) | Yes, the earlier list | Yes, the earlier list |
+| `individual` | Yes | Yes (the default), the earlier list ([Alignment](#alignment-533)) | Yes | Yes |
+| `grouped` | Yes (the default) | Yes, the earlier list ([Alignment](#alignment-533)) | Yes (the default) | Yes (the default) |
+| `lazy` | Yes | Yes, the earlier list ([Alignment](#alignment-533)) | Yes | Yes |
 | `hybrid` | Yes | Yes (`create_server(tool_strategy="hybrid", first_class_tools=[...])`) | Yes (`McpServer::with_tool_strategy(ToolStrategy::Hybrid)` and `with_first_class_tools`) | Planned |
 | `afd-help` `toolStrategy`, `firstClassTools`, `firstClass` | Yes | Yes | Yes | `toolStrategy` only; the hybrid fields with #1202 |
 | Loads [`tool-strategies.json`](./tool-strategies.json) | Yes (`hybrid-tools.test.ts`) | Yes (`python/tests/test_hybrid_tool_strategy.py`) | Yes (`packages/rust/tests/server_hybrid.rs`) | Planned |

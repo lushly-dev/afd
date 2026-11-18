@@ -228,10 +228,11 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
     assert_eq!(
         names,
         [
+            "afd-discover",
+            "afd-detail",
+            "afd-call",
             "afd-batch",
             "afd-pipe",
-            "afd-call",
-            "afd-detail",
             "todo",
             "bootstrap"
         ]
@@ -246,7 +247,7 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
     };
     // The context commands, then the bootstrap commands, as TypeScript orders them.
     assert_eq!(
-        commands_of(&tools[5]),
+        commands_of(&tools[6]),
         [
             "afd-context-list",
             "afd-context-enter",
@@ -256,7 +257,7 @@ async fn tools_list_shows_only_exposed_commands_with_their_schemas() {
             "afd-schema",
         ]
     );
-    let actions = tools[4]["_meta"]["actions"].as_array().expect("actions");
+    let actions = tools[5]["_meta"]["actions"].as_array().expect("actions");
     let commands: Vec<&str> = actions
         .iter()
         .filter_map(|action| action["command"].as_str())
